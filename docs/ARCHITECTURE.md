@@ -107,6 +107,20 @@ Priorität für Aktivitätsquellen:
 - Health Connect Import: manuell oder periodisch, wenn erlaubt
 - UsageStats Import: nur lokal und nach Sonderberechtigung
 
+## Architektur-Check vor M2
+
+Der Datenentwurf wurde vor M2 nochmals geprüft. Ergebnis: Die Trennung zwischen Rohsignalen, Kandidaten, bestätigten Sessions, aggregierten Statistiken und Ziel-/Habit-Fortschritt ist zwingend und wird beibehalten.
+
+Zusätzliche Festlegungen:
+
+- `raw_detection_event` bleibt unveränderter Audit Trail.
+- `activity_session` ist die Nutzerwahrheit, aber mit Status `CANDIDATE`, `CONFIRMED`, `DISMISSED`.
+- Aggregierte Statistiken werden nicht als Ersatz für Rohdaten genutzt, sondern als Performance-Cache.
+- Langfristige Analysen über Jahre nutzen Indizes und später Tages-/Wochen-/Monats-Aggregationstabellen.
+- Batterieoptimierung: Transition-/Event-basierte APIs statt Polling, WorkManager für nachgelagerte Reconciliation.
+
+Details: `docs/ARCHITECTURE_CHECK_M2.md`.
+
 ## Sicherheit/Datenschutz
 
 - Kein Netzwerkmodul im MVP nötig.

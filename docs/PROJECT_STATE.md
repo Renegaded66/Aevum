@@ -15,6 +15,8 @@
 - [x] Appname gewählt: **Aevum**
 - [x] Paketname festgelegt: `de.devondroste.aevum`
 - [x] Offline-first / kein Backend / kein Login entschieden
+- [x] Architektur-Check vor M2 durchgeführt
+- [x] Datenmodell für langfristige Historie/Performance verbessert
 - [ ] Android-Projektdateien erstellt
 - [ ] App-Code geschrieben
 - [ ] Tests implementiert

@@ -150,11 +150,27 @@ Unveränderte Signale der Android APIs.
 
 ## Indizes
 
-- `activity_session(start_at, end_at)`
-- `activity_session(category_id, start_at)`
-- `raw_detection_event(source, occurred_at)`
-- `habit_log(habit_id, date)`
-- `app_usage_sample(start_at, package_name)`
+Für performante Abfragen über jahrelange Datenmengen:
+
+```sql
+-- Aktivitätssessions: Hauptabfragen sind zeitbasiert
+CREATE INDEX idx_activity_session_start_at ON activity_session(start_at);
+CREATE INDEX idx_activity_session_end_at ON activity_session(end_at);
+CREATE INDEX idx_activity_session_category_start ON activity_session(category_id, start_at);
+CREATE INDEX idx_activity_session_status_start ON activity_session(status, start_at);
+
+-- Raw Detection Events: Nach Quelle und Zeit filtern
+CREATE INDEX idx_raw_detection_source_occurred ON raw_detection_event(source, occurred_at);
+
+-- Habit Logs: Nach Habit und Datum
+CREATE INDEX idx_habit_log_habit_date ON habit_log(habit_id, date);
+
+-- App Usage: Zeitbasiert und nach App
+CREATE INDEX idx_app_usage_start_pkg ON app_usage_sample(start_at, package_name);
+
+-- Goals: Nach Status und Zeitraum
+CREATE INDEX idx_goal_status_period ON goal(status, period);
+```
 
 ## DataStore
 
@@ -167,3 +183,35 @@ Unveränderte Signale der Android APIs.
 ## Migrationen
 
 Ab DB-Version 1 werden Migrationen testpflichtig. Keine destruktiven Migrationen in Release.
+
+**Migrationstest-Strategie:**
+
+- Jede Schemaänderung erhält eine `Migration`-Implementierung
+- Test für `runMigrationsAndValidate()` für jede Version
+- Destruktive Migrationen nur in Debug
+
+## Performance bei jahrelangen Daten
+
+| Aspekt | Strategie |
+|---|---|
+| Zeitreihenabfragen | Komposite Indizes (category+start, status+start) |
+| Aggregationen | Tagesweise Vorabaggregation in separater Tabelle für Jahre-Ansichten |
+| Partitionierung | Monatliche Tabellen optional ab 5 Jahren Daten |
+| Paging | PagingSource für Timeline, LazyColumn für UI |
+| Cleanup | WorkManager Job archiviert Sessions > 10 Jahre auf Wunsch |
+
+## Room Entity Design Principles
+
+1. **Stabile PKs:** UUID/ULID als TEXT, keine autoIncrement
+2. **Explizite FKs:** `@ForeignKey` in Entity-Definitionen
+3. **Keine Businesslogik in Entities:** reine Daten
+4. **Time in Millis:** INTEGER UTC für alle Zeitstempel
+5. **Nullable nur wo sinnvoll:** `end_at` NULL = laufend
+6. **Enum als TEXT:** `source`, `status`, `period` etc. als TEXT für Lesbarkeit
+
+## Konfliktlösung & Reconciliation
+
+- `raw_detection_event` bleibt unverändert (Audit Trail)
+- Classification Pipeline schreibt `activity_session` mit `status=CANDIDATE`
+- User Edit → `status=CONFIRMED`, `is_user_edited=1`
+- Reconciliation Worker korrigiert offene Sessions (fehlende Exits) täglich

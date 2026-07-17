@@ -25,6 +25,7 @@
 
 - Generischer Premium-App-Plan wurde zur konkreten Aevum-Architektur weiterentwickelt.
 - Projektstatus von „Fachdomäne offen“ zu „Produktdefinition abgeschlossen“ geändert.
+- Datenarchitektur vor M2 geprüft und verbessert: explizite Indizes, Aggregationsstrategie, Batterie-/Background-Strategie, klare Trennung von Raw Events, Candidates, bestätigten Sessions und Statistik-Caches.
 
 ### Not Changed
 
