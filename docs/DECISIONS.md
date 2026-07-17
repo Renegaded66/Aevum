@@ -65,3 +65,28 @@
 **Entscheidung:** Dashboard ist der wichtigste Screen und Startpunkt nach Onboarding.
 
 **Begründung:** Der Kernnutzen ist visuelles Lebensbewusstsein, nicht Dateneingabe.
+
+## ADR-0011 — minSdk auf API 29 anheben
+
+**Entscheidung:** minSdk wird auf API 29 (Android 10) angehoben.
+
+**Begründung:**
+- Die ursprüngliche Produktvorgabe war Android 10+.
+- Aevum ist als Premium-App mit langfristigem Qualitätsanspruch geplant, nicht als maximale Altgeräte-Abdeckung.
+- Eine kleinere Geräte-/OS-Matrix reduziert QA-Aufwand und Risiko bei Sensor-, Permission-, Background- und Datenschutzverhalten.
+- API 29 passt besser zum modernen Android-Privacy-Modell und zur geplanten Arbeit mit sensiblen Lebensdaten.
+- Es gibt aktuell keinen klaren Produktvorteil, API 26–28 weiter zu unterstützen.
+
+**Alternativen:** minSdk 26 beibehalten – hätte breitere Geräteabdeckung, erhöht aber Testmatrix und Altverhalten ohne erkennbaren Kernnutzen für das Premium-Zielbild.
+
+**Konsequenz:** Build-Konfiguration und APK-Badging weisen `minSdk=29` aus. Falls später eine Lite-/Legacy-Variante sinnvoll wird, wird sie separat entschieden.
+
+## ADR-0012 — Screen UX Review Gate
+
+**Entscheidung:** Jeder neue Screen erhält vor der Implementierung einen kurzen UX-Review.
+
+**Leitfrage:** „Wenn diese App morgen im Play Store erscheinen würde und mit den besten Produktivitäts-Apps konkurrieren müsste – wäre ich stolz auf diesen Screen?“
+
+**Begründung:** Aevum soll als Premium-App wirken. Geschwindigkeit darf nicht dazu führen, dass Screens wie generische Material-Beispiele aussehen oder den Nutzer täglich ermüden.
+
+**Konsequenz:** Screens werden vor Code-Arbeit auf Informationshierarchie, Textmenge, Kartenanzahl, visuelle Darstellung, Interaktionsklarheit, Dark-Mode-Wirkung und sinnvolle Animationen geprüft. Wenn das Ergebnis nicht hochwertig genug ist, wird zuerst das UX-Konzept verbessert.

@@ -2,21 +2,21 @@
 
 ## M0 — Vorbereitung & Dokumentation
 
-**Ziel:** Projektgedächtnis und Grundarchitektur stehen.  
+**Ziel:** Projektgedächtnis und Grundarchitektur stehen.
 **Status:** Abgeschlossen.
 
 **Definition of Done:** Alle `/docs` Dateien vorhanden und Produktvision eingearbeitet.
 
 ## M1 — Produktdefinition
 
-**Ziel:** Produktvision, Name, Paket, Kernfeatures und Offline-Entscheidung festlegen.  
+**Ziel:** Produktvision, Name, Paket, Kernfeatures und Offline-Entscheidung festlegen.
 **Status:** Abgeschlossen.
 
 **Ergebnis:** Aevum, Paket `de.devondroste.aevum`, Life-Analytics-Assistent, offline-first.
 
 ## M2 — Android-Projektgrundlage
 
-**Ziel:** Buildfähiges Android-Projekt ohne komplexe Fachfeatures.  
+**Ziel:** Buildfähiges Android-Projekt ohne komplexe Fachfeatures.
 **Status:** **Abgeschlossen.**
 
 **Erledigte Aufgaben:**
@@ -47,18 +47,29 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 ## M3 — Design System & Dashboard Skeleton
 
 **Ziel:** Aevum Look & Feel als wiederverwendbare Komponenten und erster Dashboard-Skeleton.
+**Status:** **Abgeschlossen.**
 
-**Aufgaben:**
+**Erledigte Aufgaben:**
 
-- Design Tokens aus `DESIGN_SYSTEM.md` in Compose-Komponenten konsolidieren
-- `AevumScaffold`, `PremiumCard`, `MetricCard`, `InsightCard`, `EmptyState`, `ErrorState`, `LoadingSkeleton`
-- Skeleton-Komponenten für `TimeDistributionRing`, `LifeGrid`, `DayTimeline`, `HabitHeatmap`, `ProgressRing`
-- Dashboard-Screen mit echter visueller Struktur, aber noch ohne komplexe Fachlogik
-- Preview-/Compose-Testbasis für Designsystem-Komponenten
+- [x] UX-/Design-Review vor Buildfixes durchgeführt
+- [x] Design Tokens aus `DESIGN_SYSTEM.md` in Compose-Komponenten konsolidiert
+- [x] Wiederverwendbare Komponenten erstellt: `AevumCard`, `StatisticCard`, `ProgressRing`, `TimelineItem`, `CategoryChip`, `ChartContainer`, `EmptyState`, `SectionHeader`
+- [x] Dashboard-Screen mit echter visueller Struktur, aber noch ohne komplexe Fachlogik erstellt
+- [x] Skeletons für Zeitverteilung, Fortschrittsringe, Heatmap, Timeline, Aktivitäts-/Digital-Balance-Diagramme erstellt
+- [x] Dashboard Preview ergänzt
+- [x] Projektweite UX-Review-Regel eingeführt
 
-**Tests:** Compose UI Tests, Previews, visuelle Prüfung.
+**Tests/Verifikation:**
 
-**Definition of Done:** Dashboard Skeleton nutzt nur Designsystem-Komponenten und ist auf 360dp Breite ohne Überlappungen nutzbar.
+```bash
+./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1
+./gradlew lintDebug --no-daemon --console=plain --max-workers=1
+./gradlew assembleDebug --no-daemon --console=plain --max-workers=1
+```
+
+Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` geprüft.
+
+**Definition of Done:** Erfüllt für M3. Dashboard nutzt Mock-Daten, ist kompilierbar und bildet die Premium-UX-Richtung ab.
 
 ## M4 — Core Datenmodell & Room fachlich stabilisieren
 

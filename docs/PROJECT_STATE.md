@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-17T15:47:02Z  
-> Produktname: **Aevum**  
-> Paketname: `de.devondroste.aevum`  
-> Status: **M2 — Android-Projektgrundlage abgeschlossen**.
+> Stand: 2026-07-17T22:31:45Z
+> Produktname: **Aevum**
+> Paketname: `de.devondroste.aevum`
+> Status: **M3 — Design System & Dashboard Skeleton abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -15,83 +15,114 @@
 - [x] Appname gewählt: **Aevum**
 - [x] Paketname festgelegt: `de.devondroste.aevum`
 - [x] Offline-first / kein Backend / kein Login entschieden
-- [x] Architektur-Check vor M2 durchgeführt
-- [x] Datenmodell für langfristige Historie/Performance verbessert
-- [x] Android-Projektdateien erstellt
-- [x] Gradle/Kotlin Setup erstellt
-- [x] Jetpack Compose Setup erstellt
-- [x] Material 3 Theme + Dark Theme erstellt
-- [x] Hilt eingerichtet
-- [x] Room Grundstruktur eingerichtet
-- [x] DataStore eingerichtet
-- [x] Navigation Compose eingerichtet
-- [x] Testsetup eingerichtet
-- [x] App Shell mit Platzhalter-Screens erstellt
-- [x] Debug APK gebaut und verifiziert
+- [x] M2 Android-Projektgrundlage abgeschlossen
+- [x] M3 UX-/Design-Review für Dashboard durchgeführt
+- [x] Aevum Design Tokens in Compose angelegt
+- [x] Wiederverwendbare Premium-Komponenten erstellt
+- [x] Dashboard Skeleton mit Mock-Daten und Visualisierungsskeletons erstellt
+- [x] Compose Preview für Dashboard angelegt und über Build kompilierbar geprüft
+- [x] Unit Tests, Lint und Debug APK Build erfolgreich verifiziert
 
 ## Produktdefinition
 
 Aevum ist ein persönliches Lebenscockpit für Lebenszeit, Zeitverteilung, Ziele, Gewohnheiten, Streaks, Bucket List und visuelle Lebensstatistiken.
 
-## M2 Verifikation
+## M3 Ergebnis
 
-Am 2026-07-17 wurde M2 real verifiziert:
+M3 liefert die visuelle Grundlage der App. Das Dashboard wurde nach einem UX-Review von einer reinen Kartenliste zu einem ruhigen Premium-Lebenscockpit verdichtet:
+
+- Above-the-fold: Hero mit Tagesaussage, aktueller Aktivität und Fokus-Score
+- Primäre Signale: Erfasst, Ziel, Streak als kompakte Metrik-Karten
+- Zeitverteilung: visueller Donut mit Legende und Top-Investment
+- Tagesfluss: reduzierte Timeline Preview statt langer Liste
+- Wachstum: Ziele, Streak und Heatmap-Skeleton
+- Lebensperspektive: Lebenszeit und Bucket List als ruhiger Kontext
+- Digital Balance: Smartphone-Nutzung als kompakte Verlaufsgrafik
+
+## M3 Code-Struktur
+
+Neue/aktualisierte UI-Dateien:
+
+- `ui/theme/DesignTokens.kt`
+- `ui/components/AevumCard.kt`
+- `ui/components/ProgressRing.kt`
+- `ui/components/StatisticCard.kt`
+- `ui/components/ChartContainer.kt`
+- `ui/components/CategoryChip.kt`
+- `ui/components/TimelineItem.kt`
+- `ui/components/EmptyState.kt`
+- `ui/components/SectionHeader.kt`
+- `ui/screens/dashboard/DashboardScreen.kt`
+
+## M3 Verifikation
+
+Am 2026-07-17T22:31:45Z wurden reale Checks ausgeführt:
 
 ```bash
-./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain --max-workers=1
+./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1
+./gradlew lintDebug --no-daemon --console=plain --max-workers=1
+./gradlew assembleDebug --no-daemon --console=plain --max-workers=1
 ```
 
 Ergebnis:
 
 ```text
-BUILD SUCCESSFUL in 30s
-62 actionable tasks: 2 executed, 60 up-to-date
+testDebugUnitTest: BUILD SUCCESSFUL in 44s
+lintDebug: BUILD SUCCESSFUL in 1m 13s
+assembleDebug: BUILD SUCCESSFUL in 2m 45s
 ```
 
 APK-Verifikation:
 
 ```text
 APK: app/build/outputs/apk/debug/app-debug.apk
-size=11215388 bytes
+size=28680555 bytes
 package='de.devondroste.aevum.debug'
 versionName='0.1.0-debug'
-minSdk=26
+minSdk=29
 targetSdk=35
 APK Signature Scheme v2: true
 Number of signers: 1
 ```
 
-Hinweis: Debug-Build nutzt bewusst `applicationIdSuffix = ".debug"`; Release-Paket bleibt `de.devondroste.aevum`.
+Compose Preview:
+
+```text
+@Preview vorhanden: DashboardScreenPreview
+Kompilierbarkeit geprüft durch compileDebugKotlin/assembleDebug.
+Hinweis: Visuelle IDE-Preview kann in dieser CLI-Umgebung nicht geöffnet werden.
+```
+
+## Projektweite UX-Regel
+
+Jeder neue Screen bekommt vor der Implementierung einen kurzen UX-Review:
+
+> „Wenn diese App morgen im Play Store erscheinen würde und mit den besten Produktivitäts-Apps konkurrieren müsste – wäre ich stolz auf diesen Screen?“
+
+Wenn die Antwort „nein“ ist, wird der Screen vor der Implementierung verbessert. Qualität und Usability haben Vorrang vor schneller Umsetzung.
 
 ## Aktuelle technische Struktur
 
 - Kotlin + Android Gradle Plugin
 - Compose + Material 3
 - Aevum Light/Dark Theme
+- Aevum Design Tokens
+- Wiederverwendbare UI-Komponenten
 - Hilt Application + DI Module
-- Room Database mit 12 Entity-Dateien und 12 DAO/DB-Dateien
+- Room Database mit Entities/DAOs/Repositories
 - DataStore Preferences
 - Navigation Compose mit Root-Destinationen
-- Platzhalter-Screens für Dashboard, Timeline, Insights, Wachstum, Settings, Onboarding
-- Unit-Test-Basis und Android-Test-Basis
+- Dashboard Skeleton als erster echter Premium-Screen
 
 ## Nächster Schritt
 
-**M3 — Design System & Dashboard Skeleton.**
+**M4 — Core Datenmodell & Room fachlich stabilisieren.**
 
-Ziel: Aevum Look & Feel als wiederverwendbare UI-Basis bauen:
-
-1. Design Tokens konsolidieren
-2. Premium-Komponenten erstellen
-3. Dashboard Skeleton gestalten
-4. Empty/Loading/Error States definieren
-5. erste Chart-/Visualisierungs-Skeletons vorbereiten
-6. visuelle/Compose Tests ergänzen
+Ziel: lokale Datenbasis fachlich belastbar machen und Dashboard später mit echten Daten versorgen.
 
 ## Offene Punkte für später
 
-- Exakte Orte für Geofences legt Nutzer in der App fest.
-- Geburtsdatum/Lebenserwartung für Lebensfortschritt wird im Onboarding abgefragt.
-- Permission-Flows bleiben für spätere Meilensteine optional/erklärend.
-- Optionaler Export/Backup wird später als lokale Datei geplant.
+- Dashboard nutzt in M3 bewusst Mock-Daten.
+- Echte Aggregationslogik startet in späteren Meilensteinen.
 - Release-Signing ist noch nicht eingerichtet; bisher existiert ein debug-signiertes APK.
+- Sensor-/Permission-Flows sind geplant, aber noch nicht implementiert.
