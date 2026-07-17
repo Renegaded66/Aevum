@@ -121,10 +121,28 @@ Zusätzliche Festlegungen:
 
 Details: `docs/ARCHITECTURE_CHECK_M2.md`.
 
+## M2 Implementierte Projektgrundlage
+
+M2 hat die geplante Architektur als lauffähige Android-Basis umgesetzt:
+
+- Android Application Modul `app`
+- Package/Namespace `de.devondroste.aevum`
+- Kotlin + Android Gradle Plugin + Gradle Wrapper
+- Jetpack Compose + Material 3
+- Aevum Light/Dark Theme (`ui/theme`)
+- Hilt Application (`AevumApplication`) und DI Module (`di/`)
+- Room Grundstruktur (`data/model`, `data/db`, `data/repository`)
+- DataStore Preferences (`DataStoreModule`)
+- Navigation Compose (`navigation/AppNavHost.kt`, `AppDestination.kt`)
+- App Shell mit Platzhalter-Screens für Dashboard, Timeline, Insights, Wachstum, Settings und Onboarding
+- Testbasis für JVM Unit Tests und Android/Room Tests
+
+Die M2-Basis ist bewusst noch keine vollständige Fachimplementierung. Sie schafft die stabile technische Grundlage für M3+.
+
 ## Sicherheit/Datenschutz
 
 - Kein Netzwerkmodul im MVP nötig.
-- `android:allowBackup` voraussichtlich `false`, bis Export/Backup bewusst implementiert ist.
+- `android:allowBackup=false` ist im Manifest gesetzt, bis Export/Backup bewusst implementiert ist.
 - App-private Room DB.
 - Optional später: verschlüsselter Export oder SQLCipher, wenn sensible Nutzung zunimmt.
 

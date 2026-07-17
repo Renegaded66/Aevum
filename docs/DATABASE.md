@@ -209,6 +209,18 @@ Ab DB-Version 1 werden Migrationen testpflichtig. Keine destruktiven Migrationen
 5. **Nullable nur wo sinnvoll:** `end_at` NULL = laufend
 6. **Enum als TEXT:** `source`, `status`, `period` etc. als TEXT für Lesbarkeit
 
+## M2 Implementierungsstand
+
+Die Room-Grundstruktur ist implementiert:
+
+- 12 Entity-Dateien unter `app/src/main/java/de/devondroste/aevum/data/model/`
+- 12 DAO/DB-Dateien unter `app/src/main/java/de/devondroste/aevum/data/db/`
+- Repository-Interfaces und Implementierungen unter `data/repository/`
+- `AppDatabase` Version 1
+- Hilt-Provider für Datenbank, DAOs und Repositories
+
+Die Struktur ist für M2 bewusst basisfähig, nicht final fachlich vollständig. M4 stabilisiert die Fachlogik, Seed-Daten, Migrationstests und DAO-Abfragen weiter.
+
 ## Konfliktlösung & Reconciliation
 
 - `raw_detection_event` bleibt unverändert (Audit Trail)

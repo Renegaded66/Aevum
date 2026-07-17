@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-17T14:00:34Z  
+> Stand: 2026-07-17T15:47:02Z  
 > Produktname: **Aevum**  
 > Paketname: `de.devondroste.aevum`  
-> Status: Produktdefinition eingearbeitet, noch kein App-Code.
+> Status: **M2 — Android-Projektgrundlage abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -17,53 +17,81 @@
 - [x] Offline-first / kein Backend / kein Login entschieden
 - [x] Architektur-Check vor M2 durchgeführt
 - [x] Datenmodell für langfristige Historie/Performance verbessert
-- [ ] Android-Projektdateien erstellt
-- [ ] App-Code geschrieben
-- [ ] Tests implementiert
-- [ ] APK gebaut
+- [x] Android-Projektdateien erstellt
+- [x] Gradle/Kotlin Setup erstellt
+- [x] Jetpack Compose Setup erstellt
+- [x] Material 3 Theme + Dark Theme erstellt
+- [x] Hilt eingerichtet
+- [x] Room Grundstruktur eingerichtet
+- [x] DataStore eingerichtet
+- [x] Navigation Compose eingerichtet
+- [x] Testsetup eingerichtet
+- [x] App Shell mit Platzhalter-Screens erstellt
+- [x] Debug APK gebaut und verifiziert
 
 ## Produktdefinition
 
 Aevum ist ein persönliches Lebenscockpit für Lebenszeit, Zeitverteilung, Ziele, Gewohnheiten, Streaks, Bucket List und visuelle Lebensstatistiken.
 
-## Zentrale Anforderungen
+## M2 Verifikation
 
-- Vollständig lokale Datenhaltung
-- Möglichst automatische Aktivitätserkennung
-- Manuelle Bearbeitbarkeit aller erkannten Aktivitäten
-- Visuelles Dashboard als wichtigster Screen
-- Moderne Charts, Heatmaps, Zeitlinien, Fortschrittsanzeigen
-- Ziele automatisch anhand erfasster Aktivitäten prüfen
-- Habit-/Streak-System mit Verlauf und Erfolgsquote
+Am 2026-07-17 wurde M2 real verifiziert:
+
+```bash
+./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain --max-workers=1
+```
+
+Ergebnis:
+
+```text
+BUILD SUCCESSFUL in 30s
+62 actionable tasks: 2 executed, 60 up-to-date
+```
+
+APK-Verifikation:
+
+```text
+APK: app/build/outputs/apk/debug/app-debug.apk
+size=11215388 bytes
+package='de.devondroste.aevum.debug'
+versionName='0.1.0-debug'
+minSdk=26
+targetSdk=35
+APK Signature Scheme v2: true
+Number of signers: 1
+```
+
+Hinweis: Debug-Build nutzt bewusst `applicationIdSuffix = ".debug"`; Release-Paket bleibt `de.devondroste.aevum`.
+
+## Aktuelle technische Struktur
+
+- Kotlin + Android Gradle Plugin
+- Compose + Material 3
+- Aevum Light/Dark Theme
+- Hilt Application + DI Module
+- Room Database mit 12 Entity-Dateien und 12 DAO/DB-Dateien
+- DataStore Preferences
+- Navigation Compose mit Root-Destinationen
+- Platzhalter-Screens für Dashboard, Timeline, Insights, Wachstum, Settings, Onboarding
+- Unit-Test-Basis und Android-Test-Basis
 
 ## Nächster Schritt
 
-**M2 — Android-Projektgrundlage erstellen.**
+**M3 — Design System & Dashboard Skeleton.**
 
-Vor Feature-Code werden eingerichtet:
+Ziel: Aevum Look & Feel als wiederverwendbare UI-Basis bauen:
 
-1. Gradle/Kotlin/Compose Projekt
-2. Package `de.devondroste.aevum`
-3. Material 3 Theme
-4. Hilt
-5. Room
-6. DataStore
-7. Navigation Compose
-8. Testsetup
-9. leere App-Shell mit Platzhalter-Screens
-
-## Aktuelle technische Entscheidungen
-
-- Kotlin + Compose + Material 3
-- MVVM/MVI + StateFlow
-- Hilt DI
-- Room + DataStore
-- WorkManager für Reconciliation/Background Jobs
-- Geofencing, Activity Recognition, Health Connect, UsageStatsManager nach Permission-Onboarding
-- kein Backend, kein Login, keine Cloud
+1. Design Tokens konsolidieren
+2. Premium-Komponenten erstellen
+3. Dashboard Skeleton gestalten
+4. Empty/Loading/Error States definieren
+5. erste Chart-/Visualisierungs-Skeletons vorbereiten
+6. visuelle/Compose Tests ergänzen
 
 ## Offene Punkte für später
 
 - Exakte Orte für Geofences legt Nutzer in der App fest.
 - Geburtsdatum/Lebenserwartung für Lebensfortschritt wird im Onboarding abgefragt.
+- Permission-Flows bleiben für spätere Meilensteine optional/erklärend.
 - Optionaler Export/Backup wird später als lokale Datei geplant.
+- Release-Signing ist noch nicht eingerichtet; bisher existiert ein debug-signiertes APK.

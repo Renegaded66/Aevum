@@ -6,6 +6,8 @@
 - [x] Produktdefinition Aevum einarbeiten
 - [x] Appname/Paketname festlegen
 - [x] Offline-first Entscheidung dokumentieren
-- [ ] M2 Android-Projektgrundlage erstellen
-- [ ] Gradle/Kotlin/Compose/Hilt/Room/DataStore/Navigation/Testsetup einrichten
-- [ ] leere App-Shell bauen und testen
+- [x] M2 Android-Projektgrundlage erstellen
+- [x] Gradle/Kotlin/Compose/Hilt/Room/DataStore/Navigation/Testsetup einrichten
+- [x] leere App-Shell bauen und testen
+- [x] Debug APK bauen und verifizieren
+- [ ] M3 Design System & Dashboard Skeleton starten

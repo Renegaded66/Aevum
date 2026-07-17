@@ -60,6 +60,20 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 - große Displays/Foldables: Navigation Rail
 - Details: Top App Bar mit Zurück
 
+## M2 Implementierungsstand
+
+Navigation Compose ist eingerichtet und die Root-Ziele existieren als Shell:
+
+- `Dashboard`
+- `Timeline`
+- `Insights`
+- `Growth`
+- `Settings`
+- `Onboarding`
+- vorbereitete Onboarding-Unterziele: Life Profile, Permissions, Places, Dashboard Intro
+
+Die Screens sind M2-Platzhalter. Bottom Navigation / Navigation Rail und Detailflüsse werden in M3/M5 fachlich ausgebaut.
+
 ## Kritische Navigationstests
 
 - Onboarding wird nur angezeigt, wenn nicht abgeschlossen.

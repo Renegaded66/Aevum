@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Aevum</string>
+    <string name="app_name_debug">Aevum Debug</string>
+    <string name="onboarding_welcome_title">Willkommen bei Aevum</string>
+    <string name="onboarding_welcome_subtitle">Dein persönliches Lebenscockpit</string>
+    <string name="dashboard_title">Heute</string>
+    <string name="timeline_title">Timeline</string>
+    <string name="insights_title">Insights</string>
+    <string name="growth_title">Wachstum</string>
+    <string name="settings_title">Einstellungen</string>
+</resources>

@@ -16,41 +16,55 @@
 
 ## M2 — Android-Projektgrundlage
 
-**Ziel:** Buildfähiges Android-Projekt ohne Fachlogik.
+**Ziel:** Buildfähiges Android-Projekt ohne komplexe Fachfeatures.  
+**Status:** **Abgeschlossen.**
 
-**Aufgaben:**
+**Erledigte Aufgaben:**
 
-- Gradle/Kotlin/AGP einrichten
-- Package `de.devondroste.aevum`
-- Compose + Material 3
-- Hilt
-- Room
-- DataStore
-- Navigation Compose
-- Testsetup
-- leere App-Shell mit Platzhalter-Navigation
+- [x] Gradle Wrapper, Kotlin und Android Gradle Plugin eingerichtet
+- [x] Package/Namespace `de.devondroste.aevum` eingerichtet
+- [x] Compose + Material 3 eingerichtet
+- [x] Aevum Light/Dark Theme eingerichtet
+- [x] Hilt eingerichtet
+- [x] Room Grundstruktur eingerichtet
+- [x] DataStore Preferences eingerichtet
+- [x] Navigation Compose eingerichtet
+- [x] Testsetup eingerichtet
+- [x] leere App-Shell mit Platzhalter-Navigation erstellt
 
-**Benötigte Dateien:** Gradle-Dateien, Manifest, MainActivity, Theme, NavHost, Testbasis.
+**Benötigte Dateien:** Gradle-Dateien, Manifest, MainActivity, Theme, NavHost, Data Layer, DI Module, Testbasis.
 
-**Tests:** `./gradlew testDebugUnitTest assembleDebug lintDebug`
+**Tests/Verifikation:**
 
-**Definition of Done:** App-Shell baut, Tests laufen, Debug APK existiert.
+```bash
+./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon --console=plain --max-workers=1
+```
+
+Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` geprüft.
+
+**Definition of Done:** Erfüllt.
 
 ## M3 — Design System & Dashboard Skeleton
 
-**Ziel:** Aevum Look & Feel als wiederverwendbare Komponenten.
+**Ziel:** Aevum Look & Feel als wiederverwendbare Komponenten und erster Dashboard-Skeleton.
 
-**Aufgaben:** Tokens, Theme, Cards, Chart-Komponenten-Skeletons, Empty/Loading/Error States.
+**Aufgaben:**
+
+- Design Tokens aus `DESIGN_SYSTEM.md` in Compose-Komponenten konsolidieren
+- `AevumScaffold`, `PremiumCard`, `MetricCard`, `InsightCard`, `EmptyState`, `ErrorState`, `LoadingSkeleton`
+- Skeleton-Komponenten für `TimeDistributionRing`, `LifeGrid`, `DayTimeline`, `HabitHeatmap`, `ProgressRing`
+- Dashboard-Screen mit echter visueller Struktur, aber noch ohne komplexe Fachlogik
+- Preview-/Compose-Testbasis für Designsystem-Komponenten
 
 **Tests:** Compose UI Tests, Previews, visuelle Prüfung.
 
-**Definition of Done:** Dashboard Skeleton nutzt nur Designsystem-Komponenten.
+**Definition of Done:** Dashboard Skeleton nutzt nur Designsystem-Komponenten und ist auf 360dp Breite ohne Überlappungen nutzbar.
 
-## M4 — Core Datenmodell & Room
+## M4 — Core Datenmodell & Room fachlich stabilisieren
 
-**Ziel:** Lokale Datenbasis.
+**Ziel:** Lokale Datenbasis fachlich belastbar machen.
 
-**Aufgaben:** Entities/DAO für Kategorien, Sessions, Tags, Goals, Habits, Bucket List, Raw Events, App Usage, Geofences.
+**Aufgaben:** Entities/DAO für Kategorien, Sessions, Tags, Goals, Habits, Bucket List, Raw Events, App Usage, Geofences finalisieren; Seed-Daten; Migrationstest-Basis.
 
 **Tests:** DAO Tests, Migration Tests, Repository Unit Tests.
 
