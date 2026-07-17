@@ -1,55 +1,67 @@
-# DECISIONS
+# DECISIONS — Aevum
 
-## ADR-0001 — Kotlin als Hauptsprache
+## ADR-0001 — Appname Aevum
 
-**Entscheidung:** Kotlin wird verwendet.
+**Entscheidung:** Die App heißt **Aevum**.
 
-**Begründung:** Offizieller Android-Standard, Coroutines/Flow, Compose-first, Null-Safety.
+**Begründung:** Aevum bedeutet sinngemäß Zeitalter/Lebenszeit und wirkt kurz, hochwertig, international und passend zu Zeit/Bewusstsein/Fortschritt.
 
-**Alternativen:** Java; mehr Boilerplate und schlechtere Compose-Ergonomie.
+**Paketname:** `de.devondroste.aevum`
 
-## ADR-0002 — Jetpack Compose + Material Design 3
+## ADR-0002 — Offline-first ohne Backend
 
-**Entscheidung:** UI wird mit Compose und Material 3 gebaut.
+**Entscheidung:** Aevum hat kein Login, kein Backend und keine Cloud.
 
-**Begründung:** Moderne deklarative UI, gutes Theming, Android-Standard.
+**Begründung:** Die App verarbeitet sehr persönliche Lebensdaten. Lokale Datenhaltung maximiert Privatsphäre, reduziert Komplexität und funktioniert offline.
 
-**Alternativen:** XML Views; stabil, aber weniger zukunftsfähig.
+**Alternativen:** Cloud Sync/Auth; wird bewusst ausgeschlossen, bis ein klarer Mehrwert entsteht.
 
-## ADR-0003 — MVVM/MVI mit Unidirectional Data Flow
+## ADR-0003 — Kotlin + Jetpack Compose + Material 3
 
-**Entscheidung:** ViewModels exponieren `StateFlow<UiState>`, UI sendet Events.
+**Entscheidung:** Native Android mit Kotlin, Compose und Material 3.
 
-**Begründung:** Testbar, robust, Compose-kompatibel.
+**Begründung:** Beste Basis für hochwertige, moderne Android-UX und visuelle Dashboards.
 
-**Alternativen:** MVP oder direkte Repository Calls aus UI; schlechter wartbar.
+## ADR-0004 — MVVM/MVI mit StateFlow
 
-## ADR-0004 — Room für lokale Persistenz
+**Entscheidung:** ViewModels exponieren immutable `UiState` über StateFlow; UI sendet Events.
 
-**Entscheidung:** Room wird als lokale Datenbank verwendet.
+**Begründung:** Gute Testbarkeit, robust bei komplexen Dashboards und Permission-/Loading-States.
 
-**Begründung:** Jetpack-nativ, Flow-Unterstützung, Migrationen, Tests.
+## ADR-0005 — Room als Source of Truth
 
-**Alternativen:** SQLite direkt, Realm, ObjectBox.
+**Entscheidung:** Alle Lebensdaten liegen lokal in Room.
 
-## ADR-0005 — Hilt für Dependency Injection
+**Begründung:** Offline-first, migrationsfähig, testbar, Flow-kompatibel.
 
-**Entscheidung:** Hilt wird bevorzugt.
+## ADR-0006 — Rohsignale getrennt von Activity Sessions
 
-**Begründung:** Offiziell, kompatibel mit ViewModel/WorkManager, testbar.
+**Entscheidung:** Android API Signale werden als `raw_detection_event` gespeichert und erst danach in bearbeitbare `activity_session` Kandidaten übersetzt.
 
-**Alternativen:** Koin oder manuelle DI.
+**Begründung:** Automatische Erkennung ist fehleranfällig. Trennung erlaubt Debugging, Reprocessing und Nutzerkontrolle.
 
-## ADR-0006 — Local-first als Default
+## ADR-0007 — Health Connect primär für Schlaf
 
-**Entscheidung:** Ohne gegenteilige Produktanforderung wird local-first geplant.
+**Entscheidung:** Schlafdaten werden bevorzugt über Health Connect gelesen.
 
-**Begründung:** Schnellere UX, Offline-Fähigkeit, weniger Backend-Abhängigkeit.
+**Begründung:** Health Connect ist die moderne Android-Plattform für Gesundheits-/Fitnessdaten inkl. Sleep Sessions.
 
-**Alternativen:** Cloud-only; schlechter bei Netzproblemen und komplexer bei Auth/Datenschutz.
+**Alternative:** Google Sleep API oder manuelle Schlafsessions; bleibt als Fallback/Ergänzung möglich.
 
-## ADR-0007 — Kein App-Code vor Produktklärung
+## ADR-0008 — UsageStatsManager nur optional
 
-**Entscheidung:** In Phase M0 werden nur Planung und Dokumentation erstellt.
+**Entscheidung:** Smartphone-Nutzung wird nur bei explizit erteiltem Usage Access importiert.
 
-**Begründung:** Nutzer fordert explizit zuerst Skill-/Technologieanalyse, Architekturplanung und Dokumentation.
+**Begründung:** Sonderberechtigung, sensibel, muss freiwillig sein. App bleibt ohne nutzbar.
+
+## ADR-0009 — Geofencing statt dauerndes GPS Tracking
+
+**Entscheidung:** Orte wie Arbeit/Gym werden über Geofencing erkannt, nicht durch permanentes Tracking.
+
+**Begründung:** Batterieschonender und privater. Background Location bleibt dennoch sensibel und optional.
+
+## ADR-0010 — Dashboard-first Produktstrategie
+
+**Entscheidung:** Dashboard ist der wichtigste Screen und Startpunkt nach Onboarding.
+
+**Begründung:** Der Kernnutzen ist visuelles Lebensbewusstsein, nicht Dateneingabe.

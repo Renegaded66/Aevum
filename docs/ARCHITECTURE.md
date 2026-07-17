@@ -1,83 +1,126 @@
-# ARCHITECTURE
+# ARCHITECTURE — Aevum
+
+## Architekturziel
+
+Aevum muss automatische Lebenszeit-Erfassung, manuelle Korrektur, lokale Datenhaltung und hochwertige Visualisierungen verbinden. Kernidee: **Rohsignale werden gesammelt, interpretiert und als bearbeitbare Aktivitäts-Sessions vorgeschlagen bzw. bestätigt.**
 
 ## Prinzipien
 
-1. **Separation of Concerns:** UI, Domain und Data sind getrennt.
-2. **Unidirectional Data Flow:** UI sendet Events, ViewModel reduziert State, UI rendert State.
-3. **Offline-first als Default:** lokale Daten als primäre Quelle, Sync optional.
-4. **Testbarkeit:** Domain und Data-Abstraktionen ohne Android Framework testbar.
-5. **Design System first:** Screens nutzen zentrale Tokens/Komponenten.
+1. **Offline-first:** Room ist Source of Truth.
+2. **User Control:** Automatische Erkennung erzeugt Vorschläge/Confidence, Nutzer kann alles bearbeiten.
+3. **Signal ≠ Wahrheit:** Sensor-/Systemdaten bleiben getrennt von bestätigten Life-Log-Aktivitäten.
+4. **Unidirectional Data Flow:** UI Event → ViewModel → UseCase → Repository → DB → UiState.
+5. **Privacy by Design:** keine Cloud, kein Login, keine unnötigen Permissions.
+6. **Visual-first:** Daten werden für Charts/Timeline/Heatmaps optimiert aggregiert.
 
-## Zielstruktur
+## Module
 
 ```text
-premium-android-app/
-  docs/
-  app/                         # Android Application Modul, später
-  core/
-    common/                    # Result, Fehler, Dispatchers, Extensions
-    model/                     # Domain Models
-    database/                  # Room DB, DAO, Entities, Migrations
-    datastore/                 # DataStore Preferences
-    network/                   # Retrofit/OkHttp, DTOs, Auth Interceptors
-    design-system/             # Theme, Tokens, Components
-    analytics/                 # Analytics abstraction
-  feature/
-    onboarding/
-    home/
-    statistics/
-    settings/
+app/
+core/
+  common/          # Result, errors, time utils, dispatchers
+  model/           # Domain models: ActivitySession, Goal, Habit, BucketItem
+  database/        # Room entities, DAO, migrations
+  datastore/       # preferences: theme, onboarding, privacy choices
+  sensors/         # geofence/activity/usage/health-connect adapters
+  automation/      # classification, rule engine, reconciliation workers
+  analytics/       # local-only insight/event abstractions
+  design-system/   # Material 3 theme, tokens, components, charts
+feature/
+  onboarding/
+  dashboard/
+  timeline/
+  activities/
+  goals/
+  habits/
+  bucketlist/
+  statistics/
+  settings/
 ```
 
-## Layer
+## Datenfluss für automatische Erkennung
+
+```text
+Android API Signal
+  -> RawDetectionEvent
+  -> DetectionClassifier / RuleEngine
+  -> ActivitySession candidate
+  -> User review/edit optional
+  -> Confirmed ActivitySession
+  -> Aggregations / Dashboard / Goals / Habits
+```
+
+## Schichten
+
+### Sensor Layer
+
+Adapter kapseln Android APIs:
+
+- `GeofenceSignalSource`
+- `ActivityRecognitionSignalSource`
+- `UsageStatsSignalSource`
+- `HealthConnectSleepSource`
+
+Sie schreiben keine finalen Sessions direkt, sondern Raw Events oder klar markierte Candidates.
+
+### Automation Layer
+
+- Konfliktlösung bei überlappenden Signalen
+- Confidence Score
+- Kategorien-Mapping
+- Tages-Reconciliation per WorkManager
+- Ziel-/Habit-Auswertung
+
+### Domain Layer
+
+- `CreateOrUpdateActivitySessionUseCase`
+- `ClassifyRawDetectionUseCase`
+- `AggregateDayTimelineUseCase`
+- `EvaluateGoalProgressUseCase`
+- `EvaluateHabitStreakUseCase`
+- `CalculateLifeProgressUseCase`
 
 ### UI Layer
 
 - Compose Screens
-- Stateless UI Components
-- ViewModels pro Screen/Feature
-- `UiState` als immutable data class
-- `UiEvent` für User-Aktionen
-- Navigation nur über definierte Screen Contracts
+- ViewModels mit `StateFlow<UiState>`
+- Stateless Components
+- Charts im Design-System
 
-### Domain Layer
+## Konfliktlösung
 
-- Use-Cases für Businessregeln
-- Repository Interfaces
-- Plain Kotlin, keine Android-Abhängigkeit
-- Tests zuerst
+Priorität für Aktivitätsquellen:
 
-### Data Layer
+1. Manuell bearbeitete/confirmierte Session
+2. Geofence mit hoher Confidence
+3. Health Connect Schlafdaten
+4. Activity Recognition Transition
+5. UsageStats Smartphone-Nutzung als Overlay statt alleinige Lebensaktivität
 
-- Repository Implementierungen
-- Room LocalDataSource
-- RemoteDataSource falls Backend existiert
-- Sync Queue falls Offline/Cloud kombiniert wird
+Überlappungen werden nicht blind überschrieben. Stattdessen entstehen Hinweise wie „möglicher Konflikt: Autofahren während Arbeit“.
 
-## Datenfluss
+## Background-Prozesse
 
-```text
-User Action -> UiEvent -> ViewModel -> UseCase -> Repository -> DB/API
-DB/API -> Flow/Result -> ViewModel UiState -> Compose UI
-```
+- Geofence Events: PendingIntent Receiver
+- Activity Recognition Transitions: PendingIntent Receiver
+- WorkManager: tägliche Reconciliation, Habit-/Goal-Auswertung, optional Reminder
+- Health Connect Import: manuell oder periodisch, wenn erlaubt
+- UsageStats Import: nur lokal und nach Sonderberechtigung
 
-## Fehler-/Loading-Modell
+## Sicherheit/Datenschutz
 
-Jeder Screen unterstützt:
+- Kein Netzwerkmodul im MVP nötig.
+- `android:allowBackup` voraussichtlich `false`, bis Export/Backup bewusst implementiert ist.
+- App-private Room DB.
+- Optional später: verschlüsselter Export oder SQLCipher, wenn sensible Nutzung zunimmt.
 
-- `Loading`
-- `Content`
-- `Empty`
-- `Error(message, retry)`
+## Testbare Kernlogik
 
-Keine stillen Fehler. Technische Details werden intern geloggt, Nutzertexte bleiben verständlich.
-
-## Performance-Architektur
-
-- LazyColumn/LazyGrid für Listen
-- stabile Keys
-- `remember`/`derivedStateOf` sparsam und gezielt
-- keine schweren Berechnungen in Composables
-- Aggregationen im Repository/UseCase
-- Paging bei großen Datenmengen
-- Baseline Profiles später prüfen
+- Zeitintervall-Merging
+- Kategorie-Aggregation
+- Geofence-Event → Session Candidate
+- Activity Transition → Session Candidate
+- Zielerfüllung nach Kategorie/Tag/Dauer
+- Habit-Streak-Berechnung
+- Lebensfortschritt-Berechnung
+- Chart-Datenaggregation

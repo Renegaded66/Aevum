@@ -1,42 +1,74 @@
-# MASTERPLAN — Premium Android App
+# MASTERPLAN — Aevum
 
-> Stand: 2026-07-17T13:54:54Z
-> Projektpfad: `/root/ai-projects/premium-android-app`
-> Status: Vorbereitungsphase. Noch kein App-Code.
-> Annahme: Die konkrete Produktidee/Fachdomäne ist noch offen; dieser Plan definiert deshalb die professionelle technische und UX-Basis.
+> Stand: 2026-07-17T14:00:34Z  
+> Projektpfad: `/root/ai-projects/premium-android-app`  
+> Produktname: **Aevum**  
+> Paketname: `de.devondroste.aevum`  
+> Status: Produktvision konkretisiert, Architekturplanung aktualisiert, noch kein App-Code.
 
-## Zielbild
+## Produktvision
 
-Eine kommerziell wartbare Premium-Android-App mit außergewöhnlich guter UX, moderner nativer Android-Technologie, sauberer Architektur, Offline-/Sync-Fähigkeit, Tests, Performance-Bewusstsein und dauerhaftem Projektgedächtnis in `/docs`.
+**Aevum** ist ein persönlicher Life-Management- und Life-Analytics-Assistent. Die App macht Lebenszeit sichtbar: wie Zeit tatsächlich verbracht wird, welche Gewohnheiten entstehen, welche Ziele erreicht werden und ob der Nutzer seinem idealen Leben näherkommt.
 
-## Phase 1 — Skill- und Technologieanalyse
+Aevum ist **keine klassische ToDo-App** und **kein simpler Time Tracker**, sondern ein lokales, visuelles Lebenscockpit.
 
-| Bereich | Genutzte Skills/Quellen | Entscheidung |
-|---|---|---|
-| Android | `android-app-development`, `android-apk-development` | Kotlin, Android SDK 35, Java 17, Gradle, verifizierbare APK-Builds |
-| Testing | `test-driven-development` | RED-GREEN-REFACTOR für Businesslogik, Repositories, ViewModels, Mapper |
-| Projektgedächtnis | `project-memory` | `/docs` + `.project-memory` als dauerhafter Kontext |
-| Planung | `plan` | Meilensteinbasierte Entwicklung mit DoD |
-| UI/UX | `popular-web-designs` + Material Design 3 | Premium-Designsystem auf Compose/Material 3 Basis |
-| Android Best Practices | Android Developer Architecture/Compose/Navigation Suchergebnisse | Layered Architecture, Separation of Concerns, Unidirectional Data Flow, Compose, Navigation Compose |
+## Zielgruppe
 
-## Technologie-Stack
+Primär persönliche Nutzung für Devon, technisch aber wie eine professionelle Premium-App gebaut. Zielgruppe sind Menschen, die ihre Zeit bewusster nutzen möchten: produktive Menschen, zielorientierte Menschen, Habit-/Self-Improvement-Nutzer und Nutzer, die verstehen wollen, wie sie ihr Leben tatsächlich verbringen.
 
-- **Sprache:** Kotlin
-- **UI:** Jetpack Compose + Material Design 3
-- **Architektur:** Layered Architecture mit MVVM/MVI-Hybrid und Unidirectional Data Flow
-- **State:** ViewModel + Kotlin Coroutines + StateFlow
-- **Dependency Injection:** Hilt
-- **Persistenz:** Room für Daten, DataStore für Preferences
-- **Navigation:** Navigation Compose
-- **Background:** WorkManager
-- **Netzwerk:** Retrofit/OkHttp + kotlinx.serialization oder Moshi
-- **Visualisierung:** bevorzugt Compose Canvas / eigene leichte Chart-Komponenten; externe Chart-Lib nur bei echtem Bedarf
-- **Qualität:** Unit Tests, Repository/DAO Tests, ViewModel Tests, Compose UI Tests, Lint, optional Baseline Profiles
+## Kernfeatures
 
-## Architekturentscheidung
+1. **Automatische Lebenszeit-Erfassung**
+   - Geofencing: Arbeit, Fitnessstudio, wichtige Orte
+   - Activity Recognition: Gehen, Laufen, Fahrrad, Autofahren, Stillstand
+   - Schlaf: bevorzugt Health Connect; optional Sleep API als Ergänzung
+   - Smartphone-Nutzung: UsageStatsManager nach expliziter Sonderberechtigung
+   - Alle erkannten Aktivitäten bleiben vollständig bearbeitbar: Titel, Kategorie, Tags, Start/Ende, Beschreibung.
 
-Gewählt wird eine modulare, aber nicht übertriebene Struktur:
+2. **Visuelles Lebensdashboard & Statistiken**
+   - heutige Zeitverteilung
+   - aktuelle Aktivität
+   - Ziel-/Habit-Fortschritt
+   - Streaks
+   - Lebensfortschritt
+   - Bucket-List-Fortschritt
+   - Smartphone-Nutzung
+   - Zeitverteilung nach Kategorien über Tage/Wochen/Monate/Jahre
+
+3. **Persönliche Entwicklungssysteme**
+   - Bucket List mit Bild, Beschreibung, Datum, Status, Fortschritt
+   - Ziele, die automatisch gegen erfasste Aktivitäten geprüft werden
+   - Habit-/Streak-System mit täglicher, wöchentlicher, mehrfach-pro-Woche und individueller Frequenz
+
+## Technische Leitentscheidung
+
+Aevum ist **vollständig offline-first**:
+
+- kein Login
+- kein Backend
+- keine Cloud
+- alle Daten lokal auf dem Gerät
+- optionaler manueller Export/Backup später
+
+## Stack
+
+| Bereich | Entscheidung |
+|---|---|
+| Sprache | Kotlin |
+| UI | Jetpack Compose + Material Design 3 |
+| Architektur | Layered Architecture, MVVM/MVI, Unidirectional Data Flow |
+| State | ViewModel + StateFlow |
+| DI | Hilt |
+| Daten | Room + DataStore |
+| Hintergrund | WorkManager + Android System APIs |
+| Ort | GeofencingClient / Fused Location Provider über Google Play Services |
+| Aktivität | ActivityRecognitionClient Transition API |
+| Schlaf | Health Connect primär, Sleep API optional |
+| Nutzung | UsageStatsManager mit Special App Access |
+| Visualisierung | Compose Canvas Charts zuerst, externe Chart-Lib nur wenn nötig |
+| Tests | TDD für Domain, Repository, Mapper, Aggregationen; Compose UI Tests für Kernflows |
+
+## Architekturmodule
 
 ```text
 app/
@@ -45,44 +77,41 @@ core/
   model/
   database/
   datastore/
-  network/
-  design-system/
+  sensors/
+  automation/
   analytics/
+  design-system/
 feature/
   onboarding/
-  home/
+  dashboard/
+  timeline/
+  activities/
+  goals/
+  habits/
+  bucketlist/
   statistics/
   settings/
 ```
 
-## Wichtige Alternativen
+## Warum diese Architektur?
 
-| Thema | Gewählt | Alternative | Begründung |
-|---|---|---|---|
-| UI | Compose | XML Views | Moderner, weniger Boilerplate, besser für Premium-Designsysteme |
-| Architektur | MVVM/MVI + UDF | MVP, direkte UI-Logik | Testbar, robust, Compose-kompatibel |
-| DI | Hilt | Koin/manuell | Jetpack-nah, gute Tooling-/Testintegration |
-| Datenbank | Room | SQLite direkt/Realm | Standard, Migrationen, Flow, Tests |
-| Settings | DataStore | SharedPreferences | Asynchron, moderner, typsicherer |
-| Background | WorkManager | Services/AlarmManager direkt | OS-konform und zuverlässig |
+Aevum kombiniert sensible lokale Daten, automatische Signale, manuelle Korrektur und komplexe Visualisierungen. Deshalb braucht die App:
 
-## Meilensteine
+- klare Trennung zwischen Rohsignalen und bestätigten Aktivitäten
+- erklärbare Automatisierung statt Blackbox
+- lokale Datenhoheit
+- robuste Hintergrundverarbeitung
+- testbare Aggregationslogik für Statistiken
 
-1. **M0 Vorbereitung:** Dokumentation und Architekturplan fertig.
-2. **M1 Produktdefinition:** Fachdomäne, Zielgruppe, MVP, Datenobjekte, UX-Flows finalisieren.
-3. **M2 Projektgrundlage:** Kotlin/Compose/Hilt/Room/Navigation/Testsetup.
-4. **M3 Design System:** Tokens, Theme, Komponenten, Light/Dark, Accessibility.
-5. **M4 Core Data/Domain:** Datenmodell, Room, Repositories, Use-Cases testgetrieben.
-6. **M5 MVP Screens:** Onboarding, Home, Create/Edit, Detail, Settings.
-7. **M6 Statistik/Visualisierung:** Charts, Trends, Insights, Zeitraumfilter.
-8. **M7 Background/Automatisierung:** WorkManager, Sync, Reminder, Notifications nach Bedarf.
-9. **M8 Qualität:** Tests, Lint, Performance, Accessibility, Review.
-10. **M9 Release:** APK, Signing-Plan, Changelog, Known Issues.
+## Entwicklungsprinzipien
 
-## Arbeitsregeln
+- Kein App-Code ohne dokumentierte Entscheidung.
+- Automatische Erkennung ist ein Vorschlagssystem, nicht endgültige Wahrheit.
+- Nutzerkontrolle hat Priorität: jede Aktivität ist editierbar.
+- Datenschutz zuerst: keine Cloud, kein Tracking, keine unnötigen Permissions.
+- Dashboard zuerst: Aevum muss visuell überzeugen.
+- Nach jedem Meilenstein: Code Review, Architektur Review, Docs und `PROJECT_STATE.md` aktualisieren.
 
-- Kein App-Code vor abgeschlossenem Plan und Produktklärung.
-- Nach jedem Meilenstein: Code prüfen, Architektur prüfen, Docs aktualisieren, `PROJECT_STATE.md` aktualisieren.
-- Wichtige Entscheidungen in `DECISIONS.md` festhalten.
-- Keine Dummy-Pfade in Produktlogik.
-- Wenn eine bessere Lösung gefunden wird, Architektur bewusst ändern und dokumentieren.
+## Nächster Meilenstein
+
+**M2 — Android-Projektgrundlage**: Kotlin/Compose/Hilt/Room/DataStore/Navigation/Testsetup für `de.devondroste.aevum` erstellen. Erst danach beginnt Feature-Implementierung in vertikalen TDD-Slices.

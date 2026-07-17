@@ -1,8 +1,8 @@
-# NAVIGATION
+# NAVIGATION — Aevum
 
-## Strategie
+## Grundentscheidung
 
-Gewählt: **Navigation Compose**. Klassische Fragments werden vermieden, außer externe SDKs erzwingen sie.
+Aevum nutzt **Navigation Compose**. Klassische Fragments nur bei externen SDK-Zwängen.
 
 ## Root Graph
 
@@ -10,48 +10,60 @@ Gewählt: **Navigation Compose**. Klassische Fragments werden vermieden, außer 
 Root
 ├── OnboardingGraph
 │   ├── Welcome
-│   ├── Permissions
-│   └── Setup
+│   ├── LifeProfileSetup
+│   ├── PermissionEducation
+│   ├── PlacesSetup
+│   └── DashboardIntro
 └── MainGraph
-    ├── Home
-    ├── Statistics
-    ├── AddOrEdit
-    ├── Detail
+    ├── Dashboard
+    ├── Timeline
+    ├── Insights/Statistics
+    ├── Growth
+    │   ├── Goals
+    │   ├── Habits
+    │   └── BucketList
     └── Settings
 ```
 
-## Adaptive Navigation
+## Hauptnavigation
 
-| Gerät | Pattern |
-|---|---|
-| Smartphone portrait | Bottom Navigation |
-| Foldable/Tablet | Navigation Rail oder Permanent Drawer |
-| Detailfluss | Top App Bar + Back |
-
-## Vorgesehene Hauptbereiche
-
-| Screen | Zweck | Status |
+| Tab | Screen | Zweck |
 |---|---|---|
-| Onboarding | Wertversprechen, Setup, Permissions | geplant |
-| Home | wichtigste Tages-/App-Übersicht | generisch geplant |
-| Add/Edit | zentrale Datenerfassung | wartet auf Fachdomäne |
-| Detail | Objektansicht | wartet auf Fachdomäne |
-| Statistics | Charts, Trends, Insights | geplant |
-| Settings | Theme, Datenschutz, Export, App-Info | geplant |
+| Heute | `DashboardScreen` | wichtigste Visualisierung des Tages |
+| Timeline | `TimelineScreen` | Lebenszeit-Blöcke ansehen/bearbeiten |
+| Insights | `StatisticsScreen` | Charts, Trends, Heatmaps, Lebensstatistik |
+| Wachstum | `GrowthScreen` | Ziele, Habits, Bucket List |
+| Settings | `SettingsScreen` | Privacy, Permissions, Export, Theme |
 
-## Fragmentstruktur
-
-Primär keine Fragments:
+## Detailflüsse
 
 ```text
-MainActivity -> AppRoot() -> AppNavHost() -> Feature Screens
+ActivityDetail
+ActivityEdit
+GoalDetail
+GoalEdit
+HabitDetail
+HabitEdit
+BucketItemDetail
+BucketItemEdit
+PlaceGeofenceEdit
+PermissionDetail
 ```
 
-Fragments nur für Sonderfälle wie Camera/Scanner/Legacy-SDK.
+## Dashboard als Startscreen
 
-## Tests
+Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwert ist.
 
-- Startdestination abhängig von Onboarding-State
-- Backstack bei Detail/Edit korrekt
-- Tab-Wechsel erhält State
-- Deep Links später testen
+## Adaptive Layout
+
+- Smartphones: Bottom Navigation
+- große Displays/Foldables: Navigation Rail
+- Details: Top App Bar mit Zurück
+
+## Kritische Navigationstests
+
+- Onboarding wird nur angezeigt, wenn nicht abgeschlossen.
+- Permission-Screens sind erklärend, nicht blockierend.
+- Dashboard lädt auch ohne Permissions und zeigt sinnvolle Empty States.
+- Activity Edit kehrt zur vorherigen Timeline/Dashboard-Ansicht zurück.
+- Tab-State bleibt beim Wechsel erhalten.

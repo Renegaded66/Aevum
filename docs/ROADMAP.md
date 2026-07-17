@@ -1,103 +1,117 @@
-# ROADMAP
+# ROADMAP — Aevum
 
 ## M0 — Vorbereitung & Dokumentation
 
-**Ziel:** Projektgedächtnis und Architekturplan stehen.
+**Ziel:** Projektgedächtnis und Grundarchitektur stehen.  
+**Status:** Abgeschlossen.
 
-**Aufgaben:** `/docs` erstellen, Skill-/Technologieanalyse dokumentieren, Architektur/DB/Navigation/UI/Roadmap/Entscheidungen festhalten.
-
-**Benötigte Dateien:** alle `docs/*.md`.
-
-**Tests:** Dokumentliste prüfen, zentrale Inhalte gegen Anforderung validieren.
-
-**Definition of Done:** Alle geforderten Dokumente vorhanden und initial gefüllt.
+**Definition of Done:** Alle `/docs` Dateien vorhanden und Produktvision eingearbeitet.
 
 ## M1 — Produktdefinition
 
-**Ziel:** Fachliche App-Idee und MVP festlegen.
+**Ziel:** Produktvision, Name, Paket, Kernfeatures und Offline-Entscheidung festlegen.  
+**Status:** Abgeschlossen.
 
-**Aufgaben:** Zielgruppe, Kernprobleme, Kernfeatures, Datenobjekte, User Journey, Erfolgskriterien.
-
-**Tests:** Plan-Review gegen Nutzeranforderungen.
-
-**Definition of Done:** `FEATURES.md`, `DATABASE.md`, `NAVIGATION.md` enthalten konkrete Fachdomäne.
+**Ergebnis:** Aevum, Paket `de.devondroste.aevum`, Life-Analytics-Assistent, offline-first.
 
 ## M2 — Android-Projektgrundlage
 
-**Ziel:** Buildfähiges Kotlin/Compose Projekt ohne Fachfeatures.
+**Ziel:** Buildfähiges Android-Projekt ohne Fachlogik.
 
-**Aufgaben:** Gradle/AGP/Kotlin, Compose Material 3, Hilt, Room, DataStore, Navigation, Testdeps.
+**Aufgaben:**
 
-**Tests:** `./gradlew testDebugUnitTest assembleDebug lintDebug`.
+- Gradle/Kotlin/AGP einrichten
+- Package `de.devondroste.aevum`
+- Compose + Material 3
+- Hilt
+- Room
+- DataStore
+- Navigation Compose
+- Testsetup
+- leere App-Shell mit Platzhalter-Navigation
 
-**Definition of Done:** App-Shell baut, Tests grün, Debug-APK existiert.
+**Benötigte Dateien:** Gradle-Dateien, Manifest, MainActivity, Theme, NavHost, Testbasis.
 
-## M3 — Design System
+**Tests:** `./gradlew testDebugUnitTest assembleDebug lintDebug`
 
-**Ziel:** Wiederverwendbare UI-Basis.
+**Definition of Done:** App-Shell baut, Tests laufen, Debug APK existiert.
 
-**Aufgaben:** Theme/Tokens, Card/Button/TextField/State-Komponenten, Light/Dark Previews.
+## M3 — Design System & Dashboard Skeleton
 
-**Tests:** Compose UI/Preview, visuelle Prüfung.
+**Ziel:** Aevum Look & Feel als wiederverwendbare Komponenten.
 
-**Definition of Done:** Screens nutzen zentrale Designsystem-Komponenten.
+**Aufgaben:** Tokens, Theme, Cards, Chart-Komponenten-Skeletons, Empty/Loading/Error States.
 
-## M4 — Core Data & Domain
+**Tests:** Compose UI Tests, Previews, visuelle Prüfung.
 
-**Ziel:** Fachmodelle, Room, Repository, Use-Cases.
+**Definition of Done:** Dashboard Skeleton nutzt nur Designsystem-Komponenten.
 
-**Aufgaben:** Tests zuerst, Entities/DAO, Migrations, Repositories, Use-Cases.
+## M4 — Core Datenmodell & Room
 
-**Tests:** Unit Tests, DAO/Migration Tests.
+**Ziel:** Lokale Datenbasis.
 
-**Definition of Done:** Fachlogik ist getestet und persistent.
+**Aufgaben:** Entities/DAO für Kategorien, Sessions, Tags, Goals, Habits, Bucket List, Raw Events, App Usage, Geofences.
 
-## M5 — Screens & Navigation
+**Tests:** DAO Tests, Migration Tests, Repository Unit Tests.
 
-**Ziel:** MVP User Flows end-to-end.
+**Definition of Done:** Daten können lokal angelegt, gelesen, bearbeitet und gelöscht werden.
 
-**Aufgaben:** Onboarding, Home, Create/Edit, Detail, Settings.
+## M5 — Timeline & manuelle Activity Sessions
 
-**Tests:** ViewModel Tests, Navigation Tests, Compose UI Tests.
+**Ziel:** Ohne Permissions nutzbarer Kernflow.
 
-**Definition of Done:** Nutzer kann MVP-Kernaufgabe stabil erledigen.
+**Aufgaben:** Timeline, Activity Editor, Kategorie/Tags, manuelle Session, Tagesaggregation.
 
-## M6 — Statistik & Visualisierung
+**Tests:** TDD für Intervalllogik, ViewModel Tests, Compose UI Tests.
 
-**Ziel:** Premium-Insights und Charts.
+**Definition of Done:** Nutzer kann Zeitblöcke manuell erfassen und visuell sehen.
 
-**Aufgaben:** Aggregationen, Chart-Komponenten, Zeitraumfilter, Insight-Texte.
+## M6 — Automatische Erkennung v1
 
-**Tests:** Aggregationslogik TDD, UI States.
+**Ziel:** Erste automatische Quellen integrieren.
 
-**Definition of Done:** Statistiken sind korrekt, schnell und verständlich.
+**Aufgaben:** Geofencing, Activity Recognition, RawDetectionEvent, Candidate-Erzeugung, Review UI.
 
-## M7 — Background & Automatisierung
+**Tests:** Classifier Tests, Receiver Tests soweit möglich, Permission Flow Tests.
 
-**Ziel:** Robuste Hintergrundprozesse falls nötig.
+**Definition of Done:** Automatische Events erzeugen bearbeitbare Kandidaten.
 
-**Aufgaben:** WorkManager, Retry/Backoff, Notifications, Permission UX.
+## M7 — Health Connect / Sleep & UsageStats
 
-**Tests:** Worker Tests, Fehlerfälle.
+**Ziel:** Schlaf und Smartphone-Nutzung integrieren.
 
-**Definition of Done:** Jobs laufen OS-konform und transparent.
+**Aufgaben:** Health Connect Sleep Import, UsageStats Import, eigene Visualisierung.
 
-## M8 — Qualität & Performance
+**Tests:** Mapper Tests, Aggregations Tests, Permission Empty States.
 
-**Ziel:** Premium-Reife.
+**Definition of Done:** Schlaf und Smartphone-Nutzung erscheinen korrekt im Dashboard.
 
-**Aufgaben:** Lint/Detekt/Ktlint optional, Accessibility Audit, Performance Checks, Baseline Profiles prüfen.
+## M8 — Goals, Habits, Streaks
 
-**Tests:** komplette Test-Suite, Smoke Tests, APK-Verifikation.
+**Ziel:** Persönliche Entwicklungssysteme.
 
-**Definition of Done:** Keine bekannten Blocker, Performance akzeptabel.
+**Aufgaben:** Goals, Habits, Streak-Berechnung, Heatmap, automatische Zielprüfung.
 
-## M9 — Release-Vorbereitung
+**Tests:** TDD für Ziel-/Streak-Regeln.
 
-**Ziel:** Installierbares Artefakt und Release-Plan.
+**Definition of Done:** Ziele/Habits werden aus Sessions automatisch bewertet.
 
-**Aufgaben:** Versionierung, Signing, Changelog, Datenschutztexte, Known Issues.
+## M9 — Bucket List & Life Progress
 
-**Tests:** Debug/Release Build, Signature, Badging, Installationstest falls möglich.
+**Ziel:** Langfristige Lebensperspektive.
 
-**Definition of Done:** verifizierter Release-Kandidat liegt vor.
+**Aufgaben:** Bucket List CRUD, Fortschritt, Life Grid, Lebenszeitberechnung.
+
+**Tests:** Berechnungslogik, UI Tests.
+
+**Definition of Done:** Bucket List und Lebensstatistik sind im Dashboard/Insights sichtbar.
+
+## M10 — Premium Polish, Performance, Release
+
+**Ziel:** stabile Premium-App.
+
+**Aufgaben:** Lint, Performance, Accessibility, Baseline Profiles prüfen, APK-Verifikation.
+
+**Tests:** komplette Suite, APK badging/signature, manuelle Smoke Tests.
+
+**Definition of Done:** verifizierte installierbare APK liegt vor.

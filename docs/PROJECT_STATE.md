@@ -1,51 +1,67 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-17T13:54:54Z
-> Projektpfad: `/root/ai-projects/premium-android-app`
+> Stand: 2026-07-17T14:00:34Z  
+> Produktname: **Aevum**  
+> Paketname: `de.devondroste.aevum`  
+> Status: Produktdefinition eingearbeitet, noch kein App-Code.
 
 ## Aktueller Entwicklungsstand
 
 - [x] Projektordner angelegt: `/root/ai-projects/premium-android-app`
-- [x] Dokumentationsordner angelegt: `/root/ai-projects/premium-android-app/docs`
-- [x] Skill- und Technologieanalyse durchgeführt
-- [x] Architekturplanung erstellt
-- [x] Initiales Projektgedächtnis erstellt
-- [ ] Konkrete Produktidee/Fachdomäne geklärt
+- [x] `/docs` als dauerhaftes Projektgedächtnis erstellt
+- [x] Skill-/Technologieanalyse durchgeführt
+- [x] Architekturplanung initial erstellt
+- [x] Produktdefinition eingearbeitet
+- [x] Appname gewählt: **Aevum**
+- [x] Paketname festgelegt: `de.devondroste.aevum`
+- [x] Offline-first / kein Backend / kein Login entschieden
 - [ ] Android-Projektdateien erstellt
 - [ ] App-Code geschrieben
-- [ ] Tests geschrieben
+- [ ] Tests implementiert
 - [ ] APK gebaut
 
-## Phase
+## Produktdefinition
 
-**M0 — Vorbereitung & Dokumentation**
+Aevum ist ein persönliches Lebenscockpit für Lebenszeit, Zeitverteilung, Ziele, Gewohnheiten, Streaks, Bucket List und visuelle Lebensstatistiken.
 
-Status: initial abgeschlossen, sofern alle geforderten Dokumente vorhanden sind.
+## Zentrale Anforderungen
 
-## Nächster zwingender Schritt
+- Vollständig lokale Datenhaltung
+- Möglichst automatische Aktivitätserkennung
+- Manuelle Bearbeitbarkeit aller erkannten Aktivitäten
+- Visuelles Dashboard als wichtigster Screen
+- Moderne Charts, Heatmaps, Zeitlinien, Fortschrittsanzeigen
+- Ziele automatisch anhand erfasster Aktivitäten prüfen
+- Habit-/Streak-System mit Verlauf und Erfolgsquote
 
-**M1 — Produktdefinition.** Vor App-Code müssen geklärt werden:
+## Nächster Schritt
 
-1. Was ist die App fachlich?
-2. Wer ist die Zielgruppe?
-3. Welche 3 Kernfeatures sind für MVP zwingend?
-4. Local-first, Cloud-Sync oder Backend-first?
-5. Welche Daten müssen gespeichert werden?
-6. Gibt es sensible Daten/Berechtigungen?
-7. Gewünschter Appname und Paketname?
+**M2 — Android-Projektgrundlage erstellen.**
 
-## Aktuelle Architekturannahmen
+Vor Feature-Code werden eingerichtet:
 
-- Kotlin + Jetpack Compose + Material 3
-- MVVM/MVI-Hybrid mit StateFlow
+1. Gradle/Kotlin/Compose Projekt
+2. Package `de.devondroste.aevum`
+3. Material 3 Theme
+4. Hilt
+5. Room
+6. DataStore
+7. Navigation Compose
+8. Testsetup
+9. leere App-Shell mit Platzhalter-Screens
+
+## Aktuelle technische Entscheidungen
+
+- Kotlin + Compose + Material 3
+- MVVM/MVI + StateFlow
 - Hilt DI
 - Room + DataStore
-- Navigation Compose
-- WorkManager nur bei echtem Bedarf
-- TDD für Businesslogik
+- WorkManager für Reconciliation/Background Jobs
+- Geofencing, Activity Recognition, Health Connect, UsageStatsManager nach Permission-Onboarding
+- kein Backend, kein Login, keine Cloud
 
-## Offene Risiken
+## Offene Punkte für später
 
-- Fachdomäne fehlt, daher Datenmodell und Navigation noch generisch.
-- Zu frühe Modulstruktur kann Overhead erzeugen; Featuremodule erst konkret erstellen, wenn M1 abgeschlossen ist.
-- Datenschutz/Berechtigungen unbekannt.
+- Exakte Orte für Geofences legt Nutzer in der App fest.
+- Geburtsdatum/Lebenserwartung für Lebensfortschritt wird im Onboarding abgefragt.
+- Optionaler Export/Backup wird später als lokale Datei geplant.

@@ -1,31 +1,52 @@
-# DESIGN_SYSTEM
+# DESIGN_SYSTEM — Aevum
 
-## Designrichtung
+## Markenrichtung
 
-Basis: **Material Design 3**, erweitert um eine eigene Premium-Identität. Referenzästhetik aus geladenen Designsystemen:
+**Aevum** steht für Zeit, Leben, Bewusstsein und Entwicklung. Der Look soll modern, ruhig, hochwertig und datenorientiert sein.
 
-- Linear/Superhuman: präzise, ruhige Dashboard-Ästhetik
-- Apple/BMW: hochwertiger Weißraum, reduzierte Premium-Sprache
-- Stripe/Revolut: hochwertige Gradients, klare Datenkarten
+## Visuelle Metaphern
 
-## Farb-Tokens
+- Zeitringe
+- Lebensraster
+- ruhige Gradients
+- Glas-/Surface-Karten sparsam
+- warme Akzente für Leben/Fortschritt
+- dunkler Premium-Modus als First-Class Citizen
+
+## Farbkonzept
 
 | Token | Hell | Dunkel | Zweck |
 |---|---:|---:|---|
-| `primary` | TBD | TBD | Hauptaktionen |
-| `secondary` | TBD | TBD | Nebenakzente |
-| `background` | `#FAFAFC` | `#0B0D12` | App-Hintergrund |
-| `surface` | `#FFFFFF` | `#131722` | Karten/Sheets |
-| `success` | `#16A34A` | `#4ADE80` | Erfolg |
-| `warning` | `#F59E0B` | `#FBBF24` | Warnung |
+| `primary` | `#6D5DF6` | `#8B7CFF` | Zeit/Fokus |
+| `secondary` | `#14B8A6` | `#2DD4BF` | Wachstum/Bewusstsein |
+| `tertiary` | `#F59E0B` | `#FBBF24` | Fortschritt/Bucket |
+| `background` | `#F7F7FB` | `#080A10` | App-Hintergrund |
+| `surface` | `#FFFFFF` | `#121521` | Karten |
+| `surfaceVariant` | `#EEF0F7` | `#1B2030` | Sekundärflächen |
+| `success` | `#16A34A` | `#4ADE80` | Erreicht |
+| `warning` | `#F59E0B` | `#FBBF24` | Hinweis |
 | `error` | `#DC2626` | `#F87171` | Fehler |
+
+## Kategorie-Farben
+
+| Kategorie | Farbe |
+|---|---:|
+| Arbeit | `#6366F1` |
+| Schlaf | `#334155` |
+| Sport | `#22C55E` |
+| Lernen | `#0EA5E9` |
+| Freizeit | `#F97316` |
+| Beziehungen | `#EC4899` |
+| Haushalt | `#A855F7` |
+| Smartphone | `#64748B` |
+| Autofahren | `#F59E0B` |
 
 ## Typografie
 
-- Android System Font / Material Typography als Basis
-- klare Hierarchie: Display, Headline, Title, Body, Label
-- keine Mini-Texte unter 12sp
-- Zahlen/Statistiken mit stabiler Breite prüfen
+- Material 3 Typography als Basis
+- Zahlen/Statistiken groß und ruhig
+- Headline: emotional, kurz
+- Labels: präzise, nicht technisch
 
 ## Spacing
 
@@ -40,29 +61,29 @@ Basis: **Material Design 3**, erweitert um eine eigene Premium-Identität. Refer
 
 ## Komponenten
 
-- `AppScaffold`
-- `PremiumCard`
-- `MetricCard`
+- `AevumScaffold`
+- `TimeDistributionRing`
+- `LifeGrid`
+- `DayTimeline`
+- `HabitHeatmap`
+- `ProgressRing`
 - `InsightCard`
-- `PrimaryButton`
-- `SecondaryButton`
-- `AppTextField`
-- `EmptyState`
-- `ErrorState`
-- `LoadingSkeleton`
-- `ChartCard`
-- `SettingsRow`
+- `ActivitySessionCard`
+- `EditableDetectionCard`
+- `PermissionEducationCard`
+- `BucketListCard`
+- `GoalProgressCard`
 
 ## Motion
 
-- 150–300ms Transitions
-- keine dauernd ablenkenden Animationen
-- Skeleton Loading statt Spinner, wo sinnvoll
-- Haptics nur für wichtige Bestätigung
+- sanfte Chart-Animationen beim Laden
+- Timeline-Übergänge 150–250ms
+- keine gamifizierte Überanimation
+- Haptics bei Zielabschluss/Streak-Meilenstein optional
 
 ## Qualitätskriterien
 
-- kein überlappender Text bei 360dp Breite
+- 360dp Breite ohne Überlappung
 - Light/Dark vollständig
-- Preview Composables für Kernkomponenten
-- zentrale Tokens statt roher Farben/Abstände
+- Chart-Semantics für Screenreader
+- Preview für jede Kernkomponente
