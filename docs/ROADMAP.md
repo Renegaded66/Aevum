@@ -75,11 +75,23 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Ziel:** Lokale Datenbasis fachlich belastbar machen.
 
-**Aufgaben:** Entities/DAO für Kategorien, Sessions, Tags, Goals, Habits, Bucket List, Raw Events, App Usage, Geofences finalisieren; Seed-Daten; Migrationstest-Basis.
+**M4 Pre-Review Entscheidung:** Das M2-Basismodell wird fachlich erweitert. Aevum nutzt Zeitintervalle als kanonisches Aktivitätsmodell und trennt Raw Events, Detection Events, Candidates, Sessions, Evidence und Aggregations-Caches.
+
+**Status:** **Abgeschlossen.**
+
+**Erledigte Aufgaben:**
+
+- [x] `exportSchema=true` und Migrationstest-Basis einrichten
+- [x] Zielmodell aus `docs/DATABASE.md` implementieren: `data_source`, `raw_source_event`, `detection_event`, `activity_candidate`, `activity_session`, `session_evidence`, `activity_type`
+- [x] `activity_session_change` und Session-Herkunft (`created_by`, `updated_by`, `source_candidate_id`, optional `supersedes_session_id`) implementieren
+- [x] bestehende Kategorien/Tags normalisiert beibehalten und Seed-Daten erstellen
+- [x] Goals/Habits mit flexibler Rule-/Filter-Struktur vorbereiten
+- [x] `activity_aggregate_day` als ersten ableitbaren Statistikcache planen/implementieren
+- [x] DAO-Abfragen für Zeitintervalle, Kandidaten, Evidence und Aggregationen testgetrieben stabilisieren
 
 **Tests:** DAO Tests, Migration Tests, Repository Unit Tests.
 
-**Definition of Done:** Daten können lokal angelegt, gelesen, bearbeitet und gelöscht werden.
+**Definition of Done:** Daten können lokal angelegt, gelesen, bearbeitet und gelöscht werden; Kandidaten und bestätigte Sessions sind getrennt; Raw/Evidence bleibt nachvollziehbar; Session-Änderungen sind historisch nachvollziehbar; Migrationen sind testbar.
 
 ## M5 — Timeline & manuelle Activity Sessions
 

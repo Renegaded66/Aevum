@@ -12,6 +12,10 @@
 | KI-006 | Schlafdaten sind ohne Health Connect ggf. unvollständig | Mittel | Offen | Health Connect primär, manuelle Sessions fallback |
 | KI-007 | Komplexe Visualisierungen können Performance kosten | Mittel | Offen | Canvas optimieren, Aggregationen vorberechnen |
 | KI-008 | Lokale Daten sind sensibel | Hoch | Offen | Kein Netzwerk, Backup bewusst steuern, Export später verschlüsseln |
+| KI-009 | Kandidaten und bestätigte Sessions dürfen fachlich nicht vermischt werden | Hoch | In M4 adressieren | Separate `activity_candidate`, `activity_session` und `session_evidence` Tabellen |
+| KI-010 | Mehrjährige Statistiken können ohne Aggregat-Caches langsam werden | Mittel | In M4/M8 adressieren | `activity_aggregate_day` und ableitbare `stat_cache` Tabellen |
+| KI-011 | Spätere Quellen wie Wear OS/Kalender dürfen kein Schema-Refactoring erzwingen | Hoch | In M4 adressieren | `data_source`, `raw_source_event`, `detection_event` Pipeline |
+| KI-012 | Nutzerkorrekturen könnten ursprüngliche Auto-Vorschläge überschreiben | Hoch | In M4 adressieren | `activity_session_change`, `source_candidate_id`, `created_by`, `updated_by`, optional `supersedes_session_id` |
 
 ## Technische Risiken
 

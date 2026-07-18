@@ -2,16 +2,19 @@
 
 ## Architekturziel
 
-Aevum muss automatische Lebenszeit-Erfassung, manuelle Korrektur, lokale Datenhaltung und hochwertige Visualisierungen verbinden. Kernidee: **Rohsignale werden gesammelt, interpretiert und als bearbeitbare Aktivitäts-Sessions vorgeschlagen bzw. bestätigt.**
+Aevum muss automatische Lebenszeit-Erfassung, manuelle Korrektur, lokale Datenhaltung und hochwertige Visualisierungen verbinden. Kernidee: **Rohsignale werden gesammelt, normalisiert, zu Vorschlägen verarbeitet und erst nach Nutzerentscheidung bzw. klarer Regel als Aktivitäts-Sessions zur fachlichen Wahrheit.**
 
 ## Prinzipien
 
 1. **Offline-first:** Room ist Source of Truth.
 2. **User Control:** Automatische Erkennung erzeugt Vorschläge/Confidence, Nutzer kann alles bearbeiten.
 3. **Signal ≠ Wahrheit:** Sensor-/Systemdaten bleiben getrennt von bestätigten Life-Log-Aktivitäten.
-4. **Unidirectional Data Flow:** UI Event → ViewModel → UseCase → Repository → DB → UiState.
-5. **Privacy by Design:** keine Cloud, kein Login, keine unnötigen Permissions.
-6. **Visual-first:** Daten werden für Charts/Timeline/Heatmaps optimiert aggregiert.
+4. **Zeitintervalle als Kern:** Alles, was Lebenszeit beschreibt, wird als Zeitraum modelliert.
+5. **Evidence statt Blackbox:** Jede automatische Session kann auf Detection Events zurückgeführt werden.
+6. **Unidirectional Data Flow:** UI Event → ViewModel → UseCase → Repository → DB → UiState.
+7. **Privacy by Design:** keine Cloud, kein Login, keine unnötigen Permissions.
+8. **Visual-first:** Daten werden für Charts/Timeline/Heatmaps optimiert aggregiert.
+9. **Screen UX Review Gate:** Jeder neue Screen wird vor Implementierung auf Premium-UX geprüft.
 
 ## Module
 
@@ -20,11 +23,11 @@ app/
 core/
   common/          # Result, errors, time utils, dispatchers
   model/           # Domain models: ActivitySession, Goal, Habit, BucketItem
-  database/        # Room entities, DAO, migrations
+  database/        # Room entities, DAO, migrations, schema exports
   datastore/       # preferences: theme, onboarding, privacy choices
-  sensors/         # geofence/activity/usage/health-connect adapters
-  automation/      # classification, rule engine, reconciliation workers
-  analytics/       # local-only insight/event abstractions
+  sensors/         # geofence/activity/usage/health-connect/wear/calendar adapters
+  automation/      # classification, candidate generation, reconciliation workers
+  analytics/       # local-only insight/event abstractions, aggregation caches
   design-system/   # Material 3 theme, tokens, components, charts
 feature/
   onboarding/
@@ -38,121 +41,217 @@ feature/
   settings/
 ```
 
-## Datenfluss für automatische Erkennung
+## M4 Datenfluss für automatische Erkennung
 
 ```text
-Android API Signal
-  -> RawDetectionEvent
-  -> DetectionClassifier / RuleEngine
-  -> ActivitySession candidate
-  -> User review/edit optional
-  -> Confirmed ActivitySession
-  -> Aggregations / Dashboard / Goals / Habits
+Sensor / externe Quelle
+  -> data_source
+  -> raw_source_event          // unveränderter Audit Trail
+  -> detection_event           // normalisiertes Sensor-/Android-/Import-Ereignis
+  -> activity_candidate        // vorgeschlagener Zeitraum
+  -> session_evidence          // Begründung/Evidence
+  -> activity_session          // bestätigte oder manuelle Nutzerwahrheit
+  -> activity_session_change   // kleine Änderungshistorie / Audit Trail
+  -> activity_aggregate_day    // ableitbarer Performance-Cache
+  -> Dashboard / Timeline / Ziele / Habits / Reports
 ```
 
 ## Schichten
 
-### Sensor Layer
+### Sensor / Source Layer
 
-Adapter kapseln Android APIs:
+Adapter kapseln Quellen:
 
 - `GeofenceSignalSource`
 - `ActivityRecognitionSignalSource`
 - `UsageStatsSignalSource`
 - `HealthConnectSleepSource`
+- später: `WearOsSignalSource`, `CalendarSignalSource`, `ImportSignalSource`
 
-Sie schreiben keine finalen Sessions direkt, sondern Raw Events oder klar markierte Candidates.
+Sie schreiben keine finalen Sessions direkt. Quellen liefern Raw Events oder Importintervalle, die über die Pipeline normalisiert werden.
 
-### Automation Layer
+### Raw / Detection Layer
 
-- Konfliktlösung bei überlappenden Signalen
-- Confidence Score
-- Kategorien-Mapping
-- Tages-Reconciliation per WorkManager
-- Ziel-/Habit-Auswertung
+- `raw_source_event`: unveränderter Audit Trail inkl. Payload und externer IDs.
+- `detection_event`: quellübergreifend normalisierte Ereignisse wie `GEOFENCE_ENTER`, `SLEEP`, `APP_USAGE`, `CALENDAR_BUSY`.
 
-### Domain Layer
+Diese Schicht ist append-orientiert und erlaubt Reprocessing, Debugging, neue Klassifikatoren und lokale KI-Auswertungen.
 
-- `CreateOrUpdateActivitySessionUseCase`
-- `ClassifyRawDetectionUseCase`
-- `AggregateDayTimelineUseCase`
-- `EvaluateGoalProgressUseCase`
-- `EvaluateHabitStreakUseCase`
-- `CalculateLifeProgressUseCase`
+### Candidate Layer
 
-### UI Layer
+`activity_candidate` enthält vorgeschlagene Aktivitätsblöcke mit Confidence und Begründung. Kandidaten sind noch nicht die Nutzerwahrheit und fließen nicht direkt in Statistiken ein.
 
-- Compose Screens
-- ViewModels mit `StateFlow<UiState>`
-- Stateless Components
-- Charts im Design-System
+### Domain Truth Layer
+
+`activity_session` ist die kanonische Lebenszeit. Manuelle Aktivitäten werden direkt hier gespeichert. Automatische Aktivitäten entstehen aus akzeptierten oder bearbeiteten Kandidaten.
+
+Sessions sind fachlich historisch nachvollziehbar: Eine Nutzerkorrektur überschreibt nicht die Herkunft. `created_by`, `updated_by`, `source_candidate_id`, `supersedes_session_id` und `activity_session_change` halten ursprünglichen Vorschlag und finale Nutzerentscheidung fest.
+
+Beispiel:
+
+```text
+Candidate: Arbeit 08:00–17:00
+Finale Session nach Edit: Arbeit 08:15–16:45
+Historie: CREATED aus Candidate + USER_EDITED mit Before/After Snapshot
+```
+
+### Evidence Layer
+
+`session_evidence` verbindet Kandidaten/Sessions mit Detection Events und dokumentiert, warum eine Session vorgeschlagen oder bestätigt wurde.
+
+`activity_session_change` dokumentiert, wie sich eine bestätigte Session verändert hat. Evidence erklärt „warum wurde das erkannt?“, Change History erklärt „was hat sich danach verändert?“.
+
+### Analytics Layer
+
+- Intervalllogik, Tagesgrenzen, Zeitzonen, Overlaps
+- Ziele/Habit-Auswertung
+- Aggregation in Cache-Tabellen
+- Reports/Charts/Exportdaten
+
+Caches sind ableitbar und dürfen gelöscht und neu berechnet werden.
+
+## Aktivitätsmodell
+
+### Rohsignale
+
+Beispiele:
+
+- Geofence Enter/Exit
+- Activity Recognition Transition
+- Health Connect Sleep Record
+- UsageStats Event
+- Wearable Sample
+- Calendar Event
+
+Speicherort: `raw_source_event`.
+
+### Detection Events
+
+Normalisierte, vergleichbare Ereignisse aus Rohsignalen.
+
+Speicherort: `detection_event`.
+
+### Erkannte Aktivitäten
+
+Aus mehreren Detection Events abgeleitete Zeitblöcke.
+
+Speicherort: `activity_candidate`.
+
+### Bestätigte Aktivitäten
+
+Nutzerwahrheit für Timeline, Dashboard und Statistiken.
+
+Speicherort: `activity_session`.
+
+### Manuelle Aktivitäten
+
+Direkte `activity_session` mit `source_type=MANUAL`. Keine Raw Evidence nötig.
+
+### Kategorien und Activity Types
+
+- `activity_type`: semantisch stabil (`sleep`, `work`, `driving`, `meditation`, `reading`).
+- `category`: visuelle/nutzerfreundliche Gruppierung für Charts (`Schlaf`, `Arbeit`, `Gesundheit`, `Freizeit`).
+- `tag`: flexible Zusatzbedeutung (`deep-work`, `cardio`, `family`).
+
+Diese Trennung verhindert spätere Refactorings, wenn neue Aktivitätstypen oder andere Gruppierungen entstehen.
+
+## Zeit als zentrales Datenmodell
+
+Aevum modelliert Lebenszeit primär als Intervalle:
+
+| Aktivität | Modell |
+|---|---|
+| Schlaf | `activity_session(type=sleep)` |
+| Arbeit | `activity_session(type=work)` |
+| Autofahrt | `activity_session(type=driving)` |
+| Lernen | `activity_session(type=learning)` |
+| Handy-Nutzung | Detection/App Usage plus optional `activity_session(type=digital)` |
+| Fitnessstudio | Geofence Candidate → Session |
+| Meditation | manuell/Wearable/Health → Session |
+| Lesen | manuell/Kalender/Wearable → Session |
+
+Nicht alle Tabellen sind Zeitblöcke: Ziele, Habits, Bucket List, Datenquellen und Einstellungen bewerten oder konfigurieren Zeitblöcke.
 
 ## Konfliktlösung
 
-Priorität für Aktivitätsquellen:
+Priorität:
 
-1. Manuell bearbeitete/confirmierte Session
-2. Geofence mit hoher Confidence
-3. Health Connect Schlafdaten
-4. Activity Recognition Transition
-5. UsageStats Smartphone-Nutzung als Overlay statt alleinige Lebensaktivität
+1. Manuell erstellte oder bearbeitete Sessions
+2. Bestätigte Sessions aus Kandidaten
+3. Kandidaten mit hoher Evidence/Confidence
+4. Einzelne Detection Events
+5. Raw Events als Audit Trail
 
-Überlappungen werden nicht blind überschrieben. Stattdessen entstehen Hinweise wie „möglicher Konflikt: Autofahren während Arbeit“.
+Regeln:
+
+- Rohdaten werden nie überschrieben.
+- Kandidaten können verworfen, zusammengeführt oder bearbeitet werden.
+- Bestätigte Sessions können bearbeitet werden, schreiben aber bei fachlich relevanten Änderungen einen Change Record.
+- Sessions können überlappen, aber Semantik entscheidet: `digital` kann Overlay sein; `sleep` und `work` sind wahrscheinlich Konflikt.
+- Konflikte erzeugen Hinweise statt automatischer destruktiver Korrekturen.
 
 ## Background-Prozesse
 
 - Geofence Events: PendingIntent Receiver
 - Activity Recognition Transitions: PendingIntent Receiver
-- WorkManager: tägliche Reconciliation, Habit-/Goal-Auswertung, optional Reminder
+- WorkManager: Reconciliation, Candidate-Erzeugung, Ziel-/Habit-Auswertung, Aggregat-Aktualisierung
 - Health Connect Import: manuell oder periodisch, wenn erlaubt
 - UsageStats Import: nur lokal und nach Sonderberechtigung
 
-## Architektur-Check vor M2
+## Erweiterbarkeit
 
-Der Datenentwurf wurde vor M2 nochmals geprüft. Ergebnis: Die Trennung zwischen Rohsignalen, Kandidaten, bestätigten Sessions, aggregierten Statistiken und Ziel-/Habit-Fortschritt ist zwingend und wird beibehalten.
+Das M4-Zielmodell unterstützt:
 
-Zusätzliche Festlegungen:
+- Wear OS / Smartwatch durch neue `data_source`
+- Health Connect Erweiterungen durch neue Detection-Kinds
+- Kalenderintegration durch Raw/Detection/Candidate Pipeline
+- lokale KI-Auswertungen durch Evidence + Raw Payloads
+- CSV/JSON Export durch klare Primär- und Evidence-Tabellen
+- Backup/Restore durch stabile IDs, Soft Delete, Revisionen
+- Widgets und PDF-Berichte durch Aggregat-/Cache-Tabellen
+- Desktop-App und Multi-Device-Sync durch plattformneutrale IDs und Sync-Metadaten
 
-- `raw_detection_event` bleibt unveränderter Audit Trail.
-- `activity_session` ist die Nutzerwahrheit, aber mit Status `CANDIDATE`, `CONFIRMED`, `DISMISSED`.
-- Aggregierte Statistiken werden nicht als Ersatz für Rohdaten genutzt, sondern als Performance-Cache.
-- Langfristige Analysen über Jahre nutzen Indizes und später Tages-/Wochen-/Monats-Aggregationstabellen.
-- Batterieoptimierung: Transition-/Event-basierte APIs statt Polling, WorkManager für nachgelagerte Reconciliation.
+## Architektur-Check vor M4
 
-Details: `docs/ARCHITECTURE_CHECK_M2.md`.
+Der M4 Pre-Review hat eine wichtige Korrektur ergeben: Der M2-Entwurf vermischte Kandidaten und bestätigte Sessions über `activity_session.status`. Für langfristige Stabilität wird ab M4 eine getrennte Candidate-/Session-/Evidence-Struktur geplant.
 
-## M2 Implementierte Projektgrundlage
+Details: `docs/DATABASE.md`.
 
-M2 hat die geplante Architektur als lauffähige Android-Basis umgesetzt:
+## M2/M3 Implementierte Projektgrundlage
 
 - Android Application Modul `app`
 - Package/Namespace `de.devondroste.aevum`
 - Kotlin + Android Gradle Plugin + Gradle Wrapper
 - Jetpack Compose + Material 3
-- Aevum Light/Dark Theme (`ui/theme`)
-- Hilt Application (`AevumApplication`) und DI Module (`di/`)
+- Aevum Light/Dark Theme und Design Tokens
+- Wiederverwendbare M3 UI-Komponenten
+- Hilt Application und DI Module
 - Room Grundstruktur (`data/model`, `data/db`, `data/repository`)
-- DataStore Preferences (`DataStoreModule`)
-- Navigation Compose (`navigation/AppNavHost.kt`, `AppDestination.kt`)
-- App Shell mit Platzhalter-Screens für Dashboard, Timeline, Insights, Wachstum, Settings und Onboarding
+- DataStore Preferences
+- Navigation Compose
+- Dashboard Skeleton als erster Premium-Screen
 - Testbasis für JVM Unit Tests und Android/Room Tests
 
-Die M2-Basis ist bewusst noch keine vollständige Fachimplementierung. Sie schafft die stabile technische Grundlage für M3+.
+Die bestehende M2-Room-Basis ist bewusst noch nicht final fachlich vollständig. M4 stabilisiert das Zielmodell, Migrationen, Seed-Daten, DAO-Abfragen und Tests.
 
 ## Sicherheit/Datenschutz
 
 - Kein Netzwerkmodul im MVP nötig.
-- `android:allowBackup=false` ist im Manifest gesetzt, bis Export/Backup bewusst implementiert ist.
+- `android:allowBackup=false` bleibt bis bewusst implementiertem Export/Backup.
 - App-private Room DB.
-- Optional später: verschlüsselter Export oder SQLCipher, wenn sensible Nutzung zunimmt.
+- Optional später: verschlüsselter Export oder SQLCipher.
+- Rohdaten/Evidence bleiben lokal und dienen Transparenz, Debugging und Reprocessing.
 
-## Testbare Kernlogik
+## Testbare Kernlogik in M4+
 
-- Zeitintervall-Merging
-- Kategorie-Aggregation
-- Geofence-Event → Session Candidate
-- Activity Transition → Session Candidate
-- Zielerfüllung nach Kategorie/Tag/Dauer
+- Zeitintervall-Validierung und Overlap-Klassifikation
+- Raw Event → Detection Event Mapper
+- Detection Events → Candidate Generator
+- Candidate Accept/Edit/Dismiss Flow
+- Session Evidence Verknüpfung
+- Activity Session Change History / Before-After Snapshots
+- Kategorie-/Tag-/Activity-Type-Aggregation
+- Zielerfüllung nach Filterregeln
 - Habit-Streak-Berechnung
-- Lebensfortschritt-Berechnung
-- Chart-Datenaggregation
+- Tages-/Monats-/Jahresaggregation
+- Migration Tests mit Schema Export

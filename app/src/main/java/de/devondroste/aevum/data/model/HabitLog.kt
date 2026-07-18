@@ -9,10 +9,25 @@ import java.io.Serializable
 
 @Entity(
     tableName = "habit_log",
-    indices = [Index(value = ["habit_id", "date"]), Index("source_session_id")],
+    indices = [
+        Index(value = ["habit_id", "date"], unique = true),
+        Index("habit_id"),
+        Index("date"),
+        Index("source_session_id")
+    ],
     foreignKeys = [
-        ForeignKey(entity = Habit::class, parentColumns = ["id"], childColumns = ["habit_id"], onDelete = ForeignKey.CASCADE),
-        ForeignKey(entity = ActivitySession::class, parentColumns = ["id"], childColumns = ["source_session_id"], onDelete = ForeignKey.SET_NULL)
+        ForeignKey(
+            entity = Habit::class,
+            parentColumns = ["id"],
+            childColumns = ["habit_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = ActivitySession::class,
+            parentColumns = ["id"],
+            childColumns = ["source_session_id"],
+            onDelete = ForeignKey.SET_NULL
+        )
     ]
 )
 data class HabitLog(

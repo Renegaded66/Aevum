@@ -63,9 +63,36 @@
 - APK Signatur geprüft: APK Signature Scheme v2 erfolgreich, 1 Signer.
 - Compose Preview-Kompilierbarkeit über `compileDebugKotlin`/`assembleDebug` geprüft.
 
-### Known Limitations
+### M4 — Core Datenmodell & Room fachlich stabilisieren (2026-07-18)
 
-- Release-Signing noch nicht eingerichtet.
-- Dashboard nutzt M3-Mock-Daten; echte Aggregationen folgen später.
-- Sensor-/Permission-Flows sind geplant, aber noch nicht implementiert.
-- Fachfeatures wie Timeline-Editor, Ziele, Habits, Bucket List und Statistiken starten erst in späteren Meilensteinen.
+#### Added
+
+- Datenmodell-Ebenen implementiert: `data_source`, `raw_source_event`, `detection_event`, `activity_candidate`, `activity_session`, `session_evidence`, `activity_type`, `activity_session_change`, `activity_aggregate_day`
+- Historische Nachvollziehbarkeit für Activity Sessions: `created_by`, `updated_by`, `source_candidate_id`, `supersedes_session_id`, `revision`, `origin_device_id`, `deleted_at`
+- Activity Types als semantische Ebene getrennt von visuellen Kategorien
+- Goals/Habits mit flexibler JSON-Rule/Filter-Struktur
+- Seed-Daten für Standard-Datenquellen und Activity Types
+- Room Migration v1 → v2 mit neuen Tabellen und Seeding
+- Schema-Export (`exportSchema=true`) für Version 2
+- Vollständige DAOs und Repositories für alle neuen Entitäten
+- Android-Testsuite `DatabaseTest.kt` für alle neuen Entitäten, DAOs und Relationen
+
+#### Changed
+
+- `activity_session` von status-basiert (CANDIDATE/CONFIRMED) zu reiner Nutzerwahrheit umgeformt
+- `raw_detection_event` in `raw_source_event` und `detection_event` aufgespalten
+- `ActivitySession` nutzt nun `source_type`, `created_by`, `updated_by` statt einfacher `source`/`status`
+- `Goal` erweitert um `activity_type_id`, `type`, `period`, `target_value`, `target_unit`, `filter_json`, `start_at`, `end_at`
+- `Habit` erweitert um `frequency_rule_json`, `success_rule_json`, `activity_type_id`
+- `AppDatabase` Version auf 2 erhöht, Migration MIGRATION_1_2 hinzugefügt
+
+#### Verified
+
+- `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1` **erfolgreich** (53s)
+- `./gradlew lintDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 23s)
+- `./gradlew assembleDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (54s)
+- APK: 28.99 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- Datenbank-Schema-Export: `schemas/debug/de.devondroste.aevum/data/db/AppDatabase/2.json`
+- Migrationstest v1→v2 in AndroidTest erfolgreich
+
+### Known Limitations

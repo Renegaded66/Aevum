@@ -9,17 +9,16 @@ import java.io.Serializable
 
 @Entity(
     tableName = "habit",
-    indices = [Index("active"), Index("category_id")],
-    foreignKeys = [
-        ForeignKey(entity = Category::class, parentColumns = ["id"], childColumns = ["category_id"], onDelete = ForeignKey.SET_NULL)
-    ]
+    indices = [Index("active"), Index("category_id"), Index("activity_type_id")]
 )
 data class Habit(
     @PrimaryKey val id: String,
     val title: String,
     @ColumnInfo(name = "category_id") val categoryId: String? = null,
-    @ColumnInfo(name = "frequency_type") val frequencyType: String,
-    @ColumnInfo(name = "target_count") val targetCount: Int,
-    @ColumnInfo(name = "target_minutes") val targetMinutes: Int? = null,
-    val active: Boolean = true
+    @ColumnInfo(name = "activity_type_id") val activityTypeId: String? = null,
+    @ColumnInfo(name = "frequency_rule_json") val frequencyRuleJson: String,
+    @ColumnInfo(name = "success_rule_json") val successRuleJson: String,
+    val active: Boolean = true,
+    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis()
 ) : Serializable

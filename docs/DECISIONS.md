@@ -90,3 +90,35 @@
 **Begründung:** Aevum soll als Premium-App wirken. Geschwindigkeit darf nicht dazu führen, dass Screens wie generische Material-Beispiele aussehen oder den Nutzer täglich ermüden.
 
 **Konsequenz:** Screens werden vor Code-Arbeit auf Informationshierarchie, Textmenge, Kartenanzahl, visuelle Darstellung, Interaktionsklarheit, Dark-Mode-Wirkung und sinnvolle Animationen geprüft. Wenn das Ergebnis nicht hochwertig genug ist, wird zuerst das UX-Konzept verbessert.
+
+## ADR-0013 — Zeitintervalle als kanonisches Aktivitätsmodell
+
+**Entscheidung:** Alles, was Lebenszeit beschreibt, wird als Zeitintervall modelliert. Die kanonische Nutzerwahrheit liegt in `activity_session`; Schlaf, Arbeit, Autofahrt, Lernen, Handy-Nutzung, Fitnessstudio, Meditation und Lesen sind keine separaten Primärmodelle, sondern Aktivitäts-Sessions mit Kategorie, Activity Type und Tags.
+
+**Begründung:** Aevum basiert auf Lebenszeit. Ein einheitliches Intervallmodell ermöglicht langfristig beliebige Statistiken, neue Aktivitätstypen und neue Quellen, ohne Kernschema-Refactorings.
+
+**Konsequenz:** Neue Fachfeatures bewerten oder erzeugen Sessions, statt eigene parallele Zeitmodelle aufzubauen. Sonderdaten bleiben als Evidence/Raw Payload erhalten.
+
+## ADR-0014 — Raw Events, Detection Events, Candidates, Sessions und Evidence trennen
+
+**Entscheidung:** M4 trennt die Ebenen `raw_source_event`, `detection_event`, `activity_candidate`, `activity_session` und `session_evidence`.
+
+**Begründung:** Automatische Erkennung ist fehleranfällig. Kandidaten sind nicht die Nutzerwahrheit. Evidence macht Automatisierung erklärbar und erlaubt Reprocessing, lokale KI-Auswertungen und spätere neue Sensoren.
+
+**Konsequenz:** `activity_session.status=CANDIDATE` wird nicht als langfristiges Zielmodell verwendet. Kandidaten bekommen eine eigene Tabelle und werden erst durch Annahme/Bearbeitung zu Sessions.
+
+## ADR-0015 — Activity Type getrennt von Kategorie
+
+**Entscheidung:** M4 führt `activity_type` als semantische Ebene ein, getrennt von visuellen Nutzerkategorien.
+
+**Begründung:** Kategorien sind für Nutzer und Charts gedacht; Activity Types sind stabile fachliche Bedeutungen wie `sleep`, `driving`, `meditation`, `reading`. Diese Trennung erlaubt neue Aktivitätstypen, alternative Gruppierungen und bessere Statistikfilter ohne Migration.
+
+**Konsequenz:** Sessions können sowohl `category_id` als auch `activity_type_id` tragen. Neue Aktivitätstypen werden als Daten/Seeds ergänzt, nicht durch Schemaänderungen.
+
+## ADR-0016 — ActivitySession Historie bleibt nachvollziehbar
+
+**Entscheidung:** Jede fachlich relevante Änderung an einer bestätigten `activity_session` wird historisch nachvollziehbar gespeichert. M4 ergänzt dafür `created_by`, `updated_by`, `source_candidate_id`, optional `supersedes_session_id` und eine kleine `activity_session_change` Historie mit Before/After-Snapshots.
+
+**Begründung:** Aevum soll später aus Nutzerkorrekturen lernen können. Wenn ein automatischer Vorschlag „Arbeit 08:00–17:00“ später zu „08:15–16:45“ geändert wird, sind ursprünglicher Vorschlag und finale Nutzerentscheidung wertvolle Daten für Debugging, bessere Erkennungsalgorithmen, lokale KI-Auswertungen und Reprocessing.
+
+**Konsequenz:** Die aktuelle Session bleibt für Timeline/Statistiken einfach abfragbar, aber Herkunft und Änderungen bleiben auditierbar. Die Historie ist bewusst klein und nicht als Event-Sourcing-System für jede technische Kleinigkeit gedacht.
