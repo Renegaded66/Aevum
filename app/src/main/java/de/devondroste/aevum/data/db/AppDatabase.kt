@@ -159,7 +159,7 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_status_time ON activity_candidate(status, start_at)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_type_time ON activity_candidate(activity_type_id, start_at)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_resolved ON activity_candidate(resolved_session_id)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_source ON activity_candidate(source_candidate_id)")
+
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS activity_session (
@@ -265,7 +265,7 @@ abstract class AppDatabase : RoomDatabase() {
                         duration_ms INTEGER NOT NULL DEFAULT 0,
                         session_count INTEGER NOT NULL DEFAULT 0,
                         updated_at INTEGER NOT NULL,
-                        PRIMARY KEY (date, timezone_id, category_id, activity_type_id, tag_id)
+                        PRIMARY KEY (date, timezone_id)
                     )
                 """.trimIndent())
                 database.execSQL("CREATE INDEX IF NOT EXISTS idx_aggregate_date ON activity_aggregate_day(date)")

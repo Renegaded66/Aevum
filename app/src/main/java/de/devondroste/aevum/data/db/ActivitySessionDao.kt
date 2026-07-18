@@ -20,6 +20,9 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND start_at >= :start AND start_at < :end ORDER BY start_at")
     fun getByDateRange(start: Long, end: Long): Flow<List<ActivitySession>>
 
+    @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND start_at < :end AND (end_at IS NULL OR end_at > :start) ORDER BY start_at")
+    fun getOverlappingRange(start: Long, end: Long): Flow<List<ActivitySession>>
+
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND category_id = :categoryId AND start_at >= :start AND start_at < :end ORDER BY start_at")
     fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>>
 
@@ -55,6 +58,9 @@ interface ActivitySessionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTagMappings(mappings: List<ActivitySessionTag>)
+
+    @Query("SELECT tag_id FROM activity_session_tag WHERE session_id = :sessionId ORDER BY tag_id")
+    fun getTagIdsForSession(sessionId: String): Flow<List<String>>
 
     @Query("DELETE FROM activity_session_tag WHERE session_id = :sessionId")
     suspend fun deleteTagMappings(sessionId: String)

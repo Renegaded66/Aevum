@@ -17,6 +17,9 @@ Root
 └── MainGraph
     ├── Dashboard
     ├── Timeline
+    │   ├── ActivityCreate
+    │   ├── ActivityDetail
+    │   └── ActivityEdit
     ├── Insights/Statistics
     ├── Growth
     │   ├── Goals
@@ -29,55 +32,53 @@ Root
 
 | Tab | Screen | Zweck |
 |---|---|---|
-| Heute | `DashboardScreen` | wichtigste Visualisierung des Tages |
+| Heute | `DashboardScreen` | wichtigste Visualisierung des Tages mit echten Room-Daten |
 | Timeline | `TimelineScreen` | Lebenszeit-Blöcke ansehen/bearbeiten |
 | Insights | `StatisticsScreen` | Charts, Trends, Heatmaps, Lebensstatistik |
 | Wachstum | `GrowthScreen` | Ziele, Habits, Bucket List |
 | Settings | `SettingsScreen` | Privacy, Permissions, Export, Theme |
 
-## Detailflüsse
+## M5 Detailflüsse
 
 ```text
-ActivityDetail
-ActivityEdit
-GoalDetail
-GoalEdit
-HabitDetail
-HabitEdit
-BucketItemDetail
-BucketItemEdit
-PlaceGeofenceEdit
-PermissionDetail
+Dashboard
+  └── Timeline
+        ├── activity/new/{date}
+        │     └── ActivityEditorScreen
+        ├── activity/{sessionId}
+        │     └── ActivityDetailScreen
+        │           ├── activity/edit/{sessionId}
+        │           └── Delete / Soft Delete
+        └── activity/edit/{sessionId}
+              └── ActivityEditorScreen
 ```
+
+Routen:
+
+| Route | Screen | Zweck |
+|---|---|---|
+| `dashboard` | `DashboardScreen` | Heute-Übersicht mit echten Daten |
+| `timeline` | `TimelineScreen` | Tages-Timeline, Wochenleiste, FAB für neue Aktivität |
+| `activity/new/{date}` | `ActivityEditorScreen` | neue manuelle Aktivität für Datum anlegen |
+| `activity/edit/{sessionId}` | `ActivityEditorScreen` | bestehende Aktivität bearbeiten |
+| `activity/{sessionId}` | `ActivityDetailScreen` | Detail, Tags, Bearbeiten, Löschen |
 
 ## Dashboard als Startscreen
 
-Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwert ist.
+Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwert ist. Ab M5 zeigt das Dashboard echte Room-Daten statt Mock-Daten.
 
 ## Adaptive Layout
 
-- Smartphones: Bottom Navigation
-- große Displays/Foldables: Navigation Rail
-- Details: Top App Bar mit Zurück
-
-## M2 Implementierungsstand
-
-Navigation Compose ist eingerichtet und die Root-Ziele existieren als Shell:
-
-- `Dashboard`
-- `Timeline`
-- `Insights`
-- `Growth`
-- `Settings`
-- `Onboarding`
-- vorbereitete Onboarding-Unterziele: Life Profile, Permissions, Places, Dashboard Intro
-
-Die Screens sind M2-Platzhalter. Bottom Navigation / Navigation Rail und Detailflüsse werden in M3/M5 fachlich ausgebaut.
+- Smartphones: aktuell Single-NavHost; Bottom Navigation/Rail folgt in späterem UI-Polish
+- große Displays/Foldables: Navigation Rail später
+- Details: Zurück-Aktion innerhalb des Screens
 
 ## Kritische Navigationstests
 
-- Onboarding wird nur angezeigt, wenn nicht abgeschlossen.
-- Permission-Screens sind erklärend, nicht blockierend.
-- Dashboard lädt auch ohne Permissions und zeigt sinnvolle Empty States.
-- Activity Edit kehrt zur vorherigen Timeline/Dashboard-Ansicht zurück.
-- Tab-State bleibt beim Wechsel erhalten.
+- Dashboard lädt auch ohne Daten und zeigt sinnvolle Empty States.
+- Dashboard öffnet Timeline.
+- Timeline öffnet neue Aktivität mit Tagesdatum.
+- Timeline öffnet Detail und Edit.
+- Activity Edit kehrt nach Speichern zum Detail zurück.
+- Activity Detail kann Eintrag soft-deleten und zurückkehren.
+- Tab-State und Bottom Navigation werden später ausgebaut.

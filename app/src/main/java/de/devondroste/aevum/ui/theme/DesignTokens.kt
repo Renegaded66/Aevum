@@ -56,7 +56,7 @@ object AevumElevation {
     val modal = 8.dp
 }
 
-object AevumTypography {
+object AevumTypeScale {
     // Numbers - Monospace with tabular numerals
     val numbersLarge = 48.sp
     val numbersMedium = 32.sp

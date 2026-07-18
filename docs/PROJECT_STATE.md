@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-18T14:22:00Z
+> Stand: 2026-07-18T14:56:03Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M4 — Core Datenmodell & Room fachlich stabilisiert**.
+> Status: **M5 — erster benutzbarer Kernflow abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -16,83 +16,17 @@
 - [x] Paketname festgelegt: `de.devondroste.aevum`
 - [x] Offline-first / kein Backend / kein Login entschieden
 - [x] M2 Android-Projektgrundlage abgeschlossen
-- [x] M3 UX-/Design-Review für Dashboard durchgeführt
-- [x] Aevum Design Tokens in Compose angelegt
-- [x] Wiederverwendbare Premium-Komponenten erstellt
-- [x] Dashboard Skeleton mit Mock-Daten und Visualisierungsskeletons erstellt
-- [x] Compose Preview für Dashboard angelegt und über Build kompilierbar geprüft
-- [x] Unit Tests, Lint und Debug APK Build erfolgreich verifiziert
+- [x] M3 Design System & Dashboard Skeleton abgeschlossen
 - [x] M4 Datenmodell fachlich stabilisiert (Room v2, Migration, Entities, DAOs, Repositories, Tests)
+- [x] M5 erster installierbarer Kernflow: Tag manuell erfassen, Timeline, Editor, Detail, Dashboard mit echten Room-Daten
 
 ## Produktdefinition
 
 Aevum ist ein persönliches Lebenscockpit für Lebenszeit, Zeitverteilung, Ziele, Gewohnheiten, Streaks, Bucket List und visuelle Lebensstatistiken.
 
-## M3 Ergebnis
+## Projektweite Entwicklungsstrategie ab M5
 
-M3 liefert die visuelle Grundlage der App. Das Dashboard wurde nach einem UX-Review von einer reinen Kartenliste zu einem ruhigen Premium-Lebenscockpit verdichtet:
-
-- Above-the-fold: Hero mit Tagesaussage, aktueller Aktivität und Fokus-Score
-- Primäre Signale: Erfasst, Ziel, Streak als kompakte Metrik-Karten
-- Zeitverteilung: visueller Donut mit Legende und Top-Investment
-- Tagesfluss: reduzierte Timeline Preview statt langer Liste
-- Wachstum: Ziele, Streak und Heatmap-Skeleton
-- Lebensperspektive: Lebenszeit und Bucket List als ruhiger Kontext
-- Digital Balance: Smartphone-Nutzung als kompakte Verlaufsgrafik
-
-## M3 Code-Struktur
-
-Neue/aktualisierte UI-Dateien:
-
-- `ui/theme/DesignTokens.kt`
-- `ui/components/AevumCard.kt`
-- `ui/components/ProgressRing.kt`
-- `ui/components/StatisticCard.kt`
-- `ui/components/ChartContainer.kt`
-- `ui/components/CategoryChip.kt`
-- `ui/components/TimelineItem.kt`
-- `ui/components/EmptyState.kt`
-- `ui/components/SectionHeader.kt`
-- `ui/screens/dashboard/DashboardScreen.kt`
-
-## M3 Verifikation
-
-Am 2026-07-17T22:31:45Z wurden reale Checks ausgeführt:
-
-```bash
-./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1
-./gradlew lintDebug --no-daemon --console=plain --max-workers=1
-./gradlew assembleDebug --no-daemon --console=plain --max-workers=1
-```
-
-Ergebnis:
-
-```text
-testDebugUnitTest: BUILD SUCCESSFUL in 44s
-lintDebug: BUILD SUCCESSFUL in 1m 13s
-assembleDebug: BUILD SUCCESSFUL in 2m 45s
-```
-
-APK-Verifikation:
-
-```text
-APK: app/build/outputs/apk/debug/app-debug.apk
-Größe: 28.68 MB
-Package: de.devondroste.aevum.debug
-Version: 0.1.0-debug
-minSdk: 29
-targetSdk: 35
-APK Signature Scheme v2: true
-Number of signers: 1
-```
-
-Compose Preview:
-
-```text
-@Preview vorhanden: DashboardScreenPreview
-Kompilierbarkeit geprüft durch compileDebugKotlin/assembleDebug.
-Hinweis: Visuelle IDE-Preview kann in dieser CLI-Umgebung nicht geöffnet werden.
-```
+Jeder weitere Meilenstein muss einen tatsächlich benutzbaren Teil der App liefern. Nach jedem Meilenstein soll die App installierbar sein und sinnvoll getestet werden können. Aevum wächst inkrementell statt erst am Ende benutzbar zu werden.
 
 ## Projektweite UX-Regel
 
@@ -112,98 +46,134 @@ Wenn die Antwort „nein“ ist, wird der Screen vor der Implementierung verbess
 - Hilt Application + DI Module
 - Room Database mit Entities/DAOs/Repositories
 - DataStore Preferences
-- Navigation Compose mit Root-Destinationen
-- Dashboard Skeleton als erster echter Premium-Screen
+- Navigation Compose mit Dashboard, Timeline, Activity Editor und Activity Detail
+- Offline-first Room als Source of Truth
+
+## M3 — Design System & Dashboard Skeleton
+
+**Status:** Abgeschlossen.
+
+M3 liefert die visuelle Grundlage der App. Das Dashboard wurde nach einem UX-Review von einer reinen Kartenliste zu einem ruhigen Premium-Lebenscockpit verdichtet:
+
+- Hero mit Tagesaussage, aktueller Aktivität und Fokus-Score
+- kompakte Metrik-Karten
+- Zeitverteilung
+- Tagesfluss
+- Wachstum / Heatmap-Skeleton
+- Digital Balance
 
 ## M4 — Core Datenmodell & Room fachlich stabilisieren
 
+**Status:** Abgeschlossen.
+
+M4 liefert die fachlich belastbare lokale Datenbasis:
+
+- `data_source`
+- `raw_source_event`
+- `detection_event`
+- `activity_candidate`
+- `activity_session`
+- `activity_session_change`
+- `session_evidence`
+- `activity_type`
+- `activity_aggregate_day`
+- erweiterte `goal`/`habit`/`habit_log` Modelle
+- Room Version 2 mit Migration 1→2
+
+Wichtige Architekturentscheidungen:
+
+- **ADR-0013:** Zeitintervalle als kanonisches Aktivitätsmodell
+- **ADR-0014:** Raw Events, Detection Events, Candidates, Sessions und Evidence trennen
+- **ADR-0015:** Activity Type getrennt von Kategorie
+- **ADR-0016:** ActivitySession Historie bleibt nachvollziehbar
+
+## M5 — Timeline & manuelle Activity Sessions
+
 **Status:** **Abgeschlossen.**
 
-**Ziel:** Lokale Datenbasis fachlich belastbar machen.
+**Ziel:** Erster vollständig benutzbarer Kernflow. Nach M5 kann der Nutzer seinen Tag manuell erfassen und die Daten erscheinen sofort im Dashboard.
 
-**M4 Pre-Review Entscheidung:** Das M2-Basismodell wird fachlich erweitert. Aevum nutzt Zeitintervalle als kanonisches Aktivitätsmodell und trennt Raw Events, Detection Events, Candidates, Sessions, Evidence und Aggregations-Caches.
+### Benutzbare Funktionen
 
-**Erledigte Aufgaben:**
+- Timeline mit echten `activity_session` Daten aus Room
+- Tagesansicht mit Datum-Navigation (gestern/heute/morgen bzw. vor/zurück)
+- Wochenansicht vorbereitet über horizontale Wochenleiste
+- Activity Editor für neue und bestehende Aktivitäten
+- Activity Detail Screen
+- Neue Activity anlegen
+- Activity bearbeiten
+- Activity per Soft Delete löschen
+- Kategorien auswählen
+- Activity Type auswählen
+- Tags hinzufügen/entfernen
+- Start- und Endzeit über schnelle +/− Stunde und +/− 15 Minuten Controls bearbeiten
+- Dauer automatisch berechnen
+- Plausibilitätsprüfung:
+  - leerer Titel wird blockiert
+  - negative/umgekehrte Zeitfenster werden blockiert
+  - Überschneidungen werden als Warnung angezeigt, aber bewusst nicht destruktiv korrigiert
+- Dashboard nutzt echte Room-Daten statt Mock-Daten:
+  - aktuelle Aktivität
+  - erfasste Tagesdauer
+  - Anzahl Einträge
+  - Fokus-Score aus produktiven Kategorien
+  - Zeitverteilung nach Kategorien
+  - Tagesfluss aus Room
+  - Digital Balance aus manueller Kategorie `digital`
 
-- [x] `exportSchema=true` und Migrationstest-Basis einrichten
-- [x] Zielmodell aus `docs/DATABASE.md` implementieren: `data_source`, `raw_source_event`, `detection_event`, `activity_candidate`, `activity_session`, `session_evidence`, `activity_type`
-- [x] `activity_session_change` und Session-Herkunft (`created_by`, `updated_by`, `source_candidate_id`, optional `supersedes_session_id`) implementieren
-- [x] Bestehende Kategorien/Tags normalisiert beibehalten und Seed-Daten erstellen
-- [x] Goals/Habits mit flexibler Rule-/Filter-Struktur vorbereiten
-- [x] `activity_aggregate_day` als ersten ableitbaren Statistikcache implementieren
-- [x] DAO-Abfragen für Zeitintervalle, Kandidaten, Evidence und Aggregationen testgetrieben stabilisieren
+### M5 Code-Struktur
 
-**Tests:** DAO Tests, Migration Tests, Repository Unit Tests.
+Neue Domain-/UseCase-Dateien:
 
-**Definition of Done:** Daten können lokal angelegt, gelesen, bearbeitet und gelöscht werden; Kandidaten und bestätigte Sessions sind getrennt; Raw/Evidence bleibt nachvollziehbar; Session-Änderungen sind historisch nachvollziehbar; Migrationen sind testbar.
+- `domain/time/TimeFormatting.kt`
+- `domain/activity/SessionTimeValidator.kt`
+- `domain/activity/SaveManualActivityUseCase.kt`
+- `domain/seed/EnsureDefaultDataUseCase.kt`
 
-## M4 Code-Struktur
+Neue/aktualisierte UI-Dateien:
 
-Neue/aktualisierte Datenmodell-Dateien:
+- `ui/screens/timeline/TimelineScreen.kt`
+- `ui/screens/timeline/TimelineViewModels.kt`
+- `ui/screens/dashboard/DashboardScreen.kt`
+- `ui/screens/dashboard/DashboardViewModel.kt`
 
-- `data/model/DataSource.kt`
-- `data/model/RawSourceEvent.kt`
-- `data/model/DetectionEvent.kt`
-- `data/model/ActivityCandidate.kt`
-- `data/model/ActivityType.kt`
-- `data/model/ActivitySession.kt` (erweitert um Historisierung)
-- `data/model/ActivitySessionChange.kt`
-- `data/model/SessionEvidence.kt`
-- `data/model/ActivityAggregateDay.kt`
-- `data/model/Goal.kt` (erweitert um flexible Filter)
-- `data/model/Habit.kt` (erweitert um Rule-JSON)
-- `data/model/HabitLog.kt`
+Navigation:
 
-Neue/aktualisierte DAO-Dateien:
+- `Dashboard`
+- `Timeline`
+- `activity/new/{date}`
+- `activity/edit/{sessionId}`
+- `activity/{sessionId}`
 
-- `data/db/DataSourceDao.kt`
-- `data/db/RawSourceEventDao.kt`
-- `data/db/DetectionEventDao.kt`
-- `data/db/ActivityCandidateDao.kt`
-- `data/db/ActivityTypeDao.kt`
-- `data/db/ActivitySessionDao.kt` (erweitert)
-- `data/db/ActivitySessionChangeDao.kt`
-- `data/db/SessionEvidenceDao.kt`
-- `data/db/ActivityAggregateDayDao.kt`
-- `data/db/GoalDao.kt` (korrigiert)
+Datenzugriff erweitert:
 
-Neue/aktualisierte Repository-Dateien:
+- `ActivitySessionDao.getOverlappingRange(...)`
+- `ActivitySessionDao.getTagIdsForSession(...)`
+- ActivityRepository entsprechende Methoden
+- `DatabaseModule` nutzt Migration `MIGRATION_1_2`
+- `RepositoryModule` stellt M4-Repositories vollständig bereit
 
-- `data/repository/ActivityRepository.kt` (erweitert)
-- `data/repository/ActivityRepositoryImpl.kt` (erweitert)
+### M5 Verifikation
 
-Datenbank/Infrastruktur:
-
-- `data/db/AppDatabase.kt` (Version 2, Migration 1→2, exportSchema=true)
-- `di/DatabaseModule.kt` (aktualisiert)
-
-Tests:
-
-- `androidTest/DatabaseTest.kt` (komplett überarbeitet für M4-Zielmodell)
-
-## M4 Verifikation
-
-Am 2026-07-18T14:22:00Z wurden reale Checks ausgeführt:
+Am 2026-07-18T14:56:03Z wurden reale Checks ausgeführt:
 
 ```bash
-./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1
-./gradlew lintDebug --no-daemon --console=plain --max-workers=1
-./gradlew assembleDebug --no-daemon --console=plain --max-workers=1
+./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
 ```
 
 Ergebnis:
 
 ```text
-testDebugUnitTest: BUILD SUCCESSFUL in 53s
-lintDebug: BUILD SUCCESSFUL in 1m 23s
-assembleDebug: BUILD SUCCESSFUL in 54s
+testDebugUnitTest: BUILD SUCCESSFUL in 1m 10s
+lintDebug + assembleDebug: BUILD SUCCESSFUL in 1m 29s
 ```
 
 APK-Verifikation:
 
 ```text
 APK: app/build/outputs/apk/debug/app-debug.apk
-Größe: 28.99 MB
+Größe: 29243624 bytes
 Package: de.devondroste.aevum.debug
 Version: 0.1.0-debug
 minSdk: 29
@@ -212,23 +182,17 @@ APK Signature Scheme v2: true
 Number of signers: 1
 ```
 
-Datenbank-Schema-Export (Room):
-
-```text
-schemas/debug/de.devondroste.aevum/data/db/AppDatabase/2.json
-```
-
-Migrationstest: v1 → v2 erfolgreich in AndroidTest.
+Hinweis: `connectedDebugAndroidTest` kompiliert, kann in dieser Umgebung aber nicht laufen, weil kein Android-Gerät/Emulator verbunden ist (`No connected devices`).
 
 ## Nächster Schritt
 
-**M5 — Timeline & manuelle Activity Sessions.**
+**M6 — Automatische Erkennung v1.**
 
-Ziel: Ohne Permissions nutzbarer Kernflow. Timeline, Activity Editor, Kategorie/Tags, manuelle Session, Tagesaggregation.
+Ziel: Erste automatische Quellen integrieren und erkannte Events als bearbeitbare Candidates erzeugen.
 
 ## Offene Punkte für später
 
-- Dashboard nutzt in M3 bewusst Mock-Daten; echte Datenanbindung startet in M5.
-- Echte Aggregationslogik startet in späteren Meilensteinen.
 - Release-Signing ist noch nicht eingerichtet; bisher existiert ein debug-signiertes APK.
-- Sensor-/Permission-Flows sind geplant, aber noch nicht implementiert.
+- Sensor-/Permission-Flows starten in M6.
+- Ziele, Habits und Streaks werden in M8 aus Sessions berechnet.
+- Echte mehrjährige Statistiken und Reports folgen in späteren Meilensteinen.

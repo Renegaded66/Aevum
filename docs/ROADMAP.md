@@ -97,9 +97,27 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Ziel:** Ohne Permissions nutzbarer Kernflow.
 
-**Aufgaben:** Timeline, Activity Editor, Kategorie/Tags, manuelle Session, Tagesaggregation.
+**Status:** **Abgeschlossen.**
 
-**Tests:** TDD für Intervalllogik, ViewModel Tests, Compose UI Tests.
+**Erledigte Aufgaben:**
+
+- [x] Timeline mit echten Room-Daten
+- [x] Tagesansicht mit Datum-Navigation
+- [x] Wochenansicht vorbereitet über horizontale Wochenleiste
+- [x] Activity Editor für neue/bestehende Sessions
+- [x] Activity Detail Screen
+- [x] Neue Activity anlegen
+- [x] Activity bearbeiten
+- [x] Activity soft-deleten
+- [x] Kategorien auswählen
+- [x] Activity Type auswählen
+- [x] Tags hinzufügen/entfernen
+- [x] Start-/Endzeit schnell per +/− Stunde und +/− 15 Minuten bearbeiten
+- [x] Dauer automatisch berechnen
+- [x] Plausibilitätsprüfung für leeren Titel, negative Zeiten und Überschneidungen
+- [x] Dashboard auf echte Room-Daten umstellen
+
+**Tests:** Unit Tests für Zeitformatierung und Intervallvalidierung; Build-/Lint-Verifikation; installierbare Debug APK geprüft.
 
 **Definition of Done:** Nutzer kann Zeitblöcke manuell erfassen und visuell sehen.
 

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 interface ActivityRepository {
     fun getAll(): Flow<List<ActivitySession>>
     fun getByDateRange(start: Long, end: Long): Flow<List<ActivitySession>>
+    fun getOverlappingRange(start: Long, end: Long): Flow<List<ActivitySession>>
     fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>>
     fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>>
     fun getBySourceType(sourceType: String): Flow<List<ActivitySession>>
@@ -28,6 +29,7 @@ interface ActivityRepository {
     suspend fun softDelete(id: String, now: Long)
     suspend fun delete(id: String)
     suspend fun insertTagMapping(mapping: ActivitySessionTag)
+    fun getTagIdsForSession(sessionId: String): Flow<List<String>>
     suspend fun deleteTagMappings(sessionId: String)
 }
 

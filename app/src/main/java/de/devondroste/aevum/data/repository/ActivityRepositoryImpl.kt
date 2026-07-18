@@ -28,6 +28,7 @@ class ActivityRepositoryImpl(
 ) : ActivityRepository {
     override fun getAll(): Flow<List<ActivitySession>> = activityDao.getAll()
     override fun getByDateRange(start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getByDateRange(start, end)
+    override fun getOverlappingRange(start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getOverlappingRange(start, end)
     override fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getByCategoryAndDateRange(categoryId, start, end)
     override fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getByActivityTypeAndDateRange(typeId, start, end)
     override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = activityDao.getBySourceType(sourceType)
@@ -46,6 +47,7 @@ class ActivityRepositoryImpl(
     override suspend fun softDelete(id: String, now: Long) = activityDao.softDelete(id, now)
     override suspend fun delete(id: String) = activityDao.softDelete(id, System.currentTimeMillis())
     override suspend fun insertTagMapping(mapping: ActivitySessionTag) = activityDao.insertTagMapping(mapping)
+    override fun getTagIdsForSession(sessionId: String): Flow<List<String>> = activityDao.getTagIdsForSession(sessionId)
     override suspend fun deleteTagMappings(sessionId: String) = activityDao.deleteTagMappings(sessionId)
 }
 

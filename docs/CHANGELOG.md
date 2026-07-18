@@ -95,4 +95,40 @@
 - Datenbank-Schema-Export: `schemas/debug/de.devondroste.aevum/data/db/AppDatabase/2.json`
 - Migrationstest v1→v2 in AndroidTest erfolgreich
 
+### M5 — Timeline & manuelle Activity Sessions (2026-07-18)
+
+#### Added
+
+- Timeline Tagesansicht mit echten Room-Daten, Tagesnavigation (Vorheriger/Heute/Nächster Tag)
+- Wochenansicht vorbereitet: horizontale Tagesstreifen, Synchronisation mit Timeline-Tagesansicht
+- Activity Editor Screen: Title, Notiz, Activity Type Chips, Kategorie Chips, Tag Chips
+- Zeitfenster-Editor mit Bump-Buttons (±h, ±15m) und direkter Zeitanzeige
+- Plausibilitätsprüfung: negative Dauer verboten, Überlappungen mit Warnung aber erlaubtem Speichern
+- Activity Detail Screen: volle Anzeige, Bearbeiten/Zurück, Löschen mit Confirmation Dialog
+- Navigation: Dashboard → Timeline → Editor/Detail mit deep-link-fähigen Routen
+- Dashboard auf echte Room-Daten umgestellt: Hero, Signal Strip, Zeitverteilung, Tagesfluss, Growth, Digital Balance
+- Domain-Logik: `SessionTimeValidator`, `TimeFormatting`, `SaveManualActivityUseCase`, `EnsureDefaultDataUseCase`
+- ViewModels: `TimelineViewModel`, `ActivityEditorViewModel`, `ActivityDetailViewModel`, `DashboardViewModel`
+- Unit Tests für Zeitformatierung und Validierung
+
+#### Changed
+
+- `AppDatabase` Migration bei `DatabaseModule` aktiviert (MIGRATION_1_2)
+- `activity_aggregate_day` Primary Key auf `(date, timezone_id)` reduziert
+- `ActivitySessionDao` um `getOverlappingRange` und `getTagIdsForSession` erweitert
+
+#### Verified
+
+- `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 10s)
+- `./gradlew lintDebug --no-daemon --console=plain --max-workers=1` **erfolgreich**
+- `./gradlew assembleDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 29s)
+- APK: 29.24 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+
 ### Known Limitations
+
+- Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.
+- Release-Signing noch nicht eingerichtet; bisher existiert ein debug-signiertes APK.
+- Sensor-/Permission-Flows (Geofencing, Activity Recognition, Health Connect, UsageStats) sind geplant, aber noch nicht implementiert.
+- Fachfeatures wie Goals, Habits, Bucket List, Statistiken und Export starten in späteren Meilensteinen (M6+).
+- Dashboard nutzt noch vereinfachte Fokus-Score-Heuristik; echte Ziel-/Habit-Auswertung folgt in M8.
+- Wochenansicht ist vorbereitet, aber noch nicht als eigenständiger Screen ausgebaut.
