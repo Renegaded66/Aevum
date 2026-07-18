@@ -24,6 +24,9 @@ import de.devondroste.aevum.data.model.*
         DetectionEvent::class,
         DataSource::class,
         PlaceGeofence::class,
+        PlaceGeofenceTag::class,
+        TriggerEvent::class,
+        AutomationSettings::class,
         Goal::class,
         Habit::class,
         HabitLog::class,
@@ -33,7 +36,7 @@ import de.devondroste.aevum.data.model.*
         SessionEvidence::class,
         ActivityAggregateDay::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -49,6 +52,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun detectionEventDao(): DetectionEventDao
     abstract fun dataSourceDao(): DataSourceDao
     abstract fun placeGeofenceDao(): PlaceGeofenceDao
+    abstract fun triggerEventDao(): TriggerEventDao
+    abstract fun automationSettingsDao(): AutomationSettingsDao
     abstract fun goalDao(): GoalDao
     abstract fun habitDao(): HabitDao
     abstract fun habitLogDao(): HabitLogDao
@@ -322,6 +327,104 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                ensurePlaceGeofenceV3(database)
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS place_geofence_tag (
+                        geofence_id TEXT NOT NULL,
+                        tag_id TEXT NOT NULL,
+                        PRIMARY KEY(geofence_id, tag_id),
+                        FOREIGN KEY(geofence_id) REFERENCES place_geofence(id) ON DELETE CASCADE,
+                        FOREIGN KEY(tag_id) REFERENCES tag(id) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_tag_tag_id ON place_geofence_tag(tag_id)")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS trigger_event (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        occurred_at INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        confidence REAL NOT NULL DEFAULT 1.0,
+                        geofence_id TEXT,
+                        detection_event_id TEXT,
+                        metadata_json TEXT,
+                        created_at INTEGER NOT NULL,
+                        FOREIGN KEY(geofence_id) REFERENCES place_geofence(id) ON DELETE SET NULL,
+                        FOREIGN KEY(detection_event_id) REFERENCES detection_event(id) ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_event_occurred_at ON trigger_event(occurred_at)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_event_type_occurred_at ON trigger_event(type, occurred_at)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_event_source_occurred_at ON trigger_event(source, occurred_at)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_event_geofence_id ON trigger_event(geofence_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_event_detection_event_id ON trigger_event(detection_event_id)")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS automation_settings (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        geofencing_enabled INTEGER NOT NULL DEFAULT 0,
+                        background_capture_enabled INTEGER NOT NULL DEFAULT 0,
+                        review_notifications_enabled INTEGER NOT NULL DEFAULT 0,
+                        battery_saver_mode INTEGER NOT NULL DEFAULT 1,
+                        updated_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT OR IGNORE INTO automation_settings (
+                        id, geofencing_enabled, background_capture_enabled,
+                        review_notifications_enabled, battery_saver_mode, updated_at
+                    ) VALUES ('default', 0, 0, 0, 1, ${System.currentTimeMillis()})
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT OR IGNORE INTO data_source (id, type, name, enabled, permission_state, created_at, updated_at)
+                    VALUES ('phone_geofencing', 'ANDROID_API', 'Geofencing', 1, 'UNKNOWN', ${System.currentTimeMillis()}, ${System.currentTimeMillis()})
+                """.trimIndent())
+            }
+        }
+
+        private fun ensurePlaceGeofenceV3(database: SupportSQLiteDatabase) {
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS place_geofence (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    latitude REAL NOT NULL,
+                    longitude REAL NOT NULL,
+                    radius_meters REAL NOT NULL,
+                    icon TEXT NOT NULL DEFAULT '📍',
+                    color TEXT NOT NULL DEFAULT '#6366F1',
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    activity_type_id TEXT,
+                    category_id TEXT,
+                    created_at INTEGER NOT NULL DEFAULT 0,
+                    updated_at INTEGER NOT NULL DEFAULT 0,
+                    deleted_at INTEGER,
+                    FOREIGN KEY(category_id) REFERENCES category(id) ON DELETE SET NULL,
+                    FOREIGN KEY(activity_type_id) REFERENCES activity_type(id) ON DELETE SET NULL
+                )
+            """.trimIndent())
+            addColumnIfMissing(database, "place_geofence", "icon", "TEXT NOT NULL DEFAULT '📍'")
+            addColumnIfMissing(database, "place_geofence", "color", "TEXT NOT NULL DEFAULT '#6366F1'")
+            addColumnIfMissing(database, "place_geofence", "activity_type_id", "TEXT")
+            addColumnIfMissing(database, "place_geofence", "created_at", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(database, "place_geofence", "updated_at", "INTEGER NOT NULL DEFAULT 0")
+            addColumnIfMissing(database, "place_geofence", "deleted_at", "INTEGER")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_enabled ON place_geofence(enabled)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_category_id ON place_geofence(category_id)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_activity_type_id ON place_geofence(activity_type_id)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_deleted_at ON place_geofence(deleted_at)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_latitude_longitude ON place_geofence(latitude, longitude)")
+        }
+
+        private fun addColumnIfMissing(database: SupportSQLiteDatabase, table: String, column: String, definition: String) {
+            database.query("PRAGMA table_info($table)").use { cursor ->
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(cursor.getColumnIndexOrThrow("name")) == column) return
+                }
+            }
+            database.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -329,7 +432,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "aevum_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

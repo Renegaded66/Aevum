@@ -198,6 +198,34 @@ Regeln:
 - Health Connect Import: manuell oder periodisch, wenn erlaubt
 - UsageStats Import: nur lokal und nach Sonderberechtigung
 
+## M6.1 Geofencing Pipeline
+
+Aevum nutzt ab M6.1 Google Play Services `GeofencingClient` statt eigener Standort-Polls. Das ist bewusst die batterieschonende Grundlage:
+
+```text
+Android GeofencingClient
+  -> PendingIntent
+  -> GeofenceBroadcastReceiver
+  -> GeofenceTransitionProcessor
+  -> raw_source_event
+  -> detection_event
+  -> trigger_event
+  -> activity_candidate
+  -> Timeline Review
+  -> activity_session erst nach Nutzerentscheidung
+```
+
+Architekturregeln:
+
+- Geofence-Transitions erzeugen nie direkt finale Sessions.
+- Jeder automatische Zeitpunkt wird als `trigger_event` gespeichert.
+- Jede Entscheidung bleibt erklärbar über Raw/Detection/Trigger/Candidate.
+- Hintergrundstandort ist opt-in; ohne Berechtigung bleibt die App manuell voll nutzbar.
+- Geofence-Registrierung ist idempotent: aktive Orte werden neu registriert, gelöschte/inaktive Orte entfernt.
+- Batterie vor Genauigkeit: Mindest-Radius 50m, Responsiveness 2 Minuten, keine Dauer-GPS-Erfassung.
+
+M6.1 ist produktionsreif als lokale Pipeline und Datenmodellgrundlage. M6.2 verbessert Setup-UX (Map/aktuelle Position) und Candidate-Intelligenz aus Trigger-Paaren.
+
 ## Erweiterbarkeit
 
 Das M4-Zielmodell unterstützt:

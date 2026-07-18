@@ -8,6 +8,7 @@ import de.devondroste.aevum.data.db.ActivityCandidateDao
 import de.devondroste.aevum.data.db.ActivitySessionChangeDao
 import de.devondroste.aevum.data.db.ActivitySessionDao
 import de.devondroste.aevum.data.db.ActivityTypeDao
+import de.devondroste.aevum.data.db.AutomationSettingsDao
 import de.devondroste.aevum.data.db.AppUsageSampleDao
 import de.devondroste.aevum.data.db.BucketListItemDao
 import de.devondroste.aevum.data.db.CategoryDao
@@ -55,7 +56,12 @@ import de.devondroste.aevum.data.repository.SessionEvidenceRepository
 import de.devondroste.aevum.data.repository.SessionEvidenceRepositoryImpl
 import de.devondroste.aevum.data.repository.TagRepository
 import de.devondroste.aevum.data.repository.TagRepositoryImpl
+import de.devondroste.aevum.data.repository.TriggerEventRepository
+import de.devondroste.aevum.data.repository.TriggerEventRepositoryImpl
 import de.devondroste.aevum.data.db.TagDao
+import de.devondroste.aevum.data.db.TriggerEventDao
+import de.devondroste.aevum.data.repository.AutomationSettingsRepository
+import de.devondroste.aevum.data.repository.AutomationSettingsRepositoryImpl
 import javax.inject.Singleton
 
 @Module
@@ -107,6 +113,12 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun providePlaceGeofenceRepository(dao: PlaceGeofenceDao): PlaceGeofenceRepository = PlaceGeofenceRepositoryImpl(dao)
+
+    @Provides @Singleton
+    fun provideTriggerEventRepository(dao: TriggerEventDao): TriggerEventRepository = TriggerEventRepositoryImpl(dao)
+
+    @Provides @Singleton
+    fun provideAutomationSettingsRepository(dao: AutomationSettingsDao): AutomationSettingsRepository = AutomationSettingsRepositoryImpl(dao)
 
     @Provides @Singleton
     fun provideRawDetectionEventRepository(dao: RawDetectionEventDao): RawDetectionEventRepository = RawDetectionEventRepositoryImpl(dao)

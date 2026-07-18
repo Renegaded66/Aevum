@@ -146,15 +146,38 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Definition of Done:** Nutzer hat weniger Eingabekomplexität, korrekte Safe Areas, visuellere Zeitbearbeitung und eine Timeline, die klar Richtung Tageskalender entwickelt ist.
 
-## M6 — Automatische Erkennung v1
+## M6.1 — Geofencing & Trigger Events
 
-**Ziel:** Erste automatische Quellen integrieren.
+**Ziel:** Erste hochwertige Automatisierungsgrundlage mit Geofencing, persistenten Trigger Events und erklärbarem Candidate Review Flow.
 
-**Aufgaben:** Geofencing, Activity Recognition, RawDetectionEvent, Candidate-Erzeugung, Review UI.
+**Status:** **Abgeschlossen.**
 
-**Tests:** Classifier Tests, Receiver Tests soweit möglich, Permission Flow Tests.
+**Erledigte Aufgaben:**
 
-**Definition of Done:** Automatische Events erzeugen bearbeitbare Kandidaten.
+- [x] Geofence-Datenmodell erweitert: Name, Position, Radius, Icon, Farbe, Aktiv/Inaktiv, Activity Type, Kategorie, Tags, Soft Delete
+- [x] persistente `trigger_event` Tabelle eingeführt
+- [x] `automation_settings` eingeführt
+- [x] Room Version 3 + Migration 2→3 + Schema Export
+- [x] Google Play Services `GeofencingClient` integriert
+- [x] PendingIntent/BroadcastReceiver für Geofence Transitions
+- [x] Pipeline: RawSourceEvent → DetectionEvent → TriggerEvent → ActivityCandidate
+- [x] Settings: Automatisierung, Geofences, Trigger Events als echte Screens
+- [x] Permission-Education für Standort, Hintergrundstandort und Benachrichtigungen
+- [x] Timeline zeigt Trigger Marker und Pending Candidates
+- [x] Review Flow: übernehmen, bearbeiten, verwerfen
+- [x] Activity Editor kann Candidate-Daten vorbefüllen
+
+**Tests:** Unit Tests, Android-Test-Kompilierung, Lint, Build, APK-Verifikation.
+
+**Definition of Done:** Nutzer kann Geofences konfigurieren; Geofence-Events können lokal als Trigger/Candidates verarbeitet werden; Sessions entstehen erst nach Review.
+
+## M6.2 — Geofence UX & Candidate Intelligence
+
+**Ziel:** M6.1 auf Gerätetests und bessere Erkennung hin polieren.
+
+**Aufgaben:** Map-Picker, aktuelle Position übernehmen, Zuhause/Arbeit Schnellsetup, Trigger-Pairing, Fahrt-/Aufenthalts-Candidates, Review Notifications, Debug/Health Screen.
+
+**Definition of Done:** Geofence-Setup ist ohne Koordinatenwissen nutzbar und erzeugt plausiblere Candidates aus Trigger-Paaren.
 
 ## M7 — Health Connect / Sleep & UsageStats
 

@@ -82,6 +82,7 @@ fun TimelineScreen(
     modifier: Modifier = Modifier,
     onCreateActivity: (Long) -> Unit,
     onEditActivity: (String) -> Unit,
+    onEditCandidate: (String) -> Unit,
     onOpenActivity: (String) -> Unit,
     viewModel: TimelineViewModel = hiltViewModel()
 ) {
@@ -104,17 +105,20 @@ fun TimelineScreen(
         ) {
             item { TimelineHeader(state, viewModel::previousDay, viewModel::nextDay, viewModel::today) }
             item { SummaryCard(state) }
-            if (state.sessions.isEmpty()) {
+            if (state.candidates.isNotEmpty()) {
+                item { CandidateReviewCard(state.candidates, viewModel::acceptCandidate, onEditCandidate, viewModel::dismissCandidate) }
+            }
+            if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()) {
                 item {
                     EmptyState(
                         title = "Noch keine Aktivitäten",
-                        message = "Erfasse deinen Tag manuell. Titel, Aktivität und Zeitfenster reichen für den ersten Eintrag.",
+                        message = "Erfasse deinen Tag manuell oder aktiviere Geofencing. Trigger erscheinen künftig direkt auf dem Tageskalender.",
                         actionLabel = "Erste Aktivität anlegen",
                         onActionClick = { onCreateActivity(TimeFormatting.startOfDayMillis(state.selectedDate)) }
                     )
                 }
             } else {
-                item { DayCalendarTimeline(state.sessions, onOpenActivity, onEditActivity) }
+                item { DayCalendarTimeline(state.sessions, state.triggerEvents, onOpenActivity, onEditActivity) }
                 item { Spacer(Modifier.height(72.dp)) }
             }
         }
@@ -242,7 +246,33 @@ private fun SummaryCard(state: TimelineUiState) {
 private fun SummaryValue(label: String, value: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(value, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace); Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
 
 @Composable
-private fun DayCalendarTimeline(sessions: List<TimelineSessionUi>, onOpen: (String) -> Unit, onEdit: (String) -> Unit) {
+private fun CandidateReviewCard(candidates: List<CandidateReviewUi>, onAccept: (String) -> Unit, onEdit: (String) -> Unit, onDismiss: (String) -> Unit) {
+    AevumCard(variant = CardVariant.Gradient) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            Text("Wir haben Aktivität erkannt", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            candidates.forEach { candidate ->
+                AevumCard(variant = CardVariant.Filled) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(candidate.title, fontWeight = FontWeight.SemiBold)
+                            Text("${candidate.confidence}%", color = MaterialTheme.colorScheme.secondary, fontFamily = FontFamily.Monospace)
+                        }
+                        Text("${candidate.timeRange} · ${candidate.duration}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(candidate.reason, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                            Button(onClick = { onAccept(candidate.id) }) { Text("Übernehmen") }
+                            OutlinedButton(onClick = { onEdit(candidate.id) }) { Text("Bearbeiten") }
+                            OutlinedButton(onClick = { onDismiss(candidate.id) }) { Text("Verwerfen") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayCalendarTimeline(sessions: List<TimelineSessionUi>, triggers: List<TriggerEventUi>, onOpen: (String) -> Unit, onEdit: (String) -> Unit) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text("Tageskalender", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
@@ -258,6 +288,15 @@ private fun DayCalendarTimeline(sessions: List<TimelineSessionUi>, onOpen: (Stri
                 }
                 (0..24 step 3).forEach { hour ->
                     Text("%02d:00".format(hour), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = (760f * hour / 24f).dp))
+                }
+                triggers.forEach { trigger ->
+                    val y = 760f * trigger.minuteOfDay.coerceIn(0, 1440) / 1440f
+                    Text(
+                        "◆ ${trigger.time} ${trigger.label}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(start = 66.dp, top = y.dp)
+                    )
                 }
                 sessions.forEach { session ->
                     val start = session.startMinuteOfDay.coerceIn(0, 1440)

@@ -22,7 +22,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "aevum_database"
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
 
     @Provides fun provideLifeProfileDao(database: AppDatabase): LifeProfileDao = database.lifeProfileDao()
@@ -36,6 +36,8 @@ object DatabaseModule {
     @Provides fun provideDetectionEventDao(database: AppDatabase): DetectionEventDao = database.detectionEventDao()
     @Provides fun provideDataSourceDao(database: AppDatabase): DataSourceDao = database.dataSourceDao()
     @Provides fun providePlaceGeofenceDao(database: AppDatabase): PlaceGeofenceDao = database.placeGeofenceDao()
+    @Provides fun provideTriggerEventDao(database: AppDatabase): TriggerEventDao = database.triggerEventDao()
+    @Provides fun provideAutomationSettingsDao(database: AppDatabase): AutomationSettingsDao = database.automationSettingsDao()
     @Provides fun provideGoalDao(database: AppDatabase): GoalDao = database.goalDao()
     @Provides fun provideHabitDao(database: AppDatabase): HabitDao = database.habitDao()
     @Provides fun provideHabitLogDao(database: AppDatabase): HabitLogDao = database.habitLogDao()

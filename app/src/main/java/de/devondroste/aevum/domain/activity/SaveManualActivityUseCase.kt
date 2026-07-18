@@ -3,6 +3,7 @@ package de.devondroste.aevum.domain.activity
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.ActivitySessionChange
 import de.devondroste.aevum.data.model.Tag
+import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.ActivityRepository
 import de.devondroste.aevum.data.repository.ActivitySessionChangeRepository
 import kotlinx.coroutines.flow.first
@@ -11,6 +12,7 @@ import javax.inject.Inject
 
 class SaveManualActivityUseCase @Inject constructor(
     private val activityRepository: ActivityRepository,
+    private val candidateRepository: ActivityCandidateRepository,
     private val changeRepository: ActivitySessionChangeRepository
 ) {
     suspend operator fun invoke(request: ManualActivityRequest): SaveManualActivityResult {
@@ -45,6 +47,7 @@ class SaveManualActivityUseCase @Inject constructor(
                 sourceType = "MANUAL",
                 createdBy = "MANUAL",
                 updatedBy = null,
+                sourceCandidateId = request.sourceCandidateId,
                 confidence = 1.0f,
                 isUserEdited = false,
                 createdAt = now,
@@ -68,6 +71,11 @@ class SaveManualActivityUseCase @Inject constructor(
         }
 
         activityRepository.insertWithTags(session, request.tags)
+        if (request.sourceCandidateId != null) {
+            candidateRepository.getById(request.sourceCandidateId).first()?.let { candidate ->
+                candidateRepository.update(candidate.copy(status = "EDITED", resolvedAt = now, resolvedSessionId = session.id))
+            }
+        }
 
         val change = ActivitySessionChange(
             id = UUID.randomUUID().toString(),
@@ -88,6 +96,7 @@ class SaveManualActivityUseCase @Inject constructor(
 
 data class ManualActivityRequest(
     val id: String? = null,
+    val sourceCandidateId: String? = null,
     val title: String,
     val categoryId: String?,
     val activityTypeId: String?,

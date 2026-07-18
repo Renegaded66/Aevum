@@ -44,6 +44,10 @@
             android:name="dagger.hilt.android.internal.ENTRY_POINT"
             android:value="true" />
 
+        <receiver
+            android:name=".automation.geofence.GeofenceBroadcastReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

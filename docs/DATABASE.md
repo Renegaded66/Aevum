@@ -275,7 +275,51 @@ Tags:
 - beliebig viele, feinere Bedeutung
 - für Ziele, Habits, Filter, Reports
 
-### 10. Goals und Habits
+### 10. M6.1 `place_geofence`, `place_geofence_tag`, `trigger_event`, `automation_settings`
+
+#### `place_geofence`
+
+Konfigurierbare Orte für batterieschonende Android-Geofences.
+
+| Feld | Typ | Zweck |
+|---|---|---|
+| `id` | TEXT PK | Geofence-ID |
+| `name` | TEXT | Zuhause, Arbeit, Fitnessstudio, … |
+| `latitude` / `longitude` | REAL | Mittelpunkt |
+| `radius_meters` | REAL | Radius; praktisch mindestens 50m |
+| `icon` | TEXT | UI-Symbol |
+| `color` | TEXT | UI-Farbe |
+| `enabled` | INTEGER | aktiv/inaktiv |
+| `activity_type_id` | TEXT NULL | vorgeschlagene Aktivität |
+| `category_id` | TEXT NULL | optionale visuelle Kategorie |
+| `created_at` / `updated_at` | INTEGER | Metadaten |
+| `deleted_at` | INTEGER NULL | Soft Delete |
+
+#### `place_geofence_tag`
+
+Join-Tabelle für optionale Tags pro Ort.
+
+#### `trigger_event`
+
+Persistente Einzelzeitpunkte aus Automatisierung.
+
+| Feld | Typ | Zweck |
+|---|---|---|
+| `id` | TEXT PK | Trigger-ID |
+| `occurred_at` | INTEGER | Zeitpunkt |
+| `type` | TEXT | `HOME_LEFT`, `WORK_ENTERED`, `CUSTOM_PLACE_LEFT`, … |
+| `source` | TEXT | z. B. `phone_geofencing` |
+| `confidence` | REAL | 0.0–1.0 |
+| `geofence_id` | TEXT NULL | zugehöriger Ort |
+| `detection_event_id` | TEXT NULL | Evidence |
+| `metadata_json` | TEXT NULL | Zusatzdaten |
+| `created_at` | INTEGER | Speicherung |
+
+#### `automation_settings`
+
+Lokale Einstellungen für Geofencing/Hintergrunderfassung/Review-Benachrichtigungen/Battery Saver.
+
+### 11. Goals und Habits
 
 Goals/Habits sollten nicht zu hart auf `target_minutes` + `category_id` beschränkt bleiben. M4 behält einfache Felder für häufige Fälle, ergänzt aber eine flexible Regelstruktur.
 

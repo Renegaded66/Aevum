@@ -152,6 +152,37 @@
 - `./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 54s)
 - APK: 29.56 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
+### M6.1 — Geofencing & Trigger Events (2026-07-18)
+
+#### Added
+
+- Room Version 3 mit `place_geofence_tag`, `trigger_event`, `automation_settings`
+- `place_geofence` erweitert um Icon, Farbe, Activity Type, Tags, Soft Delete und Update-Metadaten
+- Google Play Services Location: `GeofencingClient`, `GeofencingRequest`, `Geofence`
+- `GeofenceBroadcastReceiver` mit `PendingIntent`-basierter Verarbeitung
+- `GeofenceTransitionProcessor`: Geofence Transition → RawSourceEvent → DetectionEvent → TriggerEvent → ActivityCandidate
+- Automation Settings Screen mit erklärbarem Permission-Status und Hintergrunderfassung-Schalter
+- Geofence List / Editor Screens
+- Trigger Events Screen
+- Timeline zeigt Trigger Marker und Pending Candidates
+- Review Flow: Candidate übernehmen, bearbeiten oder verwerfen
+- Activity Editor kann Candidate-Daten vorbefüllen
+- Schema Export: `app/schemas/de.devondroste.aevum.data.db.AppDatabase/3.json`
+
+#### Changed
+
+- Settings öffnen jetzt echte Automatisierungs-/Geofence-/Trigger-Screens
+- `SaveManualActivityUseCase` unterstützt Erstellung aus bearbeitetem Candidate (`sourceCandidateId`)
+- `AppDatabase` Migrationen in DI auf `MIGRATION_1_2`, `MIGRATION_2_3` erweitert
+
+#### Verified
+
+- `./gradlew compileDebugKotlin --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 13s)
+- `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 6s)
+- `./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (2m 16s)
+- `connectedDebugAndroidTest`: Android-Test-APK kompiliert, echter Testlauf blockiert durch `No connected devices!`
+- APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.

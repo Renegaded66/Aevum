@@ -1,6 +1,7 @@
 package de.devondroste.aevum
 
 import com.google.common.truth.Truth.assertThat
+import de.devondroste.aevum.automation.geofence.GeofenceTransition
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.domain.activity.SessionTimeValidator
 import de.devondroste.aevum.domain.activity.SessionValidationResult
@@ -26,6 +27,15 @@ class AevumUnitTest {
 
         assertThat(end - start).isEqualTo(24 * 60 * 60 * 1000L)
         assertThat(TimeFormatting.millisToLocalDate(start, zone)).isEqualTo(date)
+    }
+
+    @Test
+    fun timeFormattingMapsMinuteOfDayRoundTrip() {
+        val date = LocalDate.of(2026, 7, 18)
+        val zone = ZoneId.of("Europe/Berlin")
+        val millis = TimeFormatting.millisAtMinuteOfDay(date, 8 * 60 + 15, zone)
+
+        assertThat(TimeFormatting.minutesOfDay(millis, zone)).isEqualTo(8 * 60 + 15)
     }
 
     @Test
@@ -58,5 +68,11 @@ class AevumUnitTest {
         )
 
         assertThat(result).isInstanceOf(SessionValidationResult.Warning::class.java)
+    }
+
+    @Test
+    fun geofenceTransitionEnumKeepsEnterExitStates() {
+        assertThat(GeofenceTransition.Enter.name).isEqualTo("Enter")
+        assertThat(GeofenceTransition.Exit.name).isEqualTo("Exit")
     }
 }

@@ -4,14 +4,19 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.ActivityType
 import de.devondroste.aevum.data.model.Category
 import de.devondroste.aevum.data.model.Tag
+import de.devondroste.aevum.data.model.TriggerEvent
+import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.ActivityRepository
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
 import de.devondroste.aevum.data.repository.TagRepository
+import de.devondroste.aevum.data.repository.TriggerEventRepository
+import de.devondroste.aevum.domain.automation.ReviewCandidateUseCase
 import de.devondroste.aevum.domain.activity.ManualActivityRequest
 import de.devondroste.aevum.domain.activity.SaveManualActivityResult
 import de.devondroste.aevum.domain.activity.SaveManualActivityUseCase
@@ -20,7 +25,6 @@ import de.devondroste.aevum.domain.activity.SessionValidationResult
 import de.devondroste.aevum.domain.seed.EnsureDefaultDataUseCase
 import de.devondroste.aevum.domain.time.TimeFormatting
 import de.devondroste.aevum.domain.trigger.TriggerEventMarker
-import de.devondroste.aevum.domain.trigger.TriggerEventPreviewProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,6 +42,9 @@ import javax.inject.Inject
 @HiltViewModel
 class TimelineViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
+    private val candidateRepository: ActivityCandidateRepository,
+    private val triggerEventRepository: TriggerEventRepository,
+    private val reviewCandidateUseCase: ReviewCandidateUseCase,
     categoryRepository: CategoryRepository,
     activityTypeRepository: ActivityTypeRepository,
     tagRepository: TagRepository,
@@ -48,23 +55,35 @@ class TimelineViewModel @Inject constructor(
 
     init { viewModelScope.launch { ensureDefaultData() } }
 
-    val uiState: StateFlow<TimelineUiState> = combine(
+    private val timelineBase = combine(
         selectedDate,
         activityRepository.getAll(),
+        candidateRepository.getByStatus("PENDING"),
+        triggerEventRepository.getAll()
+    ) { date: LocalDate, sessions: List<ActivitySession>, candidates: List<ActivityCandidate>, triggers: List<TriggerEvent> ->
+        TimelineBase(date, sessions, candidates, triggers)
+    }
+
+    val uiState: StateFlow<TimelineUiState> = combine(
+        timelineBase,
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
         tagRepository.getAll()
-    ) { date: LocalDate, sessions: List<ActivitySession>, categories: List<Category>, types: List<ActivityType>, tags: List<Tag> ->
-        buildTimelineState(date, sessions, categories, types, tags)
+    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, tags: List<Tag> ->
+        buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types, tags)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineUiState())
 
     fun previousDay() = selectedDate.update { it.minusDays(1) }
     fun nextDay() = selectedDate.update { it.plusDays(1) }
     fun today() = selectedDate.update { LocalDate.now() }
+    fun acceptCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.accept(candidateId) } }
+    fun dismissCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.dismiss(candidateId) } }
 
     private fun buildTimelineState(
         date: LocalDate,
         allSessions: List<ActivitySession>,
+        allCandidates: List<ActivityCandidate>,
+        allTriggers: List<TriggerEvent>,
         categories: List<Category>,
         types: List<ActivityType>,
         tags: List<Tag>
@@ -96,6 +115,32 @@ class TimelineViewModel @Inject constructor(
         val totalMs = sessions.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt }
         val categoryDurations = sessions.groupBy { it.categoryId ?: "unknown" }
             .mapValues { entry -> entry.value.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt } }
+        val triggers = allTriggers
+            .filter { it.occurredAt >= dayStart && it.occurredAt < dayEnd }
+            .sortedBy { it.occurredAt }
+            .map { trigger ->
+                TriggerEventUi(
+                    id = trigger.id,
+                    label = trigger.type.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() },
+                    time = TimeFormatting.formatTime(trigger.occurredAt, zoneId),
+                    minuteOfDay = TimeFormatting.minutesOfDay(trigger.occurredAt, zoneId),
+                    confidence = (trigger.confidence * 100).toInt(),
+                    source = trigger.source
+                )
+            }
+        val candidates = allCandidates
+            .filter { it.startAt < dayEnd && it.endAt > dayStart }
+            .sortedBy { it.startAt }
+            .map { candidate ->
+                CandidateReviewUi(
+                    id = candidate.id,
+                    title = candidate.suggestedTitle,
+                    timeRange = "${TimeFormatting.formatTime(candidate.startAt, zoneId)}–${TimeFormatting.formatTime(candidate.endAt, zoneId)}",
+                    duration = TimeFormatting.formatDuration(candidate.endAt - candidate.startAt),
+                    reason = candidate.reason ?: "Automatisch erkannt",
+                    confidence = (candidate.confidence * 100).toInt()
+                )
+            }
         return TimelineUiState(
             selectedDate = date,
             dayTitle = TimeFormatting.formatDayTitle(date),
@@ -107,6 +152,8 @@ class TimelineViewModel @Inject constructor(
             activityTypes = types,
             tags = tags,
             categoryDurations = categoryDurations,
+            triggerEvents = triggers,
+            candidates = candidates,
             hasOverlaps = rows.any { it.isOverlapping }
         )
     }
@@ -116,13 +163,16 @@ class TimelineViewModel @Inject constructor(
 class ActivityEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val activityRepository: ActivityRepository,
+    private val activityCandidateRepository: ActivityCandidateRepository,
     categoryRepository: CategoryRepository,
     activityTypeRepository: ActivityTypeRepository,
     tagRepository: TagRepository,
+    triggerEventRepository: TriggerEventRepository,
     private val saveManualActivity: SaveManualActivityUseCase,
     private val ensureDefaultData: EnsureDefaultDataUseCase
 ) : ViewModel() {
     private val sessionId: String? = savedStateHandle["sessionId"]
+    private val candidateId: String? = savedStateHandle["candidateId"]
     private val dateArg: Long? = savedStateHandle["date"]
     private val zoneId = ZoneId.systemDefault()
     private val form = MutableStateFlow(ActivityEditorForm())
@@ -135,22 +185,40 @@ class ActivityEditorViewModel @Inject constructor(
         }
     }
 
-    val uiState: StateFlow<ActivityEditorUiState> = combine(
+    private val editorBase = combine(
         form,
         categoryRepository.getAll(),
-        activityTypeRepository.getAll(),
+        activityTypeRepository.getAll()
+    ) { formValue: ActivityEditorForm, categories: List<Category>, types: List<ActivityType> ->
+        EditorBase(formValue, categories, types)
+    }
+
+    val uiState: StateFlow<ActivityEditorUiState> = combine(
+        editorBase,
         tagRepository.getAll(),
+        triggerEventRepository.getAll(),
         savedId
-    ) { formValue: ActivityEditorForm, categories: List<Category>, types: List<ActivityType>, tags: List<Tag>, saved: String? ->
+    ) { base: EditorBase, tags: List<Tag>, triggers: List<TriggerEvent>, saved: String? ->
+        val formValue = base.form
+        val dayStart = TimeFormatting.startOfDayMillis(formValue.date, zoneId)
+        val dayEnd = TimeFormatting.endOfDayMillis(formValue.date, zoneId)
         ActivityEditorUiState(
             isEditing = sessionId != null,
             form = formValue,
-            categories = categories,
-            activityTypes = types,
+            categories = base.categories,
+            activityTypes = base.types,
             tags = tags,
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId),
-            triggerMarkers = TriggerEventPreviewProvider.previewMarkersFor(formValue.date, zoneId),
+            triggerMarkers = triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
+                TriggerEventMarker(
+                    id = it.id,
+                    label = it.type.replace('_', ' '),
+                    occurredAt = it.occurredAt,
+                    kind = de.devondroste.aevum.domain.trigger.TriggerEventKind.CUSTOM,
+                    source = it.source
+                )
+            },
             savedSessionId = saved
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ActivityEditorUiState())
@@ -193,6 +261,7 @@ class ActivityEditorViewModel @Inject constructor(
             when (val result = saveManualActivity(
                 ManualActivityRequest(
                     id = sessionId,
+                    sourceCandidateId = candidateId,
                     title = state.form.title,
                     categoryId = state.form.categoryId,
                     activityTypeId = state.form.activityTypeId,
@@ -224,6 +293,16 @@ class ActivityEditorViewModel @Inject constructor(
                 startAt = session.startAt,
                 endAt = session.endAt ?: session.startAt + ONE_HOUR,
                 date = TimeFormatting.millisToLocalDate(session.startAt, zoneId)
+            )
+        } else if (candidateId != null) {
+            val candidate = activityCandidateRepository.getById(candidateId).first() ?: return
+            form.value = ActivityEditorForm(
+                title = candidate.suggestedTitle,
+                categoryId = candidate.suggestedCategoryId,
+                activityTypeId = candidate.activityTypeId,
+                startAt = candidate.startAt,
+                endAt = candidate.endAt,
+                date = TimeFormatting.millisToLocalDate(candidate.startAt, zoneId)
             )
         } else {
             val date = dateArg?.let { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() } ?: LocalDate.now()
@@ -289,6 +368,19 @@ class ActivityDetailViewModel @Inject constructor(
     }
 }
 
+data class TimelineBase(
+    val date: LocalDate,
+    val sessions: List<ActivitySession>,
+    val candidates: List<ActivityCandidate>,
+    val triggers: List<TriggerEvent>
+)
+
+data class EditorBase(
+    val form: ActivityEditorForm,
+    val categories: List<Category>,
+    val types: List<ActivityType>
+)
+
 data class TimelineUiState(
     val selectedDate: LocalDate = LocalDate.now(),
     val dayTitle: String = "Heute",
@@ -300,7 +392,27 @@ data class TimelineUiState(
     val activityTypes: List<ActivityType> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val categoryDurations: Map<String, Long> = emptyMap(),
+    val triggerEvents: List<TriggerEventUi> = emptyList(),
+    val candidates: List<CandidateReviewUi> = emptyList(),
     val hasOverlaps: Boolean = false
+)
+
+data class TriggerEventUi(
+    val id: String,
+    val label: String,
+    val time: String,
+    val minuteOfDay: Int,
+    val confidence: Int,
+    val source: String
+)
+
+data class CandidateReviewUi(
+    val id: String,
+    val title: String,
+    val timeRange: String,
+    val duration: String,
+    val reason: String,
+    val confidence: Int
 )
 
 data class TimelineSessionUi(

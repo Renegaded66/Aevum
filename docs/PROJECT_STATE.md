@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-18T19:10:23Z
+> Stand: 2026-07-18T21:12:48Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M5.5 — UX Polish abgeschlossen**.
+> Status: **M6.1 — Geofencing & Trigger Events Grundlage abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -17,136 +17,158 @@
 - [x] Offline-first / kein Backend / kein Login entschieden
 - [x] M2 Android-Projektgrundlage abgeschlossen
 - [x] M3 Design System & Dashboard Skeleton abgeschlossen
-- [x] M4 Datenmodell fachlich stabilisiert (Room v2, Migration, Entities, DAOs, Repositories, Tests)
+- [x] M4 Datenmodell fachlich stabilisiert
 - [x] M5 erster installierbarer Kernflow: Tag manuell erfassen, Timeline, Editor, Detail, Dashboard mit echten Room-Daten
 - [x] M5.5 UX Polish: Safe Areas, vereinfachter Editor, visueller Zeitstrahl, Trigger-Konzept, Tageskalender-Timeline, Settings-Struktur
-
-## Alpha-Feedback
-
-Erste Alpha-Version wurde auf echtem Gerät getestet. Positiv bestätigt:
-
-- Theme gefällt sehr gut.
-- Animationen wirken hochwertig.
-- App läuft stabil.
-- Konflikterkennung gefällt.
-- Architektur wirkt sauber.
-
-M5.5 wurde als kurzer UX-Polish-Meilenstein vor M6 eingeschoben.
+- [x] M6.1 Geofencing & Trigger Events: persistente Geofences, Trigger Events, Android GeofencingClient, Permission Education, Candidate Review Flow
 
 ## Produktdefinition
 
 Aevum ist ein persönliches Lebenscockpit für Lebenszeit, Zeitverteilung, Ziele, Gewohnheiten, Streaks, Bucket List und visuelle Lebensstatistiken.
 
-## Projektweite Entwicklungsstrategie ab M5
+## Projektweite Strategie
 
-Jeder weitere Meilenstein muss einen tatsächlich benutzbaren Teil der App liefern. Nach jedem Meilenstein soll die App installierbar sein und sinnvoll getestet werden können. Aevum wächst inkrementell statt erst am Ende benutzbar zu werden.
-
-## Projektweite UX-Regel
-
-Jeder neue Screen bekommt vor der Implementierung einen kurzen UX-Review:
-
-> „Wenn diese App morgen im Play Store erscheinen würde und mit den besten Produktivitäts-Apps konkurrieren müsste – wäre ich stolz auf diesen Screen?“
-
-Wenn die Antwort „nein“ ist, wird der Screen vor der Implementierung verbessert. Qualität und Usability haben Vorrang vor schneller Umsetzung.
+Jeder Meilenstein muss installierbar und sinnvoll testbar sein. Qualität, Vertrauen und Wartbarkeit sind wichtiger als Geschwindigkeit.
 
 ## Aktuelle technische Struktur
 
 - Kotlin + Android Gradle Plugin
 - Compose + Material 3
-- Aevum Light/Dark Theme
-- Aevum Design Tokens
-- Wiederverwendbare UI-Komponenten
+- Aevum Light/Dark Theme + Design Tokens
 - Hilt Application + DI Module
-- Room Database mit Entities/DAOs/Repositories
-- DataStore Preferences
-- Navigation Compose mit Dashboard, Timeline, Activity Editor, Activity Detail und Settings-Struktur
+- Room Database Version 3 mit Migrationen `MIGRATION_1_2`, `MIGRATION_2_3`
 - Offline-first Room als Source of Truth
+- Navigation Compose mit Dashboard, Timeline, Activity Editor, Activity Detail, Settings, Automation, Geofences und Trigger Events
+- Google Play Services Location (`GeofencingClient`) für batteriesparende Geofence-Überwachung
 
-## M4 — Core Datenmodell & Room fachlich stabilisieren
-
-**Status:** Abgeschlossen.
-
-M4 liefert die fachlich belastbare lokale Datenbasis:
-
-- `data_source`
-- `raw_source_event`
-- `detection_event`
-- `activity_candidate`
-- `activity_session`
-- `activity_session_change`
-- `session_evidence`
-- `activity_type`
-- `activity_aggregate_day`
-- erweiterte `goal`/`habit`/`habit_log` Modelle
-- Room Version 2 mit Migration 1→2
-
-Wichtige Architekturentscheidungen:
-
-- **ADR-0013:** Zeitintervalle als kanonisches Aktivitätsmodell
-- **ADR-0014:** Raw Events, Detection Events, Candidates, Sessions und Evidence trennen
-- **ADR-0015:** Activity Type getrennt von Kategorie
-- **ADR-0016:** ActivitySession Historie bleibt nachvollziehbar
-
-## M5 — Timeline & manuelle Activity Sessions
-
-**Status:** Abgeschlossen.
-
-M5 liefert den ersten vollständig benutzbaren Kernflow. Der Nutzer kann manuell Aktivitäten erfassen, bearbeiten, löschen und im Dashboard echte Room-Daten sehen.
-
-## M5.5 — UX Polish
+## M6.1 — Geofencing & Trigger Events
 
 **Status:** **Abgeschlossen.**
 
-### Umgesetzte UX-Verbesserungen
+### Fachliche Entscheidung
 
-- Safe Area / Statusleiste:
-  - Dashboard nutzt `statusBarsPadding()` und größeren vertikalen Content-Padding.
-  - Activity Editor nutzt `statusBarsPadding()` und größeren vertikalen Content-Padding.
-  - Activity Detail und Settings wurden ebenfalls safe-area-freundlich gestaltet.
-- Activity Type + Kategorie:
-  - Nutzer sieht nur noch eine sichtbare Auswahl: **Aktivität**.
-  - Intern bleiben `activity_type` und `category` getrennt.
-  - Auswahl eines Activity Types setzt automatisch dessen Default-Kategorie.
-- Zeiteingabe:
-  - visueller Tages-Zeitstrahl im Editor eingeführt.
-  - Start/Ende können auf dem Zeitstrahl grob per Drag verschoben werden.
-  - ±h und ±15m Schnellbuttons bleiben erhalten.
-  - Dauer wird weiterhin automatisch berechnet.
+M6.1 implementiert bewusst nicht „maximal viele Automationen“, sondern eine zuverlässige, erklärbare Grundlage:
+
+```text
+Android Geofence Transition
+  -> RawSourceEvent
+  -> DetectionEvent
+  -> TriggerEvent
+  -> ActivityCandidate
+  -> Review Flow
+  -> ActivitySession erst nach Nutzerentscheidung
+```
+
+Diese Pipeline hält M4 sauber ein: Rohdaten, Detection, Trigger, Candidate und Session bleiben getrennt.
+
+### Neue Datenbankstruktur
+
+Room Version 3 ergänzt:
+
+- `place_geofence`
+  - Name, Position, Radius
+  - Icon, Farbe
+  - Aktiv/Inaktiv
+  - `activity_type_id`
+  - optionale `category_id`
+  - Soft Delete über `deleted_at`
+- `place_geofence_tag`
+  - Tags für Geofences
+- `trigger_event`
+  - einzelner Zeitpunkt
+  - Typ, Quelle, Confidence
+  - optionaler Geofence
+  - optionales Detection Event
+  - Metadata JSON
+- `automation_settings`
+  - Geofencing/Hintergrunderfassung/Review Notifications/Battery Saver
+
+Schema Export:
+
+- `app/schemas/de.devondroste.aevum.data.db.AppDatabase/3.json`
+
+### Android APIs
+
+M6.1 verwendet:
+
+- `com.google.android.gms.location.GeofencingClient`
+- `GeofencingRequest`
+- `Geofence`
+- `PendingIntent` + `BroadcastReceiver`
+- runtime Permissions über Activity Result APIs:
+  - `ACCESS_FINE_LOCATION`
+  - `ACCESS_COARSE_LOCATION`
+  - `ACCESS_BACKGROUND_LOCATION`
+  - `POST_NOTIFICATIONS` ab Android 13 optional für spätere Review-Hinweise
+
+### Batterie-Strategie
+
+- keine dauerhaften GPS-Polls
+- keine Foreground-Service-Dauererfassung
+- Android/Google Play Services Geofencing übernimmt Standortüberwachung
+- maximal 100 aktive Android-Geofences berücksichtigt
+- `notificationResponsiveness = 2 Minuten`
+- Mindest-Radius 50m
+- Hintergrundaktivierung nur nach explizitem Opt-in
+
+### Neue Funktionen
+
+- Settings → echte Automatisierungsnavigation
+- Automation Screen:
+  - erklärbarer Permission-Status
+  - Standort / Hintergrundstandort / Benachrichtigungen
+  - Hintergrunderfassung aktivierbar
+  - Geofence-Registrierung aktualisieren
+  - Live-Status: Geofences, Trigger, offene Candidates
+- Geofence Verwaltung:
+  - Geofences anlegen, bearbeiten, soft-löschen
+  - Name, Koordinaten, Radius, Icon, Farbe, aktiv/inaktiv
+  - zugehörige Activity Type Auswahl
+  - Tags
 - Trigger Events:
-  - Architektur-Seed `TriggerEventMarker` und `TriggerEventKind` angelegt.
-  - Preview-Marker vorbereitet: Zuhause verlassen, Fitnessstudio betreten/verlassen, Zuhause angekommen.
-  - Editor kann Start/Ende bereits an diese Preview-Marker snappen.
-  - Noch keine persistente Trigger-Datenbank; vollständige Konfiguration folgt später.
-- Kategorien / Tags:
-  - Kategorien sind nicht mehr als separate Nutzereingabe sichtbar.
-  - Tags wurden in ein Modal Bottom Sheet verlagert.
-  - Bottom Sheet nutzt größere Chips und vorbereitete Such-/Filterfläche.
-- Dashboard / Timeline:
-  - Wochenbereich entfernt.
-  - Timeline ist nicht mehr primär eine klassische Liste, sondern zeigt einen Tageskalender von 00:00–24:00 mit visuellen Zeitblöcken.
-  - Datum-Navigation bleibt kompakt im Header.
-- Einstellungen:
-  - Settings-Screen strukturiert vorbereitet für Kategorien, Activity Types, Tags, Geofences, Trigger Events, Zuhause, Arbeit, Activity Recognition, Schlaf, Smartphone-Nutzung, Datenschutz, Export, Backup.
+  - dauerhaft in Room gespeichert
+  - Trigger-Liste in Settings
+  - Trigger Marker in Timeline-Tageskalender
+  - Trigger Marker im Activity Editor als Snap-Ziele
+- Candidate Review Flow:
+  - offene Candidates erscheinen in Timeline
+  - „Übernehmen“ erzeugt `activity_session`
+  - „Bearbeiten“ öffnet Editor mit Candidate-Daten
+  - „Verwerfen“ setzt Candidate auf `DISMISSED`
 
-### M5.5 Code-Struktur
+### Neue/aktualisierte Codebereiche
 
-Neue Datei:
+Neue Packages/Dateien:
 
-- `domain/trigger/TriggerEventMarker.kt`
+- `automation/geofence/GeofenceRegistrar.kt`
+- `automation/geofence/GeofenceBroadcastReceiver.kt`
+- `automation/geofence/GeofenceTransitionProcessor.kt`
+- `automation/model/AutomationConstants.kt`
+- `data/model/TriggerEvent.kt`
+- `data/model/AutomationSettings.kt`
+- `data/model/PlaceGeofenceTag.kt`
+- `data/db/TriggerEventDao.kt`
+- `data/db/AutomationSettingsDao.kt`
+- `domain/automation/ReviewCandidateUseCase.kt`
+- `ui/screens/automation/AutomationScreens.kt`
+- `ui/screens/automation/AutomationViewModels.kt`
 
-Aktualisierte Dateien:
+Aktualisierte Kernbereiche:
 
-- `domain/time/TimeFormatting.kt`
-- `ui/screens/dashboard/DashboardScreen.kt`
-- `ui/screens/timeline/TimelineScreen.kt`
-- `ui/screens/timeline/TimelineViewModels.kt`
-- `ui/screens/settings/SettingsScreen.kt`
+- `PlaceGeofence` erweitert
+- `AppDatabase` auf Version 3
+- `DatabaseModule`, `RepositoryModule`
+- `TimelineScreen` / `TimelineViewModels`
+- `ActivityEditor` kann Candidate-Daten bearbeiten
+- `SettingsScreen`
+- `AndroidManifest.xml` mit Geofence Receiver
 
-### M5.5 Verifikation
+### M6.1 Verifikation
 
-Am 2026-07-18T19:10:23Z wurden reale Checks ausgeführt:
+Ausgeführt:
 
 ```bash
+./gradlew compileDebugKotlin --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
 ./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
 ./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
 ```
@@ -154,15 +176,32 @@ Am 2026-07-18T19:10:23Z wurden reale Checks ausgeführt:
 Ergebnis:
 
 ```text
-testDebugUnitTest: BUILD SUCCESSFUL in 1m 47s
-lintDebug + assembleDebug: BUILD SUCCESSFUL in 1m 54s
+compileDebugKotlin: BUILD SUCCESSFUL in 1m 13s
+testDebugUnitTest: BUILD SUCCESSFUL in 1m 6s
+lintDebug + assembleDebug: BUILD SUCCESSFUL in 2m 16s
 ```
+
+Android Tests:
+
+```bash
+./gradlew connectedDebugAndroidTest ...
+```
+
+Ergebnis in dieser Umgebung:
+
+```text
+compileDebugAndroidTestKotlin: erfolgreich
+packageDebugAndroidTest: erfolgreich
+connectedDebugAndroidTest: FAILED — No connected devices!
+```
+
+Die Android-Test-APK wurde kompiliert; ein echter Lauf ist hier blockiert, weil kein Emulator/Gerät verbunden ist.
 
 APK-Verifikation:
 
 ```text
 APK: app/build/outputs/apk/debug/app-debug.apk
-Größe: 29560612 bytes
+Größe: 39290859 bytes
 Package: de.devondroste.aevum.debug
 Version: 0.1.0-debug
 minSdk: 29
@@ -171,16 +210,23 @@ APK Signature Scheme v2: true
 Number of signers: 1
 ```
 
+## Bekannte Einschränkungen
+
+- Geofence-Koordinaten werden in M6.1 manuell eingegeben; Map-Picker folgt in M6.2.
+- Echte Geofence-Auslösung kann nur auf einem Gerät mit Google Play Services und erteilten Standort-/Hintergrundberechtigungen getestet werden.
+- Candidate-Generierung ist in M6.1 regelbasiert und bewusst konservativ; komplexes Pairing „Home Exit → Gym Enter = Fahrt“ wird in M6.2 verbessert.
+- Review Notifications sind vorbereitet, aber noch nicht aktiv versendet.
+- Activity Recognition ist noch nicht implementiert; folgt nach Geofence-Stabilisierung.
+
 ## Nächster Schritt
 
-**M6 — Automatische Erkennung v1.**
+**M6.2 — Geofence UX & Candidate Intelligence.**
 
-Ziel: Erste automatische Quellen integrieren und erkannte Events als bearbeitbare Candidates erzeugen. Trigger Events werden ab M6/M7 als Marker/Signalquelle weiter konkretisiert.
+Geplanter Fokus:
 
-## Offene Punkte für später
-
-- Release-Signing ist noch nicht eingerichtet; bisher existiert ein debug-signiertes APK.
-- Sensor-/Permission-Flows starten in M6.
-- Trigger Events sind architektonisch vorbereitet, aber noch nicht persistent konfigurierbar.
-- Ziele, Habits und Streaks werden in M8 aus Sessions berechnet.
-- Echte mehrjährige Statistiken und Reports folgen in späteren Meilensteinen.
+- Map-Picker / aktuelle Position übernehmen
+- Home/Work Schnellsetup
+- bessere Candidate-Regeln aus Trigger-Paaren
+- Review Notifications
+- Geofence Debug/Health Screen
+- produktionsnaher Gerätetest-Plan

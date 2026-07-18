@@ -460,4 +460,46 @@ class DatabaseTest {
         assertEquals("{\"tags\": [\"deep-work\"]}", result?.filterJson)
         assertEquals("ACTIVE", result?.status)
     }
+
+    @Test
+    fun geofence_and_trigger_v3_tables_round_trip() = runBlocking {
+        val geofence = PlaceGeofence(
+            id = "geo-home",
+            name = "Zuhause",
+            latitude = 51.616,
+            longitude = 7.52,
+            radiusMeters = 150f,
+            icon = "🏠",
+            color = "#22C55E",
+            enabled = true,
+            activityTypeId = "leisure",
+            categoryId = "leisure"
+        )
+
+        db.placeGeofenceDao().insertWithTags(geofence, listOf("family"))
+        val stored = db.placeGeofenceDao().getById("geo-home").first()
+
+        assertNotNull(stored)
+        assertEquals("Zuhause", stored?.name)
+        assertEquals("🏠", stored?.icon)
+        assertEquals("#22C55E", stored?.color)
+        assertEquals("leisure", stored?.activityTypeId)
+        assertEquals(listOf("family"), db.placeGeofenceDao().getTagIdsForGeofence("geo-home").first())
+
+        val trigger = TriggerEvent(
+            id = "trigger-1",
+            occurredAt = 1_000L,
+            type = "HOME_LEFT",
+            source = "phone_geofencing",
+            confidence = 0.82f,
+            geofenceId = "geo-home",
+            metadataJson = "{\"transition\":\"EXIT\"}"
+        )
+        db.triggerEventDao().insert(trigger)
+        val triggers = db.triggerEventDao().getByGeofenceId("geo-home").first()
+
+        assertEquals(1, triggers.size)
+        assertEquals("HOME_LEFT", triggers.first().type)
+        assertEquals(0.82f, triggers.first().confidence, 0.001f)
+    }
 }
