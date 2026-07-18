@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-18T14:56:03Z
+> Stand: 2026-07-18T19:10:23Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M5 — erster benutzbarer Kernflow abgeschlossen**.
+> Status: **M5.5 — UX Polish abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -19,6 +19,19 @@
 - [x] M3 Design System & Dashboard Skeleton abgeschlossen
 - [x] M4 Datenmodell fachlich stabilisiert (Room v2, Migration, Entities, DAOs, Repositories, Tests)
 - [x] M5 erster installierbarer Kernflow: Tag manuell erfassen, Timeline, Editor, Detail, Dashboard mit echten Room-Daten
+- [x] M5.5 UX Polish: Safe Areas, vereinfachter Editor, visueller Zeitstrahl, Trigger-Konzept, Tageskalender-Timeline, Settings-Struktur
+
+## Alpha-Feedback
+
+Erste Alpha-Version wurde auf echtem Gerät getestet. Positiv bestätigt:
+
+- Theme gefällt sehr gut.
+- Animationen wirken hochwertig.
+- App läuft stabil.
+- Konflikterkennung gefällt.
+- Architektur wirkt sauber.
+
+M5.5 wurde als kurzer UX-Polish-Meilenstein vor M6 eingeschoben.
 
 ## Produktdefinition
 
@@ -46,21 +59,8 @@ Wenn die Antwort „nein“ ist, wird der Screen vor der Implementierung verbess
 - Hilt Application + DI Module
 - Room Database mit Entities/DAOs/Repositories
 - DataStore Preferences
-- Navigation Compose mit Dashboard, Timeline, Activity Editor und Activity Detail
+- Navigation Compose mit Dashboard, Timeline, Activity Editor, Activity Detail und Settings-Struktur
 - Offline-first Room als Source of Truth
-
-## M3 — Design System & Dashboard Skeleton
-
-**Status:** Abgeschlossen.
-
-M3 liefert die visuelle Grundlage der App. Das Dashboard wurde nach einem UX-Review von einer reinen Kartenliste zu einem ruhigen Premium-Lebenscockpit verdichtet:
-
-- Hero mit Tagesaussage, aktueller Aktivität und Fokus-Score
-- kompakte Metrik-Karten
-- Zeitverteilung
-- Tagesfluss
-- Wachstum / Heatmap-Skeleton
-- Digital Balance
 
 ## M4 — Core Datenmodell & Room fachlich stabilisieren
 
@@ -89,73 +89,62 @@ Wichtige Architekturentscheidungen:
 
 ## M5 — Timeline & manuelle Activity Sessions
 
+**Status:** Abgeschlossen.
+
+M5 liefert den ersten vollständig benutzbaren Kernflow. Der Nutzer kann manuell Aktivitäten erfassen, bearbeiten, löschen und im Dashboard echte Room-Daten sehen.
+
+## M5.5 — UX Polish
+
 **Status:** **Abgeschlossen.**
 
-**Ziel:** Erster vollständig benutzbarer Kernflow. Nach M5 kann der Nutzer seinen Tag manuell erfassen und die Daten erscheinen sofort im Dashboard.
+### Umgesetzte UX-Verbesserungen
 
-### Benutzbare Funktionen
+- Safe Area / Statusleiste:
+  - Dashboard nutzt `statusBarsPadding()` und größeren vertikalen Content-Padding.
+  - Activity Editor nutzt `statusBarsPadding()` und größeren vertikalen Content-Padding.
+  - Activity Detail und Settings wurden ebenfalls safe-area-freundlich gestaltet.
+- Activity Type + Kategorie:
+  - Nutzer sieht nur noch eine sichtbare Auswahl: **Aktivität**.
+  - Intern bleiben `activity_type` und `category` getrennt.
+  - Auswahl eines Activity Types setzt automatisch dessen Default-Kategorie.
+- Zeiteingabe:
+  - visueller Tages-Zeitstrahl im Editor eingeführt.
+  - Start/Ende können auf dem Zeitstrahl grob per Drag verschoben werden.
+  - ±h und ±15m Schnellbuttons bleiben erhalten.
+  - Dauer wird weiterhin automatisch berechnet.
+- Trigger Events:
+  - Architektur-Seed `TriggerEventMarker` und `TriggerEventKind` angelegt.
+  - Preview-Marker vorbereitet: Zuhause verlassen, Fitnessstudio betreten/verlassen, Zuhause angekommen.
+  - Editor kann Start/Ende bereits an diese Preview-Marker snappen.
+  - Noch keine persistente Trigger-Datenbank; vollständige Konfiguration folgt später.
+- Kategorien / Tags:
+  - Kategorien sind nicht mehr als separate Nutzereingabe sichtbar.
+  - Tags wurden in ein Modal Bottom Sheet verlagert.
+  - Bottom Sheet nutzt größere Chips und vorbereitete Such-/Filterfläche.
+- Dashboard / Timeline:
+  - Wochenbereich entfernt.
+  - Timeline ist nicht mehr primär eine klassische Liste, sondern zeigt einen Tageskalender von 00:00–24:00 mit visuellen Zeitblöcken.
+  - Datum-Navigation bleibt kompakt im Header.
+- Einstellungen:
+  - Settings-Screen strukturiert vorbereitet für Kategorien, Activity Types, Tags, Geofences, Trigger Events, Zuhause, Arbeit, Activity Recognition, Schlaf, Smartphone-Nutzung, Datenschutz, Export, Backup.
 
-- Timeline mit echten `activity_session` Daten aus Room
-- Tagesansicht mit Datum-Navigation (gestern/heute/morgen bzw. vor/zurück)
-- Wochenansicht vorbereitet über horizontale Wochenleiste
-- Activity Editor für neue und bestehende Aktivitäten
-- Activity Detail Screen
-- Neue Activity anlegen
-- Activity bearbeiten
-- Activity per Soft Delete löschen
-- Kategorien auswählen
-- Activity Type auswählen
-- Tags hinzufügen/entfernen
-- Start- und Endzeit über schnelle +/− Stunde und +/− 15 Minuten Controls bearbeiten
-- Dauer automatisch berechnen
-- Plausibilitätsprüfung:
-  - leerer Titel wird blockiert
-  - negative/umgekehrte Zeitfenster werden blockiert
-  - Überschneidungen werden als Warnung angezeigt, aber bewusst nicht destruktiv korrigiert
-- Dashboard nutzt echte Room-Daten statt Mock-Daten:
-  - aktuelle Aktivität
-  - erfasste Tagesdauer
-  - Anzahl Einträge
-  - Fokus-Score aus produktiven Kategorien
-  - Zeitverteilung nach Kategorien
-  - Tagesfluss aus Room
-  - Digital Balance aus manueller Kategorie `digital`
+### M5.5 Code-Struktur
 
-### M5 Code-Struktur
+Neue Datei:
 
-Neue Domain-/UseCase-Dateien:
+- `domain/trigger/TriggerEventMarker.kt`
+
+Aktualisierte Dateien:
 
 - `domain/time/TimeFormatting.kt`
-- `domain/activity/SessionTimeValidator.kt`
-- `domain/activity/SaveManualActivityUseCase.kt`
-- `domain/seed/EnsureDefaultDataUseCase.kt`
-
-Neue/aktualisierte UI-Dateien:
-
+- `ui/screens/dashboard/DashboardScreen.kt`
 - `ui/screens/timeline/TimelineScreen.kt`
 - `ui/screens/timeline/TimelineViewModels.kt`
-- `ui/screens/dashboard/DashboardScreen.kt`
-- `ui/screens/dashboard/DashboardViewModel.kt`
+- `ui/screens/settings/SettingsScreen.kt`
 
-Navigation:
+### M5.5 Verifikation
 
-- `Dashboard`
-- `Timeline`
-- `activity/new/{date}`
-- `activity/edit/{sessionId}`
-- `activity/{sessionId}`
-
-Datenzugriff erweitert:
-
-- `ActivitySessionDao.getOverlappingRange(...)`
-- `ActivitySessionDao.getTagIdsForSession(...)`
-- ActivityRepository entsprechende Methoden
-- `DatabaseModule` nutzt Migration `MIGRATION_1_2`
-- `RepositoryModule` stellt M4-Repositories vollständig bereit
-
-### M5 Verifikation
-
-Am 2026-07-18T14:56:03Z wurden reale Checks ausgeführt:
+Am 2026-07-18T19:10:23Z wurden reale Checks ausgeführt:
 
 ```bash
 ./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
@@ -165,15 +154,15 @@ Am 2026-07-18T14:56:03Z wurden reale Checks ausgeführt:
 Ergebnis:
 
 ```text
-testDebugUnitTest: BUILD SUCCESSFUL in 1m 10s
-lintDebug + assembleDebug: BUILD SUCCESSFUL in 1m 29s
+testDebugUnitTest: BUILD SUCCESSFUL in 1m 47s
+lintDebug + assembleDebug: BUILD SUCCESSFUL in 1m 54s
 ```
 
 APK-Verifikation:
 
 ```text
 APK: app/build/outputs/apk/debug/app-debug.apk
-Größe: 29243624 bytes
+Größe: 29560612 bytes
 Package: de.devondroste.aevum.debug
 Version: 0.1.0-debug
 minSdk: 29
@@ -182,17 +171,16 @@ APK Signature Scheme v2: true
 Number of signers: 1
 ```
 
-Hinweis: `connectedDebugAndroidTest` kompiliert, kann in dieser Umgebung aber nicht laufen, weil kein Android-Gerät/Emulator verbunden ist (`No connected devices`).
-
 ## Nächster Schritt
 
 **M6 — Automatische Erkennung v1.**
 
-Ziel: Erste automatische Quellen integrieren und erkannte Events als bearbeitbare Candidates erzeugen.
+Ziel: Erste automatische Quellen integrieren und erkannte Events als bearbeitbare Candidates erzeugen. Trigger Events werden ab M6/M7 als Marker/Signalquelle weiter konkretisiert.
 
 ## Offene Punkte für später
 
 - Release-Signing ist noch nicht eingerichtet; bisher existiert ein debug-signiertes APK.
 - Sensor-/Permission-Flows starten in M6.
+- Trigger Events sind architektonisch vorbereitet, aber noch nicht persistent konfigurierbar.
 - Ziele, Habits und Streaks werden in M8 aus Sessions berechnet.
 - Echte mehrjährige Statistiken und Reports folgen in späteren Meilensteinen.

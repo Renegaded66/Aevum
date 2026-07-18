@@ -40,10 +40,33 @@ Aevum wirkt wie ein ruhiges, hochwertiges Lebenscockpit: **visuell, klar, reflek
 ### Timeline Screen
 
 - **Header:** Datum + Zeitraum-Wahl (Heute/Woche/Monat)
-- **Liste:** TimelineItems chronologisch
+- **Primärdarstellung:** visueller Tageskalender von 00:00–24:00 mit Zeitblöcken
+- **Liste:** nur noch sekundär/ergänzend für kompakte Fälle, nicht als langfristiges Leitbild
 - **Jedes Item:** Zeit + Connector + Titel + Kategorie + Status + Tags
 - **Actions:** Tap → Detail/Edit, Long Press → Mehr-Actions
 - **Empty State:** "Noch keine Aktivitäten. Tippe + um zu starten."
+
+### Activity Editor ab M5.5
+
+- Nutzer sieht nur eine sichtbare Hauptauswahl: **Aktivität**.
+- Intern bleiben `activity_type` und `category` getrennt, damit Statistiken, Visualisierung und spätere Automatisierung sauber bleiben.
+- Activity Type setzt eine Default-Kategorie; Kategorie-Verwaltung bleibt in Settings.
+- Zeiteingabe kombiniert:
+  - visuellen Tageszeitstrahl
+  - Drag-Grobjustierung
+  - ±h und ±15m Feineinstellung
+  - spätere Trigger-Event-Snap-Marker
+
+### Trigger Events
+
+Trigger Events sind einzelne Zeitpunkte, keine Sessions. Beispiele:
+
+- Zuhause verlassen / angekommen
+- Arbeit betreten / verlassen
+- Motorrad gestartet / beendet
+- Fitnessstudio betreten / verlassen
+
+Sie erscheinen später als Marker auf Zeitstrahlen und können beim Anlegen/Bearbeiten von Activities magnetisch als Start-/Endpunkt genutzt werden. M5.5 bereitet dieses Konzept architektonisch vor; vollständige Konfiguration folgt in späteren Meilensteinen.
 
 ### Insights/Statistics Screen
 
@@ -62,7 +85,11 @@ Aevum wirkt wie ein ruhiges, hochwertiges Lebenscockpit: **visuell, klar, reflek
 
 ### Settings Screen
 
-- **Bereiche:** Darstellung, Datenschutz, Daten, App-Info
+- **Bereiche:** Struktur, Automatisierung, Datenquellen, Datenschutz & Daten
+- **Struktur:** Kategorien, Activity Types, Tags
+- **Automatisierung:** Geofences, Trigger Events, Zuhause, Arbeit, Activity Recognition
+- **Datenquellen:** Schlaf, Smartphone-Nutzung
+- **Datenschutz & Daten:** Datenschutz, Export, Backup
 - **Dark/Light/System** Toggle prominent
 - **Export/Backup** als Actions
 - **Permission Status** übersichtlich

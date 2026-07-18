@@ -121,6 +121,31 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Definition of Done:** Nutzer kann Zeitblöcke manuell erfassen und visuell sehen.
 
+## M5.5 — UX Polish vor Automatisierung
+
+**Ziel:** Alpha-Feedback einarbeiten und den manuellen Kernflow vor M6 hochwertiger, einfacher und zukunftsfähiger machen.
+
+**Status:** **Abgeschlossen.**
+
+**Erledigte Aufgaben:**
+
+- [x] Safe Area / Statusleisten-Abstand für Dashboard und Activity Editor korrigiert
+- [x] Activity Type + Kategorie für Nutzer zu einer einzigen Aktivitätsauswahl vereinfacht
+- [x] interne Trennung von Activity Type und Category beibehalten
+- [x] visuellen Tages-Zeitstrahl im Editor eingeführt
+- [x] Drag-basierte Grobjustierung von Start/Ende vorbereitet
+- [x] ±h und ±15m Schnellbuttons beibehalten
+- [x] Trigger Events als Architekturkonzept vorbereitet (`TriggerEventMarker`, `TriggerEventKind`)
+- [x] Preview-Trigger als Snap-Marker im Editor eingebunden
+- [x] Tags in Modal Bottom Sheet mit größeren Chips verlagert
+- [x] Wochenbereich entfernt
+- [x] Timeline Richtung Tageskalender mit 00:00–24:00 Zeitblöcken umgebaut
+- [x] Settings-Struktur für Verwaltung/Automatisierung/Datenschutz/Daten vorbereitet
+
+**Tests:** Unit Tests, Lint, Assemble, APK-Verifikation.
+
+**Definition of Done:** Nutzer hat weniger Eingabekomplexität, korrekte Safe Areas, visuellere Zeitbearbeitung und eine Timeline, die klar Richtung Tageskalender entwickelt ist.
+
 ## M6 — Automatische Erkennung v1
 
 **Ziel:** Erste automatische Quellen integrieren.

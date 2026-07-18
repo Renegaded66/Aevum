@@ -2,6 +2,7 @@ package de.devondroste.aevum.domain.time
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -47,4 +48,16 @@ object TimeFormatting {
 
     fun parseHourMinuteToMillis(date: LocalDate, hour: Int, minute: Int, zoneId: ZoneId = ZoneId.systemDefault()): Long =
         date.atTime(hour.coerceIn(0, 23), minute.coerceIn(0, 59)).atZone(zoneId).toInstant().toEpochMilli()
+
+    fun minutesOfDay(millis: Long, zoneId: ZoneId = ZoneId.systemDefault()): Int {
+        val time = Instant.ofEpochMilli(millis).atZone(zoneId).toLocalTime()
+        return time.hour * 60 + time.minute
+    }
+
+    fun millisAtMinuteOfDay(date: LocalDate, minuteOfDay: Int, zoneId: ZoneId = ZoneId.systemDefault()): Long {
+        val safeMinute = minuteOfDay.coerceIn(0, 24 * 60)
+        val day = if (safeMinute == 24 * 60) date.plusDays(1) else date
+        val minuteInDay = if (safeMinute == 24 * 60) 0 else safeMinute
+        return day.atTime(LocalTime.of(minuteInDay / 60, minuteInDay % 60)).atZone(zoneId).toInstant().toEpochMilli()
+    }
 }

@@ -124,6 +124,34 @@
 - `./gradlew assembleDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 29s)
 - APK: 29.24 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
+### M5.5 — UX Polish vor Automatisierung (2026-07-18)
+
+#### Added
+
+- Safe Area / Statusleisten-Polish für Dashboard, Activity Editor, Detail und Settings
+- Editor vereinfacht: eine sichtbare Auswahl **Aktivität** statt separater Activity-Type- und Kategorie-Auswahl
+- Interne Trennung von `activity_type` und `category` bleibt bestehen; Activity Type setzt Default-Kategorie
+- Visueller Tages-Zeitstrahl im Editor mit Drag-Grobjustierung für Start/Ende
+- ±h und ±15m Schnellbuttons bleiben als schnelle Feineinstellung erhalten
+- Trigger-Event-Architektur vorbereitet: `TriggerEventMarker`, `TriggerEventKind`, `TriggerEventPreviewProvider`
+- Preview-Trigger im Editor: Zuhause verlassen, Fitnessstudio betreten/verlassen, Zuhause angekommen
+- Snap-Funktionen: Start/Ende an Trigger Marker einrasten
+- Tags in Modal Bottom Sheet mit größeren Chips und vorbereiteter Suche
+- Timeline als Tageskalender mit 00:00–24:00 Achse und visuellen Zeitblöcken
+- Settings-Struktur vorbereitet: Kategorien, Activity Types, Tags, Geofences, Trigger Events, Zuhause, Arbeit, Activity Recognition, Schlaf, Smartphone-Nutzung, Datenschutz, Export, Backup
+
+#### Changed
+
+- Wochenbereich aus Timeline entfernt
+- Dashboard/Editor Content-Padding vergrößert und `statusBarsPadding()` verwendet
+- `TimeFormatting` um Minuten-des-Tages und Millis-bei-Minute-des-Tages erweitert
+
+#### Verified
+
+- `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 47s)
+- `./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 54s)
+- APK: 29.56 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.

@@ -19,6 +19,8 @@ import de.devondroste.aevum.domain.activity.SessionTimeValidator
 import de.devondroste.aevum.domain.activity.SessionValidationResult
 import de.devondroste.aevum.domain.seed.EnsureDefaultDataUseCase
 import de.devondroste.aevum.domain.time.TimeFormatting
+import de.devondroste.aevum.domain.trigger.TriggerEventMarker
+import de.devondroste.aevum.domain.trigger.TriggerEventPreviewProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -85,6 +87,8 @@ class TimelineViewModel @Inject constructor(
                 range = "${TimeFormatting.formatTime(session.startAt, zoneId)}–${session.endAt?.let { TimeFormatting.formatTime(it, zoneId) } ?: "läuft"}",
                 duration = TimeFormatting.formatDuration((session.endAt ?: System.currentTimeMillis()) - session.startAt),
                 source = session.sourceType,
+                startMinuteOfDay = TimeFormatting.minutesOfDay(session.startAt, zoneId),
+                endMinuteOfDay = session.endAt?.let { TimeFormatting.minutesOfDay(it, zoneId) } ?: (24 * 60),
                 isRunning = session.endAt == null,
                 isOverlapping = sessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) }
             )
@@ -146,6 +150,7 @@ class ActivityEditorViewModel @Inject constructor(
             tags = tags,
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId),
+            triggerMarkers = TriggerEventPreviewProvider.previewMarkersFor(formValue.date, zoneId),
             savedSessionId = saved
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ActivityEditorUiState())
@@ -156,7 +161,7 @@ class ActivityEditorViewModel @Inject constructor(
     fun setActivityType(type: ActivityType) = form.update { current ->
         current.copy(
             activityTypeId = type.id,
-            categoryId = current.categoryId ?: type.defaultCategoryId,
+            categoryId = type.defaultCategoryId ?: current.categoryId,
             title = current.title.ifBlank { type.name }
         )
     }
@@ -167,6 +172,19 @@ class ActivityEditorViewModel @Inject constructor(
     fun setStartMinute(value: Int) = updateStart(minute = value)
     fun setEndHour(value: Int) = updateEnd(hour = value)
     fun setEndMinute(value: Int) = updateEnd(minute = value)
+    fun setStartMinuteOfDay(value: Int) = form.update { current ->
+        val newStart = TimeFormatting.millisAtMinuteOfDay(current.date, value, zoneId)
+        val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
+        current.copy(startAt = newStart, endAt = (newStart + duration).coerceAtMost(TimeFormatting.endOfDayMillis(current.date, zoneId)))
+    }
+    fun setEndMinuteOfDay(value: Int) = form.update { current ->
+        current.copy(endAt = TimeFormatting.millisAtMinuteOfDay(current.date, value, zoneId))
+    }
+    fun snapStartTo(marker: TriggerEventMarker) = form.update { current ->
+        val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
+        current.copy(startAt = marker.occurredAt, endAt = marker.occurredAt + duration)
+    }
+    fun snapEndTo(marker: TriggerEventMarker) = form.update { it.copy(endAt = marker.occurredAt) }
 
     fun save() {
         viewModelScope.launch {
@@ -295,6 +313,8 @@ data class TimelineSessionUi(
     val range: String,
     val duration: String,
     val source: String,
+    val startMinuteOfDay: Int,
+    val endMinuteOfDay: Int,
     val isRunning: Boolean,
     val isOverlapping: Boolean
 )
@@ -319,6 +339,7 @@ data class ActivityEditorUiState(
     val tags: List<Tag> = emptyList(),
     val duration: String = "1h",
     val validation: SessionValidationResult = SessionValidationResult.Valid,
+    val triggerMarkers: List<TriggerEventMarker> = emptyList(),
     val savedSessionId: String? = null
 )
 
