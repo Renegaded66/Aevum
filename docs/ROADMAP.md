@@ -218,6 +218,23 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Definition of Done:** Nutzer öffnet Aevum und versteht innerhalb weniger Sekunden seinen Tag.
 
+## M6.3b — Dashboard Feedback & Review Inbox
+
+**Ziel:** Dashboard-Feedback einarbeiten und automatische Vorschläge in einen vertrauenswürdigen, eigenen Review-Bereich verschieben.
+
+**Status:** **Abgeschlossen.**
+
+**Erledigte Aufgaben:**
+
+- [x] Tagesfluss-Canvas mit ruhigen Lücken, Now-Line und Kurzsegment-Indikatoren verbessert
+- [x] Dashboard-Review-Aktionen auf eigenen Review-Inbox-Screen verdrahtet
+- [x] Review Inbox mit Candidate-Karten, Confidence, Reason und Aktionen Übernehmen/Bearbeiten/Verwerfen erstellt
+- [x] Accept/Dismiss über bestehenden `ReviewCandidateUseCase` umgesetzt
+- [x] Candidate-Bearbeiten nutzt weiter den bestehenden Prefill-Editor
+- [x] Keine neue Room-Version; Tagesnotiz nur konzeptionell vorbereitet
+
+**Definition of Done:** Offene Vorschläge sind transparent prüfbar und zählen erst nach Nutzerentscheidung als bestätigte Sessions.
+
 ## M6.4 — Life Analytics v1
 
 **Ziel:** Erste echte Antworten auf „Wie verbringe ich mein Leben?“

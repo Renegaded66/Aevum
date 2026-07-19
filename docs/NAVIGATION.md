@@ -71,8 +71,14 @@ Dashboard (Startscreen)
 
 ## Dashboard als Startscreen
 
-Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwert ist. Ab M5 zeigt das Dashboard echte Room-Daten statt Mock-Daten.
+Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwert ist. Ab M5 zeigt das Dashboard echte Room-Daten statt Mock-Daten. Ab M6.3b navigieren Review-Aktionen vom Dashboard in die eigene Review Inbox.
+
+```text
 Dashboard
+  ├── Review Inbox
+  │     ├── Übernehmen → activity/{sessionId}
+  │     ├── Bearbeiten → activity/candidate/{candidateId}
+  │     └── Verwerfen → zurück in Inbox
   └── Timeline
         ├── activity/new/{date}
         │     └── ActivityEditorScreen
@@ -90,8 +96,10 @@ Routen:
 |---|---|---|
 | `dashboard` | `DashboardScreen` | Heute-Übersicht mit echten Daten |
 | `timeline` | `TimelineScreen` | Tages-Timeline, Wochenleiste, FAB für neue Aktivität |
+| `review_inbox` | `ReviewInboxScreen` | automatische Candidates prüfen: übernehmen, bearbeiten, verwerfen |
 | `activity/new/{date}` | `ActivityEditorScreen` | neue manuelle Aktivität für Datum anlegen |
 | `activity/edit/{sessionId}` | `ActivityEditorScreen` | bestehende Aktivität bearbeiten |
+| `activity/candidate/{candidateId}` | `ActivityEditorScreen` | Candidate bearbeiten und als Session speichern |
 | `activity/{sessionId}` | `ActivityDetailScreen` | Detail, Tags, Bearbeiten, Löschen |
 
 ## M6.2 Automatisierungsflüsse

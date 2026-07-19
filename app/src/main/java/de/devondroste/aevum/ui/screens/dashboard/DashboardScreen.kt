@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,17 +60,19 @@ import de.devondroste.aevum.ui.theme.AevumTheme
 fun DashboardScreen(
     modifier: Modifier = Modifier,
     onOpenTimeline: () -> Unit = {},
+    onOpenReview: () -> Unit = onOpenTimeline,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    DashboardContent(modifier = modifier, state = state, onOpenTimeline = onOpenTimeline)
+    DashboardContent(modifier = modifier, state = state, onOpenTimeline = onOpenTimeline, onOpenReview = onOpenReview)
 }
 
 @Composable
 private fun DashboardContent(
     modifier: Modifier = Modifier,
     state: DashboardUiState,
-    onOpenTimeline: () -> Unit
+    onOpenTimeline: () -> Unit,
+    onOpenReview: () -> Unit
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
@@ -76,12 +80,12 @@ private fun DashboardContent(
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            item { DailyReviewHero(state = state, onOpenTimeline = onOpenTimeline) }
+            item { DailyReviewHero(state = state, onOpenTimeline = onOpenTimeline, onOpenReview = onOpenReview) }
             item { TodayFlowPanel(state = state, onOpenTimeline = onOpenTimeline) }
             item { KeyMetricsRow(state = state) }
             item {
                 AnimatedVisibility(visible = state.reviewCount > 0) {
-                    ReviewQuietCard(reviewCount = state.reviewCount, onOpenTimeline = onOpenTimeline)
+                    ReviewQuietCard(reviewCount = state.reviewCount, onOpenReview = onOpenReview)
                 }
             }
             if (state.hasData) {
@@ -97,7 +101,7 @@ private fun DashboardContent(
 }
 
 @Composable
-private fun DailyReviewHero(state: DashboardUiState, onOpenTimeline: () -> Unit) {
+private fun DailyReviewHero(state: DashboardUiState, onOpenTimeline: () -> Unit, onOpenReview: () -> Unit) {
     AevumCard(variant = CardVariant.Gradient, contentPadding = PaddingValues(0.dp)) {
         Box(
             modifier = Modifier
@@ -143,7 +147,7 @@ private fun DailyReviewHero(state: DashboardUiState, onOpenTimeline: () -> Unit)
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                     Button(onClick = onOpenTimeline) { Text(if (state.hasData) "Tagesfluss öffnen" else "Ersten Eintrag erfassen") }
-                    if (state.reviewCount > 0) OutlinedButton(onClick = onOpenTimeline) { Text("Vorschläge prüfen") }
+                    if (state.reviewCount > 0) OutlinedButton(onClick = onOpenReview) { Text("Vorschläge prüfen") }
                 }
                 DayPulse(values = state.flowSegments.map { (it.endMinute - it.startMinute).coerceAtLeast(12) / 180f }, modifier = Modifier.fillMaxWidth().height(38.dp))
             }
@@ -165,7 +169,13 @@ private fun TodayFlowPanel(state: DashboardUiState, onOpenTimeline: () -> Unit) 
             if (state.flowSegments.isEmpty()) {
                 QuietFlowPlaceholder()
             } else {
-                DayFlowCanvas(state.flowSegments, modifier = Modifier.fillMaxWidth().height(118.dp))
+                DayFlowCanvas(
+                    segments = state.flowSegments,
+                    gaps = state.flowGaps,
+                    currentMinute = state.currentMinute,
+                    onSegmentClick = { _ -> onOpenTimeline() },
+                    modifier = Modifier.fillMaxWidth().height(140.dp)
+                )
                 FlowLegend(state.flowSegments.take(3))
             }
         }
@@ -173,32 +183,109 @@ private fun TodayFlowPanel(state: DashboardUiState, onOpenTimeline: () -> Unit) 
 }
 
 @Composable
-private fun DayFlowCanvas(segments: List<DashboardFlowSegment>, modifier: Modifier = Modifier) {
+private fun DayFlowCanvas(
+    segments: List<DashboardFlowSegment>,
+    gaps: List<FlowGap> = emptyList(),
+    currentMinute: Int = 0,
+    onSegmentClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(800), label = "day-flow")
     val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)
-    Canvas(modifier = modifier) {
-        val trackTop = size.height * 0.45f
-        val trackHeight = 28.dp.toPx()
-        drawRoundRect(
-            color = trackColor,
-            topLeft = Offset(0f, trackTop),
-            size = Size(size.width, trackHeight),
-            cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx())
-        )
-        segments.forEach { segment ->
-            val start = (segment.startMinute / 1440f) * size.width
-            val end = (segment.endMinute / 1440f) * size.width
-            val width = ((end - start) * animatedProgress).coerceAtLeast(3.dp.toPx())
+    // Capture colors for use inside Canvas DrawScope
+    val gapColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+    val hourMarkerColor = Color.White.copy(alpha = 0.14f)
+    val nowLineColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f)
+    val nowDotColor = MaterialTheme.colorScheme.secondary
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures { pressPosition ->
+                    val trackTop = size.height * 0.45f
+                    val trackHeight = 28.dp.toPx()
+                    val totalWidth = size.width
+                    val clickY = pressPosition.y
+                    val clickX = pressPosition.x
+                    if (clickY >= trackTop && clickY <= trackTop + trackHeight) {
+                        val clickedMinute = (clickX / totalWidth * 1440).toInt().coerceIn(0, 1440)
+                        segments.firstOrNull { seg ->
+                            clickedMinute in seg.startMinute..seg.endMinute
+                        }?.let { onSegmentClick(it.id) }
+                    }
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val trackTop = size.height * 0.45f
+            val trackHeight = 28.dp.toPx()
+            // background track
             drawRoundRect(
-                color = categoryColor(segment.categoryName).copy(alpha = if (segment.isCurrent) 0.92f else 0.76f),
-                topLeft = Offset(start, trackTop),
-                size = Size(width, trackHeight),
+                color = trackColor,
+                topLeft = Offset(0f, trackTop),
+                size = Size(size.width, trackHeight),
                 cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx())
             )
-        }
-        listOf(6, 12, 18).forEach { hour ->
-            val x = size.width * hour / 24f
-            drawLine(color = Color.White.copy(alpha = 0.14f), start = Offset(x, trackTop - 10.dp.toPx()), end = Offset(x, trackTop + trackHeight + 10.dp.toPx()), strokeWidth = 1.dp.toPx())
+            // gaps
+            gaps.forEach { gap ->
+                val gapStart = (gap.startMinute / 1440f) * size.width
+                val gapEnd = (gap.endMinute / 1440f) * size.width
+                drawRoundRect(
+                    color = gapColor,
+                    topLeft = Offset(gapStart, trackTop),
+                    size = Size(gapEnd - gapStart, trackHeight),
+                    cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx())
+                )
+            }
+            // segments
+            segments.forEach { segment ->
+                val start = (segment.startMinute / 1440f) * size.width
+                val end = (segment.endMinute / 1440f) * size.width
+                val width = ((end - start) * animatedProgress).coerceAtLeast(3.dp.toPx())
+                val segColor = categoryColor(segment.categoryName)
+                drawRoundRect(
+                    color = segColor.copy(alpha = if (segment.isCurrent) 0.92f else 0.76f),
+                    topLeft = Offset(start, trackTop),
+                    size = Size(width, trackHeight),
+                    cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx())
+                )
+                // minimum width label for very short segments
+                if (segment.endMinute - segment.startMinute < 30) {
+                    // short segment indicator - subtle dot above
+                    drawRoundRect(
+                        color = segColor.copy(alpha = 0.6f),
+                        topLeft = Offset(start + width / 2 - 4.dp.toPx(), trackTop - 12.dp.toPx()),
+                        size = Size(8.dp.toPx(), 8.dp.toPx()),
+                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                    )
+                }
+            }
+            // hour markers
+            listOf(6, 12, 18).forEach { hour ->
+                val x = size.width * hour / 24f
+                drawRoundRect(
+                    color = hourMarkerColor,
+                    topLeft = Offset(x - 0.5.dp.toPx(), trackTop - 10.dp.toPx()),
+                    size = Size(1.dp.toPx(), trackHeight + 20.dp.toPx()),
+                    cornerRadius = CornerRadius(0.5.dp.toPx(), 0.5.dp.toPx())
+                )
+            }
+            // current time line
+            if (currentMinute in 0..1440) {
+                val nowX = size.width * currentMinute / 1440f
+                drawRoundRect(
+                    color = nowLineColor,
+                    topLeft = Offset(nowX - 1.dp.toPx(), trackTop - 18.dp.toPx()),
+                    size = Size(2.dp.toPx(), trackHeight + 36.dp.toPx()),
+                    cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx())
+                )
+                drawRoundRect(
+                    color = nowDotColor,
+                    topLeft = Offset(nowX - 4.dp.toPx(), trackTop - 22.dp.toPx()),
+                    size = Size(8.dp.toPx(), 8.dp.toPx()),
+                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                )
+            }
         }
     }
 }
@@ -243,7 +330,7 @@ private fun LifestyleMetric(modifier: Modifier = Modifier, label: String, value:
 }
 
 @Composable
-private fun ReviewQuietCard(reviewCount: Int, onOpenTimeline: () -> Unit) {
+private fun ReviewQuietCard(reviewCount: Int, onOpenReview: () -> Unit) {
     AevumCard(variant = CardVariant.Outlined) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -256,7 +343,7 @@ private fun ReviewQuietCard(reviewCount: Int, onOpenTimeline: () -> Unit) {
                 )
             }
             Spacer(Modifier.width(AevumSpacing.md))
-            Button(onClick = onOpenTimeline) { Text("Review") }
+            Button(onClick = onOpenReview) { Text("Review") }
         }
     }
 }
@@ -405,14 +492,17 @@ private fun DashboardScreenPreview() {
                 reviewCount = 2,
                 distribution = listOf(DashboardCategorySlice("work", "Arbeit", 12_000_000), DashboardCategorySlice("sport", "Sport", 3_000_000)),
                 timeline = listOf(DashboardTimelineRow("1", "08:00", "Deep Work", "Arbeit", "2h", "Erfasst", false)),
-                flowSegments = listOf(DashboardFlowSegment("1", "Deep Work", "Arbeit", "work", 8 * 60, 11 * 60, "3h", false), DashboardFlowSegment("2", "Sport", "Sport", "sport", 18 * 60, 19 * 60, "1h", false)),
+                flowSegments = listOf(DashboardFlowSegment("1", "Deep Work", "Arbeit", "work", 8 * 60, 11 * 60, "08:00–11:00", "3h", false), DashboardFlowSegment("2", "Sport", "Sport", "sport", 18 * 60, 19 * 60, "18:00–19:00", "1h", false)),
+                flowGaps = listOf(),
+                currentMinute = 16 * 60,
                 insights = listOf(DashboardInsight("Größter Block", "Arbeit macht 70% deiner erfassten Zeit aus.", "◷")),
                 topCategory = "Arbeit",
                 topCategoryDuration = "3h 20m",
                 hasData = true,
                 dayProgress = .64f
             ),
-            onOpenTimeline = {}
+            onOpenTimeline = {},
+            onOpenReview = {}
         )
     }
 }

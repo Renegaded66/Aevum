@@ -67,17 +67,22 @@ class DashboardViewModel @Inject constructor(
             .sortedByDescending { it.durationMs }
         val current = activeSessions.filter { it.endAt == null }.maxByOrNull { it.startAt } ?: activeSessions.maxByOrNull { it.startAt }
         val flow = clippedSessions.sortedBy { it.startAt }.map { session ->
+            val startMinute = TimeFormatting.minutesOfDay(session.startAt, zoneId).coerceIn(0, 1440)
+            val endMinute = TimeFormatting.minutesOfDay(session.endAt, zoneId).coerceIn(startMinute, 1440)
             DashboardFlowSegment(
                 id = session.id,
                 title = session.title,
                 categoryName = categoryMap[session.categoryId]?.name ?: "Sonstiges",
                 categoryId = session.categoryId ?: "unknown",
-                startMinute = TimeFormatting.minutesOfDay(session.startAt, zoneId).coerceIn(0, 1440),
-                endMinute = TimeFormatting.minutesOfDay(session.endAt, zoneId).coerceIn(0, 1440),
+                startMinute = startMinute,
+                endMinute = endMinute,
+                timeRange = "${formatMinute(startMinute)}–${formatMinute(endMinute)}",
                 duration = TimeFormatting.formatDuration(session.durationMs),
                 isCurrent = session.isCurrent
             )
         }
+        val gaps = buildFlowGaps(flow)
+        val currentMinute = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
         val timeline = flow.takeLast(4).map { segment ->
             DashboardTimelineRow(
                 id = segment.id,
@@ -105,12 +110,39 @@ class DashboardViewModel @Inject constructor(
             distribution = distribution,
             timeline = timeline,
             flowSegments = flow,
+            flowGaps = gaps,
+            currentMinute = currentMinute,
             insights = insights,
             topCategory = top?.label ?: "Noch offen",
             topCategoryDuration = top?.let { TimeFormatting.formatDuration(it.durationMs) } ?: "0m",
             hasData = activeSessions.isNotEmpty(),
             dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f)
         )
+    }
+
+    private fun formatMinute(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
+
+    private fun buildFlowGaps(segments: List<DashboardFlowSegment>): List<FlowGap> {
+        val gaps = mutableListOf<FlowGap>()
+        var prevEnd = 0
+        for (segment in segments) {
+            if (segment.startMinute > prevEnd) {
+                gaps += FlowGap(
+                    startMinute = prevEnd,
+                    endMinute = segment.startMinute,
+                    durationMs = (segment.startMinute - prevEnd).toLong() * 60_000L
+                )
+            }
+            prevEnd = segment.endMinute.coerceAtLeast(prevEnd)
+        }
+        if (prevEnd < 1440) {
+            gaps += FlowGap(
+                startMinute = prevEnd,
+                endMinute = 1440,
+                durationMs = (1440 - prevEnd).toLong() * 60_000L
+            )
+        }
+        return gaps
     }
 
     private fun ActivitySession.clipped(now: Long): ClippedSession {
@@ -228,6 +260,8 @@ data class DashboardUiState(
     val distribution: List<DashboardCategorySlice> = emptyList(),
     val timeline: List<DashboardTimelineRow> = emptyList(),
     val flowSegments: List<DashboardFlowSegment> = emptyList(),
+    val flowGaps: List<FlowGap> = emptyList(),
+    val currentMinute: Int = 0,
     val insights: List<DashboardInsight> = emptyList(),
     val topCategory: String = "Noch offen",
     val topCategoryDuration: String = "0m",
@@ -258,8 +292,15 @@ data class DashboardFlowSegment(
     val categoryId: String,
     val startMinute: Int,
     val endMinute: Int,
+    val timeRange: String,
     val duration: String,
     val isCurrent: Boolean
+)
+
+data class FlowGap(
+    val startMinute: Int,
+    val endMinute: Int,
+    val durationMs: Long
 )
 
 data class DashboardInsight(

@@ -152,3 +152,17 @@
 - Balance Score sanft heuristisch, nicht als Leistungswert
 - Kandidaten ruhig integriert: zählen erst nach Entscheidung
 - Empty States mit Premium-Copywriting
+
+## ADR-0020 — M6.3b Review Inbox als Vertrauens-Ort
+
+**Entscheidung:** Automatische Vorschläge bekommen einen eigenen `ReviewInboxScreen`, statt nur als kleine Dashboard- oder Timeline-Karte behandelt zu werden.
+
+**Begründung:** Aevum baut Vertrauen auf, wenn automatische Erkennung transparent und kontrollierbar bleibt. Nutzer müssen jederzeit verstehen: Ein Vorschlag ist vorbereitet, aber noch keine Wahrheit. Ein eigener ruhiger Review-Ort macht Confidence, Zeitraum, Grund und Aktionen sichtbar, ohne das Dashboard zu überladen.
+
+**Konsequenz:**
+- Dashboard bleibt Daily Review und navigiert bei offenen Vorschlägen in die Review Inbox.
+- Review Inbox bietet Übernehmen, Bearbeiten und Verwerfen.
+- Übernehmen nutzt `ReviewCandidateUseCase.accept()` und erzeugt erst dann eine bestätigte `activity_session`.
+- Bearbeiten nutzt den bestehenden Candidate-Prefill-Editor.
+- Verwerfen nutzt `ReviewCandidateUseCase.dismiss()`.
+- Keine neue Room-Version in M6.3b; Tagesnotizen bleiben bis zu echtem Nutzertest ohne Schemaänderung konzeptionell vorbereitet.

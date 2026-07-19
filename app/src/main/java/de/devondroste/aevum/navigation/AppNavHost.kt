@@ -20,6 +20,7 @@ import de.devondroste.aevum.ui.screens.automation.TriggerEventsScreen
 import de.devondroste.aevum.ui.screens.timeline.ActivityDetailScreen
 import de.devondroste.aevum.ui.screens.timeline.ActivityEditorScreen
 import de.devondroste.aevum.ui.screens.timeline.TimelineScreen
+import de.devondroste.aevum.ui.screens.review.ReviewInboxScreen
 
 @Composable
 fun AppNavHost(
@@ -28,7 +29,10 @@ fun AppNavHost(
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
         composable(AppDestination.Dashboard.route) {
-            DashboardScreen(onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) })
+            DashboardScreen(
+                onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
+                onOpenReview = { navController.navigate(AppDestination.ReviewInbox.route) }
+            )
         }
         composable(AppDestination.Timeline.route) {
             TimelineScreen(
@@ -123,6 +127,17 @@ fun AppNavHost(
         }
         composable(AppDestination.GeofenceDebug.route) {
             GeofenceDebugScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.ReviewInbox.route) {
+            ReviewInboxScreen(
+                onBack = { navController.popBackStack() },
+                onOpenEditor = { candidate -> navController.navigate("activity/candidate/${candidate.id}") },
+                onOpenSession = { sessionId ->
+                    navController.navigate("activity/$sessionId") {
+                        popUpTo(AppDestination.ReviewInbox.route) { inclusive = true }
+                    }
+                }
+            )
         }
         composable(AppDestination.Onboarding.route) { OnboardingScreen() }
         composable(AppDestination.LifeProfileSetup.route) { OnboardingScreen() }

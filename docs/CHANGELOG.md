@@ -258,6 +258,29 @@
 - `connectedDebugAndroidTest`: Android-Test-APK wurde gebaut; echter Testlauf blockiert durch `No connected devices!`
 - APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
+### M6.3b — Dashboard Feedback & Review Inbox (2026-07-19)
+
+#### Added
+
+- Dashboard-Tagesfluss mit Lückenblöcken, Current-Time-Line, Dot-Indikator und Markierung sehr kurzer Segmente.
+- Eigener `ReviewInboxScreen` unter Route `review_inbox`.
+- Review Inbox mit ruhigem Header, Confidence-Badge, Zeitraum, Reason und Aktionen **Übernehmen**, **Bearbeiten**, **Verwerfen**.
+- `ReviewInboxViewModel` nutzt bestehende Candidate-Daten und `ReviewCandidateUseCase` für Accept/Dismiss.
+- Dashboard-Review-Aktionen navigieren in die Review Inbox statt nur zur Timeline.
+
+#### Changed
+
+- Automatische Vorschläge werden stärker als vorbereitete, optionale Entscheidungen dargestellt: sie zählen erst nach Übernahme als bestätigte Session.
+- Day-Flow-Canvas bleibt visuell ruhig, zeigt aber mehr Kontext und ist antippbar.
+- Tagesnotiz bleibt bewusst ohne Schemaänderung vorbereitet; keine Room-Version-Erhöhung in M6.3b.
+
+#### Verified
+
+- `./gradlew compileDebugKotlin --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
+- `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
+- `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
+- APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.
