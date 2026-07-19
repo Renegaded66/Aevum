@@ -230,6 +230,34 @@
 - `connectedDebugAndroidTest`: Android-Test-APK wurde gebaut; echter Testlauf blockiert durch `No connected devices!`
 - APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
+### M6.3a — Daily Review & Premium Dashboard (2026-07-19)
+
+#### Added
+
+- Daily Review Dashboard statt klassischer Statistikübersicht
+- Daily Review Hero mit Headline und lokalem regelbasiertem Narrativ
+- Visueller Tagesfluss als 00:00–24:00 Lebensfluss mit animierten Segmenten
+- Tagesmetriken: erzählte Zeit, offene Zeit, sanfter Balance Score
+- Ruhige Integration offener Candidates als „Sanft prüfen“
+- Erste Insights: größter Block, offene Zeit, Vorschläge prüfen, Vielfalt
+- Bessere Empty States mit Premium-Copywriting
+- Day Pulse Animation im Hero
+
+#### Changed
+
+- Dashboard Structure: Hero → Tagesfluss → Metriken → Reviews → Insights → Kategorie → Momente
+- Fokus Score in Balance Score umbenannt und sanft heuristisch ohne Leistungsdruck
+- Signal Strip durch Key Metrics Row ersetzt
+- Time Distribution Card in Category Breathing Room mit Mini Donut überführt
+- Digital Balance Card entfernt (kann später in Life Analytics zurückkehren)
+- Growth Focus Card entfernt (Platz für Goals/Habits in M7)
+
+#### Verified
+
+- `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (2m 46s)
+- `connectedDebugAndroidTest`: Android-Test-APK wurde gebaut; echter Testlauf blockiert durch `No connected devices!`
+- APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.

@@ -3,7 +3,7 @@
 > Stand: 2026-07-19T08:10:29Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M6.2 — Intelligente Geofences & Trigger abgeschlossen**.
+> Status: **M6.3a — Daily Review & Premium Dashboard abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -23,6 +23,7 @@
 - [x] M6.1 Geofencing & Trigger Events: persistente Geofences, Trigger Events, Android GeofencingClient, Permission Education, Candidate Review Flow
 - [x] M6.1 Crash-Fix: Room Migration 2→3 repariert und Migrationstests ergänzt
 - [x] M6.2 Intelligente Geofences & Trigger: Map-Picker, aktuelle Position, Zuhause/Arbeit Schnellsetup, Trigger-Pair-Regeln, Review-Hinweise, Diagnosebereich
+- [x] M6.3a Daily Review Dashboard: persönliches Lebenscockpit, lokale Daily Narrative, visueller Tagesfluss, ruhige Reviews, erste Insights, bessere Empty States
 
 ## Produktdefinition
 
@@ -54,54 +55,56 @@ Jeder Meilenstein muss installierbar und sinnvoll testbar sein. Qualität, Vertr
   - `FusedLocationProviderClient`
   - `CurrentLocationRequest`
 - Lokales transparentes Trigger-Pair-Regelwerk
+- Dashboard Daily Review ViewModel kombiniert Sessions, Kategorien und pending Candidates zu einem ruhigen Tagesnarrativ
 
-## M6.2 — Intelligente Geofences & Trigger
+## M6.3a — Daily Review & Premium Dashboard
 
 **Status:** **Abgeschlossen.**
 
 ### UX Review
 
-Neue Automatisierung muss Vertrauen schaffen. Deshalb bleibt M6.2 erklärbar:
+M6.3a verschiebt den Fokus sichtbar vom Infrastrukturmodus zum Produktwert:
 
-- Map-Picker ist bewusst als dependency-arme Premium-Light-Karte umgesetzt.
-- „Aktuelle Position übernehmen“ ist nutzerinitiiert, timeout-begrenzt und batterieschonend.
-- Zuhause/Arbeit Schnellsetup reduziert kognitive Last.
-- Automatische Candidates entstehen aus nachvollziehbaren Trigger-Paaren, nicht aus Blackbox-Regeln.
-- Review-Benachrichtigungen sind opt-in und nicht aufdringlich.
-- Diagnosebereich macht Berechtigungen, Registrierung und Regelstatus sichtbar.
+- Dashboard ist jetzt Daily Review statt Statistikcontainer.
+- Above-the-fold beantwortet: „Was war heute wichtig?“
+- Daily Narrative ist lokal regelbasiert und wertet den Nutzer nicht ab.
+- Automatische Vorschläge werden ruhig integriert und zählen erst nach Bestätigung.
+- Tagesfluss wird visuell als 00:00–24:00 Lebensfluss gezeigt.
+- Wenige, kuratierte Elemente ersetzen eine Sammlung von Standard-Karten.
 
 ### Neue Funktionen
 
-- Geofence Editor:
-  - Map-Picker per Tippen/Ziehen
-  - aktuelle Position übernehmen
-  - Schnellsetup für Zuhause und Arbeit
-  - Radius/Koordinaten weiterhin manuell editierbar
-- Automation Settings:
-  - Review-Hinweise aktivierbar/deaktivierbar
-  - Diagnosebereich erreichbar
-- Candidate Intelligence:
-  - lokaler `TriggerPairCandidateRuleEngine`
-  - Exit → Enter verschiedener Orte = Wegzeit/Fahrt
-  - Enter → Exit gleicher Ort = Aufenthalts-/Arbeits-/Fitness-Session
-  - Zuhause verlassen → Zuhause angekommen = vorsichtiger Ausflug-Vorschlag
-  - Geofence verlassen ohne Ziel bleibt offen
-- Review Notifications:
-  - optional über `POST_NOTIFICATIONS`
-  - nur bei neu eingefügten überprüfbaren Candidates
-- Geofence Diagnose:
-  - Berechtigungsstatus
-  - aktive/inaktive Geofences
-  - Trigger-Anzahl
-  - offene Candidates
-  - Registrierung prüfen
-  - Regelwerk manuell ausführen
+- Daily Review Hero:
+  - Headline wie „Das war bisher dein Tag.“ oder „Dein Tag ist noch eine leere Seite.“
+  - lokales regelbasiertes Narrativ aus Sessions, offener Zeit und Candidate Reviews
+  - Tagesfortschritt als Ring
+  - dezente Pulse-Visualisierung
+- Visueller Tagesfluss:
+  - 24h-Leiste mit farbigen Activity-Segmenten
+  - animiertes Einzeichnen
+  - ruhige Legende der wichtigsten Abschnitte
+- Tagesmetriken:
+  - erzählte/erfasste Zeit
+  - offene Zeit
+  - sanfter Balance Score ohne Leistungsdruck
+- Review Integration:
+  - pending Candidates werden als „Sanft prüfen“ angezeigt
+  - keine aggressive Warnung
+  - klare Nutzerkontrolle: Vorschläge zählen erst nach Entscheidung
+- Erste Insights:
+  - größter Block
+  - offene Zeit
+  - Vorschläge prüfen
+  - Vielfalt über Lebensbereiche
+- Bessere Empty States:
+  - Fokus auf einen ersten Zeitblock statt technischer Erklärungen
+  - Copywriting im Premium-Lifestyle-Ton
 
-### Keine Schemaänderung in M6.2
+### Keine Schemaänderung in M6.3a
 
-M6.2 führt keine neue Room-Version ein. Deshalb war keine neue Migration erforderlich. Der M6.1 Migrationstest bleibt aktiv und wurde durch Android-Test-Kompilierung geprüft.
+M6.3a führt keine neue Room-Version ein. Es waren daher keine neuen Migrationen nötig. Die bestehende M6.1 Migrationstest-Infrastruktur bleibt unverändert relevant.
 
-### M6.2 Verifikation
+### M6.3a Verifikation
 
 Ausgeführt:
 
@@ -112,7 +115,7 @@ Ausgeführt:
 Ergebnis:
 
 ```text
-BUILD SUCCESSFUL in 3m 12s
+BUILD SUCCESSFUL in 2m 46s
 ```
 
 Android Tests:
@@ -145,22 +148,21 @@ Number of signers: 1
 
 ## Bekannte Einschränkungen
 
-- Map-Picker ist eine lokale Premium-Light-Karte ohne echte Karten-Tiles/POI/Suche.
-- Aktuelle Position hängt von Gerät, Standortdiensten und erteilten Berechtigungen ab.
+- Daily Narrative ist bewusst lokal und regelbasiert; noch keine Wochen-/Monatsvergleiche.
+- Balance Score ist sanft heuristisch und nicht als Leistungsbewertung gedacht.
+- Insights sind erste Tageshinweise; echte Trendanalyse folgt in Life Analytics.
+- Review öffnet weiterhin die Timeline, noch keine eigene Review Inbox.
 - Geofence-Auslösung kann nur real auf einem Gerät mit Google Play Services und Hintergrundstandort geprüft werden.
-- Trigger-Pair-Regeln sind bewusst konservativ; offene Trigger werden nicht spekulativ geschlossen.
-- Review-Hinweise führen aktuell zur App, nicht direkt zu einem Deep Link in die Timeline.
 - Activity Recognition, Health Connect Sleep und UsageStats folgen später.
 
 ## Nächster Schritt
 
-**M6.3 — Geofence Real-World Hardening & Maps.**
+**M6.3b — Dashboard Feedback & Review Inbox / oder M6.4 Life Analytics v1 nach Nutzerfeedback.**
 
-Empfohlener Fokus:
+Empfohlener Fokus nach Gerätetest:
 
-- echte Karten-SDK-Entscheidung oder Map-Tile-Strategie
-- reverse geocoding / Ortssuche
-- Deep Link für Review-Benachrichtigungen zur Timeline
-- Geofence-Gerätetestprotokoll mit Android 15/Motorola edge 50 pro
-- Trigger-Reconciliation für länger offene Zustände
-- Notification Actions: Übernehmen / Später prüfen
+- prüfen, ob Dashboard emotional/visuell überzeugt
+- Review Inbox als eigener ruhiger Bereich
+- erste Vorperiodenvergleiche für Woche/Monat
+- Tagesnotiz / Reflexionsnotiz
+- echte Life Analytics v1 mit Trends

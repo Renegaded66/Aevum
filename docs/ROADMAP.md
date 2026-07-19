@@ -195,10 +195,44 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 ## M6.3 — Geofence Real-World Hardening & Maps
 
 **Ziel:** M6.2 auf echter Geräte-Nutzung stabilisieren und Map-/Review-Erlebnis weiter professionalisieren.
-
 **Aufgaben:** echte Karten-SDK-/Tile-Entscheidung, Reverse Geocoding/Ortssuche, Review-Deep-Link, Notification Actions, längere Trigger-Reconciliation, Android-15-Gerätetestprotokoll.
 
 **Definition of Done:** Geofence-Erstellung fühlt sich wie eine moderne Premium-App an und ist in realen Standortbedingungen nachvollziehbar stabil.
+
+## M6.3a — Daily Review & Premium Dashboard
+
+**Ziel:** Dashboard zum Daily Review umbauen — „Das war dein Tag“ statt Statistikübersicht.
+
+**Status:** **Abgeschlossen.**
+
+**Erledigte Aufgaben:**
+
+- [x] Daily Review Hero mit Headline und lokalem Narrativ
+- [x] Visueller Tagesfluss (00:00–24:00) mit animierten Segmenten
+- [x] Tagesmetriken: erzählte/offene Zeit, sanfter Balance Score
+- [x] Ruhige Review-Integration für offene Candidates
+- [x] Erste Insights (größter Block, offene Zeit, Vielfalt)
+- [x] Bessere Empty States mit Premium-Copywriting
+- [x] Day Pulse Animation im Hero
+- [x] M6.1 Migrationstests bleiben aktiv; keine neue Room-Version
+
+**Definition of Done:** Nutzer öffnet Aevum und versteht innerhalb weniger Sekunden seinen Tag.
+
+## M6.4 — Life Analytics v1
+
+**Ziel:** Erste echte Antworten auf „Wie verbringe ich mein Leben?“
+
+**Aufgaben:** Insights Screen v1, Heute/Woche/Monat Tabs, Kategorien-Trends, Vorperiodenvergleich, Zeitverteilung, Top-Aktivitäten, interpretierte Trendkarten.
+
+**Definition of Done:** Nutzer erkennt Muster, nicht nur Einträge.
+
+## M6.5 — Weekly Review
+
+**Ziel:** Aevum wird zur wöchentlichen Reflexions-App.
+
+**Aufgaben:** Wochenrückblick, Wochen-Balance-Indikator, beste Veränderung, Zeitfresser, Kategorieentwicklung, offene Reviews der Woche, optionale Wochennotiz.
+
+**Definition of Done:** Nutzer hat einen Grund, Aevum sonntags bewusst zu öffnen.
 
 ## M7 — Health Connect / Sleep & UsageStats
 

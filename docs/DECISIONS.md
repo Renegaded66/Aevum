@@ -138,3 +138,17 @@
 **Begründung:** Automatisierung soll Vertrauen schaffen. Einzelne Trigger sind Fakten, aber noch keine Aktivitätsintervalle. Paare wie `Home verlassen → Gym betreten` oder `Arbeit betreten → verlassen` sind nachvollziehbarer und später gut erweiterbar.
 
 **Konsequenz:** `TriggerPairCandidateRuleEngine` ist lokal, deterministisch, idempotent und schreibt lesbare Reasons in Candidates. Offene Trigger ohne Ziel bleiben unresolved.
+
+## ADR-0019 — M6.3a Dashboard wird Daily Review statt Statistikcontainer
+
+**Entscheidung:** Das Dashboard wird vom Statistikcontainer zur täglichen Reflexionsfläche umgebaut. Above-the-fold beantwortet „Was war heute wichtig?“ statt 20 Metriken anzuzeigen.
+
+**Begründung:** Premium-Apps wie Oura, Rise, Flighty oder Linear zeigen beim Öffnen sofort den Kontext, nicht Daten. Aevums Vision war: „Eine App, die mir hilft, meine Zeit zu verstehen.“ Das alte Dashboard zeigte Zeitverteilung, Signal Strip, Tagesfluss als Liste, Fokus-Score, Growth und Digital Balance — das war technisch solide, aber emotional distanziert.
+
+**Konsequenz:**
+- Daily Review Hero mit Headline und Narrativ
+- Visueller Tagesfluss als 24h Lebensfluss
+- Wenige kuratierte Elemente statt Karten-Sammlung
+- Balance Score sanft heuristisch, nicht als Leistungswert
+- Kandidaten ruhig integriert: zählen erst nach Entscheidung
+- Empty States mit Premium-Copywriting

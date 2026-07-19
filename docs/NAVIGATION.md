@@ -44,9 +44,34 @@ Root
 | Wachstum | `GrowthScreen` | Ziele, Habits, Bucket List |
 | Settings | `SettingsScreen` | Privacy, Permissions, Export, Theme |
 
-## M5 Detailflüsse
+## M6.3a Dashboard Struktur (Daily Review)
 
 ```text
+Dashboard (Startscreen)
+├── Daily Review Hero
+│   ├── Headline + Narrative
+│   ├── Tagesfortschritt Ring
+│   ├── Day Pulse Animation
+│   └── Actions: Tagesfluss / Review
+├── Tagesfluss Panel
+│   ├── 00:00–24:00 Canvas
+│   └── Legende (Top 3 Segmente)
+├── Key Metrics Row
+│   ├── Erzählt
+│   ├── Offen
+│   └── Balance
+├── Review Quiet Card (nur bei offenen Candidates)
+├── Insight Strip (nur bei Daten)
+├── Category Breathing Room (nur bei Daten)
+│   ├── Top Category
+│   └── Mini Donut
+├── Recent Moments (nur bei Daten)
+└── Better Empty State (nur ohne Daten)
+```
+
+## Dashboard als Startscreen
+
+Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwert ist. Ab M5 zeigt das Dashboard echte Room-Daten statt Mock-Daten.
 Dashboard
   └── Timeline
         ├── activity/new/{date}
