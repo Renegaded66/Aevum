@@ -26,6 +26,12 @@ Root
     │   ├── Habits
     │   └── BucketList
     └── Settings
+        ├── AutomationSettings
+        ├── GeofenceList
+        │   ├── GeofenceCreate
+        │   └── GeofenceEdit
+        ├── TriggerEvents
+        └── GeofenceDebug
 ```
 
 ## Hauptnavigation
@@ -62,6 +68,31 @@ Routen:
 | `activity/new/{date}` | `ActivityEditorScreen` | neue manuelle Aktivität für Datum anlegen |
 | `activity/edit/{sessionId}` | `ActivityEditorScreen` | bestehende Aktivität bearbeiten |
 | `activity/{sessionId}` | `ActivityDetailScreen` | Detail, Tags, Bearbeiten, Löschen |
+
+## M6.2 Automatisierungsflüsse
+
+```text
+Settings
+  ├── automation
+  │     ├── geofences
+  │     │     ├── geofence/new
+  │     │     └── geofence/edit/{geofenceId}
+  │     ├── trigger_events
+  │     └── geofence_debug
+  ├── geofences
+  └── trigger_events
+```
+
+Routen:
+
+| Route | Screen | Zweck |
+|---|---|---|
+| `automation` | `AutomationSettingsScreen` | Berechtigungen, Hintergrund, Review-Hinweise, Diagnose-Einstieg |
+| `geofences` | `GeofenceListScreen` | Orte verwalten |
+| `geofence/new` | `GeofenceEditorScreen` | Ort mit Map-Picker/aktueller Position/Schnellsetup anlegen |
+| `geofence/edit/{geofenceId}` | `GeofenceEditorScreen` | Ort bearbeiten |
+| `trigger_events` | `TriggerEventsScreen` | gespeicherte Trigger prüfen |
+| `geofence_debug` | `GeofenceDebugScreen` | Berechtigungen, Registrierung und Regeln diagnostizieren |
 
 ## Dashboard als Startscreen
 

@@ -10,6 +10,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.devondroste.aevum.automation.geofence.GeofenceRegistrar
 import de.devondroste.aevum.automation.geofence.GeofenceRegistrationResult
+import de.devondroste.aevum.automation.location.CurrentLocationProvider
+import de.devondroste.aevum.automation.location.CurrentLocationResult
+import de.devondroste.aevum.automation.notification.CandidateReviewNotifier
+import de.devondroste.aevum.automation.rules.CandidateRuleOrchestrator
 import de.devondroste.aevum.data.model.AutomationSettings
 import de.devondroste.aevum.data.model.PlaceGeofence
 import de.devondroste.aevum.data.model.TriggerEvent
@@ -29,6 +33,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -66,6 +71,13 @@ class AutomationSettingsViewModel @Inject constructor(
             val current = uiState.value.settings
             automationSettingsRepository.upsert(current.copy(backgroundCaptureEnabled = enabled, geofencingEnabled = enabled, updatedAt = System.currentTimeMillis()))
             if (enabled) refreshGeofences()
+        }
+    }
+
+    fun setReviewNotifications(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = uiState.value.settings
+            automationSettingsRepository.upsert(current.copy(reviewNotificationsEnabled = enabled, updatedAt = System.currentTimeMillis()))
         }
     }
 
@@ -122,11 +134,13 @@ class GeofenceEditorViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     private val tagRepository: TagRepository,
     private val geofenceRegistrar: GeofenceRegistrar,
+    private val currentLocationProvider: CurrentLocationProvider,
     savedStateHandle: androidx.lifecycle.SavedStateHandle
 ) : ViewModel() {
     private val geofenceId: String? = savedStateHandle["geofenceId"]
     private val form = MutableStateFlow(GeofenceForm())
     private val saved = MutableStateFlow(false)
+    private val locationMessage = MutableStateFlow<String?>(null)
 
     init {
         viewModelScope.launch {
@@ -156,32 +170,72 @@ class GeofenceEditorViewModel @Inject constructor(
         form,
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
-        tagRepository.getAll(),
-        saved
-    ) { form, categories, types, tags, isSaved -> GeofenceEditorUiState(form, categories, types, tags, isSaved) }
+        tagRepository.getAll()
+    ) { formValue, categories, types, tags ->
+        GeofenceEditorBase(formValue, categories, types, tags)
+    }.combine(saved) { base, isSaved ->
+        base to isSaved
+    }.combine(locationMessage) { (base, isSaved), message ->
+        GeofenceEditorUiState(base.form, base.categories, base.activityTypes, base.tags, isSaved, message)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GeofenceEditorUiState())
 
-    fun setName(value: String) = form.update { it.copy(name = value) }
-    fun setLatitude(value: String) = form.update { it.copy(latitude = value) }
-    fun setLongitude(value: String) = form.update { it.copy(longitude = value) }
-    fun setRadius(value: String) = form.update { it.copy(radius = value.filter { char -> char.isDigit() }.take(4)) }
-    fun setIcon(value: String) = form.update { it.copy(icon = value.take(4)) }
-    fun setColor(value: String) = form.update { it.copy(color = value) }
-    fun setEnabled(value: Boolean) = form.update { it.copy(enabled = value) }
-    fun setActivityType(id: String?, defaultCategoryId: String?) = form.update { it.copy(activityTypeId = id, categoryId = defaultCategoryId ?: it.categoryId) }
-    fun toggleTag(id: String) = form.update { current -> current.copy(selectedTagIds = if (id in current.selectedTagIds) current.selectedTagIds - id else current.selectedTagIds + id) }
+    fun setName(value: String) = form.update { it.copy(name = value, error = null) }
+    fun setLatitude(value: String) = form.update { it.copy(latitude = value, error = null) }
+    fun setLongitude(value: String) = form.update { it.copy(longitude = value, error = null) }
+    fun setRadius(value: String) = form.update { it.copy(radius = value.filter { char -> char.isDigit() }.take(4), error = null) }
+    fun setIcon(value: String) = form.update { it.copy(icon = value.take(4), error = null) }
+    fun setColor(value: String) = form.update { it.copy(color = value, error = null) }
+    fun setEnabled(value: Boolean) = form.update { it.copy(enabled = value, error = null) }
+    fun setActivityType(id: String?, defaultCategoryId: String?) = form.update { it.copy(activityTypeId = id, categoryId = defaultCategoryId ?: it.categoryId, error = null) }
+    fun toggleTag(id: String) = form.update { current -> current.copy(selectedTagIds = if (id in current.selectedTagIds) current.selectedTagIds - id else current.selectedTagIds + id, error = null) }
+
+    fun setCoordinates(latitude: Double, longitude: Double) {
+        form.update { it.copy(latitude = "%.6f".format(Locale.US, latitude), longitude = "%.6f".format(Locale.US, longitude), error = null) }
+    }
+
+    fun useCurrentLocation() {
+        viewModelScope.launch {
+            locationMessage.value = "Position wird batterieschonend ermittelt…"
+            when (val result = currentLocationProvider.getCurrentLocation()) {
+                is CurrentLocationResult.Success -> {
+                    setCoordinates(result.latitude, result.longitude)
+                    locationMessage.value = "Aktuelle Position übernommen · Genauigkeit ca. ${result.accuracyMeters.toInt()}m"
+                }
+                CurrentLocationResult.MissingPermission -> locationMessage.value = "Standortberechtigung fehlt. Bitte zuerst Standort erlauben."
+                is CurrentLocationResult.Unavailable -> locationMessage.value = result.message
+            }
+        }
+    }
+
+    fun applyQuickSetup(kind: QuickPlaceKind) {
+        val typeId = if (kind == QuickPlaceKind.Home) "household" else "work"
+        val categoryId = if (kind == QuickPlaceKind.Home) "household" else "work"
+        form.update {
+            it.copy(
+                name = if (kind == QuickPlaceKind.Home) "Zuhause" else "Arbeit",
+                icon = if (kind == QuickPlaceKind.Home) "🏠" else "💼",
+                color = if (kind == QuickPlaceKind.Home) "#2DD4BF" else "#6366F1",
+                radius = if (kind == QuickPlaceKind.Home) "120" else "150",
+                activityTypeId = typeId,
+                categoryId = categoryId,
+                error = null
+            )
+        }
+    }
 
     fun save() {
         viewModelScope.launch {
             val current = form.value
-            val latitude = current.latitude.toDoubleOrNull()
-            val longitude = current.longitude.toDoubleOrNull()
+            val latitude = current.latitude.replace(',', '.').toDoubleOrNull()
+            val longitude = current.longitude.replace(',', '.').toDoubleOrNull()
             val radius = current.radius.toFloatOrNull()
             if (current.name.isBlank() || latitude == null || latitude !in -90.0..90.0 || longitude == null || longitude !in -180.0..180.0 || radius == null || radius < 50f) {
-                form.value = current.copy(error = "Name, Koordinaten und Radius ab 50m prüfen")
+                form.value = current.copy(error = "Name, Position und Radius ab 50m prüfen")
                 return@launch
             }
             val now = System.currentTimeMillis()
+            val existing = current.id?.let { geofenceRepository.getById(it).first() }
             val geofence = PlaceGeofence(
                 id = current.id ?: UUID.randomUUID().toString(),
                 name = current.name.trim(),
@@ -193,8 +247,9 @@ class GeofenceEditorViewModel @Inject constructor(
                 enabled = current.enabled,
                 activityTypeId = current.activityTypeId,
                 categoryId = current.categoryId,
-                createdAt = now,
-                updatedAt = now
+                createdAt = existing?.createdAt ?: now,
+                updatedAt = now,
+                deletedAt = existing?.deletedAt
             )
             geofenceRepository.insertWithTags(geofence, current.selectedTagIds)
             geofenceRegistrar.refreshRegisteredGeofences()
@@ -202,6 +257,15 @@ class GeofenceEditorViewModel @Inject constructor(
         }
     }
 }
+
+enum class QuickPlaceKind { Home, Work }
+
+private data class GeofenceEditorBase(
+    val form: GeofenceForm,
+    val categories: List<de.devondroste.aevum.data.model.Category>,
+    val activityTypes: List<de.devondroste.aevum.data.model.ActivityType>,
+    val tags: List<de.devondroste.aevum.data.model.Tag>
+)
 
 data class GeofenceForm(
     val id: String? = null,
@@ -223,7 +287,8 @@ data class GeofenceEditorUiState(
     val categories: List<de.devondroste.aevum.data.model.Category> = emptyList(),
     val activityTypes: List<de.devondroste.aevum.data.model.ActivityType> = emptyList(),
     val tags: List<de.devondroste.aevum.data.model.Tag> = emptyList(),
-    val saved: Boolean = false
+    val saved: Boolean = false,
+    val locationMessage: String? = null
 )
 
 @HiltViewModel
@@ -241,4 +306,75 @@ class TriggerEventsViewModel @Inject constructor(
 data class TriggerEventsUiState(
     val triggers: List<TriggerEvent> = emptyList(),
     val geofenceNames: Map<String, PlaceGeofence> = emptyMap()
+)
+
+@HiltViewModel
+class GeofenceDebugViewModel @Inject constructor(
+    private val app: Application,
+    private val geofenceRegistrar: GeofenceRegistrar,
+    private val candidateRuleOrchestrator: CandidateRuleOrchestrator,
+    automationSettingsRepository: AutomationSettingsRepository,
+    geofenceRepository: PlaceGeofenceRepository,
+    triggerRepository: TriggerEventRepository,
+    candidateRepository: ActivityCandidateRepository
+) : ViewModel() {
+    private val lastAction = MutableStateFlow<String?>(null)
+
+    val uiState: StateFlow<GeofenceDebugUiState> = combine(
+        automationSettingsRepository.get(),
+        geofenceRepository.getAll(),
+        triggerRepository.getAll(),
+        candidateRepository.getByStatus("PENDING"),
+        lastAction
+    ) { settings, geofences, triggers, candidates, message ->
+        val foreground = has(Manifest.permission.ACCESS_FINE_LOCATION) || has(Manifest.permission.ACCESS_COARSE_LOCATION)
+        val background = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || has(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        val notifications = Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS)
+        GeofenceDebugUiState(
+            settings = settings ?: AutomationSettings(),
+            activeGeofences = geofences.count { it.enabled && it.deletedAt == null },
+            inactiveGeofences = geofences.count { !it.enabled && it.deletedAt == null },
+            triggerCount = triggers.size,
+            pendingCandidates = candidates.size,
+            foregroundLocationGranted = foreground,
+            backgroundLocationGranted = background,
+            notificationsGranted = notifications,
+            geofenceReady = foreground && background,
+            lastAction = message
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GeofenceDebugUiState())
+
+    fun refreshRegistration() {
+        viewModelScope.launch {
+            lastAction.value = when (val result = geofenceRegistrar.refreshRegisteredGeofences()) {
+                is GeofenceRegistrationResult.Registered -> "Registrierung geprüft: ${result.count} aktive Geofences"
+                GeofenceRegistrationResult.MissingForegroundLocation -> "Foreground-Standort fehlt"
+                GeofenceRegistrationResult.MissingBackgroundLocation -> "Background-Standort fehlt"
+                GeofenceRegistrationResult.SecurityDenied -> "Android verweigert Standortzugriff"
+                is GeofenceRegistrationResult.Failed -> result.message
+            }
+        }
+    }
+
+    fun runRulesNow() {
+        viewModelScope.launch {
+            val result = candidateRuleOrchestrator.evaluateRecentTriggers()
+            lastAction.value = "Regeln geprüft: ${result.consideredTriggers} Trigger, ${result.insertedCandidates.size} neue Candidates"
+        }
+    }
+
+    private fun has(permission: String): Boolean = ContextCompat.checkSelfPermission(app, permission) == PackageManager.PERMISSION_GRANTED
+}
+
+data class GeofenceDebugUiState(
+    val settings: AutomationSettings = AutomationSettings(),
+    val activeGeofences: Int = 0,
+    val inactiveGeofences: Int = 0,
+    val triggerCount: Int = 0,
+    val pendingCandidates: Int = 0,
+    val foregroundLocationGranted: Boolean = false,
+    val backgroundLocationGranted: Boolean = false,
+    val notificationsGranted: Boolean = false,
+    val geofenceReady: Boolean = false,
+    val lastAction: String? = null
 )

@@ -183,6 +183,53 @@
 - `connectedDebugAndroidTest`: Android-Test-APK kompiliert, echter Testlauf blockiert durch `No connected devices!`
 - APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
+### M6.1 Crash Fix — Room Migration 2→3 (2026-07-19)
+
+#### Fixed
+
+- Repariert: App-Crash auf Upgrade-Installationen, sobald Dashboard/Room geöffnet wurde.
+- Ursache: `MIGRATION_2_3` fügte `place_geofence.activity_type_id` per `ALTER TABLE` hinzu, konnte dadurch aber den neuen Foreign Key zu `activity_type` nicht nachtragen.
+- Fix: `place_geofence` wird bei fehlendem Activity-Type-Foreign-Key kontrolliert neu aufgebaut.
+
+#### Added
+
+- `MigrationTest.kt` mit v2→v3 Migrationstest und expliziter Foreign-Key-Prüfung.
+- `androidTestImplementation("androidx.room:room-testing:2.6.1")`.
+
+#### Verified
+
+- `compileDebugKotlin`, `compileDebugAndroidTestKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug` erfolgreich.
+- `connectedDebugAndroidTest` in dieser Umgebung nicht ausführbar: `No connected devices!`.
+
+### M6.2 — Intelligente Geofences & Trigger (2026-07-19)
+
+#### Added
+
+- Geofence Editor mit Premium-Light-Map-Picker per Tippen/Ziehen.
+- Aktuelle Position übernehmen via `FusedLocationProviderClient` und `CurrentLocationRequest`.
+- Zuhause/Arbeit Schnellsetup mit Icon, Farbe, Radius, Activity Type und Kategorie-Defaults.
+- `TriggerPairCandidateRuleEngine` als lokales, transparentes Regelwerk.
+- `CandidateRuleOrchestrator` für idempotente Ausführung der Regeln über aktuelle Trigger.
+- Regeln für:
+  - Ort verlassen → anderer Ort betreten = Fahrt/Wegzeit
+  - Ort betreten → selben Ort verlassen = Aufenthalt/Arbeit/Fitness
+  - Zuhause verlassen → Zuhause angekommen = vorsichtiger Ausflug
+  - Exit ohne Ziel bleibt offen
+- Opt-in Review Notifications über `CandidateReviewNotifier`.
+- Geofence Diagnosebereich mit Berechtigungsstatus, aktiven/inaktiven Geofences, Triggern, offenen Candidates, Registrierung prüfen und Regeln prüfen.
+- Unit Tests für Trigger-Pair-Candidates.
+
+#### Changed
+
+- M6.1 Einzeltrigger erzeugen keine spekulativen Standard-Candidates mehr. Candidates entstehen in M6.2 primär aus erklärbaren Trigger-Paaren.
+- Automation Settings enthält Review-Hinweis-Schalter und Diagnose-Navigation.
+
+#### Verified
+
+- `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (3m 12s)
+- `connectedDebugAndroidTest`: Android-Test-APK wurde gebaut; echter Testlauf blockiert durch `No connected devices!`
+- APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.

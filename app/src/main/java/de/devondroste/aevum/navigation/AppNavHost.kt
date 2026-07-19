@@ -13,6 +13,7 @@ import de.devondroste.aevum.ui.screens.insights.InsightsScreen
 import de.devondroste.aevum.ui.screens.onboarding.OnboardingScreen
 import de.devondroste.aevum.ui.screens.settings.SettingsScreen
 import de.devondroste.aevum.ui.screens.automation.AutomationSettingsScreen
+import de.devondroste.aevum.ui.screens.automation.GeofenceDebugScreen
 import de.devondroste.aevum.ui.screens.automation.GeofenceEditorScreen
 import de.devondroste.aevum.ui.screens.automation.GeofenceListScreen
 import de.devondroste.aevum.ui.screens.automation.TriggerEventsScreen
@@ -97,7 +98,8 @@ fun AppNavHost(
         composable(AppDestination.AutomationSettings.route) {
             AutomationSettingsScreen(
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
-                onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) }
+                onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
+                onOpenDebug = { navController.navigate(AppDestination.GeofenceDebug.route) }
             )
         }
         composable(AppDestination.GeofenceList.route) {
@@ -118,6 +120,9 @@ fun AppNavHost(
         }
         composable(AppDestination.TriggerEvents.route) {
             TriggerEventsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.GeofenceDebug.route) {
+            GeofenceDebugScreen(onBack = { navController.popBackStack() })
         }
         composable(AppDestination.Onboarding.route) { OnboardingScreen() }
         composable(AppDestination.LifeProfileSetup.route) { OnboardingScreen() }

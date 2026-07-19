@@ -15,6 +15,7 @@ enum class AppDestination(val route: String, val title: String) {
     GeofenceCreate("geofence/new", "Geofence anlegen"),
     GeofenceEdit("geofence/edit/{geofenceId}", "Geofence bearbeiten"),
     TriggerEvents("trigger_events", "Trigger Events"),
+    GeofenceDebug("geofence_debug", "Geofence Diagnose"),
     Onboarding("onboarding", "Onboarding"),
     LifeProfileSetup("life_profile_setup", "Lebensprofil"),
     PermissionEducation("permission_education", "Berechtigungen"),

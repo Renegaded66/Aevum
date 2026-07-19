@@ -175,9 +175,30 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Ziel:** M6.1 auf Gerätetests und bessere Erkennung hin polieren.
 
-**Aufgaben:** Map-Picker, aktuelle Position übernehmen, Zuhause/Arbeit Schnellsetup, Trigger-Pairing, Fahrt-/Aufenthalts-Candidates, Review Notifications, Debug/Health Screen.
+**Status:** **Abgeschlossen.**
+
+**Erledigte Aufgaben:**
+
+- [x] Map-Picker im Geofence Editor per Tippen/Ziehen
+- [x] Aktuelle Position übernehmen via `FusedLocationProviderClient.getCurrentLocation`
+- [x] Zuhause/Arbeit Schnellsetup mit sinnvollen Defaults
+- [x] Transparentes lokales `TriggerPairCandidateRuleEngine`
+- [x] Fahrt-/Aufenthalts-/Ausflug-Candidates aus Trigger-Paaren
+- [x] offene Exit-Trigger bleiben ohne Ziel bewusst unresolved
+- [x] Review Notifications opt-in und permission-gated
+- [x] Geofence Diagnosebereich für Berechtigungen, Registrierung und Regelstatus
+- [x] Unit Tests für Trigger-Pair-Regeln
+- [x] M6.1 Migrationstests bleiben aktiv; keine neue Room-Version in M6.2
 
 **Definition of Done:** Geofence-Setup ist ohne Koordinatenwissen nutzbar und erzeugt plausiblere Candidates aus Trigger-Paaren.
+
+## M6.3 — Geofence Real-World Hardening & Maps
+
+**Ziel:** M6.2 auf echter Geräte-Nutzung stabilisieren und Map-/Review-Erlebnis weiter professionalisieren.
+
+**Aufgaben:** echte Karten-SDK-/Tile-Entscheidung, Reverse Geocoding/Ortssuche, Review-Deep-Link, Notification Actions, längere Trigger-Reconciliation, Android-15-Gerätetestprotokoll.
+
+**Definition of Done:** Geofence-Erstellung fühlt sich wie eine moderne Premium-App an und ist in realen Standortbedingungen nachvollziehbar stabil.
 
 ## M7 — Health Connect / Sleep & UsageStats
 

@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-18T21:12:48Z
+> Stand: 2026-07-19T08:10:29Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M6.1 — Geofencing & Trigger Events Grundlage abgeschlossen**.
+> Status: **M6.2 — Intelligente Geofences & Trigger abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -21,6 +21,8 @@
 - [x] M5 erster installierbarer Kernflow: Tag manuell erfassen, Timeline, Editor, Detail, Dashboard mit echten Room-Daten
 - [x] M5.5 UX Polish: Safe Areas, vereinfachter Editor, visueller Zeitstrahl, Trigger-Konzept, Tageskalender-Timeline, Settings-Struktur
 - [x] M6.1 Geofencing & Trigger Events: persistente Geofences, Trigger Events, Android GeofencingClient, Permission Education, Candidate Review Flow
+- [x] M6.1 Crash-Fix: Room Migration 2→3 repariert und Migrationstests ergänzt
+- [x] M6.2 Intelligente Geofences & Trigger: Map-Picker, aktuelle Position, Zuhause/Arbeit Schnellsetup, Trigger-Pair-Regeln, Review-Hinweise, Diagnosebereich
 
 ## Produktdefinition
 
@@ -30,6 +32,14 @@ Aevum ist ein persönliches Lebenscockpit für Lebenszeit, Zeitverteilung, Ziele
 
 Jeder Meilenstein muss installierbar und sinnvoll testbar sein. Qualität, Vertrauen und Wartbarkeit sind wichtiger als Geschwindigkeit.
 
+## Qualitätssicherungsregel ab M6.2
+
+- Jede Room-Schema-Änderung muss Migrationstests enthalten.
+- Mindestens vorherige Version → aktuelle Version; ältere Versionen → aktuelle Version, wenn sinnvoll.
+- Neue Foreign Keys, Indizes oder Constraints werden explizit getestet.
+- Wenn Android-Tests mangels Gerät/Emulator nicht ausgeführt werden können, wird das klar dokumentiert.
+- Vor jedem Commit gilt die Frage: „Hätte dieser Fehler mit besseren Tests erkannt werden können?“ Wenn ja, werden Tests direkt ergänzt.
+
 ## Aktuelle technische Struktur
 
 - Kotlin + Android Gradle Plugin
@@ -38,164 +48,87 @@ Jeder Meilenstein muss installierbar und sinnvoll testbar sein. Qualität, Vertr
 - Hilt Application + DI Module
 - Room Database Version 3 mit Migrationen `MIGRATION_1_2`, `MIGRATION_2_3`
 - Offline-first Room als Source of Truth
-- Navigation Compose mit Dashboard, Timeline, Activity Editor, Activity Detail, Settings, Automation, Geofences und Trigger Events
-- Google Play Services Location (`GeofencingClient`) für batteriesparende Geofence-Überwachung
+- Navigation Compose mit Dashboard, Timeline, Activity Editor, Activity Detail, Settings, Automation, Geofences, Trigger Events und Geofence Diagnose
+- Google Play Services Location:
+  - `GeofencingClient`
+  - `FusedLocationProviderClient`
+  - `CurrentLocationRequest`
+- Lokales transparentes Trigger-Pair-Regelwerk
 
-## M6.1 — Geofencing & Trigger Events
+## M6.2 — Intelligente Geofences & Trigger
 
 **Status:** **Abgeschlossen.**
 
-### Fachliche Entscheidung
+### UX Review
 
-M6.1 implementiert bewusst nicht „maximal viele Automationen“, sondern eine zuverlässige, erklärbare Grundlage:
+Neue Automatisierung muss Vertrauen schaffen. Deshalb bleibt M6.2 erklärbar:
 
-```text
-Android Geofence Transition
-  -> RawSourceEvent
-  -> DetectionEvent
-  -> TriggerEvent
-  -> ActivityCandidate
-  -> Review Flow
-  -> ActivitySession erst nach Nutzerentscheidung
-```
-
-Diese Pipeline hält M4 sauber ein: Rohdaten, Detection, Trigger, Candidate und Session bleiben getrennt.
-
-### Neue Datenbankstruktur
-
-Room Version 3 ergänzt:
-
-- `place_geofence`
-  - Name, Position, Radius
-  - Icon, Farbe
-  - Aktiv/Inaktiv
-  - `activity_type_id`
-  - optionale `category_id`
-  - Soft Delete über `deleted_at`
-- `place_geofence_tag`
-  - Tags für Geofences
-- `trigger_event`
-  - einzelner Zeitpunkt
-  - Typ, Quelle, Confidence
-  - optionaler Geofence
-  - optionales Detection Event
-  - Metadata JSON
-- `automation_settings`
-  - Geofencing/Hintergrunderfassung/Review Notifications/Battery Saver
-
-Schema Export:
-
-- `app/schemas/de.devondroste.aevum.data.db.AppDatabase/3.json`
-
-### Android APIs
-
-M6.1 verwendet:
-
-- `com.google.android.gms.location.GeofencingClient`
-- `GeofencingRequest`
-- `Geofence`
-- `PendingIntent` + `BroadcastReceiver`
-- runtime Permissions über Activity Result APIs:
-  - `ACCESS_FINE_LOCATION`
-  - `ACCESS_COARSE_LOCATION`
-  - `ACCESS_BACKGROUND_LOCATION`
-  - `POST_NOTIFICATIONS` ab Android 13 optional für spätere Review-Hinweise
-
-### Batterie-Strategie
-
-- keine dauerhaften GPS-Polls
-- keine Foreground-Service-Dauererfassung
-- Android/Google Play Services Geofencing übernimmt Standortüberwachung
-- maximal 100 aktive Android-Geofences berücksichtigt
-- `notificationResponsiveness = 2 Minuten`
-- Mindest-Radius 50m
-- Hintergrundaktivierung nur nach explizitem Opt-in
+- Map-Picker ist bewusst als dependency-arme Premium-Light-Karte umgesetzt.
+- „Aktuelle Position übernehmen“ ist nutzerinitiiert, timeout-begrenzt und batterieschonend.
+- Zuhause/Arbeit Schnellsetup reduziert kognitive Last.
+- Automatische Candidates entstehen aus nachvollziehbaren Trigger-Paaren, nicht aus Blackbox-Regeln.
+- Review-Benachrichtigungen sind opt-in und nicht aufdringlich.
+- Diagnosebereich macht Berechtigungen, Registrierung und Regelstatus sichtbar.
 
 ### Neue Funktionen
 
-- Settings → echte Automatisierungsnavigation
-- Automation Screen:
-  - erklärbarer Permission-Status
-  - Standort / Hintergrundstandort / Benachrichtigungen
-  - Hintergrunderfassung aktivierbar
-  - Geofence-Registrierung aktualisieren
-  - Live-Status: Geofences, Trigger, offene Candidates
-- Geofence Verwaltung:
-  - Geofences anlegen, bearbeiten, soft-löschen
-  - Name, Koordinaten, Radius, Icon, Farbe, aktiv/inaktiv
-  - zugehörige Activity Type Auswahl
-  - Tags
-- Trigger Events:
-  - dauerhaft in Room gespeichert
-  - Trigger-Liste in Settings
-  - Trigger Marker in Timeline-Tageskalender
-  - Trigger Marker im Activity Editor als Snap-Ziele
-- Candidate Review Flow:
-  - offene Candidates erscheinen in Timeline
-  - „Übernehmen“ erzeugt `activity_session`
-  - „Bearbeiten“ öffnet Editor mit Candidate-Daten
-  - „Verwerfen“ setzt Candidate auf `DISMISSED`
+- Geofence Editor:
+  - Map-Picker per Tippen/Ziehen
+  - aktuelle Position übernehmen
+  - Schnellsetup für Zuhause und Arbeit
+  - Radius/Koordinaten weiterhin manuell editierbar
+- Automation Settings:
+  - Review-Hinweise aktivierbar/deaktivierbar
+  - Diagnosebereich erreichbar
+- Candidate Intelligence:
+  - lokaler `TriggerPairCandidateRuleEngine`
+  - Exit → Enter verschiedener Orte = Wegzeit/Fahrt
+  - Enter → Exit gleicher Ort = Aufenthalts-/Arbeits-/Fitness-Session
+  - Zuhause verlassen → Zuhause angekommen = vorsichtiger Ausflug-Vorschlag
+  - Geofence verlassen ohne Ziel bleibt offen
+- Review Notifications:
+  - optional über `POST_NOTIFICATIONS`
+  - nur bei neu eingefügten überprüfbaren Candidates
+- Geofence Diagnose:
+  - Berechtigungsstatus
+  - aktive/inaktive Geofences
+  - Trigger-Anzahl
+  - offene Candidates
+  - Registrierung prüfen
+  - Regelwerk manuell ausführen
 
-### Neue/aktualisierte Codebereiche
+### Keine Schemaänderung in M6.2
 
-Neue Packages/Dateien:
+M6.2 führt keine neue Room-Version ein. Deshalb war keine neue Migration erforderlich. Der M6.1 Migrationstest bleibt aktiv und wurde durch Android-Test-Kompilierung geprüft.
 
-- `automation/geofence/GeofenceRegistrar.kt`
-- `automation/geofence/GeofenceBroadcastReceiver.kt`
-- `automation/geofence/GeofenceTransitionProcessor.kt`
-- `automation/model/AutomationConstants.kt`
-- `data/model/TriggerEvent.kt`
-- `data/model/AutomationSettings.kt`
-- `data/model/PlaceGeofenceTag.kt`
-- `data/db/TriggerEventDao.kt`
-- `data/db/AutomationSettingsDao.kt`
-- `domain/automation/ReviewCandidateUseCase.kt`
-- `ui/screens/automation/AutomationScreens.kt`
-- `ui/screens/automation/AutomationViewModels.kt`
-
-Aktualisierte Kernbereiche:
-
-- `PlaceGeofence` erweitert
-- `AppDatabase` auf Version 3
-- `DatabaseModule`, `RepositoryModule`
-- `TimelineScreen` / `TimelineViewModels`
-- `ActivityEditor` kann Candidate-Daten bearbeiten
-- `SettingsScreen`
-- `AndroidManifest.xml` mit Geofence Receiver
-
-### M6.1 Verifikation
+### M6.2 Verifikation
 
 Ausgeführt:
 
 ```bash
-./gradlew compileDebugKotlin --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
-./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
-./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
 ```
 
 Ergebnis:
 
 ```text
-compileDebugKotlin: BUILD SUCCESSFUL in 1m 13s
-testDebugUnitTest: BUILD SUCCESSFUL in 1m 6s
-lintDebug + assembleDebug: BUILD SUCCESSFUL in 2m 16s
+BUILD SUCCESSFUL in 3m 12s
 ```
 
 Android Tests:
 
 ```bash
-./gradlew connectedDebugAndroidTest ...
+./gradlew connectedDebugAndroidTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
 ```
 
 Ergebnis in dieser Umgebung:
 
 ```text
-compileDebugAndroidTestKotlin: erfolgreich
 packageDebugAndroidTest: erfolgreich
 connectedDebugAndroidTest: FAILED — No connected devices!
 ```
 
-Die Android-Test-APK wurde kompiliert; ein echter Lauf ist hier blockiert, weil kein Emulator/Gerät verbunden ist.
+Die Android-Test-APK wurde kompiliert; der echte Instrumentation-Lauf ist blockiert, weil kein Gerät/Emulator verbunden ist.
 
 APK-Verifikation:
 
@@ -212,21 +145,22 @@ Number of signers: 1
 
 ## Bekannte Einschränkungen
 
-- Geofence-Koordinaten werden in M6.1 manuell eingegeben; Map-Picker folgt in M6.2.
-- Echte Geofence-Auslösung kann nur auf einem Gerät mit Google Play Services und erteilten Standort-/Hintergrundberechtigungen getestet werden.
-- Candidate-Generierung ist in M6.1 regelbasiert und bewusst konservativ; komplexes Pairing „Home Exit → Gym Enter = Fahrt“ wird in M6.2 verbessert.
-- Review Notifications sind vorbereitet, aber noch nicht aktiv versendet.
-- Activity Recognition ist noch nicht implementiert; folgt nach Geofence-Stabilisierung.
+- Map-Picker ist eine lokale Premium-Light-Karte ohne echte Karten-Tiles/POI/Suche.
+- Aktuelle Position hängt von Gerät, Standortdiensten und erteilten Berechtigungen ab.
+- Geofence-Auslösung kann nur real auf einem Gerät mit Google Play Services und Hintergrundstandort geprüft werden.
+- Trigger-Pair-Regeln sind bewusst konservativ; offene Trigger werden nicht spekulativ geschlossen.
+- Review-Hinweise führen aktuell zur App, nicht direkt zu einem Deep Link in die Timeline.
+- Activity Recognition, Health Connect Sleep und UsageStats folgen später.
 
 ## Nächster Schritt
 
-**M6.2 — Geofence UX & Candidate Intelligence.**
+**M6.3 — Geofence Real-World Hardening & Maps.**
 
-Geplanter Fokus:
+Empfohlener Fokus:
 
-- Map-Picker / aktuelle Position übernehmen
-- Home/Work Schnellsetup
-- bessere Candidate-Regeln aus Trigger-Paaren
-- Review Notifications
-- Geofence Debug/Health Screen
-- produktionsnaher Gerätetest-Plan
+- echte Karten-SDK-Entscheidung oder Map-Tile-Strategie
+- reverse geocoding / Ortssuche
+- Deep Link für Review-Benachrichtigungen zur Timeline
+- Geofence-Gerätetestprotokoll mit Android 15/Motorola edge 50 pro
+- Trigger-Reconciliation für länger offene Zustände
+- Notification Actions: Übernehmen / Später prüfen

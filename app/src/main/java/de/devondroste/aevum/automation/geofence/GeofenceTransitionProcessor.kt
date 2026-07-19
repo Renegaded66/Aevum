@@ -1,11 +1,11 @@
 package de.devondroste.aevum.automation.geofence
 
 import de.devondroste.aevum.automation.model.AutomationConstants
-import de.devondroste.aevum.data.model.ActivityCandidate
+import de.devondroste.aevum.automation.notification.CandidateReviewNotifier
+import de.devondroste.aevum.automation.rules.CandidateRuleOrchestrator
 import de.devondroste.aevum.data.model.DetectionEvent
 import de.devondroste.aevum.data.model.RawSourceEvent
 import de.devondroste.aevum.data.model.TriggerEvent
-import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.DetectionEventRepository
 import de.devondroste.aevum.data.repository.PlaceGeofenceRepository
 import de.devondroste.aevum.data.repository.RawSourceEventRepository
@@ -19,7 +19,8 @@ class GeofenceTransitionProcessor @Inject constructor(
     private val rawSourceRepository: RawSourceEventRepository,
     private val detectionRepository: DetectionEventRepository,
     private val triggerRepository: TriggerEventRepository,
-    private val candidateRepository: ActivityCandidateRepository
+    private val ruleOrchestrator: CandidateRuleOrchestrator,
+    private val candidateReviewNotifier: CandidateReviewNotifier
 ) {
     suspend fun processTransition(
         geofenceId: String,
@@ -67,41 +68,10 @@ class GeofenceTransitionProcessor @Inject constructor(
         )
         triggerRepository.insert(trigger)
 
-        val candidate = candidateForTransition(geofence, transition, occurredAt)
-        candidate?.let { candidateRepository.insert(it) }
+        val ruleResult = ruleOrchestrator.evaluateRecentTriggers()
+        candidateReviewNotifier.notifyIfEnabled(ruleResult.insertedCandidates)
 
-        return GeofenceProcessingResult.Stored(trigger.id, detection.id, candidate?.id)
-    }
-
-    private fun candidateForTransition(
-        geofence: de.devondroste.aevum.data.model.PlaceGeofence,
-        transition: GeofenceTransition,
-        occurredAt: Long
-    ): ActivityCandidate? {
-        val activityTypeId = geofence.activityTypeId ?: return null
-        val start = when (transition) {
-            GeofenceTransition.Enter -> occurredAt
-            GeofenceTransition.Exit -> (occurredAt - DEFAULT_PLACE_DURATION_MS).coerceAtLeast(0)
-            GeofenceTransition.Unknown -> return null
-        }
-        val end = when (transition) {
-            GeofenceTransition.Enter -> occurredAt + DEFAULT_PLACE_DURATION_MS
-            GeofenceTransition.Exit -> occurredAt
-            GeofenceTransition.Unknown -> return null
-        }
-        return ActivityCandidate(
-            id = UUID.randomUUID().toString(),
-            suggestedTitle = if (transition == GeofenceTransition.Enter) geofence.name else "${geofence.name} Aufenthalt",
-            suggestedCategoryId = geofence.categoryId,
-            activityTypeId = activityTypeId,
-            startAt = start,
-            endAt = end,
-            confidence = DEFAULT_CONFIDENCE,
-            status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = if (transition == GeofenceTransition.Enter) "Geofence betreten: ${geofence.name}" else "Geofence verlassen: ${geofence.name}",
-            createdBy = AutomationConstants.CREATED_BY_GEOFENCE_PIPELINE,
-            createdAt = System.currentTimeMillis()
-        )
+        return GeofenceProcessingResult.Stored(trigger.id, detection.id, ruleResult.insertedCandidates.size)
     }
 
     private fun triggerTypeFor(name: String, transition: GeofenceTransition): String {
@@ -115,12 +85,11 @@ class GeofenceTransitionProcessor @Inject constructor(
 
     private companion object {
         const val DEFAULT_CONFIDENCE = 0.82f
-        const val DEFAULT_PLACE_DURATION_MS = 60 * 60 * 1000L
     }
 }
 
 sealed class GeofenceProcessingResult {
-    data class Stored(val triggerId: String, val detectionEventId: String, val candidateId: String?) : GeofenceProcessingResult()
+    data class Stored(val triggerId: String, val detectionEventId: String, val ruleCandidateCount: Int = 0) : GeofenceProcessingResult()
     data object UnknownGeofence : GeofenceProcessingResult()
     data object Ignored : GeofenceProcessingResult()
 }

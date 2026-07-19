@@ -122,3 +122,19 @@
 **Begründung:** Aevum soll später aus Nutzerkorrekturen lernen können. Wenn ein automatischer Vorschlag „Arbeit 08:00–17:00“ später zu „08:15–16:45“ geändert wird, sind ursprünglicher Vorschlag und finale Nutzerentscheidung wertvolle Daten für Debugging, bessere Erkennungsalgorithmen, lokale KI-Auswertungen und Reprocessing.
 
 **Konsequenz:** Die aktuelle Session bleibt für Timeline/Statistiken einfach abfragbar, aber Herkunft und Änderungen bleiben auditierbar. Die Historie ist bewusst klein und nicht als Event-Sourcing-System für jede technische Kleinigkeit gedacht.
+
+## ADR-0017 — Room-Schemaänderungen brauchen Migrationstests
+
+**Entscheidung:** Jede Änderung am Room-Schema muss passende Migrationstests enthalten. Mindestens vorherige Version → aktuelle Version; bei kritischen Änderungen zusätzlich ältere Versionen → aktuelle Version. Neue Foreign Keys, Indizes und Constraints werden explizit getestet.
+
+**Begründung:** Der M6.1-Gerätecrash wurde durch eine unvollständige Migration verursacht, die in In-Memory-/Neuinstallations-Tests nicht sichtbar war. Aevum verarbeitet langlebige lokale Daten; Upgrade-Pfade sind produktkritisch.
+
+**Konsequenz:** Vor jedem Commit wird geprüft, ob bessere Tests einen Fehler erkannt hätten. Wenn ja, werden Tests ergänzt. Wenn Android-Tests mangels Gerät/Emulator nicht laufen, wird das klar dokumentiert.
+
+## ADR-0018 — M6.2 nutzt lokale Trigger-Pair-Regeln statt Blackbox-Erkennung
+
+**Entscheidung:** Geofence-Candidates entstehen primär aus erklärbaren Trigger-Paaren, nicht aus einzelnen Triggern oder einer undurchsichtigen Klassifikation.
+
+**Begründung:** Automatisierung soll Vertrauen schaffen. Einzelne Trigger sind Fakten, aber noch keine Aktivitätsintervalle. Paare wie `Home verlassen → Gym betreten` oder `Arbeit betreten → verlassen` sind nachvollziehbarer und später gut erweiterbar.
+
+**Konsequenz:** `TriggerPairCandidateRuleEngine` ist lokal, deterministisch, idempotent und schreibt lesbare Reasons in Candidates. Offene Trigger ohne Ziel bleiben unresolved.

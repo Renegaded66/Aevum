@@ -226,6 +226,29 @@ Architekturregeln:
 
 M6.1 ist produktionsreif als lokale Pipeline und Datenmodellgrundlage. M6.2 verbessert Setup-UX (Map/aktuelle Position) und Candidate-Intelligenz aus Trigger-Paaren.
 
+## M6.2 Trigger-Pair Candidate Rules
+
+M6.2 verschiebt automatische Geofence-Candidates von spekulativen Einzeltriggern zu nachvollziehbaren Trigger-Paaren:
+
+```text
+trigger_event[] + place_geofence[]
+  -> TriggerPairCandidateRuleEngine
+  -> idempotente activity_candidate Vorschläge
+  -> Review Notification optional
+  -> Nutzerreview in Timeline
+```
+
+Regeln sind lokal, deterministisch und erklärbar:
+
+- `EXIT(A) -> ENTER(B)` mit A != B: Wegzeit/Fahrt.
+- `ENTER(A) -> EXIT(A)`: Aufenthalts-/Arbeits-/Fitness-Session.
+- `EXIT(Home) -> ENTER(Home)`: vorsichtiger Ausflug, wenn kein Ziel bekannt ist.
+- `EXIT(A)` ohne späteres Ziel bleibt offen und erzeugt keinen Candidate.
+
+Jeder Candidate enthält eine lesbare `reason` und eine stabile ID auf Basis des Trigger-Paares. Dadurch kann das Regelwerk erneut laufen, ohne Duplikate zu erzeugen.
+
+M6.2 führt keine neue Room-Version ein. Die neue QS-Regel bleibt bindend: jede künftige Schemaänderung braucht Migrationstests inklusive Foreign-Key-/Index-/Constraint-Prüfung.
+
 ## Erweiterbarkeit
 
 Das M4-Zielmodell unterstützt:

@@ -7,7 +7,13 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,11 +22,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -37,6 +44,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,12 +60,14 @@ import de.devondroste.aevum.ui.components.AevumCard
 import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.EmptyState
 import de.devondroste.aevum.ui.theme.AevumSpacing
+import java.util.Locale
 
 @Composable
 fun AutomationSettingsScreen(
     modifier: Modifier = Modifier,
     onOpenGeofences: () -> Unit,
     onOpenTriggers: () -> Unit,
+    onOpenDebug: () -> Unit,
     viewModel: AutomationSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -74,22 +86,28 @@ fun AutomationSettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                         Text("Automatisierung", fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
                         Text("Aevum erkennt Orte nur, wenn du es ausdrücklich aktivierst. Jede Erkennung bleibt als Trigger und Candidate nachvollziehbar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column { Text("Hintergrunderfassung", fontWeight = FontWeight.SemiBold); Text("Batteriesparend über Android Geofencing", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            Switch(checked = state.settings.backgroundCaptureEnabled, onCheckedChange = viewModel::setBackgroundCapture)
-                        }
+                        SettingSwitch("Hintergrunderfassung", "Batteriesparend über Android Geofencing", state.settings.backgroundCaptureEnabled, viewModel::setBackgroundCapture)
+                        SettingSwitch("Review-Hinweise", "Zurückhaltende Benachrichtigung nur bei neuen überprüfbaren Vorschlägen", state.settings.reviewNotificationsEnabled, viewModel::setReviewNotifications)
                         state.registrationMessage?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                     }
                 }
             }
-            item { PermissionCard("Standort", "Erlaubt Aevum, Orte im Vordergrund zu konfigurieren.", state.foregroundLocationGranted) { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } }
+            item { PermissionCard("Standort", "Erlaubt Aevum, Orte im Vordergrund zu konfigurieren und aktuelle Position zu übernehmen.", state.foregroundLocationGranted) { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } }
             item { PermissionCard("Hintergrundstandort", "Nötig, damit Geofences auch erkannt werden, wenn Aevum geschlossen ist.", state.backgroundLocationGranted) { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) } }
-            if (Build.VERSION.SDK_INT >= 33) item { PermissionCard("Benachrichtigungen", "Optional für spätere Candidate-Review-Hinweise.", state.notificationsGranted) { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) } }
+            if (Build.VERSION.SDK_INT >= 33) item { PermissionCard("Benachrichtigungen", "Optional für Review-Hinweise. Aevum funktioniert auch ohne.", state.notificationsGranted) { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) } }
             item {
-                AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Live-Status", fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text("${state.geofenceCount} Geofences · ${state.triggerCount} Trigger · ${state.pendingCandidateCount} offene Candidates"); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Button(onClick = onOpenGeofences) { Text("Geofences") }; OutlinedButton(onClick = onOpenTriggers) { Text("Trigger") } } } }
+                AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Live-Status", fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text("${state.geofenceCount} Geofences · ${state.triggerCount} Trigger · ${state.pendingCandidateCount} offene Candidates"); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Button(onClick = onOpenGeofences) { Text("Geofences") }; OutlinedButton(onClick = onOpenTriggers) { Text("Trigger") }; OutlinedButton(onClick = onOpenDebug) { Text("Diagnose") } } } }
             }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
+    }
+}
+
+@Composable
+private fun SettingSwitch(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold); Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -146,15 +164,94 @@ fun GeofenceEditorScreen(
     viewModel: GeofenceEditorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val foregroundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
     LaunchedEffect(state.saved) { if (state.saved) onBack() }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header(if (state.form.id == null) "Geofence anlegen" else "Geofence bearbeiten", "Koordinaten werden aktuell manuell eingegeben; Map-Picker folgt in M6.2.", onBack, "Speichern", viewModel::save) }
+            item { Header(if (state.form.id == null) "Geofence anlegen" else "Geofence bearbeiten", "Map-Picker, aktuelle Position und Schnellsetup für Zuhause/Arbeit", onBack, "Speichern", viewModel::save) }
+            item { QuickSetupCard(viewModel::applyQuickSetup, viewModel::useCurrentLocation, { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, state.locationMessage) }
+            item { MapPickerCard(state.form, viewModel::setCoordinates) }
             item { AevumCard(variant = CardVariant.Gradient) { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) { OutlinedTextField(state.form.name, viewModel::setName, modifier = Modifier.fillMaxWidth(), label = { Text("Name") }, placeholder = { Text("Zuhause, Arbeit, Fitnessstudio…") }); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { OutlinedTextField(state.form.icon, viewModel::setIcon, modifier = Modifier.weight(1f), label = { Text("Icon") }); OutlinedTextField(state.form.color, viewModel::setColor, modifier = Modifier.weight(2f), label = { Text("Farbe") }) }; Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { OutlinedTextField(state.form.latitude, viewModel::setLatitude, modifier = Modifier.weight(1f), label = { Text("Latitude") }); OutlinedTextField(state.form.longitude, viewModel::setLongitude, modifier = Modifier.weight(1f), label = { Text("Longitude") }) }; OutlinedTextField(state.form.radius, viewModel::setRadius, modifier = Modifier.fillMaxWidth(), label = { Text("Radius Meter") }); Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Aktiv"); Switch(state.form.enabled, viewModel::setEnabled) }; state.form.error?.let { Text(it, color = MaterialTheme.colorScheme.error) } } } }
             item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Zugehörige Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { state.activityTypes.forEach { type -> FilterChip(selected = type.id == state.form.activityTypeId, onClick = { viewModel.setActivityType(type.id, type.defaultCategoryId) }, label = { Text(type.name) }) } } } } }
             item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Tags", fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { state.tags.forEach { tag -> FilterChip(selected = tag.id in state.form.selectedTagIds, onClick = { viewModel.toggleTag(tag.id) }, label = { Text(tag.name) }) } } } } }
         }
     }
+}
+
+@Composable
+private fun QuickSetupCard(onQuick: (QuickPlaceKind) -> Unit, onCurrentLocation: () -> Unit, onRequestLocation: () -> Unit, message: String?) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text("Schnell einrichten", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Wenige Schritte: Profil wählen, aktuelle Position übernehmen, Radius prüfen, speichern.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Button(onClick = { onQuick(QuickPlaceKind.Home) }) { Text("🏠 Zuhause") }
+                OutlinedButton(onClick = { onQuick(QuickPlaceKind.Work) }) { Text("💼 Arbeit") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Button(onClick = onCurrentLocation) { Text("Aktuelle Position") }
+                OutlinedButton(onClick = onRequestLocation) { Text("Standort erlauben") }
+            }
+            message?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
+        }
+    }
+}
+
+@Composable
+private fun MapPickerCard(form: GeofenceForm, onPick: (Double, Double) -> Unit) {
+    val lat = form.latitude.replace(',', '.').toDoubleOrNull() ?: 51.6167
+    val lon = form.longitude.replace(',', '.').toDoubleOrNull() ?: 7.5167
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text("Map-Picker", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Premium-Light-Karte ohne zusätzliche SDK-Abhängigkeit: Tippen oder ziehen setzt den Mittelpunkt. M6.3 kann eine echte Karten-SDK-Schicht ergänzen.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.large)
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val picked = offsetToLat(offset.x, offset.y, size.width.toFloat(), size.height.toFloat(), lat, lon)
+                            onPick(picked.first, picked.second)
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val picked = offsetToLat(offset.x, offset.y, size.width.toFloat(), size.height.toFloat(), lat, lon)
+                                onPick(picked.first, picked.second)
+                            },
+                            onDrag = { change, _ ->
+                                val picked = offsetToLat(change.position.x, change.position.y, size.width.toFloat(), size.height.toFloat(), lat, lon)
+                                onPick(picked.first, picked.second)
+                            }
+                        )
+                    }
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val gridColor = Color(0xFF94A3B8).copy(alpha = 0.25f)
+                    repeat(6) { index ->
+                        val x = size.width * index / 5f
+                        val y = size.height * index / 5f
+                        drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
+                        drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+                    }
+                    drawCircle(Color(0xFF2DD4BF).copy(alpha = 0.22f), radius = (form.radius.toFloatOrNull() ?: 150f).coerceIn(50f, 500f) / 500f * 96.dp.toPx(), center = center)
+                    drawCircle(Color(0xFF2DD4BF), radius = 9.dp.toPx(), center = center)
+                }
+                Text("${"%.5f".format(Locale.US, lat)}, ${"%.5f".format(Locale.US, lon)}", modifier = Modifier.align(Alignment.BottomCenter).padding(AevumSpacing.sm), fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+private fun offsetToLat(x: Float, y: Float, width: Float, height: Float, centerLat: Double, centerLon: Double): Pair<Double, Double> {
+    val safeWidth = width.coerceAtLeast(1f)
+    val safeHeight = height.coerceAtLeast(1f)
+    val latDelta = ((0.5f - y / safeHeight) * 0.01f).toDouble()
+    val lonDelta = ((x / safeWidth - 0.5f) * 0.01f).toDouble()
+    return (centerLat + latDelta).coerceIn(-90.0, 90.0) to (centerLon + lonDelta).coerceIn(-180.0, 180.0)
 }
 
 @Composable
@@ -180,7 +277,32 @@ fun TriggerEventsScreen(
 
 @Composable
 private fun TriggerRow(trigger: TriggerEvent, geofenceName: String?) {
-    AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) { Text(trigger.type, fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text("${TimeFormatting.formatTime(trigger.occurredAt)} · ${geofenceName ?: "kein Ort"} · ${(trigger.confidence * 100).toInt()}%", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp) } }
+    AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) { Text(trigger.type, fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text("${TimeFormatting.formatTime(trigger.occurredAt)} · ${geofenceName ?: "kein Ort"} · ${(trigger.confidence * 100).toInt()}%", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp); trigger.metadataJson?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+}
+
+@Composable
+fun GeofenceDebugScreen(
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit,
+    viewModel: GeofenceDebugViewModel = hiltViewModel()
+) {
+    val state by viewModel.uiState.collectAsState()
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            item { Header("Geofence Diagnose", "Transparenz statt Magie: Berechtigungen, Registrierung, Regeln", onBack, null, {}) }
+            item { AevumCard(variant = CardVariant.Gradient) { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text(if (state.geofenceReady) "System bereit" else "Noch nicht vollständig bereit", fontSize = 24.sp, fontWeight = FontWeight.SemiBold); DebugLine("Foreground Standort", state.foregroundLocationGranted); DebugLine("Background Standort", state.backgroundLocationGranted); DebugLine("Benachrichtigungen", state.notificationsGranted); DebugLine("Review Hinweise aktiv", state.settings.reviewNotificationsEnabled) } } }
+            item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Datenlage", fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text("Aktive Geofences: ${state.activeGeofences}"); Text("Inaktive Geofences: ${state.inactiveGeofences}"); Text("Trigger Events: ${state.triggerCount}"); Text("Offene Candidates: ${state.pendingCandidates}") } } }
+            item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Aktionen", fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Button(onClick = viewModel::refreshRegistration) { Text("Registrierung prüfen") }; OutlinedButton(onClick = viewModel::runRulesNow) { Text("Regeln prüfen") } }; state.lastAction?.let { Text(it, color = MaterialTheme.colorScheme.secondary) } } } }
+        }
+    }
+}
+
+@Composable
+private fun DebugLine(label: String, ok: Boolean) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label)
+        Text(if (ok) "OK" else "Fehlt", color = if (ok) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+    }
 }
 
 @Composable
