@@ -391,13 +391,13 @@ abstract class AppDatabase : RoomDatabase() {
                     latitude REAL NOT NULL,
                     longitude REAL NOT NULL,
                     radius_meters REAL NOT NULL,
-                    icon TEXT NOT NULL DEFAULT '📍',
-                    color TEXT NOT NULL DEFAULT '#6366F1',
-                    enabled INTEGER NOT NULL DEFAULT 1,
+                    icon TEXT NOT NULL,
+                    color TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
                     activity_type_id TEXT,
                     category_id TEXT,
-                    created_at INTEGER NOT NULL DEFAULT 0,
-                    updated_at INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
                     deleted_at INTEGER,
                     FOREIGN KEY(category_id) REFERENCES category(id) ON DELETE SET NULL,
                     FOREIGN KEY(activity_type_id) REFERENCES activity_type(id) ON DELETE SET NULL
@@ -409,11 +409,61 @@ abstract class AppDatabase : RoomDatabase() {
             addColumnIfMissing(database, "place_geofence", "created_at", "INTEGER NOT NULL DEFAULT 0")
             addColumnIfMissing(database, "place_geofence", "updated_at", "INTEGER NOT NULL DEFAULT 0")
             addColumnIfMissing(database, "place_geofence", "deleted_at", "INTEGER")
+            rebuildPlaceGeofenceIfMissingActivityTypeForeignKey(database)
             database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_enabled ON place_geofence(enabled)")
             database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_category_id ON place_geofence(category_id)")
             database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_activity_type_id ON place_geofence(activity_type_id)")
             database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_deleted_at ON place_geofence(deleted_at)")
             database.execSQL("CREATE INDEX IF NOT EXISTS index_place_geofence_latitude_longitude ON place_geofence(latitude, longitude)")
+        }
+
+        private fun rebuildPlaceGeofenceIfMissingActivityTypeForeignKey(database: SupportSQLiteDatabase) {
+            var hasActivityTypeForeignKey = false
+            database.query("PRAGMA foreign_key_list(place_geofence)").use { cursor ->
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(cursor.getColumnIndexOrThrow("table")) == "activity_type") {
+                        hasActivityTypeForeignKey = true
+                    }
+                }
+            }
+            if (hasActivityTypeForeignKey) return
+
+            database.execSQL("DROP INDEX IF EXISTS index_place_geofence_enabled")
+            database.execSQL("DROP INDEX IF EXISTS index_place_geofence_category_id")
+            database.execSQL("DROP INDEX IF EXISTS index_place_geofence_activity_type_id")
+            database.execSQL("DROP INDEX IF EXISTS index_place_geofence_deleted_at")
+            database.execSQL("DROP INDEX IF EXISTS index_place_geofence_latitude_longitude")
+            database.execSQL("""
+                CREATE TABLE place_geofence_new (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    latitude REAL NOT NULL,
+                    longitude REAL NOT NULL,
+                    radius_meters REAL NOT NULL,
+                    icon TEXT NOT NULL,
+                    color TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    activity_type_id TEXT,
+                    category_id TEXT,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    deleted_at INTEGER,
+                    FOREIGN KEY(category_id) REFERENCES category(id) ON DELETE SET NULL,
+                    FOREIGN KEY(activity_type_id) REFERENCES activity_type(id) ON DELETE SET NULL
+                )
+            """.trimIndent())
+            database.execSQL("""
+                INSERT INTO place_geofence_new (
+                    id, name, latitude, longitude, radius_meters, icon, color, enabled,
+                    activity_type_id, category_id, created_at, updated_at, deleted_at
+                )
+                SELECT
+                    id, name, latitude, longitude, radius_meters, icon, color, enabled,
+                    activity_type_id, category_id, created_at, updated_at, deleted_at
+                FROM place_geofence
+            """.trimIndent())
+            database.execSQL("DROP TABLE place_geofence")
+            database.execSQL("ALTER TABLE place_geofence_new RENAME TO place_geofence")
         }
 
         private fun addColumnIfMissing(database: SupportSQLiteDatabase, table: String, column: String, definition: String) {
@@ -433,7 +483,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "aevum_database"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
