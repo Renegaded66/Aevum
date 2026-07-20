@@ -262,9 +262,24 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Ziel:** Aevum wird zur wöchentlichen Reflexions-App.
 
-**Aufgaben:** Wochenrückblick, Wochen-Balance-Indikator, beste Veränderung, Zeitfresser, Kategorieentwicklung, offene Reviews der Woche, optionale Wochennotiz.
+**Status:** **Abgeschlossen.**
 
-**Definition of Done:** Nutzer hat einen Grund, Aevum sonntags bewusst zu öffnen.
+**Erledigte Aufgaben:**
+
+- [x] Weekly Review Screen aus Insights erreichbar
+- [x] Hero mit regelbasiertem Wochen-Narrativ
+- [x] Wochen-Zeitstrahl mit sieben Tagen und Timeline-Deep-Link
+- [x] Donut-Zeitverteilung der Woche
+- [x] Veränderungen zur Vorwoche ohne künstliche Aussagen
+- [x] Highlights aus Sessions
+- [x] Wochenmuster als ruhige Insight Cards
+- [x] Offene Zeit mit Aktion zur Timeline
+- [x] Review Inbox Integration für Pending Candidates
+- [x] Hochwertiger Empty State
+- [x] Keine neue Room-Version, keine neuen Sensoren, keine neuen Berechtigungen
+- [x] Unit Tests für Wochenanalyse
+
+**Definition of Done:** Erfüllt — Nutzer hat einen Grund, Aevum sonntags bewusst zu öffnen.
 
 ## M7 — Health Connect / Sleep & UsageStats
 

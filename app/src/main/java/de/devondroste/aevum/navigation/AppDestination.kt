@@ -9,6 +9,7 @@ enum class AppDestination(val route: String, val title: String) {
     ActivityFromCandidate("activity/candidate/{candidateId}", "Candidate bearbeiten"),
     ActivityDetail("activity/{sessionId}", "Aktivität"),
     Insights("insights", "Insights"),
+    WeeklyReview("weekly_review", "Weekly Review"),
     Growth("growth", "Wachstum"),
     Settings("settings", "Einstellungen"),
     AutomationSettings("automation", "Automatisierung"),

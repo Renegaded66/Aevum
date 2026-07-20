@@ -19,7 +19,8 @@ Root
     ├── Insights
     │   ├── Heute
     │   ├── Woche
-    │   └── Monat
+    │   ├── Monat
+    │   └── WeeklyReview
     ├── Timeline
     │   ├── ActivityCreate
     │   ├── ActivityDetail
@@ -43,7 +44,7 @@ Root
 | Tab | Screen | Zweck |
 |---|---|---|
 | Heute | `DashboardScreen` | wichtigste Visualisierung des Tages mit echten Room-Daten |
-| Insights | `InsightsScreen` | Life Analytics v1: Heute/Woche/Monat, Zeitverteilung, Veränderungen, Top-Aktivitäten, Balance, Hinweise, Wochen-Heatmap |
+| Insights | `InsightsScreen` | Life Analytics v1: Heute/Woche/Monat, Zeitverteilung, Veränderungen, Top-Aktivitäten, Balance, Hinweise, Wochen-Heatmap und Einstieg zum Weekly Review |
 | Timeline | `TimelineScreen` | Lebenszeit-Blöcke ansehen/bearbeiten |
 | Wachstum | `GrowthScreen` | Ziele, Habits, Bucket List |
 | Settings | `SettingsScreen` | Privacy, Permissions, Export, Theme |
@@ -100,6 +101,7 @@ Routen:
 |---|---|---|
 | `dashboard` | `DashboardScreen` | Heute-Übersicht mit echten Daten |
 | `insights` | `InsightsScreen` | Life Analytics v1 mit Heute/Woche/Monat, Donut, Veränderungen, Top-Aktivitäten, Balance, Insights und Wochen-Heatmap |
+| `weekly_review` | `WeeklyReviewScreen` | ruhiger Wochenrückblick aus bestehenden Sessions mit Timeline-/Review-Inbox-Aktionen |
 | `timeline` | `TimelineScreen` | Tages-Timeline, Wochenleiste, FAB für neue Aktivität |
 | `timeline/{date}` | `TimelineScreen` | Tages-Timeline für ein konkretes Datum aus der Insights-Heatmap |
 | `review_inbox` | `ReviewInboxScreen` | automatische Candidates prüfen: übernehmen, bearbeiten, verwerfen |
@@ -153,3 +155,4 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 - Activity Detail kann Eintrag soft-deleten und zurückkehren.
 - Bottom Navigation zeigt Heute, Insights, Timeline, Wachstum und Settings.
 - Insights-Heatmap öffnet den gewählten Tag in der Timeline.
+- Weekly Review ist aus Insights erreichbar und öffnet Timeline-Tage sowie Review Inbox.

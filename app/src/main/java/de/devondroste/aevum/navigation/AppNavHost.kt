@@ -21,6 +21,7 @@ import de.devondroste.aevum.ui.screens.timeline.ActivityDetailScreen
 import de.devondroste.aevum.ui.screens.timeline.ActivityEditorScreen
 import de.devondroste.aevum.ui.screens.timeline.TimelineScreen
 import de.devondroste.aevum.ui.screens.review.ReviewInboxScreen
+import de.devondroste.aevum.ui.screens.weekly.WeeklyReviewScreen
 
 @Composable
 fun AppNavHost(
@@ -108,7 +109,16 @@ fun AppNavHost(
                     navController.navigate("timeline/$dayStart") {
                         launchSingleTop = true
                     }
-                }
+                },
+                onOpenWeeklyReview = { navController.navigate(AppDestination.WeeklyReview.route) }
+            )
+        }
+        composable(AppDestination.WeeklyReview.route) {
+            WeeklyReviewScreen(
+                onBackToInsights = { navController.popBackStack() },
+                onOpenTimelineDay = { dayStart -> navController.navigate("timeline/$dayStart") },
+                onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
+                onOpenReviewInbox = { navController.navigate(AppDestination.ReviewInbox.route) }
             )
         }
         composable(AppDestination.Growth.route) { GrowthScreen() }

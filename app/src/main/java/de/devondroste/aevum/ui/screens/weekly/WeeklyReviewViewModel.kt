@@ -1,0 +1,43 @@
+package de.devondroste.aevum.ui.screens.weekly
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import de.devondroste.aevum.data.repository.ActivityCandidateRepository
+import de.devondroste.aevum.data.repository.ActivityRepository
+import de.devondroste.aevum.data.repository.ActivityTypeRepository
+import de.devondroste.aevum.data.repository.CategoryRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import java.time.LocalDate
+import java.time.ZoneId
+import javax.inject.Inject
+
+@HiltViewModel
+class WeeklyReviewViewModel @Inject constructor(
+    activityRepository: ActivityRepository,
+    candidateRepository: ActivityCandidateRepository,
+    categoryRepository: CategoryRepository,
+    activityTypeRepository: ActivityTypeRepository
+) : ViewModel() {
+    private val zoneId = ZoneId.systemDefault()
+    private val anchorDate = LocalDate.now()
+
+    val uiState: StateFlow<WeeklyReviewUiState> = combine(
+        activityRepository.getAll(),
+        candidateRepository.getByStatus("PENDING"),
+        categoryRepository.getAll(),
+        activityTypeRepository.getAll()
+    ) { sessions, candidates, categories, types ->
+        WeeklyReviewAnalytics.build(
+            sessions = sessions,
+            candidates = candidates,
+            categories = categories,
+            activityTypes = types,
+            anchorDate = anchorDate,
+            zoneId = zoneId
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WeeklyReviewUiState())
+}

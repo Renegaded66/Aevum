@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-20T07:54:57Z
+> Stand: 2026-07-20T09:17:02Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M6.4 — Life Analytics v1 abgeschlossen**.
+> Status: **M6.5 — Weekly Review abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -26,6 +26,7 @@
 - [x] M6.3a Daily Review Dashboard: persönliches Lebenscockpit, lokale Daily Narrative, visueller Tagesfluss, ruhige Reviews, erste Insights, bessere Empty States
 - [x] M6.3b Dashboard Feedback & Review Inbox: Tagesfluss-Polish, Gaps/Now-Line, eigener Review-Inbox-Screen, Actions für Übernehmen/Bearbeiten/Verwerfen, Tagesnotiz konzeptionell vorbereitet
 - [x] M6.4 Life Analytics v1: eigener Insights-Tab, Heute/Woche/Monat, Donut-Zeitverteilung, Vorperiodenvergleich, Top-Aktivitäten, Balance, regelbasierte Insight Cards und Wochen-Heatmap
+- [x] M6.5 Weekly Review: ruhiger Wochenrückblick aus vorhandenen Sessions/Analytics, Wochen-Zeitstrahl, Donut, Vorwochenvergleich, Highlights, Muster, offene Zeit und Review-Inbox-Integration
 
 ## Produktdefinition
 
@@ -59,6 +60,7 @@ Jeder Meilenstein muss installierbar und sinnvoll testbar sein. Qualität, Vertr
 - Lokales transparentes Trigger-Pair-Regelwerk
 - Dashboard Daily Review ViewModel kombiniert Sessions, Kategorien und pending Candidates zu einem ruhigen Tagesnarrativ
 - Life Analytics v1 nutzt ausschließlich bestehende `activity_session`, Kategorien und Activity Types; keine neuen Sensoren, keine KI und keine neue Room-Version
+- Weekly Review nutzt dieselbe bestehende Datenbasis und erzeugt daraus eine regelbasierte Wochenreflexion ohne neue Infrastruktur
 
 ## M6.3b — Dashboard Feedback & Review Inbox
 
@@ -202,14 +204,78 @@ targetSdk: 35
 APK Signature Scheme v2: true
 ```
 
+## M6.5 — Weekly Review
+
+**Status:** **Abgeschlossen.**
+
+### UX Review
+
+M6.5 ist als persönliche Reflexion gestaltet, nicht als Report. Der Screen beginnt mit einer ruhigen Zusammenfassung, zeigt danach nur wenige starke Wochenflächen und vermeidet Leistungsbewertung, Gamification und Warnsprache.
+
+### Neue Funktionen
+
+- Neuer Screen `WeeklyReviewScreen`, erreichbar aus dem Insights-Bereich.
+- Hero „Deine Woche“ mit regelbasierter Wochenzusammenfassung.
+- Wochen-Zeitstrahl mit sieben Tagen:
+  - wichtigste Kategorie
+  - Gesamtdauer
+  - Farbindikator
+  - Tap öffnet `timeline/{date}`
+- Zeitverteilung der Woche als großer Donut mit Kategorie, Dauer und Prozent.
+- Veränderungen zur Vorwoche, nur wenn echte Vorwochendaten vorhanden sind.
+- Highlights:
+  - längste Aktivität
+  - aktivster Tag
+  - ausgeglichenster Tag
+  - längste Freizeit
+  - längster Arbeitsblock
+- Wochenmuster als regelbasierte, nicht belehrende Insight Cards.
+- Offene Zeit mit ruhiger Aktion „Zur Timeline“.
+- Review Inbox Integration für offene automatische Vorschläge.
+- Positiver Abschluss-Satz.
+- Hochwertiger Empty State.
+
+### Keine Schemaänderung in M6.5
+
+M6.5 führt keine Room-Tabellen, Sensoren, Berechtigungen, KI oder Automatisierungsfunktionen ein. Der Wochenrückblick wird direkt aus bestätigten Activity Sessions, Kategorien, Activity Types und Pending Candidates berechnet.
+
+### M6.5 Verifikation
+
+Ausgeführt:
+
+```bash
+./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+```
+
+Ergebnis: **BUILD SUCCESSFUL**.
+
+Android Tests:
+
+```bash
+./gradlew connectedDebugAndroidTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+```
+
+Ergebnis in dieser Umgebung: blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
+
+APK-Verifikation:
+
+```text
+APK: app/build/outputs/apk/debug/app-debug.apk
+Package: de.devondroste.aevum.debug
+Version: 0.1.0-debug
+minSdk: 29
+targetSdk: 35
+APK Signature Scheme v2: true
+```
+
 ## Bekannte Einschränkungen
 
 - Release-Signing noch nicht eingerichtet; APK ist debug-signiert.
 - Geofence-Auslösung kann nur real auf einem Gerät mit Google Play Services und Hintergrundstandort geprüft werden.
 - Connected Android Tests können in dieser Umgebung ohne Gerät/Emulator nicht ausgeführt werden.
 - Activity Recognition, Health Connect Sleep und UsageStats folgen später.
-- Life Analytics v1 nutzt vorerst nur bestätigte Activity Sessions; keine KI, keine Sensor-Erweiterung, keine neue Room-Tabelle.
+- Life Analytics und Weekly Review nutzen vorerst nur bestätigte Activity Sessions; keine KI, keine Sensor-Erweiterung, keine neue Room-Tabelle.
 
 ## Nächster Schritt
 
-**Nächster Produktmeilenstein offen.** Mögliche Fortsetzung: M6.5 Weekly Review oder M7 Health/Sleep/UsageStats — erst nach bewusstem Produktentscheid.
+**Nächster Produktmeilenstein offen.** Mögliche Fortsetzung: M7 Health/Sleep/UsageStats oder M8 Goals/Habits — erst nach bewusstem Produktentscheid.

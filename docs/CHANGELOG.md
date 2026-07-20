@@ -309,6 +309,35 @@
 - `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
 - APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
 
+### M6.5 — Weekly Review (2026-07-20)
+
+#### Added
+
+- Neuer `WeeklyReviewScreen`, erreichbar aus dem Insights-Bereich.
+- `WeeklyReviewAnalytics` als reine, testbare Wochenlogik auf bestehenden Activity Sessions, Kategorien, Activity Types und Pending Candidates.
+- Hero „Deine Woche“ mit regelbasierter Wochenzusammenfassung ohne KI.
+- Wochen-Zeitstrahl mit sieben Tagen, Top-Kategorie, Gesamtdauer und Farbindikator.
+- Tap auf einen Tag öffnet die Timeline dieses Tages (`timeline/{date}`).
+- Wochen-Zeitverteilung als Donut mit Dauer und Prozent-Legende.
+- Veränderungen zur Vorwoche nur bei echten Vorwochendaten.
+- Highlights: längste Aktivität, aktivster Tag, ausgeglichenster Tag, längste Freizeit, längster Arbeitsblock.
+- Wochenmuster als ruhige, regelbasierte Insight Cards.
+- Offene Zeit mit Aktion „Zur Timeline“.
+- Review Inbox Integration für offene automatische Vorschläge.
+- Positiver Abschluss und hochwertiger Empty State.
+- Unit Tests für Narrativ/Timeline/Distribution, Vorwochenvergleich, Highlights, Pending Reviews und Empty State.
+
+#### Changed
+
+- `InsightsScreen` enthält einen ruhigen Einstieg zum Weekly Review.
+- Keine neue Room-Version, keine neuen Sensoren, keine neuen Berechtigungen, keine KI, keine neue Automatisierung.
+
+#### Verified
+
+- `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
+- `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
+- APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.

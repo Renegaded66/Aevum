@@ -179,3 +179,16 @@
 - Vorperiodenvergleiche erscheinen nur bei echten Daten; es werden keine künstlichen Zahlen erzeugt.
 - Insight Cards sind regelbasiert und beobachtend, nicht bewertend.
 - Spätere Datenquellen wie Health Connect, UsageStats oder Activity Recognition können später in Sessions/Candidates einfließen, ohne M6.4 rückwirkend umzubauen.
+
+## ADR-0022 — M6.5 Weekly Review als Reflexion statt Report
+
+**Entscheidung:** Der Weekly Review wird als eigener Screen aus Insights heraus umgesetzt und nutzt ausschließlich bestehende Activity Sessions, Kategorien, Activity Types und Pending Candidates. Er erzeugt ein regelbasiertes Wochen-Narrativ, Wochen-Zeitstrahl, Donut, Vorwochenvergleich, Highlights, Wochenmuster, offene Zeit und Review-Inbox-Hinweis.
+
+**Begründung:** Aevum soll regelmäßig bewusst geöffnet werden. Ein wöchentlicher Rückblick schafft einen wiederkehrenden Reflexionsmoment, ohne neue Datenquellen oder Automatisierung vorauszusetzen. Die Darstellung bleibt ruhig wie Oura/Apple Health und vermeidet Report-/BI-Gefühl.
+
+**Konsequenz:**
+- Keine neue Room-Version, keine neue Infrastruktur, keine KI und keine neuen Berechtigungen.
+- `WeeklyReviewAnalytics` ist pure Kotlin und unit-testbar.
+- Aussagen werden nur erzeugt, wenn echte aktuelle bzw. Vorwochendaten vorhanden sind.
+- Sprache bleibt beobachtend und nicht bewertend.
+- Weekly Review kann später durch neue Session-Quellen profitieren, ohne selbst Sensorlogik zu enthalten.

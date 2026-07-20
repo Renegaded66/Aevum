@@ -60,6 +60,7 @@ import kotlin.math.abs
 fun InsightsScreen(
     modifier: Modifier = Modifier,
     onOpenTimelineDay: (Long) -> Unit = {},
+    onOpenWeeklyReview: () -> Unit = {},
     viewModel: InsightsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -68,6 +69,7 @@ fun InsightsScreen(
         state = state,
         onSelectPeriod = { viewModel.selectPeriod(it) },
         onOpenTimeline = onOpenTimelineDay,
+        onOpenWeeklyReview = onOpenWeeklyReview,
         onHeatmapDay = { day ->
             viewModel.selectHeatmapDay(day.date)
             onOpenTimelineDay(day.date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
@@ -81,6 +83,7 @@ private fun InsightsContent(
     state: InsightsUiState,
     onSelectPeriod: (InsightPeriod) -> Unit,
     onOpenTimeline: (Long) -> Unit,
+    onOpenWeeklyReview: () -> Unit,
     onHeatmapDay: (HeatmapDay) -> Unit
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -90,6 +93,7 @@ private fun InsightsContent(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.lg)
         ) {
             item { InsightsHero(state, onSelectPeriod) }
+            item { WeeklyReviewEntry(onOpenWeeklyReview) }
             if (!state.hasData) {
                 item { InsightsEmptyState(onOpenTimeline = { onOpenTimeline(state.startDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()) }) }
             } else {
@@ -123,6 +127,19 @@ private fun InsightsHero(state: InsightsUiState, onSelectPeriod: (InsightPeriod)
                     PeriodPill(period = period, selected = state.selectedPeriod == period, onClick = { onSelectPeriod(period) }, modifier = Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyReviewEntry(onOpenWeeklyReview: () -> Unit) {
+    AevumCard(variant = CardVariant.Filled, onClick = onOpenWeeklyReview, contentPadding = PaddingValues(AevumSpacing.md)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+                Text("Weekly Review", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Ein ruhiger Rückblick auf deine aktuelle Woche", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("Öffnen", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -362,6 +379,7 @@ private fun InsightsPreview() {
             ),
             onSelectPeriod = {},
             onOpenTimeline = {},
+            onOpenWeeklyReview = {},
             onHeatmapDay = {}
         )
     }
