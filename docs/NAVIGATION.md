@@ -16,6 +16,10 @@ Root
 │   └── DashboardIntro
 └── MainGraph
     ├── Dashboard
+    ├── Insights
+    │   ├── Heute
+    │   ├── Woche
+    │   └── Monat
     ├── Timeline
     │   ├── ActivityCreate
     │   ├── ActivityDetail
@@ -39,8 +43,8 @@ Root
 | Tab | Screen | Zweck |
 |---|---|---|
 | Heute | `DashboardScreen` | wichtigste Visualisierung des Tages mit echten Room-Daten |
+| Insights | `InsightsScreen` | Life Analytics v1: Heute/Woche/Monat, Zeitverteilung, Veränderungen, Top-Aktivitäten, Balance, Hinweise, Wochen-Heatmap |
 | Timeline | `TimelineScreen` | Lebenszeit-Blöcke ansehen/bearbeiten |
-| Insights | `StatisticsScreen` | Charts, Trends, Heatmaps, Lebensstatistik |
 | Wachstum | `GrowthScreen` | Ziele, Habits, Bucket List |
 | Settings | `SettingsScreen` | Privacy, Permissions, Export, Theme |
 
@@ -95,7 +99,9 @@ Routen:
 | Route | Screen | Zweck |
 |---|---|---|
 | `dashboard` | `DashboardScreen` | Heute-Übersicht mit echten Daten |
+| `insights` | `InsightsScreen` | Life Analytics v1 mit Heute/Woche/Monat, Donut, Veränderungen, Top-Aktivitäten, Balance, Insights und Wochen-Heatmap |
 | `timeline` | `TimelineScreen` | Tages-Timeline, Wochenleiste, FAB für neue Aktivität |
+| `timeline/{date}` | `TimelineScreen` | Tages-Timeline für ein konkretes Datum aus der Insights-Heatmap |
 | `review_inbox` | `ReviewInboxScreen` | automatische Candidates prüfen: übernehmen, bearbeiten, verwerfen |
 | `activity/new/{date}` | `ActivityEditorScreen` | neue manuelle Aktivität für Datum anlegen |
 | `activity/edit/{sessionId}` | `ActivityEditorScreen` | bestehende Aktivität bearbeiten |
@@ -133,7 +139,7 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 
 ## Adaptive Layout
 
-- Smartphones: aktuell Single-NavHost; Bottom Navigation/Rail folgt in späterem UI-Polish
+- Smartphones: Bottom Navigation für Heute, Insights, Timeline, Wachstum und Settings
 - große Displays/Foldables: Navigation Rail später
 - Details: Zurück-Aktion innerhalb des Screens
 
@@ -145,4 +151,5 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 - Timeline öffnet Detail und Edit.
 - Activity Edit kehrt nach Speichern zum Detail zurück.
 - Activity Detail kann Eintrag soft-deleten und zurückkehren.
-- Tab-State und Bottom Navigation werden später ausgebaut.
+- Bottom Navigation zeigt Heute, Insights, Timeline, Wachstum und Settings.
+- Insights-Heatmap öffnet den gewählten Tag in der Timeline.

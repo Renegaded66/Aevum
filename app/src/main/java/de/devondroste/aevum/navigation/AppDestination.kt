@@ -3,6 +3,7 @@ package de.devondroste.aevum.navigation
 enum class AppDestination(val route: String, val title: String) {
     Dashboard("dashboard", "Heute"),
     Timeline("timeline", "Timeline"),
+    TimelineDay("timeline/{date}", "Timeline"),
     ActivityCreate("activity/new/{date}", "Neue Aktivität"),
     ActivityEdit("activity/edit/{sessionId}", "Aktivität bearbeiten"),
     ActivityFromCandidate("activity/candidate/{candidateId}", "Candidate bearbeiten"),

@@ -41,6 +41,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class TimelineViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val activityRepository: ActivityRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val triggerEventRepository: TriggerEventRepository,
@@ -51,7 +52,11 @@ class TimelineViewModel @Inject constructor(
     private val ensureDefaultData: EnsureDefaultDataUseCase
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
-    private val selectedDate = MutableStateFlow(LocalDate.now())
+    private val selectedDate = MutableStateFlow(
+        savedStateHandle.get<Long>("date")
+            ?.let { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
+            ?: LocalDate.now()
+    )
 
     init { viewModelScope.launch { ensureDefaultData() } }
 

@@ -166,3 +166,16 @@
 - Bearbeiten nutzt den bestehenden Candidate-Prefill-Editor.
 - Verwerfen nutzt `ReviewCandidateUseCase.dismiss()`.
 - Keine neue Room-Version in M6.3b; Tagesnotizen bleiben bis zu echtem Nutzertest ohne Schemaänderung konzeptionell vorbereitet.
+
+## ADR-0021 — M6.4 Insights nutzt bestehende Sessions statt neuer Analytics-Architektur
+
+**Entscheidung:** Life Analytics v1 wird als eigener `InsightsScreen` umgesetzt, berechnet aber alle Kennzahlen direkt aus bestehenden `activity_session`-Daten, Kategorien und Activity Types. Es gibt keine neue Room-Tabelle, keine neue Sensorquelle, keine lokale KI und keine komplexe Rule Engine.
+
+**Begründung:** Der Produktnutzen von M6.4 ist Sichtbarkeit: Zeitverteilung, Veränderungen und Muster hochwertig darstellen. Eine neue Analytics-Architektur wäre für v1 zu früh und würde Risiko erhöhen, ohne dem Nutzer sofort mehr Verständnis zu geben.
+
+**Konsequenz:**
+- `InsightsAnalytics` ist reine, unit-testbare Kotlin-Logik.
+- Der Screen bietet Heute/Woche/Monat, Donut, Vorperiodenvergleich, Top-Aktivitäten, Balance, Insight Cards und Wochen-Heatmap.
+- Vorperiodenvergleiche erscheinen nur bei echten Daten; es werden keine künstlichen Zahlen erzeugt.
+- Insight Cards sind regelbasiert und beobachtend, nicht bewertend.
+- Spätere Datenquellen wie Health Connect, UsageStats oder Activity Recognition können später in Sessions/Candidates einfließen, ohne M6.4 rückwirkend umzubauen.

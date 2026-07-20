@@ -88,15 +88,16 @@ Jeder Eintrag:
 - Status
 - Fortschritt
 
-### 7. Lebensstatistik
+### 7. Life Analytics v1
 
-Visualisierungen:
-
-- verbleibende/gelebte Lebenszeit
-- Wochen/Monate/Jahre-Raster
-- Zeitverteilung nach Kategorien
-- Entwicklung über Jahre
-- Smartphone-Nutzung als separater Blick
+- Eigener Insights-Tab in der Hauptnavigation
+- Zeiträume: Heute, Woche, Monat
+- Zeitverteilung als Donut Chart nach Kategorien
+- Vorperiodenvergleich ohne künstliche Zahlen
+- Top-Aktivitäten nach Activity Type
+- Balance-Blick auf Arbeit, Erholung, Bewegung, Digital und Soziales
+- Regelbasierte, nicht belehrende Insight Cards
+- Wochen-Heatmap mit Sprung in die Timeline
 
 ## Nicht-Ziele für MVP
 

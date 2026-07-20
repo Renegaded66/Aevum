@@ -239,9 +239,24 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Ziel:** Erste echte Antworten auf „Wie verbringe ich mein Leben?“
 
-**Aufgaben:** Insights Screen v1, Heute/Woche/Monat Tabs, Kategorien-Trends, Vorperiodenvergleich, Zeitverteilung, Top-Aktivitäten, interpretierte Trendkarten.
+**Status:** **Abgeschlossen.**
 
-**Definition of Done:** Nutzer erkennt Muster, nicht nur Einträge.
+**Erledigte Aufgaben:**
+
+- [x] Eigener Insights-Tab in der Bottom Navigation
+- [x] Zeitraumwahl Heute/Woche/Monat
+- [x] Zeitverteilung mit großem Donut Chart und ruhiger Legende
+- [x] Vorperiodenvergleich nur bei echten Vorperiodendaten
+- [x] Top-Aktivitäten nach Activity Type mit Spark Bars
+- [x] Balance-Bereich für Arbeit, Erholung, Bewegung, Digital und Soziales ohne Bewertung
+- [x] Lokale regelbasierte Insight Cards ohne KI
+- [x] Wochen-Heatmap der aktuellen Woche
+- [x] Tap auf Heatmap-Tag öffnet `timeline/{date}`
+- [x] Empty State erklärt zukünftige Muster
+- [x] Keine neue Room-Version, keine neuen Sensoren, keine neuen Datenquellen
+- [x] Unit Tests für Analytics-Logik
+
+**Definition of Done:** Erfüllt — Nutzer erkennt Muster, nicht nur Einträge.
 
 ## M6.5 — Weekly Review
 

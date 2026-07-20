@@ -281,6 +281,34 @@
 - `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
 - APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
 
+### M6.4 — Life Analytics v1 (2026-07-20)
+
+#### Added
+
+- Neuer Haupttab **Insights** in der Bottom Navigation.
+- `InsightsScreen` mit ruhiger Health-/Oura-artiger Hierarchie und Zeitraumwahl **Heute / Woche / Monat**.
+- `InsightsAnalytics` als reine, testbare Analytics-Logik auf bestehenden Activity Sessions, Kategorien und Activity Types.
+- Großer Donut Chart für Zeitverteilung mit Kategorie, Dauer und Prozent-Legende.
+- Vorperiodenvergleich für Heute↔Gestern, Woche↔Vorwoche und Monat↔Vormonat — nur bei echten Vorperiodendaten.
+- Top-Aktivitäten nach Activity Type mit Dauer, Prozentanteil und Spark Bars.
+- Balance-Bereich für Arbeit, Erholung, Bewegung, Digital und Soziales ohne Score/Gamification.
+- Regelbasierte Insight Cards ohne KI.
+- Wochen-Heatmap für die aktuelle Woche; Tap auf einen Tag öffnet dessen Timeline.
+- Empty State mit erklärender Premium-Copy statt „Keine Daten“.
+- Unit Tests für Distribution, Vorperiodenvergleich, Top-Aktivitäten, Balance und Wochen-Heatmap.
+
+#### Changed
+
+- `MainActivity` nutzt jetzt eine echte Bottom Navigation für Heute, Insights, Timeline, Wachstum und Settings.
+- `TimelineViewModel` kann optional mit `timeline/{date}` initial auf ein konkretes Datum geöffnet werden.
+- Keine neue Room-Version, keine neuen Sensoren, keine neuen Datenquellen, keine KI.
+
+#### Verified
+
+- `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
+- `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
+- APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
+
 ### Known Limitations
 
 - Keine verbundenen Android-Geräte/Emulatoren in der CI; Android-Tests laufen nicht automatisch.

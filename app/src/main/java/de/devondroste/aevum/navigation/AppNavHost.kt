@@ -25,9 +25,10 @@ import de.devondroste.aevum.ui.screens.review.ReviewInboxScreen
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController(),
-    startDestination: String = AppDestination.Dashboard.route
+    startDestination: String = AppDestination.Dashboard.route,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
 ) {
-    NavHost(navController = navController, startDestination = startDestination) {
+    NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
         composable(AppDestination.Dashboard.route) {
             DashboardScreen(
                 onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
@@ -35,6 +36,17 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.Timeline.route) {
+            TimelineScreen(
+                onCreateActivity = { date -> navController.navigate("activity/new/$date") },
+                onEditActivity = { id -> navController.navigate("activity/edit/$id") },
+                onEditCandidate = { id -> navController.navigate("activity/candidate/$id") },
+                onOpenActivity = { id -> navController.navigate("activity/$id") }
+            )
+        }
+        composable(
+            route = AppDestination.TimelineDay.route,
+            arguments = listOf(navArgument("date") { type = NavType.LongType })
+        ) {
             TimelineScreen(
                 onCreateActivity = { date -> navController.navigate("activity/new/$date") },
                 onEditActivity = { id -> navController.navigate("activity/edit/$id") },
@@ -90,7 +102,15 @@ fun AppNavHost(
                 onEdit = { id -> navController.navigate("activity/edit/$id") }
             )
         }
-        composable(AppDestination.Insights.route) { InsightsScreen() }
+        composable(AppDestination.Insights.route) {
+            InsightsScreen(
+                onOpenTimelineDay = { dayStart ->
+                    navController.navigate("timeline/$dayStart") {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
         composable(AppDestination.Growth.route) { GrowthScreen() }
         composable(AppDestination.Settings.route) {
             SettingsScreen(

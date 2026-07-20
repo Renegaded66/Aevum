@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-19T18:20:00Z
+> Stand: 2026-07-20T07:54:57Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M6.3b — Dashboard Feedback & Review Inbox abgeschlossen**.
+> Status: **M6.4 — Life Analytics v1 abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -25,6 +25,7 @@
 - [x] M6.2 Intelligente Geofences & Trigger: Map-Picker, aktuelle Position, Zuhause/Arbeit Schnellsetup, Trigger-Pair-Regeln, Review-Hinweise, Diagnosebereich
 - [x] M6.3a Daily Review Dashboard: persönliches Lebenscockpit, lokale Daily Narrative, visueller Tagesfluss, ruhige Reviews, erste Insights, bessere Empty States
 - [x] M6.3b Dashboard Feedback & Review Inbox: Tagesfluss-Polish, Gaps/Now-Line, eigener Review-Inbox-Screen, Actions für Übernehmen/Bearbeiten/Verwerfen, Tagesnotiz konzeptionell vorbereitet
+- [x] M6.4 Life Analytics v1: eigener Insights-Tab, Heute/Woche/Monat, Donut-Zeitverteilung, Vorperiodenvergleich, Top-Aktivitäten, Balance, regelbasierte Insight Cards und Wochen-Heatmap
 
 ## Produktdefinition
 
@@ -50,14 +51,14 @@ Jeder Meilenstein muss installierbar und sinnvoll testbar sein. Qualität, Vertr
 - Hilt Application + DI Module
 - Room Database Version 3 mit Migrationen `MIGRATION_1_2`, `MIGRATION_2_3`
 - Offline-first Room als Source of Truth
-- Navigation Compose mit Dashboard, Timeline, Activity Editor, Activity Detail, Review Inbox, Settings, Automation, Geofences, Trigger Events und Geofence Diagnose
+- Navigation Compose mit Bottom Navigation für Heute, Insights, Timeline, Wachstum und Settings sowie Detailrouten für Review Inbox, Automation, Geofences, Trigger Events und Geofence Diagnose
 - Google Play Services Location:
   - `GeofencingClient`
   - `FusedLocationProviderClient`
   - `CurrentLocationRequest`
 - Lokales transparentes Trigger-Pair-Regelwerk
 - Dashboard Daily Review ViewModel kombiniert Sessions, Kategorien und pending Candidates zu einem ruhigen Tagesnarrativ
-- Review Inbox nutzt `ReviewCandidateUseCase`; bestätigte Candidates werden erst durch Nutzerentscheidung zu Activity Sessions
+- Life Analytics v1 nutzt ausschließlich bestehende `activity_session`, Kategorien und Activity Types; keine neuen Sensoren, keine KI und keine neue Room-Version
 
 ## M6.3b — Dashboard Feedback & Review Inbox
 
@@ -124,21 +125,91 @@ targetSdk: 35
 APK Signature Scheme v2: true
 ```
 
+## M6.4 — Life Analytics v1
+
+**Status:** **Abgeschlossen.**
+
+### UX Review
+
+M6.4 ist bewusst kein BI-Dashboard. Der neue Insights-Bereich beantwortet ruhig und hochwertig, wie erfasste Zeit verteilt ist, was sich gegenüber der Vorperiode verändert hat und welche Muster sichtbar werden. Die Sprache bleibt beobachtend, nicht belehrend.
+
+### Neue Funktionen
+
+- Neuer Haupttab **Insights** in der Bottom Navigation.
+- Interne Zeitraumwahl:
+  - Heute
+  - Woche
+  - Monat
+- Zeitverteilung:
+  - großer Donut Chart
+  - ruhige Legende mit Kategorie, Dauer und Prozent
+- Vorperiodenvergleich:
+  - Heute ↔ Gestern
+  - Woche ↔ Vorwoche
+  - Monat ↔ Vormonat
+  - nur sichtbar, wenn echte Vorperiodendaten vorhanden sind
+- Top-Aktivitäten:
+  - Aggregation nach Activity Type
+  - Dauer, Prozentanteil und kleine Spark Bars
+- Balance:
+  - Arbeit
+  - Erholung
+  - Bewegung
+  - Digital
+  - Soziales
+  - keine Bewertung, kein Score, keine Gamification
+- Insight Cards:
+  - lokal regelbasiert
+  - keine KI
+  - ruhige Hinweise zu größtem Zeitblock, Veränderungen, Digitalzeit, Rhythmus und Abwechslung
+- Wochen-Heatmap:
+  - aktuelle Woche als hochwertige Tages-Heatmap
+  - Tippen auf Tag öffnet die Timeline für diesen Tag
+- Empty State:
+  - erklärt, welche Muster später sichtbar werden
+  - kein generisches „Keine Daten“
+
+### Keine Schemaänderung in M6.4
+
+M6.4 führt keine neuen Room-Tabellen, keine neuen Sensorquellen und keine neue Aggregationsarchitektur ein. Der Screen berechnet Life Analytics v1 direkt aus bestehenden `activity_session`-Einträgen, Kategorien und Activity Types.
+
+### M6.4 Verifikation
+
+Ausgeführt:
+
+```bash
+./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+```
+
+Ergebnis: **BUILD SUCCESSFUL**.
+
+Android Tests:
+
+```bash
+./gradlew connectedDebugAndroidTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+```
+
+Ergebnis in dieser Umgebung: blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
+
+APK-Verifikation:
+
+```text
+APK: app/build/outputs/apk/debug/app-debug.apk
+Package: de.devondroste.aevum.debug
+Version: 0.1.0-debug
+minSdk: 29
+targetSdk: 35
+APK Signature Scheme v2: true
+```
+
 ## Bekannte Einschränkungen
 
 - Release-Signing noch nicht eingerichtet; APK ist debug-signiert.
 - Geofence-Auslösung kann nur real auf einem Gerät mit Google Play Services und Hintergrundstandort geprüft werden.
 - Connected Android Tests können in dieser Umgebung ohne Gerät/Emulator nicht ausgeführt werden.
 - Activity Recognition, Health Connect Sleep und UsageStats folgen später.
-- Life Analytics v1 ist weiterhin M6.4.
+- Life Analytics v1 nutzt vorerst nur bestätigte Activity Sessions; keine KI, keine Sensor-Erweiterung, keine neue Room-Tabelle.
 
 ## Nächster Schritt
 
-**M6.4 — Life Analytics v1.**
-
-Empfohlener Fokus:
-
-- Insights Screen aus echten Activity Sessions
-- Heute/Woche/Monat
-- Zeitverteilung, Vorperiodenvergleich, Top-Aktivitäten
-- Balance und ruhige regelbasierte Insight Cards
+**Nächster Produktmeilenstein offen.** Mögliche Fortsetzung: M6.5 Weekly Review oder M7 Health/Sleep/UsageStats — erst nach bewusstem Produktentscheid.
