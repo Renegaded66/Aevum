@@ -100,6 +100,9 @@ dependencies {
     // MapLibre for Geofence Editor Map
     implementation("org.maplibre.gl:android-sdk:11.4.0")
 
+    // M8: Health Connect SDK
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.truth:truth:1.4.4")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

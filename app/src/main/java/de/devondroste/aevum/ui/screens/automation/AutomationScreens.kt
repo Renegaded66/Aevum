@@ -97,6 +97,29 @@ fun AutomationSettingsScreen(
                     }
                 }
             }
+            // M8: Health Connect
+            item {
+                AevumCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Text("Health Connect", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Schlafdaten automatisch auslesen. Alle Daten bleiben lokal.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SettingSwitch("Schlaf erkennen", "Schlafsessions aus Health Connect als Vorschläge importieren", state.settings.healthSleepEnabled, viewModel::setHealthSleep)
+                    }
+                }
+            }
+            // M8: Digital Balance
+            item {
+                AevumCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Text("Digital Balance", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Bildschirmzeit und App-Nutzung erfassen. Analytics, keine Vorschläge.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SettingSwitch("Bildschirmzeit erfassen", "Tägliche Smartphone-Nutzung anonymisiert analysieren", state.settings.digitalBalanceEnabled, viewModel::setDigitalBalance)
+                        if (!state.usageStatsGranted && state.settings.digitalBalanceEnabled) {
+                            TextButton(onClick = { viewModel.openUsageAccess() }) { Text("Nutzungszugriff öffnen") }
+                        }
+                    }
+                }
+            }
             item { PermissionCard("Standort", "Erlaubt Aevum, Orte im Vordergrund zu konfigurieren und aktuelle Position zu übernehmen.", state.foregroundLocationGranted) { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } }
             item { PermissionCard("Hintergrundstandort", "Nötig, damit Geofences auch erkannt werden, wenn Aevum geschlossen ist.", state.backgroundLocationGranted) { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) } }
             if (Build.VERSION.SDK_INT >= 33) item { PermissionCard("Benachrichtigungen", "Optional für Review-Hinweise. Aevum funktioniert auch ohne.", state.notificationsGranted) { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) } }

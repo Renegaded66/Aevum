@@ -36,7 +36,7 @@ import de.devondroste.aevum.data.model.*
         SessionEvidence::class,
         ActivityAggregateDay::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -380,6 +380,13 @@ abstract class AppDatabase : RoomDatabase() {
                     INSERT OR IGNORE INTO data_source (id, type, name, enabled, permission_state, created_at, updated_at)
                     VALUES ('phone_geofencing', 'ANDROID_API', 'Geofencing', 1, 'UNKNOWN', ${System.currentTimeMillis()}, ${System.currentTimeMillis()})
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN health_sleep_enabled INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN digital_balance_enabled INTEGER NOT NULL DEFAULT 0")
             }
         }
 

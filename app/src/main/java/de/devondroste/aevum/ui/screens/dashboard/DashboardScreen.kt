@@ -91,6 +91,18 @@ private fun DashboardContent(
                     AutomationCaptureCard(state = state, onOpenReview = onOpenReview)
                 }
             }
+            // M8: Sleep card
+            item {
+                AnimatedVisibility(visible = state.sleepCandidateCount > 0) {
+                    SleepCard(sleepCount = state.sleepCandidateCount, onOpenReview = onOpenReview)
+                }
+            }
+            // M8: Digital card
+            item {
+                AnimatedVisibility(visible = state.hasData || state.digitalScreenTimeMs > 0) {
+                    DigitalCard(screenTime = state.digitalScreenTimeFormatted, topApp = state.digitalTopApp)
+                }
+            }
             item {
                 AnimatedVisibility(visible = state.reviewCount > 0) {
                     ReviewQuietCard(reviewCount = state.reviewCount, onOpenReview = onOpenReview)
@@ -389,6 +401,39 @@ private fun AutomationCaptureCard(state: DashboardUiState, onOpenReview: () -> U
                 Button(onClick = onOpenReview, modifier = Modifier.fillMaxWidth()) {
                     Text("Vorschläge prüfen")
                 }
+            }
+        }
+    }
+}
+
+// M8: Sleep card
+@Composable
+private fun SleepCard(sleepCount: Int, onOpenReview: () -> Unit) {
+    AevumCard(variant = CardVariant.Outlined) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Schlaf letzte Nacht", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (sleepCount == 1) "1 Schlaf-Vorschlag wartet auf deine Bestätigung."
+                    else "$sleepCount Schlaf-Vorschläge warten.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Button(onClick = onOpenReview) { Text("Prüfen") }
+        }
+    }
+}
+
+// M8: Digital card
+@Composable
+private fun DigitalCard(screenTime: String, topApp: String) {
+    AevumCard(variant = CardVariant.Filled) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text("Digital Balance", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Heutige Bildschirmzeit: $screenTime", fontSize = 14.sp)
+            if (topApp.isNotEmpty() && topApp != "—") {
+                Text("Top-App: $topApp", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

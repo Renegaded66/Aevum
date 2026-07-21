@@ -25,6 +25,7 @@ import de.devondroste.aevum.data.repository.CategoryRepository
 import de.devondroste.aevum.data.repository.PlaceGeofenceRepository
 import de.devondroste.aevum.data.repository.TagRepository
 import de.devondroste.aevum.data.repository.TriggerEventRepository
+import de.devondroste.aevum.domain.digital.UsageStatsCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,7 +45,8 @@ class AutomationSettingsViewModel @Inject constructor(
     private val geofenceRepository: PlaceGeofenceRepository,
     private val triggerRepository: TriggerEventRepository,
     private val candidateRepository: ActivityCandidateRepository,
-    private val geofenceRegistrar: GeofenceRegistrar
+    private val geofenceRegistrar: GeofenceRegistrar,
+    private val usageStatsCollector: UsageStatsCollector
 ) : ViewModel() {
     private val registrationMessage = MutableStateFlow<String?>(null)
 
@@ -63,6 +65,7 @@ class AutomationSettingsViewModel @Inject constructor(
             foregroundLocationGranted = has(Manifest.permission.ACCESS_FINE_LOCATION) || has(Manifest.permission.ACCESS_COARSE_LOCATION),
             backgroundLocationGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || has(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
             notificationsGranted = Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS),
+            usageStatsGranted = usageStatsCollector.hasPermission(),
             registrationMessage = message
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AutomationSettingsUiState())
@@ -80,6 +83,25 @@ class AutomationSettingsViewModel @Inject constructor(
             val current = uiState.value.settings
             automationSettingsRepository.upsert(current.copy(reviewNotificationsEnabled = enabled, updatedAt = System.currentTimeMillis()))
         }
+    }
+
+    // M8: Per-source toggles
+    fun setHealthSleep(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = uiState.value.settings
+            automationSettingsRepository.upsert(current.copy(healthSleepEnabled = enabled, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun setDigitalBalance(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = uiState.value.settings
+            automationSettingsRepository.upsert(current.copy(digitalBalanceEnabled = enabled, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun openUsageAccess() {
+        usageStatsCollector.openUsageAccessSettings()
     }
 
     fun refreshGeofences() {
@@ -106,6 +128,7 @@ data class AutomationSettingsUiState(
     val foregroundLocationGranted: Boolean = false,
     val backgroundLocationGranted: Boolean = false,
     val notificationsGranted: Boolean = false,
+    val usageStatsGranted: Boolean = false,
     val registrationMessage: String? = null
 )
 

@@ -322,10 +322,15 @@ data class DashboardUiState(
     val hasData: Boolean = false,
     val dayProgress: Float = 0f,
     val goalProgress: List<GoalWithProgress> = emptyList(),
-    // M7: Automation capture card
+    // M7: Automation capture
     val capturedTodayCount: Int = 0,
     val candidateCount: Int = 0,
-    val acceptedTodayCount: Int = 0
+    val acceptedTodayCount: Int = 0,
+    // M8: Sleep & Digital
+    val sleepCandidateCount: Int = 0,
+    val digitalScreenTimeMs: Long = 0L,
+    val digitalScreenTimeFormatted: String = "0m",
+    val digitalTopApp: String = "—"
 )
 
 data class DashboardCategorySlice(

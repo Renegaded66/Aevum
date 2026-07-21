@@ -12,5 +12,8 @@ data class AutomationSettings(
     @ColumnInfo(name = "background_capture_enabled") val backgroundCaptureEnabled: Boolean = false,
     @ColumnInfo(name = "review_notifications_enabled") val reviewNotificationsEnabled: Boolean = false,
     @ColumnInfo(name = "battery_saver_mode") val batterySaverMode: Boolean = true,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis()
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+    // M8: Per-source toggles
+    @ColumnInfo(name = "health_sleep_enabled") val healthSleepEnabled: Boolean = false,
+    @ColumnInfo(name = "digital_balance_enabled") val digitalBalanceEnabled: Boolean = false
 ) : Serializable
