@@ -40,6 +40,7 @@ class WeeklyReviewAnalyticsTest {
             candidates = emptyList(),
             categories = categories,
             activityTypes = types,
+            activeGoals = emptyList(),
             anchorDate = anchor,
             zoneId = zone
         )
@@ -65,6 +66,7 @@ class WeeklyReviewAnalyticsTest {
             candidates = emptyList(),
             categories = categories,
             activityTypes = types,
+            activeGoals = emptyList(),
             anchorDate = anchor,
             zoneId = zone
         )
@@ -86,6 +88,7 @@ class WeeklyReviewAnalyticsTest {
             candidates = emptyList(),
             categories = categories,
             activityTypes = types,
+            activeGoals = emptyList(),
             anchorDate = anchor,
             zoneId = zone
         )
@@ -106,6 +109,7 @@ class WeeklyReviewAnalyticsTest {
             ),
             categories = categories,
             activityTypes = types,
+            activeGoals = emptyList(),
             anchorDate = anchor,
             zoneId = zone
         )
@@ -120,6 +124,7 @@ class WeeklyReviewAnalyticsTest {
             candidates = emptyList(),
             categories = categories,
             activityTypes = types,
+            activeGoals = emptyList(),
             anchorDate = anchor,
             zoneId = zone
         )

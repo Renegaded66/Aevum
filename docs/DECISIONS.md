@@ -192,3 +192,114 @@
 - Aussagen werden nur erzeugt, wenn echte aktuelle bzw. Vorwochendaten vorhanden sind.
 - Sprache bleibt beobachtend und nicht bewertend.
 - Weekly Review kann später durch neue Session-Quellen profitieren, ohne selbst Sensorlogik zu enthalten.
+
+## ADR-0023 — M6.6 Goals & Habits MVP + Geofence UX Fix
+
+**Entscheidung:** M6.6 implementiert Goals & Habits MVP als ersten nutzbaren Schritt des Wachstums-Systems (M8 in ROADMAP vorgezogen) und behebt den Geofence-Editor-UX-Mangel durch eine echte Karten-SDK-Lösung.
+
+**Begründung für MVP-Vorgezug:**
+- Dashboard, Insights und Weekly Review sind stabil; Nutzer braucht jetzt sichtbaren Fortschrittsnutzen.
+- Goals & Habits geben dem Nutzer einen Grund, täglich/wochentlich aktiv zu bleiben — Kern der Retention.
+- Room-Schema für Goal/Habit/HabitLog existiert bereits seit M4; Implementierung ist reine UI/Logic-Schicht.
+- Keine neue Room-Version nötig; bestehende Migrationspfade bleiben stabil.
+
+**Goals MVP Umfang:**
+- CRUD für Ziele: Name, Activity Type, Zieltyp (Mindestens/Höchstens), Zeitraum (Tag/Woche/Monat), Zielwert, Einheit.
+- Fortschrittskarten im Dashboard (max 3) und Insights ("Fortschritt"-Sektion).
+- Darstellung ruhig, hochwertig, nicht gamifiziert: "Sport diese Woche: 2h 15m von 3h", "Digitalzeit heute: 1h 20m von maximal 2h".
+- Leerer Zustand: "Du kannst Ziele anlegen, um deinen Fortschritt sichtbar zu machen."
+
+**Habits MVP Umfang:**
+- CRUD für Gewohnheiten: Titel, Activity Type, Frequenzregel (JSON), Erfolgsregel (JSON).
+- Darstellung: kleine Heatmap, Streak, Erfolgsquote.
+- Keine Punkte, Level, Badges, künstliche Gamification.
+
+**Dashboard Integration:**
+- Maximal 3 Ziel-Karten (Priorität: aktivste Ziele mit Fortschritt > 0%).
+- Falls keine Ziele: ruhiger Empty State mit Hinweis.
+
+**Insights Integration:**
+- Neue Sektion "Fortschritt" mit: aktive Ziele, Habits, Trends.
+- Weekly Review erwähnt Zielfortschritt.
+
+## ADR-0024 — M6.6 Geofence UX Fix: Karten-SDK Entscheidung
+
+**Entscheidung:** MapLibre GL Native (via MapLibre Android SDK) mit OpenStreetMap-Vektorkacheln (z. B. MapTiler, OpenMapTiles oder self-hosted) für den Geofence-Editor.
+
+**Alternativen geprüft:**
+| Option | Vorteile | Nachteile | Entscheidung |
+|--------|----------|-----------|--------------|
+| Aktueller Canvas-Grid | Keine Dependency | Keine echte Karte, Marker nicht verortbar, kein Zoom/Pan, keine Adresssuche | ❌ Unzureichend |
+| Google Maps SDK | Reife, Satellit, Places API | Kosten (ab 200$/Monat ab 28k Laden), API-Key, Tracking, keine Offline-Kacheln, Datenschutz kritisch | ❌ Nur wenn eindeutig besser |
+| Mapbox SDK | Schön, Vektorkacheln | Lizenzänderung (BSL), Kosten ab 50k MAU, Tracking | ❌ Lizenzrisiko |
+| MapLibre GL Native + OSM | Open Source (BSD-2), Offline-fähig, keine Kosten, Vektorkacheln, Self-Host möglich, Datenschutz-freundlich | Weniger POI-Daten out-of-the-box, Setup etwas aufwendiger | ✅ **Gewählt** |
+| osmdroid (Raster) | Einfach, OSM | Rasterkacheln (nicht Vektor), langsamer, veraltet | ❌ |
+
+**Begründung MapLibre:**
+- Open Source (BSD-2), keine Laufzeitkosten, keine Tracking-Pflicht.
+- Vektorkacheln: flüssiges Zoomen, Drehen, Neigen, hochauflösend auf allen Dichten.
+- Offline-first: MBTiles-Pakete können gebündelt oder nachgeladen werden — passt zu Aevums Offline-Philosophie.
+- Datenschutz: Keine Google-/Mapbox-Telemetrie; Kachelserver frei wählbar (MapTiler Free Tier, Thunderforest, self-hosted).
+- Android SDK ist stabil (MapLibre Native 11.x + Compose Interop via `MapView` Wrapper).
+- Langfristig erweiterbar: Geocoding/Reverse Geocoding via Nominatim/Photon (Open Source), Routing via OSRM/Valhalla.
+
+**Implementierungsdetails:**
+- `MapView` Compose-Wrapper um `org.maplibre.android.MapView` (Android View Interop).
+- Initialer Style: OSM Bright / MapTiler Basic (Light/Dark passend zu Aevum Theme).
+- Geofence-Editor: sichtbare Karte, Marker (Zentrum), Radius-Kreis (Polygon/GeoJSON), Zoom/Pan, "Aktuelle Position" Button (FusedLocationProvider), Zuhause/Arbeit Presets.
+- Radius per Slider/Stepper editierbar, Marker verschiebbar.
+- Keine Google-Maps-Abhängigkeit im Code; optionaler Fallback später nur bei expliziter Nutzerwahl.
+
+**Datenschutz & Offline:**
+- Keine Account-Pflicht, keine Telemetrie an MapLibre.
+- Kachel-Cache im App-Cache-Verzeichnis; Nutzer kann Cache leeren.
+- Optional: Offline-MBTiles für häufige Regionen (späteres Feature).
+
+**Migration:** Keine Room-Migration nötig (nur UI/Dependency). Bestehende Geofence-Daten unverändert.
+
+**Definition of Done M6.6:**
+- Goals CRUD + Dashboard/Insights/Weekly Integration
+- Habits CRUD + Dashboard/Insights/Weekly Integration
+- Geofence Editor mit echter MapLibre-Karte (Hintergrund, Marker, Radius, Zoom, Pan, aktuelle Position, Presets)
+- Alle Tests grün: `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process`
+- Commit + aktualisierte Doku + Known Limitations + M7-Empfehlung
+
+## M7 — Health Connect / Sleep & UsageStats
+
+**Ziel:** Schlaf und Smartphone-Nutzung integrieren.
+
+**Aufgaben:** Health Connect Sleep Import, UsageStats Import, eigene Visualisierung.
+
+**Tests:** Mapper Tests, Aggregations Tests, Permission Empty States.
+
+**Definition of Done:** Schlaf und Smartphone-Nutzung erscheinen korrekt im Dashboard.
+
+## M8 — Goals, Habits, Streaks
+
+**Ziel:** Persönliche Entwicklungssysteme.
+
+**Aufgaben:** Goals, Habits, Streak-Berechnung, Heatmap, automatische Zielprüfung.
+
+**Tests:** TDD für Ziel-/Streak-Regeln.
+
+**Definition of Done:** Ziele/Habits werden aus Sessions automatisch bewertet.
+
+## M9 — Bucket List & Life Progress
+
+**Ziel:** Langfristige Lebensperspektive.
+
+**Aufgaben:** Bucket List CRUD, Fortschritt, Life Grid, Lebenszeitberechnung.
+
+**Tests:** Berechnungslogik, UI Tests.
+
+**Definition of Done:** Bucket List und Lebensstatistik sind im Dashboard/Insights sichtbar.
+
+## M10 — Premium Polish, Performance, Release
+
+**Ziel:** stabile Premium-App.
+
+**Aufgaben:** Lint, Performance, Accessibility, Baseline Profiles prüfen, APK-Verifikation.
+
+**Tests:** komplette Suite, APK badging/signature, manuelle Smoke Tests.
+
+**Definition of Done:** verifizierte installierbare APK liegt vor.

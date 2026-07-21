@@ -5,6 +5,8 @@ import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.ActivityType
 import de.devondroste.aevum.data.model.Category
+import de.devondroste.aevum.data.model.Goal
+import de.devondroste.aevum.domain.analytics.GoalProgressAnalytics
 import de.devondroste.aevum.domain.time.TimeFormatting
 import de.devondroste.aevum.ui.screens.insights.InsightCard
 import de.devondroste.aevum.ui.screens.insights.PeriodChange
@@ -29,6 +31,7 @@ object WeeklyReviewAnalytics {
         candidates: List<ActivityCandidate>,
         categories: List<Category>,
         activityTypes: List<ActivityType>,
+        activeGoals: List<Goal>,
         anchorDate: LocalDate,
         zoneId: ZoneId
     ): WeeklyReviewUiState {
@@ -53,6 +56,14 @@ object WeeklyReviewAnalytics {
         val pendingCount = candidates.count { candidate ->
             candidate.status == "PENDING" && candidate.startAt < weekEnd && candidate.endAt > weekStart
         }
+
+        // Evaluate active goals against this week's sessions
+        val goalResults = activeGoals.map { goal ->
+            GoalProgressAnalytics.evaluateGoal(goal, active, anchorDate, zoneId, typeMap)
+        }
+        val metGoals = goalResults.filter { it.isMet }
+        val goalProgressText = buildGoalProgressText(goalResults, metGoals)
+
         return WeeklyReviewUiState(
             heroTitle = "Deine Woche",
             narrative = buildNarrative(totalMs, distribution, changes, days),
@@ -70,7 +81,8 @@ object WeeklyReviewAnalytics {
                 "Jede Woche erzählt ihre eigene Geschichte.",
                 "Auch kleine Veränderungen werden mit der Zeit sichtbar.",
                 "Was sichtbar wird, lässt sich bewusster gestalten."
-            )[(days.count { it.totalMs > 0 } + distribution.size) % 3]
+            )[(days.count { it.totalMs > 0 } + distribution.size) % 3],
+            goalProgressText = goalProgressText
         )
     }
 
@@ -254,6 +266,23 @@ object WeeklyReviewAnalytics {
         }
     }
 
+    private fun buildGoalProgressText(
+        results: List<GoalProgressAnalytics.GoalProgressResult>,
+        metGoals: List<GoalProgressAnalytics.GoalProgressResult>
+    ): String? {
+        if (results.isEmpty()) return null
+        if (metGoals.isEmpty()) {
+            val first = results.first()
+            return "Dein Ziel „${first.goal.title}“ ist zu ${(first.progress * 100).toInt().coerceIn(0, 100)}% erreicht."
+        }
+        val names = metGoals.map { it.goal.title }
+        return when (names.size) {
+            1 -> "Ziel „${names[0]}“ hast du diese Woche erreicht."
+            2 -> "Ziele „${names[0]}“ und „${names[1]}“ hast du diese Woche erreicht."
+            else -> "${names.size} Ziele diese Woche erreicht, darunter „${names[0]}“."
+        }
+    }
+
     private fun isWork(categoryId: String?, categoryMap: Map<String, Category>): Boolean {
         val id = categoryId.orEmpty().lowercase()
         val name = categoryMap[categoryId]?.name?.lowercase().orEmpty()
@@ -313,7 +342,8 @@ data class WeeklyReviewUiState(
     val pendingReviewCount: Int = 0,
     val closingText: String = "Jede Woche erzählt ihre eigene Geschichte.",
     val emptyTitle: String = "Noch keine Woche sichtbar.",
-    val emptyMessage: String = "Wenn du ein paar Aktivitäten erfasst hast, zeigt Aevum hier einen ruhigen Rückblick mit Zeitverteilung, Highlights und Wochenmustern."
+    val emptyMessage: String = "Wenn du ein paar Aktivitäten erfasst hast, zeigt Aevum hier einen ruhigen Rückblick mit Zeitverteilung, Highlights und Wochenmustern.",
+    val goalProgressText: String? = null
 )
 
 data class WeeklyDaySummary(

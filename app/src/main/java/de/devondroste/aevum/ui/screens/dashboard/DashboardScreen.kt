@@ -52,6 +52,7 @@ import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.EmptyState
 import de.devondroste.aevum.ui.components.ProgressRing
 import de.devondroste.aevum.ui.components.categoryColor
+import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
 import de.devondroste.aevum.ui.theme.AevumRadius
 import de.devondroste.aevum.ui.theme.AevumSpacing
 import de.devondroste.aevum.ui.theme.AevumTheme
@@ -61,10 +62,11 @@ fun DashboardScreen(
     modifier: Modifier = Modifier,
     onOpenTimeline: () -> Unit = {},
     onOpenReview: () -> Unit = onOpenTimeline,
+    onOpenGoals: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    DashboardContent(modifier = modifier, state = state, onOpenTimeline = onOpenTimeline, onOpenReview = onOpenReview)
+    DashboardContent(modifier = modifier, state = state, onOpenTimeline = onOpenTimeline, onOpenReview = onOpenReview, onOpenGoals = onOpenGoals)
 }
 
 @Composable
@@ -72,7 +74,8 @@ private fun DashboardContent(
     modifier: Modifier = Modifier,
     state: DashboardUiState,
     onOpenTimeline: () -> Unit,
-    onOpenReview: () -> Unit
+    onOpenReview: () -> Unit,
+    onOpenGoals: () -> Unit = {}
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
@@ -91,6 +94,9 @@ private fun DashboardContent(
             if (state.hasData) {
                 item { InsightStrip(state = state) }
                 item { CategoryBreathingRoom(state = state) }
+                if (state.goalProgress.isNotEmpty()) {
+                    item { GoalsProgressSection(goals = state.goalProgress, onOpenGoals = onOpenGoals) }
+                }
                 item { RecentMoments(state = state, onOpenTimeline = onOpenTimeline) }
             } else {
                 item { BetterEmptyState(onOpenTimeline = onOpenTimeline) }
@@ -406,6 +412,39 @@ private fun MiniDonut(distribution: List<DashboardCategorySlice>, modifier: Modi
                     style = Stroke(stroke, cap = StrokeCap.Round)
                 )
                 start += sweep
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoalsProgressSection(goals: List<GoalWithProgress>, onOpenGoals: () -> Unit) {
+    AevumCard(variant = CardVariant.Outlined) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Ziele", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Dein Fortschritt", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                OutlinedButton(onClick = onOpenGoals) { Text("Alle") }
+            }
+            goals.take(3).forEach { goalProgress ->
+                val goal = goalProgress.goal
+                val progress = goalProgress.progress.coerceIn(0f, 2f)
+                val isAtMost = goal.type == "AT_MOST"
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                    ProgressRing(
+                        progress = if (isAtMost) (1f - progress).coerceIn(0f, 1f) else progress.coerceIn(0f, 1f),
+                        size = 36.dp,
+                        strokeWidth = 4.dp,
+                        progressColor = if (goalProgress.isMet) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                        valueText = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%"
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(goal.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(goalProgress.progressText, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                    }
+                }
             }
         }
     }

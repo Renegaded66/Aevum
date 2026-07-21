@@ -16,10 +16,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import de.devondroste.aevum.ui.components.AevumCard
 import de.devondroste.aevum.ui.components.CardVariant
@@ -30,7 +30,9 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onOpenAutomation: () -> Unit = {},
     onOpenGeofences: () -> Unit = {},
-    onOpenTriggers: () -> Unit = {}
+    onOpenTriggers: () -> Unit = {},
+    onOpenGoals: () -> Unit = {},
+    onOpenHabits: () -> Unit = {}
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -42,7 +44,13 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             item { SettingsHero() }
-            item { SettingsSection("Struktur", listOf(SettingsEntry("Kategorien verwalten"), SettingsEntry("Activity Types verwalten"), SettingsEntry("Tags verwalten"))) }
+            item { SettingsSection("Struktur", listOf(
+                SettingsEntry("Kategorien verwalten"),
+                SettingsEntry("Activity Types verwalten"),
+                SettingsEntry("Tags verwalten"),
+                SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
+                SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits)
+            )) }
             item {
                 SettingsSection(
                     "Automatisierung",

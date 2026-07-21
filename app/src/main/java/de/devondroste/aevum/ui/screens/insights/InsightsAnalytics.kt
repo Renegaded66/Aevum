@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.Color
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.ActivityType
 import de.devondroste.aevum.data.model.Category
+import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
+import de.devondroste.aevum.ui.screens.habits.HabitWithProgress
 import de.devondroste.aevum.ui.theme.AevumCategoryColors
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -30,7 +32,9 @@ data class InsightsUiState(
     val insightCards: List<InsightCard> = emptyList(),
     val weekHeatmap: WeekHeatmap = WeekHeatmap(),
     val hasData: Boolean = false,
-    val selectedHeatmapDate: LocalDate? = null
+    val selectedHeatmapDate: LocalDate? = null,
+    val goalProgress: List<GoalWithProgress> = emptyList(),
+    val habitProgress: List<HabitWithProgress> = emptyList()
 )
 
 data class TimeDistributionSlice(
@@ -137,7 +141,9 @@ object InsightsAnalytics {
         activityTypes: List<ActivityType>,
         selectedPeriod: InsightPeriod,
         anchorDate: LocalDate,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        goalProgress: List<GoalWithProgress> = emptyList(),
+        habitProgress: List<HabitWithProgress> = emptyList()
     ): InsightsUiState {
         val window = window(selectedPeriod, anchorDate, zoneId)
         val categoryMap = categories.associateBy { it.id }
@@ -163,7 +169,9 @@ object InsightsAnalytics {
             balance = balance,
             insightCards = insights,
             weekHeatmap = heatmap,
-            hasData = totalMs > 0
+            hasData = totalMs > 0,
+            goalProgress = goalProgress,
+            habitProgress = habitProgress
         )
     }
 

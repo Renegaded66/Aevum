@@ -50,6 +50,9 @@ import de.devondroste.aevum.domain.time.TimeFormatting
 import de.devondroste.aevum.ui.components.AevumCard
 import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.EmptyState
+import de.devondroste.aevum.ui.components.ProgressRing
+import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
+import de.devondroste.aevum.ui.screens.habits.HabitWithProgress
 import de.devondroste.aevum.ui.theme.AevumCategoryColors
 import de.devondroste.aevum.ui.theme.AevumRadius
 import de.devondroste.aevum.ui.theme.AevumSpacing
@@ -61,6 +64,8 @@ fun InsightsScreen(
     modifier: Modifier = Modifier,
     onOpenTimelineDay: (Long) -> Unit = {},
     onOpenWeeklyReview: () -> Unit = {},
+    onOpenGoals: () -> Unit = {},
+    onOpenHabits: () -> Unit = {},
     viewModel: InsightsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -70,6 +75,8 @@ fun InsightsScreen(
         onSelectPeriod = { viewModel.selectPeriod(it) },
         onOpenTimeline = onOpenTimelineDay,
         onOpenWeeklyReview = onOpenWeeklyReview,
+        onOpenGoals = onOpenGoals,
+        onOpenHabits = onOpenHabits,
         onHeatmapDay = { day ->
             viewModel.selectHeatmapDay(day.date)
             onOpenTimelineDay(day.date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
@@ -84,8 +91,11 @@ private fun InsightsContent(
     onSelectPeriod: (InsightPeriod) -> Unit,
     onOpenTimeline: (Long) -> Unit,
     onOpenWeeklyReview: () -> Unit,
+    onOpenGoals: () -> Unit = {},
+    onOpenHabits: () -> Unit = {},
     onHeatmapDay: (HeatmapDay) -> Unit
 ) {
+    val hasGoalOrHabitProgress = state.goalProgress.isNotEmpty() || state.habitProgress.isNotEmpty()
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
@@ -94,21 +104,144 @@ private fun InsightsContent(
         ) {
             item { InsightsHero(state, onSelectPeriod) }
             item { WeeklyReviewEntry(onOpenWeeklyReview) }
-            if (!state.hasData) {
+            if (!state.hasData && !hasGoalOrHabitProgress) {
                 item { InsightsEmptyState(onOpenTimeline = { onOpenTimeline(state.startDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()) }) }
             } else {
-                item { TimeDistributionSection(state.timeDistribution) }
-                item {
-                    AnimatedVisibility(visible = state.changes.isNotEmpty()) {
-                        ChangesSection(state.changes)
+                if (state.hasData) {
+                    item { TimeDistributionSection(state.timeDistribution) }
+                    item {
+                        AnimatedVisibility(visible = state.changes.isNotEmpty()) {
+                            ChangesSection(state.changes)
+                        }
+                    }
+                    item { TopActivitiesSection(state.topActivities) }
+                    item { BalanceSection(state.balance) }
+                    item { InsightCardsSection(state.insightCards) }
+                    item { WeekHeatmapSection(state.weekHeatmap, onHeatmapDay) }
+                }
+                if (hasGoalOrHabitProgress) {
+                    item { Spacer(Modifier.height(AevumSpacing.md)) }
+                    item {
+                        FortschrittSection(
+                            goalProgress = state.goalProgress,
+                            habitProgress = state.habitProgress,
+                            onOpenGoals = onOpenGoals,
+                            onOpenHabits = onOpenHabits
+                        )
+                    }
+                } else {
+                    item {
+                        FortschrittEmptyState(onOpenGoals = onOpenGoals)
                     }
                 }
-                item { TopActivitiesSection(state.topActivities) }
-                item { BalanceSection(state.balance) }
-                item { InsightCardsSection(state.insightCards) }
-                item { WeekHeatmapSection(state.weekHeatmap, onHeatmapDay) }
             }
             item { Spacer(Modifier.height(AevumSpacing.xxl)) }
+        }
+    }
+}
+
+@Composable
+private fun FortschrittSection(
+    goalProgress: List<GoalWithProgress>,
+    habitProgress: List<HabitWithProgress>,
+    onOpenGoals: () -> Unit,
+    onOpenHabits: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.lg)) {
+        Text("Fortschritt", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+        Text("Deine Ziele und Gewohnheiten — ruhig sichtbar gemacht, ohne Wertung.",
+            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
+
+        // Goals sub-section
+        if (goalProgress.isNotEmpty()) {
+            AevumCard(variant = CardVariant.Elevated) {
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Aktive Ziele", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(onClick = onOpenGoals, shape = RoundedCornerShape(AevumRadius.full)) { Text("Alle", fontSize = 12.sp) }
+                    }
+                    goalProgress.take(4).forEach { goalProgress ->
+                        val goal = goalProgress.goal
+                        val progress = goalProgress.progress.coerceIn(0f, 2f)
+                        val isAtMost = goal.type == "AT_MOST"
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+                        ) {
+                            ProgressRing(
+                                progress = if (isAtMost) (1f - progress).coerceIn(0f, 1f) else progress.coerceIn(0f, 1f),
+                                size = 40.dp,
+                                strokeWidth = 5.dp,
+                                progressColor = if (goalProgress.isMet) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                                valueText = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%"
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(goal.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(goalProgress.progressText, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                                Text(goalProgress.periodLabel + if (goalProgress.isMet) " · erreicht" else "",
+                                    fontSize = 11.sp, color = if (goalProgress.isMet) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Habits sub-section
+        if (habitProgress.isNotEmpty()) {
+            AevumCard(variant = CardVariant.Filled) {
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Gewohnheiten", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(onClick = onOpenHabits, shape = RoundedCornerShape(AevumRadius.full)) { Text("Alle", fontSize = 12.sp) }
+                    }
+                    habitProgress.take(4).forEach { habitProgress ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(habitProgress.habit.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                                    Text("Streak ${habitProgress.streak}", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = if (habitProgress.streak > 0) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("·", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                                    Text("${habitProgress.successRate}%", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                            // Mini heatmap (last 7 of 28 days)
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                habitProgress.heatmap.takeLast(7).forEach { day ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .background(
+                                                if (day.completed) MaterialTheme.colorScheme.primary.copy(alpha = day.intensity)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                                RoundedCornerShape(AevumRadius.sm)
+                                            )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FortschrittEmptyState(onOpenGoals: () -> Unit) {
+    AevumCard(variant = CardVariant.Outlined) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            Text("Fortschritt", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Du kannst Ziele anlegen, um deinen Fortschritt sichtbar zu machen. Zum Beispiel: 8 Stunden Schlaf pro Nacht, 3 Stunden Sport pro Woche, maximal 2 Stunden Digitalzeit pro Tag.",
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
+            OutlinedButton(onClick = onOpenGoals, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(AevumRadius.full)) {
+                Text("Ziele anlegen", fontSize = 14.sp)
+            }
         }
     }
 }

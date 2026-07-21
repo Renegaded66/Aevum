@@ -22,6 +22,10 @@ import de.devondroste.aevum.ui.screens.timeline.ActivityEditorScreen
 import de.devondroste.aevum.ui.screens.timeline.TimelineScreen
 import de.devondroste.aevum.ui.screens.review.ReviewInboxScreen
 import de.devondroste.aevum.ui.screens.weekly.WeeklyReviewScreen
+import de.devondroste.aevum.ui.screens.goals.GoalsScreen
+import de.devondroste.aevum.ui.screens.goals.GoalEditorScreen
+import de.devondroste.aevum.ui.screens.habits.HabitsScreen
+import de.devondroste.aevum.ui.screens.habits.HabitEditorScreen
 
 @Composable
 fun AppNavHost(
@@ -33,7 +37,8 @@ fun AppNavHost(
         composable(AppDestination.Dashboard.route) {
             DashboardScreen(
                 onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
-                onOpenReview = { navController.navigate(AppDestination.ReviewInbox.route) }
+                onOpenReview = { navController.navigate(AppDestination.ReviewInbox.route) },
+                onOpenGoals = { navController.navigate(AppDestination.Goals.route) }
             )
         }
         composable(AppDestination.Timeline.route) {
@@ -110,7 +115,9 @@ fun AppNavHost(
                         launchSingleTop = true
                     }
                 },
-                onOpenWeeklyReview = { navController.navigate(AppDestination.WeeklyReview.route) }
+                onOpenWeeklyReview = { navController.navigate(AppDestination.WeeklyReview.route) },
+                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
+                onOpenHabits = { navController.navigate(AppDestination.Habits.route) }
             )
         }
         composable(AppDestination.WeeklyReview.route) {
@@ -126,7 +133,9 @@ fun AppNavHost(
             SettingsScreen(
                 onOpenAutomation = { navController.navigate(AppDestination.AutomationSettings.route) },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
-                onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) }
+                onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
+                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
+                onOpenHabits = { navController.navigate(AppDestination.Habits.route) }
             )
         }
         composable(AppDestination.AutomationSettings.route) {
@@ -174,5 +183,39 @@ fun AppNavHost(
         composable(AppDestination.PermissionEducation.route) { OnboardingScreen() }
         composable(AppDestination.PlacesSetup.route) { OnboardingScreen() }
         composable(AppDestination.DashboardIntro.route) { OnboardingScreen() }
+
+        // Goals & Habits
+        composable(AppDestination.Goals.route) {
+            GoalsScreen(
+                onBack = { navController.popBackStack() },
+                onCreate = { navController.navigate(AppDestination.GoalCreate.route) },
+                onEdit = { id -> navController.navigate("goal/edit/$id") }
+            )
+        }
+        composable(AppDestination.GoalCreate.route) {
+            GoalEditorScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = AppDestination.GoalEdit.route,
+            arguments = listOf(navArgument("goalId") { type = NavType.StringType })
+        ) {
+            GoalEditorScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.Habits.route) {
+            HabitsScreen(
+                onBack = { navController.popBackStack() },
+                onCreate = { navController.navigate(AppDestination.HabitCreate.route) },
+                onEdit = { id -> navController.navigate("habit/edit/$id") }
+            )
+        }
+        composable(AppDestination.HabitCreate.route) {
+            HabitEditorScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = AppDestination.HabitEdit.route,
+            arguments = listOf(navArgument("habitId") { type = NavType.StringType })
+        ) {
+            HabitEditorScreen(onBack = { navController.popBackStack() })
+        }
     }
 }

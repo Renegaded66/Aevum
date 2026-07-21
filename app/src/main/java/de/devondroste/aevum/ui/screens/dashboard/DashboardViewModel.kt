@@ -8,9 +8,14 @@ import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.Category
 import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.ActivityRepository
+import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
+import de.devondroste.aevum.data.repository.GoalRepository
+import de.devondroste.aevum.domain.analytics.GoalProgressAnalytics
 import de.devondroste.aevum.domain.seed.EnsureDefaultDataUseCase
 import de.devondroste.aevum.domain.time.TimeFormatting
+import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
+import de.devondroste.aevum.ui.screens.goals.toGoalWithProgress
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -25,6 +30,8 @@ class DashboardViewModel @Inject constructor(
     activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
     candidateRepository: ActivityCandidateRepository,
+    private val goalRepository: GoalRepository,
+    private val activityTypeRepository: ActivityTypeRepository,
     private val ensureDefaultData: EnsureDefaultDataUseCase
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
@@ -39,15 +46,19 @@ class DashboardViewModel @Inject constructor(
     val uiState: StateFlow<DashboardUiState> = combine(
         activityRepository.getOverlappingRange(start, end),
         categoryRepository.getAll(),
-        candidateRepository.getByStatus("PENDING")
-    ) { sessions, categories, candidates ->
-        buildState(sessions, categories, candidates.filter { it.startAt < end && it.endAt > start })
+        candidateRepository.getByStatus("PENDING"),
+        goalRepository.getByStatus("ACTIVE"),
+        activityTypeRepository.getAll()
+    ) { sessions, categories, candidates, activeGoals, types ->
+        buildState(sessions, categories, candidates.filter { it.startAt < end && it.endAt > start }, activeGoals, types.associateBy { it.id })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
     private fun buildState(
         sessions: List<ActivitySession>,
         categories: List<Category>,
-        candidates: List<ActivityCandidate>
+        candidates: List<ActivityCandidate>,
+        activeGoals: List<de.devondroste.aevum.data.model.Goal>,
+        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>
     ): DashboardUiState {
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
@@ -97,6 +108,10 @@ class DashboardViewModel @Inject constructor(
         val top = distribution.firstOrNull()
         val narrative = buildNarrative(totalMs, openMs, top, candidates.size, current)
         val insights = buildInsights(distribution, totalMs, openMs, candidates.size)
+        val activeSessionsList = sessions // use for goal evaluation
+        val goalProgressList = activeGoals.map { goal ->
+            GoalProgressAnalytics.evaluateGoal(goal, activeSessionsList, today, zoneId, typeMap)
+        }.sortedByDescending { it.progress }.take(3).map { it.toGoalWithProgress() }
         return DashboardUiState(
             headline = narrative.headline,
             narrative = narrative.body,
@@ -116,7 +131,8 @@ class DashboardViewModel @Inject constructor(
             topCategory = top?.label ?: "Noch offen",
             topCategoryDuration = top?.let { TimeFormatting.formatDuration(it.durationMs) } ?: "0m",
             hasData = activeSessions.isNotEmpty(),
-            dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f)
+            dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f),
+            goalProgress = goalProgressList
         )
     }
 
@@ -266,7 +282,8 @@ data class DashboardUiState(
     val topCategory: String = "Noch offen",
     val topCategoryDuration: String = "0m",
     val hasData: Boolean = false,
-    val dayProgress: Float = 0f
+    val dayProgress: Float = 0f,
+    val goalProgress: List<GoalWithProgress> = emptyList()
 )
 
 data class DashboardCategorySlice(

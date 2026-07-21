@@ -21,6 +21,12 @@ enum class AppDestination(val route: String, val title: String) {
     ReviewInbox("review_inbox", "Review Inbox"),
     Onboarding("onboarding", "Onboarding"),
     LifeProfileSetup("life_profile_setup", "Lebensprofil"),
+    Goals("goals", "Ziele"),
+    GoalCreate("goal/new", "Ziel anlegen"),
+    GoalEdit("goal/edit/{goalId}", "Ziel bearbeiten"),
+    Habits("habits", "Gewohnheiten"),
+    HabitCreate("habit/new", "Gewohnheit anlegen"),
+    HabitEdit("habit/edit/{habitId}", "Gewohnheit bearbeiten"),
     PermissionEducation("permission_education", "Berechtigungen"),
     PlacesSetup("places_setup", "Orte"),
     DashboardIntro("dashboard_intro", "Dashboard")

@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AssistChip
@@ -42,11 +41,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,9 +58,12 @@ import de.devondroste.aevum.data.model.PlaceGeofence
 import de.devondroste.aevum.data.model.TriggerEvent
 import de.devondroste.aevum.domain.time.TimeFormatting
 import de.devondroste.aevum.ui.components.AevumCard
+import de.devondroste.aevum.ui.components.AevumMapView
 import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.EmptyState
+import de.devondroste.aevum.ui.theme.AevumRadius
 import de.devondroste.aevum.ui.theme.AevumSpacing
+import de.devondroste.aevum.ui.theme.AevumTheme
 import java.util.Locale
 
 @Composable
@@ -141,7 +145,9 @@ fun GeofenceListScreen(
                     onActionClick = onCreate
                 )
             }
-            items(state.geofences, key = { it.id }) { geofence -> GeofenceRow(geofence, onEdit, viewModel::delete) }
+            state.geofences.forEach { geofence ->
+                item { GeofenceRow(geofence, onEdit, viewModel::delete) }
+            }
         }
     }
 }
@@ -168,9 +174,9 @@ fun GeofenceEditorScreen(
     LaunchedEffect(state.saved) { if (state.saved) onBack() }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header(if (state.form.id == null) "Geofence anlegen" else "Geofence bearbeiten", "Map-Picker, aktuelle Position und Schnellsetup für Zuhause/Arbeit", onBack, "Speichern", viewModel::save) }
+            item { Header(if (state.form.id == null) "Geofence anlegen" else "Geofence bearbeiten", "Karte (Canvas) + aktuelle Position + Zuhause/Arbeit Presets", onBack, "Speichern", viewModel::save) }
             item { QuickSetupCard(viewModel::applyQuickSetup, viewModel::useCurrentLocation, { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, state.locationMessage) }
-            item { MapPickerCard(state.form, viewModel::setCoordinates) }
+            item { MapLibreMapCard(latitude = state.form.latitude, longitude = state.form.longitude, radius = state.form.radius, onCenterChanged = viewModel::setCoordinates, onRadiusChanged = viewModel::setRadius) }
             item { AevumCard(variant = CardVariant.Gradient) { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) { OutlinedTextField(state.form.name, viewModel::setName, modifier = Modifier.fillMaxWidth(), label = { Text("Name") }, placeholder = { Text("Zuhause, Arbeit, Fitnessstudio…") }); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { OutlinedTextField(state.form.icon, viewModel::setIcon, modifier = Modifier.weight(1f), label = { Text("Icon") }); OutlinedTextField(state.form.color, viewModel::setColor, modifier = Modifier.weight(2f), label = { Text("Farbe") }) }; Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { OutlinedTextField(state.form.latitude, viewModel::setLatitude, modifier = Modifier.weight(1f), label = { Text("Latitude") }); OutlinedTextField(state.form.longitude, viewModel::setLongitude, modifier = Modifier.weight(1f), label = { Text("Longitude") }) }; OutlinedTextField(state.form.radius, viewModel::setRadius, modifier = Modifier.fillMaxWidth(), label = { Text("Radius Meter") }); Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Aktiv"); Switch(state.form.enabled, viewModel::setEnabled) }; state.form.error?.let { Text(it, color = MaterialTheme.colorScheme.error) } } } }
             item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Zugehörige Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { state.activityTypes.forEach { type -> FilterChip(selected = type.id == state.form.activityTypeId, onClick = { viewModel.setActivityType(type.id, type.defaultCategoryId) }, label = { Text(type.name) }) } } } } }
             item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Tags", fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { state.tags.forEach { tag -> FilterChip(selected = tag.id in state.form.selectedTagIds, onClick = { viewModel.toggleTag(tag.id) }, label = { Text(tag.name) }) } } } } }
@@ -198,60 +204,43 @@ private fun QuickSetupCard(onQuick: (QuickPlaceKind) -> Unit, onCurrentLocation:
 }
 
 @Composable
-private fun MapPickerCard(form: GeofenceForm, onPick: (Double, Double) -> Unit) {
-    val lat = form.latitude.replace(',', '.').toDoubleOrNull() ?: 51.6167
-    val lon = form.longitude.replace(',', '.').toDoubleOrNull() ?: 7.5167
+fun MapLibreMapCard(
+    latitude: String,
+    longitude: String,
+    radius: String,
+    onCenterChanged: (Double, Double) -> Unit,
+    onRadiusChanged: (String) -> Unit
+) {
+    val lat = latitude.replace(',', '.').toDoubleOrNull() ?: 51.6167
+    val lon = longitude.replace(',', '.').toDoubleOrNull() ?: 7.5167
+    val radiusVal = radius.replace(',', '.').toFloatOrNull() ?: 150f
+
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("Map-Picker", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("Premium-Light-Karte ohne zusätzliche SDK-Abhängigkeit: Tippen oder ziehen setzt den Mittelpunkt. M6.3 kann eine echte Karten-SDK-Schicht ergänzen.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.large)
-                    .pointerInput(Unit) {
-                        detectTapGestures { offset ->
-                            val picked = offsetToLat(offset.x, offset.y, size.width.toFloat(), size.height.toFloat(), lat, lon)
-                            onPick(picked.first, picked.second)
-                        }
-                    }
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                val picked = offsetToLat(offset.x, offset.y, size.width.toFloat(), size.height.toFloat(), lat, lon)
-                                onPick(picked.first, picked.second)
-                            },
-                            onDrag = { change, _ ->
-                                val picked = offsetToLat(change.position.x, change.position.y, size.width.toFloat(), size.height.toFloat(), lat, lon)
-                                onPick(picked.first, picked.second)
-                            }
-                        )
-                    }
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val gridColor = Color(0xFF94A3B8).copy(alpha = 0.25f)
-                    repeat(6) { index ->
-                        val x = size.width * index / 5f
-                        val y = size.height * index / 5f
-                        drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
-                        drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
-                    }
-                    drawCircle(Color(0xFF2DD4BF).copy(alpha = 0.22f), radius = (form.radius.toFloatOrNull() ?: 150f).coerceIn(50f, 500f) / 500f * 96.dp.toPx(), center = center)
-                    drawCircle(Color(0xFF2DD4BF), radius = 9.dp.toPx(), center = center)
-                }
-                Text("${"%.5f".format(Locale.US, lat)}, ${"%.5f".format(Locale.US, lon)}", modifier = Modifier.align(Alignment.BottomCenter).padding(AevumSpacing.sm), fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
-            }
+            Text("Karte (MapLibre / OpenStreetMap)", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Karte verschieben = Mittelpunkt setzen. Pinch = Zoomen.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            AevumMapView(
+                latitude = lat,
+                longitude = lon,
+                radiusMeters = radiusVal,
+                onCenterChanged = onCenterChanged,
+                modifier = Modifier.fillMaxWidth().height(320.dp)
+            )
+
+            // Radius slider
+            Text("Radius: ${radiusVal.toInt()}m", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            androidx.compose.material3.Slider(
+                value = radiusVal.coerceIn(50f, 2000f),
+                onValueChange = { newRadius ->
+                    onRadiusChanged(newRadius.toInt().toString())
+                },
+                valueRange = 50f..2000f,
+                steps = (2000 - 50) / 10,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
-}
-
-private fun offsetToLat(x: Float, y: Float, width: Float, height: Float, centerLat: Double, centerLon: Double): Pair<Double, Double> {
-    val safeWidth = width.coerceAtLeast(1f)
-    val safeHeight = height.coerceAtLeast(1f)
-    val latDelta = ((0.5f - y / safeHeight) * 0.01f).toDouble()
-    val lonDelta = ((x / safeWidth - 0.5f) * 0.01f).toDouble()
-    return (centerLat + latDelta).coerceIn(-90.0, 90.0) to (centerLon + lonDelta).coerceIn(-180.0, 180.0)
 }
 
 @Composable
@@ -270,7 +259,9 @@ fun TriggerEventsScreen(
                     message = "Sobald ein Geofence ausgelöst wird, erscheint der Zeitpunkt hier und in der Timeline."
                 )
             }
-            items(state.triggers, key = { it.id }) { trigger -> TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name) }
+            state.triggers.forEach { trigger ->
+                item { TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name) }
+            }
         }
     }
 }
