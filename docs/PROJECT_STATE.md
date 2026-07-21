@@ -1,132 +1,62 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-21T16:00:00Z
+> Stand: 2026-07-21T18:00:00Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M7 — Automation Experience v1 abgeschlossen**.
+> Status: **M7.1 — Core UX & Reliability abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
-- [x] Projektordner angelegt: `/root/ai-projects/premium-android-app`
-- [x] `/docs` als dauerhaftes Projektgedächtnis erstellt
-- [x] Skill-/Technologieanalyse durchgeführt
-- [x] Architekturplanung initial erstellt
-- [x] Produktdefinition eingearbeitet
-- [x] Appname gewählt: **Aevum**
-- [x] Paketname festgelegt: `de.devondroste.aevum`
-- [x] Offline-first / kein Backend / kein Login entschieden
-- [x] M2 Android-Projektgrundlage abgeschlossen
-- [x] M3 Design System & Dashboard Skeleton abgeschlossen
-- [x] M4 Datenmodell fachlich stabilisiert
-- [x] M5 erster installierbarer Kernflow
-- [x] M5.5 UX Polish
-- [x] M6.1 Geofencing & Trigger Events
-- [x] M6.2 Intelligente Geofences & Trigger
-- [x] M6.3a Daily Review Dashboard
-- [x] M6.3b Dashboard Feedback & Review Inbox
-- [x] M6.4 Life Analytics v1
-- [x] M6.5 Weekly Review
-- [x] M6.6 Goals & Habits MVP + Geofence UX Fix
-- [x] M7 Automation Experience v1 (Daily Capture)
+- [x] M2–M7: Alle vorherigen Meilensteine abgeschlossen
+- [x] M7.1 Core UX & Reliability
 
-## M7 — Automation Experience v1
+## M7.1 — Core UX & Reliability
 
 **Status:** **Abgeschlossen.**
 
 ### Product Owner Review
 
-M7 fokussiert auf Automation Experience statt Health Connect (ADR-0025). Begründung: Die bestehende Geofence-Automation braucht zuerst einen nutzbaren Review-Flow. Health Connect ohne funktionierende Review-Pipeline wäre toter Code.
+Vor M8 (Health Connect) müssen alle bekannten UX- und Zuverlässigkeitsprobleme beseitigt sein. Fünf kritische Bugs blockierten die tägliche Nutzung.
 
-### Neue Funktionen
+### Behobene Bugs
 
-#### 1. Trigger Pair Engine erweitert
-- Spezifische Regeln: Home→Work = Arbeitsweg, Work→Home = Heimweg, Home→Gym = Anfahrt Fitness, Home→Supermarkt = Einkauf
-- Generic Transit-Fallback mit niedrigerer Confidence (0.60)
-- Erkennung von Rewe Frischezentrum als Arbeitsort
-- Confidence-Werte je nach Regel: 0.85 (Arbeitsweg/Heimweg), 0.78 (Anfahrt), 0.72 (Einkauf), 0.60 (Transit)
-- Modulare, erklärbare lokale Regeln — keine KI
+| # | Bug | Fix |
+|---|---|---|
+| 1 | **Goal Editor: Alles doppelt** — GoalForm + 4 separate Sections zeigten Zeitraum/Zieltyp/Wert/Aktivitätstyp jeweils zweimal | Screen komplett neu: Nur noch eine Section pro Feld. Keine Duplikate. |
+| 2 | **Goal Editor: Activity Type nicht auswählbar** — setActivityType setzte keinen Namen, Button blieb immer "Aktivitätstyp auswählen" | setActivityType(id, name) — Name wird gespeichert und im Button angezeigt |
+| 3 | **Goal Editor: Speichern navigiert nicht zurück** — GoalEditorUiState.saved war immer false | saved wird jetzt aus form.saved gemappt; LaunchedEffect navigiert korrekt |
+| 4 | **Geofence Map: Marker springt** — addOnCameraMoveListener feuerte bei jedem Frame | Komplett neu: Crosshair fixiert in Bildschirmmitte, addOnCameraIdleListener (nur bei Stop), Google-Maps-ähnliches Bediengefühl |
+| 5 | **Geofence: Android 15 Kompatibilität** — targetSdk 35 braucht Foreground Service für Background-Geofencing | GeofenceForegroundService (location type), automatisch gestartet vor Geofence-Registrierung |
 
-#### 2. Candidate Merge Engine
-- Deterministische, lokale Merge-Engine (ADR-0026)
-- Gleiche Kategorie + Lücke ≤5min → zusammenführen
-- Maximalspanne 30min
-- Merged Candidates: gemittelte Confidence, kombinierte Reason
-- Läuft in CandidateRuleOrchestrator nach Trigger-Generierung und vor Insert
+### Neue Komponenten
 
-#### 3. Candidate Timeline UX
-- Candidates erscheinen **halbtransparent** (alpha=0.35) im Dashboard-Tagesfluss
-- Gestrichelte Umrandung macht sie als Vorschlag erkennbar
-- Kombinierte Flow-Segmente (bestätigt + Candidate) im DayFlowCanvas
-- Timeline-Rows zeigen Source="Vorschlag" für Candidates
+- **GeofenceForegroundService** — Minimaler Foreground Service für Android 15+. Leise Notification, `FOREGROUND_SERVICE_TYPE_LOCATION`.
+- **GeofenceDebugLogger** — In-Memory-Log (200 Einträge) für die gesamte Pipeline: Receiver → Processor → Raw → Detection → Trigger → Candidate.
+- **Debug-Log im Debug-Screen** — Letzte 20 Einträge mit Zeitstempeln live sichtbar.
 
-#### 4. Review Workflow verbessert
-- **Multi-Select-Modus:** Long-press auf Candidate → Checkbox-Modus
-- **Auswahl-Leiste:** "X ausgewählt" + [Alle übernehmen] [Alle verwerfen]
-- **„Alle sicheren übernehmen"**-Button: akzeptiert alle ≥70% Confidence
-- **Batch-Accept/Dismiss:** acceptAll(), dismissAll() im ReviewCandidateUseCase
-- Keine automatische Bestätigung — Nutzer muss explizit handeln
-
-#### 5. Dashboard Automatisierungs-Karte
-- Neue Karte „Automatische Erfassung"
-- Zeigt: „Heute erkannt: • N Aktivitäten" und „Noch prüfen: • N Vorschläge"
-- Ruhig, keine Badges, keine roten Warnungen
-- Tappable → öffnet Review Inbox
-
-#### 6. Trigger Debug (minimal)
-- ActivityCandidateDao erweitert um Query-Methoden für Fehlersuche
-- countByStatusInDateRange, getByCreatedByInDateRange, getByTriggerIdInDateRange
-- Kein UI — nur Datenzugriff für spätere Fehlersuche
-
-### Architekturentscheidungen
-
-- **ADR-0025**: M7 Scope — Automation Experience v1 statt Health Connect
-- **ADR-0026**: Candidate Merge Engine — deterministisch, lokal
-- **ADR-0027**: Trigger Debug & Quality Metrics — Minimal in M7
-
-### Keine Schemaänderung
-
-Keine neue Room-Version in M7. Keine neuen Tabellen.
-
-### UX
-
-- Keine Gamification, keine roten Warnungen, keine aufdringlichen Notifications
-- Ruhige Premium-Optik beibehalten
-- Candidates klar als Vorschlag erkennbar (transparent + gestrichelt)
-- Übernehmen ohne Detailansicht möglich (one-tap aus Timeline)
-
-## Verifikation
-
-Ausgeführt:
+### Verifikation
 
 ```bash
-git diff --check
-./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
+git diff --check  # OK
+./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug \
+  --no-daemon --console=plain --max-workers=1 \
+  -Dkotlin.compiler.execution.strategy=in-process
 ```
 
-Ergebnis: **BUILD SUCCESSFUL** (Kompilierung, Unit Tests, AndroidTest-Kompilierung, Lint, APK-Assembly).
+Ergebnis: **BUILD SUCCESSFUL** (Tests, AndroidTest-Kompilierung, Lint, APK).
 
-APK-Verifikation:
+APK: `app/build/outputs/apk/debug/app-debug.apk` — 80.9 MB, v2 signiert, minSdk 29, targetSdk 35.
 
-```text
-APK: app/build/outputs/apk/debug/app-debug.apk
-Package: de.devondroste.aevum.debug
-Version: 0.1.0-debug
-minSdk: 29
-targetSdk: 35
-APK Signature Scheme v2: true
-```
+### Bekannte Einschränkungen
 
-## Bekannte Einschränkungen
+- Release-Signing noch nicht eingerichtet
+- Geofence-Ereignisse nur auf realem Gerät mit Google Play Services testbar
+- Connected Android Tests blockiert (kein Gerät/Emulator)
+- Activity Recognition, Health Connect, UsageStats folgen in M8
+- `GeofenceDebugLogger` ist in-memory — überlebt keinen Prozess-Neustart. Persistenz wäre M7.2.
 
-- Release-Signing noch nicht eingerichtet; APK ist debug-signiert.
-- Geofence-Auslösung kann nur real auf einem Gerät mit Google Play Services und Hintergrundstandort geprüft werden.
-- Connected Android Tests können in dieser Umgebung ohne Gerät/Emulator nicht ausgeführt werden.
-- Activity Recognition, Health Connect Sleep und UsageStats folgen später (M8).
-- Candidate Merge Engine kann ohne reale Geofence-Ereignisse nicht live getestet werden.
-- ActivityCandidateRepository-Interface ist kapt-generiert; neue DAO-Queries sind nur direkt über DAO nutzbar.
+### Empfehlung für M7.2 / M8
 
-## Nächster Schritt
+**M7.2 (optional, klein):** Persistenter Debug-Log via Room oder DataStore. Erlaubt Post-Mortem-Analyse nach App-Neustart.
 
-**Empfehlung für M7.1: Trigger Debug UI + Quality Cockpit.** Sobald erste reale Nutzungsdaten vorliegen, ein ruhiges Diagnose-Cockpit (letzte Trigger, letzte Candidates, Warum entstanden/nicht entstanden). Keine neue Tabelle — alles aus Bestandsdaten ableitbar.
-
-**Empfehlung für M8: Health Connect / Sleep & UsageStats.** Schlaf- und Smartphone-Nutzungsdaten als neue Datenquellen integrieren. Die M7-Review-Pipeline ist bereit, neue Candidate-Quellen aufzunehmen.
+**M8: Health Connect / Sleep & UsageStats.** Die Pipeline (Trigger → Candidate → Review) ist jetzt stabil und debugbar. Neue Datenquellen können sicher integriert werden.
