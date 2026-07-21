@@ -87,6 +87,11 @@ private fun DashboardContent(
             item { TodayFlowPanel(state = state, onOpenTimeline = onOpenTimeline) }
             item { KeyMetricsRow(state = state) }
             item {
+                AnimatedVisibility(visible = state.hasData || state.candidateCount > 0) {
+                    AutomationCaptureCard(state = state, onOpenReview = onOpenReview)
+                }
+            }
+            item {
                 AnimatedVisibility(visible = state.reviewCount > 0) {
                     ReviewQuietCard(reviewCount = state.reviewCount, onOpenReview = onOpenReview)
                 }
@@ -249,12 +254,27 @@ private fun DayFlowCanvas(
                 val end = (segment.endMinute / 1440f) * size.width
                 val width = ((end - start) * animatedProgress).coerceAtLeast(3.dp.toPx())
                 val segColor = categoryColor(segment.categoryName)
+                val alpha = when {
+                    segment.isCandidate -> 0.35f  // M7: Candidates are semi-transparent
+                    segment.isCurrent -> 0.92f
+                    else -> 0.76f
+                }
                 drawRoundRect(
-                    color = segColor.copy(alpha = if (segment.isCurrent) 0.92f else 0.76f),
+                    color = segColor.copy(alpha = alpha),
                     topLeft = Offset(start, trackTop),
                     size = Size(width, trackHeight),
                     cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx())
                 )
+                // Candidate dashed border
+                if (segment.isCandidate) {
+                    drawRoundRect(
+                        color = segColor.copy(alpha = 0.55f),
+                        topLeft = Offset(start, trackTop),
+                        size = Size(width, trackHeight),
+                        cornerRadius = CornerRadius(18.dp.toPx(), 18.dp.toPx()),
+                        style = Stroke(width = 1.5.dp.toPx())
+                    )
+                }
                 // minimum width label for very short segments
                 if (segment.endMinute - segment.startMinute < 30) {
                     // short segment indicator - subtle dot above
@@ -331,6 +351,45 @@ private fun LifestyleMetric(modifier: Modifier = Modifier, label: String, value:
             Text(label.uppercase(), fontSize = 10.sp, letterSpacing = 0.9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, fontSize = 25.sp, lineHeight = 27.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
             Text(detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun AutomationCaptureCard(state: DashboardUiState, onOpenReview: () -> Unit) {
+    AevumCard(variant = CardVariant.Elevated) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text("Automatische Erfassung", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Heute erkannt", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "• ${state.capturedTodayCount} Aktivitäten",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                if (state.candidateCount > 0) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Noch prüfen", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "• ${state.candidateCount.vorschlagText()}",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            }
+            if (state.candidateCount > 0) {
+                Button(onClick = onOpenReview, modifier = Modifier.fillMaxWidth()) {
+                    Text("Vorschläge prüfen")
+                }
+            }
         }
     }
 }
@@ -513,6 +572,8 @@ private fun DayPulse(values: List<Float>, modifier: Modifier = Modifier) {
         }
     }
 }
+
+private fun Int.vorschlagText(): String = if (this == 1) "1 Vorschlag" else "$this Vorschläge"
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 1200)
 @Composable

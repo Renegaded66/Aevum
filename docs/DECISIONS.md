@@ -264,17 +264,39 @@
 - Alle Tests grün: `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process`
 - Commit + aktualisierte Doku + Known Limitations + M7-Empfehlung
 
-## M7 — Health Connect / Sleep & UsageStats
+## ADR-0025 — M7 Scope: Automation Experience v1 statt Health Connect
 
-**Ziel:** Schlaf und Smartphone-Nutzung integrieren.
+**Entscheidung:** M7 fokussiert auf Automation Experience (Trigger-Regeln, Merge-Engine, Timeline-Integration, Multi-Review-Workflow, Dashboard-Karte) statt Health Connect / UsageStats.
 
-**Aufgaben:** Health Connect Sleep Import, UsageStats Import, eigene Visualisierung.
+**Begründung:** Die bestehende Geofence-Automation ist die Grundlage für Vertrauen in automatische Erkennung. Health Connect ohne nutzbaren Review-Flow wäre toter Code. Der Nutzer muss zuerst verstehen und kontrollieren können, was Aevum automatisch erkennt, bevor neue Datenquellen integriert werden.
 
-**Tests:** Mapper Tests, Aggregations Tests, Permission Empty States.
+**Konsequenz:** M7 liefert ein durchgängiges Erfassungserlebnis: Trigger-Erkennung → Merge → Timeline-Vorschau → Multi-Review → Dashboard-Status. Health Connect und UsageStats werden auf M8 oder später verschoben.
 
-**Definition of Done:** Schlaf und Smartphone-Nutzung erscheinen korrekt im Dashboard.
+## ADR-0026 — Candidate Merge Engine: deterministisch, lokal
 
-## M8 — Goals, Habits, Streaks
+**Entscheidung:** Eine lokale, deterministische Merge-Engine fasst mehrere zeitnahe Candidates mit gleicher suggestedCategoryId zu einem Candidate zusammen. Merge-Regeln: Lücke ≤5min, Maximalspanne ≤30min.
+
+**Begründung:** Zersplitterte Candidates (z.B. 3 Fahrt-Fragmente statt einer Fahrt) sind das hässlichste UX-Problem der Automatisierung. Merge vor Timeline-Anzeige reduziert Noise und macht Vorschläge auf einen Blick verständlich. Deterministische Regeln sind erklärbar und schaffen Vertrauen — keine Blackbox.
+
+**Konsequenz:** Merge läuft in `CandidateRuleOrchestrator` nach der Trigger-Pair-Generierung und vor dem Insert. Merged Candidates bekommen eine neue ID (`merged_...`) und gemittelte Confidence.
+
+## ADR-0027 — Trigger Debug & Quality Metrics: Minimal in M7
+
+**Entscheidung:** Trigger-Debug bekommt nur DAO-Query-Methoden (kein eigenes UI). Quality Metrics werden aus bestehenden Candidate-Daten (Status-Feld: PENDING/ACCEPTED/DISMISSED) abgeleitet. Keine neue Tabelle in M7.
+
+**Begründung:** Ohne reale Nutzungsdaten wären Metriken hypothetisch und eine Debug-UI wäre Overengineering. Die bestehenden Candidate-Daten reichen für erste Qualitätsaussagen (Accept-Rate = ACCEPTED / (ACCEPTED + DISMISSED)). Ein dediziertes Qualitätslogging kann in M7.1/M8 mit echten Daten sinnvoll werden.
+
+**Konsequenz:** Keine Room-Migration für Qualitätstabellen. `ActivityCandidateDao` bekommt zusätzliche Query-Methoden. Dashboard-Karte und Debug-Queries nutzen bestehende Daten.
+
+## M7 — Automation Experience v1 (Daily Capture)
+
+**Ziel:** Nutzer soll einen normalen Tag verbringen und anschließend möglichst viele Aktivitäten bereits als Vorschläge vorfinden. Review soll sich extrem leicht anfühlen.
+
+**Aufgaben:** Trigger-Pair-Engine erweitern, Candidate Merge Engine, Candidate Timeline UX, Multi-Review-Workflow, Dashboard Automatisierungs-Karte, minimale Debug-Queries.
+
+**Definition of Done:** Candidates erscheinen halbtransparent im Tagesfluss, Merge reduziert Fragmente, Multi-Select im Review, „Alle sicheren übernehmen", Dashboard zeigt Automatisierungs-Status.
+
+## M8 — Health Connect / Sleep & UsageStats
 
 **Ziel:** Persönliche Entwicklungssysteme.
 

@@ -89,29 +89,61 @@ class DashboardViewModel @Inject constructor(
                 endMinute = endMinute,
                 timeRange = "${formatMinute(startMinute)}–${formatMinute(endMinute)}",
                 duration = TimeFormatting.formatDuration(session.durationMs),
-                isCurrent = session.isCurrent
+                isCurrent = session.isCurrent,
+                isCandidate = false
             )
         }
-        val gaps = buildFlowGaps(flow)
-        val currentMinute = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
-        val timeline = flow.takeLast(4).map { segment ->
+
+        // M7: Candidate flow segments (semi-transparent in timeline)
+        val candidateSegments = candidates.map { c ->
+            val startMin = TimeFormatting.minutesOfDay(c.startAt, zoneId).coerceIn(0, 1440)
+            val endMin = TimeFormatting.minutesOfDay(c.endAt, zoneId).coerceIn(startMin, 1440)
+            DashboardFlowSegment(
+                id = c.id,
+                title = c.suggestedTitle,
+                categoryName = categoryMap[c.suggestedCategoryId]?.name ?: "Sonstiges",
+                categoryId = c.suggestedCategoryId ?: "unknown",
+                startMinute = startMin,
+                endMinute = endMin,
+                timeRange = "${formatMinute(startMin)}–${formatMinute(endMin)}",
+                duration = TimeFormatting.formatDuration(c.endAt - c.startAt),
+                isCurrent = false,
+                isCandidate = true
+            )
+        }
+
+        // Combine and sort all segments
+        val allSegments = (flow + candidateSegments).sortedBy { it.startMinute }
+        val gaps = buildFlowGaps(allSegments)
+
+        val timeline = allSegments.takeLast(4).map { segment ->
             DashboardTimelineRow(
                 id = segment.id,
                 time = "%02d:%02d".format(segment.startMinute / 60, segment.startMinute % 60),
                 title = segment.title,
                 categoryName = segment.categoryName,
                 duration = segment.duration,
-                source = if (segment.isCurrent) "Jetzt" else "Erfasst",
-                isCurrent = segment.isCurrent
+                source = when {
+                    segment.isCandidate -> "Vorschlag"
+                    segment.isCurrent -> "Jetzt"
+                    else -> "Erfasst"
+                },
+                isCurrent = segment.isCurrent,
+                isCandidate = segment.isCandidate
             )
         }
         val top = distribution.firstOrNull()
         val narrative = buildNarrative(totalMs, openMs, top, candidates.size, current)
         val insights = buildInsights(distribution, totalMs, openMs, candidates.size)
-        val activeSessionsList = sessions // use for goal evaluation
+
+        // M7: Accepted today count
+        val acceptedToday = candidates.count { it.status == "ACCEPTED" && it.resolvedAt?.let { it in start..end } == true }
+
+        val activeSessionsList = sessions
         val goalProgressList = activeGoals.map { goal ->
             GoalProgressAnalytics.evaluateGoal(goal, activeSessionsList, today, zoneId, typeMap)
         }.sortedByDescending { it.progress }.take(3).map { it.toGoalWithProgress() }
+
         return DashboardUiState(
             headline = narrative.headline,
             narrative = narrative.body,
@@ -124,17 +156,23 @@ class DashboardViewModel @Inject constructor(
             reviewCount = candidates.size,
             distribution = distribution,
             timeline = timeline,
-            flowSegments = flow,
+            flowSegments = allSegments,
             flowGaps = gaps,
-            currentMinute = currentMinute,
+            currentMinute = currentMinute(now),
             insights = insights,
             topCategory = top?.label ?: "Noch offen",
             topCategoryDuration = top?.let { TimeFormatting.formatDuration(it.durationMs) } ?: "0m",
             hasData = activeSessions.isNotEmpty(),
             dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f),
-            goalProgress = goalProgressList
+            goalProgress = goalProgressList,
+            // M7: Automation capture
+            capturedTodayCount = activeSessions.size + candidates.size,
+            candidateCount = candidates.size,
+            acceptedTodayCount = acceptedToday
         )
     }
+
+    private fun currentMinute(now: Long) = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
 
     private fun formatMinute(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
 
@@ -283,7 +321,11 @@ data class DashboardUiState(
     val topCategoryDuration: String = "0m",
     val hasData: Boolean = false,
     val dayProgress: Float = 0f,
-    val goalProgress: List<GoalWithProgress> = emptyList()
+    val goalProgress: List<GoalWithProgress> = emptyList(),
+    // M7: Automation capture card
+    val capturedTodayCount: Int = 0,
+    val candidateCount: Int = 0,
+    val acceptedTodayCount: Int = 0
 )
 
 data class DashboardCategorySlice(
@@ -299,7 +341,8 @@ data class DashboardTimelineRow(
     val categoryName: String,
     val duration: String,
     val source: String,
-    val isCurrent: Boolean
+    val isCurrent: Boolean,
+    val isCandidate: Boolean = false
 )
 
 data class DashboardFlowSegment(
@@ -311,7 +354,8 @@ data class DashboardFlowSegment(
     val endMinute: Int,
     val timeRange: String,
     val duration: String,
-    val isCurrent: Boolean
+    val isCurrent: Boolean,
+    val isCandidate: Boolean = false
 )
 
 data class FlowGap(

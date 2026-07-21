@@ -13,7 +13,8 @@ class CandidateRuleOrchestrator @Inject constructor(
     private val triggerRepository: TriggerEventRepository,
     private val geofenceRepository: PlaceGeofenceRepository,
     private val candidateRepository: ActivityCandidateRepository,
-    private val ruleEngine: TriggerPairCandidateRuleEngine
+    private val ruleEngine: TriggerPairCandidateRuleEngine,
+    private val mergeEngine: CandidateMergeEngine
 ) {
     suspend fun evaluateRecentTriggers(now: Long = System.currentTimeMillis()): CandidateRuleResult {
         val windowStart = now - LOOKBACK_MS
@@ -23,11 +24,13 @@ class CandidateRuleOrchestrator @Inject constructor(
             .associateBy { it.id }
 
         val generated = ruleEngine.evaluate(triggers, geofences, now)
-        val newCandidates = generated.filterNot { it.id in existing }
+        // M7: Merge fragmented candidates before inserting
+        val merged = mergeEngine.merge(generated)
+        val newCandidates = merged.filterNot { it.id in existing }
         if (newCandidates.isNotEmpty()) candidateRepository.insertAll(newCandidates)
         return CandidateRuleResult(
             consideredTriggers = triggers.size,
-            generatedCandidates = generated,
+            generatedCandidates = merged,
             insertedCandidates = newCandidates
         )
     }

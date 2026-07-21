@@ -95,9 +95,9 @@ class AevumUnitTest {
         )
 
         assertThat(candidates).hasSize(1)
-        assertThat(candidates.first().suggestedTitle).isEqualTo("Fahrt: Zuhause → Fitnessstudio")
+        assertThat(candidates.first().suggestedTitle).isEqualTo("Anfahrt: Fitnessstudio")
         assertThat(candidates.first().activityTypeId).isEqualTo("transport")
-        assertThat(candidates.first().reason).contains("Zuhause verlassen")
+        assertThat(candidates.first().reason).contains("Zuhause → Fitnessstudio")
     }
 
     @Test

@@ -1,9 +1,9 @@
 # PROJECT_STATE
 
-> Stand: 2026-07-21T14:00:00Z
+> Stand: 2026-07-21T16:00:00Z
 > Produktname: **Aevum**
 > Paketname: `de.devondroste.aevum`
-> Status: **M6.6 — Goals & Habits MVP + Geofence UX Fix abgeschlossen**.
+> Status: **M7 — Automation Experience v1 abgeschlossen**.
 
 ## Aktueller Entwicklungsstand
 
@@ -27,78 +27,74 @@
 - [x] M6.4 Life Analytics v1
 - [x] M6.5 Weekly Review
 - [x] M6.6 Goals & Habits MVP + Geofence UX Fix
+- [x] M7 Automation Experience v1 (Daily Capture)
 
-## M6.6 — Goals & Habits MVP + Geofence UX Fix
+## M7 — Automation Experience v1
 
 **Status:** **Abgeschlossen.**
 
 ### Product Owner Review
 
-M6.6 zieht Goals & Habits aus M8 in die Gegenwart vor. Begründung:
-- Dashboard, Insights und Weekly Review sind stabil; Nutzer braucht sichtbaren Fortschrittsnutzen.
-- Room-Schema für Goal/Habit/HabitLog existiert seit M4; keine neue Migration nötig.
-- Geofence-Editor-UX war unbrauchbar (Canvas-Grid ohne Kartenhintergrund); ADR-0024 entscheidet für MapLibre.
+M7 fokussiert auf Automation Experience statt Health Connect (ADR-0025). Begründung: Die bestehende Geofence-Automation braucht zuerst einen nutzbaren Review-Flow. Health Connect ohne funktionierende Review-Pipeline wäre toter Code.
 
 ### Neue Funktionen
 
-#### Goals MVP
-- CRUD für Ziele: Name, Activity Type, Zieltyp (Mindestens/Höchstens), Zeitraum (Tag/Woche/Monat), Zielwert, Einheit.
-- Fortschrittskarten in GoalsScreen mit ProgressRing, Typ-Indikator, Fortschrittsbalken.
-- Dashboard: maximal 3 Ziel-Karten im `GoalsProgressSection`.
-- Insights: neue "Fortschritt"-Sektion mit Ziel- und Gewohnheitskarten.
-- Weekly Review: Zielfortschritt in der Wochenreflexion erwähnt.
-- Darstellung ruhig, hochwertig, nicht gamifiziert.
+#### 1. Trigger Pair Engine erweitert
+- Spezifische Regeln: Home→Work = Arbeitsweg, Work→Home = Heimweg, Home→Gym = Anfahrt Fitness, Home→Supermarkt = Einkauf
+- Generic Transit-Fallback mit niedrigerer Confidence (0.60)
+- Erkennung von Rewe Frischezentrum als Arbeitsort
+- Confidence-Werte je nach Regel: 0.85 (Arbeitsweg/Heimweg), 0.78 (Anfahrt), 0.72 (Einkauf), 0.60 (Transit)
+- Modulare, erklärbare lokale Regeln — keine KI
 
-#### Habits MVP
-- CRUD für Gewohnheiten: Titel, Activity Type, Frequenzregel (JSON), Erfolgsregel (JSON).
-- Darstellung: Heatmap (28 Tage), Streak, Erfolgsquote.
-- Keine Punkte, Level, Badges, künstliche Gamification.
+#### 2. Candidate Merge Engine
+- Deterministische, lokale Merge-Engine (ADR-0026)
+- Gleiche Kategorie + Lücke ≤5min → zusammenführen
+- Maximalspanne 30min
+- Merged Candidates: gemittelte Confidence, kombinierte Reason
+- Läuft in CandidateRuleOrchestrator nach Trigger-Generierung und vor Insert
 
-#### Dashboard Integration
-- Maximal 3 Ziel-Karten.
-- Leerer Zustand: "Du kannst Ziele anlegen, um deinen Fortschritt sichtbar zu machen."
+#### 3. Candidate Timeline UX
+- Candidates erscheinen **halbtransparent** (alpha=0.35) im Dashboard-Tagesfluss
+- Gestrichelte Umrandung macht sie als Vorschlag erkennbar
+- Kombinierte Flow-Segmente (bestätigt + Candidate) im DayFlowCanvas
+- Timeline-Rows zeigen Source="Vorschlag" für Candidates
 
-#### Insights Integration
-- Neue Sektion "Fortschritt" mit:
-  - Aktive Ziele (ProgressRing + Fortschrittstext)
-  - Gewohnheiten (Mini-Heatmap, Streak, Erfolgsquote)
-- Empty State mit Call-to-Action zum Ziele-Anlegen.
-- Weekly Review erwähnt Zielfortschritt (GoalProgressWeekSection).
+#### 4. Review Workflow verbessert
+- **Multi-Select-Modus:** Long-press auf Candidate → Checkbox-Modus
+- **Auswahl-Leiste:** "X ausgewählt" + [Alle übernehmen] [Alle verwerfen]
+- **„Alle sicheren übernehmen"**-Button: akzeptiert alle ≥70% Confidence
+- **Batch-Accept/Dismiss:** acceptAll(), dismissAll() im ReviewCandidateUseCase
+- Keine automatische Bestätigung — Nutzer muss explizit handeln
 
-#### Geofence UX Fix (MapLibre)
-- `MapPickerCardLegacy` (Canvas-Grid) ersetzt durch `MapLibreMapCard` mit echter OpenStreetMap-Karte.
-- Neue `AevumMapView` Composable: MapLibre GL Native + OSM Rasterkacheln.
-- Funktionen: sichtbarer Kartenhintergrund, Marker, Radius-Kreis (GeoJSON), Zoom, Pan, aktuelle Position.
-- Radius-Slider erweitert auf 50–2000m.
-- MapLibre-Initialisierung in `AevumApplication.onCreate()`.
-- Datenschutz: keine Google-Telemetrie, OSM-Tiles, kein API-Key.
+#### 5. Dashboard Automatisierungs-Karte
+- Neue Karte „Automatische Erfassung"
+- Zeigt: „Heute erkannt: • N Aktivitäten" und „Noch prüfen: • N Vorschläge"
+- Ruhig, keine Badges, keine roten Warnungen
+- Tappable → öffnet Review Inbox
+
+#### 6. Trigger Debug (minimal)
+- ActivityCandidateDao erweitert um Query-Methoden für Fehlersuche
+- countByStatusInDateRange, getByCreatedByInDateRange, getByTriggerIdInDateRange
+- Kein UI — nur Datenzugriff für spätere Fehlersuche
 
 ### Architekturentscheidungen
 
-- **ADR-0023**: M6.6 Goals & Habits MVP — Room-Schema seit M4 vorhanden, keine Migration nötig.
-- **ADR-0024**: MapLibre GL Native (BSD-2) statt Google Maps oder Mapbox für Geofence-Editor.
-- **Core Library Desugaring** aktiviert (`isCoreLibraryDesugaringEnabled = true`, `desugar_jdk_libs:2.0.4`) für `java.time.LocalDate.ofInstant()` auf API 29+.
+- **ADR-0025**: M7 Scope — Automation Experience v1 statt Health Connect
+- **ADR-0026**: Candidate Merge Engine — deterministisch, lokal
+- **ADR-0027**: Trigger Debug & Quality Metrics — Minimal in M7
 
 ### Keine Schemaänderung
 
-M6.6 führt keine neue Room-Version ein. Goal/Habit/HabitLog-Tabellen existieren seit M4 unverändert.
+Keine neue Room-Version in M7. Keine neuen Tabellen.
 
-### Bugfixes (pre-existing)
+### UX
 
-- `MutableStateFlow` Imports korrigiert (`mutableStateFlow` → `MutableStateFlow`) in GoalEditorViewModel, HabitEditorViewModel, HabitsViewModel.
-- `update` Extension import in allen ViewModels ergänzt.
-- `collectAsState(initial = ...)` für Flow-basierte States ergänzt.
-- `getValue` Import in GoalsScreen und HabitsScreen ergänzt.
-- `fillMaxHeight`, `width`, `alpha`, `aspectRatio` Imports in GoalsScreen und HabitsScreen ergänzt.
-- `KeyboardOptions` korrekt von `androidx.compose.foundation.text` importiert.
-- `ArrowDropDown` durch Unicode `▼` ersetzt (material-icons-extended nicht in Dependencies).
-- Duplicate data classes aus GoalEditorScreen und HabitEditorScreen entfernt.
-- `QuickPlaceKind` Duplikat aus AutomationScreens entfernt.
-- `DashboardViewModel.toGoalWithProgress()` Import ergänzt.
-- `InsightsViewModel.combine()` für 7 Flows via nested `DataLayer` restrukturiert.
-- WeeklyReviewAnalytics.build() um `activeGoals` Parameter erweitert.
+- Keine Gamification, keine roten Warnungen, keine aufdringlichen Notifications
+- Ruhige Premium-Optik beibehalten
+- Candidates klar als Vorschlag erkennbar (transparent + gestrichelt)
+- Übernehmen ohne Detailansicht möglich (one-tap aus Timeline)
 
-### M6.6 Verifikation
+## Verifikation
 
 Ausgeführt:
 
@@ -108,17 +104,6 @@ git diff --check
 ```
 
 Ergebnis: **BUILD SUCCESSFUL** (Kompilierung, Unit Tests, AndroidTest-Kompilierung, Lint, APK-Assembly).
-
-Bekannte Test-Einschränkungen:
-- `GoalProgressAnalyticsTest.evaluateHabit with weekly frequency shows correct label`: JSON-Parsing via `org.json.JSONObject` im Unit-Test-Environment (nicht Instrumentation) schlägt fehl; `parseFrequencyRule` fällt auf Default zurück. Produktionscode auf realem Gerät nicht betroffen.
-
-Android Tests:
-
-```bash
-./gradlew connectedDebugAndroidTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process
-```
-
-Erwartung in dieser Umgebung: blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
 
 APK-Verifikation:
 
@@ -136,13 +121,12 @@ APK Signature Scheme v2: true
 - Release-Signing noch nicht eingerichtet; APK ist debug-signiert.
 - Geofence-Auslösung kann nur real auf einem Gerät mit Google Play Services und Hintergrundstandort geprüft werden.
 - Connected Android Tests können in dieser Umgebung ohne Gerät/Emulator nicht ausgeführt werden.
-- Activity Recognition, Health Connect Sleep und UsageStats folgen später.
-- Life Analytics und Weekly Review nutzen vorerst nur bestätigte Activity Sessions.
-- MapLibre MapView benötigt Netzwerkzugriff für OSM-Tiles; Offline-Kacheln (MBTiles) später.
-- `GoalProgressAnalyticsTest.evaluateHabit weekly frequency` schlägt im Unit-Test-Environment fehl (JSON-Parsing).
+- Activity Recognition, Health Connect Sleep und UsageStats folgen später (M8).
+- Candidate Merge Engine kann ohne reale Geofence-Ereignisse nicht live getestet werden.
+- ActivityCandidateRepository-Interface ist kapt-generiert; neue DAO-Queries sind nur direkt über DAO nutzbar.
 
 ## Nächster Schritt
 
-**Empfehlung für M7: Health Connect / Sleep & UsageStats.** Schlaf- und Smartphone-Nutzungsdaten als neue Datenquellen integrieren, eigene Visualisierung im Dashboard und Insights. Health Connect API, UsageStatsManager Permission Flow, Room-Schema-Erweiterung für Health-Daten.
+**Empfehlung für M7.1: Trigger Debug UI + Quality Cockpit.** Sobald erste reale Nutzungsdaten vorliegen, ein ruhiges Diagnose-Cockpit (letzte Trigger, letzte Candidates, Warum entstanden/nicht entstanden). Keine neue Tabelle — alles aus Bestandsdaten ableitbar.
 
-Alternativ: M8 Bucket List & Life Progress (bereits M4-Datenmodell vorhanden).
+**Empfehlung für M8: Health Connect / Sleep & UsageStats.** Schlaf- und Smartphone-Nutzungsdaten als neue Datenquellen integrieren. Die M7-Review-Pipeline ist bereit, neue Candidate-Quellen aufzunehmen.
