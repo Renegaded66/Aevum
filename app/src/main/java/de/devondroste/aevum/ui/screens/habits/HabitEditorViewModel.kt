@@ -95,19 +95,15 @@ class HabitEditorViewModel @Inject constructor(
     }
 
     private fun buildFrequencyRuleJson(form: HabitFormState): String {
-        return org.json.JSONObject().apply {
-            put("type", form.frequencyType)
-            put("count", form.frequencyCount)
-        }.toString()
+        return """{"type":"${form.frequencyType}","count":${form.frequencyCount}}"""
     }
 
     private fun buildSuccessRuleJson(form: HabitFormState): String {
-        return org.json.JSONObject().apply {
-            put("type", form.successRuleType)
-            if (form.successRuleType == "minDuration") {
-                put("minDurationMs", form.successMinDuration)
-            }
-        }.toString()
+        return if (form.successRuleType == "minDuration") {
+            """{"type":"minDuration","minDurationMs":${form.successMinDuration}}"""
+        } else {
+            """{"type":"${form.successRuleType}"}"""
+        }
     }
 
     private fun validate(form: HabitFormState): String? {

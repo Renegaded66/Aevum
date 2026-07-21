@@ -6,7 +6,6 @@ import de.devondroste.aevum.data.model.Goal
 import de.devondroste.aevum.data.model.Habit
 import de.devondroste.aevum.data.model.Category
 import de.devondroste.aevum.domain.time.TimeFormatting
-import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -183,14 +182,22 @@ object GoalProgressAnalytics {
 
     private fun parseFrequencyRule(json: String): FrequencyRule {
         return try {
-            val obj = JSONObject(json)
-            FrequencyRule(
-                type = obj.optString("type", "daily"),
-                count = obj.optInt("count", 1)
-            )
+            val type = extractJsonString(json, "type") ?: "daily"
+            val count = extractJsonInt(json, "count") ?: 1
+            FrequencyRule(type = type, count = count)
         } catch (e: Exception) {
             FrequencyRule("daily", 1)
         }
+    }
+
+    private fun extractJsonString(json: String, key: String): String? {
+        val pattern = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"")
+        return pattern.find(json)?.groupValues?.getOrNull(1)
+    }
+
+    private fun extractJsonInt(json: String, key: String): Int? {
+        val pattern = Regex("\"$key\"\\s*:\\s*(\\d+)")
+        return pattern.find(json)?.groupValues?.getOrNull(1)?.toIntOrNull()
     }
 
     private fun frequencyLabel(rule: FrequencyRule): String = when (rule.type) {
