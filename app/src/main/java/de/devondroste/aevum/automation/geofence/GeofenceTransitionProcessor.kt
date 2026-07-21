@@ -20,7 +20,8 @@ class GeofenceTransitionProcessor @Inject constructor(
     private val detectionRepository: DetectionEventRepository,
     private val triggerRepository: TriggerEventRepository,
     private val ruleOrchestrator: CandidateRuleOrchestrator,
-    private val candidateReviewNotifier: CandidateReviewNotifier
+    private val candidateReviewNotifier: CandidateReviewNotifier,
+    private val debugLogger: GeofenceDebugLogger
 ) {
     suspend fun processTransition(
         geofenceId: String,
@@ -29,10 +30,23 @@ class GeofenceTransitionProcessor @Inject constructor(
         latitude: Double? = null,
         longitude: Double? = null
     ): GeofenceProcessingResult {
-        if (transition == GeofenceTransition.Unknown) return GeofenceProcessingResult.Ignored
-        val geofence = geofenceRepository.getById(geofenceId).first() ?: return GeofenceProcessingResult.UnknownGeofence
-        if (!geofence.enabled || geofence.deletedAt != null) return GeofenceProcessingResult.Ignored
+        if (transition == GeofenceTransition.Unknown) {
+            debugLogger.log("PROCESSOR", "Unknown transition → ignoriert")
+            return GeofenceProcessingResult.Ignored
+        }
+        val geofence = geofenceRepository.getById(geofenceId).first()
+        if (geofence == null) {
+            debugLogger.log("PROCESSOR", "Geofence $geofenceId nicht gefunden")
+            return GeofenceProcessingResult.UnknownGeofence
+        }
+        if (!geofence.enabled || geofence.deletedAt != null) {
+            debugLogger.log("PROCESSOR", "Geofence ${geofence.name} deaktiviert/gelöscht → ignoriert")
+            return GeofenceProcessingResult.Ignored
+        }
 
+        debugLogger.log("PROCESSOR", "${geofence.name}: ${transition.name} @ $occurredAt")
+
+        // 1. RawSourceEvent
         val raw = RawSourceEvent(
             id = UUID.randomUUID().toString(),
             sourceId = AutomationConstants.DATA_SOURCE_GEOFENCING,
@@ -40,10 +54,12 @@ class GeofenceTransitionProcessor @Inject constructor(
             eventType = if (transition == GeofenceTransition.Enter) "GEOFENCE_ENTER" else "GEOFENCE_EXIT",
             observedAt = occurredAt,
             timezoneId = java.time.ZoneId.systemDefault().id,
-            payloadJson = "{\"geofenceId\":\"${geofence.id}\",\"name\":\"${geofence.name}\",\"lat\":${latitude ?: "null"},\"lon\":${longitude ?: "null"}}"
+            payloadJson = """{"geofenceId":"${geofence.id}","name":"${geofence.name}","lat":${latitude ?: "null"},"lon":${longitude ?: "null"}}"""
         )
         rawSourceRepository.insert(raw)
+        debugLogger.log("PROCESSOR", "  RawEvent gespeichert: ${raw.id}")
 
+        // 2. DetectionEvent
         val detection = DetectionEvent(
             id = UUID.randomUUID().toString(),
             rawEventId = raw.id,
@@ -52,10 +68,11 @@ class GeofenceTransitionProcessor @Inject constructor(
             startAt = occurredAt,
             confidence = DEFAULT_CONFIDENCE,
             placeId = geofence.id,
-            metadataJson = "{\"geofenceName\":\"${geofence.name}\",\"transition\":\"${transition.name}\"}"
+            metadataJson = """{"geofenceName":"${geofence.name}","transition":"${transition.name}"}"""
         )
         detectionRepository.insert(detection)
 
+        // 3. TriggerEvent
         val trigger = TriggerEvent(
             id = UUID.randomUUID().toString(),
             occurredAt = occurredAt,
@@ -64,11 +81,16 @@ class GeofenceTransitionProcessor @Inject constructor(
             confidence = DEFAULT_CONFIDENCE,
             geofenceId = geofence.id,
             detectionEventId = detection.id,
-            metadataJson = "{\"geofenceName\":\"${geofence.name}\",\"activityTypeId\":${geofence.activityTypeId.quoteOrNull()}}"
+            metadataJson = """{"geofenceName":"${geofence.name}","activityTypeId":${geofence.activityTypeId?.let { "\"$it\"" } ?: "null"}}"""
         )
         triggerRepository.insert(trigger)
+        debugLogger.log("PROCESSOR", "  Trigger gespeichert: ${trigger.id} (${trigger.type})")
 
+        // 4. Run rules → generate candidates
         val ruleResult = ruleOrchestrator.evaluateRecentTriggers()
+        debugLogger.log("PROCESSOR", "  ${ruleResult.insertedCandidates.size} neue Candidates")
+
+        // 5. Notify (only if user enabled)
         candidateReviewNotifier.notifyIfEnabled(ruleResult.insertedCandidates)
 
         return GeofenceProcessingResult.Stored(trigger.id, detection.id, ruleResult.insertedCandidates.size)
@@ -77,9 +99,15 @@ class GeofenceTransitionProcessor @Inject constructor(
     private fun triggerTypeFor(name: String, transition: GeofenceTransition): String {
         val lower = name.lowercase()
         return when {
-            lower.contains("zuhause") || lower.contains("home") -> if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_HOME_ARRIVED else AutomationConstants.TRIGGER_HOME_LEFT
-            lower.contains("arbeit") || lower.contains("work") -> if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_WORK_ENTERED else AutomationConstants.TRIGGER_WORK_LEFT
-            else -> if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_CUSTOM_PLACE_ENTERED else AutomationConstants.TRIGGER_CUSTOM_PLACE_LEFT
+            lower.contains("zuhause") || lower.contains("home") ->
+                if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_HOME_ARRIVED
+                else AutomationConstants.TRIGGER_HOME_LEFT
+            lower.contains("arbeit") || lower.contains("work") ->
+                if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_WORK_ENTERED
+                else AutomationConstants.TRIGGER_WORK_LEFT
+            else ->
+                if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_CUSTOM_PLACE_ENTERED
+                else AutomationConstants.TRIGGER_CUSTOM_PLACE_LEFT
         }
     }
 
@@ -93,5 +121,3 @@ sealed class GeofenceProcessingResult {
     data object UnknownGeofence : GeofenceProcessingResult()
     data object Ignored : GeofenceProcessingResult()
 }
-
-private fun String?.quoteOrNull(): String = this?.let { "\"${it.replace("\"", "\\\"")}\"" } ?: "null"

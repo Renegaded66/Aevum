@@ -18,25 +18,37 @@ import javax.inject.Inject
 
 class GeofenceRegistrar @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val geofenceRepository: PlaceGeofenceRepository
+    private val geofenceRepository: PlaceGeofenceRepository,
+    private val debugLogger: GeofenceDebugLogger
 ) {
     private val client by lazy { LocationServices.getGeofencingClient(context) }
 
     suspend fun refreshRegisteredGeofences(): GeofenceRegistrationResult {
-        if (!hasForegroundLocation()) return GeofenceRegistrationResult.MissingForegroundLocation
-        if (!hasBackgroundLocation()) return GeofenceRegistrationResult.MissingBackgroundLocation
+        if (!hasForegroundLocation()) {
+            debugLogger.log("REGISTRAR", "Kein Foreground-Standort")
+            return GeofenceRegistrationResult.MissingForegroundLocation
+        }
+        if (!hasBackgroundLocation()) {
+            debugLogger.log("REGISTRAR", "Kein Background-Standort")
+            return GeofenceRegistrationResult.MissingBackgroundLocation
+        }
 
         val geofences = geofenceRepository.getAllEnabled().first()
             .filter { it.deletedAt == null }
             .take(MAX_ANDROID_GEOFENCES)
 
+        debugLogger.log("REGISTRAR", "Registriere ${geofences.size} Geofences")
+
         return try {
+            // Start foreground service for Android 15+ compatibility
+            GeofenceForegroundService.start(context)
+
             client.removeGeofences(pendingIntent()).await()
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
                     .addGeofences(geofences.map { place ->
-                        Geofence.Builder()
+                        val f = Geofence.Builder()
                             .setRequestId(place.id)
                             .setCircularRegion(place.latitude, place.longitude, place.radiusMeters.coerceAtLeast(MIN_RADIUS_METERS))
                             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
@@ -44,14 +56,19 @@ class GeofenceRegistrar @Inject constructor(
                             .setNotificationResponsiveness(RESPONSIVENESS_MS)
                             .setLoiteringDelay(LOITERING_DELAY_MS)
                             .build()
+                        debugLogger.log("REGISTRAR", "  ${place.name}: r=${place.radiusMeters}m lat=${place.latitude} lon=${place.longitude}")
+                        f
                     })
                     .build()
                 client.addGeofences(request, pendingIntent()).await()
+                debugLogger.log("REGISTRAR", "${geofences.size} Geofences registriert")
             }
             GeofenceRegistrationResult.Registered(geofences.size)
         } catch (security: SecurityException) {
+            debugLogger.log("REGISTRAR", "SecurityException: ${security.message}")
             GeofenceRegistrationResult.SecurityDenied
         } catch (error: Exception) {
+            debugLogger.log("REGISTRAR", "Fehler: ${error.message}")
             GeofenceRegistrationResult.Failed(error.message ?: "Geofence Registrierung fehlgeschlagen")
         }
     }

@@ -9,8 +9,8 @@ import de.devondroste.aevum.data.model.Goal
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
 import de.devondroste.aevum.data.repository.GoalRepository
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -27,9 +27,9 @@ class GoalEditorViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _form = MutableStateFlow(GoalFormState())
-    val form: Flow<GoalFormState> = _form
+    val form: StateFlow<GoalFormState> = _form
 
-    val uiState: Flow<GoalEditorUiState> = combine(
+    val uiState: StateFlow<GoalEditorUiState> = combine(
         activityTypeRepository.getAll(),
         categoryRepository.getAll(),
         _form
@@ -37,7 +37,8 @@ class GoalEditorViewModel @Inject constructor(
         GoalEditorUiState(
             activityTypes = types,
             categories = categories,
-            form = form
+            form = form,
+            saved = form.saved
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalEditorUiState())
 
@@ -45,8 +46,8 @@ class GoalEditorViewModel @Inject constructor(
         _form.update { it.copy(title = title) }
     }
 
-    fun setActivityType(activityTypeId: String) {
-        _form.update { it.copy(activityTypeId = activityTypeId) }
+    fun setActivityType(activityTypeId: String, activityTypeName: String) {
+        _form.update { it.copy(activityTypeId = activityTypeId, selectedActivityTypeName = activityTypeName) }
     }
 
     fun setShowActivityTypeMenu(show: Boolean) {
@@ -74,33 +75,29 @@ class GoalEditorViewModel @Inject constructor(
     }
 
     fun saveGoal() {
-        _form.update { form ->
-            val error = validate(form)
-            if (error != null) {
-                return@update form.copy(error = error)
-            }
-
-            val goal = Goal(
-                id = UUID.randomUUID().toString(),
-                title = form.title,
-                activityTypeId = form.activityTypeId,
-                type = form.goalType,
-                period = form.period,
-                targetValue = form.targetValue.toFloatOrNull() ?: 0f,
-                targetUnit = form.targetUnit,
-                status = "ACTIVE",
-                startAt = System.currentTimeMillis()
-            )
-
-            viewModelScope.launch {
-                goalRepository.insert(goal)
-            }
-            form.copy(saved = true)
+        val form = _form.value
+        val error = validate(form)
+        if (error != null) {
+            _form.update { it.copy(error = error) }
+            return
         }
-    }
 
-    fun onLocationPermissionResult(result: Map<String, Boolean>) {
-        // Not needed for goals
+        val goal = Goal(
+            id = UUID.randomUUID().toString(),
+            title = form.title,
+            activityTypeId = form.activityTypeId,
+            type = form.goalType,
+            period = form.period,
+            targetValue = form.targetValue.toFloatOrNull() ?: 0f,
+            targetUnit = form.targetUnit,
+            status = "ACTIVE",
+            startAt = System.currentTimeMillis()
+        )
+
+        viewModelScope.launch {
+            goalRepository.insert(goal)
+            _form.update { it.copy(saved = true) }
+        }
     }
 
     private fun validate(form: GoalFormState): String? {

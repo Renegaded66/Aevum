@@ -15,30 +15,47 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
     @Inject lateinit var processor: GeofenceTransitionProcessor
+    @Inject lateinit var debugLogger: GeofenceDebugLogger
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != GeofenceRegistrar.ACTION_GEOFENCE_EVENT) return
+        debugLogger.log("RECEIVER", "onReceive: action=${intent.action}")
+        if (intent.action != GeofenceRegistrar.ACTION_GEOFENCE_EVENT) {
+            debugLogger.log("RECEIVER", "Ignoriert: falsche Action")
+            return
+        }
         val pendingResult = goAsync()
-        val event = GeofencingEvent.fromIntent(intent) ?: run {
+        val event = GeofencingEvent.fromIntent(intent)
+        if (event == null) {
+            debugLogger.log("RECEIVER", "GeofencingEvent.fromIntent = null")
             pendingResult.finish()
             return
         }
+
+        if (event.hasError()) {
+            debugLogger.log("RECEIVER", "Geofence-Error-Code: ${event.errorCode}")
+            pendingResult.finish()
+            return
+        }
+
+        val geofences = event.triggeringGeofences.orEmpty()
+        val transition = event.geofenceTransition
+        debugLogger.log("RECEIVER", "${geofences.size} Geofences: transition=$transition")
+
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                if (!event.hasError()) {
-                    event.triggeringGeofences.orEmpty().forEach { geofence ->
-                        processor.processTransition(
-                            geofenceId = geofence.requestId,
-                            transition = when (event.geofenceTransition) {
-                                Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceTransition.Enter
-                                Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceTransition.Exit
-                                else -> GeofenceTransition.Unknown
-                            },
-                            occurredAt = event.triggeringLocation?.time?.takeIf { it > 0 } ?: System.currentTimeMillis(),
-                            latitude = event.triggeringLocation?.latitude,
-                            longitude = event.triggeringLocation?.longitude
-                        )
-                    }
+                geofences.forEach { geofence ->
+                    debugLogger.log("RECEIVER", "  → ${geofence.requestId}")
+                    processor.processTransition(
+                        geofenceId = geofence.requestId,
+                        transition = when (transition) {
+                            Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceTransition.Enter
+                            Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceTransition.Exit
+                            else -> GeofenceTransition.Unknown
+                        },
+                        occurredAt = event.triggeringLocation?.time?.takeIf { it > 0 } ?: System.currentTimeMillis(),
+                        latitude = event.triggeringLocation?.latitude,
+                        longitude = event.triggeringLocation?.longitude
+                    )
                 }
             } finally {
                 pendingResult.finish()

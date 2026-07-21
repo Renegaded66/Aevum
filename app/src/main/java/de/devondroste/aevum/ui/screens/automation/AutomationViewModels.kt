@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.devondroste.aevum.automation.geofence.GeofenceDebugLogger
 import de.devondroste.aevum.automation.geofence.GeofenceRegistrar
 import de.devondroste.aevum.automation.geofence.GeofenceRegistrationResult
 import de.devondroste.aevum.automation.location.CurrentLocationProvider
@@ -313,6 +314,7 @@ class GeofenceDebugViewModel @Inject constructor(
     private val app: Application,
     private val geofenceRegistrar: GeofenceRegistrar,
     private val candidateRuleOrchestrator: CandidateRuleOrchestrator,
+    private val debugLogger: GeofenceDebugLogger,
     automationSettingsRepository: AutomationSettingsRepository,
     geofenceRepository: PlaceGeofenceRepository,
     triggerRepository: TriggerEventRepository,
@@ -340,7 +342,8 @@ class GeofenceDebugViewModel @Inject constructor(
             backgroundLocationGranted = background,
             notificationsGranted = notifications,
             geofenceReady = foreground && background,
-            lastAction = message
+            lastAction = message,
+            debugLog = debugLogger.entries()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GeofenceDebugUiState())
 
@@ -376,5 +379,6 @@ data class GeofenceDebugUiState(
     val backgroundLocationGranted: Boolean = false,
     val notificationsGranted: Boolean = false,
     val geofenceReady: Boolean = false,
-    val lastAction: String? = null
+    val lastAction: String? = null,
+    val debugLog: List<GeofenceDebugLogger.DebugEntry> = emptyList()
 )

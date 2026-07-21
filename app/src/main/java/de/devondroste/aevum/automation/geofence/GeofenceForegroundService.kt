@@ -1,0 +1,80 @@
+package de.devondroste.aevum.automation.geofence
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import de.devondroste.aevum.MainActivity
+
+/**
+ * Minimal foreground service for geofencing on Android 15+ (SDK 35).
+ *
+ * Android 15 requires a foreground service with type "location"
+ * when registering geofences that may fire while the app is in background.
+ *
+ * This service shows a quiet, non-intrusive notification.
+ */
+class GeofenceForegroundService : Service() {
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val channelId = "aevum_geofence_service"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Ortserkennung",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Ruhige Hintergrundbenachrichtigung für Geofence-Ortserkennung"
+                setShowBadge(false)
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Ortserkennung aktiv")
+            .setContentText("Aevum erkennt Orte im Hintergrund – leise und batterie sparend.")
+            .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(6202, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(6202, notification)
+        }
+
+        return START_STICKY
+    }
+
+    companion object {
+        fun start(context: Context) {
+            val intent = Intent(context, GeofenceForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, GeofenceForegroundService::class.java))
+        }
+    }
+}

@@ -48,6 +48,11 @@
             android:name=".automation.geofence.GeofenceBroadcastReceiver"
             android:exported="false" />
 
+        <service
+            android:name=".automation.geofence.GeofenceForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
     </application>
 
 </manifest>

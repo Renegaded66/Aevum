@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import de.devondroste.aevum.automation.geofence.GeofenceDebugLogger
 import de.devondroste.aevum.data.model.PlaceGeofence
 import de.devondroste.aevum.data.model.TriggerEvent
 import de.devondroste.aevum.domain.time.TimeFormatting
@@ -284,6 +285,24 @@ fun GeofenceDebugScreen(
             item { AevumCard(variant = CardVariant.Gradient) { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text(if (state.geofenceReady) "System bereit" else "Noch nicht vollständig bereit", fontSize = 24.sp, fontWeight = FontWeight.SemiBold); DebugLine("Foreground Standort", state.foregroundLocationGranted); DebugLine("Background Standort", state.backgroundLocationGranted); DebugLine("Benachrichtigungen", state.notificationsGranted); DebugLine("Review Hinweise aktiv", state.settings.reviewNotificationsEnabled) } } }
             item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Datenlage", fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Text("Aktive Geofences: ${state.activeGeofences}"); Text("Inaktive Geofences: ${state.inactiveGeofences}"); Text("Trigger Events: ${state.triggerCount}"); Text("Offene Candidates: ${state.pendingCandidates}") } } }
             item { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Aktionen", fontSize = 20.sp, fontWeight = FontWeight.SemiBold); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Button(onClick = viewModel::refreshRegistration) { Text("Registrierung prüfen") }; OutlinedButton(onClick = viewModel::runRulesNow) { Text("Regeln prüfen") } }; state.lastAction?.let { Text(it, color = MaterialTheme.colorScheme.secondary) } } } }
+            item {
+                if (state.debugLog.isNotEmpty()) {
+                    AevumCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                            Text("Debug-Log (${state.debugLog.size} Einträge)", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            state.debugLog.takeLast(20).reversed().forEach { entry ->
+                                Text(
+                                    "[${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(entry.timestamp))}] ${entry.tag}: ${entry.message}",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
