@@ -37,7 +37,7 @@ import de.devondroste.aevum.data.model.*
         ActivityAggregateDay::class,
         GeofenceEventLogEntry::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -409,9 +409,49 @@ abstract class AppDatabase : RoomDatabase() {
                         created_at INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_geofence_event_log_occurred_at ON geofence_event_log(occurred_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_geofence_event_log_category ON geofence_event_log(category)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_geofence_event_log_event_type ON geofence_event_log(event_type)")
+                // Drop any previously created indices with wrong prefix (from b92e661)
+                database.execSQL("DROP INDEX IF EXISTS idx_geofence_event_log_occurred_at")
+                database.execSQL("DROP INDEX IF EXISTS idx_geofence_event_log_category")
+                database.execSQL("DROP INDEX IF EXISTS idx_geofence_event_log_event_type")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_geofence_event_log_occurred_at ON geofence_event_log(occurred_at)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_geofence_event_log_category ON geofence_event_log(category)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_geofence_event_log_event_type ON geofence_event_log(event_type)")
+            }
+        }
+
+        /**
+         * M8.2.2: Repair geofence_event_log schema after b92e661 created
+         * wrong index names (idx_* instead of index_*).
+         * Also removes DEFAULT clauses that Room doesn't expect.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Drop wrong-named indices from the buggy v5 migration
+                database.execSQL("DROP INDEX IF EXISTS idx_geofence_event_log_occurred_at")
+                database.execSQL("DROP INDEX IF EXISTS idx_geofence_event_log_category")
+                database.execSQL("DROP INDEX IF EXISTS idx_geofence_event_log_event_type")
+                // Recreate table without DEFAULT clauses to match Room entity exactly
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS geofence_event_log_fixed (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        occurred_at INTEGER NOT NULL,
+                        category TEXT NOT NULL,
+                        event_type TEXT NOT NULL,
+                        geofence_id TEXT,
+                        geofence_name TEXT,
+                        detail TEXT NOT NULL,
+                        success INTEGER NOT NULL,
+                        lat REAL,
+                        lon REAL,
+                        created_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                database.execSQL("INSERT INTO geofence_event_log_fixed (id, occurred_at, category, event_type, geofence_id, geofence_name, detail, success, lat, lon, created_at) SELECT id, occurred_at, category, event_type, geofence_id, geofence_name, detail, success, lat, lon, created_at FROM geofence_event_log")
+                database.execSQL("DROP TABLE geofence_event_log")
+                database.execSQL("ALTER TABLE geofence_event_log_fixed RENAME TO geofence_event_log")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_geofence_event_log_occurred_at ON geofence_event_log(occurred_at)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_geofence_event_log_category ON geofence_event_log(category)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_geofence_event_log_event_type ON geofence_event_log(event_type)")
             }
         }
 
