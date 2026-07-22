@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
+    <!-- M8.1: Re-register geofences after boot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- UsageStatsManager needs special app access, not a normal permission -->
     <!-- Health Connect permissions are handled at runtime via Health Connect SDK -->
 
@@ -51,6 +54,14 @@
         <receiver
             android:name=".automation.geofence.GeofenceBroadcastReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".automation.geofence.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".automation.geofence.GeofenceForegroundService"

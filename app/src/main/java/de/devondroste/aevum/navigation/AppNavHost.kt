@@ -13,6 +13,7 @@ import de.devondroste.aevum.ui.screens.insights.InsightsScreen
 import de.devondroste.aevum.ui.screens.onboarding.OnboardingScreen
 import de.devondroste.aevum.ui.screens.settings.SettingsScreen
 import de.devondroste.aevum.ui.screens.automation.AutomationSettingsScreen
+import de.devondroste.aevum.ui.screens.automation.AutomationStatusScreen
 import de.devondroste.aevum.ui.screens.automation.GeofenceDebugScreen
 import de.devondroste.aevum.ui.screens.automation.GeofenceEditorScreen
 import de.devondroste.aevum.ui.screens.automation.GeofenceListScreen
@@ -142,8 +143,11 @@ fun AppNavHost(
             AutomationSettingsScreen(
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
-                onOpenDebug = { navController.navigate(AppDestination.GeofenceDebug.route) }
+                onOpenStatus = { navController.navigate(AppDestination.AutomationStatus.route) }
             )
+        }
+        composable(AppDestination.AutomationStatus.route) {
+            AutomationStatusScreen(onBack = { navController.popBackStack() })
         }
         composable(AppDestination.GeofenceList.route) {
             GeofenceListScreen(
@@ -153,6 +157,13 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.GeofenceCreate.route) {
+            GeofenceEditorScreen(onBack = { navController.popBackStack() })
+        }
+        // M8.1: Quick-setup for Home and Work
+        composable(AppDestination.GeofenceCreateHome.route) {
+            GeofenceEditorScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.GeofenceCreateWork.route) {
             GeofenceEditorScreen(onBack = { navController.popBackStack() })
         }
         composable(

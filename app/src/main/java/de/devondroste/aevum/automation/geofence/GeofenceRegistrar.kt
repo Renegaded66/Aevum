@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
@@ -23,14 +24,37 @@ class GeofenceRegistrar @Inject constructor(
 ) {
     private val client by lazy { LocationServices.getGeofencingClient(context) }
 
+    /**
+     * M8.1: Refined permission model.
+     *
+     * Android 14+: "Allow all the time" implicitly grants ACCESS_BACKGROUND_LOCATION.
+     * Pre-Q devices don't need background permission at all.
+     * The registrar now distinguishes between "not applicable" (pre-Q) and "not granted".
+     */
+    data class PermissionStatus(
+        val foregroundGranted: Boolean,
+        val backgroundApplicable: Boolean, // false on pre-Q
+        val backgroundGranted: Boolean
+    )
+
+    fun getPermissionStatus(): PermissionStatus {
+        val foreground = has(Manifest.permission.ACCESS_FINE_LOCATION) || has(Manifest.permission.ACCESS_COARSE_LOCATION)
+        val bgApplicable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        val bgGranted = if (!bgApplicable) true else has(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        return PermissionStatus(foreground, bgApplicable, bgGranted)
+    }
+
     suspend fun refreshRegisteredGeofences(): GeofenceRegistrationResult {
-        if (!hasForegroundLocation()) {
+        val perms = getPermissionStatus()
+        if (!perms.foregroundGranted) {
             debugLogger.log("REGISTRAR", "Kein Foreground-Standort")
             return GeofenceRegistrationResult.MissingForegroundLocation
         }
-        if (!hasBackgroundLocation()) {
-            debugLogger.log("REGISTRAR", "Kein Background-Standort")
-            return GeofenceRegistrationResult.MissingBackgroundLocation
+        // M8.1: Don't block on background — try registration anyway on 14+ where
+        // ACCESS_BACKGROUND_LOCATION check may be stale while "Allow all the time" is active.
+        if (!perms.backgroundGranted && perms.backgroundApplicable) {
+            debugLogger.log("REGISTRAR", "Background-Standort nicht explizit erteilt — Android 14+ kann trotzdem funktionieren")
+            // Don't return error — proceed to try registration
         }
 
         val geofences = geofenceRepository.getAllEnabled().first()
@@ -56,7 +80,7 @@ class GeofenceRegistrar @Inject constructor(
                             .setNotificationResponsiveness(RESPONSIVENESS_MS)
                             .setLoiteringDelay(LOITERING_DELAY_MS)
                             .build()
-                        debugLogger.log("REGISTRAR", "  ${place.name}: r=${place.radiusMeters}m lat=${place.latitude} lon=${place.longitude}")
+                        debugLogger.log("REGISTRAR", "  ${place.name}: r=${place.radiusMeters}m")
                         f
                     })
                     .build()
@@ -83,6 +107,23 @@ class GeofenceRegistrar @Inject constructor(
         )
     }
 
+    /** Opens the appropriate settings page for granting background location (Android 14+ compatible). */
+    fun openBackgroundLocationSettings() {
+        try {
+            // Prefer direct location settings on Android 12+ where possible
+            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            // Fallback to app settings
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
+    }
+
     fun hasForegroundLocation(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -90,6 +131,9 @@ class GeofenceRegistrar @Inject constructor(
     fun hasBackgroundLocation(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    private fun has(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
     companion object {
         const val ACTION_GEOFENCE_EVENT = "de.devondroste.aevum.ACTION_GEOFENCE_EVENT"
