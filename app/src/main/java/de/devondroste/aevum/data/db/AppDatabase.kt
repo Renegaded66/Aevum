@@ -34,9 +34,10 @@ import de.devondroste.aevum.data.model.*
         AppUsageSample::class,
         ActivitySessionChange::class,
         SessionEvidence::class,
-        ActivityAggregateDay::class
+        ActivityAggregateDay::class,
+        GeofenceEventLogEntry::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -60,6 +61,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bucketListItemDao(): BucketListItemDao
     abstract fun appUsageSampleDao(): AppUsageSampleDao
     abstract fun activitySessionChangeDao(): ActivitySessionChangeDao
+    abstract fun geofenceEventLogDao(): GeofenceEventLogDao
     abstract fun sessionEvidenceDao(): SessionEvidenceDao
     abstract fun activityAggregateDayDao(): ActivityAggregateDayDao
 
@@ -387,6 +389,29 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE automation_settings ADD COLUMN health_sleep_enabled INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("ALTER TABLE automation_settings ADD COLUMN digital_balance_enabled INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS geofence_event_log (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        occurred_at INTEGER NOT NULL,
+                        category TEXT NOT NULL,
+                        event_type TEXT NOT NULL,
+                        geofence_id TEXT,
+                        geofence_name TEXT,
+                        detail TEXT NOT NULL,
+                        success INTEGER NOT NULL DEFAULT 1,
+                        lat REAL,
+                        lon REAL,
+                        created_at INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS idx_geofence_event_log_occurred_at ON geofence_event_log(occurred_at)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS idx_geofence_event_log_category ON geofence_event_log(category)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS idx_geofence_event_log_event_type ON geofence_event_log(event_type)")
             }
         }
 

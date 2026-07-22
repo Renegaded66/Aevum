@@ -16,12 +16,14 @@ import de.devondroste.aevum.automation.location.CurrentLocationResult
 import de.devondroste.aevum.automation.notification.CandidateReviewNotifier
 import de.devondroste.aevum.automation.rules.CandidateRuleOrchestrator
 import de.devondroste.aevum.data.model.AutomationSettings
+import de.devondroste.aevum.data.model.GeofenceEventLogEntry
 import de.devondroste.aevum.data.model.PlaceGeofence
 import de.devondroste.aevum.data.model.TriggerEvent
 import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.AutomationSettingsRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
+import de.devondroste.aevum.data.repository.GeofenceEventLogRepository
 import de.devondroste.aevum.data.repository.PlaceGeofenceRepository
 import de.devondroste.aevum.data.repository.TagRepository
 import de.devondroste.aevum.data.repository.TriggerEventRepository
@@ -134,7 +136,8 @@ class AutomationStatusViewModel @Inject constructor(
     private val triggerRepository: TriggerEventRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val healthConnectManager: HealthConnectManager,
-    private val usageStatsCollector: UsageStatsCollector
+    private val usageStatsCollector: UsageStatsCollector,
+    private val eventLog: GeofenceEventLogRepository
 ) : ViewModel() {
     private val actionMessage = MutableStateFlow<String?>(null)
 
@@ -142,13 +145,21 @@ class AutomationStatusViewModel @Inject constructor(
         geofenceRepository.getAll(),
         triggerRepository.getAll(),
         candidateRepository.getByStatus("PENDING"),
+        eventLog.getRecent(50),
         actionMessage
-    ) { geofences, triggers, candidates, msg ->
+    ) { geofences, triggers, candidates, logEntries, msg ->
         val perms = geofenceRegistrar.getPermissionStatus()
         val todayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val triggersToday = triggers.count { it.occurredAt >= todayStart }
         val lastTrigger = triggers.maxByOrNull { it.occurredAt }
         val lastCandidate = candidates.maxByOrNull { it.createdAt }
+
+        // M8.2: Diagnostic counts
+        val systemEventsToday = logEntries.count { it.category == "SYSTEM_EVENT" && it.occurredAt >= todayStart }
+        val failuresToday = logEntries.count { !it.success && it.occurredAt >= todayStart }
+        val lastSystemEvent = logEntries.firstOrNull { it.category == "SYSTEM_EVENT" }
+        val lastRegistration = logEntries.firstOrNull { it.category == "REGISTRATION" && it.eventType == "REGISTERED" }
+
         AutomationStatusUiState(
             foregroundGranted = perms.foregroundGranted,
             backgroundGranted = perms.backgroundGranted,
@@ -160,7 +171,13 @@ class AutomationStatusViewModel @Inject constructor(
             lastTriggerTime = lastTrigger?.let { TimeFormatting.formatTime(it.occurredAt) } ?: "—",
             pendingCandidates = candidates.size,
             lastAutoActivity = lastCandidate?.suggestedTitle ?: "",
-            foregroundServiceRunning = true, // started with geofence registration
+            foregroundServiceRunning = true,
+            systemEventsToday = systemEventsToday,
+            failuresToday = failuresToday,
+            lastSystemEventType = lastSystemEvent?.eventType ?: "—",
+            lastSystemEventTime = lastSystemEvent?.let { TimeFormatting.formatTime(it.occurredAt) } ?: "—",
+            lastRegistrationTime = lastRegistration?.let { TimeFormatting.formatTime(it.occurredAt) } ?: "—",
+            recentLog = logEntries.take(15),
             actionMessage = msg
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AutomationStatusUiState())
@@ -192,6 +209,13 @@ data class AutomationStatusUiState(
     val pendingCandidates: Int = 0,
     val lastAutoActivity: String = "",
     val foregroundServiceRunning: Boolean = false,
+    // M8.2: Diagnostic data
+    val systemEventsToday: Int = 0,
+    val failuresToday: Int = 0,
+    val lastSystemEventType: String = "—",
+    val lastSystemEventTime: String = "—",
+    val lastRegistrationTime: String = "—",
+    val recentLog: List<GeofenceEventLogEntry> = emptyList(),
     val actionMessage: String? = null
 )
 

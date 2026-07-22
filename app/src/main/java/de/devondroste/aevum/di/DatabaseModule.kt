@@ -22,7 +22,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "aevum_database"
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
             .build()
 
     @Provides fun provideLifeProfileDao(database: AppDatabase): LifeProfileDao = database.lifeProfileDao()
@@ -46,4 +46,5 @@ object DatabaseModule {
     @Provides fun provideActivitySessionChangeDao(database: AppDatabase): ActivitySessionChangeDao = database.activitySessionChangeDao()
     @Provides fun provideSessionEvidenceDao(database: AppDatabase): SessionEvidenceDao = database.sessionEvidenceDao()
     @Provides fun provideActivityAggregateDayDao(database: AppDatabase): ActivityAggregateDayDao = database.activityAggregateDayDao()
+    @Provides fun provideGeofenceEventLogDao(database: AppDatabase): GeofenceEventLogDao = database.geofenceEventLogDao()
 }

@@ -12,28 +12,29 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.qualifiers.ApplicationContext
+import de.devondroste.aevum.data.model.GeofenceEventLogEntry
+import de.devondroste.aevum.data.repository.GeofenceEventLogRepository
 import de.devondroste.aevum.data.repository.PlaceGeofenceRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 import javax.inject.Inject
 
 class GeofenceRegistrar @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geofenceRepository: PlaceGeofenceRepository,
-    private val debugLogger: GeofenceDebugLogger
+    private val debugLogger: GeofenceDebugLogger,
+    private val eventLog: GeofenceEventLogRepository
 ) {
     private val client by lazy { LocationServices.getGeofencingClient(context) }
 
-    /**
-     * M8.1: Refined permission model.
-     *
-     * Android 14+: "Allow all the time" implicitly grants ACCESS_BACKGROUND_LOCATION.
-     * Pre-Q devices don't need background permission at all.
-     * The registrar now distinguishes between "not applicable" (pre-Q) and "not granted".
-     */
     data class PermissionStatus(
         val foregroundGranted: Boolean,
-        val backgroundApplicable: Boolean, // false on pre-Q
+        val backgroundApplicable: Boolean,
         val backgroundGranted: Boolean
     )
 
@@ -45,34 +46,34 @@ class GeofenceRegistrar @Inject constructor(
     }
 
     suspend fun refreshRegisteredGeofences(): GeofenceRegistrationResult {
+        val now = System.currentTimeMillis()
         val perms = getPermissionStatus()
+
         if (!perms.foregroundGranted) {
             debugLogger.log("REGISTRAR", "Kein Foreground-Standort")
+            persistLog("REGISTRATION", "MISSING_FOREGROUND", "Foreground location not granted", false, now)
             return GeofenceRegistrationResult.MissingForegroundLocation
         }
-        // M8.1: Don't block on background — try registration anyway on 14+ where
-        // ACCESS_BACKGROUND_LOCATION check may be stale while "Allow all the time" is active.
-        if (!perms.backgroundGranted && perms.backgroundApplicable) {
-            debugLogger.log("REGISTRAR", "Background-Standort nicht explizit erteilt — Android 14+ kann trotzdem funktionieren")
-            // Don't return error — proceed to try registration
-        }
+
+        val bgNote = if (!perms.backgroundGranted && perms.backgroundApplicable)
+            " (BG not explicitly granted — Android 14+ may still work)"
+        else ""
 
         val geofences = geofenceRepository.getAllEnabled().first()
             .filter { it.deletedAt == null }
             .take(MAX_ANDROID_GEOFENCES)
 
-        debugLogger.log("REGISTRAR", "Registriere ${geofences.size} Geofences")
+        debugLogger.log("REGISTRAR", "Registriere ${geofences.size} Geofences$bgNote")
 
         return try {
-            // Start foreground service for Android 15+ compatibility
             GeofenceForegroundService.start(context)
-
             client.removeGeofences(pendingIntent()).await()
+
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
                     .addGeofences(geofences.map { place ->
-                        val f = Geofence.Builder()
+                        Geofence.Builder()
                             .setRequestId(place.id)
                             .setCircularRegion(place.latitude, place.longitude, place.radiusMeters.coerceAtLeast(MIN_RADIUS_METERS))
                             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
@@ -80,25 +81,54 @@ class GeofenceRegistrar @Inject constructor(
                             .setNotificationResponsiveness(RESPONSIVENESS_MS)
                             .setLoiteringDelay(LOITERING_DELAY_MS)
                             .build()
-                        debugLogger.log("REGISTRAR", "  ${place.name}: r=${place.radiusMeters}m")
-                        f
                     })
                     .build()
                 client.addGeofences(request, pendingIntent()).await()
+
+                // M8.2: Log each geofence registration persistently
+                geofences.forEach { place ->
+                    persistLog("REGISTRATION", "REGISTERED",
+                        "${place.name}: lat=${place.latitude}, lon=${place.longitude}, r=${place.radiusMeters}m",
+                        true, now, place.id, place.name,
+                        place.latitude, place.longitude)
+                }
                 debugLogger.log("REGISTRAR", "${geofences.size} Geofences registriert")
             }
             GeofenceRegistrationResult.Registered(geofences.size)
         } catch (security: SecurityException) {
             debugLogger.log("REGISTRAR", "SecurityException: ${security.message}")
+            persistLog("REGISTRATION", "SECURITY_DENIED", security.message ?: "Unknown", false, now)
             GeofenceRegistrationResult.SecurityDenied
         } catch (error: Exception) {
             debugLogger.log("REGISTRAR", "Fehler: ${error.message}")
+            persistLog("REGISTRATION", "FAILED", error.message ?: "Unknown", false, now)
             GeofenceRegistrationResult.Failed(error.message ?: "Geofence Registrierung fehlgeschlagen")
         }
     }
 
+    /** M8.2: Diagnostic check — are geofences still registered with Play Services? */
+    fun diagnosticCheck() {
+        val now = System.currentTimeMillis()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                // We can't directly query Play Services, but we can log our current state
+                val geofences = geofenceRepository.getAllEnabled().first()
+                persistLog("DIAGNOSTIC", "HEARTBEAT",
+                    "${geofences.size} geofences in DB, permissions: fg=${hasForegroundLocation()} bg=${hasBackgroundLocation()}",
+                    true, now)
+            } catch (_: Exception) {
+                persistLog("DIAGNOSTIC", "HEARTBEAT_FAILED", "Diagnostic check threw exception", false, now)
+            }
+        }
+    }
+
     private fun pendingIntent(): PendingIntent {
-        val intent = Intent(context, GeofenceBroadcastReceiver::class.java).setAction(ACTION_GEOFENCE_EVENT)
+        // M8.2: Explicit intent with component to ensure delivery on Android 12+
+        val intent = Intent(context, GeofenceBroadcastReceiver::class.java).apply {
+            action = ACTION_GEOFENCE_EVENT
+            // Explicitly set package to avoid intent hijacking concerns
+            `package` = context.packageName
+        }
         return PendingIntent.getBroadcast(
             context,
             42,
@@ -107,15 +137,28 @@ class GeofenceRegistrar @Inject constructor(
         )
     }
 
-    /** Opens the appropriate settings page for granting background location (Android 14+ compatible). */
+    private fun persistLog(
+        category: String, eventType: String, detail: String, success: Boolean, occurredAt: Long,
+        geofenceId: String? = null, geofenceName: String? = null,
+        lat: Double? = null, lon: Double? = null
+    ) {
+        val entry = GeofenceEventLogEntry(
+            id = "${category}_${eventType}_${occurredAt}_${UUID.randomUUID().toString().take(8)}",
+            occurredAt = occurredAt, category = category, eventType = eventType,
+            geofenceId = geofenceId, geofenceName = geofenceName,
+            detail = detail, success = success, latitude = lat, longitude = lon
+        )
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try { eventLog.log(entry) } catch (_: Exception) {}
+        }
+    }
+
     fun openBackgroundLocationSettings() {
         try {
-            // Prefer direct location settings on Android 12+ where possible
             val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } catch (_: Exception) {
-            // Fallback to app settings
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = android.net.Uri.parse("package:${context.packageName}")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

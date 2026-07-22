@@ -10,6 +10,7 @@ import de.devondroste.aevum.data.db.ActivitySessionDao
 import de.devondroste.aevum.data.db.ActivityTypeDao
 import de.devondroste.aevum.data.db.AutomationSettingsDao
 import de.devondroste.aevum.data.db.AppUsageSampleDao
+import de.devondroste.aevum.data.db.GeofenceEventLogDao
 import de.devondroste.aevum.data.db.BucketListItemDao
 import de.devondroste.aevum.data.db.CategoryDao
 import de.devondroste.aevum.data.db.DataSourceDao
@@ -32,6 +33,8 @@ import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.ActivityTypeRepositoryImpl
 import de.devondroste.aevum.data.repository.AppUsageSampleRepository
 import de.devondroste.aevum.data.repository.AppUsageSampleRepositoryImpl
+import de.devondroste.aevum.data.repository.GeofenceEventLogRepository
+import de.devondroste.aevum.data.repository.GeofenceEventLogRepositoryImpl
 import de.devondroste.aevum.data.repository.BucketListRepository
 import de.devondroste.aevum.data.repository.BucketListRepositoryImpl
 import de.devondroste.aevum.data.repository.CategoryRepository
@@ -125,4 +128,7 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideAppUsageSampleRepository(dao: AppUsageSampleDao): AppUsageSampleRepository = AppUsageSampleRepositoryImpl(dao)
+
+    @Provides
+    fun provideGeofenceEventLogRepository(dao: GeofenceEventLogDao): GeofenceEventLogRepository = GeofenceEventLogRepositoryImpl(dao)
 }

@@ -256,6 +256,43 @@ fun AutomationStatusScreen(
                 }
             }
 
+            // M8.2: Diagnostic event log
+            item {
+                AevumCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Text("Diagnose", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        StatusLine("System-Events heute", state.systemEventsToday > 0)
+                        if (state.systemEventsToday > 0) Text("${state.systemEventsToday} Events vom System empfangen", fontSize = 13.sp)
+                        StatusLine("Fehler heute", state.failuresToday == 0)
+                        if (state.failuresToday > 0) Text("${state.failuresToday} Fehler — siehe Log", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Letztes Event: ${state.lastSystemEventType} · ${state.lastSystemEventTime}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Letzte Registrierung: ${state.lastRegistrationTime}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
+            // Recent event log
+            if (state.recentLog.isNotEmpty()) {
+                item {
+                    AevumCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                            Text("Letzte Ereignisse", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            state.recentLog.forEach { entry ->
+                                val icon = if (entry.success) "✓" else "✗"
+                                val color = if (entry.success) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                                Text(
+                                    "$icon ${entry.eventType}: ${entry.detail.take(80)}",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = color,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Action
             item {
                 AevumCard {
