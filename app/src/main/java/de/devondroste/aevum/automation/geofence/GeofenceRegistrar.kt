@@ -12,23 +12,15 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.qualifiers.ApplicationContext
-import de.devondroste.aevum.data.model.GeofenceEventLogEntry
-import de.devondroste.aevum.data.repository.GeofenceEventLogRepository
 import de.devondroste.aevum.data.repository.PlaceGeofenceRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
 import javax.inject.Inject
 
 class GeofenceRegistrar @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geofenceRepository: PlaceGeofenceRepository,
-    private val debugLogger: GeofenceDebugLogger,
-    private val eventLog: GeofenceEventLogRepository
+    private val debugLogger: GeofenceDebugLogger
 ) {
     private val client by lazy { LocationServices.getGeofencingClient(context) }
 
@@ -46,29 +38,24 @@ class GeofenceRegistrar @Inject constructor(
     }
 
     suspend fun refreshRegisteredGeofences(): GeofenceRegistrationResult {
-        val now = System.currentTimeMillis()
         val perms = getPermissionStatus()
-
         if (!perms.foregroundGranted) {
             debugLogger.log("REGISTRAR", "Kein Foreground-Standort")
-            persistLog("REGISTRATION", "MISSING_FOREGROUND", "Foreground location not granted", false, now)
             return GeofenceRegistrationResult.MissingForegroundLocation
         }
-
-        val bgNote = if (!perms.backgroundGranted && perms.backgroundApplicable)
-            " (BG not explicitly granted — Android 14+ may still work)"
-        else ""
+        if (!perms.backgroundGranted && perms.backgroundApplicable) {
+            debugLogger.log("REGISTRAR", "Background nicht explizit erteilt — Android 14+ kann trotzdem funktionieren")
+        }
 
         val geofences = geofenceRepository.getAllEnabled().first()
             .filter { it.deletedAt == null }
             .take(MAX_ANDROID_GEOFENCES)
 
-        debugLogger.log("REGISTRAR", "Registriere ${geofences.size} Geofences$bgNote")
+        debugLogger.log("REGISTRAR", "Registriere ${geofences.size} Geofences")
 
         return try {
             GeofenceForegroundService.start(context)
             client.removeGeofences(pendingIntent()).await()
-
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
@@ -84,73 +71,28 @@ class GeofenceRegistrar @Inject constructor(
                     })
                     .build()
                 client.addGeofences(request, pendingIntent()).await()
-
-                // M8.2: Log each geofence registration persistently
                 geofences.forEach { place ->
-                    persistLog("REGISTRATION", "REGISTERED",
-                        "${place.name}: lat=${place.latitude}, lon=${place.longitude}, r=${place.radiusMeters}m",
-                        true, now, place.id, place.name,
-                        place.latitude, place.longitude)
+                    debugLogger.log("REGISTRAR", "  ${place.name}: r=${place.radiusMeters}m")
                 }
                 debugLogger.log("REGISTRAR", "${geofences.size} Geofences registriert")
             }
             GeofenceRegistrationResult.Registered(geofences.size)
         } catch (security: SecurityException) {
             debugLogger.log("REGISTRAR", "SecurityException: ${security.message}")
-            persistLog("REGISTRATION", "SECURITY_DENIED", security.message ?: "Unknown", false, now)
             GeofenceRegistrationResult.SecurityDenied
         } catch (error: Exception) {
             debugLogger.log("REGISTRAR", "Fehler: ${error.message}")
-            persistLog("REGISTRATION", "FAILED", error.message ?: "Unknown", false, now)
             GeofenceRegistrationResult.Failed(error.message ?: "Geofence Registrierung fehlgeschlagen")
         }
     }
 
-    /** M8.2: Diagnostic check — are geofences still registered with Play Services? */
-    fun diagnosticCheck() {
-        val now = System.currentTimeMillis()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try {
-                // We can't directly query Play Services, but we can log our current state
-                val geofences = geofenceRepository.getAllEnabled().first()
-                persistLog("DIAGNOSTIC", "HEARTBEAT",
-                    "${geofences.size} geofences in DB, permissions: fg=${hasForegroundLocation()} bg=${hasBackgroundLocation()}",
-                    true, now)
-            } catch (_: Exception) {
-                persistLog("DIAGNOSTIC", "HEARTBEAT_FAILED", "Diagnostic check threw exception", false, now)
-            }
-        }
-    }
-
     private fun pendingIntent(): PendingIntent {
-        // M8.2: Explicit intent with component to ensure delivery on Android 12+
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java).apply {
             action = ACTION_GEOFENCE_EVENT
-            // Explicitly set package to avoid intent hijacking concerns
             `package` = context.packageName
         }
-        return PendingIntent.getBroadcast(
-            context,
-            42,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-    }
-
-    private fun persistLog(
-        category: String, eventType: String, detail: String, success: Boolean, occurredAt: Long,
-        geofenceId: String? = null, geofenceName: String? = null,
-        lat: Double? = null, lon: Double? = null
-    ) {
-        val entry = GeofenceEventLogEntry(
-            id = "${category}_${eventType}_${occurredAt}_${UUID.randomUUID().toString().take(8)}",
-            occurredAt = occurredAt, category = category, eventType = eventType,
-            geofenceId = geofenceId, geofenceName = geofenceName,
-            detail = detail, success = success, latitude = lat, longitude = lon
-        )
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try { eventLog.log(entry) } catch (_: Exception) {}
-        }
+        return PendingIntent.getBroadcast(context, 42, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
     }
 
     fun openBackgroundLocationSettings() {

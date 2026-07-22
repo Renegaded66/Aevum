@@ -145,7 +145,7 @@ class AutomationStatusViewModel @Inject constructor(
         geofenceRepository.getAll(),
         triggerRepository.getAll(),
         candidateRepository.getByStatus("PENDING"),
-        eventLog.getRecent(50),
+        try { eventLog.getRecent(50) } catch (_: Exception) { MutableStateFlow(emptyList()) },
         actionMessage
     ) { geofences, triggers, candidates, logEntries, msg ->
         val perms = geofenceRegistrar.getPermissionStatus()
@@ -154,11 +154,12 @@ class AutomationStatusViewModel @Inject constructor(
         val lastTrigger = triggers.maxByOrNull { it.occurredAt }
         val lastCandidate = candidates.maxByOrNull { it.createdAt }
 
-        // M8.2: Diagnostic counts
-        val systemEventsToday = logEntries.count { it.category == "SYSTEM_EVENT" && it.occurredAt >= todayStart }
-        val failuresToday = logEntries.count { !it.success && it.occurredAt >= todayStart }
-        val lastSystemEvent = logEntries.firstOrNull { it.category == "SYSTEM_EVENT" }
-        val lastRegistration = logEntries.firstOrNull { it.category == "REGISTRATION" && it.eventType == "REGISTERED" }
+        // M8.2: Diagnostic counts (safe — uses in-memory list)
+        val entries = try { logEntries } catch (_: Exception) { emptyList() }
+        val systemEventsToday = entries.count { it.category == "SYSTEM_EVENT" && it.occurredAt >= todayStart }
+        val failuresToday = entries.count { !it.success && it.occurredAt >= todayStart }
+        val lastSystemEvent = entries.firstOrNull { it.category == "SYSTEM_EVENT" }
+        val lastRegistration = entries.firstOrNull { it.category == "REGISTRATION" && it.eventType == "REGISTERED" }
 
         AutomationStatusUiState(
             foregroundGranted = perms.foregroundGranted,
@@ -177,7 +178,7 @@ class AutomationStatusViewModel @Inject constructor(
             lastSystemEventType = lastSystemEvent?.eventType ?: "—",
             lastSystemEventTime = lastSystemEvent?.let { TimeFormatting.formatTime(it.occurredAt) } ?: "—",
             lastRegistrationTime = lastRegistration?.let { TimeFormatting.formatTime(it.occurredAt) } ?: "—",
-            recentLog = logEntries.take(15),
+            recentLog = entries.take(15),
             actionMessage = msg
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AutomationStatusUiState())
