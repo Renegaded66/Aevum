@@ -621,7 +621,7 @@ private fun ZoomableDayTimeline(
                         "%02d:00".format(hour),
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 6.dp, top = (hour * pixelsPerHour - 6).dp)
+                        modifier = Modifier.padding(start = 6.dp, top = (hour * pixelsPerHour - 6).dp.coerceAtLeast(0.dp))
                     )
                 }
 
