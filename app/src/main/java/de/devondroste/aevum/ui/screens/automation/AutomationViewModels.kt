@@ -13,6 +13,7 @@ import de.devondroste.aevum.automation.geofence.GeofenceRegistrar
 import de.devondroste.aevum.automation.geofence.GeofenceRegistrationResult
 import de.devondroste.aevum.automation.location.CurrentLocationProvider
 import de.devondroste.aevum.automation.location.CurrentLocationResult
+import de.devondroste.aevum.automation.sleep.SleepHeuristicEngine
 import de.devondroste.aevum.automation.notification.CandidateReviewNotifier
 import de.devondroste.aevum.automation.rules.CandidateRuleOrchestrator
 import de.devondroste.aevum.data.model.AutomationSettings
@@ -56,7 +57,8 @@ class AutomationSettingsViewModel @Inject constructor(
     private val triggerRepository: TriggerEventRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val geofenceRegistrar: GeofenceRegistrar,
-    private val usageStatsCollector: UsageStatsCollector
+    private val usageStatsCollector: UsageStatsCollector,
+    private val sleepHeuristicEngine: SleepHeuristicEngine
 ) : ViewModel() {
     private val registrationMessage = MutableStateFlow<String?>(null)
 
@@ -88,6 +90,52 @@ class AutomationSettingsViewModel @Inject constructor(
 
     fun openUsageAccess() = usageStatsCollector.openUsageAccessSettings()
     fun openBackgroundLocationSettings() = geofenceRegistrar.openBackgroundLocationSettings()
+
+    /**
+     * M13: Manually trigger sleep-heuristic analysis (e.g. for the previous night).
+     * Creates a candidate in the Review Inbox if the pattern is plausible.
+     */
+    private val _isAnalyzingSleep = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isAnalyzingSleep: kotlinx.coroutines.flow.StateFlow<Boolean> = _isAnalyzingSleep
+
+    private val _sleepStatus = kotlinx.coroutines.flow.MutableStateFlow<de.devondroste.aevum.automation.sleep.SleepHeuristicStatus?>(null)
+    val sleepStatus: kotlinx.coroutines.flow.StateFlow<de.devondroste.aevum.automation.sleep.SleepHeuristicStatus?> = _sleepStatus
+
+    fun analyzeSleepNow() {
+        viewModelScope.launch {
+            _isAnalyzingSleep.value = true
+            try {
+                sleepHeuristicEngine.init(app)
+                sleepHeuristicEngine.analyzeLatest()
+                // Auch einen Status-Refresh anstoßen, damit der Dialog aktuell ist
+                _sleepStatus.value = sleepHeuristicEngine.getStatus()
+                registrationMessage.value = "✓ Schlaf-Analyse gestartet. Vorschlag in der Review-Inbox prüfen."
+            } catch (e: Exception) {
+                registrationMessage.value = "Analyse fehlgeschlagen: ${e.message}"
+            } finally {
+                _isAnalyzingSleep.value = false
+            }
+        }
+    }
+
+    /**
+     * M12.1: Öffnet den Status-Dialog mit allen Heuristik-Informationen.
+     * Lädt die Daten frisch aus dem Engine (kein Cache).
+     */
+    fun openSleepStatus() {
+        viewModelScope.launch {
+            try {
+                sleepHeuristicEngine.init(app)
+                _sleepStatus.value = sleepHeuristicEngine.getStatus()
+            } catch (e: Exception) {
+                registrationMessage.value = "Status nicht verfügbar: ${e.message}"
+            }
+        }
+    }
+
+    fun dismissSleepStatus() {
+        _sleepStatus.value = null
+    }
 
     fun refreshGeofences() {
         viewModelScope.launch {
@@ -275,7 +323,12 @@ class GeofenceEditorViewModel @Inject constructor(
                         radius = geofence.radiusMeters.toInt().toString(), icon = geofence.icon,
                         color = geofence.color, enabled = geofence.enabled,
                         activityTypeId = geofence.activityTypeId, categoryId = geofence.categoryId,
-                        selectedTagIds = tags
+                        selectedTagIds = tags,
+                        // M11+: separate autoStart activity type (may differ from default).
+                        // Falls back to default if null.
+                        autoEnabled = geofence.autoStartActivityTypeId != null,
+                        autoStopEnabled = geofence.autoStopEnabled,
+                        autoStartActivityTypeId = geofence.autoStartActivityTypeId
                     )
                 }
             }
@@ -304,6 +357,10 @@ class GeofenceEditorViewModel @Inject constructor(
     fun setActivityType(id: String?, catId: String?) = form.update { it.copy(activityTypeId = id, categoryId = catId ?: it.categoryId, error = null) }
     fun toggleTag(id: String) = form.update { it.copy(selectedTagIds = if (id in it.selectedTagIds) it.selectedTagIds - id else it.selectedTagIds + id, error = null) }
     fun setCoordinates(lat: Double, lon: Double) = form.update { it.copy(latitude = "%.6f".format(Locale.US, lat), longitude = "%.6f".format(Locale.US, lon), error = null) }
+    // M11: Automation rules
+    fun setAutoEnabled(v: Boolean) = form.update { it.copy(autoEnabled = v, error = null) }
+    fun setAutoStopEnabled(v: Boolean) = form.update { it.copy(autoStopEnabled = v, error = null) }
+    fun setAutoStartActivityTypeId(id: String?) = form.update { it.copy(autoStartActivityTypeId = id, error = null) }
 
     fun useCurrentLocation() {
         viewModelScope.launch {
@@ -351,7 +408,12 @@ class GeofenceEditorViewModel @Inject constructor(
                 latitude = lat, longitude = lon, radiusMeters = r,
                 icon = c.icon.ifBlank { "📍" }, color = c.color.ifBlank { "#6366F1" },
                 enabled = c.enabled, activityTypeId = c.activityTypeId, categoryId = c.categoryId,
-                createdAt = existing?.createdAt ?: now, updatedAt = now, deletedAt = existing?.deletedAt
+                createdAt = existing?.createdAt ?: now, updatedAt = now, deletedAt = existing?.deletedAt,
+                // M11+: separate autoStart activity type (may differ from default).
+                // When null, no auto-start happens. When set, the system starts
+                // a session of that type whenever the geofence is entered.
+                autoStartActivityTypeId = if (c.autoEnabled) c.autoStartActivityTypeId ?: c.activityTypeId else null,
+                autoStopEnabled = c.autoStopEnabled
             )
             geofenceRepository.insertWithTags(gf, c.selectedTagIds)
             geofenceRegistrar.refreshRegisteredGeofences()
@@ -374,7 +436,12 @@ data class GeofenceForm(
     val radius: String = "150", val icon: String = "📍", val color: String = "#6366F1",
     val enabled: Boolean = true, val activityTypeId: String? = null, val categoryId: String? = null,
     val selectedTagIds: List<String> = emptyList(), val error: String? = null,
-    val quickKind: QuickPlaceKind? = null
+    val quickKind: QuickPlaceKind? = null,
+    // M11: Automatisierung
+    val autoEnabled: Boolean = false,
+    val autoStopEnabled: Boolean = false,
+    // M11+: Separate activity type for auto-start (defaults to activityTypeId)
+    val autoStartActivityTypeId: String? = null
 )
 
 data class GeofenceEditorUiState(

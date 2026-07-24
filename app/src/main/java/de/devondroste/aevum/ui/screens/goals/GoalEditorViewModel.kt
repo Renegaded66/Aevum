@@ -107,6 +107,14 @@ class GoalEditorViewModel @Inject constructor(
         if (form.targetValue.toFloatOrNull() == null || form.targetValue.toFloatOrNull()!! <= 0) return "Zielwert muss positiv sein"
         return null
     }
+
+    // M11.2: Goal löschen
+    fun deleteGoal(goalId: String) {
+        viewModelScope.launch {
+            goalRepository.delete(goalId)
+            _form.update { it.copy(saved = true) }
+        }
+    }
 }
 
 data class GoalFormState(

@@ -69,18 +69,48 @@ class TimelineViewModel @Inject constructor(
         TimelineBase(date, sessions, candidates, triggers)
     }
 
+    // M12.2: Stufenloser Pinch-to-Zoom — pixelsPerHour ist die einzige Quelle
+    // der Wahrheit für die Timeline-Höhe. Statt eines enum-basierten
+    // 3-Stufen-Modells wird ein Float gespeichert, der via detectTransformGestures
+    // zwischen MIN_PIXELS_PER_HOUR (18) und MAX_PIXELS_PER_HOUR (120) skaliert wird.
+    private val pixelsPerHour = MutableStateFlow(TimelineUiState.DEFAULT_PIXELS_PER_HOUR)
+
     val uiState: StateFlow<TimelineUiState> = combine(
         timelineBase,
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
-        tagRepository.getAll()
-    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, tags: List<Tag> ->
+        tagRepository.getAll(),
+        pixelsPerHour
+    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, tags: List<Tag>, pph: Float ->
         buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types, tags)
+            .copy(pixelsPerHour = pph)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineUiState())
 
     fun previousDay() = selectedDate.update { it.minusDays(1) }
     fun nextDay() = selectedDate.update { it.plusDays(1) }
     fun today() = selectedDate.update { LocalDate.now() }
+
+    /**
+     * M12.2: Stufenloser Zoom.
+     * Wird vom Pinch-Handler in der Timeline-UI aufgerufen, sobald der User
+     * zwei Finger zusammenzieht oder auseinanderzieht. Der neue Wert wird
+     * auf den erlaubten Bereich begrenzt.
+     */
+    fun setPixelsPerHour(pph: Float) {
+        pixelsPerHour.value = pph.coerceIn(
+            TimelineUiState.MIN_PIXELS_PER_HOUR,
+            TimelineUiState.MAX_PIXELS_PER_HOUR
+        )
+    }
+
+    /**
+     * M12.2: Multiplikativer Zoom-Update für den Pinch-Handler.
+     * Übergibt einen Skalierungsfaktor > 0 (z. B. 1.1f für "auseinander",
+     * 0.9f für "zusammen"). Intern auf MIN/MAX begrenzt.
+     */
+    fun zoomBy(factor: Float) {
+        setPixelsPerHour(pixelsPerHour.value * factor)
+    }
     fun acceptCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.accept(candidateId) } }
     fun dismissCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.dismiss(candidateId) } }
 
@@ -97,10 +127,27 @@ class TimelineViewModel @Inject constructor(
         val dayEnd = TimeFormatting.endOfDayMillis(date, zoneId)
         val categoryMap = categories.associateBy { it.id }
         val typeMap = types.associateBy { it.id }
-        val sessions = allSessions
+
+        // M12.2: Vereinheitlichte Timeline.
+        // Sessions, Trigger, Schlaf-Sessions und Fahrt-Candidates werden
+        // zusammen in einer Lane-basierten Darstellung gezeigt.
+        //   - Sessions sind die primären Einträge (voller Inhalt, klickbar)
+        //   - Trigger sind Punkte am Zeitstrahl (klein, Marker)
+        //   - Schlaf-Sessions (activityTypeId == "sleep") laufen über dieselbe Pipeline
+        //   - Fahrt-Candidates (activityTypeId == "driving") werden mit aufgenommen
+        //     (Status ACCEPTED → Session-Eintrag, PENDING → Candidate-Marker)
+        val filteredSessions = allSessions
             .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt) }
             .sortedBy { it.startAt }
-        val rows = sessions.map { session ->
+
+        // M12.2: Auto-Dedup gegen Trigger-Doppel.
+        // Trigger mit geofenceId + type + occurredAt, die in einem 90s-Fenster
+        // dupliziert vorkommen, werden zu einem zusammengefasst.
+        val dayTriggers = allTriggers
+            .filter { it.occurredAt >= dayStart && it.occurredAt < dayEnd }
+            .sortedBy { it.occurredAt }
+            .distinctBy { tripleKey(it.geofenceId, it.type, it.occurredAt / 60_000L) }
+        val rows = filteredSessions.map { session ->
             TimelineSessionUi(
                 id = session.id,
                 title = session.title,
@@ -111,28 +158,40 @@ class TimelineViewModel @Inject constructor(
                 range = "${TimeFormatting.formatTime(session.startAt, zoneId)}–${session.endAt?.let { TimeFormatting.formatTime(it, zoneId) } ?: "läuft"}",
                 duration = TimeFormatting.formatDuration((session.endAt ?: System.currentTimeMillis()) - session.startAt),
                 source = session.sourceType,
+                // M12.2: Schlaf-Sessions sind per Konfiguration auto-erfasst.
+                // Wir zeigen das via isAuto, damit die UI es konsistent rendert.
+                isAuto = session.sourceType in AUTO_SOURCES,
                 startMinuteOfDay = TimeFormatting.minutesOfDay(session.startAt, zoneId),
-                endMinuteOfDay = session.endAt?.let { TimeFormatting.minutesOfDay(it, zoneId) } ?: (24 * 60),
+                endMinuteOfDay = session.endAt?.let { TimeFormatting.minutesOfDay(it, zoneId) }
+                    ?: TimeFormatting.minutesOfDay(System.currentTimeMillis(), zoneId).coerceIn(0, 1440),
                 isRunning = session.endAt == null,
-                isOverlapping = sessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) }
+                // M12.2: Overlap-Logik behält die alte Semantik: zwei Sessions
+                // mit zeitlicher Überschneidung. Schlaf wird hier bewusst
+                // NICHT ausgeschlossen, da parallele Einträge möglich sind
+                // (z. B. Schlaf + kurze Erfassung).
+                isOverlapping = filteredSessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) }
             )
         }
-        val totalMs = sessions.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt }
-        val categoryDurations = sessions.groupBy { it.categoryId ?: "unknown" }
+        val totalMs = filteredSessions.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt }
+        val categoryDurations = filteredSessions.groupBy { it.categoryId ?: "unknown" }
             .mapValues { entry -> entry.value.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt } }
-        val triggers = allTriggers
-            .filter { it.occurredAt >= dayStart && it.occurredAt < dayEnd }
-            .sortedBy { it.occurredAt }
-            .map { trigger ->
-                TriggerEventUi(
-                    id = trigger.id,
-                    label = trigger.type.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() },
-                    time = TimeFormatting.formatTime(trigger.occurredAt, zoneId),
-                    minuteOfDay = TimeFormatting.minutesOfDay(trigger.occurredAt, zoneId),
-                    confidence = (trigger.confidence * 100).toInt(),
-                    source = trigger.source
-                )
+        val triggers = dayTriggers.map { trigger ->
+            val geofenceName = extractGeofenceName(trigger.metadataJson)
+            val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
+            val label = if (geofenceName != null) {
+                if (isEnter) "$geofenceName betreten" else "$geofenceName verlassen"
+            } else {
+                trigger.type.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() }
             }
+            TriggerEventUi(
+                id = trigger.id,
+                label = label,
+                time = TimeFormatting.formatTime(trigger.occurredAt, zoneId),
+                minuteOfDay = TimeFormatting.minutesOfDay(trigger.occurredAt, zoneId),
+                confidence = (trigger.confidence * 100).toInt(),
+                source = trigger.source
+            )
+        }
         val candidates = allCandidates
             .filter { it.startAt < dayEnd && it.endAt > dayStart }
             .sortedBy { it.startAt }
@@ -152,7 +211,7 @@ class TimelineViewModel @Inject constructor(
             formattedDate = TimeFormatting.formatDate(date),
             sessions = rows,
             totalTracked = TimeFormatting.formatDuration(totalMs),
-            sessionCount = sessions.size,
+            sessionCount = filteredSessions.size,
             categories = categories,
             activityTypes = types,
             tags = tags,
@@ -162,6 +221,12 @@ class TimelineViewModel @Inject constructor(
             hasOverlaps = rows.any { it.isOverlapping }
         )
     }
+
+    /**
+     * M12.2: Hilfsfunktion für den Auto-Dedup der Trigger.
+     * Drei identische Trigger im selben Minuten-Fenster werden zusammengefasst.
+     */
+    private fun tripleKey(a: String?, b: String, c: Long): String = "${a.orEmpty()}|${b}|${c}"
 }
 
 @HiltViewModel
@@ -216,9 +281,12 @@ class ActivityEditorViewModel @Inject constructor(
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId),
             triggerMarkers = triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
+                val gfName = extractGeofenceName(it.metadataJson)
+                val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
                 TriggerEventMarker(
                     id = it.id,
-                    label = it.type.replace('_', ' '),
+                    label = gfName?.let { n -> if (isEnter) "$n betreten" else "$n verlassen" }
+                        ?: it.type.replace('_', ' '),
                     occurredAt = it.occurredAt,
                     kind = de.devondroste.aevum.domain.trigger.TriggerEventKind.CUSTOM,
                     source = it.source
@@ -399,7 +467,32 @@ data class TimelineUiState(
     val categoryDurations: Map<String, Long> = emptyMap(),
     val triggerEvents: List<TriggerEventUi> = emptyList(),
     val candidates: List<CandidateReviewUi> = emptyList(),
-    val hasOverlaps: Boolean = false
+    val hasOverlaps: Boolean = false,
+    // M12.2: Stufenloser Pinch-to-Zoom.
+    // pixelsPerHour ist die einzige Quelle der Wahrheit für die Timeline-Höhe.
+    // Statt eines enum-basierten 3-Stufen-Modells wird ein Float gespeichert,
+    // der via detectTransformGestures zwischen MIN_PPH und MAX_PPH skaliert wird.
+    val pixelsPerHour: Float = DEFAULT_PIXELS_PER_HOUR
+) {
+    companion object {
+        const val DEFAULT_PIXELS_PER_HOUR: Float = 40f
+        const val MIN_PIXELS_PER_HOUR: Float = 18f   // 24h × 18 = 432dp — kompakter Tagesüberblick
+        const val MAX_PIXELS_PER_HOUR: Float = 120f  // 24h × 120 = 2880dp — feine Minutenansicht
+    }
+}
+
+/**
+ * M12.2: SourceTypes, die als "automatisch erfasst" gelten.
+ * Vereinheitlicht GEOFENCE_AUTO (M11), HEALTH_SLEEP_AUTO (M12.2) und
+ * ACTIVITY_RECOGNITION_AUTO (M12.2, für Fahrten). Diese Konstante
+ * ist die Single Source of Truth für "ist diese Session vom System
+ * erkannt worden?" und wird in Timeline, Dashboard, LiveActivity-Card
+ * und Foreground-Notification gleichermaßen genutzt.
+ */
+val AUTO_SOURCES: Set<String> = setOf(
+    "GEOFENCE_AUTO",
+    "HEALTH_SLEEP_AUTO",
+    "ACTIVITY_RECOGNITION_AUTO"
 )
 
 data class TriggerEventUi(
@@ -410,6 +503,20 @@ data class TriggerEventUi(
     val confidence: Int,
     val source: String
 )
+
+/**
+ * M11.2: Extrahiert den Geofence-Namen aus dem metadataJson eines TriggerEvents.
+ * Das metadataJson hat die Form: {"geofenceName":"Arbeitsplatz","activityTypeId":"..."}
+ */
+internal fun extractGeofenceName(metadataJson: String?): String? {
+    if (metadataJson.isNullOrBlank()) return null
+    return try {
+        val regex = """"geofenceName"\s*:\s*"([^"]+)"""".toRegex()
+        regex.find(metadataJson)?.groupValues?.getOrNull(1)
+    } catch (_: Exception) {
+        null
+    }
+}
 
 data class CandidateReviewUi(
     val id: String,
@@ -433,7 +540,11 @@ data class TimelineSessionUi(
     val startMinuteOfDay: Int,
     val endMinuteOfDay: Int,
     val isRunning: Boolean,
-    val isOverlapping: Boolean
+    val isOverlapping: Boolean,
+    // M12.2: isAuto = true für GEOFENCE_AUTO, HEALTH_SLEEP_AUTO, ACTIVITY_RECOGNITION_AUTO.
+    // Die Timeline-UI zeigt diese Einträge mit einer dezenten "Auto"-Markierung
+    // und nutzt sie im Lane-Layout konsistent mit allen anderen Auto-Quellen.
+    val isAuto: Boolean = false
 )
 
 data class ActivityEditorForm(

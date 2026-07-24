@@ -3,6 +3,10 @@ package de.devondroste.aevum.automation.geofence
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import dagger.hilt.android.AndroidEntryPoint
@@ -10,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 /**
@@ -23,6 +28,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
     @Inject lateinit var processor: GeofenceTransitionProcessor
+    @Inject lateinit var debouncer: GeofenceDebouncer
     @Inject lateinit var debugLogger: GeofenceDebugLogger
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -56,6 +62,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val transitionName = when (transition) {
             Geofence.GEOFENCE_TRANSITION_ENTER -> "ENTER"
             Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
+            Geofence.GEOFENCE_TRANSITION_DWELL -> "DWELL"
             else -> "UNKNOWN"
         }
         val triggerTime = event.triggeringLocation?.time?.takeIf { it > 0 } ?: System.currentTimeMillis()
@@ -67,17 +74,60 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 triggeringGeofences.forEach { geofence ->
+                    val transitionEnum = when (transition) {
+                        Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceTransition.Enter
+                        Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceTransition.Exit
+                        Geofence.GEOFENCE_TRANSITION_DWELL -> GeofenceTransition.Enter
+                        else -> GeofenceTransition.Unknown
+                    }
+                    if (transitionEnum == GeofenceTransition.Unknown) {
+                        debugLogger.log("RECEIVER", "Unknown transition → ignoriert")
+                        return@forEach
+                    }
+                    // M11.2: Stabilisierungs-Entprellung. Der Übergang wird
+                    // nicht sofort verarbeitet, sondern als "pending" markiert.
+                    // Nach 2 Minuten konstantem Zustand bestätigt der
+                    // GeofenceStabilizationWorker den Trigger.
+                    // Wenn GPS-Flattern innerhalb der 2 Min einen anderen
+                    // Übergang liefert, wird der pendente verworfen.
+                    if (!debouncer.shouldEmit(geofence.requestId, transitionEnum, triggerTime)) {
+                        // shouldEmit startet immer einen pendenten Übergang
+                        // (oder verwirft einen pendenten). Wir schedulen den
+                        // StabilizationWorker, der nach 2 Min prüft.
+                        val workData = Data.Builder()
+                            .putString(GeofenceStabilizationWorker.KEY_GEOFENCE_ID, geofence.requestId)
+                            .putString(GeofenceStabilizationWorker.KEY_TRANSITION, transitionEnum.name)
+                            .putLong(GeofenceStabilizationWorker.KEY_OCCURRED_AT, triggerTime)
+                            .build()
+
+                        val workName = GeofenceDebouncer.workName(geofence.requestId, transitionEnum)
+                        WorkManager.getInstance(context).enqueueUniqueWork(
+                            workName,
+                            ExistingWorkPolicy.REPLACE,
+                            OneTimeWorkRequestBuilder<GeofenceStabilizationWorker>()
+                                .setInputData(workData)
+                                .setInitialDelay(GeofenceDebouncer.STABILIZATION_MS, TimeUnit.MILLISECONDS)
+                                .build()
+                        )
+                        debugLogger.log(
+                            "RECEIVER",
+                            "Stabilization scheduled: ${geofence.requestId} ${transitionEnum.name} in ${GeofenceDebouncer.STABILIZATION_MS / 1000}s"
+                        )
+                        return@forEach
+                    }
+
+                    // shouldEmit gibt true zurück, wenn bereits stabilisiert
+                    // (sollte mit der neuen Architektur nicht passieren —
+                    // der Worker übernimmt die Bestätigung. Aber als Fallback
+                    // verarbeiten wir es direkt.)
                     processor.processTransition(
                         geofenceId = geofence.requestId,
-                        transition = when (transition) {
-                            Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceTransition.Enter
-                            Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceTransition.Exit
-                            else -> GeofenceTransition.Unknown
-                        },
+                        transition = transitionEnum,
                         occurredAt = triggerTime,
                         latitude = triggerLat,
                         longitude = triggerLon
                     )
+                    debouncer.markEmitted(geofence.requestId, triggerTime)
                 }
             } catch (e: Exception) {
                 debugLogger.log("RECEIVER", "Exception: ${e.message}")
@@ -88,4 +138,4 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 }
 
-enum class GeofenceTransition { Enter, Exit, Unknown }
+enum class GeofenceTransition { Enter, Exit, Dwell, Unknown }

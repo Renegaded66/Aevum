@@ -14,6 +14,7 @@ import de.devondroste.aevum.data.model.RawSourceEvent
 import de.devondroste.aevum.data.repository.DetectionEventRepository
 import de.devondroste.aevum.data.repository.RawSourceEventRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
@@ -71,12 +72,12 @@ class HealthConnectManager @Inject constructor(
                     )
                 )
                 val response = client.readRecords(request)
-                response.records.map { record -> sleepToCandidate(record) }
+                response.records.mapNotNull { record -> sleepToCandidate(record) }
             } catch (_: Exception) { emptyList() }
         }
     }
 
-    private suspend fun sleepToCandidate(record: SleepSessionRecord): ActivityCandidate {
+    private suspend fun sleepToCandidate(record: SleepSessionRecord): ActivityCandidate? {
         val now = System.currentTimeMillis()
         val zoneId = ZoneId.systemDefault().id
         val startTime = record.startTime.toEpochMilli()
@@ -85,6 +86,12 @@ class HealthConnectManager @Inject constructor(
         val hours = durationMs / 3_600_000
         val mins = (durationMs % 3_600_000) / 60_000
         val durationStr = if (mins > 0) "${hours}h ${mins}m" else "${hours}h"
+
+        // M11: Dedup via externalId (Health Connect metadata.id). Wenn bereits
+        // ein RawSourceEvent mit dieser externalId existiert, überspringen.
+        val externalId = record.metadata.id.take(100)
+        val existing = rawSourceRepository.getBySourceAndExternalId("health_connect", externalId).first()
+        if (existing != null) return null
 
         // RawSourceEvent
         val rawId = UUID.randomUUID().toString()

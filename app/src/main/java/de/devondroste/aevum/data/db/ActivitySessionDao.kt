@@ -32,6 +32,26 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND end_at IS NULL ORDER BY start_at DESC LIMIT 1")
     fun getCurrentActiveSession(): Flow<ActivitySession?>
 
+    // M9: Live Activity — get the single live session (RUNNING or PAUSED)
+    @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND session_status IN ('RUNNING', 'PAUSED') ORDER BY start_at DESC LIMIT 1")
+    fun getLiveSession(): Flow<ActivitySession?>
+
+    // M9: Update session status
+    @Query("UPDATE activity_session SET session_status = :status, updated_at = :now WHERE id = :id")
+    suspend fun updateStatus(id: String, status: String, now: Long)
+
+    // M9: Update pause state
+    @Query("UPDATE activity_session SET session_status = :status, current_pause_started_at = :pauseStartedAt, updated_at = :now WHERE id = :id")
+    suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?, now: Long)
+
+    // M9: Finish session with pause data
+    @Query("UPDATE activity_session SET session_status = 'FINISHED', end_at = :endAt, total_paused_ms = :totalPausedMs, current_pause_started_at = NULL, pause_segments_json = :pauseSegmentsJson, updated_at = :now WHERE id = :id")
+    suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?, now: Long)
+
+    // M9: Update accumulated pause data without changing status/endAt
+    @Query("UPDATE activity_session SET total_paused_ms = :totalPausedMs, pause_segments_json = :pauseSegmentsJson, updated_at = :now WHERE id = :id")
+    suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?, now: Long)
+
     @Query("SELECT * FROM activity_session WHERE source_candidate_id = :candidateId AND deleted_at IS NULL")
     fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?>
 

@@ -21,6 +21,12 @@ interface ActivityRepository {
     fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>>
     fun getBySourceType(sourceType: String): Flow<List<ActivitySession>>
     fun getCurrentActiveSession(): Flow<ActivitySession?>
+    // M9: Live Activity
+    fun getLiveSession(): Flow<ActivitySession?>
+    suspend fun updateStatus(id: String, status: String)
+    suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?)
+    suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?)
+    suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?)
     fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?>
     fun getById(id: String): Flow<ActivitySession?>
     suspend fun insert(session: ActivitySession)
@@ -48,6 +54,9 @@ interface ActivityTypeRepository {
     fun getById(id: String): Flow<ActivityType?>
     fun getSystemTypes(): Flow<List<ActivityType>>
     fun getAll(): Flow<List<ActivityType>>
+    // M9.2: Favorites
+    fun getFavorites(): Flow<List<ActivityType>>
+    suspend fun setFavorite(id: String, isFavorite: Boolean)
     suspend fun insert(type: ActivityType)
     suspend fun insertAll(types: List<ActivityType>)
     suspend fun update(type: ActivityType)

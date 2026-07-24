@@ -39,10 +39,70 @@ class UsageStatsCollector @Inject constructor(
         } catch (_: Exception) { false }
     }
 
+    /**
+     * M12.2: Open the screen where the user can grant Usage Access to Aevum.
+     *
+     * - Versucht zuerst den paket-spezifischen Usage-Access-Screen (manche Hersteller
+     *   zeigen Aevum dort direkt, statt in der langen Liste).
+     * - Fällt auf die generische Settings.ACTION_USAGE_ACCESS_SETTINGS zurück.
+     * - Fällt ein zweites Mal auf ACTION_APPLICATION_DETAILS_SETTINGS zurück (App-Info),
+     *   falls weder Usage-Screen verfügbar ist (z. B. Go-Edition ohne Usage-Access).
+     *
+     * Wichtig: Aevum muss im AndroidManifest unter
+     * `<uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+     *   tools:ignore="ProtectedPermissions"/>` deklariert sein — sonst fehlt der
+     *   Eintrag in der Liste. Wir nutzen tools:ignore, weil dies eine
+     *   "Protected Permission" ist, die der User explizit gewährt.
+     */
     fun openUsageAccessSettings() {
-        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        val pm = context.packageManager
+
+        // 1) Best effort: package-specific "App usage access" (OEM-spezifisch, AOSP ≥ 11).
+        val packageSpecific = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            data = android.net.Uri.fromParts("package", context.packageName, null)
+        }
+        if (packageSpecific.resolveActivity(pm) != null) {
+            try {
+                context.startActivity(packageSpecific)
+                return
+            } catch (_: Exception) { /* fallback */ }
+        }
+
+        // 2) Generischer Usage-Access-Screen (funktioniert auf Standard-AOSP-Geräten).
+        val generic = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (generic.resolveActivity(pm) != null) {
+            try {
+                context.startActivity(generic)
+                return
+            } catch (_: Exception) { /* fallback */ }
+        }
+
+        // 3) Letzter Ausweg: App-Info-Seite öffnen, auf der der User zu den
+        //    "Special access" -> "Usage access" navigieren kann.
+        val appInfo = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            data = android.net.Uri.fromParts("package", context.packageName, null)
+        }
+        try {
+            context.startActivity(appInfo)
+        } catch (_: Exception) { /* nothing we can do */ }
+    }
+
+    /**
+     * M13: Open the system settings directly on the activity-recognition permission
+     * screen. The user is guided to Android Settings → Apps → Aevum → Permissions.
+     */
+    fun openActivityRecognitionSettings() {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                data = android.net.Uri.fromParts("package", context.packageName, null)
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) { /* nothing */ }
     }
 
     /**
@@ -100,6 +160,42 @@ class UsageStatsCollector @Inject constructor(
             )
         }
     }
+
+    /**
+     * M13: Get top apps for a given day (returns the most-used ones).
+     * Returns empty list if no permission.
+     */
+    suspend fun topAppsForDay(date: LocalDate, limit: Int = 5): List<AppUsageSample> {
+        if (!hasPermission()) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val zoneId = ZoneId.systemDefault()
+            val startOfDay = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val stats = usageStats.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                startOfDay,
+                endOfDay
+            )
+            stats?.filter { it.totalTimeInForeground > 1000 }
+                ?.sortedByDescending { it.totalTimeInForeground }
+                ?.take(limit)
+                ?.mapNotNull { stat ->
+                    val label = try {
+                        context.packageManager.getApplicationLabel(
+                            context.packageManager.getApplicationInfo(stat.packageName, 0)
+                        ).toString()
+                    } catch (_: Exception) { stat.packageName }
+                    AppUsageSample(
+                        id = "${date}_${stat.packageName}",
+                        packageName = stat.packageName,
+                        appLabel = label,
+                        startAt = stat.lastTimeUsed.takeIf { it > 0 } ?: startOfDay,
+                        endAt = stat.lastTimeUsed.takeIf { it > 0 } ?: endOfDay,
+                        durationMs = stat.totalTimeInForeground
+                    )
+                } ?: emptyList()
+        }
+    }
 }
 
 data class DigitalDayStats(
@@ -126,4 +222,23 @@ data class DigitalDayStats(
             val mins = topAppDurationMs / 60_000
             return "$topAppName · ${mins}min"
         }
+}
+
+/**
+ * M13: Permission helpers for UsageStats access.
+ * "Protected permission" — must be granted via Settings, not at runtime.
+ */
+object UsageStatsPermission {
+    fun isGranted(context: android.content.Context): Boolean {
+        return try {
+            val now = System.currentTimeMillis()
+            val mgr = context.getSystemService(android.content.Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
+            val stats = mgr.queryUsageStats(
+                android.app.usage.UsageStatsManager.INTERVAL_DAILY,
+                now - 1000,
+                now
+            )
+            !stats.isNullOrEmpty()
+        } catch (_: Exception) { false }
+    }
 }

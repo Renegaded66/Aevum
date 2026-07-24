@@ -59,13 +59,24 @@ class GeofenceRegistrar @Inject constructor(
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+                    // M10.1: ENTER/EXIT inkl. DWELL → Play Services verlangt
+                    // einen "Verweil-Test" am Rand, bevor das Event ausgeliefert
+                    // wird. Reduziert GPS-Flattern bei kleinen Radien.
                     .addGeofences(geofences.map { place ->
                         Geofence.Builder()
                             .setRequestId(place.id)
                             .setCircularRegion(place.latitude, place.longitude, place.radiusMeters.coerceAtLeast(MIN_RADIUS_METERS))
-                            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
+                            .setTransitionTypes(
+                                Geofence.GEOFENCE_TRANSITION_ENTER or
+                                Geofence.GEOFENCE_TRANSITION_EXIT or
+                                Geofence.GEOFENCE_TRANSITION_DWELL
+                            )
                             .setExpirationDuration(Geofence.NEVER_EXPIRE)
                             .setNotificationResponsiveness(RESPONSIVENESS_MS)
+                            // M10.1: 90s Loitering — User muss 1,5 min wirklich
+                            // im Geofence verweilen, bevor DWELL→ENTER ausgelöst
+                            // wird. EXIT wird ohne diese Verzögerung ausgeliefert
+                            // (Play Services ignoriert Loitering für Exit).
                             .setLoiteringDelay(LOITERING_DELAY_MS)
                             .build()
                     })
@@ -123,9 +134,15 @@ class GeofenceRegistrar @Inject constructor(
     companion object {
         const val ACTION_GEOFENCE_EVENT = "de.devondroste.aevum.ACTION_GEOFENCE_EVENT"
         private const val MAX_ANDROID_GEOFENCES = 100
-        private const val MIN_RADIUS_METERS = 50f
-        private const val RESPONSIVENESS_MS = 2 * 60 * 1000
-        private const val LOITERING_DELAY_MS = 5 * 60 * 1000
+        // M10.1: größerer Mindest-Radius (100m) reduziert GPS-Flattern mit
+        // Standard-Phone-GPS (~30-50m Genauigkeit) drastisch.
+        private const val MIN_RADIUS_METERS = 100f
+        // M10.1: Notification-Responsiveness = 60s (vorher 2min) — schneller,
+        // damit EXIT nicht unnötig verzögert wird; Loitering puffert den ENTER.
+        private const val RESPONSIVENESS_MS = 60 * 1000
+        // M10.1: 90s Loitering — User muss 1,5 min im Geofence verweilen, bevor
+        // DWELL-ENTER ausgelöst wird. EXIT bleibt unverzögert.
+        private const val LOITERING_DELAY_MS = 90 * 1000
     }
 }
 

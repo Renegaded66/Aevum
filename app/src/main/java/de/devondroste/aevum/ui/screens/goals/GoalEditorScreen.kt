@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,6 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -221,6 +225,46 @@ fun GoalEditorScreen(
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
                     Text("Speichern", fontSize = 16.sp)
+                }
+            }
+
+            // M11.2: Delete button — nur im Edit-Modus
+            if (goalId != null) {
+                item {
+                    var showDeleteDialog by remember { mutableStateOf(false) }
+                    OutlinedButton(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Ziel löschen", fontSize = 14.sp)
+                    }
+                    if (showDeleteDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showDeleteDialog = false },
+                            title = { Text("Ziel löschen?") },
+                            text = {
+                                Text(
+                                    "Dieses Ziel wird dauerhaft entfernt.\n\n" +
+                                    "Bereits aufgezeichnete Aktivitäten bleiben davon unberührt.",
+                                    fontSize = 14.sp
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showDeleteDialog = false
+                                        viewModel.deleteGoal(goalId)
+                                    }
+                                ) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
+                            }
+                        )
+                    }
                 }
             }
 

@@ -3,8 +3,10 @@ package de.devondroste.aevum.ui.screens.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import android.app.Application
 import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.model.ActivitySession
+import de.devondroste.aevum.data.model.AppUsageSample
 import de.devondroste.aevum.data.model.Category
 import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.ActivityRepository
@@ -12,27 +14,38 @@ import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
 import de.devondroste.aevum.data.repository.GoalRepository
 import de.devondroste.aevum.domain.analytics.GoalProgressAnalytics
+import de.devondroste.aevum.domain.digital.UsageStatsCollector
+import de.devondroste.aevum.domain.liveactivity.LiveActivityManager
+import de.devondroste.aevum.domain.liveactivity.LiveActivityService
+import de.devondroste.aevum.domain.liveactivity.LiveActivityState
 import de.devondroste.aevum.domain.seed.EnsureDefaultDataUseCase
 import de.devondroste.aevum.domain.time.TimeFormatting
 import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
 import de.devondroste.aevum.ui.screens.goals.toGoalWithProgress
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.util.Log
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    private val application: Application,
     activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
     candidateRepository: ActivityCandidateRepository,
     private val goalRepository: GoalRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val ensureDefaultData: EnsureDefaultDataUseCase
+    private val ensureDefaultData: EnsureDefaultDataUseCase,
+    val liveActivityManager: LiveActivityManager,
+    private val usageStatsCollector: UsageStatsCollector
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val today = LocalDate.now()
@@ -40,7 +53,85 @@ class DashboardViewModel @Inject constructor(
     private val end = TimeFormatting.endOfDayMillis(today, zoneId)
 
     init {
-        viewModelScope.launch { ensureDefaultData() }
+        // M12.0.2: Defensive Initialisierung — ensureDefaultData darf niemals
+        // den Start des DashboardViewModels blockieren. Fehler werden geloggt,
+        // die App läuft mit Default-Werten weiter.
+        viewModelScope.launch {
+            try {
+                ensureDefaultData()
+            } catch (e: Exception) {
+                Log.e("DashboardViewModel", "ensureDefaultData failed — continuing with defaults", e)
+            }
+        }
+        // M13: Initial load of usage stats. Refetched on demand.
+        viewModelScope.launch {
+            try {
+                refreshUsageStats()
+            } catch (_: Exception) { /* noop */ }
+        }
+    }
+
+    private val _topApps = MutableStateFlow<List<AppUsageSample>>(emptyList())
+    val topApps: StateFlow<List<AppUsageSample>> = _topApps.asStateFlow()
+
+    private val _usageStatsGranted = MutableStateFlow(false)
+    val usageStatsGranted: StateFlow<Boolean> = _usageStatsGranted.asStateFlow()
+
+    fun refreshUsageStats() {
+        viewModelScope.launch {
+            try {
+                val granted = usageStatsCollector.hasPermission()
+                _usageStatsGranted.value = granted
+                if (granted) {
+                    val top = usageStatsCollector.topAppsForDay(LocalDate.now(), limit = 5)
+                    _topApps.value = top
+                }
+            } catch (e: Exception) {
+                Log.e("DashboardViewModel", "refreshUsageStats failed", e)
+            }
+        }
+    }
+
+    fun openUsageAccessSettings() {
+        usageStatsCollector.openUsageAccessSettings()
+    }
+
+    // M9.1: Live Activity actions — Schnellstart per activityTypeId
+    fun startLiveActivity(activityTypeId: String, note: String? = null, startedAt: Long = System.currentTimeMillis()) {
+        viewModelScope.launch {
+            liveActivityManager.start(activityTypeId, note = note, startedAt = startedAt)
+            LiveActivityService.start(application)
+        }
+    }
+
+    // M9.2: Toggle favorite for an activity type
+    fun toggleFavorite(type: de.devondroste.aevum.data.model.ActivityType) {
+        viewModelScope.launch {
+            activityTypeRepository.setFavorite(type.id, !type.isFavorite)
+        }
+    }
+
+    fun pauseLiveActivity() {
+        viewModelScope.launch { liveActivityManager.pause() }
+    }
+
+    fun resumeLiveActivity() {
+        viewModelScope.launch { liveActivityManager.resume() }
+    }
+
+    fun stopLiveActivity() {
+        viewModelScope.launch {
+            liveActivityManager.stop()
+            LiveActivityService.stop(application)
+        }
+    }
+
+    /** M12.1: Discard an auto-started live session — stop + soft-delete. */
+    fun discardLiveActivity() {
+        viewModelScope.launch {
+            liveActivityManager.discardLiveSession()
+            LiveActivityService.stop(application)
+        }
     }
 
     val uiState: StateFlow<DashboardUiState> = combine(
@@ -48,17 +139,46 @@ class DashboardViewModel @Inject constructor(
         categoryRepository.getAll(),
         candidateRepository.getByStatus("PENDING"),
         goalRepository.getByStatus("ACTIVE"),
-        activityTypeRepository.getAll()
-    ) { sessions, categories, candidates, activeGoals, types ->
-        buildState(sessions, categories, candidates.filter { it.startAt < end && it.endAt > start }, activeGoals, types.associateBy { it.id })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+        activityTypeRepository.getAll(),
+        // M10: today's sleep — used for the "Guten Morgen" summary card
+        activityRepository.getByActivityTypeAndDateRange("sleep", start, end)
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val sessions = values[0] as List<ActivitySession>
+        val categories = values[1] as List<de.devondroste.aevum.data.model.Category>
+        val candidates = values[2] as List<de.devondroste.aevum.data.model.ActivityCandidate>
+        val activeGoals = values[3] as List<de.devondroste.aevum.data.model.Goal>
+        val types = values[4] as List<de.devondroste.aevum.data.model.ActivityType>
+        val sleepSessions = values[5] as List<ActivitySession>
+        buildState(
+            sessions = sessions,
+            categories = categories,
+            candidates = candidates.filter { it.startAt < end && it.endAt > start },
+            activeGoals = activeGoals,
+            typeMap = types.associateBy { it.id },
+            allTypes = types,
+            sleepSessions = sleepSessions
+        )
+    }
+        // M12.0.2: Defensive Programmierung — keine Exception darf bis zur UI
+        // propagieren. Wenn ein der 6 Flows fehlschlägt (z.B. Room-Schema-Mismatch,
+        // DB-Corruption, unzulässige Query), wird der Fehler geloggt und der
+        // Default-State (leeres DashboardUiState) beibehalten. Die App bleibt
+        // stabil, das Dashboard ist sichtbar — nur eben ohne Daten.
+        .catch { e ->
+            Log.e("DashboardViewModel", "uiState combine() failed — emitting default state", e)
+            emit(DashboardUiState())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
 
     private fun buildState(
         sessions: List<ActivitySession>,
-        categories: List<Category>,
-        candidates: List<ActivityCandidate>,
+        categories: List<de.devondroste.aevum.data.model.Category>,
+        candidates: List<de.devondroste.aevum.data.model.ActivityCandidate>,
         activeGoals: List<de.devondroste.aevum.data.model.Goal>,
-        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>
+        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>,
+        allTypes: List<de.devondroste.aevum.data.model.ActivityType> = emptyList(),
+        sleepSessions: List<ActivitySession> = emptyList()
     ): DashboardUiState {
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
@@ -76,10 +196,20 @@ class DashboardViewModel @Inject constructor(
                 )
             }
             .sortedByDescending { it.durationMs }
-        val current = activeSessions.filter { it.endAt == null }.maxByOrNull { it.startAt } ?: activeSessions.maxByOrNull { it.startAt }
+        // M12.2: SourceType wird zur Anzeige eines dezenten "Auto"-Hinweises genutzt.
+        // Wenn die aktuelle Session automatisch gestartet wurde (GEOFENCE_AUTO,
+        // HEALTH_SLEEP_AUTO, ACTIVITY_RECOGNITION_AUTO), wird der Source-Hinweis
+        // im Dashboard angepasst. Verwendet AUTO_SOURCES, um die zentrale Konstante
+        // als Single Source of Truth zu nutzen.
+        val current = activeSessions.filter { it.endAt == null }.maxByOrNull { it.startAt }
+            ?: activeSessions.maxByOrNull { it.startAt }
+        // M12.2: Map von Session-ID → sourceType, damit der Flow (der nur
+        // ClippedSessions kennt) den Auto-Flag korrekt setzen kann.
+        val sourceTypeById = activeSessions.associate { it.id to it.sourceType }
         val flow = clippedSessions.sortedBy { it.startAt }.map { session ->
             val startMinute = TimeFormatting.minutesOfDay(session.startAt, zoneId).coerceIn(0, 1440)
             val endMinute = TimeFormatting.minutesOfDay(session.endAt, zoneId).coerceIn(startMinute, 1440)
+            val isAutoSession = sourceTypeById[session.id] in de.devondroste.aevum.ui.screens.timeline.AUTO_SOURCES
             DashboardFlowSegment(
                 id = session.id,
                 title = session.title,
@@ -90,7 +220,9 @@ class DashboardViewModel @Inject constructor(
                 timeRange = "${formatMinute(startMinute)}–${formatMinute(endMinute)}",
                 duration = TimeFormatting.formatDuration(session.durationMs),
                 isCurrent = session.isCurrent,
-                isCandidate = false
+                isCandidate = false,
+                // M12.2: Auto-Sessions werden im Dashboard als "Auto" markiert.
+                isAuto = isAutoSession
             )
         }
 
@@ -168,7 +300,15 @@ class DashboardViewModel @Inject constructor(
             // M7: Automation capture
             capturedTodayCount = activeSessions.size + candidates.size,
             candidateCount = candidates.size,
-            acceptedTodayCount = acceptedToday
+            acceptedTodayCount = acceptedToday,
+            activityTypes = allTypes,
+            // M11: fix sleepCandidateCount — bisher nie berechnet
+            sleepCandidateCount = candidates.count { it.activityTypeId == "sleep" },
+            // M10: today's sleep summary
+            lastSleepSession = sleepSessions.maxByOrNull { it.endAt ?: it.startAt },
+            lastSleepDurationMs = sleepSessions.maxByOrNull { it.endAt ?: it.startAt }
+                ?.let { (it.endAt ?: now) - it.startAt }
+                ?: 0L
         )
     }
 
@@ -235,7 +375,10 @@ class DashboardViewModel @Inject constructor(
         val topText = top?.let { "Vor allem ${it.label.lowercase()} (${TimeFormatting.formatDuration(it.durationMs)})" } ?: "Mehrere kleine Abschnitte"
         val reviewText = if (reviewCount > 0) " ${reviewCount.reviewText()} sind noch offen." else ""
         val openText = if (openMs > 90 * 60_000L) " ${TimeFormatting.formatDuration(openMs)} sind noch nicht erzählt." else ""
-        val currentText = current?.let { " Gerade läuft: ${it.title}." }.orEmpty()
+        // M12.2: "läuft … (Auto)" statt "läuft …" für automatisch gestartete Sessions.
+        val currentAuto = current?.sourceType in de.devondroste.aevum.ui.screens.timeline.AUTO_SOURCES
+        val currentSuffix = if (currentAuto) " (Auto)" else ""
+        val currentText = current?.let { " Gerade läuft: ${it.title}$currentSuffix." }.orEmpty()
         return DailyNarrative(
             headline = "Das war bisher dein Tag.",
             body = "$topText prägt deinen Tagesfluss.$currentText$reviewText$openText".trim()
@@ -330,7 +473,12 @@ data class DashboardUiState(
     val sleepCandidateCount: Int = 0,
     val digitalScreenTimeMs: Long = 0L,
     val digitalScreenTimeFormatted: String = "0m",
-    val digitalTopApp: String = "—"
+    val digitalTopApp: String = "—",
+    // M9: Activity types for live activity picker
+    val activityTypes: List<de.devondroste.aevum.data.model.ActivityType> = emptyList(),
+    // M10: today's sleep summary for the dashboard card
+    val lastSleepSession: ActivitySession? = null,
+    val lastSleepDurationMs: Long = 0L
 )
 
 data class DashboardCategorySlice(
@@ -360,7 +508,10 @@ data class DashboardFlowSegment(
     val timeRange: String,
     val duration: String,
     val isCurrent: Boolean,
-    val isCandidate: Boolean = false
+    val isCandidate: Boolean = false,
+    // M12.2: Auto-Sessions tragen einen isAuto-Flag, damit der Dashboard-
+    // Flow sie konsistent markieren kann (gleiche Konstante wie Timeline).
+    val isAuto: Boolean = false
 )
 
 data class FlowGap(

@@ -44,5 +44,8 @@ data class PlaceGeofence(
     @ColumnInfo(name = "category_id") val categoryId: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
-    @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null
+    @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null,
+    // M11: Automatisierungsregeln — optional, pro Geofence konfigurierbar
+    @ColumnInfo(name = "auto_start_activity_type_id") val autoStartActivityTypeId: String? = null,
+    @ColumnInfo(name = "auto_stop_enabled", defaultValue = "0") val autoStopEnabled: Boolean = false
 ) : Serializable

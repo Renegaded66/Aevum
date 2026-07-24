@@ -17,7 +17,8 @@ import java.io.Serializable
         Index(value = ["source_type", "start_at"]),
         Index(value = ["deleted_at", "start_at"]),
         Index("source_candidate_id"),
-        Index("supersedes_session_id")
+        Index("supersedes_session_id"),
+        Index("session_status")
     ],
     foreignKeys = [
         ForeignKey(
@@ -59,6 +60,7 @@ data class ActivitySession(
     @ColumnInfo(name = "created_by") val createdBy: String = "MANUAL",
     @ColumnInfo(name = "updated_by") val updatedBy: String? = null,
     @ColumnInfo(name = "source_candidate_id") val sourceCandidateId: String? = null,
+    @ColumnInfo(name = "source_trigger_id") val sourceTriggerId: String? = null,
     @ColumnInfo(name = "supersedes_session_id") val supersedesSessionId: String? = null,
     val confidence: Float = 1.0f,
     @ColumnInfo(name = "is_user_edited") val isUserEdited: Boolean = false,
@@ -66,5 +68,34 @@ data class ActivitySession(
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null,
     val revision: Int = 1,
-    @ColumnInfo(name = "origin_device_id") val originDeviceId: String? = null
-) : Serializable
+    @ColumnInfo(name = "origin_device_id") val originDeviceId: String? = null,
+    // M9: Live Activity Recording
+    @ColumnInfo(name = "session_status", defaultValue = "FINISHED") val sessionStatus: String = "FINISHED",
+    @ColumnInfo(name = "total_paused_ms", defaultValue = "0") val totalPausedMs: Long = 0L,
+    @ColumnInfo(name = "current_pause_started_at") val currentPauseStartedAt: Long? = null,
+    @ColumnInfo(name = "pause_segments_json") val pauseSegmentsJson: String? = null,
+    @ColumnInfo(name = "note") val note: String? = null
+) : Serializable {
+    /** Is this session currently running or paused (i.e. not finished)? */
+    val isLive: Boolean get() = sessionStatus == "RUNNING" || sessionStatus == "PAUSED"
+    val isRunning: Boolean get() = sessionStatus == "RUNNING"
+    val isPaused: Boolean get() = sessionStatus == "PAUSED"
+
+    /** Effective paused ms including current pause if paused right now. */
+    fun effectivePausedMs(now: Long = System.currentTimeMillis()): Long {
+        val base = totalPausedMs
+        val current = if (isPaused && currentPauseStartedAt != null) (now - currentPauseStartedAt) else 0L
+        return base + current
+    }
+
+    /** Total wall-clock duration from start to end (or now). */
+    fun totalDurationMs(now: Long = System.currentTimeMillis()): Long {
+        val end = endAt ?: now
+        return (end - startAt).coerceAtLeast(0L)
+    }
+
+    /** Active (non-paused) duration. */
+    fun activeDurationMs(now: Long = System.currentTimeMillis()): Long {
+        return (totalDurationMs(now) - effectivePausedMs(now)).coerceAtLeast(0L)
+    }
+}

@@ -27,6 +27,28 @@ object TimeFormatting {
 
     fun formatDate(date: LocalDate): String = date.format(dateFormatter)
 
+    /**
+     * M12.1.1: Smart date+time label for trigger events.
+     * - Heute: "Heute 08:41"
+     * - Gestern: "Gestern 18:22"
+     * - Andere Tage: "Fr, 24.07. 08:41" (Wochentag-Kurz + dd.MM. + Zeit)
+     */
+    fun formatSmartDateTime(millis: Long, zoneId: ZoneId = ZoneId.systemDefault()): String {
+        val zdt = Instant.ofEpochMilli(millis).atZone(zoneId)
+        val date = zdt.toLocalDate()
+        val today = LocalDate.now(zoneId)
+        val time = zdt.toLocalTime().format(timeFormatter)
+        return when (date) {
+            today -> "Heute $time"
+            today.minusDays(1) -> "Gestern $time"
+            else -> {
+                val dow = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.GERMAN)
+                val dayMonth = "%02d.%02d.".format(date.dayOfMonth, date.monthValue)
+                "$dow, $dayMonth $time"
+            }
+        }
+    }
+
     fun formatDayTitle(date: LocalDate, today: LocalDate = LocalDate.now()): String = when (date) {
         today -> "Heute"
         today.minusDays(1) -> "Gestern"

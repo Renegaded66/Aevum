@@ -33,6 +33,12 @@ class ActivityRepositoryImpl(
     override fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getByActivityTypeAndDateRange(typeId, start, end)
     override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = activityDao.getBySourceType(sourceType)
     override fun getCurrentActiveSession(): Flow<ActivitySession?> = activityDao.getCurrentActiveSession()
+    // M9: Live Activity
+    override fun getLiveSession(): Flow<ActivitySession?> = activityDao.getLiveSession()
+    override suspend fun updateStatus(id: String, status: String) = activityDao.updateStatus(id, status, System.currentTimeMillis())
+    override suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?) = activityDao.updatePauseState(id, status, pauseStartedAt, System.currentTimeMillis())
+    override suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?) = activityDao.finishSession(id, endAt, totalPausedMs, pauseSegmentsJson, System.currentTimeMillis())
+    override suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?) = activityDao.updatePauseData(id, totalPausedMs, pauseSegmentsJson, System.currentTimeMillis())
     override fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?> = activityDao.getBySourceCandidateId(candidateId)
     override fun getById(id: String): Flow<ActivitySession?> = activityDao.getById(id)
     override suspend fun insert(session: ActivitySession) = activityDao.insert(session)
@@ -70,6 +76,9 @@ class ActivityTypeRepositoryImpl(
     override fun getById(id: String): Flow<ActivityType?> = typeDao.getById(id)
     override fun getSystemTypes(): Flow<List<ActivityType>> = typeDao.getSystemTypes()
     override fun getAll(): Flow<List<ActivityType>> = typeDao.getAll()
+    // M9.2: Favorites
+    override fun getFavorites(): Flow<List<ActivityType>> = typeDao.getFavorites()
+    override suspend fun setFavorite(id: String, isFavorite: Boolean) = typeDao.setFavorite(id, isFavorite)
     override suspend fun insert(type: ActivityType) = typeDao.insert(type)
     override suspend fun insertAll(types: List<ActivityType>) = typeDao.insertAll(types)
     override suspend fun update(type: ActivityType) = typeDao.update(type)

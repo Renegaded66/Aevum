@@ -14,6 +14,6 @@ data class AutomationSettings(
     @ColumnInfo(name = "battery_saver_mode") val batterySaverMode: Boolean = true,
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
     // M8: Per-source toggles
-    @ColumnInfo(name = "health_sleep_enabled") val healthSleepEnabled: Boolean = false,
-    @ColumnInfo(name = "digital_balance_enabled") val digitalBalanceEnabled: Boolean = false
+    @ColumnInfo(name = "health_sleep_enabled", defaultValue = "0") val healthSleepEnabled: Boolean = false,
+    @ColumnInfo(name = "digital_balance_enabled", defaultValue = "0") val digitalBalanceEnabled: Boolean = false
 ) : Serializable

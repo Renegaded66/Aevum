@@ -1,6 +1,5 @@
 package de.devondroste.aevum.data.db
 
-import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -37,7 +36,7 @@ import de.devondroste.aevum.data.model.*
         ActivityAggregateDay::class,
         GeofenceEventLogEntry::class
     ],
-    version = 6,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -66,8 +65,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun activityAggregateDayDao(): ActivityAggregateDayDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -85,8 +82,7 @@ abstract class AppDatabase : RoomDatabase() {
                         updated_at INTEGER NOT NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_data_source_type ON data_source(type)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_data_source_enabled ON data_source(enabled)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_data_source_type` ON `data_source` (`type`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS raw_source_event (
@@ -105,9 +101,9 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(source_id) REFERENCES data_source(id) ON DELETE CASCADE
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_raw_source_observed ON raw_source_event(source_id, observed_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_raw_processed ON raw_source_event(processed_at)")
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_source_external ON raw_source_event(source_id, external_id) WHERE external_id IS NOT NULL")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_raw_source_event_source_id_observed_at` ON `raw_source_event` (`source_id`, `observed_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_raw_source_event_processed_at` ON `raw_source_event` (`processed_at`)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_raw_source_event_source_id_external_id` ON `raw_source_event` (`source_id`, `external_id`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS detection_event (
@@ -126,9 +122,10 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(place_id) REFERENCES place_geofence(id) ON DELETE SET NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_detection_kind_time ON detection_event(kind, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_detection_source_time ON detection_event(source_id, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_detection_raw_event ON detection_event(raw_event_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_kind_start_at` ON `detection_event` (`kind`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_source_id_start_at` ON `detection_event` (`source_id`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_raw_event_id` ON `detection_event` (`raw_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_place_id` ON `detection_event` (`place_id`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS activity_type (
@@ -140,8 +137,8 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(default_category_id) REFERENCES category(id) ON DELETE SET NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_type_system ON activity_type(is_system)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_activity_type_category ON activity_type(default_category_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_type_is_system` ON `activity_type` (`is_system`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_type_default_category_id` ON `activity_type` (`default_category_id`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS activity_candidate (
@@ -158,14 +155,18 @@ abstract class AppDatabase : RoomDatabase() {
                         created_at INTEGER NOT NULL,
                         resolved_at INTEGER,
                         resolved_session_id TEXT,
+                        source_candidate_id TEXT,
                         FOREIGN KEY(suggested_category_id) REFERENCES category(id) ON DELETE SET NULL,
                         FOREIGN KEY(activity_type_id) REFERENCES activity_type(id) ON DELETE SET NULL,
                         FOREIGN KEY(resolved_session_id) REFERENCES activity_session(id) ON DELETE SET NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_status_time ON activity_candidate(status, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_type_time ON activity_candidate(activity_type_id, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_candidate_resolved ON activity_candidate(resolved_session_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_status_created_at` ON `activity_candidate` (`status`, `created_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_activity_type_id` ON `activity_candidate` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_resolved_session_id` ON `activity_candidate` (`resolved_session_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_start_at_end_at` ON `activity_candidate` (`start_at`, `end_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_suggested_category_id` ON `activity_candidate` (`suggested_category_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_source_candidate_id` ON `activity_candidate` (`source_candidate_id`)")
 
 
                 database.execSQL("""
@@ -196,13 +197,14 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(supersedes_session_id) REFERENCES activity_session(id) ON DELETE SET NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_start ON activity_session(start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_end ON activity_session(end_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_category_start ON activity_session(category_id, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_type_start ON activity_session(activity_type_id, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_deleted_start ON activity_session(deleted_at, start_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_source_candidate ON activity_session(source_candidate_id)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_supersedes ON activity_session(supersedes_session_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_start_at` ON `activity_session` (`start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_end_at` ON `activity_session` (`end_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_category_id_start_at` ON `activity_session` (`category_id`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_activity_type_id_start_at` ON `activity_session` (`activity_type_id`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_source_type_start_at` ON `activity_session` (`source_type`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_deleted_at_start_at` ON `activity_session` (`deleted_at`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_source_candidate_id` ON `activity_session` (`source_candidate_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_supersedes_session_id` ON `activity_session` (`supersedes_session_id`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS activity_session_change (
@@ -219,9 +221,9 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(source_candidate_id) REFERENCES activity_candidate(id) ON DELETE SET NULL
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_change_session_time ON activity_session_change(session_id, changed_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_change_type_time ON activity_session_change(change_type, changed_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_session_change_source_candidate ON activity_session_change(source_candidate_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_change_session_id_changed_at` ON `activity_session_change` (`session_id`, `changed_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_change_change_type_changed_at` ON `activity_session_change` (`change_type`, `changed_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_change_source_candidate_id` ON `activity_session_change` (`source_candidate_id`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS session_evidence (
@@ -237,30 +239,9 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(detection_event_id) REFERENCES detection_event(id) ON DELETE CASCADE
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_evidence_session ON session_evidence(session_id)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_evidence_candidate ON session_evidence(candidate_id)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_evidence_detection ON session_evidence(detection_event_id)")
-
-                database.execSQL("""
-                    CREATE TABLE IF NOT EXISTS raw_source_event (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        source_id TEXT NOT NULL,
-                        external_id TEXT,
-                        event_type TEXT NOT NULL,
-                        observed_at INTEGER NOT NULL,
-                        start_at INTEGER,
-                        end_at INTEGER,
-                        timezone_id TEXT,
-                        payload_json TEXT NOT NULL,
-                        schema_version INTEGER NOT NULL DEFAULT 1,
-                        ingested_at INTEGER NOT NULL,
-                        processed_at INTEGER,
-                        FOREIGN KEY(source_id) REFERENCES data_source(id) ON DELETE CASCADE
-                    )
-                """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_raw_source_observed ON raw_source_event(source_id, observed_at)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_raw_processed ON raw_source_event(processed_at)")
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_source_external ON raw_source_event(source_id, external_id) WHERE external_id IS NOT NULL")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_session_evidence_session_id_detection_event_id` ON `session_evidence` (`session_id`, `detection_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_session_evidence_candidate_id_detection_event_id` ON `session_evidence` (`candidate_id`, `detection_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_session_evidence_detection_event_id` ON `session_evidence` (`detection_event_id`)")
 
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS activity_aggregate_day (
@@ -275,10 +256,11 @@ abstract class AppDatabase : RoomDatabase() {
                         PRIMARY KEY (date, timezone_id)
                     )
                 """.trimIndent())
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_aggregate_date ON activity_aggregate_day(date)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_aggregate_category ON activity_aggregate_day(category_id)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_aggregate_type ON activity_aggregate_day(activity_type_id)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS idx_aggregate_tag ON activity_aggregate_day(tag_id)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_date` ON `activity_aggregate_day` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_timezone_id` ON `activity_aggregate_day` (`timezone_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_category_id` ON `activity_aggregate_day` (`category_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_activity_type_id` ON `activity_aggregate_day` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_tag_id` ON `activity_aggregate_day` (`tag_id`)")
 
                 // Seed default data sources
                 database.execSQL("""
@@ -455,6 +437,269 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M9: Live Activity Recording — extend activity_session with live status fields
+                database.execSQL("ALTER TABLE activity_session ADD COLUMN session_status TEXT NOT NULL DEFAULT 'FINISHED'")
+                database.execSQL("ALTER TABLE activity_session ADD COLUMN total_paused_ms INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE activity_session ADD COLUMN current_pause_started_at INTEGER")
+                database.execSQL("ALTER TABLE activity_session ADD COLUMN pause_segments_json TEXT")
+                database.execSQL("ALTER TABLE activity_session ADD COLUMN note TEXT")
+                // Index for quickly finding the active live session
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_session_status` ON `activity_session` (`session_status`)")
+                // Migrate existing open sessions (end_at IS NULL) to RUNNING
+                database.execSQL("UPDATE activity_session SET session_status = 'RUNNING' WHERE end_at IS NULL AND deleted_at IS NULL")
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M11: add optional automation rules to place_geofence
+                database.execSQL("ALTER TABLE place_geofence ADD COLUMN auto_start_activity_type_id TEXT")
+                database.execSQL("ALTER TABLE place_geofence ADD COLUMN auto_stop_enabled INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M12.1: add source_trigger_id to activity_session for auto-start traceability
+                database.execSQL("ALTER TABLE activity_session ADD COLUMN source_trigger_id TEXT")
+            }
+        }
+
+        /**
+         * M12.0.2: Bereinigt alle veralteten idx_* Indizes, die von der
+         * ursprünglichen MIGRATION_1_2 (vor der Korrektur) erstellt wurden.
+         *
+         * Auf Bestandsgeräten, die von v1 bis v12 migriert wurden, existieren
+         * noch Indizes mit dem alten idx_* Namensschema. Room's Schema-Validierung
+         * bei v12 erwartet jedoch index_* Namen (index_<table>_<col>).
+         *
+         * Da die idx_* Indizes nicht mit DROP INDEX IF EXISTS in späteren
+         * Migrationen bereinigt wurden, persistieren sie bis v12 und führen
+         * zu einer IllegalStateException beim ersten DB-Zugriff.
+         *
+         * Diese Migration droppt alle bekannten idx_* Indizes, die von der
+         * ursprünglichen MIGRATION_1_2 erstellt wurden. Die korrekten
+         * index_* Indizes werden von Room automatisch beim Validieren
+         * der v13-Schema-Erwartung erstellt (falls sie fehlen).
+         *
+         * Zusätzlich wird der Index idx_session_status gedroppt, der von
+         * MIGRATION_6_7 (vor M9.0.1 Korrektur) erstellt wurde.
+         */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // === data_source ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_data_source_type`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_data_source_enabled`")
+
+                // === raw_source_event ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_raw_source_observed`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_raw_processed`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_raw_source_external`")
+
+                // === detection_event ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_detection_kind_time`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_detection_source_time`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_detection_raw_event`")
+
+                // === activity_type ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_activity_type_system`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_activity_type_category`")
+
+                // === activity_candidate ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_candidate_status_time`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_candidate_type_time`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_candidate_resolved`")
+
+                // === activity_session ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_start`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_end`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_category_start`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_type_start`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_deleted_start`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_source_candidate`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_supersedes`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_status`")
+
+                // === activity_session_change ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_change_session_time`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_change_type_time`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_session_change_source_candidate`")
+
+                // === session_evidence ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_evidence_session`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_evidence_candidate`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_evidence_detection`")
+
+                // === activity_aggregate_day ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_aggregate_date`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_aggregate_category`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_aggregate_type`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_aggregate_tag`")
+
+                // === geofence_event_log ===
+                database.execSQL("DROP INDEX IF EXISTS `idx_geofence_event_log_occurred_at`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_geofence_event_log_category`")
+                database.execSQL("DROP INDEX IF EXISTS `idx_geofence_event_log_event_type`")
+
+                // === place_geofence: auto_stop_enabled DEFAULT-Mismatch reparieren ===
+                // M12.0.2: v11 hat auto_stop_enabled als NOT NULL ohne DEFAULT.
+                // v12/v13 erwartet DEFAULT 0. SQLite kann den DEFAULT nicht per
+                // ALTER TABLE ändern — die Tabelle muss neu erstellt werden.
+                database.execSQL("DROP INDEX IF EXISTS `index_place_geofence_enabled`")
+                database.execSQL("DROP INDEX IF EXISTS `index_place_geofence_category_id`")
+                database.execSQL("DROP INDEX IF EXISTS `index_place_geofence_activity_type_id`")
+                database.execSQL("DROP INDEX IF EXISTS `index_place_geofence_deleted_at`")
+                database.execSQL("DROP INDEX IF EXISTS `index_place_geofence_latitude_longitude`")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS place_geofence_fixed (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        latitude REAL NOT NULL,
+                        longitude REAL NOT NULL,
+                        radius_meters REAL NOT NULL,
+                        icon TEXT NOT NULL,
+                        color TEXT NOT NULL,
+                        enabled INTEGER NOT NULL,
+                        activity_type_id TEXT,
+                        category_id TEXT,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        deleted_at INTEGER,
+                        auto_start_activity_type_id TEXT,
+                        auto_stop_enabled INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(category_id) REFERENCES category(id) ON DELETE SET NULL,
+                        FOREIGN KEY(activity_type_id) REFERENCES activity_type(id) ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT INTO place_geofence_fixed (
+                        id, name, latitude, longitude, radius_meters, icon, color, enabled,
+                        activity_type_id, category_id, created_at, updated_at, deleted_at,
+                        auto_start_activity_type_id, auto_stop_enabled
+                    )
+                    SELECT
+                        id, name, latitude, longitude, radius_meters, icon, color, enabled,
+                        activity_type_id, category_id, created_at, updated_at, deleted_at,
+                        auto_start_activity_type_id, COALESCE(auto_stop_enabled, 0)
+                    FROM place_geofence
+                """.trimIndent())
+                database.execSQL("DROP TABLE place_geofence")
+                database.execSQL("ALTER TABLE place_geofence_fixed RENAME TO place_geofence")
+
+                // place_geofence Indizes nach Neu-Erstellung
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_place_geofence_enabled` ON `place_geofence` (`enabled`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_place_geofence_category_id` ON `place_geofence` (`category_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_place_geofence_activity_type_id` ON `place_geofence` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_place_geofence_deleted_at` ON `place_geofence` (`deleted_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_place_geofence_latitude_longitude` ON `place_geofence` (`latitude`, `longitude`)")
+
+                // Stelle sicher, dass alle korrekten index_* Indizes existieren.
+                // Room erstellt fehlende Indizes bei der Schema-Validierung nicht
+                // automatisch — wir müssen sie explizit anlegen.
+                // activity_session
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_start_at` ON `activity_session` (`start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_end_at` ON `activity_session` (`end_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_category_id_start_at` ON `activity_session` (`category_id`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_activity_type_id_start_at` ON `activity_session` (`activity_type_id`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_source_type_start_at` ON `activity_session` (`source_type`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_deleted_at_start_at` ON `activity_session` (`deleted_at`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_source_candidate_id` ON `activity_session` (`source_candidate_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_supersedes_session_id` ON `activity_session` (`supersedes_session_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_session_status` ON `activity_session` (`session_status`)")
+
+                // activity_candidate
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_start_at_end_at` ON `activity_candidate` (`start_at`, `end_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_status_created_at` ON `activity_candidate` (`status`, `created_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_resolved_session_id` ON `activity_candidate` (`resolved_session_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_suggested_category_id` ON `activity_candidate` (`suggested_category_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_activity_type_id` ON `activity_candidate` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_candidate_source_candidate_id` ON `activity_candidate` (`source_candidate_id`)")
+
+                // data_source
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_data_source_type` ON `data_source` (`type`)")
+
+                // raw_source_event
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_raw_source_event_source_id_observed_at` ON `raw_source_event` (`source_id`, `observed_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_raw_source_event_processed_at` ON `raw_source_event` (`processed_at`)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_raw_source_event_source_id_external_id` ON `raw_source_event` (`source_id`, `external_id`)")
+
+                // detection_event
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_kind_start_at` ON `detection_event` (`kind`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_source_id_start_at` ON `detection_event` (`source_id`, `start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_raw_event_id` ON `detection_event` (`raw_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detection_event_place_id` ON `detection_event` (`place_id`)")
+
+                // activity_type
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_type_is_system` ON `activity_type` (`is_system`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_type_default_category_id` ON `activity_type` (`default_category_id`)")
+
+                // activity_session_change
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_change_session_id_changed_at` ON `activity_session_change` (`session_id`, `changed_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_change_change_type_changed_at` ON `activity_session_change` (`change_type`, `changed_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_change_source_candidate_id` ON `activity_session_change` (`source_candidate_id`)")
+
+                // session_evidence
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_session_evidence_session_id_detection_event_id` ON `session_evidence` (`session_id`, `detection_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_session_evidence_candidate_id_detection_event_id` ON `session_evidence` (`candidate_id`, `detection_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_session_evidence_detection_event_id` ON `session_evidence` (`detection_event_id`)")
+
+                // activity_aggregate_day
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_date` ON `activity_aggregate_day` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_timezone_id` ON `activity_aggregate_day` (`timezone_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_category_id` ON `activity_aggregate_day` (`category_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_activity_type_id` ON `activity_aggregate_day` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_aggregate_day_tag_id` ON `activity_aggregate_day` (`tag_id`)")
+
+                // geofence_event_log
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_geofence_event_log_occurred_at` ON `geofence_event_log`(`occurred_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_geofence_event_log_category` ON `geofence_event_log`(`category`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_geofence_event_log_event_type` ON `geofence_event_log`(`event_type`)")
+
+                // trigger_event
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trigger_event_occurred_at` ON `trigger_event`(`occurred_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trigger_event_type_occurred_at` ON `trigger_event`(`type`, `occurred_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trigger_event_source_occurred_at` ON `trigger_event`(`source`, `occurred_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trigger_event_geofence_id` ON `trigger_event`(`geofence_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trigger_event_detection_event_id` ON `trigger_event`(`detection_event_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_trigger_event_anchor_quality` ON `trigger_event`(`anchor_quality`)")
+
+                // M12.0.2: activity_recognition DataSource seeden.
+                // ActivityRecognitionWorker fügt RawSourceEvents mit sourceId="activity_recognition"
+                // ein. Ohne diesen Eintrag verletzt das die FK-Constraint.
+                database.execSQL("""
+                    INSERT OR IGNORE INTO data_source (id, type, name, enabled, permission_state, created_at, updated_at)
+                    VALUES ('activity_recognition', 'ANDROID_API', 'Activity Recognition', 1, 'UNKNOWN', ${System.currentTimeMillis()}, ${System.currentTimeMillis()})
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M10.1: Add trigger quality + suppressed count for anchor-aware
+                // session creation. Defaults ensure existing rows are valid.
+                database.execSQL("ALTER TABLE trigger_event ADD COLUMN anchor_quality TEXT NOT NULL DEFAULT 'MEDIUM'")
+                database.execSQL("ALTER TABLE trigger_event ADD COLUMN suppressed_count INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_trigger_event_anchor_quality ON trigger_event(anchor_quality)")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M9.2: Add favorite flag to activity_type
+                database.execSQL("ALTER TABLE activity_type ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M9.0.1: Repair index name from M9 (idx_session_status → Room-expected name)
+                database.execSQL("DROP INDEX IF EXISTS idx_session_status")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_session_status` ON `activity_session` (`session_status`)")
+            }
+        }
+
         private fun ensurePlaceGeofenceV3(database: SupportSQLiteDatabase) {
             database.execSQL("""
                 CREATE TABLE IF NOT EXISTS place_geofence (
@@ -545,20 +790,6 @@ abstract class AppDatabase : RoomDatabase() {
                 }
             }
             database.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
-        }
-
-        fun getDatabase(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "aevum_database"
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .build()
-                INSTANCE = instance
-                instance
-            }
         }
     }
 }

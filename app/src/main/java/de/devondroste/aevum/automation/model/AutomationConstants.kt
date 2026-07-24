@@ -6,6 +6,12 @@ object AutomationConstants {
     const val DETECTION_GEOFENCE_ENTER = "GEOFENCE_ENTER"
     const val DETECTION_GEOFENCE_EXIT = "GEOFENCE_EXIT"
 
+    // M12.2: Activity Recognition — Fahrten-Erkennung.
+    // IN_VEHICLE ist die einzige Detection, die wir aus Activity Recognition
+    // verarbeiten. Andere Typen (STILL, ON_FOOT, …) sind zu unzuverlässig
+    // und würden die User-Experience mit False-Positives belasten.
+    const val DETECTION_ACTIVITY_RECOGNITION_IN_VEHICLE = "ACTIVITY_RECOGNITION_IN_VEHICLE"
+
     const val TRIGGER_GEOFENCE_ENTER = "GEOFENCE_ENTER"
     const val TRIGGER_GEOFENCE_EXIT = "GEOFENCE_EXIT"
     const val TRIGGER_HOME_ARRIVED = "HOME_ARRIVED"

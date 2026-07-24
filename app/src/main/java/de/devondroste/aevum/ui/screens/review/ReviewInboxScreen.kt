@@ -279,70 +279,209 @@ private fun ReviewCandidateCard(
         onClick = if (multiSelectMode) onToggleSelect else null,
         onLongClick = onLongPress
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+        if (candidate.activityTypeId.equals("sleep", ignoreCase = true)) {
+            // M10: dedicated premium layout for sleep candidates
+            SleepReviewBody(
+                candidate = candidate,
+                multiSelectMode = multiSelectMode,
+                isSelected = isSelected,
+                color = color,
+                onToggleSelect = onToggleSelect,
+                onAccept = onAccept,
+                onDismiss = onDismiss,
+                onEdit = onEdit
+            )
+        } else {
+            // Generic review body
+            GenericReviewBody(
+                candidate = candidate,
+                multiSelectMode = multiSelectMode,
+                isSelected = isSelected,
+                color = color,
+                onToggleSelect = onToggleSelect,
+                onAccept = onAccept,
+                onDismiss = onDismiss,
+                onEdit = onEdit
+            )
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun SleepReviewBody(
+    candidate: ActivityCandidate,
+    multiSelectMode: Boolean,
+    isSelected: Boolean,
+    color: androidx.compose.ui.graphics.Color,
+    onToggleSelect: () -> Unit,
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit
+) {
+    val durationMs = (candidate.endAt - candidate.startAt).coerceAtLeast(0)
+    val hours = durationMs / 3_600_000
+    val minutes = (durationMs % 3_600_000) / 60_000
+    val durationStr = when {
+        hours > 0 && minutes > 0 -> "${hours} h ${minutes} min"
+        hours > 0 -> "${hours} h"
+        else -> "${minutes} min"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            if (multiSelectMode) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(AevumRadius.sm)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) Text("✓", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
+                }
+            }
+            Text("🌙", fontSize = 22.sp)
+            Text(
+                "Schlaf erkannt",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 0.4.sp
+            )
+        }
+
+        // Big time + duration — premium display
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text(
+                    text = TimeFormatting.formatTime(candidate.startAt),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "–",
+                    fontSize = 24.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = TimeFormatting.formatTime(candidate.endAt),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Text(
+                text = durationStr,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Text(
+            text = candidate.reason ?: "Aus Health Connect erkannt. Bitte bestätigen.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 18.sp
+        )
+
+        if (!multiSelectMode) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Checkbox in multi-select mode
-                        if (multiSelectMode) {
-                            Box(
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceVariant,
-                                        RoundedCornerShape(AevumRadius.sm)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSelected) Text("✓", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
-                            }
-                            Spacer(Modifier.width(AevumSpacing.sm))
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Verwerfen") }
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }
+                Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text("Übernehmen") }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun GenericReviewBody(
+    candidate: ActivityCandidate,
+    multiSelectMode: Boolean,
+    isSelected: Boolean,
+    color: androidx.compose.ui.graphics.Color,
+    onToggleSelect: () -> Unit,
+    onAccept: () -> Unit,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (multiSelectMode) {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(AevumRadius.sm)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) Text("✓", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
                         }
-                        Column {
-                            Text(candidate.suggestedTitle, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                "${TimeFormatting.formatTime(candidate.startAt)} – ${TimeFormatting.formatTime(candidate.endAt)}",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
+                        Spacer(Modifier.width(AevumSpacing.sm))
                     }
-                }
-                if (!multiSelectMode) {
-                    Box(
-                        modifier = Modifier
-                            .padding(start = AevumSpacing.sm)
-                            .background(color.copy(alpha = 0.14f), RoundedCornerShape(AevumRadius.full))
-                            .padding(horizontal = AevumSpacing.sm, vertical = 4.dp)
-                    ) {
-                        Text("${(candidate.confidence * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = color)
+                    Column {
+                        Text(candidate.suggestedTitle, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "${TimeFormatting.formatTime(candidate.startAt)} – ${TimeFormatting.formatTime(candidate.endAt)}",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = FontFamily.Monospace
+                        )
                     }
                 }
             }
-
-            Text(
-                text = candidate.reason ?: "Automatischer Vorschlag aus deinen lokalen Signalen.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 18.sp
-            )
-
-            // Actions (hidden in multi-select mode)
             if (!multiSelectMode) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                Box(
+                    modifier = Modifier
+                        .padding(start = AevumSpacing.sm)
+                        .background(color.copy(alpha = 0.14f), RoundedCornerShape(AevumRadius.full))
+                        .padding(horizontal = AevumSpacing.sm, vertical = 4.dp)
                 ) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Verwerfen") }
-                    OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }
-                    Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text("Übernehmen") }
+                    Text("${(candidate.confidence * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = color)
                 }
+            }
+        }
+
+        Text(
+            text = candidate.reason ?: "Automatischer Vorschlag aus deinen lokalen Signalen.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 18.sp
+        )
+
+        if (!multiSelectMode) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Verwerfen") }
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }
+                Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text("Übernehmen") }
             }
         }
     }

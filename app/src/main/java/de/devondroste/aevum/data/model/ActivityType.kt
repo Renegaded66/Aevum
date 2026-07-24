@@ -24,5 +24,7 @@ data class ActivityType(
     val name: String,
     @ColumnInfo(name = "default_category_id") val defaultCategoryId: String? = null,
     @ColumnInfo(name = "is_system") val isSystem: Boolean = true,
-    @ColumnInfo(name = "properties_json") val propertiesJson: String? = null
+    @ColumnInfo(name = "properties_json") val propertiesJson: String? = null,
+    // M9.2: Favorites — simple boolean, no priority, no order, no groups
+    @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false
 ) : Serializable

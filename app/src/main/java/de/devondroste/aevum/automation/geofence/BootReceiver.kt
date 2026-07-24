@@ -25,8 +25,27 @@ class BootReceiver : BroadcastReceiver() {
     @Inject lateinit var debugLogger: GeofenceDebugLogger
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        debugLogger.log("BOOT", "Gerät gestartet — registriere Geofences neu")
+        // M9.2: listen to all reliable boot signals (Locked Boot fires before
+        // the user unlocks, MY_PACKAGE_REPLACED fires on app updates)
+        when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_LOCKED_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            "android.intent.action.QUICKBOOT_POWERON" -> {
+                debugLogger.log("BOOT", "Trigger ${intent.action} — registriere Geofences neu")
+                handleBoot(context)
+            }
+            else -> return
+        }
+    }
+
+    private fun handleBoot(context: Context) {
+        // M9.2: Ensure foreground service is up so geofences can fire reliably on Android 14+
+        try {
+            GeofenceForegroundService.start(context)
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "ForegroundService start failed: ${e.message}")
+        }
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 when (val result = registrar.refreshRegisteredGeofences()) {

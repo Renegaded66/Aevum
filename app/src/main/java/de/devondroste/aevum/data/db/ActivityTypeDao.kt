@@ -19,6 +19,13 @@ interface ActivityTypeDao {
     @Query("SELECT * FROM activity_type ORDER BY name")
     fun getAll(): Flow<List<ActivityType>>
 
+    // M9.2: Favorites
+    @Query("SELECT * FROM activity_type WHERE is_favorite = 1 ORDER BY name")
+    fun getFavorites(): Flow<List<ActivityType>>
+
+    @Query("UPDATE activity_type SET is_favorite = :isFavorite WHERE id = :id")
+    suspend fun setFavorite(id: String, isFavorite: Boolean)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(type: ActivityType)
 

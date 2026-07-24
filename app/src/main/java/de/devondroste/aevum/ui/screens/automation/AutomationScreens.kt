@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -37,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.compose.currentBackStackEntryAsState
 import de.devondroste.aevum.automation.geofence.GeofenceDebugLogger
 import de.devondroste.aevum.data.model.PlaceGeofence
 import de.devondroste.aevum.data.model.TriggerEvent
@@ -60,6 +64,10 @@ import de.devondroste.aevum.ui.theme.AevumSpacing
 // AutomationSettingsScreen (M8.1: UX-polished)
 // ══════════════════════════════════════════════════════
 
+// M12.1: Item-Index der "Digital Balance" Karte in der Automation-Settings
+// LazyColumn (header=0, status=1, toggles=2, health=3, sleep=4, digital=5, ...).
+private const val USAGE_STATS_ITEM_INDEX = 5
+
 @Composable
 fun AutomationSettingsScreen(
     modifier: Modifier = Modifier,
@@ -69,12 +77,26 @@ fun AutomationSettingsScreen(
     viewModel: AutomationSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val isAnalyzingSleep by viewModel.isAnalyzingSleep.collectAsState()
+    val sleepStatus by viewModel.sleepStatus.collectAsState()
     val foregroundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { viewModel.refreshGeofences() }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { viewModel.refreshGeofences() }
     val context = LocalContext.current
 
+    // M12.1: Scroll-zu-UsageStats-Signal aus dem Dashboard.
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scrollToUsage = AutomationScrollSignal.consumeScrollToUsage()
+    LaunchedEffect(scrollToUsage) {
+        if (scrollToUsage) {
+            // USAGE_STATS_ITEM_INDEX = 5 (Digital-Balance-Block)
+            // animateScrollToItem kappt sicher, wenn der Index out-of-range ist.
+            listState.animateScrollToItem(USAGE_STATS_ITEM_INDEX)
+        }
+    }
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
@@ -97,11 +119,13 @@ fun AutomationSettingsScreen(
                         StatusLine("Standort", state.foregroundLocationGranted)
                         StatusLine("Hintergrundstandort", state.backgroundLocationGranted)
                         StatusLine("Benachrichtigungen", state.notificationsGranted)
-                    }
-                    Spacer(Modifier.height(AevumSpacing.sm))
-                    Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Button(onClick = onOpenStatus) { Text("Status-Details") }
-                        OutlinedButton(onClick = { viewModel.refreshGeofences() }) { Text("Jetzt prüfen") }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(onClick = onOpenStatus) { Text("Status-Details") }
+                            OutlinedButton(onClick = { viewModel.refreshGeofences() }) { Text("Jetzt prüfen") }
+                        }
                     }
                 }
             }
@@ -119,6 +143,44 @@ fun AutomationSettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         Text("Health Connect", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         SettingSwitch("Schlaf automatisch erkennen", "Aus Health Connect importieren", state.settings.healthSleepEnabled, viewModel::setHealthSleep)
+                    }
+                }
+            }
+            // M13: Schlaf ohne Health Connect — Bildschirm-Muster Heuristik.
+            // Funktioniert auf jedem Android-Gerät, ist deutlich weniger genau als
+            // Health Connect, liefert aber eine echte Schlaf-Schätzung.
+            item {
+                AevumCard(variant = CardVariant.Gradient) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Text("Schlaf aus Bildschirm-Muster", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Aevum erkennt Schlaf aus Screen-On/Off-Zeiten, wenn Health Connect nicht verfügbar ist. " +
+                            "Die Vorschläge landen in der Review-Inbox mit niedriger Confidence — du bestätigst sie selbst.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = { viewModel.analyzeSleepNow() },
+                                enabled = !isAnalyzingSleep
+                            ) {
+                                if (isAnalyzingSleep) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(Modifier.size(8.dp))
+                                    Text("Analysiere…")
+                                } else {
+                                    Text("Jetzt analysieren")
+                                }
+                            }
+                            OutlinedButton(onClick = { viewModel.openSleepStatus() }) { Text("Status") }
+                        }
                     }
                 }
             }
@@ -173,6 +235,14 @@ fun AutomationSettingsScreen(
                 }
             }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
+        }
+
+        // M12.1: Sleep-Status Dialog
+        sleepStatus?.let { status ->
+            SleepStatusDialog(
+                status = status,
+                onDismiss = { viewModel.dismissSleepStatus() }
+            )
         }
     }
 }
@@ -431,6 +501,75 @@ fun GeofenceEditorScreen(
                     }
                 }
             }
+
+            // M11+: Automation section — proper, clear UI.
+            // Lets the user pick:
+            //  - Whether to auto-start anything when entering
+            //  - Which activity type to start (separate from the "default" type)
+            //  - Whether to auto-stop on exit
+            item {
+                AevumCard(variant = CardVariant.Gradient) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Automatisierung", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Beim Betreten automatisch starten",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(state.form.autoEnabled, viewModel::setAutoEnabled)
+                        }
+                        if (state.form.autoEnabled) {
+                            // P3: Drei typische Presets, die das UX vereinfachen.
+                            // "Kein Timer" = gar nicht erst starten (Zuhause use-case).
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                            ) {
+                                FilterChip(
+                                    selected = state.form.autoStartActivityTypeId == null,
+                                    onClick = { viewModel.setAutoStartActivityTypeId(null) },
+                                    label = { Text("Nichts starten") }
+                                )
+                                state.activityTypes.take(6).forEach { type ->
+                                    FilterChip(
+                                        selected = state.form.autoStartActivityTypeId == type.id,
+                                        onClick = { viewModel.setAutoStartActivityTypeId(type.id) },
+                                        label = { Text(type.name) }
+                                    )
+                                }
+                            }
+                            Text(
+                                if (state.form.autoStartActivityTypeId == null)
+                                    "Beim Betreten passiert nichts — kein Timer läuft."
+                                else
+                                    "Beim Betreten wird \"${state.activityTypes.firstOrNull { it.id == state.form.autoStartActivityTypeId }?.name ?: "gewählte Aktivität"}\" als Vorschlag gestartet.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = AevumSpacing.xs),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Beim Verlassen automatisch beenden", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Aktivität endet beim Verlassen des Geofence",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(state.form.autoStopEnabled, viewModel::setAutoStopEnabled)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -586,10 +725,18 @@ fun TriggerEventsScreen(
 private fun TriggerRow(trigger: TriggerEvent, geofenceName: String?) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-            Text(trigger.type, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text("${TimeFormatting.formatTime(trigger.occurredAt)} · ${geofenceName ?: "kein Ort"} · ${(trigger.confidence * 100).toInt()}%", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // M11.2: lesbare Beschriftung mit Geofence-Name
+            val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
+            val displayLabel = geofenceName?.let { if (isEnter) "$it betreten" else "$it verlassen" }
+                ?: trigger.type.replace('_', ' ').lowercase().replaceFirstChar { c -> c.titlecase() }
+            Text(displayLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            // M12.1.1: Datum + Zeit statt nur Zeit, damit klar ist,
+            // an welchem Tag der Trigger ausgelöst wurde.
+            Text(
+                "${TimeFormatting.formatSmartDateTime(trigger.occurredAt)} · ${(trigger.confidence * 100).toInt()}% Konfidenz",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-            trigger.metadataJson?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
@@ -705,5 +852,78 @@ private fun GeofenceRow(geofence: PlaceGeofence, onEdit: (String) -> Unit, onDel
                 OutlinedButton(onClick = { onDelete(geofence.id) }) { Text("Löschen") }
             }
         }
+    }
+}
+
+// ══════════════════════════════════════════════════════
+// M12.1: Sleep-Status Dialog
+// ══════════════════════════════════════════════════════
+
+@Composable
+private fun SleepStatusDialog(
+    status: de.devondroste.aevum.automation.sleep.SleepHeuristicStatus,
+    onDismiss: () -> Unit
+) {
+    val timeFmt = remember { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
+    val dateFmt = remember { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Schlaf-Heuristik Status") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                StatusRow(
+                    label = "Erfasste Bildschirm-Events",
+                    value = "${status.eventCount}"
+                )
+                StatusRow(
+                    label = "Letztes Display aus",
+                    value = status.lastScreenOff?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
+                )
+                StatusRow(
+                    label = "Letzte Bildschirm-Aktivität",
+                    value = status.lastScreenOn?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Text("Geschätzter Schlaf", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                StatusRow(
+                    label = "Beginn",
+                    value = status.estimatedSleepStart?.let { timeFmt.format(java.util.Date(it)) } ?: "—"
+                )
+                StatusRow(
+                    label = "Ende",
+                    value = status.estimatedSleepEnd?.let { timeFmt.format(java.util.Date(it)) } ?: "—"
+                )
+                StatusRow(
+                    label = "Confidence",
+                    value = status.estimatedConfidence?.let { "${(it * 100).toInt()}%" } ?: "—"
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Text("Zuletzt erzeugter Candidate", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                StatusRow(
+                    label = "Erstellt",
+                    value = status.lastCandidateCreatedAt?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
+                )
+                if (status.lastCandidateReason != null) {
+                    Text(
+                        status.lastCandidateReason,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Schließen") } }
+    )
+}
+
+@Composable
+private fun StatusRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
     }
 }

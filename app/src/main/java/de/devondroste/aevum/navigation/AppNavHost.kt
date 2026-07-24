@@ -39,7 +39,13 @@ fun AppNavHost(
             DashboardScreen(
                 onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
                 onOpenReview = { navController.navigate(AppDestination.ReviewInbox.route) },
-                onOpenGoals = { navController.navigate(AppDestination.Goals.route) }
+                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
+                onOpenUsageSettings = {
+                    // M12.1: Signal setzen, damit die Automation-Screen
+                    // zum UsageStats-Block scrollt, sobald sie erscheint.
+                    de.devondroste.aevum.ui.screens.automation.AutomationScrollSignal.requestScrollToUsage()
+                    navController.navigate(AppDestination.AutomationSettings.route)
+                }
             )
         }
         composable(AppDestination.Timeline.route) {
@@ -136,7 +142,13 @@ fun AppNavHost(
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
-                onOpenHabits = { navController.navigate(AppDestination.Habits.route) }
+                onOpenHabits = { navController.navigate(AppDestination.Habits.route) },
+                // M12.2: Home/Work öffnen den existierenden Geofence-Editor
+                // oder legen den Geofence direkt mit dem passenden QuickSetup an.
+                onOpenHomeGeofence = { id -> navController.navigate("geofence/edit/$id") },
+                onOpenWorkGeofence = { id -> navController.navigate("geofence/edit/$id") },
+                onCreateHomeGeofence = { navController.navigate(AppDestination.GeofenceCreateHome.route) },
+                onCreateWorkGeofence = { navController.navigate(AppDestination.GeofenceCreateWork.route) }
             )
         }
         composable(AppDestination.AutomationSettings.route) {
@@ -209,8 +221,12 @@ fun AppNavHost(
         composable(
             route = AppDestination.GoalEdit.route,
             arguments = listOf(navArgument("goalId") { type = NavType.StringType })
-        ) {
-            GoalEditorScreen(onBack = { navController.popBackStack() })
+        ) { backStackEntry ->
+            val goalId = backStackEntry.arguments?.getString("goalId")
+            GoalEditorScreen(
+                onBack = { navController.popBackStack() },
+                goalId = goalId
+            )
         }
         composable(AppDestination.Habits.route) {
             HabitsScreen(
