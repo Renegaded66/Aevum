@@ -3,6 +3,7 @@ package de.devondroste.aevum.ui.screens.timeline
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.model.ActivitySession
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -63,7 +65,15 @@ class TimelineViewModel @Inject constructor(
             ?: LocalDate.now()
     )
 
-    init { viewModelScope.launch { ensureDefaultData() } }
+    init {
+        viewModelScope.launch {
+            try {
+                ensureDefaultData()
+            } catch (e: Exception) {
+                Log.e("TimelineViewModel", "ensureDefaultData failed — continuing with defaults", e)
+            }
+        }
+    }
 
     private val timelineBase = combine(
         selectedDate,
@@ -89,7 +99,12 @@ class TimelineViewModel @Inject constructor(
     ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, tags: List<Tag>, pph: Float ->
         buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types, tags)
             .copy(pixelsPerHour = pph)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineUiState())
+    }
+        .catch { e ->
+            Log.e("TimelineViewModel", "uiState combine() failed — emitting default state", e)
+            emit(TimelineUiState())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineUiState())
 
     fun previousDay() = selectedDate.update { it.minusDays(1) }
     fun nextDay() = selectedDate.update { it.plusDays(1) }
