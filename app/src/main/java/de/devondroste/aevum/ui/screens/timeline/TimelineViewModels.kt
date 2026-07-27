@@ -16,6 +16,7 @@ import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
 import de.devondroste.aevum.data.repository.TagRepository
 import de.devondroste.aevum.data.repository.TriggerEventRepository
+import de.devondroste.aevum.automation.gap.GapDetectionEngine
 import de.devondroste.aevum.domain.automation.ReviewCandidateUseCase
 import de.devondroste.aevum.domain.activity.ManualActivityRequest
 import de.devondroste.aevum.domain.activity.SaveManualActivityResult
@@ -46,6 +47,8 @@ class TimelineViewModel @Inject constructor(
     private val candidateRepository: ActivityCandidateRepository,
     private val triggerEventRepository: TriggerEventRepository,
     private val reviewCandidateUseCase: ReviewCandidateUseCase,
+    private val gapDetectionEngine: GapDetectionEngine,
+    private val saveManualActivityUseCase: SaveManualActivityUseCase,
     categoryRepository: CategoryRepository,
     activityTypeRepository: ActivityTypeRepository,
     tagRepository: TagRepository,
@@ -114,6 +117,88 @@ class TimelineViewModel @Inject constructor(
     fun acceptCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.accept(candidateId) } }
     fun dismissCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.dismiss(candidateId) } }
 
+    /**
+     * M15: Konvertiert einen Gap-Candidate in eine echte Session mit der
+     * gewählten Category/ActivityType. Nutzt [SaveManualActivityUseCase],
+     * das gleichzeitig den Candidate-Status auf EDITED setzt — sauberer
+     * Single-Write ohne zweite Mutation.
+     *
+     * M16.4: activityTypeId ist jetzt Pflicht (statt optional), weil der
+     * User im neuen ActivityPicker eine konkrete Auswahl trifft.
+     */
+    fun convertGapToSession(candidateId: String, categoryId: String, activityTypeId: String) {
+        viewModelScope.launch {
+            try {
+                val candidate = candidateRepository.getById(candidateId).first() ?: return@launch
+                val request = ManualActivityRequest(
+                    id = null, // Neue Session anlegen
+                    sourceCandidateId = candidate.id,
+                    title = titleForCategory(categoryId, activityTypeId),
+                    categoryId = categoryId,
+                    activityTypeId = activityTypeId,
+                    tagIds = emptyList(),
+                    tags = emptyList(),
+                    startAt = candidate.startAt,
+                    endAt = candidate.endAt,
+                    timezoneId = zoneId.id,
+                    description = "Aus Gap-Detection übernommen"
+                )
+                saveManualActivityUseCase(request)
+            } catch (_: Exception) { /* defensive */ }
+        }
+    }
+
+    private fun titleForCategory(categoryId: String, activityTypeId: String?): String {
+        // M16.4: Wenn der User eine konkrete Activity gewählt hat, nimm deren
+        // Namen statt eines generischen Kategorie-Titels. Das macht die
+        // Session für den User sofort identifizierbar.
+        if (activityTypeId != null && activityTypeId in activityTypeFriendlyNames) {
+            return activityTypeFriendlyNames[activityTypeId]!!
+        }
+        // Fallback für die alten Schnellauswahl-Buttons (categoryId only)
+        return when (categoryId) {
+            "social" -> "Freunde treffen"
+            "learning" -> "Lernen"
+            "household" -> "Einkaufen"
+            "work" -> "Arbeit"
+            "leisure" -> "Freizeit"
+            "sport" -> "Bewegung"
+            "health" -> "Gesundheit"
+            "transport" -> "Unterwegs"
+            else -> "Aktivität"
+        }
+    }
+
+    private val activityTypeFriendlyNames: Map<String, String> = mapOf(
+        "work" to "Arbeit",
+        "deep_work" to "Deep Work",
+        "sleep" to "Schlaf",
+        "fitness" to "Fitness",
+        "learning" to "Lernen",
+        "reading" to "Lesen",
+        "meditation" to "Meditation",
+        "eating" to "Essen",
+        "social" to "Soziales",
+        "household" to "Haushalt",
+        "driving" to "Autofahren",
+        "transport" to "Transport",
+        "digital" to "Digital",
+        "leisure" to "Freizeit",
+        "other" to "Sonstiges"
+    )
+
+    /**
+     * M15: Manueller Trigger für die Gap-Detection. Wird vom "Lücken
+     * prüfen"-Button in der Timeline aufgerufen und läuft einmalig.
+     */
+    fun runGapDetectionNow() {
+        viewModelScope.launch {
+            try {
+                gapDetectionEngine.detectGapsForDay(selectedDate.value, zoneId)
+            } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
+
     private fun buildTimelineState(
         date: LocalDate,
         allSessions: List<ActivitySession>,
@@ -136,9 +221,33 @@ class TimelineViewModel @Inject constructor(
         //   - Schlaf-Sessions (activityTypeId == "sleep") laufen über dieselbe Pipeline
         //   - Fahrt-Candidates (activityTypeId == "driving") werden mit aufgenommen
         //     (Status ACCEPTED → Session-Eintrag, PENDING → Candidate-Marker)
+        //
+        // M16.5: Mitternacht-Clipping. Eine Session kann über zwei Tage gehen
+        // (z.B. Schlaf 23:30–08:30). Im aktuellen Tag zeigen wir nur den
+        // sichtbaren Ausschnitt [dayStart, dayEnd]. Session selbst bleibt
+        // unverändert in der DB — das Clipping ist rein für die Anzeige.
         val filteredSessions = allSessions
             .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt) }
             .sortedBy { it.startAt }
+
+        // M16.5: Pro Session den sichtbaren Tagesausschnitt berechnen.
+        // Für reine Tagessessions ist das identisch zu startAt/endAt.
+        // Für Mitternacht-Sessions wird auf den Tag geclippt:
+        //   Schlaf 23:30 (gestern) → 08:30 (heute), Tag = heute
+        //     → dayClippedStartMs = max(23:30_gestern, 00:00_heute) = 00:00_heute
+        //     → dayClippedEndMs   = min(08:30_heute, 24:00_heute) = 08:30_heute
+        //   → sichtbare Dauer im Tag = 8h30min (statt 9h gesamt).
+        val clippedSessions = filteredSessions.map { session ->
+            val clippedStart = maxOf(session.startAt, dayStart)
+            val clippedEnd = minOf(session.endAt ?: System.currentTimeMillis(), dayEnd)
+            TimelineClip(
+                session = session,
+                clippedStartMs = clippedStart,
+                clippedEndMs = clippedEnd,
+                // Auch im Fall "läuft noch" (endAt=null) clippen wir auf now/dayEnd,
+                // damit die Berechnung konsistent bleibt.
+            )
+        }
 
         // M12.2: Auto-Dedup gegen Trigger-Doppel.
         // Trigger mit geofenceId + type + occurredAt, die in einem 90s-Fenster
@@ -147,34 +256,45 @@ class TimelineViewModel @Inject constructor(
             .filter { it.occurredAt >= dayStart && it.occurredAt < dayEnd }
             .sortedBy { it.occurredAt }
             .distinctBy { tripleKey(it.geofenceId, it.type, it.occurredAt / 60_000L) }
-        val rows = filteredSessions.map { session ->
+        val rows = clippedSessions.map { clip ->
+            val session = clip.session
+            // M16.5: Minuten werden aus den clipped Werten berechnet, damit
+            // eine Mitternacht-Session im Starttag als 23:30–24:00 und im
+            // Folgetag als 00:00–08:30 erscheint (nicht 23:30–08:30).
+            val clippedStartMin = TimeFormatting.minutesOfDay(clip.clippedStartMs, zoneId)
+            val clippedEndMin = TimeFormatting.minutesOfDay(clip.clippedEndMs, zoneId)
+            val visibleDurationMs = (clip.clippedEndMs - clip.clippedStartMs).coerceAtLeast(0L)
             TimelineSessionUi(
                 id = session.id,
                 title = session.title,
                 categoryId = session.categoryId,
                 categoryName = categoryMap[session.categoryId]?.name ?: "Sonstiges",
                 activityTypeName = typeMap[session.activityTypeId]?.name ?: "Freie Aktivität",
-                time = TimeFormatting.formatTime(session.startAt, zoneId),
-                range = "${TimeFormatting.formatTime(session.startAt, zoneId)}–${session.endAt?.let { TimeFormatting.formatTime(it, zoneId) } ?: "läuft"}",
-                duration = TimeFormatting.formatDuration((session.endAt ?: System.currentTimeMillis()) - session.startAt),
+                time = TimeFormatting.formatTime(clip.clippedStartMs, zoneId),
+                // M16.5: Range spiegelt den sichtbaren Tagesausschnitt wider.
+                range = "${TimeFormatting.formatTime(clip.clippedStartMs, zoneId)}–${TimeFormatting.formatTime(clip.clippedEndMs, zoneId)}",
+                // Dauer im Tag, nicht Gesamt-Dauer (relevant für Mitternacht-Schlaf).
+                duration = TimeFormatting.formatDuration(visibleDurationMs),
                 source = session.sourceType,
                 // M12.2: Schlaf-Sessions sind per Konfiguration auto-erfasst.
-                // Wir zeigen das via isAuto, damit die UI es konsistent rendert.
                 isAuto = session.sourceType in AUTO_SOURCES,
-                startMinuteOfDay = TimeFormatting.minutesOfDay(session.startAt, zoneId),
-                endMinuteOfDay = session.endAt?.let { TimeFormatting.minutesOfDay(it, zoneId) }
-                    ?: TimeFormatting.minutesOfDay(System.currentTimeMillis(), zoneId).coerceIn(0, 1440),
+                // M16.5: Minuten-Of-Day aus clipped Werten, damit Mitternacht
+                // korrekt als 00:00–08:30 im Folgetag gerendert wird.
+                startMinuteOfDay = clippedStartMin,
+                endMinuteOfDay = clippedEndMin,
                 isRunning = session.endAt == null,
-                // M12.2: Overlap-Logik behält die alte Semantik: zwei Sessions
-                // mit zeitlicher Überschneidung. Schlaf wird hier bewusst
-                // NICHT ausgeschlossen, da parallele Einträge möglich sind
-                // (z. B. Schlaf + kurze Erfassung).
                 isOverlapping = filteredSessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) }
             )
         }
-        val totalMs = filteredSessions.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt }
-        val categoryDurations = filteredSessions.groupBy { it.categoryId ?: "unknown" }
-            .mapValues { entry -> entry.value.sumOf { (it.endAt ?: System.currentTimeMillis()) - it.startAt } }
+        // M16.5: totalMs und categoryDurations basieren auf dem sichtbaren
+        // Tagesausschnitt. So summiert sich die Tagesstatistik konsistent
+        // zur angezeigten Timeline.
+        val totalMs = clippedSessions.sumOf { (it.clippedEndMs - it.clippedStartMs).coerceAtLeast(0L) }
+        val categoryDurations = clippedSessions
+            .groupBy { it.session.categoryId ?: "unknown" }
+            .mapValues { entry ->
+                entry.value.sumOf { (it.clippedEndMs - it.clippedStartMs).coerceAtLeast(0L) }
+            }
         val triggers = dayTriggers.map { trigger ->
             val geofenceName = extractGeofenceName(trigger.metadataJson)
             val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
@@ -202,7 +322,12 @@ class TimelineViewModel @Inject constructor(
                     timeRange = "${TimeFormatting.formatTime(candidate.startAt, zoneId)}–${TimeFormatting.formatTime(candidate.endAt, zoneId)}",
                     duration = TimeFormatting.formatDuration(candidate.endAt - candidate.startAt),
                     reason = candidate.reason ?: "Automatisch erkannt",
-                    confidence = (candidate.confidence * 100).toInt()
+                    confidence = (candidate.confidence * 100).toInt(),
+                    // M15: Lücken-Candidates bekommen isGap=true, damit die
+                    // UI sie speziell rendert (gestrichelt, Schnellauswahl).
+                    isGap = candidate.createdBy == "GAP_DETECTION_V1",
+                    startAt = candidate.startAt,
+                    endAt = candidate.endAt
                 )
             }
         return TimelineUiState(
@@ -228,6 +353,20 @@ class TimelineViewModel @Inject constructor(
      */
     private fun tripleKey(a: String?, b: String, c: Long): String = "${a.orEmpty()}|${b}|${c}"
 }
+
+/**
+ * M16.5: Hilfs-Datenklasse für die Timeline-Anzeige. Hält pro Session den
+ * sichtbaren Tagesausschnitt, damit Mitternacht-Sessions in beiden Tagen
+ * korrekt dargestellt werden (Starttag: 23:30–24:00, Folgetag: 00:00–08:30).
+ *
+ * Die Session selbst wird NICHT verändert — das Clipping ist rein für die
+ * Anzeige.
+ */
+private data class TimelineClip(
+    val session: ActivitySession,
+    val clippedStartMs: Long,
+    val clippedEndMs: Long
+)
 
 @HiltViewModel
 class ActivityEditorViewModel @Inject constructor(
@@ -315,11 +454,25 @@ class ActivityEditorViewModel @Inject constructor(
     fun setEndMinute(value: Int) = updateEnd(minute = value)
     fun setStartMinuteOfDay(value: Int) = form.update { current ->
         val newStart = TimeFormatting.millisAtMinuteOfDay(current.date, value, zoneId)
-        val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
-        current.copy(startAt = newStart, endAt = (newStart + duration).coerceAtMost(TimeFormatting.endOfDayMillis(current.date, zoneId)))
+        val oldDuration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
+        // M16.2: Wenn das Ende vor dem neuen Start liegt (Mitternacht-Überschreitung),
+        // berechne das Ende als newStart + oldDuration. Das Ende liegt dann
+        // automatisch am nächsten Tag, falls die Dauer über Mitternacht geht.
+        val newEnd = newStart + oldDuration
+        current.copy(startAt = newStart, endAt = newEnd)
     }
     fun setEndMinuteOfDay(value: Int) = form.update { current ->
-        current.copy(endAt = TimeFormatting.millisAtMinuteOfDay(current.date, value, zoneId))
+        val newEnd = TimeFormatting.millisAtMinuteOfDay(current.date, value, zoneId)
+        // M16.2: Mitternacht-Überquerung. Wenn das Ende vor dem Start liegt
+        // (z.B. Start 23:30, Ende 10:00), interpretieren wir das Ende als
+        // am nächsten Tag. Das ist für Schlaf und alle übernachtenden
+        // Aktivitäten korrekt. Dauer = Ende - Start + 24h.
+        val fixedEnd = if (newEnd <= current.startAt) {
+            newEnd + 24L * 60 * 60 * 1000  // nächster Tag
+        } else {
+            newEnd
+        }
+        current.copy(endAt = fixedEnd)
     }
     fun snapStartTo(marker: TriggerEventMarker) = form.update { current ->
         val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
@@ -387,13 +540,25 @@ class ActivityEditorViewModel @Inject constructor(
     private fun updateStart(hour: Int? = null, minute: Int? = null) = form.update { current ->
         val local = Instant.ofEpochMilli(current.startAt).atZone(zoneId).toLocalTime()
         val newStart = TimeFormatting.parseHourMinuteToMillis(current.date, hour ?: local.hour, minute ?: local.minute, zoneId)
-        val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
-        current.copy(startAt = newStart, endAt = newStart + duration)
+        val oldDuration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
+        // M16.2: Ende als newStart + oldDuration berechnen, ohne auf den
+        // aktuellen Tag zu begrenzen. Bei übernachtenden Aktivitäten
+        // (z.B. Schlaf 23:30→10:00) darf das Ende am nächsten Tag liegen.
+        current.copy(startAt = newStart, endAt = newStart + oldDuration)
     }
 
     private fun updateEnd(hour: Int? = null, minute: Int? = null) = form.update { current ->
         val local = Instant.ofEpochMilli(current.endAt ?: current.startAt).atZone(zoneId).toLocalTime()
-        current.copy(endAt = TimeFormatting.parseHourMinuteToMillis(current.date, hour ?: local.hour, minute ?: local.minute, zoneId))
+        val newEnd = TimeFormatting.parseHourMinuteToMillis(current.date, hour ?: local.hour, minute ?: local.minute, zoneId)
+        // M16.2: Mitternacht-Überquerung. Wenn das Ende vor dem Start liegt,
+        // interpretieren wir das Ende als am nächsten Tag. Das gilt für Schlaf
+        // und alle übernachtenden Aktivitäten (Start 23:30, Ende 10:00).
+        val fixedEnd = if (newEnd <= current.startAt) {
+            newEnd + 24L * 60 * 60 * 1000  // nächster Tag
+        } else {
+            newEnd
+        }
+        current.copy(endAt = fixedEnd)
     }
 
     private companion object { const val ONE_HOUR = 60 * 60 * 1000L }
@@ -524,7 +689,14 @@ data class CandidateReviewUi(
     val timeRange: String,
     val duration: String,
     val reason: String,
-    val confidence: Int
+    val confidence: Int,
+    // M15: isGap = true markiert Lücken-Candidates aus der Gap-Detection.
+    // Die Timeline rendert sie mit gestricheltem grauem Rand und einer
+    // Schnellauswahl (Freunde / Lernen / Einkaufen / Arbeit) statt der
+    // normalen Übernehmen/Bearbeiten/Verwerfen-Buttons.
+    val isGap: Boolean = false,
+    val startAt: Long = 0L,
+    val endAt: Long = 0L
 )
 
 data class TimelineSessionUi(

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -109,10 +111,19 @@ fun TimelineScreen(
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            item { TimelineHeader(state, viewModel::previousDay, viewModel::nextDay, viewModel::today) }
+            item { TimelineHeader(state, viewModel::previousDay, viewModel::nextDay, viewModel::today, viewModel::runGapDetectionNow) }
             item { SummaryCard(state) }
             if (state.candidates.isNotEmpty()) {
-                item { CandidateReviewCard(state.candidates, viewModel::acceptCandidate, onEditCandidate, viewModel::dismissCandidate) }
+                item {
+                    CandidateReviewCard(
+                        candidates = state.candidates,
+                        activityTypes = state.activityTypes,
+                        onAccept = viewModel::acceptCandidate,
+                        onEdit = onEditCandidate,
+                        onDismiss = viewModel::dismissCandidate,
+                        onConvertGap = viewModel::convertGapToSession
+                    )
+                }
             }
             if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()) {
                 item {
@@ -227,7 +238,13 @@ fun ActivityDetailScreen(
 }
 
 @Composable
-private fun TimelineHeader(state: TimelineUiState, onPreviousDay: () -> Unit, onNextDay: () -> Unit, onToday: () -> Unit) {
+private fun TimelineHeader(
+    state: TimelineUiState,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
+    onToday: () -> Unit,
+    onRunGapDetection: () -> Unit = {}
+) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -238,7 +255,15 @@ private fun TimelineHeader(state: TimelineUiState, onPreviousDay: () -> Unit, on
                 }
                 IconButton(onClick = onNextDay) { Text("›", fontSize = 30.sp) }
             }
-            OutlinedButton(onClick = onToday, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Heute") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = onToday) { Text("Heute") }
+                // M15: manueller Trigger für die Gap-Detection
+                OutlinedButton(onClick = onRunGapDetection) { Text("Lücken prüfen") }
+            }
         }
     }
 }
@@ -252,27 +277,246 @@ private fun SummaryCard(state: TimelineUiState) {
 private fun SummaryValue(label: String, value: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(value, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace); Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
 
 @Composable
-private fun CandidateReviewCard(candidates: List<CandidateReviewUi>, onAccept: (String) -> Unit, onEdit: (String) -> Unit, onDismiss: (String) -> Unit) {
+private fun CandidateReviewCard(
+    candidates: List<CandidateReviewUi>,
+    activityTypes: List<ActivityType>,
+    onAccept: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    onDismiss: (String) -> Unit,
+    onConvertGap: (String, String, String) -> Unit = { _, _, _ -> }
+) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            Text("Wir haben Aktivität erkannt", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            candidates.forEach { candidate ->
-                AevumCard(variant = CardVariant.Filled) {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(candidate.title, fontWeight = FontWeight.SemiBold)
-                            Text("${candidate.confidence}%", color = MaterialTheme.colorScheme.secondary, fontFamily = FontFamily.Monospace)
-                        }
-                        Text("${candidate.timeRange} · ${candidate.duration}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(candidate.reason, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Button(onClick = { onAccept(candidate.id) }) { Text("Übernehmen") }
-                            OutlinedButton(onClick = { onEdit(candidate.id) }) { Text("Bearbeiten") }
-                            OutlinedButton(onClick = { onDismiss(candidate.id) }) { Text("Verwerfen") }
+            // M15: Lücken-Candidates bekommen eine eigene Karte.
+            val gapCandidates = candidates.filter { it.isGap }
+            if (gapCandidates.isNotEmpty()) {
+                Text("Lücken im Tag", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                gapCandidates.forEach { candidate ->
+                    GapCandidateCard(
+                        candidate = candidate,
+                        activityTypes = activityTypes,
+                        onConvert = onConvertGap,
+                        onDismiss = onDismiss
+                    )
+                }
+            }
+            val regularCandidates = candidates.filter { !it.isGap }
+            if (regularCandidates.isNotEmpty()) {
+                Text("Wir haben Aktivität erkannt", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                regularCandidates.forEach { candidate ->
+                    AevumCard(variant = CardVariant.Filled) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(candidate.title, fontWeight = FontWeight.SemiBold)
+                                Text("${candidate.confidence}%", color = MaterialTheme.colorScheme.secondary, fontFamily = FontFamily.Monospace)
+                            }
+                            Text("${candidate.timeRange} · ${candidate.duration}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(candidate.reason, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            // M16.6: Buttons gleichberechtigt sichtbar — drei
+                            // Spalten mit weight(1f), damit "Verwerfen" nicht
+                            // durch Text-Wrapping oder Layout-Quetschung
+                            // unsichtbar wird. "Verwerfen" rot gerändert für
+                            // sofortige Unterscheidung von "Bearbeiten".
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                            ) {
+                                Button(
+                                    onClick = { onAccept(candidate.id) },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                        horizontal = 4.dp, vertical = 10.dp
+                                    )
+                                ) { Text("Übernehmen", fontSize = 12.sp, maxLines = 1) }
+                                OutlinedButton(
+                                    onClick = { onEdit(candidate.id) },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                        horizontal = 4.dp, vertical = 10.dp
+                                    )
+                                ) { Text("Bearbeiten", fontSize = 12.sp, maxLines = 1) }
+                                OutlinedButton(
+                                    onClick = { onDismiss(candidate.id) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                                    ),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                        horizontal = 4.dp, vertical = 10.dp
+                                    )
+                                ) { Text("Verwerfen", fontSize = 12.sp, maxLines = 1) }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * M15: Spezielle Karte für Gap-Candidates (gestrichelter grauer Rand,
+ * Schnellauswahl der häufigsten Kategorien). Wird vom User typischerweise
+ * antippt, wenn er eine Lücke im Tag bemerkt und schnell schließen will.
+ *
+ * M16.4: Erweitert um "Andere Aktivität wählen"-Button, der einen
+ * vollständigen ActivityType-Picker öffnet. Wenn die richtige Aktivität
+ * nicht in den Schnellauswahl-Buttons ist, kann der User sie trotzdem
+ * schnell finden.
+ */
+@Composable
+private fun GapCandidateCard(
+    candidate: CandidateReviewUi,
+    activityTypes: List<ActivityType>,
+    onConvert: (String, String, String) -> Unit,
+    onDismiss: (String) -> Unit
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                // Gestrichelter Rand: Linie mit dash-Intervallen
+                drawRect(
+                    color = borderColor,
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                    size = size,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 4f,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            floatArrayOf(12f, 8f), 0f
+                        )
+                    )
+                )
+            }
+            .padding(AevumSpacing.md)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Unbekannte Zeit", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(candidate.timeRange + " · " + candidate.duration, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                AssistChip(
+                    onClick = { onDismiss(candidate.id) },
+                    label = { Text("Verwerfen", fontSize = 11.sp) }
+                )
+            }
+            Text("Was hast du in dieser Zeit gemacht?", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // 4 Schnellauswahl-Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+            ) {
+                AssistChip(
+                    onClick = { onConvert(candidate.id, "social", "social") },
+                    label = { Text("Freunde", fontSize = 11.sp) }
+                )
+                AssistChip(
+                    onClick = { onConvert(candidate.id, "learning", "learning") },
+                    label = { Text("Lernen", fontSize = 11.sp) }
+                )
+                AssistChip(
+                    onClick = { onConvert(candidate.id, "household", "household") },
+                    label = { Text("Einkaufen", fontSize = 11.sp) }
+                )
+                AssistChip(
+                    onClick = { onConvert(candidate.id, "work", "work") },
+                    label = { Text("Arbeit", fontSize = 11.sp) }
+                )
+            }
+            // M16.4: Button zum Öffnen des vollständigen ActivityPickers
+            TextButton(
+                onClick = { showPicker = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Andere Aktivität wählen…", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+
+    if (showPicker) {
+        GapActivityPickerDialog(
+            activityTypes = activityTypes,
+            onDismiss = { showPicker = false },
+            onPicked = { pickedType ->
+                showPicker = false
+                onConvert(candidate.id, pickedType.defaultCategoryId ?: "unknown", pickedType.id)
+            }
+        )
+    }
+}
+
+/**
+ * M16.4: Modal-Dialog mit allen verfügbaren ActivityTypes für die
+ * Gap-Erfassung. Gefiltert auf sichtbare (enabled) Typen, gruppiert
+ * nach Kategorie für schnelles Finden.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GapActivityPickerDialog(
+    activityTypes: List<ActivityType>,
+    onDismiss: () -> Unit,
+    onPicked: (ActivityType) -> Unit
+) {
+    val visibleTypes = remember(activityTypes) {
+        // M16.4: Alle ActivityTypes sind aktuell aktiv (kein enabled-Flag
+        // im Schema). Falls in Zukunft ein enabled-Flag eingeführt wird,
+        // hier filtern.
+        activityTypes.sortedBy { it.name }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Aktivität wählen", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+            ) {
+                if (visibleTypes.isEmpty()) {
+                    Text(
+                        "Keine Aktivitäten verfügbar.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                } else {
+                    visibleTypes.forEach { type ->
+                        ActivityTypeRow(type = type, onClick = { onPicked(type) })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        }
+    )
+}
+
+@Composable
+private fun ActivityTypeRow(type: ActivityType, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(AevumRadius.md),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            Text(type.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text("→", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -580,8 +824,22 @@ private fun ZoomableDayTimeline(
                     }
                     // Sessions — lane-aware rendering
                     sessions.forEach { session ->
+                        // M16.5: Mitternacht-Schlaf hat startMinuteOfDay=0 und
+                        // endMinuteOfDay=510 im Folgetag. Der alte
+                        // coerceIn(startMin+5, 1440) hätte das Ende auf
+                        // startMin+5 verschoben (bei Mitternacht auf 5 = 00:05)
+                        // und die Session unsichtbar gemacht. Jetzt:
+                        // endMin.coerceAtLeast(startMin+1) — nur floor,
+                        // kein Ceiling bei 1440. Damit wird die korrekte
+                        // Tagessichtbarkeit garantiert.
                         val startMin = session.startMinuteOfDay.coerceIn(0, 1440)
-                        val endMin = session.endMinuteOfDay.coerceIn(startMin + 5, 1440)
+                        val rawEnd = session.endMinuteOfDay
+                        val endMin = when {
+                            rawEnd <= 0 -> startMin + 1
+                            rawEnd < startMin + 1 -> startMin + 1
+                            rawEnd > 1440 -> 1440
+                            else -> rawEnd
+                        }
                         val lane = lanes[session.id] ?: 0
                         val topY = (startMin / 60f) * pxHour
                         val bottomY = (endMin / 60f) * pxHour
@@ -627,8 +885,15 @@ private fun ZoomableDayTimeline(
 
                 // Session labels with click + edit (positioned by lane)
                 sessions.forEach { session ->
+                    // M16.5: Mitternacht-sicheres Clipping (siehe oben).
                     val startMin = session.startMinuteOfDay.coerceIn(0, 1440)
-                    val endMin = session.endMinuteOfDay.coerceIn(startMin + 5, 1440)
+                    val rawEnd = session.endMinuteOfDay
+                    val endMin = when {
+                        rawEnd <= 0 -> startMin + 1
+                        rawEnd < startMin + 1 -> startMin + 1
+                        rawEnd > 1440 -> 1440
+                        else -> rawEnd
+                    }
                     val lane = lanes[session.id] ?: 0
                     val topY = (startMin / 60f) * pixelsPerHour
                     val totalH = (endMin / 60f - startMin / 60f) * pixelsPerHour
