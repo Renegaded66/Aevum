@@ -18,8 +18,41 @@ class ReviewCandidateUseCase @Inject constructor(
     suspend fun accept(candidateId: String): CandidateReviewResult {
         val candidate = candidateRepository.getById(candidateId).first() ?: return CandidateReviewResult.NotFound
         if (candidate.status != "PENDING") return CandidateReviewResult.AlreadyResolved
-        confirmCandidate(candidate)
-        return CandidateReviewResult.Accepted(candidate.id)
+        // M16.4: Wenn die Confirm-Pipeline fehlschlägt (z.B. weil FK-Constraints
+        // auf Category/ActivityType noch nicht erfüllt sind — d.h. die
+        // Seeds wurden nicht rechtzeitig geladen), wird der Candidate auf
+        // DISMISSED gesetzt, damit der UI-Flow nicht in einem "akzeptiert
+        // aber nirgends sichtbar"-Zustand steckenbleibt. Der Retry-Pfad
+        // ist "Lücken prüfen" → Gap-Candidate → ActivityEditor.
+        val confirmResult = try {
+            confirmCandidate(candidate)
+            true
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "ReviewCandidateUseCase",
+                "accept: confirmCandidate failed für ${candidate.id} (${candidate.suggestedTitle})",
+                e
+            )
+            // Candidate als DISMISSED markieren, damit er nicht erneut
+            // auftaucht und der User-UI-Flow befreit ist.
+            try {
+                candidateRepository.update(
+                    candidate.copy(
+                        status = "DISMISSED",
+                        resolvedAt = System.currentTimeMillis(),
+                        reason = "${candidate.reason ?: ""}\n\nAuto-Dismiss: Session-Insert fehlgeschlagen (${e.javaClass.simpleName})."
+                    )
+                )
+            } catch (e2: Exception) {
+                android.util.Log.e("ReviewCandidateUseCase", "Follow-up DISMISSED-Update failed", e2)
+            }
+            false
+        }
+        return if (confirmResult) {
+            CandidateReviewResult.Accepted(candidate.id)
+        } else {
+            CandidateReviewResult.PersistFailed(candidate.id, e = null)
+        }
     }
 
     suspend fun acceptAll(candidateIds: List<String>): CandidateBatchResult {
@@ -148,11 +181,20 @@ class ReviewCandidateUseCase @Inject constructor(
         "driving" -> "ACTIVITY_RECOGNITION_AUTO"
         else -> null
     }
-
-    private companion object {
-        const val SAFE_CONFIDENCE_THRESHOLD = 0.70f
-    }
 }
+
+/**
+ * M16.3: Public-Konstante für die Auto-Accept-Schwelle.
+ *
+ * Wird von den Sleep-Engines (Heuristik + Fusion) genutzt, um zu
+ * entscheiden, ob ein erkannter Schlaf-Candidate sofort in eine
+ * ActivitySession überführt werden soll oder ob er auf die
+ * Bestätigung durch den User in der Review-Inbox wartet.
+ *
+ * Bewusst public (nicht private), damit beide Engines ohne
+ * Dependency-Injection-Zirkel darauf zugreifen können.
+ */
+const val SAFE_CONFIDENCE_THRESHOLD: Float = 0.70f
 
 data class CandidateBatchResult(
     val accepted: Int,
@@ -164,4 +206,11 @@ sealed class CandidateReviewResult {
     data object Dismissed : CandidateReviewResult()
     data object NotFound : CandidateReviewResult()
     data object AlreadyResolved : CandidateReviewResult()
+    /**
+     * M16.4: Session konnte nicht persistiert werden (z.B. FK-Constraint
+     * verletzt). Der Candidate wurde intern auf DISMISSED gesetzt.
+     * Der User bekommt im UI eine entsprechende Meldung und kann die
+     * Aktivität manuell über "Lücken prüfen" / ActivityEditor nachtragen.
+     */
+    data class PersistFailed(val candidateId: String, val e: Throwable?) : CandidateReviewResult()
 }

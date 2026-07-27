@@ -6,6 +6,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import de.devondroste.aevum.automation.model.AutomationConstants
 import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.repository.ActivityCandidateRepository
+import de.devondroste.aevum.data.repository.ActivityRepository
+import de.devondroste.aevum.domain.automation.ReviewCandidateUseCase
+import de.devondroste.aevum.domain.automation.SAFE_CONFIDENCE_THRESHOLD
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +38,9 @@ import javax.inject.Singleton
 class SleepHeuristicEngine @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val screenEventRepository: ScreenEventRepository,
-    private val candidateRepository: ActivityCandidateRepository
+    private val candidateRepository: ActivityCandidateRepository,
+    private val activityRepository: ActivityRepository,
+    private val reviewCandidateUseCase: ReviewCandidateUseCase
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isInitialized = false
@@ -48,8 +53,16 @@ class SleepHeuristicEngine @Inject constructor(
     }
 
     /**
-     * Analysiert das letzte Screen-OFF → ON-Muster und erzeugt ggf. einen Candidate.
+     * Analysiert die letzte Nacht und erzeugt ggf. einen Candidate.
      * Wird vom ScreenEventReceiver nach jedem ON/OFF getriggert.
+     *
+     * M16: Statt nur das letzte OFF→ON zu betrachten, suchen wir nun die
+     * LÄNGSTE OFF-Periode, die in den Schlaf-Fenstern liegt. Grund: bei
+     * kurzem nächtlichen Aufstehen (z. B. 3:00 Uhr kurz Handy an) hat
+     * die alte Logik das OFF der kurzen Wach-Phase als Schlaf-Start
+     * interpretiert, obwohl die eigentliche Schlaf-Periode viel früher
+     * begann. Die längste zusammenhängende OFF-Periode ist das robuste
+     * Signal für die Hauptschlaf-Phase.
      */
     suspend fun analyzeLatest() {
         if (!isInitialized) init(appContext)
@@ -58,43 +71,129 @@ class SleepHeuristicEngine @Inject constructor(
 
         val zoneId = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
-        // Find the last screen-OFF that started a possible sleep window
         val sortedEvents = events.sortedBy { it.timestamp }
-        val lastOffIndex = sortedEvents.indexOfLast { it.type == "OFF" }
-        if (lastOffIndex == -1 || lastOffIndex == sortedEvents.lastIndex) return
 
-        val offEvent = sortedEvents[lastOffIndex]
-        val onEvent = sortedEvents.getOrNull(lastOffIndex + 1)?.takeIf { it.type == "ON" || it.type == "UNLOCK" }
-            ?: return // no ON after the OFF — currently sleeping
+        // M16.2: Statt das erste OFF mit dem nächsten ON zu paaren (was bei
+        // verpassten kurzen ON-Events den Schlaf zu früh ansetzt), nehmen wir
+        // für jedes ON das ZULETZT davor liegende OFF. Grund: Wenn der User
+        // um 21:30 den Screen ausschaltet, um 23:30 kurz aktiv ist (aber das
+        // ON-Event nicht erfasst wird — OEM-Suppression), und um 23:35 wieder
+        // ausschaltet, sieht die alte Logik nur OFF@21:30 → ON@10:00 und
+        // setzt den Schlafbeginn auf 21:30. Mit der neuen Logik wird das
+        // letzte OFF vor dem Morgen-ON genommen (23:35), was realistischer ist.
+        val offOnPairs = mutableListOf<Pair<ScreenEvent, ScreenEvent>>()
+        var lastOff: ScreenEvent? = null
+        for (event in sortedEvents) {
+            if (event.type == "OFF") {
+                lastOff = event
+            } else if (event.type == "ON" || event.type == "UNLOCK") {
+                if (lastOff != null) {
+                    offOnPairs.add(lastOff to event)
+                    lastOff = null  // nicht dasselbe OFF zweimal verwenden
+                }
+            }
+        }
+        if (offOnPairs.isEmpty()) return
 
-        val offLocal = Instant.ofEpochMilli(offEvent.timestamp).atZone(zoneId).toLocalTime()
-        val offHour = offLocal.hour
-        val onLocal = Instant.ofEpochMilli(onEvent.timestamp).atZone(zoneId).toLocalTime()
-        val onHour = onLocal.hour
-        val onDate = Instant.ofEpochMilli(onEvent.timestamp).atZone(zoneId).toLocalDate()
+        // M16.3: Bevorzuge das längste Paar, aber bestimme die Wake-Time
+        // aus dem priorisierten Wake-Event (UNLOCK > ON-BROADCAST > LIFECYCLE).
+        // Damit wird die Aufwachzeit aus der echten ersten Nutzung bestimmt,
+        // nicht aus dem Zeitpunkt, an dem die App geöffnet wurde.
+        val validSleepPairs = offOnPairs.mapNotNull { (off, on) ->
+            val offLocal = Instant.ofEpochMilli(off.timestamp).atZone(zoneId).toLocalTime()
+            val offHour = offLocal.hour
+            val onLocal = Instant.ofEpochMilli(on.timestamp).atZone(zoneId).toLocalTime()
+            val onHour = onLocal.hour
+            val onDate = Instant.ofEpochMilli(on.timestamp).atZone(zoneId).toLocalDate()
 
-        // Heuristic 1: OFF must be between 20:00 and 02:00 (next day wrap)
-        val offInSleepWindow = offHour >= 20 || offHour < 2
-        // Heuristic 2: ON must be between 04:00 and 12:00
-        val onInMorningWindow = onHour in 4..11
-        if (!offInSleepWindow || !onInMorningWindow) return
+            val offInSleepWindow = offHour >= 20 || offHour < 2
+            val onInMorningWindow = onHour in 4..11
+            if (!offInSleepWindow || !onInMorningWindow) return@mapNotNull null
 
-        // Heuristic 3: duration 3-14h
-        val durationMs = onEvent.timestamp - offEvent.timestamp
+            val durationMs = on.timestamp - off.timestamp
+            val hours = durationMs / 3_600_000.0
+            if (hours < 3.0 || hours > 14.0) return@mapNotNull null
+
+            Triple(off, on, onDate)
+        }
+        if (validSleepPairs.isEmpty()) return
+
+        // Nimm das längste gültige Paar — das ist die Hauptschlaf-Phase.
+        val (offEvent, onEvent, onDate) = validSleepPairs.maxBy { it.second.timestamp - it.first.timestamp }
+
+        // M16.3: Wake-Time aus dem semantisch besten ON/UNLOCK-Event im
+        // Zeitfenster [offEvent.timestamp, onEvent.timestamp + 30min]. Wenn
+        // ein echter USER_PRESENT/UNLOCK-Broadcast im Fenster liegt, wird
+        // dieser Zeitpunkt genutzt — NICHT der App-Open-Zeitpunkt aus dem
+        // Lifecycle-Fallback.
+        val wakeCandidates = sortedEvents.filter {
+            val isOnLike = it.type == "ON" || it.type == "UNLOCK"
+            isOnLike && it.timestamp in offEvent.timestamp..(onEvent.timestamp + 30L * 60 * 1000)
+        }
+        val resolvedWakeMs = prioritizeWakeTime(wakeCandidates) ?: onEvent.timestamp
+
+        // M16.3: Dauer und Confidence aus dem resolvedWakeMs (priorisierte Wake-Time),
+        // nicht aus dem naiven onEvent.timestamp. Damit passt die Heuristik
+        // zur semantisch korrekten Aufwachzeit.
+        val durationMs = resolvedWakeMs - offEvent.timestamp
         val hours = durationMs / 3_600_000.0
-        if (hours < 3.0 || hours > 14.0) return
 
         // Dedup: externalId = "screen_sleep_<dateOfOn>"
         val externalId = "screen_sleep_${onDate}"
-        val existing = candidateRepository.getByStatus(AutomationConstants.CANDIDATE_STATUS_PENDING).first()
-        if (existing.any { it.sourceCandidateId == externalId }) return
-        // Also: no pending sleep candidate in the same 12h window
-        if (existing.any {
-                it.activityTypeId == "sleep" &&
-                kotlin.math.abs((it.startAt - offEvent.timestamp)) < 12 * 3_600_000L
-            }) return
+        // M16.5: Dedup gegen ALLE Candidates (PENDING + ACCEPTED + DISMISSED)
+        // UND gegen bestehende Sleep-Sessions — als atomare, breite Query.
+        // Hintergrund: Wenn der User den Schlaf bereits akzeptiert hat,
+        // darf er nicht ein zweites Mal vorgeschlagen werden.
+        // Wir laden alle Sleep-relevanten Candidates in einem Fenster von
+        // ±24h um den erkannten Schlaf herum (Mitternacht-Sessions
+        // überschreiten den 12h-Bereich, daher breiter).
+        val candidateWindowStart = offEvent.timestamp - 24L * 3_600_000L
+        val candidateWindowEnd = resolvedWakeMs + 24L * 3_600_000L
+        val existingCandidatesInWindow = candidateRepository.getByDateRange(
+            candidateWindowStart,
+            candidateWindowEnd
+        ).first().filter { it.activityTypeId == "sleep" }
+
+        // 1) Source-Candidate-ID-Dedup: dieselbe externe ID bereits da?
+        if (existingCandidatesInWindow.any { it.sourceCandidateId == externalId }) return
+
+        // 2) Zeitraum-Dedup mit Toleranz (60 min): Wenn bereits ein Sleep-Candidate
+        // existiert, dessen startAt innerhalb ±60min des erkannten Schlafs liegt,
+        // wird kein neuer erzeugt. Das fängt Race-Conditions und Mehrfachläufe ab.
+        val overlapToleranceMs = 60L * 60 * 1000
+        val hasNearbySleepCandidate = existingCandidatesInWindow.any { existing ->
+            // 60min-Toleranz am Start oder am Ende reicht für "dieselbe Nacht"
+            val sameStart = kotlin.math.abs(existing.startAt - offEvent.timestamp) < overlapToleranceMs
+            val sameEnd = kotlin.math.abs(existing.endAt - resolvedWakeMs) < overlapToleranceMs
+            sameStart || sameEnd
+        }
+        if (hasNearbySleepCandidate) {
+            android.util.Log.d(
+                "SleepHeuristicEngine",
+                "Bereits Sleep-Candidate im ±60min-Fenster — skip (externalId=$externalId)"
+            )
+            return
+        }
+
+        // 3) Session-Dedup: wenn bereits eine echte Sleep-Session im Fenster
+        // existiert (≥30 min Überlappung), keinen neuen Candidate anlegen.
+        val existingSleepSessions = activityRepository.getOverlappingRange(
+            candidateWindowStart,
+            candidateWindowEnd
+        ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
+        val hasOverlap = existingSleepSessions.any { existing ->
+            val overlapMs = minOf(resolvedWakeMs, existing.endAt ?: Long.MAX_VALUE) -
+                    maxOf(offEvent.timestamp, existing.startAt)
+            overlapMs > 30L * 60 * 1000
+        }
+        if (hasOverlap) {
+            android.util.Log.d("SleepHeuristicEngine", "Bereits eine Sleep-Session im Fenster — skip")
+            return
+        }
 
         // Heuristic 4: Confidence — base 0.55, +0.1 wenn 7-9h, -0.2 wenn OFF/ON am Rand
+        val offHour = Instant.ofEpochMilli(offEvent.timestamp).atZone(zoneId).hour
+        val onHour = Instant.ofEpochMilli(resolvedWakeMs).atZone(zoneId).hour
         val confidence = when {
             hours in 6.0..9.5 -> 0.65f
             hours in 4.0..10.0 -> 0.58f
@@ -112,22 +211,68 @@ class SleepHeuristicEngine @Inject constructor(
         val durationStr = if (durationMinutes > 0) "${durationHours}h ${durationMinutes}min" else "${durationHours}h"
         val title = "Schlaf erkannt ($durationStr)"
 
+        // M16: Verständliche Begründung statt technischer Kryptik.
+        // M16.3: Nutze resolvedWakeMs statt onEvent.timestamp, damit die
+        // Begründung zur tatsächlichen Aufwachzeit passt.
+        val reason = buildSleepReason(offEvent, offEvent.timestamp, resolvedWakeMs, zoneId, hours)
+
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
             suggestedTitle = title,
             suggestedCategoryId = "sleep",
             activityTypeId = "sleep",
             startAt = offEvent.timestamp,
-            endAt = onEvent.timestamp,
+            endAt = resolvedWakeMs,
             confidence = confidence,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Aus Bildschirm-Muster erkannt: ${formatHm(offEvent.timestamp, zoneId)} → ${formatHm(onEvent.timestamp, zoneId)}. " +
-                    "Bitte bestätigen oder anpassen.",
+            reason = reason,
             createdBy = "SCREEN_HEURISTIC_V1",
             createdAt = now,
             sourceCandidateId = externalId
         )
         candidateRepository.insert(candidate)
+
+        // M16.3: Auto-Accept, wenn die Confidence hoch genug ist.
+        // Vorher endete die Heuristik bei einem bloßen Vorschlag in der
+        // Review-Inbox. Jetzt: bei Confidence ≥ 0.70 wird der Candidate
+        // sofort in eine echte ActivitySession überführt und landet in
+        // der Timeline. Die Review-Inbox ist nur noch der Fallback für
+        // niedrigere Confidence.
+        if (confidence >= SAFE_CONFIDENCE_THRESHOLD) {
+            val result = reviewCandidateUseCase.acceptAuto(listOf(candidate))
+            android.util.Log.d(
+                "SleepHeuristicEngine",
+                "Auto-Accept: ${result.accepted} von 1 (Confidence=$confidence, " +
+                        "Window=${formatHm(offEvent.timestamp, zoneId)}–${formatHm(resolvedWakeMs, zoneId)})"
+            )
+        } else {
+            android.util.Log.d(
+                "SleepHeuristicEngine",
+                "Candidate wartet auf Review (Confidence=$confidence < $SAFE_CONFIDENCE_THRESHOLD)"
+            )
+        }
+    }
+
+    /**
+     * M16: Baut eine verständliche, nicht-technische Begründung für den
+     * Schlaf-Vorschlag. Der User sieht in der Review-Inbox:
+     *   "Keine Nutzung zwischen 23:30 und 08:00 (8h 30min). Bildschirm aus + Ruhephase erkannt."
+     */
+    private fun buildSleepReason(
+        @Suppress("UNUSED_PARAMETER") offEvent: ScreenEvent,
+        offTs: Long,
+        wakeMs: Long,
+        zoneId: ZoneId,
+        hours: Double
+    ): String {
+        val offStr = formatHm(offTs, zoneId)
+        val onStr = formatHm(wakeMs, zoneId)
+        val h = hours.toInt()
+        val m = ((hours - h) * 60).toInt()
+        val durationStr = if (m > 0) "${h}h ${m}min" else "${h}h"
+        return "Keine Nutzung zwischen $offStr und $onStr ($durationStr). " +
+               "Bildschirm aus + Ruhephase erkannt. " +
+               "Morgendliches Entsperren beendet die Schlaf-Phase."
     }
 
     /**

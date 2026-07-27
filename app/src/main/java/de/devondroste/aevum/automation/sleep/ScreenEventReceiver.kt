@@ -67,8 +67,32 @@ class ScreenEventReceiver : BroadcastReceiver() {
                 repo.init(appContext)
                 repo.insert(ScreenEvent(type = type, timestamp = now))
                 Log.d(TAG, "Stored $type at $now (total=${repo.readAll().size})")
+
+                // M16: Die einfache M13-Heuristik aufrufen (Screen-only).
+                // Das reicht für den Basis-Fall, aber nicht für die 3-Signal-Fusion.
                 deps.sleepHeuristicEngine().init(appContext)
                 deps.sleepHeuristicEngine().analyzeLatest()
+
+                // M16: Bei Screen-ON / UNLOCK zusätzlich den SleepFusionWorker
+                // enqueuen. Der prüft alle drei Signale (Screen + STILL + Digital)
+                // und ist die zuverlässigere Erkennung. Bei Screen-OFF ist eine
+                // Fusion sinnlos (die Nacht ist noch nicht vorbei), also nur
+                // bei ON/UNLOCK. ExistingWorkPolicy.KEEP verhindert Doppel-Enqueue.
+                if (type == "ON" || type == "UNLOCK") {
+                    try {
+                        val request = androidx.work.OneTimeWorkRequestBuilder<SleepFusionWorker>()
+                            .setInitialDelay(5, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+                        androidx.work.WorkManager.getInstance(appContext)
+                            .enqueueUniqueWork(
+                                SleepFusionWorker.WORK_NAME,
+                                androidx.work.ExistingWorkPolicy.KEEP,
+                                request
+                            )
+                    } catch (e: Exception) {
+                        Log.w(TAG, "SleepFusionWorker enqueue failed for $type", e)
+                    }
+                }
             } catch (e: Exception) {
                 // M12.1.1: nicht mehr still verschlucken — loggen, damit
                 // der Datenfluss bei einem realen Gerät nachvollziehbar bleibt.
@@ -86,7 +110,15 @@ class ScreenEventReceiver : BroadcastReceiver() {
 
 data class ScreenEvent(
     val type: String, // "ON" | "OFF" | "UNLOCK"
-    val timestamp: Long
+    val timestamp: Long,
+    // M16.3: Herkunft des Events — beeinflusst die Wake-Time-Priorität.
+    //   "BROADCAST" (Default): echtes System-Event vom SCREEN_ON/OFF/USER_PRESENT.
+    //   "LIFECYCLE": aus dem ActivityLifecycleCallbacks-Fallback (App in Vordergrund).
+    //   "USAGE_STATS": aus UsageStatsManager (für spätere Erweiterung).
+    // Beim Pairing werden BROADCAST/UNLOCK-Events gegenüber LIFECYCLE bevorzugt,
+    // damit das Aufwachen aus echter Bildschirm-Nutzung erkannt wird und nicht
+    // aus dem Zeitpunkt, an dem die App geöffnet wurde.
+    val source: String = "BROADCAST"
 )
 
 /**
@@ -109,7 +141,8 @@ class ScreenEventRepository @Inject constructor() {
         val events = readAll().toMutableList()
         events.add(event)
         val trimmed = if (events.size > MAX_EVENTS) events.takeLast(MAX_EVENTS) else events
-        val serialized = trimmed.joinToString("\n") { "${it.type}|${it.timestamp}" }
+        // M16.3: Source-Feld in der Serialisierung mitführen.
+        val serialized = trimmed.joinToString("\n") { "${it.type}|${it.timestamp}|${it.source}" }
         p.edit().putString(KEY_EVENTS, serialized).apply()
     }
 
@@ -120,10 +153,20 @@ class ScreenEventRepository @Inject constructor() {
             if (line.isBlank()) null
             else {
                 val parts = line.split("|")
-                if (parts.size == 2) {
-                    val t = parts[1].toLongOrNull() ?: return@mapNotNull null
-                    ScreenEvent(parts[0], t)
-                } else null
+                // M16.3: Backwards-compatible Parsing. Alte Einträge haben 2
+                // Felder (type|timestamp) — source wird als "BROADCAST"
+                // default interpretiert. Neue Einträge haben 3 Felder.
+                when (parts.size) {
+                    2 -> {
+                        val t = parts[1].toLongOrNull() ?: return@mapNotNull null
+                        ScreenEvent(parts[0], t)
+                    }
+                    3 -> {
+                        val t = parts[1].toLongOrNull() ?: return@mapNotNull null
+                        ScreenEvent(parts[0], t, parts[2])
+                    }
+                    else -> null
+                }
             }
         }
     }

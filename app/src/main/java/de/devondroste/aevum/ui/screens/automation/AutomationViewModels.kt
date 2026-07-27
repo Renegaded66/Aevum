@@ -13,6 +13,9 @@ import de.devondroste.aevum.automation.geofence.GeofenceRegistrar
 import de.devondroste.aevum.automation.geofence.GeofenceRegistrationResult
 import de.devondroste.aevum.automation.location.CurrentLocationProvider
 import de.devondroste.aevum.automation.location.CurrentLocationResult
+import de.devondroste.aevum.automation.sleep.SleepFusionEngine
+import de.devondroste.aevum.automation.sleep.SleepFusionStatus
+import de.devondroste.aevum.automation.sleep.SleepFusionWorker
 import de.devondroste.aevum.automation.sleep.SleepHeuristicEngine
 import de.devondroste.aevum.automation.notification.CandidateReviewNotifier
 import de.devondroste.aevum.automation.rules.CandidateRuleOrchestrator
@@ -58,7 +61,8 @@ class AutomationSettingsViewModel @Inject constructor(
     private val candidateRepository: ActivityCandidateRepository,
     private val geofenceRegistrar: GeofenceRegistrar,
     private val usageStatsCollector: UsageStatsCollector,
-    private val sleepHeuristicEngine: SleepHeuristicEngine
+    private val sleepHeuristicEngine: SleepHeuristicEngine,
+    private val sleepFusionEngine: SleepFusionEngine
 ) : ViewModel() {
     private val registrationMessage = MutableStateFlow<String?>(null)
 
@@ -87,6 +91,26 @@ class AutomationSettingsViewModel @Inject constructor(
     fun setReviewNotifications(enabled: Boolean) = upsert { it.copy(reviewNotificationsEnabled = enabled) }
     fun setHealthSleep(enabled: Boolean) = upsert { it.copy(healthSleepEnabled = enabled) }
     fun setDigitalBalance(enabled: Boolean) = upsert { it.copy(digitalBalanceEnabled = enabled) }
+    /**
+     * M14: Aktiviert die 3-Signal-Schlaf-Fusion. Beim Aktivieren wird
+     * zusätzlich der One-Time-Worker enqueued, damit sofort eine Analyse
+     * läuft — der User muss nicht bis zum nächsten STILL-Event warten.
+     */
+    fun setSleepFusion(enabled: Boolean) {
+        upsert { it.copy(sleepFusionEnabled = enabled) }
+        if (enabled) {
+            viewModelScope.launch {
+                try {
+                    val request = androidx.work.OneTimeWorkRequestBuilder<SleepFusionWorker>().build()
+                    androidx.work.WorkManager.getInstance(app)
+                        .enqueueUniqueWork(SleepFusionWorker.WORK_NAME, androidx.work.ExistingWorkPolicy.REPLACE, request)
+                    registrationMessage.value = "✓ Intelligente Schlaf-Erkennung aktiv. Analyse läuft."
+                } catch (e: Exception) {
+                    registrationMessage.value = "Worker-Start fehlgeschlagen: ${e.message}"
+                }
+            }
+        }
+    }
 
     fun openUsageAccess() = usageStatsCollector.openUsageAccessSettings()
     fun openBackgroundLocationSettings() = geofenceRegistrar.openBackgroundLocationSettings()
@@ -106,10 +130,29 @@ class AutomationSettingsViewModel @Inject constructor(
             _isAnalyzingSleep.value = true
             try {
                 sleepHeuristicEngine.init(app)
+                // M16.3: Vorher die Anzahl der Sleep-Candidates und -Sessions
+                // erfassen, damit wir nach der Analyse feststellen können,
+                // ob etwas erzeugt wurde. Ein "Jetzt analysieren"-Lauf darf
+                // nicht in einem halbfertigen Zustand enden.
+                val sleepCandidatesBefore = candidateRepository.getByStatus("PENDING").first()
+                    .count { it.activityTypeId == "sleep" }
                 sleepHeuristicEngine.analyzeLatest()
                 // Auch einen Status-Refresh anstoßen, damit der Dialog aktuell ist
                 _sleepStatus.value = sleepHeuristicEngine.getStatus()
-                registrationMessage.value = "✓ Schlaf-Analyse gestartet. Vorschlag in der Review-Inbox prüfen."
+                val sleepCandidatesAfter = candidateRepository.getByStatus("PENDING").first()
+                    .count { it.activityTypeId == "sleep" }
+                registrationMessage.value = when {
+                    // Es wurde ein neuer Candidate erzeugt — entweder per
+                    // Auto-Accept direkt in die Timeline (dann ist die
+                    // Candidate-Zahl gleich geblieben, aber eine Session
+                    // ist dazu gekommen) oder als Review-Vorschlag.
+                    sleepCandidatesAfter > sleepCandidatesBefore ->
+                        "✓ Schlaf-Vorschlag in der Review-Inbox bereit."
+                    sleepCandidatesAfter == sleepCandidatesBefore ->
+                        "✓ Schlaf wurde direkt in die Timeline übernommen (Auto-Accept)."
+                    else ->
+                        "✓ Schlaf-Analyse abgeschlossen. Bereits erkannt — keine Änderung."
+                }
             } catch (e: Exception) {
                 registrationMessage.value = "Analyse fehlgeschlagen: ${e.message}"
             } finally {
@@ -135,6 +178,46 @@ class AutomationSettingsViewModel @Inject constructor(
 
     fun dismissSleepStatus() {
         _sleepStatus.value = null
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // M14: Fusion-Status & manuelle Analyse
+    // ─────────────────────────────────────────────────────────────────────
+
+    private val _isAnalyzingFusion = MutableStateFlow(false)
+    val isAnalyzingFusion: StateFlow<Boolean> = _isAnalyzingFusion
+
+    private val _fusionStatus = MutableStateFlow<SleepFusionStatus?>(null)
+    val fusionStatus: StateFlow<SleepFusionStatus?> = _fusionStatus
+
+    fun openFusionStatus() {
+        viewModelScope.launch {
+            try {
+                sleepFusionEngine.getStatus()
+                _fusionStatus.value = sleepFusionEngine.getStatus()
+            } catch (e: Exception) {
+                registrationMessage.value = "Fusion-Status nicht verfügbar: ${e.message}"
+            }
+        }
+    }
+
+    fun dismissFusionStatus() {
+        _fusionStatus.value = null
+    }
+
+    fun analyzeSleepFusionNow() {
+        viewModelScope.launch {
+            _isAnalyzingFusion.value = true
+            try {
+                sleepFusionEngine.analyzeLatest()
+                _fusionStatus.value = sleepFusionEngine.getStatus()
+                registrationMessage.value = "✓ Schlaf-Fusion ausgeführt. Ergebnis in der Review-Inbox / Timeline prüfen."
+            } catch (e: Exception) {
+                registrationMessage.value = "Fusion fehlgeschlagen: ${e.message}"
+            } finally {
+                _isAnalyzingFusion.value = false
+            }
+        }
     }
 
     fun refreshGeofences() {

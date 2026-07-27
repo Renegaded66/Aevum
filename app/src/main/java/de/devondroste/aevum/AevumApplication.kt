@@ -6,9 +6,12 @@ import android.os.Bundle
 import android.util.Log
 import dagger.hilt.android.HiltAndroidApp
 import de.devondroste.aevum.automation.geofence.GeofenceRefreshScheduler
+import de.devondroste.aevum.automation.activityrecognition.ActivityRecognitionRegistrar
 import de.devondroste.aevum.automation.health.SleepImportScheduler
 import de.devondroste.aevum.automation.sleep.ScreenEvent
 import de.devondroste.aevum.automation.sleep.ScreenEventRepository
+import de.devondroste.aevum.automation.sleep.SleepFusionWorker
+import de.devondroste.aevum.domain.seed.EnsureDefaultDataUseCase
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -28,11 +31,18 @@ class AevumApplication : Application() {
     /**
      * M12.1.1: Hilt EntryPoint, damit AevumApplication (kein @AndroidEntryPoint)
      * an den [ScreenEventRepository] kommt, ohne die volle Hilt-ViewModel-Pipeline.
+     *
+     * M16.4: Erweitert um [ensureDefaultData] — wird einmalig in [onCreate]
+     * aufgerufen, damit Category/ActivityType/Tag-Seeds ZWINGEND vor dem
+     * ersten WorkManager-Job (Schlaf-Worker, Geofence-Worker) in der DB sind.
+     * Ohne diese Seeds schlagen Foreign-Key-Inserts fehl und der Schlaf
+     * erscheint nicht in der Timeline (Bug aus M16.3-Real-Test).
      */
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
+        fun ensureDefaultData(): EnsureDefaultDataUseCase
     }
 
     /**
@@ -52,6 +62,27 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "MapLibre init failed — continuing without maps", e)
         }
+
+        // M16.4: ensureDefaultData ZUERST. Wir warten nicht auf das Resultat,
+        // weil die Seeds per INSERT OR IGNORE idempotent sind und ein
+        // nachfolgender ViewModel-Init nochmal nachlegt. Aber wir geben der
+        // DB einen Moment, damit die FK-Constraints für Category/ActivityType
+        // vorhanden sind, bevor der Schlaf-Worker läuft. Das löst den
+        // "Schlaf in Dashboard, aber nicht in Timeline"-Bug.
+        try {
+            val deps = EntryPointAccessors.fromApplication(this, Deps::class.java)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    deps.ensureDefaultData().invoke()
+                    Log.d("AevumApplication", "ensureDefaultData abgeschlossen (Seeds vorhanden)")
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "ensureDefaultData failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "ensureDefaultData EntryPoint init failed — continuing", e)
+        }
+
         // M9.2: ensure Health Connect sleep import runs in the background
         try {
             sleepImportScheduler.schedule()
@@ -63,6 +94,25 @@ class AevumApplication : Application() {
             geofenceRefreshScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "GeofenceRefreshScheduler failed — continuing", e)
+        }
+        // M14: ActivityRecognition (IN_VEHICLE + STILL) Transition-Updates
+        // abonnieren. No-Op, falls ACTIVITY_RECOGNITION nicht gewährt — wird
+        // dann nachgeholt, sobald der User die Permission in den Settings erteilt.
+        try {
+            ActivityRecognitionRegistrar.register(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "ActivityRecognitionRegistrar failed — continuing", e)
+        }
+        // M14: Beim App-Start einen einmaligen SleepFusionWorker enqueuen.
+        // Der entscheidet selbst, ob genug Signale da sind, und ist sonst ein No-Op.
+        try {
+            val request = androidx.work.OneTimeWorkRequestBuilder<SleepFusionWorker>()
+                .setInitialDelay(10, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            androidx.work.WorkManager.getInstance(this)
+                .enqueueUniqueWork(SleepFusionWorker.WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "SleepFusionWorker enqueue failed — continuing", e)
         }
         // M12.1.1: Fallback für SCREEN_ON / SCREEN_OFF, falls der
         // BroadcastReceiver von Battery-Optimierung oder OEM-ROMs
@@ -116,7 +166,28 @@ class AevumApplication : Application() {
             // einen Hintergrund-Dispatcher.
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 try {
-                    repo.insert(ScreenEvent(type = type, timestamp = System.currentTimeMillis()))
+                    repo.insert(ScreenEvent(type = type, timestamp = System.currentTimeMillis(), source = "LIFECYCLE"))
+                    // M16: Bei ON (App in den Vordergrund) zusätzlich den
+                    // SleepFusionWorker enqueuen. Morgens beim ersten Blick
+                    // aufs Handy läuft die App-Resume-Phase durch diesen
+                    // Callback, der Worker wird gestartet, prüft die Signale
+                    // und erzeugt ggf. einen Schlaf-Vorschlag. Das ist der
+                    // "morgens sofort sichtbar"-Pfad ohne extra Job.
+                    if (type == "ON") {
+                        try {
+                            val request = androidx.work.OneTimeWorkRequestBuilder<SleepFusionWorker>()
+                                .setInitialDelay(5, java.util.concurrent.TimeUnit.SECONDS)
+                                .build()
+                            androidx.work.WorkManager.getInstance(this@AevumApplication)
+                                .enqueueUniqueWork(
+                                    SleepFusionWorker.WORK_NAME,
+                                    androidx.work.ExistingWorkPolicy.KEEP,
+                                    request
+                                )
+                        } catch (e: Exception) {
+                            Log.w("AevumApplication", "SleepFusionWorker enqueue failed for $type", e)
+                        }
+                    }
                 } catch (e: Exception) {
                     Log.w("AevumApplication", "Lifecycle insert failed for $type", e)
                 }
