@@ -3,7 +3,9 @@ package de.devondroste.aevum.ui.screens.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import android.app.Activity
 import android.app.Application
+import android.os.Bundle
 import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.AppUsageSample
@@ -52,6 +54,18 @@ class DashboardViewModel @Inject constructor(
     private val start = TimeFormatting.startOfDayMillis(today, zoneId)
     private val end = TimeFormatting.endOfDayMillis(today, zoneId)
 
+    // M16: Diese Properties MÜSSEN vor dem init-Block deklariert werden.
+    // Kotlin führt init-Blöcke und Property-Initializer in Deklarations-
+    // reihenfolge aus. Der init-Block referenziert _topApps und _screenTimeMs
+    // via viewModelScope.launch (Dispatchers.Main.immediate → synchron).
+    // Wenn die Properties dahinter stehen, sind sie noch null → NPE → Crash.
+    private val _topApps = MutableStateFlow<List<AppUsageSample>>(emptyList())
+    val topApps: StateFlow<List<AppUsageSample>> = _topApps.asStateFlow()
+
+    // M16: Summe der Bildschirmzeit aus topApps. Wird von _topApps.collect
+    // aktualisiert. Wenn keine Permission oder keine Daten → 0L → UI zeigt "—".
+    private val _screenTimeMs = MutableStateFlow(0L)
+
     init {
         // M12.0.2: Defensive Initialisierung — ensureDefaultData darf niemals
         // den Start des DashboardViewModels blockieren. Fehler werden geloggt,
@@ -64,18 +78,72 @@ class DashboardViewModel @Inject constructor(
             }
         }
         // M13: Initial load of usage stats. Refetched on demand.
+        // M16: refreshUsageStats lädt topApps. Der Bildschirm-Wert im Dashboard
+        // wird aus topApps berechnet. Vorher blieb digitalScreenTimeFormatted
+        // immer "0m", weil buildState() nie einen echten Wert setzte.
         viewModelScope.launch {
             try {
                 refreshUsageStats()
             } catch (_: Exception) { /* noop */ }
         }
+        // M16: topApps als Flow beobachten und das uiState aktualisieren,
+        // sobald echte Usage-Stats-Werte ankommen. Ohne das konnte das
+        // Dashboard die Bildschirmzeit erst nach komplettem Neustart der
+        // App anzeigen, weil der combine-Flow topApps nie kannte.
+        viewModelScope.launch {
+            _topApps.collect { apps ->
+                _screenTimeMs.value = apps.sumOf { it.durationMs }
+            }
+        }
     }
 
-    private val _topApps = MutableStateFlow<List<AppUsageSample>>(emptyList())
-    val topApps: StateFlow<List<AppUsageSample>> = _topApps.asStateFlow()
-
+    // M15: Permission-State wird jetzt beim Erzeugen des ViewModels initial
+    // geladen UND bei jedem Foreground-Wechsel neu geprüft. Vorher blieb der
+    // State auf dem Wert vom App-Start stehen — der User hat in den Settings
+    // die Usage-Stats-Permission erteilt, kam zurück, und das Dashboard zeigte
+    // weiterhin "App-Nutzung erlauben".
+    //
+    // Lösung: eigener Coroutine-Loop, der auf RESUME der Activity horcht
+    // (Lifecycle-Process ist im Classpath NICHT garantiert, daher
+    // ProcessLifecycleOwner.lightweight Fallback via Flow-Tick).
     private val _usageStatsGranted = MutableStateFlow(false)
     val usageStatsGranted: StateFlow<Boolean> = _usageStatsGranted.asStateFlow()
+
+    init {
+        // M15: Der Permission-State wurde vorher nur einmal beim App-Start
+        // geladen. Der User hat in den Android-Settings Usage-Stats erteilt,
+        // kam zurück, und das Dashboard zeigte weiterhin "App-Nutzung erlauben".
+        //
+        // Lösung: Application.ActivityLifecycleCallbacks. Bei jedem Activity-
+        // onResume (Foreground-Wechsel) wird refreshUsageStats() aufgerufen.
+        // Das ist die einfachste API, die ohne androidx.lifecycle:lifecycle-process
+        // Dependency auskommt und in jedem Android-Version funktioniert.
+        try {
+            application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+                private var activeActivities = 0
+                override fun onActivityStarted(activity: Activity) {
+                    if (activeActivities == 0) refreshUsageStats()
+                    activeActivities++
+                }
+                override fun onActivityStopped(activity: Activity) {
+                    activeActivities = (activeActivities - 1).coerceAtLeast(0)
+                }
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+                override fun onActivityResumed(activity: Activity) {}
+                override fun onActivityPaused(activity: Activity) {}
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+                override fun onActivityDestroyed(activity: Activity) {}
+            })
+        } catch (e: Exception) {
+            // Fallback: einmaliger Refresh + periodischer Tick alle 5s.
+            viewModelScope.launch {
+                while (true) {
+                    refreshUsageStats()
+                    kotlinx.coroutines.delay(5_000)
+                }
+            }
+        }
+    }
 
     fun refreshUsageStats() {
         viewModelScope.launch {
@@ -134,22 +202,44 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    // M16.3: Sleep-Sessions werden mit einem 36h-Overlap-Fenster gelesen,
+    // damit Schlaf über Mitternacht (z.B. Start 23:30 Vortag, Ende 08:20 heute)
+    // korrekt erfasst wird. Eine reine "heute"-Query wie
+    // getByActivityTypeAndDateRange("sleep", start, end) verlangt start_at
+    // im heutigen Tag — Schlaf, der nachts beginnt, würde durch das Raster
+    // fallen. Wir lesen daher [start - 24h, end + 12h] und filtern unten
+    // auf Sessions, die den heutigen Tag überlappen.
+    val sleepWindowStart = start - 24L * 60 * 60 * 1000
+    val sleepWindowEnd = end + 12L * 60 * 60 * 1000
     val uiState: StateFlow<DashboardUiState> = combine(
         activityRepository.getOverlappingRange(start, end),
         categoryRepository.getAll(),
         candidateRepository.getByStatus("PENDING"),
         goalRepository.getByStatus("ACTIVE"),
         activityTypeRepository.getAll(),
-        // M10: today's sleep — used for the "Guten Morgen" summary card
-        activityRepository.getByActivityTypeAndDateRange("sleep", start, end)
+        // M10: today's sleep — used for the "Guten Morgen" summary card.
+        // M16.3: 36h-Overlap-Fenster, damit über-Mitternacht-Schlaf erscheint.
+        activityRepository.getOverlappingRange(sleepWindowStart, sleepWindowEnd),
+        // M16: Bildschirmzeit aus topApps — vorher nie in buildState() gesetzt
+        _screenTimeMs
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
         val categories = values[1] as List<de.devondroste.aevum.data.model.Category>
-        val candidates = values[2] as List<de.devondroste.aevum.data.model.ActivityCandidate>
+        val candidates = values[2] as List<ActivityCandidate>
         val activeGoals = values[3] as List<de.devondroste.aevum.data.model.Goal>
         val types = values[4] as List<de.devondroste.aevum.data.model.ActivityType>
-        val sleepSessions = values[5] as List<ActivitySession>
+        val allSleepSessions = values[5] as List<ActivitySession>
+        val screenMs = values[6] as Long
+        // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
+        // today-Query würde Mitternacht-Schlaf verfehlen.
+        val nowApprox = System.currentTimeMillis()
+        val sleepSessionsToday = allSleepSessions.filter { session ->
+            val s = session.startAt
+            val e = session.endAt ?: nowApprox
+            // Session überlappt mit [start, end], wenn start < endUnd end > startOfDay.
+            s < end && e > start
+        }
         buildState(
             sessions = sessions,
             categories = categories,
@@ -157,7 +247,8 @@ class DashboardViewModel @Inject constructor(
             activeGoals = activeGoals,
             typeMap = types.associateBy { it.id },
             allTypes = types,
-            sleepSessions = sleepSessions
+            sleepSessions = sleepSessionsToday,
+            screenTimeMs = screenMs
         )
     }
         // M12.0.2: Defensive Programmierung — keine Exception darf bis zur UI
@@ -178,7 +269,8 @@ class DashboardViewModel @Inject constructor(
         activeGoals: List<de.devondroste.aevum.data.model.Goal>,
         typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>,
         allTypes: List<de.devondroste.aevum.data.model.ActivityType> = emptyList(),
-        sleepSessions: List<ActivitySession> = emptyList()
+        sleepSessions: List<ActivitySession> = emptyList(),
+        screenTimeMs: Long = 0L
     ): DashboardUiState {
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
@@ -308,7 +400,21 @@ class DashboardViewModel @Inject constructor(
             lastSleepSession = sleepSessions.maxByOrNull { it.endAt ?: it.startAt },
             lastSleepDurationMs = sleepSessions.maxByOrNull { it.endAt ?: it.startAt }
                 ?.let { (it.endAt ?: now) - it.startAt }
-                ?: 0L
+                ?: 0L,
+            // M16: Bildschirmzeit aus echten Usage-Stats. screenTimeMs wird
+            // über _screenTimeMs aus den topApps gespeist. Wenn Permission
+            // fehlt oder keine Daten → 0L → UI zeigt "—" statt "0m".
+            digitalScreenTimeMs = screenTimeMs,
+            digitalScreenTimeFormatted = if (screenTimeMs > 0L) {
+                val hours = screenTimeMs / 3_600_000
+                val minutes = (screenTimeMs % 3_600_000) / 60_000
+                when {
+                    hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
+                    hours > 0 -> "${hours}h"
+                    else -> "${minutes}m"
+                }
+            } else "—",
+            digitalTopApp = _topApps.value.firstOrNull()?.appLabel ?: "—"
         )
     }
 

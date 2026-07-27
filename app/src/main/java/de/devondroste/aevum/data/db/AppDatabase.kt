@@ -36,7 +36,7 @@ import de.devondroste.aevum.data.model.*
         ActivityAggregateDay::class,
         GeofenceEventLogEntry::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -790,6 +790,29 @@ abstract class AppDatabase : RoomDatabase() {
                 }
             }
             database.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+        }
+
+        /**
+         * M14: Intelligente Schlaf-Erkennung (3-Signal-Fusion).
+         *
+         * - automation_settings.sleep_fusion_enabled: User-Toggle für die Fusion.
+         *   Default 0 (aus), muss explizit aktiviert werden.
+         * - data_source 'sleep_fusion_v1': FK-Ziel für RawSourceEvent-Einträge, die
+         *   der SleepFusionWorker schreibt. INSERT OR IGNORE — falls die ID bereits
+         *   existiert, kein Konflikt.
+         */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Per-Source-Toggle: defaultValue "0" muss zum @ColumnInfo(defaultValue = "0") passen.
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN sleep_fusion_enabled INTEGER NOT NULL DEFAULT 0")
+                // DataSource für den Fusion-Worker seeden — verhindert FK-Verletzung beim ersten
+                // RawSourceEvent(sourceId = "sleep_fusion_v1") Insert.
+                database.execSQL(
+                    "INSERT OR IGNORE INTO data_source (id, type, name, enabled, permission_state, created_at, updated_at) " +
+                    "VALUES ('sleep_fusion_v1', 'ANDROID_API', 'Schlaf-Fusion (Screen + AR + Digital)', 1, 'UNKNOWN', " +
+                    "${System.currentTimeMillis()}, ${System.currentTimeMillis()})"
+                )
+            }
         }
     }
 }

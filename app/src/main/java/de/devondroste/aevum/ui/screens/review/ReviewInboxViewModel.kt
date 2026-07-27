@@ -57,6 +57,15 @@ class ReviewInboxViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = reviewCandidateUseCase.accept(candidate.id)) {
                 is CandidateReviewResult.Accepted -> onAccepted(result.sessionId)
+                // M16.4: PersistFailed behandeln — Session konnte nicht gespeichert
+                // werden (z.B. FK-Constraint-Fehler). Der Candidate wurde intern
+                // auf DISMISSED gesetzt, der User bekommt hier einen Hinweis.
+                is CandidateReviewResult.PersistFailed -> {
+                    android.util.Log.w(
+                        "ReviewInboxViewModel",
+                        "Accept fehlgeschlagen für ${result.candidateId}: ${result.e?.message ?: "unknown"}"
+                    )
+                }
                 else -> Unit
             }
         }

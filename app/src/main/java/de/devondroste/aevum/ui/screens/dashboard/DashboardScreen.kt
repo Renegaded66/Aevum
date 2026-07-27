@@ -281,7 +281,7 @@ private fun DailySummaryHero(
                     }
                 }
 
-                // 5 Key Metrics — one row
+                // 5 Key Metrics — eine Zeile (Bildschirm/Balance zugunsten von Top-Kat konsolidiert)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
@@ -301,6 +301,8 @@ private fun DailySummaryHero(
                     KeyMetric(
                         modifier = Modifier.weight(1f),
                         label = "Bildschirm",
+                        // M16: Bei fehlenden Daten "—" statt "0m" zeigen.
+                        // digitalScreenTimeFormatted ist "—" wenn screenTimeMs == 0.
                         value = state.digitalScreenTimeFormatted,
                         accent = MaterialTheme.colorScheme.secondary
                     )
@@ -321,10 +323,14 @@ private fun DailySummaryHero(
                         value = movementMs(state),
                         accent = de.devondroste.aevum.ui.theme.AevumCategoryColors.sport
                     )
+                    // M16.4: "Balance" entfernt — der Score war oft "—" und
+                    // doppelte zur Bildschirm-Anzeige. Stattdessen "Top-Kat":
+                    // zeigt die aktivste Kategorie heute (z.B. "Arbeit 4h")
+                    // als konkrete Information, die das Dashboard ergänzt.
                     KeyMetric(
                         modifier = Modifier.weight(1f),
-                        label = "Balance",
-                        value = "${state.balanceScore}",
+                        label = if (state.hasData) "Top-Kat" else "Top-Kat",
+                        value = topCategoryMs(state),
                         accent = MaterialTheme.colorScheme.tertiary
                     )
                 }
@@ -575,6 +581,17 @@ private fun focusMs(state: DashboardUiState): String {
 private fun movementMs(state: DashboardUiState): String {
     val sportMs = state.distribution.firstOrNull { it.label.equals("sport", ignoreCase = true) }?.durationMs ?: 0L
     return formatHours(sportMs)
+}
+
+/**
+ * M16.4: Top-Kategorie — zeigt die aktivste Kategorie mit ihrer Dauer
+ * (z.B. "Arbeit 4h"). Wenn keine Daten vorhanden sind, wird "—"
+ * zurückgegeben, statt eine leere/0-Anzeige.
+ */
+private fun topCategoryMs(state: DashboardUiState): String {
+    val top = state.distribution.firstOrNull() ?: return "—"
+    if (top.durationMs <= 0L) return "—"
+    return "${top.label} ${formatHours(top.durationMs)}"
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 1200)

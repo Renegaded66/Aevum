@@ -15,5 +15,8 @@ data class AutomationSettings(
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
     // M8: Per-source toggles
     @ColumnInfo(name = "health_sleep_enabled", defaultValue = "0") val healthSleepEnabled: Boolean = false,
-    @ColumnInfo(name = "digital_balance_enabled", defaultValue = "0") val digitalBalanceEnabled: Boolean = false
+    @ColumnInfo(name = "digital_balance_enabled", defaultValue = "0") val digitalBalanceEnabled: Boolean = false,
+    // M14: Schlaf-Fusion (Screen + Activity Recognition + Digital Balance).
+    // Default aus — der User entscheidet bewusst, ob die 3-Signal-Fusion läuft.
+    @ColumnInfo(name = "sleep_fusion_enabled", defaultValue = "0") val sleepFusionEnabled: Boolean = false
 ) : Serializable

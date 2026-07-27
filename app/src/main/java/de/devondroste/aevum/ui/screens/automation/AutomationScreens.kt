@@ -79,6 +79,9 @@ fun AutomationSettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val isAnalyzingSleep by viewModel.isAnalyzingSleep.collectAsState()
     val sleepStatus by viewModel.sleepStatus.collectAsState()
+    // M14: State für die 3-Signal-Fusion.
+    val isAnalyzingFusion by viewModel.isAnalyzingFusion.collectAsState()
+    val fusionStatus by viewModel.fusionStatus.collectAsState()
     val foregroundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { viewModel.refreshGeofences() }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { viewModel.refreshGeofences() }
     val context = LocalContext.current
@@ -143,6 +146,50 @@ fun AutomationSettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         Text("Health Connect", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         SettingSwitch("Schlaf automatisch erkennen", "Aus Health Connect importieren", state.settings.healthSleepEnabled, viewModel::setHealthSleep)
+                    }
+                }
+            }
+            // M14: Intelligente Schlaf-Erkennung — 3-Signal-Fusion aus Screen,
+            // Activity Recognition (STILL) und Digital Balance. Funktioniert ohne
+            // Health Connect. Auto-Accept ab 2/3 Signalen, Review-Inbox bei 1/3.
+            item {
+                AevumCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Text("Intelligente Schlaf-Erkennung", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Kombiniert Bildschirm-Events, Activity-Recognition (STILL) und Bildschirmzeit. " +
+                            "Bei 2 von 3 Signalen wird der Schlaf direkt in die Timeline übernommen — sonst Vorschlag in der Review-Inbox.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        SettingSwitch(
+                            title = "Schlaf automatisch erkennen",
+                            description = "Aus Screen + STILL + Bildschirmzeit fusionieren",
+                            checked = state.settings.sleepFusionEnabled,
+                            onCheckedChange = viewModel::setSleepFusion
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = { viewModel.analyzeSleepFusionNow() },
+                                enabled = !isAnalyzingFusion
+                            ) {
+                                if (isAnalyzingFusion) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(Modifier.size(8.dp))
+                                    Text("Fusion läuft…")
+                                } else {
+                                    Text("Jetzt fusionieren")
+                                }
+                            }
+                            OutlinedButton(onClick = { viewModel.openFusionStatus() }) { Text("Status") }
+                        }
                     }
                 }
             }
@@ -242,6 +289,14 @@ fun AutomationSettingsScreen(
             SleepStatusDialog(
                 status = status,
                 onDismiss = { viewModel.dismissSleepStatus() }
+            )
+        }
+
+        // M14: Fusion-Status Dialog — zeigt, was die 3 Signal-Quellen sehen.
+        fusionStatus?.let { status ->
+            SleepFusionStatusDialog(
+                status = status,
+                onDismiss = { viewModel.dismissFusionStatus() }
             )
         }
     }
@@ -858,6 +913,61 @@ private fun GeofenceRow(geofence: PlaceGeofence, onEdit: (String) -> Unit, onDel
 // ══════════════════════════════════════════════════════
 // M12.1: Sleep-Status Dialog
 // ══════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════
+// M14: Fusion-Status Dialog
+// ══════════════════════════════════════════════════════
+
+@Composable
+private fun SleepFusionStatusDialog(
+    status: de.devondroste.aevum.automation.sleep.SleepFusionStatus,
+    onDismiss: () -> Unit
+) {
+    val dateFmt = remember { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT) }
+    val stillHours = String.format("%.1f h", status.stillClusterHours)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Schlaf-Fusion Status") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Text("Drei Quellen, eine Schlaf-Erkennung", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                StatusRow(
+                    label = "Bildschirm-Events (14h-Fenster)",
+                    value = "${status.screenEventCount}"
+                )
+                StatusRow(
+                    label = "STILL-Cluster (Activity Recognition)",
+                    value = stillHours
+                )
+                StatusRow(
+                    label = "Stille im Digital-Balance-Log",
+                    value = formatHm(status.digitalQuietMs)
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Text("Letzte Bildschirm-Events", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                StatusRow(
+                    label = "Display aus",
+                    value = status.lastScreenOff?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
+                )
+                StatusRow(
+                    label = "Display an",
+                    value = status.lastScreenOn?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Schließen") }
+        }
+    )
+}
+
+private fun formatHm(ms: Long): String {
+    val totalMin = ms / 60_000
+    val h = totalMin / 60
+    val m = totalMin % 60
+    return if (h > 0) "${h}h ${m}min" else "${m}min"
+}
 
 @Composable
 private fun SleepStatusDialog(

@@ -12,6 +12,9 @@ interface AutomationSettingsDao {
     @Query("SELECT * FROM automation_settings WHERE id = 'default'")
     fun get(): Flow<AutomationSettings?>
 
+    @Query("SELECT * FROM automation_settings WHERE id = 'default'")
+    suspend fun getSettingsSync(): AutomationSettings?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(settings: AutomationSettings)
 }
