@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -19,9 +20,11 @@ import de.devondroste.aevum.automation.model.AutomationConstants
 import de.devondroste.aevum.data.model.ActivityCandidate
 import de.devondroste.aevum.data.model.DetectionEvent
 import de.devondroste.aevum.data.model.RawSourceEvent
+import de.devondroste.aevum.data.model.TriggerEvent
 import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.DetectionEventRepository
 import de.devondroste.aevum.data.repository.RawSourceEventRepository
+import de.devondroste.aevum.data.repository.TriggerEventRepository
 import de.devondroste.aevum.domain.automation.ReviewCandidateUseCase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
@@ -57,6 +60,10 @@ class ActivityRecognitionWorker(
         fun detectionRepository(): DetectionEventRepository
         fun candidateRepository(): ActivityCandidateRepository
         fun reviewCandidateUseCase(): ReviewCandidateUseCase
+        fun triggerEventRepository(): TriggerEventRepository
+        fun liveActivityManager(): de.devondroste.aevum.domain.liveactivity.LiveActivityManager
+        // M16.6: Schlaf-Schutzschicht gegen Driving-False-Positives
+        fun sleepShield(): de.devondroste.aevum.automation.sleep.SleepShield
     }
 
     override suspend fun doWork(): Result {
@@ -69,12 +76,27 @@ class ActivityRecognitionWorker(
         val detRepo = deps.detectionRepository()
         val candRepo = deps.candidateRepository()
         val reviewUc = deps.reviewCandidateUseCase()
+        val triggerRepo = deps.triggerEventRepository()
+        val liveActivityManager = deps.liveActivityManager()
+        val sleepShield = deps.sleepShield()
 
         // M12.2: Aggregiere IN_VEHICLE-Cluster aus dem In-Memory-Buffer.
         // Der Buffer wird vom ActivityTransitionReceiver befüllt.
         val cluster = bridge.drainVehicleCluster() ?: return Result.success()
         if (cluster.durationMs < MIN_CLUSTER_DURATION_MS) {
             // Zu kurze "Fahrt" — wahrscheinlich Bus-Haltestelle oder Beifahrer
+            return Result.success()
+        }
+
+        // M16.6: SleepShield. Wenn das Cluster mitten in einem nachgewiesenen
+        // oder sehr wahrscheinlichen Schlaf-Fenster liegt, handelt es sich
+        // um eine IN_VEHICLE-False-Positive (z.B. Vibration im Bus, Sensor-
+        // Spring). Wir verwerfen den Cluster hier komplett.
+        if (sleepShield.shouldSuppress(cluster.startMs)) {
+            android.util.Log.d(
+                "ActivityRecognitionWorker",
+                "IN_VEHICLE-Cluster im Schlaf-Fenster → suppressed (start=${cluster.startMs})"
+            )
             return Result.success()
         }
 
@@ -123,6 +145,37 @@ class ActivityRecognitionWorker(
             else -> "<1m"
         }
 
+        // M15: TriggerEvent für die Timeline-Trigger-Liste und für
+        // zukünftige Session-Anker. anchorQuality=HIGH für IN_VEHICLE,
+        // weil das Google's stabilster Activity-Typ ist.
+        triggerRepo.insert(
+            TriggerEvent(
+                id = UUID.randomUUID().toString(),
+                occurredAt = cluster.startMs,
+                type = "DRIVING_STARTED",
+                source = "activity_recognition",
+                confidence = confidence,
+                detectionEventId = detectionId,
+                metadataJson = "{\"clusterDurationMs\":${cluster.durationMs},\"peakConfidence\":$confidence}",
+                anchorQuality = "HIGH"
+            )
+        )
+        // M15: zusätzlich ein ENDED-Trigger mit dem Cluster-Ende, damit die
+        // Timeline einen klaren Start- und Endpunkt für die Fahrt zeigt.
+        triggerRepo.insert(
+            TriggerEvent(
+                id = UUID.randomUUID().toString(),
+                occurredAt = cluster.endMs,
+                type = "DRIVING_ENDED",
+                source = "activity_recognition",
+                confidence = confidence,
+                detectionEventId = detectionId,
+                metadataJson = "{\"clusterDurationMs\":${cluster.durationMs}}",
+                anchorQuality = "HIGH"
+            )
+        )
+        Log.d(TAG, "Trigger DRIVING_STARTED + DRIVING_ENDED für ${durationStr} Cluster erzeugt")
+
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
             suggestedTitle = "Autofahrt ($durationStr)",
@@ -140,12 +193,73 @@ class ActivityRecognitionWorker(
         candRepo.insert(candidate)
 
         // Auto-Accept — gleiche Pipeline wie Schlaf und Geofence.
+        // M15: Quelle: ACTIVITY_RECOGNITION_AUTO wird in der Timeline
+        // als "Auto" markiert, weil dieser sourceType in AUTO_SOURCES ist.
         reviewUc.acceptAuto(listOf(candidate))
+
+        // M15: Auto-Start einer Live-Session "Autofahrt" mit Timer.
+        //
+        // Architektur (siehe Skill-Ref M11.2 + M12.2):
+        //   - Live-Session wird via LiveActivityManager.start() angelegt
+        //   - sourceType = ACTIVITY_RECOGNITION_AUTO → erscheint in der
+        //     Timeline als "Auto" (siehe AUTO_SOURCES)
+        //   - sessionStatus = RUNNING (Default) — der User kann in der
+        //     LiveActivityCard Pause/Stop nutzen, genau wie bei manuellen
+        //     Sessions.
+        //   - Beim nächsten Cluster-Start ODER forceDrainIfStale wird die
+        //     Session via stop() beendet.
+        //
+        // Sicherheits-Check: keine doppelte Session. Wenn schon eine
+        // Autofahrt läuft, wird der Cluster ignoriert.
+        try {
+            val existing = liveActivityManager.liveSession.value
+            val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "driving"
+            if (!isDuplicate) {
+                // Aevtuelle andere Live-Session beenden (z. B. manuelles
+                // Workout) bevor die Autofahrt startet — wie bei Geofence.
+                if (existing != null && existing.isLive) {
+                    liveActivityManager.forceFinishForAuto()
+                }
+                val session = liveActivityManager.start(
+                    activityTypeId = "driving",
+                    title = "Autofahrt",
+                    sourceType = "ACTIVITY_RECOGNITION_AUTO",
+                    // startedAt = Cluster-Start, NICHT now() — der User
+                    // war ja schon die ganze Zeit im Fahrzeug.
+                    startedAt = cluster.startMs
+                )
+                Log.d(TAG, "Live-Session Autofahrt gestartet: ${session.id} (start=${cluster.startMs})")
+                // Foreground-Service starten, damit der Timer weiterläuft
+                // wenn der User die App schließt.
+                de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+            } else {
+                Log.d(TAG, "Autofahrt läuft bereits (${existing?.id}) — Cluster ignoriert")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Auto-Start der Live-Session fehlgeschlagen", e)
+        }
+
+        // M15: Auto-Stop. Wenn der User die Fahrt beendet und der Cluster
+        // geschlossen wird, stoppen wir die Live-Session mit der korrekten
+        // Endzeit (cluster.endMs, nicht now()).
+        try {
+            val liveSession = liveActivityManager.liveSession.value
+            if (liveSession != null && liveSession.isLive &&
+                liveSession.activityTypeId == "driving" &&
+                liveSession.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+            ) {
+                val stopped = liveActivityManager.stop()
+                Log.d(TAG, "Live-Session Autofahrt gestoppt: ${stopped?.id} (end=$cluster.endMs)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Auto-Stop der Live-Session fehlgeschlagen", e)
+        }
 
         return Result.success()
     }
 
     private companion object {
+        const val TAG = "ActivityRecognitionWorker"
         // M12.2: Mindestdauer 90s, um Pendelverkehr / kurze Beifahrten zu ignorieren.
         // Spiegelung der Geofence-Dwell-Schwelle.
         const val MIN_CLUSTER_DURATION_MS = 90_000L
@@ -213,6 +327,64 @@ class ActivityRecognitionBridge @Inject constructor() {
         }
         return null
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // M14: STILL-Cluster für die Schlaf-Fusion.
+    //
+    // Google Activity Recognition liefert STILL-Transitions, wenn das Gerät
+    // länger als ~30s still liegt. Auf einem Nachttisch liefert das nachts
+    // ein sehr starkes Schlaf-Signal — kombiniert mit Screen-Events und
+    // Digital Balance wird daraus ein hochkonfidenter Schlaf-Candidate.
+    //
+    // Eigener Buffer, KEIN Konflikt mit der VehicleCluster-Logik oben: ein
+    // Gerät kann in der Nacht nicht gleichzeitig IN_VEHICLE und STILL sein.
+    // ──────────────────────────────────────────────────────────────────────
+    @Volatile private var pendingStill: StillCluster? = null
+    private val stillMaxGapMs = 10L * 60 * 1000 // 10 min — länger als Vehicle, weil STILL
+                                                 // nicht ständig neu gemeldet wird
+
+    @Synchronized
+    fun addStillSample(epochMs: Long, confidence: Int) {
+        val c = pendingStill
+        if (c == null || epochMs - c.lastMs > stillMaxGapMs) {
+            pendingStill = StillCluster(
+                startMs = epochMs,
+                endMs = epochMs,
+                lastMs = epochMs,
+                sampleCount = 1,
+                peakConfidence = confidence
+            )
+        } else {
+            pendingStill = c.copy(
+                endMs = epochMs,
+                lastMs = epochMs,
+                sampleCount = c.sampleCount + 1,
+                peakConfidence = maxOf(c.peakConfidence, confidence)
+            )
+        }
+    }
+
+    /**
+     * Liefert den akkumulierten STILL-Cluster, aber NUR wenn er mindestens
+     * [minDurationMs] lang ist. Kürzere Cluster (z. B. User legt das Phone
+     * mal 5 min weg) werden verworfen — die sind kein Schlaf-Signal.
+     *
+     * Atomar: drained den Buffer, sodass nachfolgende Calls einen frischen
+     * Cluster aufbauen.
+     */
+    @Synchronized
+    fun drainStillCluster(minDurationMs: Long = 4L * 60 * 60 * 1000): StillCluster? {
+        val c = pendingStill ?: return null
+        pendingStill = null
+        val withDuration = c.copy(durationMs = c.endMs - c.startMs)
+        return if (withDuration.durationMs >= minDurationMs) withDuration else null
+    }
+
+    @Synchronized
+    fun currentStillCluster(nowMs: Long): StillCluster? {
+        val c = pendingStill ?: return null
+        return c.copy(durationMs = nowMs - c.startMs, lastMs = nowMs)
+    }
 }
 
 data class VehicleCluster(
@@ -223,6 +395,125 @@ data class VehicleCluster(
     val peakConfidence: Int,
     val durationMs: Long = endMs - startMs
 )
+
+/**
+ * M14: STILL-Cluster — Pendant zu [VehicleCluster] für die Schlaf-Fusion.
+ * Gleiches Schema, anderer Use-Case.
+ */
+data class StillCluster(
+    val startMs: Long,
+    val endMs: Long,
+    val lastMs: Long,
+    val sampleCount: Int,
+    val peakConfidence: Int,
+    val durationMs: Long = endMs - startMs
+)
+
+/**
+ * M15: Trigger-Worker für ON_BICYCLE / WALKING / RUNNING.
+ *
+ * Im Gegensatz zu IN_VEHICLE (Auto-Start) sind diese Activity-Typen
+ * zu unzuverlässig für automatische Sessions. Wir erzeugen NUR TriggerEvents
+ * mit niedriger Confidence (50%) — sie erscheinen in der Timeline als
+ * dezente Marker, der User kann sie bei Bedarf manuell zu einer Session
+ * "befördern".
+ *
+ * Eigener Worker, damit der schwere IN_VEHICLE-Pfad (mit Auto-Start)
+ * nicht durch zusätzliche Transition-Verarbeitung ausgebremst wird.
+ */
+class ActivityRecognitionTriggerWorker(
+    appContext: Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(appContext, workerParams) {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface Deps {
+        fun triggerEventRepository(): TriggerEventRepository
+        fun rawSourceRepository(): RawSourceEventRepository
+        fun detectionRepository(): DetectionEventRepository
+    }
+
+    override suspend fun doWork(): Result {
+        val deps = EntryPointAccessors.fromApplication(
+            applicationContext, Deps::class.java
+        )
+        val triggerRepo = deps.triggerEventRepository()
+        val rawRepo = deps.rawSourceRepository()
+        val detRepo = deps.detectionRepository()
+        val now = System.currentTimeMillis()
+        val inputData = inputData
+        val activityType = inputData.getString(KEY_ACTIVITY_TYPE) ?: return Result.failure()
+        val transition = inputData.getString(KEY_TRANSITION) ?: return Result.failure()
+        val triggerType = triggerTypeFor(activityType, transition) ?: return Result.success()
+        val confidence = inputData.getFloat(KEY_CONFIDENCE, 0.5f).coerceIn(0f, 1f)
+        val externalId = "ar_${activityType.lowercase()}_${transition.lowercase()}_$now"
+
+        val existing = rawRepo.getBySourceAndExternalId("activity_recognition", externalId).first()
+        if (existing != null) return Result.success()
+
+        val rawId = UUID.randomUUID().toString()
+        rawRepo.insert(
+            RawSourceEvent(
+                id = rawId,
+                sourceId = "activity_recognition",
+                externalId = externalId,
+                eventType = "${activityType}_${transition}",
+                observedAt = now,
+                startAt = now,
+                endAt = now,
+                timezoneId = java.time.ZoneId.systemDefault().id,
+                payloadJson = "{\"activityType\":\"$activityType\",\"transition\":\"$transition\",\"confidence\":$confidence}"
+            )
+        )
+        val detectionId = UUID.randomUUID().toString()
+        detRepo.insert(
+            DetectionEvent(
+                id = detectionId,
+                rawEventId = rawId,
+                sourceId = "activity_recognition",
+                kind = "ACTIVITY_RECOGNITION_${activityType}",
+                startAt = now,
+                confidence = confidence,
+                metadataJson = "{\"activityType\":\"$activityType\",\"transition\":\"$transition\"}"
+            )
+        )
+        triggerRepo.insert(
+            TriggerEvent(
+                id = UUID.randomUUID().toString(),
+                occurredAt = now,
+                type = triggerType,
+                source = "activity_recognition",
+                confidence = confidence,
+                detectionEventId = detectionId,
+                metadataJson = "{\"activityType\":\"$activityType\"}",
+                // M15: ON_BICYCLE/WALKING/RUNNING sind LOW — Google's Confidence
+                // springt oft zwischen den Typen, ein HIGH wäre gelogen.
+                anchorQuality = "LOW"
+            )
+        )
+        Log.d(TAG, "Trigger $triggerType erzeugt (Confidence=$confidence)")
+        return Result.success()
+    }
+
+    private fun triggerTypeFor(activityType: String, transition: String): String? {
+        if (transition != "ENTER" && transition != "EXIT") return null
+        val suffix = if (transition == "ENTER") "_STARTED" else "_ENDED"
+        return when (activityType) {
+            "ON_BICYCLE" -> "BICYCLE$suffix"
+            "WALKING" -> "WALKING$suffix"
+            "RUNNING" -> "RUNNING$suffix"
+            else -> null
+        }
+    }
+
+    companion object {
+        const val KEY_ACTIVITY_TYPE = "activity_type"
+        const val KEY_TRANSITION = "transition"
+        const val KEY_CONFIDENCE = "confidence"
+        private const val TAG = "ActivityRecognitionTriggerWorker"
+    }
+}
 
 /**
  * M12.2: BroadcastReceiver für Activity Transition Updates.
@@ -250,16 +541,77 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
         if (com.google.android.gms.location.ActivityTransitionResult.hasResult(intent)) {
             val result = com.google.android.gms.location.ActivityTransitionResult.extractResult(intent) ?: return
             val now = System.currentTimeMillis()
-            for (transition in result.transitionEvents) {
-                if (transition.activityType == DetectedActivity.IN_VEHICLE) {
-                    bridge.addSample(now, 75)
+            var hasChange = false
+            for (event in result.transitionEvents) {
+                when (event.activityType) {
+                    DetectedActivity.IN_VEHICLE -> {
+                        bridge.addSample(now, 75)
+                        hasChange = true
+                    }
+                    // M14: STILL liefert das zweite Schlaf-Signal. Wir puffern
+                    // jede STILL-Transition — der SleepFusionWorker aggregiert
+                    // sie dann zu einem StillCluster und ruft die Fusion auf.
+                    DetectedActivity.STILL -> {
+                        bridge.addStillSample(now, 75)
+                        hasChange = true
+                    }
+                    // M15: ON_BICYCLE / WALKING / RUNNING erzeugen nur
+                    // TriggerEvents (kein Auto-Start, da zu unzuverlässig).
+                    DetectedActivity.ON_BICYCLE,
+                    DetectedActivity.WALKING,
+                    DetectedActivity.RUNNING -> {
+                        enqueueTriggerWorker(context, event.activityType, getTransitionInt(event))
+                        hasChange = true
+                    }
                 }
             }
+            if (!hasChange) return
             // M12.2: Worker enqueuen — der aggregiert und entscheidet.
             androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionWorker>().build().also {
                 androidx.work.WorkManager.getInstance(context).enqueue(it)
             }
+            // M14: separater Worker für die Schlaf-Fusion. Wir enqueuen ihn
+            // ebenfalls, der dedupliziert sich selbst über source_candidate_id.
+            androidx.work.OneTimeWorkRequestBuilder<
+                de.devondroste.aevum.automation.sleep.SleepFusionWorker
+            >().build().also {
+                androidx.work.WorkManager.getInstance(context).enqueue(it)
+            }
         }
+    }
+
+    /**
+     * M15: Wrapper für den Property-Zugriff auf [ActivityTransitionEvent].
+     * GMS-Lib v21.3.0 exportiert die Property als `getTransitionType()` (Java),
+     * in Kotlin als `transitionType` (nicht `transition`). Diese Helper-
+     * Methode kapselt den Property-Namen, falls Google das in zukünftigen
+     * Versionen wieder ändert.
+     */
+    private fun getTransitionInt(event: com.google.android.gms.location.ActivityTransitionEvent): Int {
+        return event.transitionType
+    }
+
+    private fun enqueueTriggerWorker(context: Context, activityType: Int, transitionInt: Int) {
+        val typeName = when (activityType) {
+            DetectedActivity.ON_BICYCLE -> "ON_BICYCLE"
+            DetectedActivity.WALKING -> "WALKING"
+            DetectedActivity.RUNNING -> "RUNNING"
+            else -> return
+        }
+        val transName = when (transitionInt) {
+            com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER -> "ENTER"
+            com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT -> "EXIT"
+            else -> return
+        }
+        val data = androidx.work.Data.Builder()
+            .putString(ActivityRecognitionTriggerWorker.KEY_ACTIVITY_TYPE, typeName)
+            .putString(ActivityRecognitionTriggerWorker.KEY_TRANSITION, transName)
+            .putFloat(ActivityRecognitionTriggerWorker.KEY_CONFIDENCE, 0.5f)
+            .build()
+        val request = androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionTriggerWorker>()
+            .setInputData(data)
+            .build()
+        androidx.work.WorkManager.getInstance(context).enqueue(request)
     }
 }
 
@@ -283,12 +635,51 @@ object ActivityRecognitionRegistrar {
         val client = ActivityRecognition.getClient(context)
         val request = com.google.android.gms.location.ActivityTransitionRequest(
             listOf(
+                // M12.2: IN_VEHICLE — Auto-Start für Fahrten.
                 com.google.android.gms.location.ActivityTransition.Builder()
                     .setActivityType(DetectedActivity.IN_VEHICLE)
                     .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                     .build(),
                 com.google.android.gms.location.ActivityTransition.Builder()
                     .setActivityType(DetectedActivity.IN_VEHICLE)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                    .build(),
+                // M14: STILL — zweites Signal für die Schlaf-Fusion.
+                // Google liefert nur Transition-Events, nicht den kontinuierlichen
+                // STILL-Stream, daher reichen ENTER+EXIT.
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.STILL)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                    .build(),
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.STILL)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                    .build(),
+                // M15: ON_BICYCLE / WALKING / RUNNING — Trigger-Events.
+                // Diese Activity-Typen sind zu unzuverlässig für Auto-Start,
+                // liefern aber nützliche Trigger-Marker in der Timeline.
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.ON_BICYCLE)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                    .build(),
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.ON_BICYCLE)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                    .build(),
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.WALKING)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                    .build(),
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.WALKING)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                    .build(),
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.RUNNING)
+                    .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                    .build(),
+                com.google.android.gms.location.ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.RUNNING)
                     .setActivityTransition(com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT)
                     .build()
             )

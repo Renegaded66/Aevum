@@ -9,6 +9,8 @@ import de.devondroste.aevum.automation.health.SleepImportWorker
 import de.devondroste.aevum.automation.model.AutomationConstants
 import de.devondroste.aevum.automation.notification.CandidateReviewNotifier
 import de.devondroste.aevum.automation.rules.CandidateRuleOrchestrator
+import de.devondroste.aevum.automation.sleep.SleepShield
+import de.devondroste.aevum.automation.sleep.shouldSuppressTransition
 import de.devondroste.aevum.data.model.DetectionEvent
 import de.devondroste.aevum.data.model.RawSourceEvent
 import de.devondroste.aevum.data.model.TriggerEvent
@@ -30,7 +32,9 @@ class GeofenceTransitionProcessor @Inject constructor(
     private val candidateReviewNotifier: CandidateReviewNotifier,
     private val debugLogger: GeofenceDebugLogger,
     // M11: Auto-start/stop sessions via LiveActivityManager
-    private val liveActivityManager: de.devondroste.aevum.domain.liveactivity.LiveActivityManager
+    private val liveActivityManager: de.devondroste.aevum.domain.liveactivity.LiveActivityManager,
+    // M16.6: Schutzschicht gegen nächtliche False-Positive-Trigger
+    private val sleepShield: SleepShield
 ) {
     suspend fun processTransition(
         geofenceId: String,
@@ -54,6 +58,16 @@ class GeofenceTransitionProcessor @Inject constructor(
         }
 
         debugLogger.log("PROCESSOR", "${geofence.name}: ${transition.name} @ $occurredAt")
+
+        // M16.6: SleepShield. Wenn der Trigger mitten in einem nachgewiesenen
+        // oder sehr wahrscheinlichen Schlaf-Fenster liegt, wird er auf
+        // LOW-anchor gesetzt und nicht als Travel-Start verwendet. Der
+        // Trigger bleibt für Debugging in der DB, aber Travel-Rules
+        // ignorieren ihn (siehe TriggerPairCandidateRuleEngine).
+        val anchorQuality = sleepShield.anchorQualityFor(occurredAt)
+        if (anchorQuality == SleepShield.AnchorQuality.LOW) {
+            debugLogger.log("PROCESSOR", "  SleepShield → Trigger LOW-anchor (Schlaf-Fenster aktiv)")
+        }
 
         val eventType = when (transition) {
             GeofenceTransition.Enter -> "GEOFENCE_ENTER"
@@ -86,7 +100,7 @@ class GeofenceTransitionProcessor @Inject constructor(
             startAt = occurredAt,
             confidence = DEFAULT_CONFIDENCE,
             placeId = geofence.id,
-            metadataJson = """{"geofenceName":"${geofence.name}","transition":"${transition.name}"}"""
+            metadataJson = """{"geofenceName":"${geofence.name}","transition":"${transition.name}","sleepShield":"${anchorQuality.name}"}"""
         )
         detectionRepository.insert(detection)
 
@@ -101,14 +115,17 @@ class GeofenceTransitionProcessor @Inject constructor(
             // M10.1: DWELL ist die zuverlässigste Quelle — User hat nachweislich
             // 90s im Geofence verweilt. EXIT ist weniger verlässlich (GPS-Sprung
             // am Rand), aber immer noch nutzbar. ENTER ohne DWELL bleibt MEDIUM.
-            anchorQuality = when (transition) {
-                GeofenceTransition.Dwell -> "HIGH"
+            // M16.6: SleepShield setzt nachts auf LOW, damit Travel-Rules den
+            // Trigger nicht als Reise-Start verwenden.
+            anchorQuality = when {
+                anchorQuality == SleepShield.AnchorQuality.LOW -> "LOW"
+                transition == GeofenceTransition.Dwell -> "HIGH"
                 else -> "MEDIUM"
             },
             metadataJson = """{"geofenceName":"${geofence.name}","activityTypeId":${geofence.activityTypeId?.let { "\"$it\"" } ?: "null"}}"""
         )
         triggerRepository.insert(trigger)
-        debugLogger.log("PROCESSOR", "  Trigger gespeichert: ${trigger.id} (${trigger.type})")
+        debugLogger.log("PROCESSOR", "  Trigger gespeichert: ${trigger.id} (${trigger.type}, anchor=${trigger.anchorQuality})")
 
         val ruleResult = ruleOrchestrator.evaluateRecentTriggers()
         debugLogger.log("PROCESSOR", "  ${ruleResult.insertedCandidates.size} neue Candidates")

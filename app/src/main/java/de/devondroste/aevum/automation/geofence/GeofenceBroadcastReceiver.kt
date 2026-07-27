@@ -90,10 +90,30 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     // GeofenceStabilizationWorker den Trigger.
                     // Wenn GPS-Flattern innerhalb der 2 Min einen anderen
                     // Übergang liefert, wird der pendente verworfen.
+                    //
+                    // M15: ENTER behält 120s Stabilisierung (durch Loitering
+                    // geschützt). EXIT nutzt nur 30s — schneller sichtbar,
+                    // weniger "Blindflug" für den User nach dem Verlassen.
                     if (!debouncer.shouldEmit(geofence.requestId, transitionEnum, triggerTime)) {
                         // shouldEmit startet immer einen pendenten Übergang
                         // (oder verwirft einen pendenten). Wir schedulen den
-                        // StabilizationWorker, der nach 2 Min prüft.
+                        // StabilizationWorker, der nach Ablauf prüft.
+                        // M16.6: Multi-EXIT-Burst-Schutz. Wenn bereits mehrere
+                        // EXITs für andere Geofences im 90s-Fenster liegen,
+                        // wird dieser EXIT als GPS-Flattern klassifiziert und
+                        // gar nicht erst zur Stabilisierung geschedult.
+                        if (debouncer.isConsolidatedExit(geofence.requestId, transitionEnum, triggerTime)) {
+                            debugLogger.log(
+                                "RECEIVER",
+                                "Multi-EXIT-Burst → ${geofence.requestId} konsolidiert (übersprungen)"
+                            )
+                            return@forEach
+                        }
+                        val stabilizationMs = if (transitionEnum == GeofenceTransition.Exit) {
+                            GeofenceDebouncer.EXIT_STABILIZATION_MS
+                        } else {
+                            GeofenceDebouncer.STABILIZATION_MS
+                        }
                         val workData = Data.Builder()
                             .putString(GeofenceStabilizationWorker.KEY_GEOFENCE_ID, geofence.requestId)
                             .putString(GeofenceStabilizationWorker.KEY_TRANSITION, transitionEnum.name)
@@ -106,12 +126,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                             ExistingWorkPolicy.REPLACE,
                             OneTimeWorkRequestBuilder<GeofenceStabilizationWorker>()
                                 .setInputData(workData)
-                                .setInitialDelay(GeofenceDebouncer.STABILIZATION_MS, TimeUnit.MILLISECONDS)
+                                .setInitialDelay(stabilizationMs, TimeUnit.MILLISECONDS)
                                 .build()
                         )
                         debugLogger.log(
                             "RECEIVER",
-                            "Stabilization scheduled: ${geofence.requestId} ${transitionEnum.name} in ${GeofenceDebouncer.STABILIZATION_MS / 1000}s"
+                            "Stabilization scheduled: ${geofence.requestId} ${transitionEnum.name} in ${stabilizationMs / 1000}s"
                         )
                         return@forEach
                     }

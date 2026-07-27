@@ -35,7 +35,13 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
             .filter { it.geofenceId != null && it.occurredAt <= now }
             .sortedBy { it.occurredAt }
 
-        return ordered.zipWithNext()
+        return ordered
+            // M16.6: LOW-anchor-Trigger (vom SleepShield markiert) ignorieren.
+            // Sie stehen weiterhin in der DB für Debugging, erzeugen aber
+            // keine Travel-Candidates, weil sie mitten in einem Schlaf-
+            // Fenster oder in der Aufwachphase liegen können.
+            .filter { it.anchorQuality != "LOW" }
+            .zipWithNext()
             .mapNotNull { (first, second) -> candidateForPair(first, second, byGeofence) }
             .filter { it.endAt - it.startAt in MIN_DURATION_MS..MAX_DURATION_MS }
             .distinctBy { it.id }
