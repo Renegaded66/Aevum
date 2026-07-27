@@ -1,0 +1,14 @@
+# Git LFS — große APK-Dateien werden als LFS-Objekte gespeichert.
+# Damit umgehen wir das 100 MB-Limit für normale Git-Files.
+# Auf GitHub funktioniert LFS out-of-the-box, solange das Repo
+# unter den LFS-Bandwidth-Limits bleibt (1 GB Storage / Monat
+# free, dann zahlungspflichtig).
+#
+# Bandwidth-Hinweis:
+#   Aevum: 114 MB Debug-APK pro Push → 1 GB = ~8 Pushes/Monat
+#   Points-Tracker: 7 MB → kein LFS nötig
+#
+# Init auf deiner Maschine (einmalig):
+#   git lfs install
+
+*.apk filter=lfs diff=lfs merge=lfs -text
