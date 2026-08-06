@@ -41,7 +41,7 @@ import de.devondroste.aevum.data.model.*
         DailyAllowance::class,
         AllowanceAccumulationDay::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -829,6 +829,10 @@ abstract class AppDatabase : RoomDatabase() {
          * Tabellen. Beide nutzen INTEGER-Indizes mit dem Room-Standard-
          * Schema `index_<table>_<col>`.
          */
+        // M17.2 + M17.3: Neue Tabellen für Unknown-Place-Detection und
+        // Daily-Allowances. ACHTUNG: allowance_accumulation_day wird hier
+        // OHNE FK erstellt — der FK folgt in MIGRATION_15_16 als Bugfix
+        // (siehe Kommentar dort). Geräte auf v14 migrieren also 14→15→16.
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // M17.2: Unknown Place Sessions
@@ -864,7 +868,9 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_allowance_enabled` ON `daily_allowance` (`enabled`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_allowance_activity_type_id` ON `daily_allowance` (`activity_type_id`)")
 
-                // M17.3: Allowance Accumulation Day
+                // M17.3: Allowance Accumulation Day — bewusst OHNE FK,
+                // der wird in MIGRATION_15_16 nachgezogen (Room-Reihenfolge:
+                // Geräte auf v14 laufen 14→15→16, Geräte auf v15 laufen nur 15→16).
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS allowance_accumulation_day (
                         date TEXT NOT NULL,
@@ -880,6 +886,60 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_allowance_id` ON `allowance_accumulation_day` (`allowance_id`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_activity_type_id` ON `allowance_accumulation_day` (`activity_type_id`)")
             }
+        }
+
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M17.5: BUG-FIX — allowance_accumulation_day wurde in M17.3
+                // OHNE FOREIGN KEY auf daily_allowance erstellt (Entity hatte
+                // @ForeignKey CASCADE, Migration nicht). Room validiert das
+                // Schema zur Laufzeit → IllegalStateException beim ersten
+                // DB-Zugriff → Crash in Settings + Timeline (Dashboard
+                // überlebt nur dank .catch{} auf liveSession).
+                //
+                // Da die fehlerhafte Migration 14→15 bereits auf Geräten
+                // gelaufen ist, können wir sie nicht mehr ändern — wir
+                // rebuilden die Tabelle in einer NEUEN Migration (15→16).
+                rebuildAllowanceAccumulationWithFk(database)
+            }
+        }
+
+        private fun rebuildAllowanceAccumulationWithFk(database: SupportSQLiteDatabase) {
+            // Bestehende Indizes droppen (werden unten neu erstellt)
+            database.execSQL("DROP INDEX IF EXISTS `index_allowance_accumulation_day_date`")
+            database.execSQL("DROP INDEX IF EXISTS `index_allowance_accumulation_day_allowance_id`")
+            database.execSQL("DROP INDEX IF EXISTS `index_allowance_accumulation_day_activity_type_id`")
+
+            // Tabelle mit korrektem FOREIGN KEY neu erstellen
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS `allowance_accumulation_day_new` (
+                    `date` TEXT NOT NULL,
+                    `timezone_id` TEXT NOT NULL,
+                    `allowance_id` TEXT NOT NULL,
+                    `activity_type_id` TEXT NOT NULL,
+                    `minutes` INTEGER NOT NULL,
+                    `applied_at` INTEGER NOT NULL,
+                    PRIMARY KEY(`date`, `timezone_id`, `allowance_id`),
+                    FOREIGN KEY(`allowance_id`) REFERENCES `daily_allowance`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Daten kopieren (falls Tabelle existiert und Daten hat)
+            database.execSQL("""
+                INSERT OR IGNORE INTO `allowance_accumulation_day_new`
+                    (`date`, `timezone_id`, `allowance_id`, `activity_type_id`, `minutes`, `applied_at`)
+                SELECT `date`, `timezone_id`, `allowance_id`, `activity_type_id`, `minutes`, `applied_at`
+                FROM `allowance_accumulation_day`
+            """.trimIndent())
+
+            // Alte Tabelle ersetzen
+            database.execSQL("DROP TABLE `allowance_accumulation_day`")
+            database.execSQL("ALTER TABLE `allowance_accumulation_day_new` RENAME TO `allowance_accumulation_day`")
+
+            // Indizes neu erstellen (identisch zu 16.json)
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_date` ON `allowance_accumulation_day` (`date`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_allowance_id` ON `allowance_accumulation_day` (`allowance_id`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_activity_type_id` ON `allowance_accumulation_day` (`activity_type_id`)")
         }
     }
 }
