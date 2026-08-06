@@ -624,6 +624,12 @@ private fun ModeToggleButton(label: String, selected: Boolean, onClick: () -> Un
  * M13: Event-List Timeline.
  * Jeder Eintrag bekommt eine feste Höhe — keine proportionale Anzeige.
  * Damit sind nahe Ereignisse immer lesbar und klickbar.
+ *
+ * M18.8: Nutzerfreundlichkeits-Upgrade:
+ *  - Tagesabschnitt-Header (Nacht/Morgen/Vormittag/Nachmittag/Abend)
+ *    machen lange Listen scannbar — man findet eine Session sofort.
+ *  - Laufende Sessions bekommen ein pulsierendes LIVE-Badge.
+ *  - Größere Zeilen (12dp vertikal) = bessere Touch-Targets.
  */
 @Composable
 private fun EventListTimeline(
@@ -650,41 +656,83 @@ private fun EventListTimeline(
         )
         return
     }
+
+    // M18.8: Nach Tagesabschnitten gruppieren — sofort scannbar.
+    val grouped = remember(merged) { groupByDayPart(merged) }
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        merged.forEach { entry ->
-            when (entry) {
-                is TimelineEntry.Session -> {
-                    // M18.5: Positivitäts-Farbcodierung — die Timeline wird
-                    // zum visuellen Tagebuch: grüner Punkt = gute Zeit,
-                    // roter Punkt = schlechte Zeit (Instagram gucken).
-                    EventListRow(
-                        time = entry.session.time,
-                        title = entry.session.title,
-                        detail = "${entry.session.range} · ${entry.session.duration}",
-                        accent = positivityColor(entry.session.positivityScore),
-                        kind = if (entry.session.isAuto) "Auto" else "Erfasst",
-                        onClick = { onOpen(entry.session.id) },
-                        onEdit = { onEdit(entry.session.id) }
-                    )
-                }
-                is TimelineEntry.Trigger -> {
-                    EventListRow(
-                        time = entry.trigger.time,
-                        title = "◆ ${entry.trigger.label}",
-                        detail = "${entry.trigger.confidence}% Konfidenz",
-                        accent = MaterialTheme.colorScheme.secondary,
-                        kind = "Trigger",
-                        onClick = {},
-                        onEdit = {}
-                    )
-                }
-            }
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f),
-                thickness = 1.dp
+        grouped.forEach { (part, entries) ->
+            // Abschnitts-Header
+            Text(
+                part.label.uppercase(),
+                fontSize = 10.sp,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
             )
+            entries.forEach { entry ->
+                when (entry) {
+                    is TimelineEntry.Session -> {
+                        // M18.5: Positivitäts-Farbcodierung — die Timeline wird
+                        // zum visuellen Tagebuch: grüner Punkt = gute Zeit,
+                        // roter Punkt = schlechte Zeit (Instagram gucken).
+                        EventListRow(
+                            time = entry.session.time,
+                            title = entry.session.title,
+                            detail = "${entry.session.range} · ${entry.session.duration}",
+                            accent = positivityColor(entry.session.positivityScore),
+                            kind = if (entry.session.isAuto) "Auto" else "Erfasst",
+                            isLive = entry.session.isRunning,
+                            onClick = { onOpen(entry.session.id) },
+                            onEdit = { onEdit(entry.session.id) }
+                        )
+                    }
+                    is TimelineEntry.Trigger -> {
+                        EventListRow(
+                            time = entry.trigger.time,
+                            title = "◆ ${entry.trigger.label}",
+                            detail = "${entry.trigger.confidence}% Konfidenz",
+                            accent = MaterialTheme.colorScheme.secondary,
+                            kind = "Trigger",
+                            onClick = {},
+                            onEdit = {}
+                        )
+                    }
+                }
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f),
+                    thickness = 1.dp
+                )
+            }
         }
     }
+}
+
+/** M18.8: Tagesabschnitte für scannbare Listen-Gruppierung. */
+private enum class DayPart(val label: String, val startMin: Int, val endMin: Int) {
+    Nacht("Nacht", 0, 5 * 60),
+    Morgen("Morgen", 5 * 60, 10 * 60),
+    Vormittag("Vormittag", 10 * 60, 13 * 60),
+    Nachmittag("Nachmittag", 13 * 60, 17 * 60),
+    Abend("Abend", 17 * 60, 21 * 60),
+    Spaet("Später Abend", 21 * 60, 24 * 60);
+
+    companion object {
+        fun of(minute: Int): DayPart = entries.first { minute in it.startMin until it.endMin }
+    }
+}
+
+/** M18.8: Entries nach Tagesabschnitt gruppieren (Reihenfolge beibehalten). */
+private fun groupByDayPart(
+    entries: List<TimelineEntry>
+): List<Pair<DayPart, List<TimelineEntry>>> {
+    return entries.groupBy { entry ->
+        val minute = when (entry) {
+            is TimelineEntry.Session -> entry.session.startMinuteOfDay
+            is TimelineEntry.Trigger -> entry.trigger.minuteOfDay
+        }
+        DayPart.of(minute)
+    }.toList().sortedBy { it.first.startMin }
 }
 
 private sealed class TimelineEntry {
@@ -700,13 +748,16 @@ private fun EventListRow(
     accent: Color,
     kind: String,
     onClick: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    // M18.8: Laufende Session -> pulsierendes LIVE-Badge
+    isLive: Boolean = false
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
+            // M18.8: Größeres Touch-Target (12dp statt 10dp vertikal)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
     ) {
@@ -727,18 +778,44 @@ private fun EventListRow(
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
-        Box(
-            modifier = Modifier
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
-                .background(accent.copy(alpha = 0.12f))
-                .padding(horizontal = 8.dp, vertical = 2.dp)
-        ) {
-            Text(
-                kind,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = accent
-            )
+        // M18.8: LIVE-Badge für laufende Sessions — sofort erkennbar
+        if (isLive) {
+            Row(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.14f))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(MaterialTheme.colorScheme.error)
+                )
+                Text(
+                    "LIVE",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                    letterSpacing = 0.8.sp
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
+                    .background(accent.copy(alpha = 0.12f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    kind,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = accent
+                )
+            }
         }
     }
 }
