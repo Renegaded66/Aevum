@@ -78,6 +78,14 @@
             </intent-filter>
         </receiver>
 
+        <!-- M17.4: Initial-Activity-Snapshot Receiver — empfängt die ersten
+             Activity-Samples nach Boot/App-Start, um zu erkennen, ob der
+             User gerade IN_VEHICLE ist. exported=false weil nur lokale
+             PendingIntents von der App selbst ankommen. -->
+        <receiver
+            android:name=".automation.activityrecognition.InitialActivityProbeReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".automation.geofence.BootReceiver"
             android:exported="false">

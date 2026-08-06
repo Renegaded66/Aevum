@@ -130,6 +130,14 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ActivityRecognitionRegistrar failed — continuing", e)
         }
+        // M17.4: Initial-Activity-Snapshot — falls der User gerade im Auto
+        // sitzt und die App frisch startet (Cold-Start), soll das ebenfalls
+        // erkannt werden. Idempotent dank KEEP-Policy im Scheduler.
+        try {
+            de.devondroste.aevum.automation.activityrecognition.InitialActivitySnapshotScheduler.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "InitialActivitySnapshotScheduler failed — continuing", e)
+        }
         // M14: Beim App-Start einen einmaligen SleepFusionWorker enqueuen.
         // Der entscheidet selbst, ob genug Signale da sind, und ist sonst ein No-Op.
         try {
