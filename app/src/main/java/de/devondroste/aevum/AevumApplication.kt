@@ -66,13 +66,19 @@ class AevumApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // M17.4: Crash-Logger als ALLERERSTES installieren (vor Hilt-Init
+        // wäre noch besser, aber @HiltAndroidApp ruft Hilt-Init in
+        // super.onCreate() auf — also ist "so früh wie möglich in unserer
+        // onCreate" der früheste sinnvolle Punkt). Schreibt Trace nach
+        // /sdcard/Android/data/<pkg>/files/last-crash.log (Files-app-reachable).
+        de.devondroste.aevum.util.CrashLogger.install(this)
         // M12.0.2: Defensive Initialisierung — jede Komponente wird einzeln
         // in try-catch gewrappt. Ein Fehler in MapLibre, SleepImport oder
         // GeofenceRefresh darf niemals den App-Start abbrechen.
         try {
             MapLibre.getInstance(this)
         } catch (e: Exception) {
-            Log.e("AevumApplication", "MapLibre init failed — continuing without maps", e)
+            Log.e("AevumApplication", "MapLibre init failed — continuing", e)
         }
 
         // M16.4: ensureDefaultData ZUERST. Wir warten nicht auf das Resultat,
