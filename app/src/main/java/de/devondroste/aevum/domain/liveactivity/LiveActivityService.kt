@@ -35,7 +35,12 @@ class LiveActivityService : Service() {
     private var updateJob: Job? = null
 
     companion object {
-        const val CHANNEL_ID = "live_activity"
+        // M18.4: NEUE Channel-ID — NotificationChannels sind nach dem ersten
+        // Erstellen UNVERÄNDERBAR (Android-Pitfall). Der alte Channel
+        // "live_activity" (IMPORTANCE_LOW) existiert auf Bestands-Installationen
+        // und ignoriert jede Code-Änderung. Nur ein neuer Channel erzwingt
+        // das Heads-up (IMPORTANCE_HIGH) auch nach App-Update.
+        const val CHANNEL_ID = "live_activity_high"
         const val NOTIFICATION_ID = 9001
         const val ACTION_PAUSE = "de.devondroste.aevum.LIVE_PAUSE"
         const val ACTION_RESUME = "de.devondroste.aevum.LIVE_RESUME"
@@ -90,13 +95,22 @@ class LiveActivityService : Service() {
     }
 
     private fun createNotificationChannel() {
+        // M18.4: IMPORTANCE_HIGH statt LOW — die Notification soll als
+        // Heads-up über allem aufpoppen (User-Anforderung: "deutlich
+        // sichtbarer Banner"). CATEGORY_STOPWATCH ist der Standard für
+        // laufende Timer und bekommt auf Android 13+ automatisch
+        // Priorität im Notification-Manager.
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Laufende Aktivität",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Zeigt die laufende Aktivität und Steuerungsaktionen"
-            setShowBadge(false)
+            setShowBadge(true)
+            enableVibration(true)
+            // M18.4: Kein Laut, aber Vibration + Heads-up — der User soll
+            // es sehen, nicht hören (Zeit-Tracking ist diskret).
+            setSound(null, null)
         }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
@@ -172,11 +186,16 @@ class LiveActivityService : Service() {
             .setShowWhen(false)
             .addAction(0, pauseResumeLabel, pauseResumePending)
             .addAction(0, "Stoppen", stopPending)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            // M18.4: HIGH + STOPWATCH — Heads-up Banner über allem.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(0xFF4CAF50.toInt())
+            .setColorized(true)
 
-        // BigTextStyle mit Gesamt/Aktiv bei Pause
+        // M18.4: BigTextStyle mit Gesamt/Aktiv bei Pause + Timer-Update.
+        // Bei RUNNING zeigt der ContentText den Live-Timer (aktualisiert
+        // jede Sekunde via updateNotification).
         if (isPaused) {
             val totalStr = formatHumanDuration(totalMs)
             val activeStr = formatHumanDuration(activeMs)

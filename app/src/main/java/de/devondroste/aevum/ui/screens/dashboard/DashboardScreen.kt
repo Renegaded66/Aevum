@@ -146,6 +146,27 @@ private fun DashboardContent(
         ) {
             // 1) HERO — Tageszusammenfassung auf einen Blick
             item { DailySummaryHero(state = state, topApps = topApps, usageGranted = usageStatsGranted, onOpenUsageSettings = onOpenUsageSettings) }
+            // M18.4: Live-Banner — gleitet von oben rein, wenn eine Session läuft.
+            // Deutlich sichtbar (Gradient + Timer + Pause/Stop), auch im
+            // Vordergrund — nicht nur die Notification.
+            item {
+                AnimatedVisibility(
+                    visible = liveState is LiveActivityState.Running ||
+                        liveState is LiveActivityState.Paused,
+                    enter = androidx.compose.animation.expandVertically() +
+                        androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically() +
+                        androidx.compose.animation.fadeOut()
+                ) {
+                    LiveActivityBanner(
+                        state = liveState,
+                        nowMs = nowMs,
+                        onPause = onPauseLive,
+                        onResume = onResumeLive,
+                        onStop = onStopLive
+                    )
+                }
+            }
             // 2) Live Activity (kompakt) — eine prominente Karte
             item {
                 LiveActivityCard(
@@ -733,6 +754,128 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                     height = 8.dp,
                     animationDelayMs = index * 80
                 )
+            }
+        }
+    }
+}
+
+/**
+ * M18.4: LiveActivityBanner — der "richtig deutlich sichtbare Banner" in
+ * der App. Gleitet von oben rein (AnimatedVisibility), zeigt:
+ *  - Aktivitätstitel + Live-Timer (aktualisiert jede Sekunde)
+ *  - Pause/Fortsetzen + Stoppen Buttons (groß, klar)
+ *  - Farbverlauf je nach Session-Typ (Auto = primary, manuell = tertiary)
+ *
+ * Design: kein Standard-Banner — eigener Gradient + große Buttons,
+ * damit der User ihn nicht übersehen kann.
+ */
+@Composable
+private fun LiveActivityBanner(
+    state: LiveActivityState,
+    nowMs: Long,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit
+) {
+    val title = when (state) {
+        is LiveActivityState.Running -> state.title
+        is LiveActivityState.Paused -> state.title
+        else -> return
+    }
+    val isPaused = state is LiveActivityState.Paused
+    val accent = if (isPaused) {
+        MaterialTheme.colorScheme.tertiary
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val timerText = when (state) {
+        is LiveActivityState.Running -> {
+            val active = state.activeMs(nowMs)
+            "%02d:%02d:%02d".format(
+                active / 3_600_000,
+                (active % 3_600_000) / 60_000,
+                (active % 60_000) / 1000
+            )
+        }
+        is LiveActivityState.Paused -> {
+            val active = state.activeMs(nowMs)
+            "%02d:%02d".format(active / 60_000, (active % 60_000) / 1000)
+        }
+        else -> ""
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(AevumRadius.lg),
+        color = Color.Transparent,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            accent.copy(alpha = 0.6f)
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            accent.copy(alpha = 0.25f),
+                            accent.copy(alpha = 0.08f)
+                        )
+                    )
+                )
+                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+            ) {
+                // Status-Punkt (pulsierend bei RUNNING, statisch bei Pause)
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(accent)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        if (isPaused) "Pausiert" else "Aufnahme läuft",
+                        fontSize = 10.sp,
+                        letterSpacing = 1.0.sp,
+                        color = accent,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // Timer (Monospace, groß)
+                Text(
+                    timerText,
+                    fontSize = 20.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = accent
+                )
+                // Pause/Fortsetzen
+                Button(
+                    onClick = if (isPaused) onResume else onPause,
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(if (isPaused) "▶" else "⏸", fontSize = 14.sp)
+                }
+                // Stoppen
+                OutlinedButton(
+                    onClick = onStop,
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text("■", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
