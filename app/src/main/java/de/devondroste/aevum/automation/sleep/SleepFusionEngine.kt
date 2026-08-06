@@ -247,15 +247,29 @@ class SleepFusionEngine @Inject constructor(
         if (events.size < 2) return null
 
         // M16.2: Für jedes ON das zuletzt davor liegende OFF nehmen.
+        //
+        // M16.7: WICHTIG — wie in SleepHeuristicEngine.analyzeLatest() setzen
+        // wir `lastOffTs = null` ERST, wenn das Pair die Morgen-Filter
+        // (onInMorningWindow + offInSleepWindow) überlebt. Sonst verbraucht
+        // ein nächtlicher Weckruf (z.B. 02:00) das OFF des Vorabends, und
+        // das morgendliche ON um 08:00 hat kein Pair → kein Schlaf erkannt.
         val offOnPairs = mutableListOf<Pair<Long, Long>>() // (offTs, onTs)
         var lastOffTs: Long? = null
         for (event in events) {
             if (event.type == "OFF") {
                 lastOffTs = event.timestamp
             } else if (event.type == "ON" || event.type == "UNLOCK") {
-                if (lastOffTs != null) {
-                    offOnPairs.add(lastOffTs to event.timestamp)
-                    lastOffTs = null
+                val currentOffTs = lastOffTs
+                if (currentOffTs != null) {
+                    val offHour = Instant.ofEpochMilli(currentOffTs).atZone(zoneId).hour
+                    val onHour = Instant.ofEpochMilli(event.timestamp).atZone(zoneId).hour
+                    val offInSleepWindow = offHour >= 20 || offHour < 2
+                    val onInMorningWindow = onHour in 4..11
+                    if (offInSleepWindow && onInMorningWindow) {
+                        offOnPairs.add(currentOffTs to event.timestamp)
+                        lastOffTs = null
+                    }
+                    // Wenn Filter nicht passt: lastOffTs bleibt für nachfolgende ON-Events.
                 }
             }
         }

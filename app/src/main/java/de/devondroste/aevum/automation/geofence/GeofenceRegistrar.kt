@@ -59,25 +59,22 @@ class GeofenceRegistrar @Inject constructor(
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
-                    // M10.1: ENTER/EXIT inkl. DWELL → Play Services verlangt
-                    // einen "Verweil-Test" am Rand, bevor das Event ausgeliefert
-                    // wird. Reduziert GPS-Flattern bei kleinen Radien.
+                    // M17: ENTER + EXIT, KEIN DWELL mehr. Wir wollen den Enter
+                    // SOFORT, ohne 90s Loitering. DWELL wäre redundant, da
+                    // der GeofenceDebouncer die 8s-Stabilisierung macht.
                     .addGeofences(geofences.map { place ->
                         Geofence.Builder()
                             .setRequestId(place.id)
                             .setCircularRegion(place.latitude, place.longitude, place.radiusMeters.coerceAtLeast(MIN_RADIUS_METERS))
                             .setTransitionTypes(
                                 Geofence.GEOFENCE_TRANSITION_ENTER or
-                                Geofence.GEOFENCE_TRANSITION_EXIT or
-                                Geofence.GEOFENCE_TRANSITION_DWELL
+                                Geofence.GEOFENCE_TRANSITION_EXIT
                             )
                             .setExpirationDuration(Geofence.NEVER_EXPIRE)
+                            // M17: NotificationResponsiveness 20s statt 60s.
+                            // Schneller für direktes Auto-Tracking. Die 8s-
+                            // Stabilisierung im Debouncer fängt Echos ab.
                             .setNotificationResponsiveness(RESPONSIVENESS_MS)
-                            // M10.1: 90s Loitering — User muss 1,5 min wirklich
-                            // im Geofence verweilen, bevor DWELL→ENTER ausgelöst
-                            // wird. EXIT wird ohne diese Verzögerung ausgeliefert
-                            // (Play Services ignoriert Loitering für Exit).
-                            .setLoiteringDelay(LOITERING_DELAY_MS)
                             .build()
                     })
                     .build()
@@ -134,15 +131,14 @@ class GeofenceRegistrar @Inject constructor(
     companion object {
         const val ACTION_GEOFENCE_EVENT = "de.devondroste.aevum.ACTION_GEOFENCE_EVENT"
         private const val MAX_ANDROID_GEOFENCES = 100
-        // M10.1: größerer Mindest-Radius (100m) reduziert GPS-Flattern mit
-        // Standard-Phone-GPS (~30-50m Genauigkeit) drastisch.
-        private const val MIN_RADIUS_METERS = 100f
-        // M10.1: Notification-Responsiveness = 60s (vorher 2min) — schneller,
-        // damit EXIT nicht unnötig verzögert wird; Loitering puffert den ENTER.
-        private const val RESPONSIVENESS_MS = 60 * 1000
-        // M10.1: 90s Loitering — User muss 1,5 min im Geofence verweilen, bevor
-        // DWELL-ENTER ausgelöst wird. EXIT bleibt unverzögert.
-        private const val LOITERING_DELAY_MS = 90 * 1000
+        // M17: Mindest-Radius 80m — etwas kleiner als vorher (100m), weil
+        // die Stabilisierung jetzt nur 8s ist statt 2 min. Kleinere Radien
+        // sind OK, weil der Debouncer den Drift abfängt.
+        private const val MIN_RADIUS_METERS = 80f
+        // M17: Notification-Responsiveness 20s — schnelle Zustellung an
+        // den Receiver für direktes Auto-Tracking. Stabilisierung im
+        // Debouncer fängt GPS-Sprünge ab.
+        private const val RESPONSIVENESS_MS = 20 * 1000
     }
 }
 

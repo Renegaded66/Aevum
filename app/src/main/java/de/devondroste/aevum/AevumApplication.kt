@@ -43,6 +43,14 @@ class AevumApplication : Application() {
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
         fun ensureDefaultData(): EnsureDefaultDataUseCase
+        // M16.7: Heuristic-Engine auch aus dem Lifecycle-Fallback aus triggern.
+        // Hintergrund: ACTION_SCREEN_ON/ACTION_USER_PRESENT werden seit Android 8+
+        // für manifest-registrierte Receiver zunehmend unterdrückt. Wenn der
+        // echte Broadcast ausbleibt, ist die einzige zuverlässige "erste
+        // Handynutzung am Morgen" der ActivityLifecycleCallbacks-Fallback
+        // (recordForegroundEvent("ON")). Dieser Pfad muss daher ebenfalls
+        // die Heuristic-Engine anstoßen, sonst läuft sie nie.
+        fun sleepHeuristicEngine(): de.devondroste.aevum.automation.sleep.SleepHeuristicEngine
     }
 
     /**
@@ -126,6 +134,46 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "Lifecycle fallback failed — continuing", e)
         }
+
+        // M16.7: Zusätzlich zur Lifecycle-Fallback-Registrierung registrieren
+        // wir einen Runtime-BroadcastReceiver für ACTION_SCREEN_ON und
+        // ACTION_USER_PRESENT. Beide Aktionen sind seit Android 8 (API 26) für
+        // manifest-registrierte Receiver gesperrt — sie werden nur an Receiver
+        // zugestellt, die zur Laufzeit via registerReceiver() registriert wurden.
+        // Ohne diesen Runtime-Receiver verpassen wir das echte morgendliche
+        // Aufwachen, wenn die App selbst noch nicht im Vordergrund ist (z.B.
+        // User liest nur die Statusleiste / eine Notification). Wir nutzen den
+        // existierenden ScreenEventReceiver, der diese Logik ohnehin schon
+        // implementiert hat, mit einem dedizierten IntentFilter.
+        try {
+            registerScreenEventRuntimeReceiver()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Screen event runtime receiver registration failed — continuing", e)
+        }
+    }
+
+    /**
+     * M16.7: Runtime-Registrierung für SCREEN_ON/USER_PRESENT-Broadcasts.
+     *
+     * Diese Aktionen sind seit Android 8 nicht mehr an manifest-registrierte
+     * Receiver deliverbar. Wir registrieren stattdessen [ScreenEventReceiver]
+     * dynamisch mit einem IntentFilter. Wichtig: Der Receiver bleibt nur so
+     * lange aktiv, wie der App-Prozess läuft. Wird er durch Battery-Optimization
+     * getötet, fängt der Lifecycle-Fallback ab. Beide Pfade ergänzen sich.
+     */
+    private fun registerScreenEventRuntimeReceiver() {
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_SCREEN_ON)
+            addAction(android.content.Intent.ACTION_SCREEN_OFF)
+            addAction(android.content.Intent.ACTION_USER_PRESENT)
+        }
+        val receiver = de.devondroste.aevum.automation.sleep.ScreenEventReceiver()
+        // RECEIVER_NOT_EXPORTED: Wir wollen die Broadcasts nur aus dem eigenen
+        // Prozess empfangen. Da die Actions zudem implizit sind (vom System),
+        // ist dies Pflicht ab Android 14 (target SDK 34).
+        val flags = android.content.Context.RECEIVER_NOT_EXPORTED
+        registerReceiver(receiver, filter, flags)
+        Log.d("AevumApplication", "ScreenEventReceiver runtime-registriert (SCREEN_ON/OFF/USER_PRESENT)")
     }
 
     private fun registerLifecycleFallback() {
@@ -186,6 +234,20 @@ class AevumApplication : Application() {
                                 )
                         } catch (e: Exception) {
                             Log.w("AevumApplication", "SleepFusionWorker enqueue failed for $type", e)
+                        }
+                        // M16.7: Heuristic-Engine direkt aus dem Lifecycle-Fallback
+                        // triggern. Grund: Auf modernem Android (8+) kommen die
+                        // ACTION_SCREEN_ON / ACTION_USER_PRESENT-Broadcasts nicht
+                        // zuverlässig beim manifest-registrierten Receiver an.
+                        // Wenn der echte Broadcast ausbleibt, ist der erste
+                        // Hinweis auf "Morgen, User ist wach" die App-in-den-
+                        // Vordergrund-Bewegung — und genau das ist dieser Callback.
+                        // Ohne diesen Trigger-Aufruf blieb die Heuristic stumm.
+                        try {
+                            deps.sleepHeuristicEngine().init(this@AevumApplication)
+                            deps.sleepHeuristicEngine().analyzeLatest()
+                        } catch (e: Exception) {
+                            Log.w("AevumApplication", "SleepHeuristicEngine trigger failed for $type", e)
                         }
                     }
                 } catch (e: Exception) {

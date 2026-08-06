@@ -41,7 +41,12 @@ class GeofenceTransitionProcessor @Inject constructor(
         transition: GeofenceTransition,
         occurredAt: Long,
         latitude: Double? = null,
-        longitude: Double? = null
+        longitude: Double? = null,
+        // M16.7: Wenn der Stabilization-Worker einen Burst erkannt hat, wird
+        // der anchorQualityOverride auf "LOW" gesetzt. Der Trigger wird
+        // weiterhin persistiert (fürs Debugging), aber die Travel-Rule-Engine
+        // filtert LOW-Anchors bereits heraus (TriggerPairCandidateRuleEngine).
+        anchorQualityOverride: String? = null
     ): GeofenceProcessingResult {
         if (transition == GeofenceTransition.Unknown) {
             debugLogger.log("PROCESSOR", "Unknown transition → ignoriert")
@@ -117,7 +122,11 @@ class GeofenceTransitionProcessor @Inject constructor(
             // am Rand), aber immer noch nutzbar. ENTER ohne DWELL bleibt MEDIUM.
             // M16.6: SleepShield setzt nachts auf LOW, damit Travel-Rules den
             // Trigger nicht als Reise-Start verwenden.
+            // M16.7: anchorQualityOverride (vom Stabilization-Worker bei Burst)
+            // hat höchste Priorität. Wenn der Worker einen Burst erkannt hat,
+            // wird der Trigger definitiv auf LOW gezwungen.
             anchorQuality = when {
+                anchorQualityOverride != null -> anchorQualityOverride
                 anchorQuality == SleepShield.AnchorQuality.LOW -> "LOW"
                 transition == GeofenceTransition.Dwell -> "HIGH"
                 else -> "MEDIUM"
@@ -148,47 +157,76 @@ class GeofenceTransitionProcessor @Inject constructor(
         }
 
         // ============================================================
-        // M12.1: Auto-start/stop activity session based on geofence rules
-        // with trigger traceability and robust duplicate prevention.
+        // M17: Auto-Start/stop läuft DIREKT — KEIN ActivityCandidate
+        // mehr im Geofence-Pfad. Der User will sofortige Sessions,
+        // kein Review-Inbox-Workflow für Geofence-getriggerte Starts.
+        //
+        // GPS-Sprung-Schutz: LiveActivityManager.startAutoAndScheduleDiscard
+        // setzt einen 60s-Auto-Discard-Timer. Wenn in 60s kein zweiter
+        // Enter-Trigger für den gleichen Geofence kommt, wird die Session
+        // verworfen. Das fängt GPS-Sprünge ab, ohne den "direkt
+        // automatisch"-Use-Case zu zerstören.
         // ============================================================
-        if (geofence.autoStartActivityTypeId != null && transition == GeofenceTransition.Enter) {
-            // M12.1: Check for ANY live session (RUNNING or PAUSED) — not just RUNNING.
-            // A PAUSED auto-session must be resumed or replaced, not duplicated.
-            val existing = liveActivityManager.liveSession.value
-            val isDuplicate = existing != null &&
-                existing.isLive &&
-                existing.activityTypeId == geofence.autoStartActivityTypeId
-            if (!isDuplicate) {
-                if (existing != null && existing.isLive) {
-                    // A different activity is running/paused — force-finish it first.
-                    liveActivityManager.forceFinishForAuto()
-                }
-                val session = liveActivityManager.start(
-                    activityTypeId = geofence.autoStartActivityTypeId,
-                    title = geofence.name,
-                    sourceType = "GEOFENCE_AUTO",
-                    sourceTriggerId = trigger.id
-                )
-                debugLogger.log("PROCESSOR", "  Auto-Start: ${session.title} (${session.id}) via trigger ${trigger.id}")
-            } else {
-                debugLogger.log("PROCESSOR", "  Auto-Start übersprungen: ${geofence.autoStartActivityTypeId} läuft bereits (${existing?.sessionStatus})")
-            }
-        } else if (geofence.autoStopEnabled && transition == GeofenceTransition.Exit) {
-            // M12.1: Auto-stop only the session that was started by the matching ENTER trigger.
-            // Use sourceTriggerId to ensure we never stop a manually started session.
-            val existing = liveActivityManager.liveSession.value
-            if (existing != null && existing.isLive && existing.activityTypeId == geofence.autoStartActivityTypeId) {
-                // Only stop if this session was started by a geofence trigger (auto-started)
-                // or if it has no sourceTriggerId (legacy auto-session from before M12.1).
-                val isAutoSession = existing.sourceType == "GEOFENCE_AUTO"
-                if (isAutoSession) {
-                    liveActivityManager.stop()
-                    debugLogger.log("PROCESSOR", "  Auto-Stop: ${existing.title} beendet (sourceTriggerId=${existing.sourceTriggerId})")
+        if (transition == GeofenceTransition.Enter) {
+            // M17: Auto-Start, wenn der Geofence explizit eine Auto-Start-
+            // Aktivität konfiguriert hat (autoStartActivityTypeId). Wenn
+            // nur die normale activityTypeId gesetzt ist, reicht das nicht —
+            // der User muss in den Geofence-Settings "Auto-Start" explizit
+            // aktivieren.
+            if (geofence.autoStartActivityTypeId != null) {
+                val existing = liveActivityManager.liveSession.value
+                val isSameActivity = existing != null &&
+                    existing.isLive &&
+                    existing.activityTypeId == geofence.autoStartActivityTypeId
+                if (!isSameActivity) {
+                    if (existing != null && existing.isLive) {
+                        // Andere Live-Session beenden, bevor die neue startet.
+                        liveActivityManager.forceFinishForAuto()
+                    }
+                    val session = liveActivityManager.startAutoAndScheduleDiscard(
+                        activityTypeId = geofence.autoStartActivityTypeId,
+                        title = geofence.name,
+                        sourceTriggerId = trigger.id,
+                        geofenceId = geofence.id,
+                        autoDiscardAfterMs = AUTO_DISCARD_MS
+                    )
+                    debugLogger.log("PROCESSOR", "  M17 Auto-Start: ${session.title} (${session.id}) via trigger ${trigger.id}, auto-discard in ${AUTO_DISCARD_MS / 1000}s")
                 } else {
-                    debugLogger.log("PROCESSOR", "  Auto-Stop übersprungen: Session ${existing.id} ist manuell (sourceType=${existing.sourceType})")
+                    // M17: Selbst wenn schon die gleiche Aktivität läuft, müssen
+                    // wir den Auto-Discard-Timer zurücksetzen (GPS-Sprung-Schutz
+                    // bestätigt: User ist wirklich da).
+                    liveActivityManager.refreshAutoDiscard(geofence.id)
+                    debugLogger.log("PROCESSOR", "  M17 Auto-Start refresh: ${geofence.autoStartActivityTypeId} läuft bereits, discard-Timer reset")
                 }
             } else {
-                debugLogger.log("PROCESSOR", "  Auto-Stop übersprungen: keine passende Session läuft")
+                debugLogger.log("PROCESSOR", "  Kein autoStartActivityTypeId konfiguriert → kein Auto-Start")
+            }
+        } else if (transition == GeofenceTransition.Exit) {
+            // M17: Auto-Stop, wenn der Geofence Auto-Stop aktiviert hat.
+            if (geofence.autoStopEnabled) {
+                val existing = liveActivityManager.liveSession.value
+                if (existing != null && existing.isLive) {
+                    // M17: sourceTriggerId ist die zuverlässigste Match-Quelle.
+                    // Wenn die laufende Session von diesem Geofence-Enter-
+                    // Trigger gestartet wurde, gehört sie zu diesem Geofence.
+                    val matchesGeofence = existing.sourceTriggerId == trigger.id
+                    if (matchesGeofence) {
+                        val isAutoSession = existing.sourceType == "GEOFENCE_AUTO"
+                        if (isAutoSession) {
+                            liveActivityManager.cancelAutoDiscard(geofence.id)
+                            liveActivityManager.stop()
+                            debugLogger.log("PROCESSOR", "  M17 Auto-Stop: ${existing.title} beendet (sourceTriggerId=${existing.sourceTriggerId})")
+                        } else {
+                            debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: Session ${existing.id} ist manuell (sourceType=${existing.sourceType})")
+                        }
+                    } else {
+                        debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: Live-Session gehört zu einem anderen Geofence/Trigger")
+                    }
+                } else {
+                    debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: keine passende Session läuft")
+                }
+            } else {
+                debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: autoStopEnabled=false")
             }
         }
 
@@ -212,6 +250,13 @@ class GeofenceTransitionProcessor @Inject constructor(
 
     private companion object {
         const val DEFAULT_CONFIDENCE = 0.82f
+        // M17: Auto-Discard-Schutz gegen GPS-Sprünge. Wenn eine Auto-Session
+        // 60s läuft und KEIN zweiter Enter-Trigger für den gleichen Geofence
+        // gekommen ist, wurde sie durch einen GPS-Sprung ausgelöst und wird
+        // verworfen. 60s ist kurz genug, um Ghost-Sessions zu vermeiden, und
+        // lang genug, dass ein normaler Geofence-Wechsel (Auto fährt durch
+        // Tunnel) den Refresh triggert.
+        const val AUTO_DISCARD_MS = 60_000L
     }
 }
 

@@ -81,15 +81,36 @@ class SleepHeuristicEngine @Inject constructor(
         // ausschaltet, sieht die alte Logik nur OFF@21:30 → ON@10:00 und
         // setzt den Schlafbeginn auf 21:30. Mit der neuen Logik wird das
         // letzte OFF vor dem Morgen-ON genommen (23:35), was realistischer ist.
+        //
+        // M16.7: WICHTIG — wir setzen `lastOff = null` ERST, wenn das Pair
+        // durch den Morgen-Fenster-Filter (onInMorningWindow) akzeptiert
+        // wurde. Vorher hat der Code `lastOff = null` schon beim Finden
+        // eines beliebigen ON gesetzt — das führte dazu, dass ein nächtlicher
+        // Weckruf um 02:00 (verworfen durch onHour in 4..11) das 23:30-OFF
+        // "verbraucht" hat, sodass das echte morgendliche ON um 08:00 ohne
+        // Pair dastand → KEIN Schlaf erkannt. Jetzt: Pair nur verbrauchen,
+        // wenn es den Morgen-Filter überlebt.
         val offOnPairs = mutableListOf<Pair<ScreenEvent, ScreenEvent>>()
         var lastOff: ScreenEvent? = null
         for (event in sortedEvents) {
             if (event.type == "OFF") {
                 lastOff = event
             } else if (event.type == "ON" || event.type == "UNLOCK") {
-                if (lastOff != null) {
-                    offOnPairs.add(lastOff to event)
-                    lastOff = null  // nicht dasselbe OFF zweimal verwenden
+                val currentOff = lastOff
+                if (currentOff != null) {
+                    val offHour = Instant.ofEpochMilli(currentOff.timestamp).atZone(zoneId).hour
+                    val onHour = Instant.ofEpochMilli(event.timestamp).atZone(zoneId).hour
+                    val offInSleepWindow = offHour >= 20 || offHour < 2
+                    val onInMorningWindow = onHour in 4..11
+                    // Pair NUR dann als verbraucht markieren, wenn es die
+                    // Schlaf-Filter überlebt. Sonst: lastOff behalten für
+                    // nachfolgende ON-Events.
+                    if (offInSleepWindow && onInMorningWindow) {
+                        offOnPairs.add(currentOff to event)
+                        lastOff = null
+                    }
+                    // Wenn Filter nicht passt: lastOff bleibt erhalten, das
+                    // nächste ON bekommt eine neue Chance.
                 }
             }
         }

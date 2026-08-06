@@ -22,6 +22,17 @@ import javax.inject.Inject
  * - Rules are intentionally explainable and deterministic.
  * - Candidate IDs are stable per trigger pair, so rerunning the engine is idempotent.
  * - Open exits without a later destination intentionally produce no candidate yet.
+ *
+ * M16.7: Plausibility-Check ("Devon-Heuristik"). Phantom-Travel-Candidates
+ * (z.B. "Gym → Home 11–13 Uhr" obwohl der User nie das Haus verlassen hat)
+ * entstehen, wenn ein Geofence-Rand kurz GPS-Drift zeigt. Wir filtern
+ * solche Candidates, indem wir prüfen:
+ *  - Wenn der Travel "von einem Nicht-Home Geofence zurück zu Home" geht,
+ *    muss ein HOME_LEFT-Trigger innerhalb von [travel_start - 4h, travel_end]
+ *    liegen. Sonst ist es ein Phantom.
+ *  - Wenn der Travel "von einem Geofence A zu Geofence B" geht und beide
+ *    ungleich Home sind, prüfen wir, ob A ein HIGH-anchor hat (DWELL oder
+ *    kein Drift). Wenn A nur ein LOW-Anchor ist, ignorieren.
  */
 class TriggerPairCandidateRuleEngine @Inject constructor() {
     fun evaluate(
@@ -42,7 +53,7 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
             // Fenster oder in der Aufwachphase liegen können.
             .filter { it.anchorQuality != "LOW" }
             .zipWithNext()
-            .mapNotNull { (first, second) -> candidateForPair(first, second, byGeofence) }
+            .mapNotNull { (first, second) -> candidateForPair(first, second, byGeofence, ordered) }
             .filter { it.endAt - it.startAt in MIN_DURATION_MS..MAX_DURATION_MS }
             .distinctBy { it.id }
     }
@@ -50,28 +61,99 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
     private fun candidateForPair(
         first: TriggerEvent,
         second: TriggerEvent,
-        geofences: Map<String, PlaceGeofence>
+        geofences: Map<String, PlaceGeofence>,
+        // M16.7: Wir brauchen alle Trigger für den Plausibility-Check,
+        // nicht nur die zwei im Pair.
+        allTriggers: List<TriggerEvent>
     ): ActivityCandidate? {
         val firstPlace = geofences[first.geofenceId] ?: return null
         val secondPlace = geofences[second.geofenceId] ?: return null
         val firstKind = first.transitionKind()
         val secondKind = second.transitionKind()
 
-        return when {
+        val candidate = when {
             // Stay: Enter → Exit at same geofence
             firstKind == TriggerKind.Enter && secondKind == TriggerKind.Exit && first.geofenceId == second.geofenceId ->
                 stayCandidate(first, second, firstPlace)
 
             // Specific travel: known pairs with better naming and confidence
             firstKind == TriggerKind.Exit && secondKind == TriggerKind.Enter && first.geofenceId != second.geofenceId ->
-                specificTravelCandidate(first, second, firstPlace, secondPlace, geofences)
+                specificTravelCandidate(first, second, firstPlace, secondPlace, geofences, allTriggers)
 
             // Away from home: Exit → Enter at same geofence (home-like)
             firstKind == TriggerKind.Exit && secondKind == TriggerKind.Enter && first.geofenceId == second.geofenceId && firstPlace.isHomeLike() ->
                 awayFromHomeCandidate(first, second, firstPlace)
 
             else -> null
+        } ?: return null
+
+        // M16.7: Plausibility-Check ("Devon-Heuristik").
+        // Phantom-Travel-Candidates wie "Gym → Home 11–13 Uhr" entstehen,
+        // wenn ein Geofence-Rand GPS-Drift zeigt. Wir prüfen zwei Bedingungen:
+        //  1. Wenn das Travel von einem Nicht-Home Geofence zurück zu Home
+        //     geht (also "Ankommen"), muss ein HOME_LEFT in den letzten
+        //     [HOME_LEFT_LOOKBACK_MS] vor dem EXIT-Trigger liegen. Wenn
+        //     nicht, ist der Travel ein Phantom (User war nie weg).
+        //  2. Wenn das Travel zwischen zwei Nicht-Home Geofences geht und
+        //     der EXIT-Trigger LOW-Anchor wäre (zur Sicherheit nochmal
+        //     prüfen), wird er gefiltert. (Eigentlich schon durch
+        //     filter { anchorQuality != "LOW" } oben erledigt — doppelte
+        //     Sicherheit.)
+        if (!passesPlausibilityCheck(candidate, first, second, allTriggers, geofences)) {
+            android.util.Log.d(
+                "TriggerPairRule",
+                "Plausibility-Check fehlgeschlagen für ${candidate.suggestedTitle} " +
+                    "(${first.geofenceId} → ${second.geofenceId}, " +
+                    "start=${first.occurredAt}, end=${second.occurredAt})"
+            )
+            return null
         }
+        return candidate
+    }
+
+    /**
+     * M16.7: Plausibility-Check für Travel-Candidates.
+     *
+     * @return true wenn der Travel legitim erscheint, false wenn er verworfen
+     *         werden soll (Phantom).
+     */
+    private fun passesPlausibilityCheck(
+        candidate: ActivityCandidate,
+        first: TriggerEvent,
+        second: TriggerEvent,
+        allTriggers: List<TriggerEvent>,
+        geofences: Map<String, PlaceGeofence>
+    ): Boolean {
+        // Nur für Travel-Candidates prüfen (Stay/AwayFromHome sind lokal)
+        if (candidate.activityTypeId != "transport") return true
+
+        val firstPlace = geofences[first.geofenceId] ?: return true
+        val secondPlace = geofences[second.geofenceId] ?: return true
+
+        // Fall 1: "Zurück nach Hause" — wenn der Travel bei einem Home-Geofence
+        // endet und bei einem Nicht-Home-Geofence startet, suchen wir nach
+        // einem HOME_LEFT in den letzten Stunden. Ohne HOME_LEFT ist es ein
+        // Phantom: der User war die ganze Zeit zu Hause, und der Geofence-
+        // Rand des Nicht-Home-Geofences hat nur GPS-Drift gezeigt.
+        if (secondPlace.isHomeLike() && !firstPlace.isHomeLike()) {
+            val homeLeftExists = allTriggers.any { t ->
+                t.type == AutomationConstants.TRIGGER_HOME_LEFT &&
+                    t.occurredAt in (first.occurredAt - HOME_LEFT_LOOKBACK_MS)..second.occurredAt
+            }
+            // Wenn KEIN HOME_LEFT gefunden wird, ist der Travel verdächtig.
+            // Aber: HOME_LEFT wird nur persistiert, wenn der User wirklich
+            // das Haus verlassen hat. Wenn der HOME_LEFT fehlt, hieß das
+            // auch in der Vergangenheit "User war zu Hause". Daher: Phantom.
+            if (!homeLeftExists) return false
+        }
+
+        // Fall 2: Travel zwischen zwei Nicht-Home Geofences. Hier ist die
+        // Plausibility schwieriger — wir prüfen, ob einer der beiden
+        // Trigger ein LOW-Anchor wäre (dann ist es Drift). Schon oben
+        // gefiltert, doppelte Sicherheit.
+        if (first.anchorQuality == "LOW") return false
+
+        return true
     }
 
     private fun specificTravelCandidate(
@@ -79,7 +161,8 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
         enter: TriggerEvent,
         from: PlaceGeofence,
         to: PlaceGeofence,
-        geofences: Map<String, PlaceGeofence>
+        geofences: Map<String, PlaceGeofence>,
+        @Suppress("UNUSED_PARAMETER") allTriggers: List<TriggerEvent>
     ): ActivityCandidate {
         return when {
             from.isHomeLike() && to.isWorkLike() ->
@@ -246,5 +329,11 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
     private companion object {
         const val MIN_DURATION_MS = 5 * 60 * 1000L
         const val MAX_DURATION_MS = 14 * 60 * 60 * 1000L
+        // M16.7: Wie weit schauen wir für HOME_LEFT zurück, um einen
+        // Travel "Zurück nach Hause" als legitim zu akzeptieren? 4 Stunden
+        // deckt einen normalen Einkauf/Besuch ab. Wenn in den letzten 4h
+        // kein HOME_LEFT-Trigger existiert, ist der Travel ein Phantom
+        // (User war nie weg).
+        const val HOME_LEFT_LOOKBACK_MS = 4L * 60 * 60 * 1000L
     }
 }

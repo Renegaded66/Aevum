@@ -43,6 +43,19 @@ class LiveActivityManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    // M17: In-Memory Geofence-Tracking für Auto-Discard. Wir mappen
+    // geofenceId → (sessionId, scheduledDiscardJob). Wird beim Auto-Start
+    // befüllt, beim Refresh zurückgesetzt, beim Stop/Exit abgebrochen.
+    // Bewusst nicht in der DB — die Information lebt nur so lange wie
+    // die Live-Session selbst (nach stop() ist der Job obsolet).
+    private val autoDiscardByGeofence = java.util.concurrent.ConcurrentHashMap<
+        String, AutoDiscardEntry>()
+
+    private data class AutoDiscardEntry(
+        val sessionId: String,
+        val job: kotlinx.coroutines.Job
+    )
+
     val liveSession: StateFlow<ActivitySession?> =
         activityRepository.getLiveSession()
             .catch { emit(null) }
@@ -233,6 +246,108 @@ class LiveActivityManager @Inject constructor(
         return true
     }
 
+    // ============================================================
+    // M17: Auto-Discard-Mechanik für Geofence-Auto-Sessions
+    // ============================================================
+
+    /**
+     * M17: Startet eine Auto-Session und plant einen Auto-Discard nach
+     * [autoDiscardAfterMs] Millisekunden. Wenn in dieser Zeit kein
+     * [refreshAutoDiscard] für den gleichen Geofence kommt, war es ein
+     * GPS-Sprung und die Session wird verworfen (stop + softDelete).
+     *
+     * Bewusst inline (nicht über [start]), weil wir sourceType + den
+     * Discard-Job in einem Schritt setzen müssen.
+     */
+    suspend fun startAutoAndScheduleDiscard(
+        activityTypeId: String,
+        title: String? = null,
+        note: String? = null,
+        sourceTriggerId: String? = null,
+        geofenceId: String,
+        autoDiscardAfterMs: Long = 60_000L
+    ): ActivitySession {
+        val session = start(
+            activityTypeId = activityTypeId,
+            title = title,
+            note = note,
+            sourceType = "GEOFENCE_AUTO",
+            sourceTriggerId = sourceTriggerId
+        )
+        scheduleAutoDiscard(geofenceId, session.id, autoDiscardAfterMs)
+        return session
+    }
+
+    /**
+     * M17: Plant den Auto-Discard-Job. Vorhandener Job für die Geofence
+     * wird ersetzt (z. B. wenn der User die LiveActivityCard öffnet
+     * und der Manager neu instanziiert wird).
+     */
+    private fun scheduleAutoDiscard(geofenceId: String, sessionId: String, afterMs: Long) {
+        cancelAutoDiscard(geofenceId)
+        val job = scope.launch {
+            try {
+                kotlinx.coroutines.delay(afterMs)
+                val current = liveSession.value
+                if (current != null && current.isLive && current.id == sessionId) {
+                    // M17: GPS-Sprung erkannt. Die Session lief autoDiscardAfterMs
+                    // lang, ohne dass der Geofence-Trigger nochmal bestätigt hat.
+                    // Wir verwerfen sie (softDelete) — der User hat den Geofence
+                    // wahrscheinlich nie wirklich betreten, nur ein GPS-Drift
+                    // hat es kurz so aussehen lassen.
+                    android.util.Log.d(
+                        "LiveActivityManager",
+                        "Auto-Discard nach ${afterMs}ms ohne Refresh: session $sessionId (geofence $geofenceId)"
+                    )
+                    val now = System.currentTimeMillis()
+                    activityRepository.finishSession(
+                        sessionId, now, current.effectivePausedMs(now), current.pauseSegmentsJson
+                    )
+                    activityRepository.softDelete(sessionId, now)
+                } else {
+                    android.util.Log.d(
+                        "LiveActivityManager",
+                        "Auto-Discard übersprungen: Session $sessionId nicht mehr live (current=${current?.id})"
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e  // strukturiert
+            } catch (e: Exception) {
+                android.util.Log.e("LiveActivityManager", "Auto-Discard Job Fehler", e)
+            }
+        }
+        autoDiscardByGeofence[geofenceId] = AutoDiscardEntry(sessionId, job)
+    }
+
+    /**
+     * M17: Setzt den Auto-Discard-Timer zurück. Wird vom
+     * GeofenceTransitionProcessor aufgerufen, wenn ein zweiter Enter-
+     * Trigger für den gleichen Geofence ankommt (GPS-Sprung-Schutz
+     * bestätigt: User ist wirklich da).
+     */
+    fun refreshAutoDiscard(geofenceId: String) {
+        val entry = autoDiscardByGeofence[geofenceId] ?: return
+        val session = liveSession.value
+        if (session == null || session.id != entry.sessionId || !session.isLive) {
+            // Session ist weg, Discard-Job ist obsolet.
+            cancelAutoDiscard(geofenceId)
+            return
+        }
+        // 60s neu starten
+        scheduleAutoDiscard(geofenceId, entry.sessionId, AUTO_DISCARD_DEFAULT_MS)
+    }
+
+    /**
+     * M17: Bricht den Auto-Discard ab. Wird vom
+     * GeofenceTransitionProcessor aufgerufen, wenn ein Exit-Trigger
+     * für den Geofence ankommt (der Auto-Stop ist die richtige Aktion,
+     * kein Discard).
+     */
+    fun cancelAutoDiscard(geofenceId: String) {
+        val entry = autoDiscardByGeofence.remove(geofenceId) ?: return
+        entry.job.cancel()
+    }
+
     private fun mapState(session: ActivitySession?): LiveActivityState {
         if (session == null) return LiveActivityState.Idle
         val sourceLabel = if (session.sourceType == "GEOFENCE_AUTO") {
@@ -315,3 +430,5 @@ sealed class LiveActivityState {
         val isAuto: Boolean get() = sourceType == "GEOFENCE_AUTO"
     }
 }
+
+private const val AUTO_DISCARD_DEFAULT_MS = 60_000L

@@ -131,6 +131,14 @@ class GeofenceDebouncer @Inject constructor() {
         // Kompatibilität — Bestätigung erfolgt in confirmPending
     }
 
+    /**
+     * M16.7: Liefert die Geofence-IDs, die aktuell in der pending-Map sind.
+     * Wird vom Stabilization-Worker genutzt, um Burst-Events zu erkennen, die
+     * noch nicht in der DB persistiert sind (z.B. ein zweiter Geofence-EXIT
+     * kam 5s nach dem ersten und ist gerade erst pending).
+     */
+    fun currentlyPendingGeofenceIds(): Set<String> = pendingByGeofence.keys.toSet()
+
     fun reset() {
         pendingByGeofence.clear()
         confirmedStateByGeofence.clear()
@@ -150,16 +158,20 @@ class GeofenceDebouncer @Inject constructor() {
     }
 
     companion object {
-        // M15: ENTER-Stabilisierung bleibt 2 Minuten — der Loitering-Test
-        // (90s) braucht diese Reserve, um echte Aufenthalte von GPS-Flattern
-        // zu unterscheiden.
-        val STABILIZATION_MS = 120_000L
-        // M15: EXIT-Stabilisierung nur 30 Sekunden. Beim Verlassen eines
-        // Geofence gibt es keinen Loitering-Schutz, und der User erwartet,
-        // dass "Zuhause verlassen" schnell in der Timeline ankommt. 30s
-        // reicht, um den Notification-Responsiveness-Window (60s) nicht
-        // mit GPS-Flattern am Boundary zu kombinieren.
-        val EXIT_STABILIZATION_MS = 30_000L
+        // M17: ENTER-Stabilisierung auf 8 Sekunden reduziert. Der User
+        // erwartet, dass die Live-Session SOFORT startet, wenn er den
+        // Geofence betritt. 8s reicht, um den häufigsten GPS-Drift-
+        // Spike am Boundary (1-2 Samples) sicher zu filtern, ohne den
+        // "direkt automatisch"-Use-Case zu zerstören.
+        // GPS-Sprung-Schutz: wenn die Auto-Session nach 8s noch läuft
+        // UND kein bestätigender zweiter Enter-Trigger in den letzten
+        // 60s gekommen ist → wird sie vom LiveActivityManager selbst
+        // discarded (siehe LiveActivityManager.startAutoAndScheduleDiscard).
+        val STABILIZATION_MS = 8_000L
+        // M17: EXIT-Stabilisierung auf 5 Sekunden. Beim Verlassen gibt
+        // es keinen Loitering-Schutz, und der User erwartet direkten
+        // Stop. 5s reicht für die meisten GPS-Drift-Echos.
+        val EXIT_STABILIZATION_MS = 5_000L
         // M16.6: Multi-EXIT-Konsolidierung. Wenn innerhalb von 90 Sekunden
         // mehrere EXITs für verschiedene Geofences eintreffen, ist es
         // GPS-Flattern (z.B. nachts wenn der User eigentlich schläft und

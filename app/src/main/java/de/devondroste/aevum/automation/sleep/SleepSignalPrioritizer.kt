@@ -55,15 +55,28 @@ fun selectSleepWindowWithPrioritizedWake(
     // Siehe SleepHeuristicEngine für die Begründung: das erste OFF
     // vor einem ON kann zu früh liegen, wenn ein kurzes ON-Event
     // durch OEM-Suppression nicht erfasst wurde.
+    //
+    // M16.7: WICHTIG — wir setzen `lastOff = null` ERST, wenn das Pair die
+    // Morgen-Filter (onInMorningWindow + offInSleepWindow) überlebt. Sonst
+    // verbraucht ein nächtlicher Weckruf das OFF des Vorabends, und das
+    // morgendliche ON hat kein Pair → kein Schlaf erkannt.
     val offOnPairs = mutableListOf<Pair<ScreenEvent, ScreenEvent>>()
     var lastOff: ScreenEvent? = null
     for (event in events.sortedBy { it.timestamp }) {
         if (event.type == "OFF") {
             lastOff = event
         } else if (event.type == "ON" || event.type == "UNLOCK") {
-            if (lastOff != null) {
-                offOnPairs.add(lastOff to event)
-                lastOff = null
+            val currentOff = lastOff
+            if (currentOff != null) {
+                val offHour = Instant.ofEpochMilli(currentOff.timestamp).atZone(zoneId).hour
+                val onHour = Instant.ofEpochMilli(event.timestamp).atZone(zoneId).hour
+                val offInSleepWindow = offHour >= 20 || offHour < 2
+                val onInMorningWindow = onHour in 4..11
+                if (offInSleepWindow && onInMorningWindow) {
+                    offOnPairs.add(currentOff to event)
+                    lastOff = null
+                }
+                // Sonst: lastOff bleibt für nachfolgende ON-Events.
             }
         }
     }
