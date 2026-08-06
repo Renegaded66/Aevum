@@ -118,15 +118,11 @@ fun AppNavHost(
             )
         }
         composable(AppDestination.Insights.route) {
+            // M17.4: InsightsScreen hat jetzt nur noch onBack —
+            // die Verlinkungen zu Goals/Habits/WeeklyReview sind
+            // (noch) nicht Teil des Redesigns, folgen separat.
             InsightsScreen(
-                onOpenTimelineDay = { dayStart ->
-                    navController.navigate("timeline/$dayStart") {
-                        launchSingleTop = true
-                    }
-                },
-                onOpenWeeklyReview = { navController.navigate(AppDestination.WeeklyReview.route) },
-                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
-                onOpenHabits = { navController.navigate(AppDestination.Habits.route) }
+                onBack = { navController.popBackStack() }
             )
         }
         composable(AppDestination.WeeklyReview.route) {

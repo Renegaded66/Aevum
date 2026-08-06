@@ -34,7 +34,12 @@ data class InsightsUiState(
     val hasData: Boolean = false,
     val selectedHeatmapDate: LocalDate? = null,
     val goalProgress: List<GoalWithProgress> = emptyList(),
-    val habitProgress: List<HabitWithProgress> = emptyList()
+    val habitProgress: List<HabitWithProgress> = emptyList(),
+    // M17.4: Toggle-Zustand + neue "Top Breakdown" Liste je nach Modus
+    val breakdownMode: BreakdownMode = BreakdownMode.Activity,
+    val topBreakdown: List<TopActivitySlice> = emptyList(),
+    /** M17.4: Total-Minuten inkl. Tagespauschalen (für Hero-Header). */
+    val totalMinutesIncludingAllowances: Int = 0
 )
 
 data class TimeDistributionSlice(
@@ -143,7 +148,12 @@ object InsightsAnalytics {
         anchorDate: LocalDate,
         zoneId: ZoneId,
         goalProgress: List<GoalWithProgress> = emptyList(),
-        habitProgress: List<HabitWithProgress> = emptyList()
+        habitProgress: List<HabitWithProgress> = emptyList(),
+        // M17.4: Tagespauschalen-Accumulationals aus DailyAllowanceRepository.
+        // Werden NUR in die Statistik-Aggregation gemischt, niemals in die Timeline.
+        allowanceAccumulations: List<de.devondroste.aevum.data.model.AllowanceAccumulationDay> = emptyList(),
+        // M17.4: Toggle-Modus für die Top-Liste.
+        breakdownMode: BreakdownMode = BreakdownMode.Activity
     ): InsightsUiState {
         val window = window(selectedPeriod, anchorDate, zoneId)
         val categoryMap = categories.associateBy { it.id }
@@ -158,6 +168,29 @@ object InsightsAnalytics {
         val balance = buildBalance(current, categoryMap)
         val heatmap = buildWeekHeatmap(active, anchorDate, zoneId)
         val insights = buildInsightCards(selectedPeriod, distribution, changes, topActivities, balance, heatmap, totalMs)
+        // M17.4: Tagespauschalen → als virtuelle Sessions für die Aggregation.
+        // Wichtig: wir nutzen einen separaten Pfad, der NUR in die Top-Liste
+        // und in den Hero-Header einfließt, niemals in den Heatmap.
+        val allowanceMs = allowanceAccumulations.sumOf { it.minutes } * 60_000L
+        val allowanceTopBreakdown = buildAllowanceTopBreakdown(
+            accumulations = allowanceAccumulations,
+            activityTypes = activityTypes,
+            categories = categories,
+            mode = breakdownMode
+        )
+        // M17.4: Echte Top-Liste je nach Modus
+        val topBreakdown = when (breakdownMode) {
+            BreakdownMode.Activity -> topActivities
+            BreakdownMode.Category -> distribution.take(5).map { slice ->
+                TopActivitySlice(
+                    id = slice.id,
+                    label = slice.label,
+                    color = slice.color,
+                    durationMs = slice.durationMs,
+                    percent = slice.percent
+                )
+            }
+        }
         return InsightsUiState(
             selectedPeriod = selectedPeriod,
             periodLabel = window.label,
@@ -169,10 +202,65 @@ object InsightsAnalytics {
             balance = balance,
             insightCards = insights,
             weekHeatmap = heatmap,
-            hasData = totalMs > 0,
+            hasData = totalMs > 0 || allowanceMs > 0,
             goalProgress = goalProgress,
-            habitProgress = habitProgress
+            habitProgress = habitProgress,
+            breakdownMode = breakdownMode,
+            topBreakdown = topBreakdown,
+            // M17.4: Total-Minuten für Hero-Header inkl. Pauschalen.
+            totalMinutesIncludingAllowances = ((totalMs + allowanceMs) / 60_000L).toInt()
         )
+    }
+
+    /**
+     * M17.4: Tagespauschalen-Liste in TopActivitySlice-Form bringen,
+     * gruppiert nach Aktivität ODER Kategorie je nach [mode].
+     */
+    private fun buildAllowanceTopBreakdown(
+        accumulations: List<de.devondroste.aevum.data.model.AllowanceAccumulationDay>,
+        activityTypes: List<ActivityType>,
+        categories: List<Category>,
+        mode: BreakdownMode
+    ): List<TopActivitySlice> {
+        if (accumulations.isEmpty()) return emptyList()
+        val typeMap = activityTypes.associateBy { it.id }
+        val categoryMap = categories.associateBy { it.id }
+        val totalMs = accumulations.sumOf { it.minutes } * 60_000L
+        val totalMsSafe = totalMs.coerceAtLeast(1L)
+        val grouped: Map<String, Long> = when (mode) {
+            BreakdownMode.Activity -> accumulations.groupBy { it.activityTypeId }
+                .mapValues { entry -> entry.value.sumOf { it.minutes } * 60_000L }
+            BreakdownMode.Category -> {
+                // categoryId ist NICHT auf AccumulationDay — wir joinen über typeMap
+                accumulations.groupBy { acc ->
+                    typeMap[acc.activityTypeId]?.defaultCategoryId ?: "unknown"
+                }.mapValues { entry -> entry.value.sumOf { it.minutes } * 60_000L }
+            }
+        }
+        return grouped.map { (key, ms) ->
+            when (mode) {
+                BreakdownMode.Activity -> {
+                    val type = typeMap[key]
+                    TopActivitySlice(
+                        id = "allowance_$key",
+                        label = "${type?.name ?: "Pauschale"} (Pauschale)",
+                        color = categoryColor(type?.defaultCategoryId.orEmpty()),
+                        durationMs = ms,
+                        percent = percent(ms, totalMsSafe)
+                    )
+                }
+                BreakdownMode.Category -> {
+                    val cat = categoryMap[key]
+                    TopActivitySlice(
+                        id = "allowance_$key",
+                        label = cat?.name ?: "Pauschale",
+                        color = cat?.color?.let { parseColor(it) } ?: categoryColor(key),
+                        durationMs = ms,
+                        percent = percent(ms, totalMsSafe)
+                    )
+                }
+            }
+        }.sortedByDescending { it.durationMs }.take(5)
     }
 
     private fun buildDistribution(sessions: List<ClippedInsightSession>, categoryMap: Map<String, Category>): List<TimeDistributionSlice> {
@@ -362,6 +450,18 @@ object InsightsAnalytics {
         "smartphone", "digital" -> AevumCategoryColors.smartphone
         "driving", "transport" -> AevumCategoryColors.driving
         else -> AevumCategoryColors.unknown
+    }
+
+    /** M17.4: Hex-String (#RRGGBB) zu Color. Robust gegen leeren/ungültigen Input. */
+    private fun parseColor(hex: String): Color = try {
+        val cleaned = hex.removePrefix("#").trim()
+        when (cleaned.length) {
+            6 -> Color(0xFF000000 or cleaned.toLong(16))
+            8 -> Color(cleaned.toLong(16))
+            else -> AevumCategoryColors.unknown
+        }
+    } catch (_: NumberFormatException) {
+        AevumCategoryColors.unknown
     }
 
     private fun periodText(period: InsightPeriod): String = when (period) {

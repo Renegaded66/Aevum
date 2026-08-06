@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.ActivityType
+import de.devondroste.aevum.data.model.AllowanceAccumulationDay
 import de.devondroste.aevum.data.model.Category
 import de.devondroste.aevum.data.repository.ActivityRepository
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
+import de.devondroste.aevum.data.repository.DailyAllowanceRepository
 import de.devondroste.aevum.data.repository.GoalRepository
 import de.devondroste.aevum.data.repository.HabitRepository
 import de.devondroste.aevum.domain.analytics.GoalProgressAnalytics
@@ -28,29 +30,52 @@ class InsightsViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
     private val goalRepository: GoalRepository,
-    private val habitRepository: HabitRepository
+    private val habitRepository: HabitRepository,
+    // M17.4: Tagespauschalen für die Statistik-Aggregation.
+    private val dailyAllowanceRepository: DailyAllowanceRepository
 ) : ViewModel() {
     private val zoneId = java.time.ZoneId.systemDefault()
     private val anchorDate = java.time.LocalDate.now()
     private val _selectedPeriod = MutableStateFlow(InsightPeriod.Week)
     private val _selectedHeatmapDate = MutableStateFlow<java.time.LocalDate?>(null)
+    // M17.4: Toggle zwischen Aktivitäts- und Kategorie-Aufschlüsselung.
+    private val _breakdownMode = MutableStateFlow(BreakdownMode.Activity)
 
-    // Data layer: sessions + categories + types + goals + habits
     private val dataFlow = combine(
         activityRepository.getAll(),
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
         goalRepository.getByStatus("ACTIVE"),
-        habitRepository.getActive()
-    ) { sessions, categories, types, goals, habits ->
-        DataLayer(sessions, categories, types, goals, habits)
+        habitRepository.getActive(),
+        // M17.4: Tagespauschalen — wir laden ALLE Accumululations, weil
+        // die Period-Filter (Woche/Monat) in InsightsAnalytics.apply()
+        // entschieden werden, nicht hier im ViewModel.
+        dailyAllowanceRepository.getAll()
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val sessions = values[0] as List<ActivitySession>
+        val categories = values[1] as List<Category>
+        val types = values[2] as List<ActivityType>
+        @Suppress("UNCHECKED_CAST")
+        val goals = values[3] as List<de.devondroste.aevum.data.model.Goal>
+        @Suppress("UNCHECKED_CAST")
+        val habits = values[4] as List<de.devondroste.aevum.data.model.Habit>
+        @Suppress("UNCHECKED_CAST")
+        val allowances = values[5] as List<de.devondroste.aevum.data.model.DailyAllowance>
+        // M17.4: Hole die Accumulations einmalig (suspend → first())
+        // Achtung: getAll() auf Accumulation existiert nicht im
+        // Repository, also müssen wir die Accumulation-Reads im
+        // Analytics-Build machen. Wir übergeben nur die Allowance-Liste
+        // und laden die Accumulations dort on-demand.
+        DataLayer(sessions, categories, types, goals, habits, allowances)
     }
 
     val uiState: StateFlow<InsightsUiState> = combine(
         dataFlow,
         _selectedPeriod,
-        _selectedHeatmapDate
-    ) { data, period, heatmapDate ->
+        _selectedHeatmapDate,
+        _breakdownMode
+    ) { data, period, heatmapDate, breakdownMode ->
         val typeMap = data.types.associateBy { it.id }
         val goalProgress = data.goals.map { goal ->
             GoalProgressAnalytics.evaluateGoal(goal, data.sessions, anchorDate, zoneId, typeMap)
@@ -75,6 +100,13 @@ class InsightsViewModel @Inject constructor(
                 activityTypeName = result.activityTypeName
             )
         }
+        // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
+        // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
+        // in der Timeline.
+        val (periodStart, periodEnd) = computePeriodRange(period)
+        val allowanceAccums = dailyAllowanceRepository.getAccumulationInRange(
+            periodStart.toString(), periodEnd.toString()
+        )
         InsightsAnalytics.build(
             sessions = data.sessions,
             categories = data.categories,
@@ -83,7 +115,10 @@ class InsightsViewModel @Inject constructor(
             anchorDate = anchorDate,
             zoneId = zoneId,
             goalProgress = goalProgress,
-            habitProgress = habitProgress
+            habitProgress = habitProgress,
+            // M17.4: neue Parameter
+            allowanceAccumulations = allowanceAccums,
+            breakdownMode = breakdownMode
         ).copy(selectedHeatmapDate = heatmapDate)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InsightsUiState())
 
@@ -96,11 +131,34 @@ class InsightsViewModel @Inject constructor(
         _selectedHeatmapDate.value = date
     }
 
+    /** M17.4: Toggle zwischen Aktivitäts- und Kategorie-Aufschlüsselung. */
+    fun setBreakdownMode(mode: BreakdownMode) {
+        _breakdownMode.value = mode
+    }
+
+    private fun computePeriodRange(period: InsightPeriod): Pair<java.time.LocalDate, java.time.LocalDate> {
+        return when (period) {
+            InsightPeriod.Today -> anchorDate to anchorDate
+            InsightPeriod.Week -> {
+                val start = anchorDate.minusDays(6)
+                start to anchorDate
+            }
+            InsightPeriod.Month -> {
+                val start = anchorDate.minusDays(29)
+                start to anchorDate
+            }
+        }
+    }
+
     private data class DataLayer(
         val sessions: List<ActivitySession>,
         val categories: List<Category>,
         val types: List<ActivityType>,
         val goals: List<de.devondroste.aevum.data.model.Goal>,
-        val habits: List<de.devondroste.aevum.data.model.Habit>
+        val habits: List<de.devondroste.aevum.data.model.Habit>,
+        val allowances: List<de.devondroste.aevum.data.model.DailyAllowance>
     )
 }
+
+/** M17.4: Aufschlüsselungs-Modus für die Top-Liste. */
+enum class BreakdownMode { Activity, Category }
