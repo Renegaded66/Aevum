@@ -7,7 +7,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import de.devondroste.aevum.ui.screens.allowance.DailyAllowancesScreen
 import de.devondroste.aevum.ui.screens.dashboard.DashboardScreen
+import de.devondroste.aevum.ui.screens.unknownplace.UnknownPlacesScreen
 import de.devondroste.aevum.ui.screens.growth.GrowthScreen
 import de.devondroste.aevum.ui.screens.insights.InsightsScreen
 import de.devondroste.aevum.ui.screens.onboarding.OnboardingScreen
@@ -243,6 +245,14 @@ fun AppNavHost(
             arguments = listOf(navArgument("habitId") { type = NavType.StringType })
         ) {
             HabitEditorScreen(onBack = { navController.popBackStack() })
+        }
+
+        // M17.2 + M17.3
+        composable(AppDestination.UnknownPlaces.route) {
+            UnknownPlacesScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.DailyAllowances.route) {
+            DailyAllowancesScreen(onBack = { navController.popBackStack() })
         }
     }
 }

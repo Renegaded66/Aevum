@@ -34,9 +34,14 @@ import de.devondroste.aevum.data.model.*
         ActivitySessionChange::class,
         SessionEvidence::class,
         ActivityAggregateDay::class,
-        GeofenceEventLogEntry::class
+        GeofenceEventLogEntry::class,
+        // M17.2: Unknown Place Detection
+        UnknownPlaceSession::class,
+        // M17.3: Daily Allowances
+        DailyAllowance::class,
+        AllowanceAccumulationDay::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -60,10 +65,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bucketListItemDao(): BucketListItemDao
     abstract fun appUsageSampleDao(): AppUsageSampleDao
     abstract fun activitySessionChangeDao(): ActivitySessionChangeDao
-    abstract fun geofenceEventLogDao(): GeofenceEventLogDao
     abstract fun sessionEvidenceDao(): SessionEvidenceDao
     abstract fun activityAggregateDayDao(): ActivityAggregateDayDao
-
+    abstract fun geofenceEventLogDao(): GeofenceEventLogDao
+    // M17.2 + M17.3
+    abstract fun unknownPlaceSessionDao(): UnknownPlaceSessionDao
+    abstract fun dailyAllowanceDao(): DailyAllowanceDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -812,6 +819,66 @@ abstract class AppDatabase : RoomDatabase() {
                     "VALUES ('sleep_fusion_v1', 'ANDROID_API', 'Schlaf-Fusion (Screen + AR + Digital)', 1, 'UNKNOWN', " +
                     "${System.currentTimeMillis()}, ${System.currentTimeMillis()})"
                 )
+            }
+        }
+
+        /**
+         * M17.2 + M17.3: Unknown Place Detection + Daily Allowances.
+         *
+         * Drei neue Tabellen, keine Schema-Änderungen an bestehenden
+         * Tabellen. Beide nutzen INTEGER-Indizes mit dem Room-Standard-
+         * Schema `index_<table>_<col>`.
+         */
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // M17.2: Unknown Place Sessions
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS unknown_place_session (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        start_at INTEGER NOT NULL,
+                        end_at INTEGER NOT NULL,
+                        latitude REAL NOT NULL,
+                        longitude REAL NOT NULL,
+                        accuracy_meters REAL NOT NULL,
+                        name TEXT,
+                        geofence_id TEXT,
+                        resolved INTEGER NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_unknown_place_session_start_at` ON `unknown_place_session` (`start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_unknown_place_session_resolved_start_at` ON `unknown_place_session` (`resolved`, `start_at`)")
+
+                // M17.3: Daily Allowances
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS daily_allowance (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        activity_type_id TEXT NOT NULL,
+                        minutes_per_day INTEGER NOT NULL,
+                        enabled INTEGER NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_allowance_enabled` ON `daily_allowance` (`enabled`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_allowance_activity_type_id` ON `daily_allowance` (`activity_type_id`)")
+
+                // M17.3: Allowance Accumulation Day
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS allowance_accumulation_day (
+                        date TEXT NOT NULL,
+                        timezone_id TEXT NOT NULL,
+                        allowance_id TEXT NOT NULL,
+                        activity_type_id TEXT NOT NULL,
+                        minutes INTEGER NOT NULL,
+                        applied_at INTEGER NOT NULL,
+                        PRIMARY KEY (date, timezone_id, allowance_id)
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_date` ON `allowance_accumulation_day` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_allowance_id` ON `allowance_accumulation_day` (`allowance_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_activity_type_id` ON `allowance_accumulation_day` (`activity_type_id`)")
             }
         }
     }

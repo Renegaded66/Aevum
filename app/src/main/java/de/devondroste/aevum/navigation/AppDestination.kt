@@ -32,5 +32,8 @@ enum class AppDestination(val route: String, val title: String) {
     HabitEdit("habit/edit/{habitId}", "Gewohnheit bearbeiten"),
     PermissionEducation("permission_education", "Berechtigungen"),
     PlacesSetup("places_setup", "Orte"),
-    DashboardIntro("dashboard_intro", "Dashboard")
+    DashboardIntro("dashboard_intro", "Dashboard"),
+    // M17.2 + M17.3
+    UnknownPlaces("unknown_places", "Unbekannte Orte"),
+    DailyAllowances("daily_allowances", "Tagespauschalen")
 }

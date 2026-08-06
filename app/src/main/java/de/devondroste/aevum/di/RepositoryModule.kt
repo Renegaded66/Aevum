@@ -11,6 +11,12 @@ import de.devondroste.aevum.data.db.ActivityTypeDao
 import de.devondroste.aevum.data.db.AutomationSettingsDao
 import de.devondroste.aevum.data.db.AppUsageSampleDao
 import de.devondroste.aevum.data.db.GeofenceEventLogDao
+import de.devondroste.aevum.data.repository.DailyAllowanceRepository
+import de.devondroste.aevum.data.repository.DailyAllowanceRepositoryImpl
+import de.devondroste.aevum.data.repository.UnknownPlaceSessionRepository
+import de.devondroste.aevum.data.repository.UnknownPlaceSessionRepositoryImpl
+import de.devondroste.aevum.data.db.UnknownPlaceSessionDao
+import de.devondroste.aevum.data.db.DailyAllowanceDao
 import de.devondroste.aevum.data.db.BucketListItemDao
 import de.devondroste.aevum.data.db.CategoryDao
 import de.devondroste.aevum.data.db.DataSourceDao
@@ -131,4 +137,10 @@ object RepositoryModule {
 
     @Provides
     fun provideGeofenceEventLogRepository(dao: GeofenceEventLogDao): GeofenceEventLogRepository = GeofenceEventLogRepositoryImpl(dao)
+
+    @Provides
+    fun provideUnknownPlaceSessionRepository(dao: UnknownPlaceSessionDao): UnknownPlaceSessionRepository = UnknownPlaceSessionRepositoryImpl(dao)
+
+    @Provides
+    fun provideDailyAllowanceRepository(dao: DailyAllowanceDao): DailyAllowanceRepository = DailyAllowanceRepositoryImpl(dao)
 }

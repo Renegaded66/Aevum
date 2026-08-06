@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.util.Log
 import dagger.hilt.android.HiltAndroidApp
 import de.devondroste.aevum.automation.geofence.GeofenceRefreshScheduler
+import de.devondroste.aevum.automation.midnight.MidnightAllowanceScheduler
+import de.devondroste.aevum.automation.unknownplace.UnknownPlaceDetectorScheduler
 import de.devondroste.aevum.automation.activityrecognition.ActivityRecognitionRegistrar
 import de.devondroste.aevum.automation.health.SleepImportScheduler
 import de.devondroste.aevum.automation.sleep.ScreenEvent
@@ -27,6 +29,8 @@ import javax.inject.Inject
 class AevumApplication : Application() {
     @Inject lateinit var sleepImportScheduler: SleepImportScheduler
     @Inject lateinit var geofenceRefreshScheduler: GeofenceRefreshScheduler
+    @Inject lateinit var unknownPlaceScheduler: UnknownPlaceDetectorScheduler
+    @Inject lateinit var midnightAllowanceScheduler: MidnightAllowanceScheduler
 
     /**
      * M12.1.1: Hilt EntryPoint, damit AevumApplication (kein @AndroidEntryPoint)
@@ -102,6 +106,21 @@ class AevumApplication : Application() {
             geofenceRefreshScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "GeofenceRefreshScheduler failed — continuing", e)
+        }
+        // M17.2: Unknown Place Detector — alle 5 min, prüft ob User
+        // an einem nicht-Geofence-Ort sesshaft ist (Restaurant,
+        // Arzttermin, etc.) und erzeugt einen UnknownPlace-Eintrag.
+        try {
+            unknownPlaceScheduler.schedule()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "UnknownPlaceDetectorScheduler failed — continuing", e)
+        }
+        // M17.3: Midnight Allowance Worker — täglich um 00:05, schreibt
+        // die DailyAllowance-Akkumulationen für die Statistik.
+        try {
+            midnightAllowanceScheduler.schedule()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "MidnightAllowanceScheduler failed — continuing", e)
         }
         // M14: ActivityRecognition (IN_VEHICLE + STILL) Transition-Updates
         // abonnieren. No-Op, falls ACTIVITY_RECOGNITION nicht gewährt — wird
