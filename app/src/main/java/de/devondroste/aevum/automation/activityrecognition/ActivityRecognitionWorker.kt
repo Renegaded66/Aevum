@@ -82,7 +82,29 @@ class ActivityRecognitionWorker(
 
         // M12.2: Aggregiere IN_VEHICLE-Cluster aus dem In-Memory-Buffer.
         // Der Buffer wird vom ActivityTransitionReceiver befüllt.
-        val cluster = bridge.drainVehicleCluster() ?: return Result.success()
+        // M18.3: NICHT bei leerem Cluster returnen — erst prüfen, ob ein
+        // EXIT-Marker vorliegt (Fahrt-Ende). Sonst wird der Stop nie
+        // verarbeitet, wenn kein neuer Cluster kommt.
+        val cluster = bridge.drainVehicleCluster()
+        val exitAt = bridge.consumeVehicleExited()
+
+        // M18.3: EXIT zuerst verarbeiten — Fahrt-Ende ohne Cluster nötig.
+        if (exitAt != null) {
+            try {
+                val liveSession = liveActivityManager.liveSession.value
+                if (liveSession != null && liveSession.isLive &&
+                    liveSession.activityTypeId == "transport" &&
+                    liveSession.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+                ) {
+                    liveActivityManager.stop()
+                    Log.d(TAG, "Mobilitäts-Session gestoppt (EXIT @ $exitAt)")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Auto-Stop der Mobilitäts-Session fehlgeschlagen", e)
+            }
+        }
+
+        if (cluster == null) return Result.success()
         if (cluster.durationMs < MIN_CLUSTER_DURATION_MS) {
             // Zu kurze "Fahrt" — wahrscheinlich Bus-Haltestelle oder Beifahrer
             return Result.success()
@@ -178,9 +200,12 @@ class ActivityRecognitionWorker(
 
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
-            suggestedTitle = "Autofahrt ($durationStr)",
+            suggestedTitle = "Mobilität ($durationStr)",
             suggestedCategoryId = "transport",
-            activityTypeId = "driving",
+            // M18.3: "transport" statt "driving" — Google unterscheidet nicht
+            // zwischen Auto/Bus/Zug, alle sind IN_VEHICLE. Eine ehrliche
+            // Kategorie "Mobilität" statt einer Lügen-Kategorie "Autofahren".
+            activityTypeId = "transport",
             startAt = cluster.startMs,
             endAt = cluster.endMs,
             confidence = confidence,
@@ -197,62 +222,52 @@ class ActivityRecognitionWorker(
         // als "Auto" markiert, weil dieser sourceType in AUTO_SOURCES ist.
         reviewUc.acceptAuto(listOf(candidate))
 
-        // M15: Auto-Start einer Live-Session "Autofahrt" mit Timer.
+        // M18.3: Kern-Fix — Start UND Stop NIE im selben Worker-Lauf.
         //
-        // Architektur (siehe Skill-Ref M11.2 + M12.2):
-        //   - Live-Session wird via LiveActivityManager.start() angelegt
-        //   - sourceType = ACTIVITY_RECOGNITION_AUTO → erscheint in der
-        //     Timeline als "Auto" (siehe AUTO_SOURCES)
-        //   - sessionStatus = RUNNING (Default) — der User kann in der
-        //     LiveActivityCard Pause/Stop nutzen, genau wie bei manuellen
-        //     Sessions.
-        //   - Beim nächsten Cluster-Start ODER forceDrainIfStale wird die
-        //     Session via stop() beendet.
+        // M15-Bug: Der Worker startete die Session (Zeilen 214-240) und
+        // stoppte sie im selben Lauf wieder (Zeilen 242-256), weil jedes
+        // IN_VEHICLE-Event als Sample gepuffert wurde — auch EXIT-Transitions.
+        // Ergebnis: "Android erkennt Autofahren nicht" — die Session wurde
+        // sofort beendet, der User sah nie eine laufende Fahrt.
         //
-        // Sicherheits-Check: keine doppelte Session. Wenn schon eine
-        // Autofahrt läuft, wird der Cluster ignoriert.
-        try {
-            val existing = liveActivityManager.liveSession.value
-            val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "driving"
-            if (!isDuplicate) {
-                // Aevtuelle andere Live-Session beenden (z. B. manuelles
-                // Workout) bevor die Autofahrt startet — wie bei Geofence.
-                if (existing != null && existing.isLive) {
-                    liveActivityManager.forceFinishForAuto()
+        // Neues Verhalten:
+        //   - ENTER-Events → Samples → Cluster → Session STARTEN (wenn keine
+        //     Mobilitäts-Session läuft)
+        //   - EXIT-Events → vehicleExitedAt-Marker → Session STOPPEN (wird
+        //     oben in doWork() verarbeitet, NIE hier im Cluster-Pfad)
+        //   - Der Cluster-Pfad (mit MIN_CLUSTER_DURATION_MS) fängt kurze
+        //     Beifahrten ab.
+        if (cluster.durationMs >= MIN_CLUSTER_DURATION_MS) {
+            // M18.3: Genug Fahrsamples — Mobilitäts-Session starten.
+            try {
+                val existing = liveActivityManager.liveSession.value
+                val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "transport"
+                if (!isDuplicate) {
+                    // Aktuelle andere Live-Session beenden (z. B. manuelles
+                    // Workout) bevor die Fahrt startet — wie bei Geofence.
+                    if (existing != null && existing.isLive) {
+                        liveActivityManager.forceFinishForAuto()
+                    }
+                    val session = liveActivityManager.start(
+                        activityTypeId = "transport",
+                        title = "Mobilität",
+                        sourceType = "ACTIVITY_RECOGNITION_AUTO",
+                        // startedAt = Cluster-Start, NICHT now() — der User
+                        // war ja schon die ganze Zeit im Fahrzeug.
+                        startedAt = cluster.startMs
+                    )
+                    Log.d(TAG, "Mobilitäts-Session gestartet: ${session.id} (start=${cluster.startMs})")
+                    // Foreground-Service starten, damit der Timer weiterläuft
+                    // wenn der User die App schließt.
+                    de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+                } else {
+                    Log.d(TAG, "Mobilitäts-Session läuft bereits (${existing?.id}) — Cluster ignoriert")
                 }
-                val session = liveActivityManager.start(
-                    activityTypeId = "driving",
-                    title = "Autofahrt",
-                    sourceType = "ACTIVITY_RECOGNITION_AUTO",
-                    // startedAt = Cluster-Start, NICHT now() — der User
-                    // war ja schon die ganze Zeit im Fahrzeug.
-                    startedAt = cluster.startMs
-                )
-                Log.d(TAG, "Live-Session Autofahrt gestartet: ${session.id} (start=${cluster.startMs})")
-                // Foreground-Service starten, damit der Timer weiterläuft
-                // wenn der User die App schließt.
-                de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
-            } else {
-                Log.d(TAG, "Autofahrt läuft bereits (${existing?.id}) — Cluster ignoriert")
+            } catch (e: Exception) {
+                Log.e(TAG, "Auto-Start der Mobilitäts-Session fehlgeschlagen", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Auto-Start der Live-Session fehlgeschlagen", e)
-        }
-
-        // M15: Auto-Stop. Wenn der User die Fahrt beendet und der Cluster
-        // geschlossen wird, stoppen wir die Live-Session mit der korrekten
-        // Endzeit (cluster.endMs, nicht now()).
-        try {
-            val liveSession = liveActivityManager.liveSession.value
-            if (liveSession != null && liveSession.isLive &&
-                liveSession.activityTypeId == "driving" &&
-                liveSession.sourceType == "ACTIVITY_RECOGNITION_AUTO"
-            ) {
-                val stopped = liveActivityManager.stop()
-                Log.d(TAG, "Live-Session Autofahrt gestoppt: ${stopped?.id} (end=$cluster.endMs)")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Auto-Stop der Live-Session fehlgeschlagen", e)
+        } else {
+            Log.d(TAG, "Cluster zu kurz (${cluster.durationMs}ms < $MIN_CLUSTER_DURATION_MS) — keine Session, nur Trigger")
         }
 
         return Result.success()
@@ -284,6 +299,12 @@ class ActivityRecognitionBridge @Inject constructor() {
     @Volatile private var pending: VehicleCluster? = null
     private val maxGapMs = 5L * 60 * 1000 // 5 Minuten
 
+    // M18.3: EXIT-Signal für Fahrzeug. Der Receiver setzt diesen Marker,
+    // wenn Google eine IN_VEHICLE-EXIT-Transition liefert. Der Worker
+    // konsumiert ihn und stoppt die Session — so wird nie im selben Lauf
+    // gestartet UND gestoppt (M15-Bug).
+    @Volatile private var vehicleExitedAt: Long? = null
+
     @Synchronized
     fun addSample(epochMs: Long, confidence: Int) {
         val c = pending
@@ -304,6 +325,20 @@ class ActivityRecognitionBridge @Inject constructor() {
                 peakConfidence = maxOf(c.peakConfidence, confidence)
             )
         }
+    }
+
+    /** M18.3: EXIT-Transition für IN_VEHICLE markieren (Fahrt vorbei). */
+    @Synchronized
+    fun markVehicleExited(epochMs: Long) {
+        vehicleExitedAt = epochMs
+    }
+
+    /** M18.3: EXIT-Marker konsumieren (atomar). Null = kein Exit-Signal. */
+    @Synchronized
+    fun consumeVehicleExited(): Long? {
+        val v = vehicleExitedAt
+        vehicleExitedAt = null
+        return v
     }
 
     @Synchronized
@@ -545,7 +580,19 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
             for (event in result.transitionEvents) {
                 when (event.activityType) {
                     DetectedActivity.IN_VEHICLE -> {
-                        bridge.addSample(now, 75)
+                        // M18.3: ENTER vs EXIT unterscheiden — das ist der
+                        // Kern-Fix für "Android erkennt Autofahren nicht":
+                        // Vorher wurde jedes IN_VEHICLE-Event als Sample
+                        // gepuffert, der Worker startete UND stoppte die
+                        // Session im selben Lauf (sofort wieder beendet).
+                        val transitionType = getTransitionInt(event)
+                        if (transitionType ==
+                            com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT
+                        ) {
+                            bridge.markVehicleExited(now)
+                        } else {
+                            bridge.addSample(now, 75)
+                        }
                         hasChange = true
                     }
                     // M14: STILL liefert das zweite Schlaf-Signal. Wir puffern
