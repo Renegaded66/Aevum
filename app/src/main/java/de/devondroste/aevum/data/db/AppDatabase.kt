@@ -41,7 +41,7 @@ import de.devondroste.aevum.data.model.*
         DailyAllowance::class,
         AllowanceAccumulationDay::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -940,6 +940,17 @@ abstract class AppDatabase : RoomDatabase() {
             database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_date` ON `allowance_accumulation_day` (`date`)")
             database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_allowance_id` ON `allowance_accumulation_day` (`allowance_id`)")
             database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_accumulation_day_activity_type_id` ON `allowance_accumulation_day` (`activity_type_id`)")
+        }
+
+        // M18: Positivitäts-Score auf activity_type. Einfacher ADD COLUMN —
+        // kein Rebuild nötig, da kein FK und keine neuen Indizes.
+        // Default 50 = neutral (keine Wertung ohne User-Entscheidung).
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `activity_type` ADD COLUMN `positivity_score` INTEGER NOT NULL DEFAULT 50"
+                )
+            }
         }
     }
 }

@@ -26,6 +26,11 @@ interface ActivityTypeDao {
     @Query("UPDATE activity_type SET is_favorite = :isFavorite WHERE id = :id")
     suspend fun setFavorite(id: String, isFavorite: Boolean)
 
+    // M18: Positivitäts-Score (0-100) direkt setzen — kein @Update nötig,
+    // das würde das ganze Objekt laden/vergleichen.
+    @Query("UPDATE activity_type SET positivity_score = :score WHERE id = :id")
+    suspend fun setPositivityScore(id: String, score: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(type: ActivityType)
 

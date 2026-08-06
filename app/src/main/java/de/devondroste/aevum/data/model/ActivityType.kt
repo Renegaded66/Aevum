@@ -26,5 +26,9 @@ data class ActivityType(
     @ColumnInfo(name = "is_system") val isSystem: Boolean = true,
     @ColumnInfo(name = "properties_json") val propertiesJson: String? = null,
     // M9.2: Favorites — simple boolean, no priority, no order, no groups
-    @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false
+    @ColumnInfo(name = "is_favorite", defaultValue = "0") val isFavorite: Boolean = false,
+    // M18: Positivitäts-Score 0..100. 50 = neutral, 100 = sehr gut,
+    // 0 = sehr schlecht. Wird im Dashboard als "Zeitqualität" gewichtet.
+    // Default 50 ist bewusst neutral — keine Wertung ohne User-Entscheidung.
+    @ColumnInfo(name = "positivity_score", defaultValue = "50") val positivityScore: Int = 50
 ) : Serializable

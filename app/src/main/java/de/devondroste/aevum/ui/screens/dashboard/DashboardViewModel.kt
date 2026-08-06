@@ -414,8 +414,57 @@ class DashboardViewModel @Inject constructor(
                     else -> "${minutes}m"
                 }
             } else "—",
-            digitalTopApp = _topApps.value.firstOrNull()?.appLabel ?: "—"
+            digitalTopApp = _topApps.value.firstOrNull()?.appLabel ?: "—",
+            // M18: Zeitqualität berechnen. Gewichtete Summe:
+            // quality = Σ(dauer × score) / Σ(dauer). Pro Aktivität.
+            qualityScore = computeQualityScore(activeSessions, typeMap),
+            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap)
         )
+    }
+
+    // M18: Zeitqualitäts-Score 0..100 — gewichtetes Mittel über alle
+    // heute erfassten Sessions (nur abgeschlossene + laufende mit Dauer).
+    // Score 0 = alles schlecht, 100 = alles gut.
+    private fun computeQualityScore(
+        sessions: List<ActivitySession>,
+        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>
+    ): Int {
+        var totalWeight = 0L
+        var weighted = 0.0
+        sessions.forEach { session ->
+            val duration = (session.endAt ?: System.currentTimeMillis()) - session.startAt
+            if (duration <= 0L) return@forEach
+            val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
+            totalWeight += duration
+            weighted += duration * score
+        }
+        if (totalWeight <= 0L) return 0
+        return (weighted / totalWeight).toInt().coerceIn(0, 100)
+    }
+
+    // M18: Pro-Aktivitäts-Breakdown für die Positivitäts-Balken.
+    private fun computeQualityBreakdown(
+        sessions: List<ActivitySession>,
+        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>
+    ): List<QualitySlice> {
+        val now = System.currentTimeMillis()
+        return sessions
+            .filter { it.activityTypeId != null }
+            .groupBy { it.activityTypeId!! }
+            .map { (typeId, typeSessions) ->
+                val type = typeMap[typeId]
+                val score = type?.positivityScore ?: 50
+                val duration = typeSessions.sumOf { (it.endAt ?: now) - it.startAt }
+                QualitySlice(
+                    activityTypeId = typeId,
+                    label = type?.name ?: typeId,
+                    durationMs = duration,
+                    score = score,
+                    color = de.devondroste.aevum.ui.components.positivityColor(score)
+                )
+            }
+            .sortedByDescending { it.durationMs }
+            .take(5)
     }
 
     private fun currentMinute(now: Long) = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
@@ -584,7 +633,19 @@ data class DashboardUiState(
     val activityTypes: List<de.devondroste.aevum.data.model.ActivityType> = emptyList(),
     // M10: today's sleep summary for the dashboard card
     val lastSleepSession: ActivitySession? = null,
-    val lastSleepDurationMs: Long = 0L
+    val lastSleepDurationMs: Long = 0L,
+    // M18: Zeitqualität — gewichtete Summe aus (Dauer × Positivität).
+    // qualityScore 0..100, qualityBreakdown pro Aktivität für die Balken.
+    val qualityScore: Int = 0,
+    val qualityBreakdown: List<QualitySlice> = emptyList()
+)
+
+data class QualitySlice(
+    val activityTypeId: String,
+    val label: String,
+    val durationMs: Long,
+    val score: Int,
+    val color: androidx.compose.ui.graphics.Color
 )
 
 data class DashboardCategorySlice(

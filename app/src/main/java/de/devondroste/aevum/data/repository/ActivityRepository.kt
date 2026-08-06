@@ -57,6 +57,8 @@ interface ActivityTypeRepository {
     // M9.2: Favorites
     fun getFavorites(): Flow<List<ActivityType>>
     suspend fun setFavorite(id: String, isFavorite: Boolean)
+    // M18: Positivitäts-Score
+    suspend fun setPositivityScore(id: String, score: Int)
     suspend fun insert(type: ActivityType)
     suspend fun insertAll(types: List<ActivityType>)
     suspend fun update(type: ActivityType)

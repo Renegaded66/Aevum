@@ -79,6 +79,8 @@ class ActivityTypeRepositoryImpl(
     // M9.2: Favorites
     override fun getFavorites(): Flow<List<ActivityType>> = typeDao.getFavorites()
     override suspend fun setFavorite(id: String, isFavorite: Boolean) = typeDao.setFavorite(id, isFavorite)
+    // M18: Positivitäts-Score
+    override suspend fun setPositivityScore(id: String, score: Int) = typeDao.setPositivityScore(id, score)
     override suspend fun insert(type: ActivityType) = typeDao.insert(type)
     override suspend fun insertAll(types: List<ActivityType>) = typeDao.insertAll(types)
     override suspend fun update(type: ActivityType) = typeDao.update(type)

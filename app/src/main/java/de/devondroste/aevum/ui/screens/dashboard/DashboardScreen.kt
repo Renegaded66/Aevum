@@ -56,7 +56,10 @@ import de.devondroste.aevum.ui.components.AevumCard
 import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.EmptyState
 import de.devondroste.aevum.ui.components.ProgressRing
+import de.devondroste.aevum.ui.components.QualityRing
 import de.devondroste.aevum.ui.components.categoryColor
+import de.devondroste.aevum.ui.components.positivityColor
+import de.devondroste.aevum.ui.components.AnimatedGradientBar
 import de.devondroste.aevum.domain.liveactivity.LiveActivityState
 import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
 import de.devondroste.aevum.ui.theme.AevumRadius
@@ -257,6 +260,23 @@ private fun DailySummaryHero(
                             Text("Bisher ${percent}% gelebt", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
                     }
+                    // M18: Zeitqualitäts-Ring — das Herzstück. Zeigt, wie
+                    // wertvoll die erfasste Zeit heute war (0-100).
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        QualityRing(
+                            qualityScore = state.qualityScore,
+                            ringSize = 72.dp,
+                            strokeWidth = 8.dp,
+                            label = "QUALITÄT"
+                        )
+                    }
+                }
+
+                // M18: Positivitäts-Breakdown — farbige Balken pro Aktivität
+                // (Dauer gewichtet), je Score rot→gelb→grün. Nur bei Daten.
+                if (state.qualityBreakdown.isNotEmpty()) {
+                    Spacer(Modifier.height(AevumSpacing.sm))
+                    QualityBreakdownBars(slices = state.qualityBreakdown)
                 }
 
                 // Day-flow mini canvas
@@ -629,7 +649,13 @@ private fun DashboardScreenPreview() {
                 hasData = true,
                 dayProgress = .64f,
                 lastSleepDurationMs = 7L * 3_600_000 + 45 * 60_000,
-                digitalScreenTimeFormatted = "2h 15m"
+                digitalScreenTimeFormatted = "2h 15m",
+                qualityScore = 72,
+                qualityBreakdown = listOf(
+                    QualitySlice("fitness", "Fitness", 60L * 60_000, 85, positivityColor(85)),
+                    QualitySlice("work", "Arbeit", 3L * 3_600_000 + 20 * 60_000, 50, positivityColor(50)),
+                    QualitySlice("digital", "Digital", 2L * 3_600_000, 15, positivityColor(15))
+                )
             ),
             liveState = LiveActivityState.Idle,
             nowMs = 0,
@@ -645,5 +671,69 @@ private fun DashboardScreenPreview() {
             onStopLive = {},
             onToggleFavorite = {}
         )
+    }
+}
+
+/**
+ * M18: Positivitäts-Breakdown — horizontale Balken pro Aktivität.
+ * Balkenbreite = Dauer-Anteil, Balkenfarbe = Score (rot→gelb→grün).
+ * Dazu rechts Score + Dauer. Nutzt die bestehende AnimatedGradientBar
+ * für den animierten Kaskaden-Effekt (80ms pro Item).
+ */
+@Composable
+private fun QualityBreakdownBars(slices: List<QualitySlice>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "Zeitqualität nach Aktivität",
+            fontSize = 10.sp,
+            letterSpacing = 0.8.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
+        )
+        val maxMs = slices.maxOf { it.durationMs }.coerceAtLeast(1L)
+        slices.forEachIndexed { index, slice ->
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(slice.color)
+                    )
+                    Text(
+                        slice.label,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        formatHours(slice.durationMs),
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        slice.score.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = slice.color,
+                        modifier = Modifier.width(24.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End
+                    )
+                }
+                AnimatedGradientBar(
+                    progress = slice.durationMs.toFloat() / maxMs.toFloat(),
+                    color = slice.color,
+                    modifier = Modifier.fillMaxWidth(),
+                    height = 8.dp,
+                    animationDelayMs = index * 80
+                )
+            }
+        }
     }
 }
