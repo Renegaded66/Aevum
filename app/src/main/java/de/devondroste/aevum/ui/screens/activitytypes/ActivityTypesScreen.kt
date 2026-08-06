@@ -127,7 +127,9 @@ fun ActivityTypesScreen(
                                         viewModel.onScoreDragged(row.id, newScore)
                                     },
                                     onValueChangeFinished = {
-                                        viewModel.commitScore(row.id, row.score)
+                                        // M18.6: KEIN row.score hier — Stale Closure!
+                                        // Der ViewModel kennt den letzten Drag-Wert.
+                                        viewModel.commitScore(row.id)
                                     }
                                 )
                             }

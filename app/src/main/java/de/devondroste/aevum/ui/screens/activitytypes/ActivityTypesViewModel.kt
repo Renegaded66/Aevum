@@ -51,9 +51,23 @@ class ActivityTypesViewModel @Inject constructor(
         pendingScores.value = pendingScores.value + (typeId to score)
     }
 
-    /** M18.2: Drag-Ende — Score in die DB schreiben. */
-    fun commitScore(typeId: String, score: Int) {
-        pendingScores.value = pendingScores.value + (typeId to score)
+    /**
+     * M18.6: Drag-Ende — Score in die DB schreiben.
+     *
+     * ROOT-CAUSE-FIX des "Slider springt auf 50 zurück"-Bugs:
+     * Vorher: `commitScore(row.id, row.score)` im Screen-Lambda — das
+     * referenzierte `row.score` aus der letzten RECOMPOSITION (Stale
+     * Closure). Beim Drag feuern Dutzende Events, die Recomposition
+     * hinkt hinterher → beim Loslassen wurde oft noch der ALTE Wert
+     * (z.B. 50) committet → DB-Write 50 → Flow → Slider springt zurück.
+     *
+     * Jetzt: Der ViewModel liest den letzten Drag-Wert aus [pendingScores]
+     * (Single Source of Truth für den aktuellen UI-Score). Kein Stale
+     * Closure mehr möglich.
+     */
+    fun commitScore(typeId: String) {
+        val score = pendingScores.value[typeId]
+        if (score == null) return
         viewModelScope.launch {
             activityTypeRepository.setPositivityScore(typeId, score)
         }

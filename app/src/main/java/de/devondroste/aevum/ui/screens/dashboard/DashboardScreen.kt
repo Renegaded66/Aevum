@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,40 +38,56 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import de.devondroste.aevum.data.model.AppUsageSample
-import de.devondroste.aevum.domain.time.TimeFormatting
+import de.devondroste.aevum.ui.components.AnimatedGradientBar
 import de.devondroste.aevum.ui.components.AevumCard
 import de.devondroste.aevum.ui.components.CardVariant
-import de.devondroste.aevum.ui.components.EmptyState
-import de.devondroste.aevum.ui.components.ProgressRing
 import de.devondroste.aevum.ui.components.QualityRing
-import de.devondroste.aevum.ui.components.categoryColor
 import de.devondroste.aevum.ui.components.positivityColor
-import de.devondroste.aevum.ui.components.AnimatedGradientBar
 import de.devondroste.aevum.domain.liveactivity.LiveActivityState
-import de.devondroste.aevum.ui.screens.goals.GoalWithProgress
 import de.devondroste.aevum.ui.theme.AevumRadius
 import de.devondroste.aevum.ui.theme.AevumSpacing
 import de.devondroste.aevum.ui.theme.AevumTheme
 
 /**
- * P1 / M13: Komplett überarbeitetes Dashboard.
+ * M18.7: KOMPLETT NEUES Dashboard — "Der Puls deines Tages".
  *
- * Layout (less = more):
- *  1. Hero-Karte: 5 Kennzahlen auf einen Blick (Erfasst, Fokus, Schlaf, Bewegung, Bildschirmzeit)
- *  2. LiveActivity-Card: kompakt mit Start/Pause/Stop
- *  3. Insights-Strip: 2-3 ruhige Hinweise
+ * Design-Philosophie (nach User-Feedback "App hat Fokus verloren,
+ * überladen"):
  *
- * Keine redundanten Karten mehr. Jede Information hat genau einen Platz.
+ *   Nur Daten, die die eine Frage beantworten:
+ *   "Wie gut habe ich meine Zeit heute genutzt?"
+ *
+ * Layout (Top → Bottom, nach Wichtigkeit):
+ *  1. Live-Banner — wenn eine Session läuft, ist DAS die wichtigste Info.
+ *     Gleitet von oben rein, mit Timer + Pause/Stop.
+ *  2. Puls-Hero — QualityRing (Zeitqualität) + die 3 fundamentalen
+ *     Zeit-Blöcke eines Tages (Erfasst / Schlaf / Bildschirm) + Tagesfluss
+ *     + Tagesfortschritt. Eine Karte, vier Aussagen.
+ *  3. Schnellstart — LiveActivityCard NUR wenn nichts läuft. Sonst
+ *     übernimmt das Banner die Kontrolle (keine Dopplung).
+ *  4. "Wo deine Zeit hingeht" — Top-4-Kategorien, Balkenbreite = Dauer,
+ *     Balkenfarbe = Positivität (rot→grün).
+ *  5. Insights — max 2, nur wenn relevant.
+ *  6. Review-Hinweis — nur wenn Vorschläge warten.
+ *
+ * ENTFERNT (bewusst, gegen Überladung):
+ *  - 5 KeyMetric-Karten (Erfasst/Fokus/Schlaf/Bewegung/Bildschirm/Top-Kat):
+ *    Fokus/Bewegung/Top-Kat sind Interpretationen, keine Fakten. Die
+ *    Top-Kategorie zeigt bereits der Balken-Block. Die 3 fundamentalen
+ *    Blöcke leben jetzt im Hero.
+ *  - TopAppsStrip: Top-Apps sind Detail-Data (gehören in die Statistik),
+ *    nicht aufs Dashboard. Die App soll Zeit-QUALITÄT zeigen, nicht
+ *    App-Nutzung.
+ *  - "DEIN TAG"-Textblock mit narrative: Text reduziert auf das Minimum.
  */
 @Composable
 fun DashboardScreen(
@@ -91,8 +104,6 @@ fun DashboardScreen(
     val nowMs by viewModel.liveActivityManager.nowMs.collectAsState()
     val recents by viewModel.liveActivityManager.recentActivityTypes.collectAsState()
     val favorites by viewModel.liveActivityManager.favoriteActivityTypes.collectAsState()
-    val topApps by viewModel.topApps.collectAsState()
-    val usageGranted by viewModel.usageStatsGranted.collectAsState()
     DashboardContent(
         modifier = modifier,
         state = state,
@@ -100,8 +111,6 @@ fun DashboardScreen(
         nowMs = nowMs,
         recents = recents,
         favorites = favorites,
-        topApps = topApps,
-        usageStatsGranted = usageGranted,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
         onOpenGoals = onOpenGoals,
@@ -124,8 +133,6 @@ private fun DashboardContent(
     nowMs: Long,
     recents: List<de.devondroste.aevum.domain.liveactivity.RecentActivityType>,
     favorites: List<de.devondroste.aevum.data.model.ActivityType>,
-    topApps: List<AppUsageSample>,
-    usageStatsGranted: Boolean,
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenGoals: () -> Unit = {},
@@ -138,26 +145,19 @@ private fun DashboardContent(
     onDiscardLive: () -> Unit = {},
     onToggleFavorite: (de.devondroste.aevum.data.model.ActivityType) -> Unit
 ) {
+    val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
+    val slideIn = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
+    val slideOut = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            // 1) HERO — Tageszusammenfassung auf einen Blick
-            item { DailySummaryHero(state = state, topApps = topApps, usageGranted = usageStatsGranted, onOpenUsageSettings = onOpenUsageSettings) }
-            // M18.4: Live-Banner — gleitet von oben rein, wenn eine Session läuft.
-            // Deutlich sichtbar (Gradient + Timer + Pause/Stop), auch im
-            // Vordergrund — nicht nur die Notification.
+            // 1) Live-Banner — wichtigste Info zuerst. Gleitet von oben rein.
             item {
-                AnimatedVisibility(
-                    visible = liveState is LiveActivityState.Running ||
-                        liveState is LiveActivityState.Paused,
-                    enter = androidx.compose.animation.expandVertically() +
-                        androidx.compose.animation.fadeIn(),
-                    exit = androidx.compose.animation.shrinkVertically() +
-                        androidx.compose.animation.fadeOut()
-                ) {
+                AnimatedVisibility(visible = isLive, enter = slideIn, exit = slideOut) {
                     LiveActivityBanner(
                         state = liveState,
                         nowMs = nowMs,
@@ -167,54 +167,64 @@ private fun DashboardContent(
                     )
                 }
             }
-            // 2) Live Activity (kompakt) — eine prominente Karte
+
+            // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
+            item { PulsHero(state = state) }
+
+            // 3) Schnellstart — NUR wenn nichts läuft. Wenn eine Session
+            // aktiv ist, übernimmt das Banner die Steuerung (keine Dopplung).
             item {
-                LiveActivityCard(
-                    state = liveState,
-                    nowMs = nowMs,
-                    activityTypes = state.activityTypes,
-                    recents = recents,
-                    favorites = favorites,
-                    onStart = { typeId, note -> onStartLive(typeId, note, System.currentTimeMillis()) },
-                    onStartWithTime = { typeId, note, time -> onStartLive(typeId, note, time) },
-                    onPause = onPauseLive,
-                    onResume = onResumeLive,
-                    onStop = onStopLive,
-                    onDiscard = onDiscardLive,
-                    onToggleFavorite = onToggleFavorite
-                )
+                AnimatedVisibility(visible = !isLive, enter = slideIn, exit = slideOut) {
+                    LiveActivityCard(
+                        state = liveState,
+                        nowMs = nowMs,
+                        activityTypes = state.activityTypes,
+                        recents = recents,
+                        favorites = favorites,
+                        onStart = { typeId, note -> onStartLive(typeId, note, System.currentTimeMillis()) },
+                        onStartWithTime = { typeId, note, time -> onStartLive(typeId, note, time) },
+                        onPause = onPauseLive,
+                        onResume = onResumeLive,
+                        onStop = onStopLive,
+                        onDiscard = onDiscardLive,
+                        onToggleFavorite = onToggleFavorite
+                    )
+                }
             }
-            // 3) Insights — nur 2-3 ruhige Hinweise
+
+            // 4) Wo deine Zeit hingeht — Top-4 mit Score-Farbe
+            if (state.qualityBreakdown.isNotEmpty()) {
+                item { QualityBreakdownBars(slices = state.qualityBreakdown.take(4)) }
+            }
+
+            // 5) Insights — max 2, nur wenn relevant
             if (state.insights.isNotEmpty()) {
                 item { InsightStrip(state = state) }
             }
-            // 4) Review / Sleep Quiet Hint — nur wenn was zu tun ist
+
+            // 6) Review-Hinweis — nur wenn Vorschläge warten
             if (state.candidateCount > 0 || state.sleepCandidateCount > 0) {
                 item { ReviewHintCard(reviewCount = state.candidateCount, sleepCount = state.sleepCandidateCount, onOpenReview = onOpenReview) }
             }
+
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }
 }
 
 /**
- * P1: Daily Summary Hero — die Hauptkarte des Dashboards.
+ * M18.7: Puls-Hero — das neue Herzstück des Dashboards.
  *
- * Zeigt in einer einzigen Karte:
- *  - Tageszusammenfassung (Headline)
- *  - 5 Kennzahlen (Erfasst, Fokus, Schlaf, Bewegung, Bildschirmzeit)
+ * Eine Karte, vier Aussagen:
+ *  - QualityRing (groß): "Wie wertvoll war deine Zeit?" — die Kern-Kennzahl
+ *  - 3 fundamentale Zeit-Blöcke: Erfasst / Schlaf / Bildschirm
  *  - Tagesfluss-Miniatur (24h-Spur)
- *  - Sleep + Top-App Verweise
+ *  - Tagesfortschritt (dünne Bar mit %)
  *
- * Kein Text-Overload, eine Karte statt 5.
+ * Keine Interpretationen (Fokus/Balance/Top-Kat) — nur Fakten.
  */
 @Composable
-private fun DailySummaryHero(
-    state: DashboardUiState,
-    topApps: List<AppUsageSample>,
-    usageGranted: Boolean,
-    onOpenUsageSettings: () -> Unit
-) {
+private fun PulsHero(state: DashboardUiState) {
     val heroBg = Brush.verticalGradient(
         listOf(
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.30f),
@@ -237,70 +247,53 @@ private fun DailySummaryHero(
                 .padding(AevumSpacing.lg)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                // Headline row
-                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                    Text(
-                        "DEIN TAG",
-                        fontSize = 10.sp,
-                        letterSpacing = 1.4.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold
+                // QualityRing + Kern-Blöcke
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    QualityRing(
+                        qualityScore = state.qualityScore,
+                        ringSize = 108.dp,
+                        strokeWidth = 11.dp,
+                        label = "QUALITÄT"
                     )
-                    Text(
-                        state.headline,
-                        fontSize = 26.sp,
-                        lineHeight = 30.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        state.narrative,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp
-                    )
-                }
-
-                // Day progress ring + percentage
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val percent = (state.dayProgress * 100).toInt()
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                        ProgressRing(
-                            progress = state.dayProgress,
-                            size = 56.dp,
-                            strokeWidth = 6.dp,
-                            progressColor = MaterialTheme.colorScheme.primary,
-                            valueText = "${percent}%"
+                    Spacer(Modifier.width(AevumSpacing.lg))
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                    ) {
+                        Text(
+                            "DEIN TAG",
+                            fontSize = 10.sp,
+                            letterSpacing = 1.4.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        Column {
-                            Text("Tag", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
-                            Text("Bisher ${percent}% gelebt", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                    // M18: Zeitqualitäts-Ring — das Herzstück. Zeigt, wie
-                    // wertvoll die erfasste Zeit heute war (0-100).
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        QualityRing(
-                            qualityScore = state.qualityScore,
-                            ringSize = 72.dp,
-                            strokeWidth = 8.dp,
-                            label = "QUALITÄT"
+                        Text(
+                            state.headline,
+                            fontSize = 19.sp,
+                            lineHeight = 23.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        HeroMetric(
+                            icon = "⏱️",
+                            value = state.totalTracked,
+                            label = "Erfasst"
+                        )
+                        HeroMetric(
+                            icon = "🌙",
+                            value = if (state.lastSleepDurationMs > 0) formatHours(state.lastSleepDurationMs) else "—",
+                            label = "Schlaf"
+                        )
+                        HeroMetric(
+                            icon = "📱",
+                            value = state.digitalScreenTimeFormatted,
+                            label = "Bildschirm"
                         )
                     }
                 }
 
-                // M18: Positivitäts-Breakdown — farbige Balken pro Aktivität
-                // (Dauer gewichtet), je Score rot→gelb→grün. Nur bei Daten.
-                if (state.qualityBreakdown.isNotEmpty()) {
-                    Spacer(Modifier.height(AevumSpacing.sm))
-                    QualityBreakdownBars(slices = state.qualityBreakdown)
-                }
-
-                // Day-flow mini canvas
+                // Tagesfluss-Miniatur (24h-Spur)
                 if (state.flowSegments.isNotEmpty()) {
                     DayFlowMiniCanvas(
                         segments = state.flowSegments,
@@ -308,7 +301,7 @@ private fun DailySummaryHero(
                     )
                 } else {
                     Surface(
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        modifier = Modifier.fillMaxWidth().height(40.dp),
                         shape = RoundedCornerShape(AevumRadius.md),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
                     ) {
@@ -322,163 +315,74 @@ private fun DailySummaryHero(
                     }
                 }
 
-                // 5 Key Metrics — eine Zeile (Bildschirm/Balance zugunsten von Top-Kat konsolidiert)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                ) {
-                    KeyMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Erfasst",
-                        value = state.totalTracked,
-                        accent = MaterialTheme.colorScheme.primary
-                    )
-                    KeyMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Schlaf",
-                        value = if (state.lastSleepDurationMs > 0) formatHours(state.lastSleepDurationMs) else "—",
-                        accent = MaterialTheme.colorScheme.tertiary
-                    )
-                    KeyMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Bildschirm",
-                        // M16: Bei fehlenden Daten "—" statt "0m" zeigen.
-                        // digitalScreenTimeFormatted ist "—" wenn screenTimeMs == 0.
-                        value = state.digitalScreenTimeFormatted,
-                        accent = MaterialTheme.colorScheme.secondary
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                ) {
-                    KeyMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Fokus",
-                        value = focusMs(state),
-                        accent = MaterialTheme.colorScheme.primary.copy(alpha = 0.78f)
-                    )
-                    KeyMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Bewegung",
-                        value = movementMs(state),
-                        accent = de.devondroste.aevum.ui.theme.AevumCategoryColors.sport
-                    )
-                    // M16.4: "Balance" entfernt — der Score war oft "—" und
-                    // doppelte zur Bildschirm-Anzeige. Stattdessen "Top-Kat":
-                    // zeigt die aktivste Kategorie heute (z.B. "Arbeit 4h")
-                    // als konkrete Information, die das Dashboard ergänzt.
-                    KeyMetric(
-                        modifier = Modifier.weight(1f),
-                        label = if (state.hasData) "Top-Kat" else "Top-Kat",
-                        value = topCategoryMs(state),
-                        accent = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-
-                // Top apps preview (only if usage access granted)
-                if (usageGranted && topApps.isNotEmpty()) {
-                    TopAppsStrip(topApps = topApps)
-                } else if (!usageGranted) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(AevumRadius.md),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "Bildschirmzeit aktivieren",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            OutlinedButton(onClick = onOpenUsageSettings) { Text("Erlauben", fontSize = 12.sp) }
-                        }
-                    }
-                }
+                // Tagesfortschritt — dünne Bar, keine Ring-Dopplung
+                DayProgressBar(dayProgress = state.dayProgress)
             }
         }
     }
 }
 
+/** M18.7: Eine Kennzahl-Zeile im Hero: Emoji + Wert (Monospace) + Label. */
 @Composable
-private fun KeyMetric(
-    modifier: Modifier = Modifier,
-    label: String,
-    value: String,
-    accent: Color
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(AevumRadius.md),
-        color = accent.copy(alpha = 0.10f)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = AevumSpacing.sm, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                label.uppercase(),
-                fontSize = 9.sp,
-                letterSpacing = 0.6.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                value,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = accent,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun TopAppsStrip(topApps: List<AppUsageSample>) {
-    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+private fun HeroMetric(icon: String, value: String, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(icon, fontSize = 15.sp)
         Text(
-            "Top-Apps",
-            fontSize = 10.sp,
-            letterSpacing = 0.8.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold
+            value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
-        topApps.forEach { app ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondary)
-                )
-                Text(
-                    app.appLabel,
-                    fontSize = 12.sp,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    formatHours(app.durationMs),
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
+}
+
+/** M18.7: Tagesfortschritt als dünne Gradient-Bar mit Prozent. */
+@Composable
+private fun DayProgressBar(dayProgress: Float) {
+    val percent = (dayProgress * 100).toInt().coerceIn(0, 100)
+    // M18.7: Farben VOR dem Canvas ziehen — DrawScope ist kein Composable-Kontext
+    val primary = MaterialTheme.colorScheme.primary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(AevumRadius.full))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+        ) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val w = size.width * (dayProgress.coerceIn(0f, 1f))
+                if (w > 0f) {
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(
+                            listOf(primary, tertiary)
+                        ),
+                        topLeft = Offset.Zero,
+                        size = Size(w, size.height),
+                        cornerRadius = CornerRadius(size.height / 2, size.height / 2)
+                    )
+                }
             }
         }
+        Text(
+            "Tag $percent%",
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -512,7 +416,7 @@ private fun DayFlowMiniCanvas(
                 val start = (seg.startMinute / 1440f) * size.width
                 val end = (seg.endMinute / 1440f) * size.width
                 val width = ((end - start) * animatedProgress).coerceAtLeast(2f)
-                val segColor = categoryColor(seg.categoryName)
+                val segColor = de.devondroste.aevum.ui.components.categoryColor(seg.categoryName)
                 val alpha = when {
                     seg.isCandidate -> 0.30f
                     seg.isCurrent -> 0.90f
@@ -613,28 +517,6 @@ private fun formatHours(ms: Long): String {
     }
 }
 
-private fun focusMs(state: DashboardUiState): String {
-    val workMs = state.distribution.firstOrNull { it.label.equals("arbeit", ignoreCase = true) || it.label.equals("work", ignoreCase = true) }?.durationMs ?: 0L
-    val learningMs = state.distribution.firstOrNull { it.label.equals("lernen", ignoreCase = true) || it.label.equals("learning", ignoreCase = true) }?.durationMs ?: 0L
-    return formatHours(workMs + learningMs)
-}
-
-private fun movementMs(state: DashboardUiState): String {
-    val sportMs = state.distribution.firstOrNull { it.label.equals("sport", ignoreCase = true) }?.durationMs ?: 0L
-    return formatHours(sportMs)
-}
-
-/**
- * M16.4: Top-Kategorie — zeigt die aktivste Kategorie mit ihrer Dauer
- * (z.B. "Arbeit 4h"). Wenn keine Daten vorhanden sind, wird "—"
- * zurückgegeben, statt eine leere/0-Anzeige.
- */
-private fun topCategoryMs(state: DashboardUiState): String {
-    val top = state.distribution.firstOrNull() ?: return "—"
-    if (top.durationMs <= 0L) return "—"
-    return "${top.label} ${formatHours(top.durationMs)}"
-}
-
 @Preview(showBackground = true, widthDp = 390, heightDp = 1200)
 @Composable
 private fun DashboardScreenPreview() {
@@ -682,8 +564,6 @@ private fun DashboardScreenPreview() {
             nowMs = 0,
             recents = emptyList(),
             favorites = emptyList(),
-            topApps = emptyList(),
-            usageStatsGranted = false,
             onOpenTimeline = {},
             onOpenReview = {},
             onStartLive = { _, _, _ -> },
@@ -696,16 +576,15 @@ private fun DashboardScreenPreview() {
 }
 
 /**
- * M18: Positivitäts-Breakdown — horizontale Balken pro Aktivität.
+ * M18.7: "Wo deine Zeit hingeht" — horizontale Balken pro Aktivität.
  * Balkenbreite = Dauer-Anteil, Balkenfarbe = Score (rot→gelb→grün).
- * Dazu rechts Score + Dauer. Nutzt die bestehende AnimatedGradientBar
- * für den animierten Kaskaden-Effekt (80ms pro Item).
+ * Max 4 Einträge — die Top 4 des Tages. Kaskaden-Animation (80ms).
  */
 @Composable
 private fun QualityBreakdownBars(slices: List<QualitySlice>) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "Zeitqualität nach Aktivität",
+            "WO DEINE ZEIT HINGEHT",
             fontSize = 10.sp,
             letterSpacing = 0.8.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -744,7 +623,7 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                         fontWeight = FontWeight.Bold,
                         color = slice.color,
                         modifier = Modifier.width(24.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        textAlign = TextAlign.End
                     )
                 }
                 AnimatedGradientBar(
@@ -765,9 +644,6 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
  *  - Aktivitätstitel + Live-Timer (aktualisiert jede Sekunde)
  *  - Pause/Fortsetzen + Stoppen Buttons (groß, klar)
  *  - Farbverlauf je nach Session-Typ (Auto = primary, manuell = tertiary)
- *
- * Design: kein Standard-Banner — eigener Gradient + große Buttons,
- * damit der User ihn nicht übersehen kann.
  */
 @Composable
 private fun LiveActivityBanner(
@@ -831,7 +707,7 @@ private fun LiveActivityBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
             ) {
-                // Status-Punkt (pulsierend bei RUNNING, statisch bei Pause)
+                // Status-Punkt
                 Box(
                     modifier = Modifier
                         .size(12.dp)
