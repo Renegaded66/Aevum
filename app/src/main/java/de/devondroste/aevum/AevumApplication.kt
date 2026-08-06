@@ -7,6 +7,7 @@ import android.util.Log
 import dagger.hilt.android.HiltAndroidApp
 import de.devondroste.aevum.automation.geofence.GeofenceRefreshScheduler
 import de.devondroste.aevum.automation.midnight.MidnightAllowanceScheduler
+import de.devondroste.aevum.automation.sleep.SleepFusionMorningScheduler
 import de.devondroste.aevum.automation.unknownplace.UnknownPlaceDetectorScheduler
 import de.devondroste.aevum.automation.activityrecognition.ActivityRecognitionRegistrar
 import de.devondroste.aevum.automation.health.SleepImportScheduler
@@ -31,6 +32,8 @@ class AevumApplication : Application() {
     @Inject lateinit var geofenceRefreshScheduler: GeofenceRefreshScheduler
     @Inject lateinit var unknownPlaceScheduler: UnknownPlaceDetectorScheduler
     @Inject lateinit var midnightAllowanceScheduler: MidnightAllowanceScheduler
+    // M18.9: Garantierter Morgen-Trigger für die Schlaf-Fusion.
+    @Inject lateinit var sleepFusionMorningScheduler: SleepFusionMorningScheduler
 
     /**
      * M12.1.1: Hilt EntryPoint, damit AevumApplication (kein @AndroidEntryPoint)
@@ -127,6 +130,15 @@ class AevumApplication : Application() {
             midnightAllowanceScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "MidnightAllowanceScheduler failed — continuing", e)
+        }
+        // M18.9: Garantierter Morgen-Trigger für die Schlaf-Fusion —
+        // auch wenn der User die App morgens nicht öffnet. Die Nachtsperre
+        // in SleepFusionEngine macht alle Läufe außerhalb 05:00-11:59
+        // automatisch zu No-Ops.
+        try {
+            sleepFusionMorningScheduler.schedule()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "SleepFusionMorningScheduler failed — continuing", e)
         }
         // M14: ActivityRecognition (IN_VEHICLE + STILL) Transition-Updates
         // abonnieren. No-Op, falls ACTIVITY_RECOGNITION nicht gewährt — wird

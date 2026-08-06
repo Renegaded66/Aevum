@@ -65,6 +65,31 @@ class SleepFusionEngine @Inject constructor(
      */
     suspend fun analyzeLatest(referenceTime: Long = System.currentTimeMillis()) {
         val zoneId = ZoneId.systemDefault()
+
+        // M18.9: NACHTS-SPERRE — "Schlaf kann erst am Morgen bestimmt werden."
+        //
+        // Wird die Analyse nachts getriggert (STILL-Transition um 02:00,
+        // Screen-Off-Events), entstünde ein Teil-Candidate ("Schlaf erkannt
+        // 3h") mit Ende = jetzt−30min. Am Morgen würde der finale Candidate
+        // durch den Dedup (sameStart ±60min) BLOCKIERT — der User bekäme
+        // nie den vollständigen Schlaf. Genau das war das Problem.
+        //
+        // Regel: Zwischen 05:00 und 12:00 ist "Schlaf-Endzeit erwartbar"
+        // (die große Mehrheit wacht in diesem Fenster auf). Außerhalb
+        // (z.B. 02:00) wird NICHT analysiert, wenn die aktuelle Zeit in
+        // der Nacht liegt. Ausnahme: Nachtschicht — wenn der User um 20:00
+        // noch schläft (STILL-Cluster läuft), wäre ein Candidate trotzdem
+        // falsch (morgendlicher Mittagsschlaf vs. Nacht). Die Sperre ist
+        // konservativ: "Lieber ein Trigger weniger als ein falscher."
+        val nowZdt = Instant.ofEpochMilli(referenceTime).atZone(zoneId)
+        val hour = nowZdt.hour
+        val isSleepEndWindow = hour in 5..11 // 05:00–11:59: Schlaf ist vorbei
+        if (!isSleepEndWindow) {
+            Log.d(TAG, "Analyse um ${hour}:00 — außerhalb des Schlaf-End-Fensters (05:00-11:59). " +
+                    "Schlaf wird erst am Morgen bestimmt (M18.9).")
+            return
+        }
+
         // Zeitfenster: 14h zurück bis 30 min vor referenceTime.
         // 14h reicht für 22:00 → 12:00, also einen kompletten Schlaf-Zyklus.
         // 30 min Puffer vor "jetzt", damit wir nicht den aktuellen Wach-Zustand
