@@ -68,13 +68,16 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             item { SettingsHero() }
-            item { SettingsSection("Struktur", listOf(
-                SettingsEntry("Kategorien verwalten"),
+            // M18.10: Klare Hierarchie — Kern-Features zuerst, Neben-
+            // Features (Ziele/Gewohnheiten) bewusst in "Erweitert".
+            // Vorher standen alle Einträge gleichwertig nebeneinander —
+            // das war Überladung. "Kategorien verwalten" war ein toter
+            // Button ohne Callback — entfernt (Kategorien werden beim
+            // Anlegen einer Aktivität verwaltet).
+            item { SettingsSection("Deine Aktivitäten", listOf(
                 // M18.2: Aktivitäten mit Positivitäts-Slider
                 SettingsEntry("Activity Types verwalten", onClick = onOpenActivityTypes),
-                SettingsEntry("Tags verwalten"),
-                SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
-                SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits)
+                SettingsEntry("Tags verwalten")
             )) }
             item {
                 // M12.2: Home/Work-Status wird jetzt live aus dem Geofence-Repository gelesen.
@@ -126,6 +129,12 @@ fun SettingsScreen(
                 }
             }
             item { SettingsSection("Datenschutz & Daten", listOf(SettingsEntry("Datenschutz"), SettingsEntry("Export"), SettingsEntry("Backup"))) }
+            // M18.10: Neben-Features (Ziele/Gewohnheiten) in eigener Sektion —
+            // erreichbar, aber nicht mehr gleichwertig mit Kern-Features.
+            item { SettingsSection("Erweitert", listOf(
+                SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
+                SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits)
+            )) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }

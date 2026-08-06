@@ -50,7 +50,6 @@ private fun AevumMainApp() {
         MainTab(AppDestination.Dashboard, "Heute"),
         MainTab(AppDestination.Insights, "Insights"),
         MainTab(AppDestination.Timeline, "Timeline"),
-        MainTab(AppDestination.Growth, "Wachstum"),
         MainTab(AppDestination.Settings, "Settings")
     )
     val showBottomBar = currentDestination?.route?.let { route ->
@@ -106,7 +105,6 @@ private data class MainTab(
         AppDestination.Dashboard -> "◷"
         AppDestination.Insights -> "◌"
         AppDestination.Timeline -> "▤"
-        AppDestination.Growth -> "✦"
         AppDestination.Settings -> "⚙"
         else -> "•"
     }
