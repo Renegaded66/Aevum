@@ -78,6 +78,7 @@ import de.devondroste.aevum.ui.components.AevumCard
 import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.CategoryChip
 import de.devondroste.aevum.ui.components.EmptyState
+import de.devondroste.aevum.ui.components.positivityColor
 import de.devondroste.aevum.ui.components.categoryColor
 import de.devondroste.aevum.ui.theme.AevumRadius
 import de.devondroste.aevum.ui.theme.AevumSpacing
@@ -653,11 +654,14 @@ private fun EventListTimeline(
         merged.forEach { entry ->
             when (entry) {
                 is TimelineEntry.Session -> {
+                    // M18.5: Positivitäts-Farbcodierung — die Timeline wird
+                    // zum visuellen Tagebuch: grüner Punkt = gute Zeit,
+                    // roter Punkt = schlechte Zeit (Instagram gucken).
                     EventListRow(
                         time = entry.session.time,
                         title = entry.session.title,
                         detail = "${entry.session.range} · ${entry.session.duration}",
-                        accent = categoryColor(entry.session.categoryName),
+                        accent = positivityColor(entry.session.positivityScore),
                         kind = if (entry.session.isAuto) "Auto" else "Erfasst",
                         onClick = { onOpen(entry.session.id) },
                         onEdit = { onEdit(entry.session.id) }

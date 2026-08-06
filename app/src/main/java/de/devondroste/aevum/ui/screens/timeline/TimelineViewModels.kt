@@ -283,7 +283,10 @@ class TimelineViewModel @Inject constructor(
                 startMinuteOfDay = clippedStartMin,
                 endMinuteOfDay = clippedEndMin,
                 isRunning = session.endAt == null,
-                isOverlapping = filteredSessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) }
+                isOverlapping = filteredSessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) },
+                // M18.5: Positivitäts-Score für die Farbcodierung der
+                // Timeline-Zeilen (grün = gut, rot = schlecht).
+                positivityScore = typeMap[session.activityTypeId]?.positivityScore ?: 50
             )
         }
         // M16.5: totalMs und categoryDurations basieren auf dem sichtbaren
@@ -716,7 +719,9 @@ data class TimelineSessionUi(
     // M12.2: isAuto = true für GEOFENCE_AUTO, HEALTH_SLEEP_AUTO, ACTIVITY_RECOGNITION_AUTO.
     // Die Timeline-UI zeigt diese Einträge mit einer dezenten "Auto"-Markierung
     // und nutzt sie im Lane-Layout konsistent mit allen anderen Auto-Quellen.
-    val isAuto: Boolean = false
+    val isAuto: Boolean = false,
+    // M18.5: Positivitäts-Score (0-100) — für Farbcodierung in der Timeline.
+    val positivityScore: Int = 50
 )
 
 data class ActivityEditorForm(
