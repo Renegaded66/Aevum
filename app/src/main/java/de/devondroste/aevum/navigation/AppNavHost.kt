@@ -141,6 +141,8 @@ fun AppNavHost(
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
                 onOpenHabits = { navController.navigate(AppDestination.Habits.route) },
+                // M18.2: Positivitäts-Scores pro Aktivität
+                onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
                 // M12.2: Home/Work öffnen den existierenden Geofence-Editor
                 // oder legen den Geofence direkt mit dem passenden QuickSetup an.
                 onOpenHomeGeofence = { id -> navController.navigate("geofence/edit/$id") },
@@ -249,6 +251,12 @@ fun AppNavHost(
         }
         composable(AppDestination.DailyAllowances.route) {
             DailyAllowancesScreen(onBack = { navController.popBackStack() })
+        }
+        // M18.2: Positivitäts-Scores pro Aktivität
+        composable(AppDestination.ActivityTypes.route) {
+            de.devondroste.aevum.ui.screens.activitytypes.ActivityTypesScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

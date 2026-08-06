@@ -35,5 +35,7 @@ enum class AppDestination(val route: String, val title: String) {
     DashboardIntro("dashboard_intro", "Dashboard"),
     // M17.2 + M17.3
     UnknownPlaces("unknown_places", "Unbekannte Orte"),
-    DailyAllowances("daily_allowances", "Tagespauschalen")
+    DailyAllowances("daily_allowances", "Tagespauschalen"),
+    // M18.2: Positivitäts-Scores pro Aktivität
+    ActivityTypes("activity_types", "Aktivitäten & Positivität")
 }

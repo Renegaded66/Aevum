@@ -57,7 +57,10 @@ fun PositivitySlider(
     onScoreChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     trackHeight: Dp = 14.dp,
-    thumbSize: Dp = 26.dp
+    thumbSize: Dp = 26.dp,
+    // M18.2: Wird beim Loslassen/Ende der Geste gefeuert — für DB-Writes.
+    // onScoreChange feuert dagegen bei jedem Drag-Event (nur UI-State).
+    onValueChangeFinished: (() -> Unit)? = null
 ) {
     val scoreFloat = remember(score) { score.toFloat() }
     // M18: Sanfte Animation wenn der Score extern geändert wird (z.B. Reset)
@@ -95,10 +98,15 @@ fun PositivitySlider(
                 .pointerInput(Unit) {
                     detectTapGestures { tapOffset ->
                         onScoreChange(tapToScore(tapOffset.x, size.width.toFloat()))
+                        onValueChangeFinished?.invoke()
                     }
                 }
                 .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
+                    detectDragGestures(
+                        onDragStart = { },
+                        onDragEnd = { onValueChangeFinished?.invoke() },
+                        onDragCancel = { onValueChangeFinished?.invoke() }
+                    ) { change, _ ->
                         onScoreChange(tapToScore(change.position.x, size.width.toFloat()))
                     }
                 }

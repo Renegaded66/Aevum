@@ -51,6 +51,8 @@ fun SettingsScreen(
     onOpenTriggers: () -> Unit = {},
     onOpenGoals: () -> Unit = {},
     onOpenHabits: () -> Unit = {},
+    // M18.2: Positivitäts-Scores pro Aktivität
+    onOpenActivityTypes: () -> Unit = {},
     onOpenHomeGeofence: (String) -> Unit = {},
     onOpenWorkGeofence: (String) -> Unit = {},
     onCreateHomeGeofence: () -> Unit = {},
@@ -68,7 +70,8 @@ fun SettingsScreen(
             item { SettingsHero() }
             item { SettingsSection("Struktur", listOf(
                 SettingsEntry("Kategorien verwalten"),
-                SettingsEntry("Activity Types verwalten"),
+                // M18.2: Aktivitäten mit Positivitäts-Slider
+                SettingsEntry("Activity Types verwalten", onClick = onOpenActivityTypes),
                 SettingsEntry("Tags verwalten"),
                 SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
                 SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits)
