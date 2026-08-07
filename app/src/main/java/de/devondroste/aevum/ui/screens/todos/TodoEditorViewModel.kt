@@ -11,7 +11,7 @@ import de.devondroste.aevum.domain.todo.RecurrenceEngine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -27,11 +27,20 @@ class TodoEditorViewModel @Inject constructor(
 ) : ViewModel() {
 
     // M18.30: Form-State ist MutableStateFlow — die Setter schreiben direkt.
+    // M18.36-FIX (Root Cause): Vorher war uiState ein `map` auf den
+    // ActivityTypes-Flow — der emittiert NUR bei ActivityType-Aenderungen.
+    // Die Setter schrieben zwar formState.value, aber die UI las uiState,
+    // der sich NIE aktualisierte -> kein Text eingebbar, keine Klick-
+    // Reaktion (Dauer-Ziel, Wiederholung, Faellig). Jetzt: combine() aus
+    // formState + Types — jede Setter-Aenderung emittiert sofort.
     private val formState = MutableStateFlow(TodoEditorUiState())
 
-    val uiState: StateFlow<TodoEditorUiState> = activityTypeRepository.getAll()
-        .map { types -> formState.value.copy(activityTypes = types) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, TodoEditorUiState())
+    val uiState: StateFlow<TodoEditorUiState> = combine(
+        formState,
+        activityTypeRepository.getAll()
+    ) { form, types ->
+        form.copy(activityTypes = types)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, TodoEditorUiState())
 
     fun setTitle(title: String) {
         formState.value = formState.value.copy(title = title)

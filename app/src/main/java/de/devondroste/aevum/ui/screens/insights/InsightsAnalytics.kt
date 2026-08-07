@@ -45,7 +45,9 @@ data class InsightsUiState(
     val breakdownMode: BreakdownMode = BreakdownMode.Activity,
     val topBreakdown: List<TopActivitySlice> = emptyList(),
     /** M17.4: Total-Minuten inkl. Tagespauschalen (für Hero-Header). */
-    val totalMinutesIncludingAllowances: Int = 0
+    val totalMinutesIncludingAllowances: Int = 0,
+    /** M18.36: Exakte Millisekunden (inkl. Pauschalen) — fuer die nicht-gerundete Hero-Anzeige. */
+    val totalMsIncludingAllowances: Long = 0L
 )
 
 data class TimeDistributionSlice(
@@ -220,7 +222,10 @@ object InsightsAnalytics {
             breakdownMode = breakdownMode,
             topBreakdown = topBreakdown,
             // M17.4: Total-Minuten für Hero-Header inkl. Pauschalen.
-            totalMinutesIncludingAllowances = ((totalMs + allowanceMs) / 60_000L).toInt()
+            totalMinutesIncludingAllowances = ((totalMs + allowanceMs) / 60_000L).toInt(),
+            // M18.36: Exakte Millisekunden — die Hero-Anzeige zeigt jetzt
+            // Dezimal-Stunden (1 Nachkommastelle) statt gerundeter Ints.
+            totalMsIncludingAllowances = totalMs + allowanceMs
         )
     }
 

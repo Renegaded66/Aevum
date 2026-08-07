@@ -152,13 +152,18 @@ private fun LifeHero(
             }
 
             if (state.hasBirthday) {
-                // Countdown — die nackte Zahl
+                // Countdown — die nackte Zahl.
+                // M18.36-FIX: 40sp Monospace in einer Zeile ueberlappte auf
+                // schmalen Screens (z.B. "80 Jahre, 123 Tage"). Jetzt:
+                // 32sp + maxLines 2 + Umbruch — nie wieder Overlap.
                 Text(
                     "${state.remainingYears} Jahre, ${state.remainingDays % 365} Tage",
-                    fontSize = 40.sp,
+                    fontSize = 32.sp,
+                    lineHeight = 36.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.tertiary
+                    color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 2
                 )
                 Text(
                     "bis du ${state.expectedAge} wirst (Alter: ${state.age})",

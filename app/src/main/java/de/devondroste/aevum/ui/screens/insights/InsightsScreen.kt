@@ -221,8 +221,12 @@ fun InsightsScreen(
 
 @Composable
 private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
-    val hours = uiState.totalMinutesIncludingAllowances / 60
-    val minutes = uiState.totalMinutesIncludingAllowances % 60
+    // M18.36: Exakte Anzeige — vorher wurde auf ganze Stunden gerundet
+    // (Int-Division), z.B. 7h59m -> "7 Std 59 Min" war ok, aber
+    // 7h30m + Pauschalen ergab gerundete Werte. Jetzt: Dezimal-Stunden
+    // mit 1 Nachkommastelle aus den exakten Millisekunden.
+    val totalHours = uiState.totalMsIncludingAllowances / (60.0 * 60 * 1000)
+    val hoursText = String.format(java.util.Locale.GERMANY, "%.1f", totalHours)
     val accentColor = MaterialTheme.colorScheme.primary
     GlassCard(accentColor = accentColor) {
         Column {
@@ -233,9 +237,10 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
             )
             Spacer(Modifier.height(AevumSpacing.xs))
             Row(verticalAlignment = Alignment.Bottom) {
-                AnimatedNumberCounter(
-                    target = hours,
-                    durationMs = 1000
+                Text(
+                    hoursText,
+                    style = MaterialTheme.typography.displayMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
@@ -246,7 +251,7 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
                 )
                 Spacer(Modifier.width(AevumSpacing.md))
                 Text(
-                    "$minutes",
+                    "${uiState.totalMinutesIncludingAllowances % 60}",
                     style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )

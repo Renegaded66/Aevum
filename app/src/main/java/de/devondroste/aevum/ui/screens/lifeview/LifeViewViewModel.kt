@@ -10,6 +10,7 @@ import de.devondroste.aevum.data.model.DailyAllowance
 import de.devondroste.aevum.data.repository.ActivityRepository
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.DailyAllowanceRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -52,35 +53,48 @@ class LifeViewViewModel @Inject constructor(
     private val zoneId = ZoneId.systemDefault()
     private val prefs = application.getSharedPreferences("aevum_lifeview", android.content.Context.MODE_PRIVATE)
 
-    val expectedAge: Int
-        get() = prefs.getInt(KEY_EXPECTED_AGE, 80)
+    // M18.36-FIX (Root Cause): Vorher waren birthday/expectedAge reine
+    // Prefs-Getter — nach saveBirthday() aenderte sich der Room-combine
+    // NICHT, die UI zeigte erst nach Screen-Wechsel die Werte. Jetzt
+    // sind beide MutableStateFlow: saveBirthday()/saveExpectedAge()
+    // aktualisieren den State SOFORT, der combine-Flow emittiert neu.
+    private val _birthday = MutableStateFlow(
+        prefs.getString(KEY_BIRTHDAY, null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    )
+    private val _expectedAge = MutableStateFlow(prefs.getInt(KEY_EXPECTED_AGE, 80))
 
-    val birthday: LocalDate?
-        get() = prefs.getString(KEY_BIRTHDAY, null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    val expectedAge: Int get() = _expectedAge.value
+    val birthday: LocalDate? get() = _birthday.value
 
     fun saveBirthday(date: LocalDate) {
         prefs.edit().putString(KEY_BIRTHDAY, date.toString()).apply()
+        _birthday.value = date
     }
 
     fun saveExpectedAge(age: Int) {
-        prefs.edit().putInt(KEY_EXPECTED_AGE, age.coerceIn(60, 100)).apply()
+        val clamped = age.coerceIn(60, 100)
+        prefs.edit().putInt(KEY_EXPECTED_AGE, clamped).apply()
+        _expectedAge.value = clamped
     }
 
     val uiState: StateFlow<LifeViewUiState> = combine(
         activityRepository.getAll(),
         activityTypeRepository.getAll(),
-        dailyAllowanceRepository.getAll()
-    ) { sessions, types, allowances ->
-        buildState(sessions, types, allowances)
+        dailyAllowanceRepository.getAll(),
+        _birthday,
+        _expectedAge
+    ) { sessions, types, allowances, bday, age ->
+        buildState(sessions, types, allowances, bday, age)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LifeViewUiState())
 
     private fun buildState(
         sessions: List<ActivitySession>,
         types: List<ActivityType>,
-        allowances: List<DailyAllowance>
+        allowances: List<DailyAllowance>,
+        bday: LocalDate?,
+        expectedAge: Int
     ): LifeViewUiState {
         val today = LocalDate.now()
-        val bday = birthday
         val age = bday?.let { Period.between(it, today).years } ?: 0
         val remainingYears = (expectedAge - age).coerceAtLeast(0)
         val remainingDays = (remainingYears * 365.25).roundToInt()

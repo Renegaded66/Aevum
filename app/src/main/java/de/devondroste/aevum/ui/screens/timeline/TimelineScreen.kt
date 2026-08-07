@@ -183,9 +183,11 @@ fun TimelineScreen(
                         .padding(horizontal = AevumSpacing.md)
                 )
             }
-            // M18.32: Bottom-Padding, damit der FAB nie Inhalte überdeckt.
-            // Vorher konnte man nicht bis zum letzten Eintrag scrollen.
-            Spacer(Modifier.height(88.dp))
+            // M18.36: KEIN Spacer mehr hier! Der 88dp-Spacer erzeugte
+            // toten Platz UNTER der Timeline. Der FAB-Schutz liegt jetzt
+            // im internen Scroll-Container der Listenansicht (Bottom-
+            // Padding dort), die Tag-Ansicht scrollt intern und braucht
+            // kein Padding.
         }
     }
 }
@@ -669,10 +671,11 @@ private fun TimelineHeader(
     onToday: () -> Unit,
     onRunGapDetection: () -> Unit = {}
 ) {
-    // M18.32: Kompakter Header — eine Zeile statt zwei. Der Tag-Titel
-    // ist kleiner (22sp statt 30sp), die Buttons sind kleine Chips.
-    // Ergebnis: die Timeline bekommt deutlich mehr Platz nach oben.
-    AevumCard(variant = CardVariant.Gradient, contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)) {
+    // M18.36: Header radikal kompakt — EINE Zeile, kein Overlap moeglich.
+    // Vorher: zwei Zeilen (Titel/Datum + Chips) — der Datumstext konnte
+    // mit dem Heute-Button kollidieren. Jetzt: [‹] [Titel+Datum] [Heute] [›]
+    // in einer einzigen Row. "Luecken pruefen"-Button entfernt (User-Wunsch).
+    AevumCard(variant = CardVariant.Gradient, contentPadding = PaddingValues(horizontal = AevumSpacing.sm, vertical = AevumSpacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -681,41 +684,46 @@ private fun TimelineHeader(
             IconButton(onClick = onPreviousDay, modifier = Modifier.size(36.dp)) {
                 Text("‹", fontSize = 24.sp)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Text(state.dayTitle, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(state.formattedDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 4.dp)
+            ) {
+                Text(
+                    state.dayTitle,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    state.formattedDate,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            // Heute-Chip kompakt zwischen den Pfeilen
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .clickable(onClick = onToday)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    "Heute",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             IconButton(onClick = onNextDay, modifier = Modifier.size(36.dp)) {
                 Text("›", fontSize = 24.sp)
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Kompakte Chips statt großer OutlinedButtons
-            HeaderChip("Heute", onClick = onToday)
-            HeaderChip("Lücken prüfen", onClick = onRunGapDetection)
-        }
-    }
-}
-
-@Composable
-private fun HeaderChip(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(AevumRadius.full))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 5.dp)
-    ) {
-        Text(
-            label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.primary
-        )
     }
 }
 
@@ -1074,6 +1082,11 @@ private fun DayCalendarTimeline(
                                 .fillMaxSize()
                                 .verticalScroll(listScrollState)
                                 .padding(horizontal = AevumSpacing.md)
+                                // M18.36: Bottom-Padding NUR hier — der FAB
+                                // ueberdeckt den letzten Eintrag nicht, aber
+                                // es entsteht kein toter Platz unter der
+                                // Tag-Ansicht (die scrollt intern).
+                                .padding(bottom = 88.dp)
                         ) {
                             EventListTimeline(
                                 sessions = sessions,
