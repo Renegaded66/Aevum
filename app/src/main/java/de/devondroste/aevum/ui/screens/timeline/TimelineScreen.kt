@@ -991,7 +991,8 @@ private fun DayCalendarTimeline(
                     // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
                     // Zeichnet einen farbigen Balken, dessen Position und Hoehe
                     // vom ScrollState abhaengen. Ziehbar via drag gesture.
-                    val listScrollState = rememberScrollState()
+                    // M18.25: EIN ScrollState fuer Column UND Thumb — vorher
+                    // wurden zwei Instanzen erzeugt, der Thumb las den falschen.
                     val showScrollbar = listScrollState.maxValue > 0
                     if (showScrollbar) {
                         val thumbHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
