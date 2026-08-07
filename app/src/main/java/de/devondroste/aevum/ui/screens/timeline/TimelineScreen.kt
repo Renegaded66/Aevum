@@ -676,11 +676,13 @@ private fun EventListTimeline(
                         // M18.5: Positivitäts-Farbcodierung — die Timeline wird
                         // zum visuellen Tagebuch: grüner Punkt = gute Zeit,
                         // roter Punkt = schlechte Zeit (Instagram gucken).
+                        // M18.13: Icon (Emoji) + custom Farbe der Aktivität.
                         EventListRow(
                             time = entry.session.time,
                             title = entry.session.title,
                             detail = "${entry.session.range} · ${entry.session.duration}",
-                            accent = positivityColor(entry.session.positivityScore),
+                            accent = if (entry.session.activityColor != 0L) Color(entry.session.activityColor) else positivityColor(entry.session.positivityScore),
+                            icon = entry.session.activityIcon,
                             kind = if (entry.session.isAuto) "Auto" else "Erfasst",
                             isLive = entry.session.isRunning,
                             onClick = { onOpen(entry.session.id) },
@@ -750,7 +752,9 @@ private fun EventListRow(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     // M18.8: Laufende Session -> pulsierendes LIVE-Badge
-    isLive: Boolean = false
+    isLive: Boolean = false,
+    // M18.13: Icon (Emoji) der Aktivität
+    icon: String = "•"
 ) {
     Row(
         modifier = Modifier
@@ -761,12 +765,19 @@ private fun EventListRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
     ) {
+        // M18.13: Icon in farbigem Kreis statt nacktem Punkt
         Box(
             modifier = Modifier
-                .size(8.dp)
+                .size(34.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(accent)
-        )
+                .background(accent.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (icon.isBlank()) "•" else icon,
+                fontSize = 15.sp
+            )
+        }
         Text(
             time,
             fontSize = 12.sp,

@@ -286,7 +286,10 @@ class TimelineViewModel @Inject constructor(
                 isOverlapping = filteredSessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) },
                 // M18.5: Positivitäts-Score für die Farbcodierung der
                 // Timeline-Zeilen (grün = gut, rot = schlecht).
-                positivityScore = typeMap[session.activityTypeId]?.positivityScore ?: 50
+                positivityScore = typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                // M18.13: Icon + custom Farbe der Aktivität für die Timeline.
+                activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
+                activityColor = typeMap[session.activityTypeId]?.color ?: 0L
             )
         }
         // M16.5: totalMs und categoryDurations basieren auf dem sichtbaren
@@ -721,7 +724,10 @@ data class TimelineSessionUi(
     // und nutzt sie im Lane-Layout konsistent mit allen anderen Auto-Quellen.
     val isAuto: Boolean = false,
     // M18.5: Positivitäts-Score (0-100) — für Farbcodierung in der Timeline.
-    val positivityScore: Int = 50
+    val positivityScore: Int = 50,
+    // M18.13: Icon + custom Farbe der Aktivität.
+    val activityIcon: String = "•",
+    val activityColor: Long = 0L
 )
 
 data class ActivityEditorForm(

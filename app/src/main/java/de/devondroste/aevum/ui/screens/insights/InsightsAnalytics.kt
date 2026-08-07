@@ -65,7 +65,9 @@ data class TopActivitySlice(
     val label: String,
     val color: Color,
     val durationMs: Long,
-    val percent: Int
+    val percent: Int,
+    // M18.13: Icon (Emoji) der Aktivität für die Insights-Liste.
+    val icon: String = "•"
 )
 
 data class BalanceSlice(
@@ -246,7 +248,8 @@ object InsightsAnalytics {
                         label = "${type?.name ?: "Pauschale"} (Pauschale)",
                         color = categoryColor(type?.defaultCategoryId.orEmpty()),
                         durationMs = ms,
-                        percent = percent(ms, totalMsSafe)
+                        percent = percent(ms, totalMsSafe),
+                        icon = type?.icon ?: "•"
                     )
                 }
                 BreakdownMode.Category -> {
@@ -295,7 +298,9 @@ object InsightsAnalytics {
                     label = typeMap[id]?.name ?: first.title,
                     color = categoryColor(first.categoryId ?: typeMap[id]?.defaultCategoryId ?: categoryMap.keys.firstOrNull().orEmpty()),
                     durationMs = duration,
-                    percent = percent(duration, total)
+                    percent = percent(duration, total),
+                    // M18.13: Icon der Aktivität (falls zugeordnet)
+                    icon = typeMap[id]?.icon ?: "•"
                 )
             }
             .sortedByDescending { it.durationMs }

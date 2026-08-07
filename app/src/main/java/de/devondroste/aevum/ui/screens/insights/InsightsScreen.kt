@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.devondroste.aevum.ui.components.AnimatedGradientBar
@@ -327,12 +328,19 @@ private fun TopSliceRow(slice: TopActivitySlice, maxMs: Long, index: Int) {
     val progress = (slice.durationMs.toFloat() / maxMs.toFloat()).coerceIn(0f, 1f)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // M18.13: Icon in farbigem Kreis statt nacktem Punkt
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(30.dp)
                     .clip(CircleShape)
-                    .background(slice.color)
-            )
+                    .background(slice.color.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (slice.icon.isBlank()) "•" else slice.icon,
+                    fontSize = 14.sp
+                )
+            }
             Spacer(Modifier.width(AevumSpacing.sm))
             Text(
                 slice.label,
