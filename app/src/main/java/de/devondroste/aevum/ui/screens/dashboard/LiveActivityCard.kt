@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -510,6 +511,13 @@ private fun ActivityPickerSheet(
     var showCreateDialog by remember { mutableStateOf(false) }
     var newActivityName by remember { mutableStateOf("") }
 
+    // M18.15: Wortsuche — filtert Favoriten/Kürzlich/Alle live.
+    var searchQuery by remember { mutableStateOf("") }
+    val query = searchQuery.trim()
+    val filteredFavorites = if (query.isEmpty()) favorites else favorites.filter { it.name.contains(query, ignoreCase = true) }
+    val filteredRecents = if (query.isEmpty()) recents else recents.filter { it.title.contains(query, ignoreCase = true) }
+    val filteredAll = if (query.isEmpty()) activityTypes else activityTypes.filter { it.name.contains(query, ignoreCase = true) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -534,6 +542,27 @@ private fun ActivityPickerSheet(
                         if (showTimeOption) "Wähle die Startzeit" else "Tippe zum Starten. Lange drücken für Favoriten.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // M18.15: Wortsuche — filtert die Liste live.
+            if (!showTimeOption) {
+                item {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Suchen…", fontSize = 14.sp) },
+                        leadingIcon = {
+                            Icon(
+                                androidx.compose.material.icons.Icons.Outlined.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
                     )
                 }
             }
@@ -606,12 +635,13 @@ private fun ActivityPickerSheet(
                     }
                 }
             } else {
+                // M18.15: Gefilterte Listen (Wortsuche) statt der vollen.
                 // Favorites section
-                if (favorites.isNotEmpty()) {
+                if (filteredFavorites.isNotEmpty()) {
                     item {
                     SectionLabel("Favoriten")
                 }
-                items(favorites, key = { "fav-${it.id}" }) { type ->
+                items(filteredFavorites, key = { "fav-${it.id}" }) { type ->
                     ActivityRow(
                         type = type,
                         isFavorite = true,
@@ -621,10 +651,10 @@ private fun ActivityPickerSheet(
                 }
             }
 
-            if (recents.any { it.id !in favorites.map { f -> f.id } }) {
+            if (filteredRecents.any { it.id !in filteredFavorites.map { f -> f.id } }) {
                 item { SectionLabel("Kürzlich") }
                 items(
-                    recents.filter { it.id !in favorites.map { f -> f.id } },
+                    filteredRecents.filter { it.id !in filteredFavorites.map { f -> f.id } },
                     key = { "rec-${it.id}" }
                 ) { recent ->
                     val type = activityTypes.firstOrNull { it.id == recent.id }
@@ -646,7 +676,7 @@ private fun ActivityPickerSheet(
 
             item { SectionLabel("Alle") }
             items(
-                activityTypes.filter { it.id !in favorites.map { f -> f.id } && it.id !in recentTypeIds },
+                filteredAll.filter { it.id !in filteredFavorites.map { f -> f.id } && it.id !in filteredRecents.map { r -> r.id } },
                 key = { "all-${it.id}" }
             ) { type ->
                 ActivityRow(
@@ -655,6 +685,18 @@ private fun ActivityPickerSheet(
                     onStart = { onStart(type.id) },
                     onToggleFavorite = { onToggleFavorite(type) }
                 )
+            }
+
+            // M18.15: Leerer Suchtreffer — Hinweis statt leerer Liste.
+            if (query.isNotEmpty() && filteredFavorites.isEmpty() && filteredRecents.isEmpty() && filteredAll.isEmpty()) {
+                item {
+                    Text(
+                        "Keine Aktivität gefunden für \"$query\"",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = AevumSpacing.md)
+                    )
+                }
             }
 
             // M18.12: Neue Aktivität manuell anlegen — direkt aus dem Picker.
