@@ -261,12 +261,20 @@ class DashboardViewModel @Inject constructor(
         val screenMs = values[6] as Long
         // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
         // today-Query würde Mitternacht-Schlaf verfehlen.
+        // M18.21-FIX (Root Cause): Der Filter prüfte NUR die Zeitüberlappung,
+        // aber NIE die Aktivität — dadurch landeten ALLE heutigen Sessions
+        // (z.B. die laufende Studium-Session) in sleepSessionsToday und
+        // lastSleepDurationMs zeigte die Dauer der letzten Session des Tages
+        // als "Schlaf" (User-Bug: "1:16 Erfasst" = "1:16 Schlaf").
         val nowApprox = System.currentTimeMillis()
         val sleepSessionsToday = allSleepSessions.filter { session ->
             val s = session.startAt
             val e = session.endAt ?: nowApprox
+            // NUR echte Schlaf-Sessions (activityTypeId "sleep" ODER
+            // Kategorie "sleep" — deckt custom Schlaf-Typen ab).
+            val isSleep = session.activityTypeId == "sleep" || session.categoryId == "sleep"
             // Session überlappt mit [start, end], wenn start < endUnd end > startOfDay.
-            s < end && e > start
+            isSleep && s < end && e > start
         }
         buildState(
             sessions = sessions,

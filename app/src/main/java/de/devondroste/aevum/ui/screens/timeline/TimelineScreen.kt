@@ -968,7 +968,14 @@ private fun ZoomableDayTimeline(
                         val topY = (startMin / 60f) * pxHour
                         val bottomY = (endMin / 60f) * pxHour
                         val totalH = (bottomY - topY).coerceAtLeast(20f)
-                        val laneH = if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH
+                        // M18.21: Mindesthöhe für kurze Aktivitäten (z.B. 5 min).
+                        // Ohne Minimum wäre ein 5-min-Block bei 60px/h nur ~5px
+                        // hoch — Farbe und Icon unsichtbar. Jetzt: mindestens
+                        // 18dp, damit JEDER Block sichtbar farbig + mit Icon
+                        // bleibt (Google-Calendar-Prinzip: kurze Termine werden
+                        // auf Mindesthöhe gezeichnet).
+                        val laneH = (if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH)
+                            .coerceAtLeast(18.dp.toPx())
                         val laneY = topY + 2f + lane * laneH
                         val laneHeight = (laneH - 2f).coerceAtLeast(2f)
                         // M18.15: Custom-Farbe der Aktivität bevorzugen,
@@ -986,9 +993,10 @@ private fun ZoomableDayTimeline(
                             end = Offset(blockXLocal + blockWidth, laneY),
                             strokeWidth = 1.5f
                         )
-                        // M18.15: Icon (Emoji) der Aktivität im Block zeichnen,
-                        // wenn der Block hoch genug ist (>= 26dp).
-                        if (laneHeight >= 26.dp.toPx() && session.activityIcon.isNotBlank() && session.activityIcon != "•") {
+                        // M18.15: Icon (Emoji) der Aktivität im Block zeichnen.
+                        // M18.21: Schwelle auf 16dp gesenkt — dank Mindesthöhe
+                        // (18dp) haben auch kurze Aktivitäten ein sichtbares Icon.
+                        if (laneHeight >= 16.dp.toPx() && session.activityIcon.isNotBlank() && session.activityIcon != "•") {
                             val iconSize = 12.dp.toPx()
                             val iconY = laneY + (laneHeight - iconSize) / 2f
                             drawText(

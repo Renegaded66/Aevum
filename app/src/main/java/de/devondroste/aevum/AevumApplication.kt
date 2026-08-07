@@ -22,6 +22,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
 import javax.inject.Inject
@@ -50,6 +51,10 @@ class AevumApplication : Application() {
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
         fun ensureDefaultData(): EnsureDefaultDataUseCase
+        // M18.21: LiveActivityManager für den Notification-Restore beim
+        // App-Start (falls bereits eine Session läuft, z.B. nach
+        // Ultra-Energie-Sparmodus, muss die Notification wieder erscheinen).
+        fun liveActivityManager(): de.devondroste.aevum.domain.liveactivity.LiveActivityManager
         // M16.7: Heuristic-Engine auch aus dem Lifecycle-Fallback aus triggern.
         // Hintergrund: ACTION_SCREEN_ON/ACTION_USER_PRESENT werden seit Android 8+
         // für manifest-registrierte Receiver zunehmend unterdrückt. Wenn der
@@ -194,6 +199,36 @@ class AevumApplication : Application() {
             registerScreenEventRuntimeReceiver()
         } catch (e: Exception) {
             Log.e("AevumApplication", "Screen event runtime receiver registration failed — continuing", e)
+        }
+
+        // M18.21: Notification-Restore beim App-Start.
+        // Szenario: Das Handy war im Ultra-Energie-Sparmodus, der
+        // Foreground-Service wurde gekillt, die Notification verschwand.
+        // Beim nächsten App-Start (User öffnet die App) muss die
+        // Live-Notification WIEDER erscheinen, wenn bereits eine Session
+        // läuft. Wir prüfen die DB asynchron und starten den Service nur,
+        // wenn wirklich eine Live-Session existiert.
+        try {
+            val deps = EntryPointAccessors.fromApplication(this, Deps::class.java)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val manager = deps.liveActivityManager()
+                    // WICHTIG: NICHT .value verwenden! liveSession ist mit
+                    // SharingStarted.WhileSubscribed initialisiert — ohne
+                    // aktiven Subscriber (beim App-Start gibt es noch kein
+                    // ViewModel) liefert .value IMMER null. first() sammelt
+                    // den Flow aktiv und bekommt den echten DB-Wert.
+                    val session = manager.liveSession.first()
+                    if (session != null && session.isLive) {
+                        de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(this@AevumApplication)
+                        Log.d("AevumApplication", "M18.21: Live-Session aktiv (${session.title}) — Notification wiederhergestellt")
+                    }
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "M18.21: Notification-Restore failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "M18.21: Notification-Restore EntryPoint init failed — continuing", e)
         }
     }
 
