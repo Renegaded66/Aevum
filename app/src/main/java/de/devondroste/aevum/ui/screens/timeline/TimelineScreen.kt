@@ -62,6 +62,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -853,6 +856,8 @@ private fun ZoomableDayTimeline(
     val axisX = 48.dp
     val blockRightPadding = 12.dp
     val laneCount = (lanes.values.maxOrNull() ?: 0).coerceAtLeast(0) + 1
+    // M18.15: TextMeasurer für Emoji-Icons im Canvas (drawText).
+    val textMeasurer = rememberTextMeasurer()
 
     // Track now-time for the marker line — only computed at composition
     val now = System.currentTimeMillis()
@@ -939,7 +944,9 @@ private fun ZoomableDayTimeline(
                         val laneH = if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH
                         val laneY = topY + 2f + lane * laneH
                         val laneHeight = (laneH - 2f).coerceAtLeast(2f)
-                        val color = categoryColor(session.categoryName)
+                        // M18.15: Custom-Farbe der Aktivität bevorzugen,
+                        // sonst Kategorie-Farbe.
+                        val color = if (session.activityColor != 0L) Color(session.activityColor) else categoryColor(session.categoryName)
                         drawRoundRect(
                             color = color.copy(alpha = if (session.isOverlapping) 0.65f else 0.42f),
                             topLeft = Offset(blockXLocal, laneY),
@@ -952,6 +959,18 @@ private fun ZoomableDayTimeline(
                             end = Offset(blockXLocal + blockWidth, laneY),
                             strokeWidth = 1.5f
                         )
+                        // M18.15: Icon (Emoji) der Aktivität im Block zeichnen,
+                        // wenn der Block hoch genug ist (>= 26dp).
+                        if (laneHeight >= 26.dp.toPx() && session.activityIcon.isNotBlank() && session.activityIcon != "•") {
+                            val iconSize = 12.dp.toPx()
+                            val iconY = laneY + (laneHeight - iconSize) / 2f
+                            drawText(
+                                textMeasurer = textMeasurer,
+                                text = session.activityIcon,
+                                topLeft = Offset(blockXLocal + 6.dp.toPx(), iconY),
+                                style = TextStyle(fontSize = 12.sp)
+                            )
+                        }
                     }
                     // Now line
                     if (nowMinute in 0..1440) {
