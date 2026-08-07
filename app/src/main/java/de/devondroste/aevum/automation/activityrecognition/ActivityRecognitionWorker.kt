@@ -488,13 +488,36 @@ class ActivityRecognitionTriggerWorker(
         val confidence = inputData.getFloat(KEY_CONFIDENCE, 0.5f).coerceIn(0f, 1f)
         val externalId = "ar_${activityType.lowercase()}_${transition.lowercase()}_$now"
 
+        // M18.27: Vorab-Deklaration — der Suppress-Check unten laeuft auch
+        // dann, wenn der GPS-Check eine Exception wirft (dann ist
+        // matchedGeofence null -> kein Suppress, konservativ).
+        var matchedGeofence: de.devondroste.aevum.data.model.PlaceGeofence? = null
+        var walkingSuppressed = false
+
         // M18.23: Event-driven GPS-Check. Bei jedem Activity-Recognition-Event
         // wird ein einmaliger GPS-Fix geholt und geprueft, ob der User in einer
         // Geofence ist. Das ersetzt das 24/7 Geofencing und verhindert False-Trigger.
         try {
             val locResult = deps.eventDrivenLocationChecker().checkCurrentLocationAgainstGeofences()
-            val matchedGeofence = locResult.matchedGeofence
+            matchedGeofence = locResult.matchedGeofence
             val allGeofences = locResult.allGeofences
+
+            // M18.27: Walking/Running-False-Positive-Fix.
+            // Google's Activity Recognition meldet WALKING/RUNNING haeufig
+            // mit niedriger Confidence, wenn der User NUR IM HAUS den Raum
+            // wechselt (z.B. Wohnzimmer -> Kueche). Der GPS-Fix oben zeigt:
+            // Wenn der User in einer bekannten Geofence (Zuhause/Arbeit) ist,
+            // ist ein WALKING/RUNNING-Trigger mit hoher Wahrscheinlichkeit
+            // ein Raumwechsel statt echter Bewegung. Wir verwerfen ihn.
+            // WICHTIG: Der Check steht NACH dem Geofence-Handling — ein
+            // WALKING-ENTER beim Ankommen in der Arbeit darf den
+            // Geofence-Enter (Auto-Start) NICHT verhindern. Suppressed wird
+            // nur: (a) EXIT-Transitions (Ende eines Raumwechsels) und
+            // (b) ENTER in einer Geofence OHNE Auto-Start (reiner Raumwechsel).
+            val walkingSuppressed =
+                (activityType == "WALKING" || activityType == "RUNNING") &&
+                matchedGeofence != null &&
+                (transition == "EXIT" || matchedGeofence.autoStartActivityTypeId == null)
 
             if (matchedGeofence != null && matchedGeofence.autoStartActivityTypeId != null) {
                 // User ist in einer Geofence mit Auto-Start → Geofence-Enter
@@ -537,6 +560,20 @@ class ActivityRecognitionTriggerWorker(
             }
         } catch (e: Exception) {
             android.util.Log.w(TAG, "GPS-Check fehlgeschlagen (nicht blockierend): ${e.message}")
+        }
+
+        // M18.27: Walking/Running-False-Positive-Suppression.
+        // Der Check laeuft NACH dem Geofence-Handling (das darf nie
+        // blockiert werden). Wenn der User in einer bekannten Geofence
+        // ist (Raumwechsel drinnen) und Google WALKING/RUNNING meldet,
+        // verwerfen wir den Trigger komplett — kein Raw-Event, kein
+        // DetectionEvent, kein Timeline-Marker.
+        if (walkingSuppressed) {
+            android.util.Log.d(
+                TAG,
+                "WALKING/RUNNING in Geofence '${matchedGeofence?.name}' -> suppressed (Raumwechsel)"
+            )
+            return Result.success()
         }
 
         val existing = rawRepo.getBySourceAndExternalId("activity_recognition", externalId).first()
@@ -708,7 +745,13 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
         val data = androidx.work.Data.Builder()
             .putString(ActivityRecognitionTriggerWorker.KEY_ACTIVITY_TYPE, typeName)
             .putString(ActivityRecognitionTriggerWorker.KEY_TRANSITION, transName)
-            .putFloat(ActivityRecognitionTriggerWorker.KEY_CONFIDENCE, 0.5f)
+            // M18.27: Confidence-Schwelle 0.5 -> 0.65. Google's
+            // Transition-Events liefern KEINE echte Confidence — die 0.5
+            // war ein willkuerlicher Platzhalter, der in der Timeline als
+            // "50% Konfidenz" erschien und Raumwechsel (Wohnzimmer->Kueche)
+            // als Walking markierte. 0.65 signalisiert: nur Trigger, die
+            // der GPS-Check NICHT als Raumwechsel identifiziert hat.
+            .putFloat(ActivityRecognitionTriggerWorker.KEY_CONFIDENCE, 0.65f)
             .build()
         val request = androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionTriggerWorker>()
             .setInputData(data)
