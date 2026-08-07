@@ -46,6 +46,8 @@ import javax.inject.Inject
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    // M18.44: Trigger & Erkennung als eigene Seite (alle Quellen einzeln schaltbar)
+    onOpenTriggerSettings: () -> Unit = {},
     onOpenAutomation: () -> Unit = {},
     onOpenGeofences: () -> Unit = {},
     onOpenTriggers: () -> Unit = {},
@@ -73,71 +75,53 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             item { SettingsHero() }
-            // M18.10: Klare Hierarchie — Kern-Features zuerst, Neben-
-            // Features (Ziele/Gewohnheiten) bewusst in "Erweitert".
-            // Vorher standen alle Einträge gleichwertig nebeneinander —
-            // das war Überladung. "Kategorien verwalten" war ein toter
-            // Button ohne Callback — entfernt (Kategorien werden beim
-            // Anlegen einer Aktivität verwaltet).
-            item { SettingsSection("Deine Aktivitäten", listOf(
-                // M18.2: Aktivitäten mit Positivitäts-Slider
-                // M18.24: "Tags verwalten" entfernt — Tags sind ein
-                // ungenutztes Neben-Feature ohne UI-Wert.
-                SettingsEntry("Activity Types verwalten", onClick = onOpenActivityTypes)
-            )) }
+            // M18.44-RESTRUKTURIERUNG (User: "Einstellungen besser sortieren und
+            // gruppieren"): Vorher standen Automatisierung, Aktivitäten und
+            // Erweitert gleichwertig nebeneinander — Überladung. Jetzt:
+            //  1. AUTOMATISIERUNG  — Trigger & Erkennung (primär) + Verwaltung
+            //  2. AKTIVITÄTEN      — Activity Types
+            //  3. ERWEITERT        — Ziele, Gewohnheiten, Todos, Pauschalen, Bucket List
+            //  4. DATEN            — Datenschutz, Export, Backup
+            // Jede Gruppe hat einen klaren Fokus; die neue Trigger-Seite ist
+            // der zentrale Ort für alle automatischen Erkennungen.
+            item {
+                SettingsSection(
+                    "Automatisierung",
+                    listOf(
+                        SettingsEntry("Trigger & Erkennung", "Geofences · Auto · Walking · Schlaf", onOpenTriggerSettings),
+                        SettingsEntry("Berechtigungen & Status", "Standort, Aktivität, Benachrichtigungen", onOpenAutomation),
+                        SettingsEntry("Geofences verwalten", "Orte, Radien & Auto-Start", onOpenGeofences),
+                        SettingsEntry("Trigger Events", "Alle erkannten Ereignisse", onOpenTriggers)
+                    )
+                )
+            }
             item {
                 // M12.2: Home/Work-Status wird jetzt live aus dem Geofence-Repository gelesen.
-                // Der Status zeigt, ob der jeweilige Ort bereits existiert oder neu angelegt werden kann.
                 val placeGeofences by hiltViewModel<SettingsViewModel>().geofences.collectAsState()
                 val homeExisting = placeGeofences.firstOrNull { it.name.contains("Zuhause", ignoreCase = true) || it.name.contains("home", ignoreCase = true) }
                 val workExisting = placeGeofences.firstOrNull { it.name.contains("Arbeit", ignoreCase = true) || it.name.contains("work", ignoreCase = true) }
                 SettingsSection(
-                    "Automatisierung",
+                    "Meine Orte",
                     listOf(
-                        SettingsEntry("Automatisierung & Berechtigungen", "Aktiv", onOpenAutomation),
-                        SettingsEntry("Geofences verwalten", "Aktiv", onOpenGeofences),
-                        SettingsEntry("Trigger Events verwalten", "Aktiv", onOpenTriggers),
-                        // M12.2: Home/Work öffnen den vorhandenen Geofence oder legen ihn neu an.
-                        // Keine "Bald verfügbar"-Platzhalter mehr.
                         SettingsEntry(
-                            "Zuhause festlegen",
+                            "Zuhause",
                             status = if (homeExisting != null) "Vorhanden" else "Jetzt anlegen",
                             onClick = { if (homeExisting != null) onOpenHomeGeofence(homeExisting.id) else onCreateHomeGeofence() }
                         ),
                         SettingsEntry(
-                            "Arbeit festlegen",
+                            "Arbeit",
                             status = if (workExisting != null) "Vorhanden" else "Jetzt anlegen",
                             onClick = { if (workExisting != null) onOpenWorkGeofence(workExisting.id) else onCreateWorkGeofence() }
                         )
-                        // M12.1.1: "Activity Recognition" und "Smartphone-Nutzung" wurden
-                        // entfernt — beide Bereiche sind bereits vollständig unter
-                        // "Automatisierung" erreichbar. Statt nicht-funktionaler
-                        // Buttons zeigen wir unten den Hinweis.
                     )
                 )
             }
-            // M12.1.1: Hinweis statt nicht-funktionaler Buttons für
-            // Smartphone-Nutzung und Activity Recognition. Beide Bereiche
-            // sind vollständig unter "Automatisierung" konfigurierbar.
-            item {
-                AevumCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                        Text(
-                            "Smartphone-Nutzung & Activity Recognition",
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            "Die Konfiguration erfolgt unter Automatisierung.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            item { SettingsSection("Datenschutz & Daten", listOf(SettingsEntry("Datenschutz"), SettingsEntry("Export"), SettingsEntry("Backup"))) }
-            // M18.10: Neben-Features (Ziele/Gewohnheiten) in eigener Sektion —
-            // erreichbar, aber nicht mehr gleichwertig mit Kern-Features.
-            // M18.30: Todos + Tagespauschalen hier verlinkt.
+            // M18.2: Aktivitäten mit Positivitäts-Slider
+            item { SettingsSection("Deine Aktivitäten", listOf(
+                SettingsEntry("Activity Types verwalten", "Icons, Farben, Positivität", onOpenActivityTypes)
+            )) }
+            // M18.44: Neben-Features (Ziele/Gewohnheiten/Todos/Pauschalen/Bucket List)
+            // in eigener Sektion — erreichbar, aber klar getrennt vom Kern.
             item { SettingsSection("Erweitert", listOf(
                 SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
                 SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits),
@@ -146,6 +130,7 @@ fun SettingsScreen(
                 // M18.39: Bucket List — eigene Seite
                 SettingsEntry("Bucket List 🌍", onClick = onOpenBucketList)
             )) }
+            item { SettingsSection("Datenschutz & Daten", listOf(SettingsEntry("Datenschutz"), SettingsEntry("Export"), SettingsEntry("Backup"))) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }

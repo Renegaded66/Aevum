@@ -89,6 +89,7 @@ import de.devondroste.aevum.domain.activity.SessionValidationResult
 import de.devondroste.aevum.domain.time.TimeFormatting
 import de.devondroste.aevum.domain.trigger.TriggerEventMarker
 import de.devondroste.aevum.ui.components.AevumCard
+import de.devondroste.aevum.ui.components.AevumTimePicker
 import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.components.CategoryChip
 import de.devondroste.aevum.ui.components.EmptyState
@@ -110,6 +111,8 @@ fun TimelineScreen(
     viewModel: TimelineViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.44: Quick-Create aus der Tagesansicht — getippte Minute des Tages
+    var quickCreateMinute by remember { mutableStateOf<Int?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0.dp),
@@ -177,6 +180,7 @@ fun TimelineScreen(
                     onOpen = onOpenActivity,
                     onEdit = onEditActivity,
                     onDeleteTrigger = viewModel::deleteTrigger,
+                    onCreateAt = { minute -> quickCreateMinute = minute },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -189,6 +193,23 @@ fun TimelineScreen(
             // Padding dort), die Tag-Ansicht scrollt intern und braucht
             // kein Padding.
         }
+    }
+    // M18.44: Quick-Create-Dialog (Google-Calendar-Prinzip). Erscheint
+    // nach Tap auf eine leere Zeitstelle der Tagesansicht.
+    quickCreateMinute?.let { minute ->
+        QuickCreateDialog(
+            minuteOfDay = minute,
+            types = state.activityTypes,
+            onDismiss = { quickCreateMinute = null },
+            onCreate = { typeId, endMinute ->
+                viewModel.createQuickSession(minute, typeId, endMinute)
+                quickCreateMinute = null
+            },
+            onStartNow = { typeId ->
+                viewModel.startQuickSession(minute, typeId)
+                quickCreateMinute = null
+            }
+        )
     }
 }
 
@@ -992,6 +1013,137 @@ private fun ActivityTypeRow(type: ActivityType, onClick: () -> Unit) {
     }
 }
 
+/**
+ * M18.44: Quick-Create-Dialog (Google-Calendar-Prinzip).
+ *
+ * Erscheint, wenn der User in der Tagesansicht auf eine LEERE Zeitstelle
+ * tippt. Enthält:
+ *  - die getippte Uhrzeit (Startzeit, groß + farbig)
+ *  - eine Aktivitäts-Auswahl (Icon + Name, scrollbar)
+ *  - einen kleinen AevumTimePicker für die ENDZEIT (Standard: +1h)
+ *  - zwei Aktionen: "Erstellen" (fixe Session) ODER "Jetzt aufzeichnen"
+ *    (Session läuft ab der getippten Zeit weiter — endAt=null)
+ */
+@Composable
+private fun QuickCreateDialog(
+    minuteOfDay: Int,
+    types: List<ActivityType>,
+    onDismiss: () -> Unit,
+    onCreate: (typeId: String, endMinute: Int) -> Unit,
+    onStartNow: (typeId: String) -> Unit
+) {
+    var selectedTypeId by remember { mutableStateOf<String?>(null) }
+    var endMinute by remember { mutableStateOf((minuteOfDay + 60).coerceAtMost(1439)) }
+    var showEndPicker by remember { mutableStateOf(false) }
+    val zone = ZoneId.systemDefault()
+    val startLabel = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+    val endLabel = "%02d:%02d".format(endMinute / 60, endMinute % 60)
+    val visibleTypes = remember(types) { types.sortedBy { it.name } }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Neue Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    Text(
+                        "Start $startLabel",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF5A623)
+                    )
+                    Text(
+                        "→ Ende $endLabel",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                // Aktivitäts-Auswahl (Icon + Name)
+                if (visibleTypes.isEmpty()) {
+                    Text("Keine Aktivitäten verfügbar.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                } else {
+                    visibleTypes.forEach { type ->
+                        val selected = type.id == selectedTypeId
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedTypeId = type.id },
+                            shape = RoundedCornerShape(AevumRadius.md),
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                            ) {
+                                if (type.icon.isNotBlank()) {
+                                    Text(type.icon, fontSize = 20.sp)
+                                }
+                                Text(type.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                                if (selected) {
+                                    Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+                // Endzeit-Wahl (kleiner Picker, nur bei Bedarf aufklappen)
+                TextButton(onClick = { showEndPicker = !showEndPicker }) {
+                    Text(if (showEndPicker) "Endzeit fertig" else "Endzeit ändern")
+                }
+                if (showEndPicker) {
+                    AevumTimePicker(
+                        initialHour = endMinute / 60,
+                        initialMinute = endMinute % 60,
+                        accent = MaterialTheme.colorScheme.primary,
+                        onTimeChange = { h, m -> endMinute = (h * 60 + m).coerceIn(0, 1439) },
+                        label = "ENDE",
+                        showDigitalDisplay = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                // Primär: feste Session mit Ende
+                Button(
+                    onClick = { selectedTypeId?.let { onCreate(it, endMinute) } },
+                    enabled = selectedTypeId != null
+                ) { Text("Erstellen") }
+            }
+        },
+        dismissButton = {
+            // "Jetzt aufzeichnen": Session startet ab getippter Zeit und
+            // läuft weiter (endAt = null) — genau wie beim automatischen
+            // Tracking, nur manuell ausgelöst.
+            TextButton(
+                onClick = { selectedTypeId?.let(onStartNow) },
+                enabled = selectedTypeId != null
+            ) {
+                Text("● Jetzt aufzeichnen", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
 @Composable
 private fun DayCalendarTimeline(
     sessions: List<TimelineSessionUi>,
@@ -999,6 +1151,8 @@ private fun DayCalendarTimeline(
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
     onDeleteTrigger: (String) -> Unit,
+    // M18.44: Quick-Create aus der Tagesansicht (leere Stelle antippen)
+    onCreateAt: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isListMode by remember { mutableStateOf(false) }
@@ -1127,7 +1281,8 @@ private fun DayCalendarTimeline(
                         pixelsPerHour = pixelsPerHour,
                         onPixelsPerHourChange = { pixelsPerHour = it },
                         onOpen = onOpen,
-                        onEdit = onEdit
+                        onEdit = onEdit,
+                        onCreateAt = onCreateAt
                     )
                 }
             }
@@ -1464,7 +1619,8 @@ private fun ZoomableDayTimeline(
     pixelsPerHour: Float,
     onPixelsPerHourChange: (Float) -> Unit,
     onOpen: (String) -> Unit,
-    onEdit: (String) -> Unit
+    onEdit: (String) -> Unit,
+    onCreateAt: (Int) -> Unit
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
     val scrollState = androidx.compose.foundation.rememberScrollState()
@@ -1498,7 +1654,40 @@ private fun ZoomableDayTimeline(
                     .weight(1f)
                     .verticalScroll(scrollState)
             ) {
-                Canvas(modifier = Modifier.fillMaxWidth().height(totalHeight)) {
+                Canvas(modifier = Modifier
+                    .fillMaxWidth()
+                    .height(totalHeight)
+                    // M18.44: Google-Calendar-Prinzip — Tap auf eine LEERE
+                    // Zeitstelle öffnet den Quick-Create-Dialog. Tap auf
+                    // einen Session-Block öffnet die Session (gleiche
+                    // Logik wie die Text-Labels, nur über die volle
+                    // Block-Fläche). Die Position kommt relativ zum Canvas
+                    // (der Scroll-Versatz wird von Compose automatisch
+                    // zurückgerechnet), daher kein scrollState nötig.
+                    .pointerInput(sessions, pixelsPerHour) {
+                        detectTapGestures { offset ->
+                            val pxHour = pixelsPerHour.dp.toPx()
+                            val minute = ((offset.y / (24 * pxHour)) * 1440f).toInt().coerceIn(0, 1439)
+                            val hit = sessions.firstOrNull { s ->
+                                val startMin = s.startMinuteOfDay.coerceIn(0, 1440)
+                                val rawEnd = s.endMinuteOfDay
+                                val endMin = when {
+                                    rawEnd <= 0 -> startMin + 1
+                                    rawEnd < startMin + 1 -> startMin + 1
+                                    rawEnd > 1440 -> 1440
+                                    else -> rawEnd
+                                }
+                                val top = (startMin / 60f) * pxHour
+                                val bottom = (endMin / 60f) * pxHour
+                                // Nur der Block-Bereich (rechts der Uhr-Achse)
+                                // ist Trefferfläche — ein Tap auf der Achse
+                                // oder daneben erzeugt eine neue Aktivität.
+                                offset.x >= blockX.toPx() && offset.y >= top - 4f && offset.y <= bottom + 4f
+                            }
+                            if (hit != null) onOpen(hit.id) else onCreateAt(minute)
+                        }
+                    }
+                ) {
                     val pxHour = pixelsPerHour.dp.toPx()
                     val axisXLocal = axisX.toPx()
                     val blockXLocal = blockX.toPx()
@@ -1756,10 +1945,8 @@ private fun VisualTimeEditorCard(
     val zone = ZoneId.systemDefault()
     val start = Instant.ofEpochMilli(state.form.startAt).atZone(zone).toLocalTime()
     val end = Instant.ofEpochMilli(state.form.endAt ?: state.form.startAt).atZone(zone).toLocalTime()
-    val startMinute = TimeFormatting.minutesOfDay(state.form.startAt, zone)
-    val endMinute = state.form.endAt?.let { TimeFormatting.minutesOfDay(it, zone) } ?: startMinute
     AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.lg)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1767,226 +1954,53 @@ private fun VisualTimeEditorCard(
             ) {
                 Column {
                     Text("Zeitfenster", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Groß ziehen · Marker einrasten", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Uhr antippen & drehen · Snap 5 min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(state.duration, color = MaterialTheme.colorScheme.secondary, fontFamily = FontFamily.Monospace, fontSize = 18.sp)
             }
-            TimeRail(startMinute, endMinute, state.triggerMarkers, onStartMinute, onEndMinute)
-            TriggerSnapRow(state.triggerMarkers, onSnapStart, onSnapEnd)
-            TimeRow("Start", start.hour, start.minute, onStartHour, onStartQuarter)
-            TimeRow("Ende", end.hour, end.minute, onEndHour, onEndQuarter)
-        }
-    }
-}
-
-/**
- * Verbesserter Time-Rail:
- * - Große Drag-Handles (16dp Radius, 56dp Trefferfläche)
- * - 1-Minuten Snap (statt 15er)
- * - Klare Vorschau (aktuelle Start/Ende-Zeit)
- * - Stunden-Marker mit besserer Lesbarkeit
- */
-@Composable
-private fun TimeRail(
-    startMinute: Int,
-    endMinute: Int,
-    markers: List<TriggerEventMarker>,
-    onStart: (Int) -> Unit,
-    onEnd: (Int) -> Unit
-) {
-    val railHeight = 380.dp
-    val handleRadius = 16.dp
-    val handleHitRadius = 28.dp
-    var draggingHandle by remember { mutableStateOf<String?>(null) }
-    var dragStartY by remember { mutableStateOf(0f) }
-    var dragStartValue by remember { mutableStateOf(0) }
-    val accent = MaterialTheme.colorScheme.primary
-    val accentSurface = MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
-    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.30f)
-    val markerColor = MaterialTheme.colorScheme.secondary
-    val handleFill = MaterialTheme.colorScheme.surface
-    val handleBorder = accent
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(railHeight)
-            .pointerInput(startMinute, endMinute) {
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        val hourAxisX = 54.dp.toPx()
-                        val blockX = 96.dp.toPx()
-                        val totalHeight = size.height
-                        val startY = totalHeight * startMinute / 1440f
-                        val endY = totalHeight * endMinute / 1440f
-                        val distStart = kotlin.math.abs(offset.y - startY)
-                        val distEnd = kotlin.math.abs(offset.y - endY)
-                        val hit = handleHitRadius.toPx()
-                        if (distStart <= hit && distStart <= distEnd) {
-                            draggingHandle = "start"
-                            dragStartY = offset.y
-                            dragStartValue = startMinute
-                        } else if (distEnd <= hit) {
-                            draggingHandle = "end"
-                            dragStartY = offset.y
-                            dragStartValue = endMinute
-                        } else {
-                            // Fallback: nearest handle
-                            draggingHandle = if (distStart < distEnd) "start" else "end"
-                            dragStartY = offset.y
-                            dragStartValue = if (draggingHandle == "start") startMinute else endMinute
-                        }
-                    },
-                    onDrag = { change, _ ->
-                        val dragging = draggingHandle ?: return@detectDragGestures
-                        val totalHeight = size.height
-                        val deltaMinute = ((change.position.y - dragStartY) / totalHeight * 1440f).toInt()
-                        val raw = dragStartValue + deltaMinute
-                        val snapped = raw.coerceIn(0, 1440) // 1-minute snap
-                        if (dragging == "start") {
-                            onStart(snapped.coerceAtMost(endMinute - 5))
-                        } else {
-                            onEnd(snapped.coerceAtLeast(startMinute + 5))
-                        }
-                    },
-                    onDragEnd = { draggingHandle = null },
-                    onDragCancel = { draggingHandle = null }
-                )
-            }
-    ) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val axisX = 54.dp.toPx()
-            val blockX = 96.dp.toPx()
-            val blockWidth = size.width - blockX - 12.dp.toPx()
-
-            // Vertical hour axis
-            drawLine(
-                color = trackColor,
-                start = Offset(axisX, 0f),
-                end = Offset(axisX, size.height),
-                strokeWidth = 2.dp.toPx()
-            )
-
-            // Hour grid lines
-            for (hour in 0..24 step 2) {
-                val y = size.height * hour / 24f
-                drawLine(
-                    color = trackColor.copy(alpha = if (hour % 6 == 0) 0.62f else 0.30f),
-                    start = Offset(axisX, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = if (hour % 6 == 0) 1.5.dp.toPx() else 0.5.dp.toPx()
-                )
-            }
-
-            // Trigger markers
-            markers.forEach { marker ->
-                val y = size.height * TimeFormatting.minutesOfDay(marker.occurredAt) / 1440f
-                drawCircle(
-                    color = markerColor,
-                    radius = 5.dp.toPx(),
-                    center = Offset(axisX, y)
-                )
-                drawLine(
-                    color = markerColor.copy(alpha = 0.32f),
-                    start = Offset(axisX, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 1.dp.toPx(),
-                    cap = StrokeCap.Round
-                )
-            }
-
-            // Active session block
-            val top = size.height * startMinute.coerceIn(0, 1440) / 1440f
-            val bottom = size.height * endMinute.coerceIn(startMinute + 5, 1440) / 1440f
-            drawRoundRect(
-                color = accentSurface,
-                topLeft = Offset(blockX, top),
-                size = Size(blockWidth, bottom - top),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(20.dp.toPx(), 20.dp.toPx())
-            )
-            // Top inner border
-            drawLine(
-                color = accent.copy(alpha = 0.62f),
-                start = Offset(blockX, top),
-                end = Offset(blockX + blockWidth, top),
-                strokeWidth = 2.dp.toPx()
-            )
-            drawLine(
-                color = accent.copy(alpha = 0.62f),
-                start = Offset(blockX, bottom),
-                end = Offset(blockX + blockWidth, bottom),
-                strokeWidth = 2.dp.toPx()
-            )
-
-            // Drag handles — significantly larger
-            // Top handle
-            drawCircle(
-                color = handleFill,
-                radius = handleRadius.toPx(),
-                center = Offset(blockX, top)
-            )
-            drawCircle(
-                color = handleBorder,
-                radius = handleRadius.toPx(),
-                center = Offset(blockX, top),
-                style = Stroke(width = 3.dp.toPx())
-            )
-            // Bottom handle
-            drawCircle(
-                color = handleFill,
-                radius = handleRadius.toPx(),
-                center = Offset(blockX, bottom)
-            )
-            drawCircle(
-                color = handleBorder,
-                radius = handleRadius.toPx(),
-                center = Offset(blockX, bottom),
-                style = Stroke(width = 3.dp.toPx())
-            )
-            // Three-line grip inside handles
-            for (handleY in listOf(top, bottom)) {
-                val cx = blockX
-                listOf(-4f, 0f, 4f).forEach { offset ->
-                    drawCircle(
-                        color = handleBorder,
-                        radius = 1.5.dp.toPx(),
-                        center = Offset(cx + offset.dp.toPx(), handleY)
+            // M18.44-REDESIGN (User: "statt +15/−60 Buttons einfach Uhrzeit-
+            // Picker, richtig fancy"): Die 380dp-Drag-Rail mit den Bump-
+            // Chips (−h/+h/−15/+15) ist ersetzt durch ZWEI analoge
+            // AevumTimePicker-Uhren (Start = Sonnengold, Ende = Primary).
+            // Die Uhren haben einen 5-Minuten-Snap, eine digitale
+            // Anzeige zum Antippen (Stunde/Minute direkt waehlen) und
+            // +/− Tasten fuer Feintuning — alles ohne Standard-Library.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+                verticalAlignment = Alignment.Top
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    AevumTimePicker(
+                        initialHour = start.hour,
+                        initialMinute = start.minute,
+                        accent = Color(0xFFF5A623),
+                        onTimeChange = { h, m ->
+                            onStartHour(h)
+                            onStartQuarter(m)
+                        },
+                        label = "START",
+                        showDigitalDisplay = true
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    AevumTimePicker(
+                        initialHour = end.hour,
+                        initialMinute = end.minute,
+                        accent = MaterialTheme.colorScheme.primary,
+                        onTimeChange = { h, m ->
+                            onEndHour(h)
+                            onEndQuarter(m)
+                        },
+                        label = "ENDE",
+                        showDigitalDisplay = true
                     )
                 }
             }
-        }
-
-        // Hour labels
-        (0..24 step 4).forEach { hour ->
-            Text(
-                "%02d:00".format(hour),
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = (380f * hour / 24f).dp)
-            )
-        }
-
-        // Floating preview bubble while dragging
-        draggingHandle?.let { handle ->
-            val minute = if (handle == "start") startMinute else endMinute
-            val yPos = (380f * minute / 1440f).dp
-            val timeStr = "%02d:%02d".format(minute / 60, minute % 60)
-            Box(
-                modifier = Modifier
-                    .padding(start = 132.dp, top = (yPos.value - 16).dp.coerceAtLeast(0.dp))
-                    .background(
-                        color = accent,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                    )
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    timeStr,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+            // M18.44: Trigger-Snap bleibt als dezente Quick-Action erhalten —
+            // ein Tap setzt Start/Ende exakt auf den Trigger-Zeitpunkt.
+            if (state.triggerMarkers.isNotEmpty()) {
+                TriggerSnapRow(state.triggerMarkers, onSnapStart, onSnapEnd)
             }
         }
     }
@@ -1996,12 +2010,6 @@ private fun TimeRail(
 private fun TriggerSnapRow(markers: List<TriggerEventMarker>, onSnapStart: (TriggerEventMarker) -> Unit, onSnapEnd: (TriggerEventMarker) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) { Text("Trigger Marker (Architektur vorbereitet)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { markers.forEach { marker -> AssistChip(onClick = { onSnapStart(marker) }, label = { Text("Start: ${TimeFormatting.formatTime(marker.occurredAt)} ${marker.label}") }); AssistChip(onClick = { onSnapEnd(marker) }, label = { Text("Ende: ${TimeFormatting.formatTime(marker.occurredAt)}") }) } } }
 }
-
-@Composable
-private fun TimeRow(label: String, hour: Int, minute: Int, onHour: (Int) -> Unit, onMinute: (Int) -> Unit) { Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) { Text(label, fontWeight = FontWeight.Medium); Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs), verticalAlignment = Alignment.CenterVertically) { TimeBump("−h") { onHour((hour + 23) % 24) }; ElevatedAssistChip(onClick = {}, label = { Text("%02d:%02d".format(hour, minute), fontFamily = FontFamily.Monospace) }); TimeBump("+h") { onHour((hour + 1) % 24) }; TimeBump("−15") { onMinute((minute + 45) % 60) }; TimeBump("+15") { onMinute((minute + 15) % 60) } } } }
-
-@Composable
-private fun TimeBump(label: String, onClick: () -> Unit) { AssistChip(onClick = onClick, label = { Text(label, fontSize = 12.sp) }) }
 
 @Composable
 private fun ValidationCard(validation: SessionValidationResult, errorMessage: String?) { val message = errorMessage ?: when (validation) { SessionValidationResult.Valid -> "Zeitfenster plausibel. Du kannst speichern."; is SessionValidationResult.Invalid -> validation.message; is SessionValidationResult.Warning -> validation.message }; AevumCard(variant = CardVariant.Filled) { Text(message, fontSize = 13.sp, color = if (validation is SessionValidationResult.Invalid || errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } }

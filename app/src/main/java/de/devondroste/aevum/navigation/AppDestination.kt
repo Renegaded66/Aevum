@@ -13,6 +13,8 @@ enum class AppDestination(val route: String, val title: String) {
     Growth("growth", "Wachstum"),
     Settings("settings", "Einstellungen"),
     AutomationSettings("automation", "Automatisierung"),
+    // M18.44: Eigene Seite für alle Trigger-Quellen (Geofence/Auto/Walking/Rad/Schlaf)
+    TriggerSettings("trigger_settings", "Trigger & Erkennung"),
     GeofenceList("geofences", "Geofences"),
     GeofenceCreate("geofence/new", "Geofence anlegen"),
     GeofenceCreateHome("geofence/new/home", "Zuhause anlegen"),

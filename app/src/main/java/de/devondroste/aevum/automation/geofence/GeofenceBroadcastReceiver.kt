@@ -13,6 +13,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -30,6 +31,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     @Inject lateinit var processor: GeofenceTransitionProcessor
     @Inject lateinit var debouncer: GeofenceDebouncer
     @Inject lateinit var debugLogger: GeofenceDebugLogger
+    // M18.44: Gate-Check für geofencingEnabled (echte Pipeline-Steuerung)
+    @Inject lateinit var settingsRepository: de.devondroste.aevum.data.repository.AutomationSettingsRepository
 
     override fun onReceive(context: Context, intent: Intent) {
         debugLogger.log("RECEIVER", "onReceive action=${intent.action}")
@@ -73,6 +76,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
+                // M18.44: ECHTES Gate — wenn Geofencing in den
+                // Trigger-Settings deaktiviert ist, wird kein Event
+                // verarbeitet (Doppel-Absicherung zur Deregistrierung).
+                val settings = settingsRepository.get().first()
+                if (settings?.geofencingEnabled == false) {
+                    debugLogger.log("RECEIVER", "geofencingEnabled=false → Event ignoriert")
+                    pendingResult.finish()
+                    return@launch
+                }
                 triggeringGeofences.forEach { geofence ->
                     val transitionEnum = when (transition) {
                         Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceTransition.Enter

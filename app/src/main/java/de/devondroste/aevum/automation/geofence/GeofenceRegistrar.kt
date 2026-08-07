@@ -20,6 +20,7 @@ import javax.inject.Inject
 class GeofenceRegistrar @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geofenceRepository: PlaceGeofenceRepository,
+    private val settingsRepository: de.devondroste.aevum.data.repository.AutomationSettingsRepository,
     private val debugLogger: GeofenceDebugLogger
 ) {
     private val client by lazy { LocationServices.getGeofencingClient(context) }
@@ -38,6 +39,17 @@ class GeofenceRegistrar @Inject constructor(
     }
 
     suspend fun refreshRegisteredGeofences(): GeofenceRegistrationResult {
+        // M18.44: ECHTES Gate statt Kosmetik — wenn Geofencing generell
+        // deaktiviert ist, werden alle Geofences deregistriert (kein
+        // Broadcast, keine Trigger, kein Akku-Verbrauch).
+        val settings = settingsRepository.get().first()
+        if (settings?.geofencingEnabled == false) {
+            debugLogger.log("REGISTRAR", "geofencingEnabled=false → Geofences deregistriert")
+            try {
+                client.removeGeofences(pendingIntent()).await()
+            } catch (_: Exception) { /* bereits deregistriert */ }
+            return GeofenceRegistrationResult.Registered(0)
+        }
         val perms = getPermissionStatus()
         if (!perms.foregroundGranted) {
             debugLogger.log("REGISTRAR", "Kein Foreground-Standort")

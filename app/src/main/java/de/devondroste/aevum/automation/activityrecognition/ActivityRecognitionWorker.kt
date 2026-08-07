@@ -291,7 +291,11 @@ class ActivityRecognitionWorker(
  * Datenkonsistenz ohne Locking gewährleistet.
  */
 @Singleton
-class ActivityRecognitionBridge @Inject constructor() {
+class ActivityRecognitionBridge @Inject constructor(
+    // M18.44: Gate-Checks für die Trigger-Settings (driving/walking/bicycle).
+    // Der Receiver fragt pro Event ab, ob die jeweilige Erkennung aktiv ist.
+    private val settingsRepository: de.devondroste.aevum.data.repository.AutomationSettingsRepository
+) {
     @Volatile private var pending: VehicleCluster? = null
     private val maxGapMs = 5L * 60 * 1000 // 5 Minuten
 
@@ -327,6 +331,46 @@ class ActivityRecognitionBridge @Inject constructor() {
     @Synchronized
     fun markVehicleExited(epochMs: Long) {
         vehicleExitedAt = epochMs
+    }
+
+    /** M18.44: Echte Gates aus den Trigger-Settings (cached, non-blocking). */
+    @Volatile private var cachedDriving = true
+    @Volatile private var cachedWalking = true
+    @Volatile private var cachedBicycle = true
+    @Volatile private var settingsLoadedAt = 0L
+
+    @Synchronized
+    fun isDrivingEnabled(): Boolean {
+        refreshCacheIfStale()
+        return cachedDriving
+    }
+
+    @Synchronized
+    fun isWalkingEnabled(): Boolean {
+        refreshCacheIfStale()
+        return cachedWalking
+    }
+
+    @Synchronized
+    fun isBicycleEnabled(): Boolean {
+        refreshCacheIfStale()
+        return cachedBicycle
+    }
+
+    /** Settings max. 30s cachen — die DB-Query ist sonst pro Event zu teuer. */
+    private fun refreshCacheIfStale() {
+        val now = System.currentTimeMillis()
+        if (now - settingsLoadedAt > 30_000L) {
+            settingsLoadedAt = now
+            try {
+                val settings = kotlinx.coroutines.runBlocking { settingsRepository.get().first() }
+                cachedDriving = settings?.drivingDetectionEnabled ?: true
+                cachedWalking = settings?.walkingDetectionEnabled ?: true
+                cachedBicycle = settings?.bicycleDetectionEnabled ?: true
+            } catch (_: Exception) {
+                // Cache behalten (Default an) — nie den Receiver crashen.
+            }
+        }
     }
 
     /** M18.3: EXIT-Marker konsumieren (atomar). Null = kein Exit-Signal. */
@@ -674,6 +718,13 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
             for (event in result.transitionEvents) {
                 when (event.activityType) {
                     DetectedActivity.IN_VEHICLE -> {
+                        // M18.44: Gate — Autofahren-Erkennung in den
+                        // Trigger-Settings ausgeschaltet? Dann wird das
+                        // Event komplett ignoriert (kein Sample, kein Exit).
+                        if (!bridge.isDrivingEnabled()) {
+                            hasChange = false
+                            continue
+                        }
                         // M18.3: ENTER vs EXIT unterscheiden — das ist der
                         // Kern-Fix für "Android erkennt Autofahren nicht":
                         // Vorher wurde jedes IN_VEHICLE-Event als Sample
@@ -701,6 +752,16 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                     DetectedActivity.ON_BICYCLE,
                     DetectedActivity.WALKING,
                     DetectedActivity.RUNNING -> {
+                        // M18.44: Gates — Walking/Rad-Erkennung aus den
+                        // Trigger-Settings. Deaktiviert = Event ignorieren
+                        // (auch Timer nicht starten/canceln).
+                        val walkingOk = event.activityType == DetectedActivity.WALKING && bridge.isWalkingEnabled()
+                        val runningOk = event.activityType == DetectedActivity.RUNNING && bridge.isWalkingEnabled()
+                        val bicycleOk = event.activityType == DetectedActivity.ON_BICYCLE && bridge.isBicycleEnabled()
+                        if (!walkingOk && !runningOk && !bicycleOk) {
+                            hasChange = false
+                            continue
+                        }
                         // M18.43-FIX (User-Wunsch "Walking begonnen soll nur
                         // angemerkt werden, wenn man es mindestens 5 Minuten
                         // am Stück tut"): WALKING/RUNNING-ENTER starten einen

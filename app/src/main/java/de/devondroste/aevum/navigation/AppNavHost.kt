@@ -14,6 +14,7 @@ import de.devondroste.aevum.ui.screens.growth.GrowthScreen
 import de.devondroste.aevum.ui.screens.insights.InsightsScreen
 import de.devondroste.aevum.ui.screens.onboarding.OnboardingScreen
 import de.devondroste.aevum.ui.screens.settings.SettingsScreen
+import de.devondroste.aevum.ui.screens.settings.TriggerSettingsScreen
 import de.devondroste.aevum.ui.screens.automation.AutomationSettingsScreen
 import de.devondroste.aevum.ui.screens.automation.AutomationStatusScreen
 import de.devondroste.aevum.ui.screens.automation.GeofenceDebugScreen
@@ -140,6 +141,9 @@ fun AppNavHost(
         composable(AppDestination.Growth.route) { GrowthScreen() }
         composable(AppDestination.Settings.route) {
             SettingsScreen(
+                // M18.44: Trigger & Erkennung ist die PRIMÄRE Automatisierungs-
+                // Seite — alle Quellen einzeln schaltbar.
+                onOpenTriggerSettings = { navController.navigate(AppDestination.TriggerSettings.route) },
                 onOpenAutomation = { navController.navigate(AppDestination.AutomationSettings.route) },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
@@ -166,6 +170,10 @@ fun AppNavHost(
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 onOpenStatus = { navController.navigate(AppDestination.AutomationStatus.route) }
             )
+        }
+        // M18.44: Trigger & Erkennung — eigene Seite, alle Quellen einzeln schaltbar
+        composable(AppDestination.TriggerSettings.route) {
+            TriggerSettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(AppDestination.AutomationStatus.route) {
             AutomationStatusScreen(onBack = { navController.popBackStack() })

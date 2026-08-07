@@ -18,5 +18,10 @@ data class AutomationSettings(
     @ColumnInfo(name = "digital_balance_enabled", defaultValue = "0") val digitalBalanceEnabled: Boolean = false,
     // M14: Schlaf-Fusion (Screen + Activity Recognition + Digital Balance).
     // Default aus — der User entscheidet bewusst, ob die 3-Signal-Fusion läuft.
-    @ColumnInfo(name = "sleep_fusion_enabled", defaultValue = "0") val sleepFusionEnabled: Boolean = false
+    @ColumnInfo(name = "sleep_fusion_enabled", defaultValue = "0") val sleepFusionEnabled: Boolean = false,
+    // M18.44: Einzelne Trigger-Quellen schaltbar (Trigger-Settings-Seite).
+    // Default AN — die automatische Erkennung ist das Kern-Feature.
+    @ColumnInfo(name = "driving_detection_enabled", defaultValue = "1") val drivingDetectionEnabled: Boolean = true,
+    @ColumnInfo(name = "walking_detection_enabled", defaultValue = "1") val walkingDetectionEnabled: Boolean = true,
+    @ColumnInfo(name = "bicycle_detection_enabled", defaultValue = "1") val bicycleDetectionEnabled: Boolean = true
 ) : Serializable

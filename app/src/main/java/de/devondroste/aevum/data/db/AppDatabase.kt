@@ -44,7 +44,7 @@ import de.devondroste.aevum.data.model.*
         Todo::class,
         TodoCompletion::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1052,6 +1052,14 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_20_21 = object : Migration(20, 21) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE `bucket_list_item` ADD COLUMN `difficulty` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+        // M18.44: Einzelne Trigger-Quellen schaltbar (Trigger-Settings-Seite).
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `driving_detection_enabled` INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `walking_detection_enabled` INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `bicycle_detection_enabled` INTEGER NOT NULL DEFAULT 1")
             }
         }
     }

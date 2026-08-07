@@ -388,7 +388,33 @@ class DashboardViewModel @Inject constructor(
         // Nur aktive Todos zaehlen; erledigt = Completion heute vorhanden.
         val activeTodos = todos.filter { it.active }
         val doneIds = todayCompletions.map { it.todoId }.toSet()
-        val todoDoneCount = activeTodos.count { it.id in doneIds }
+        // M18.44-FIX (Root Cause "Dashboard zeigt 1 offen, Todos-Screen
+        // zeigt abgehakt"): TodosViewModel berechnet done = completion
+        // ODER autoDone — Dauer-Todos (targetMinutes > 0) gelten als
+        // erledigt, sobald die heutige Aktivitaetszeit des zugehoerigen
+        // ActivityType das Ziel erreicht, OHNE Completion-Eintrag in der
+        // DB. Das Dashboard zaehlte vorher NUR DB-Completions → jede
+        // auto-erledigte Dauer-Todo erschien als offen. Jetzt identische
+        // Logik wie im Todos-Screen.
+        val durationByType = mutableMapOf<String, Long>()
+        activeSessions
+            .filter { it.startAt < end && (it.endAt == null || it.endAt > start) }
+            .forEach { session ->
+                val typeId = session.activityTypeId ?: return@forEach
+                val clipStart = maxOf(session.startAt, start)
+                val clipEnd = minOf(session.endAt ?: now, end)
+                durationByType[typeId] = (durationByType[typeId] ?: 0L) + (clipEnd - clipStart).coerceAtLeast(0L)
+            }
+        val todoDoneCount = activeTodos.count { todo ->
+            val isDuration = todo.targetMinutes > 0
+            if (!isDuration) {
+                todo.id in doneIds
+            } else {
+                (todo.id in doneIds) ||
+                    (todo.activityTypeId != null &&
+                        (durationByType[todo.activityTypeId] ?: 0L) >= todo.targetMinutes * 60_000L)
+            }
+        }
         val todoOpenCount = activeTodos.size - todoDoneCount
         // M18.37: Pauschalen-Summary fuer die Dashboard-Zeile — jede
         // enabled Pauschale wird explizit sichtbar (Name + Minuten),

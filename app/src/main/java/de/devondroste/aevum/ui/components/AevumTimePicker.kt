@@ -77,11 +77,13 @@ fun AevumTimePicker(
     label: String? = null,
     showDigitalDisplay: Boolean = true
 ) {
-    var hour by remember { mutableStateOf(initialHour.coerceIn(0, 23)) }
-    var minute by remember { mutableStateOf(initialMinute.coerceIn(0, 59)) }
+    var hour by remember(initialHour) { mutableStateOf(initialHour.coerceIn(0, 23)) }
+    var minute by remember(initialMinute) { mutableStateOf(initialMinute.coerceIn(0, 59)) }
     var isMinuteMode by remember { mutableStateOf(false) }
-    val rotationHour = remember { Animatable(hourToDeg24(hour)) }
-    val rotationMinute = remember { Animatable(minuteToDeg(minute)) }
+    // M18.44: rotation-Animationen an die (ggf. neue) Startzeit koppeln —
+    // ohne remember(initialHour) blieb der Zeiger beim alten Wert stehen.
+    val rotationHour = remember(initialHour) { Animatable(hourToDeg24(hour)) }
+    val rotationMinute = remember(initialMinute) { Animatable(minuteToDeg(minute)) }
 
     LaunchedEffect(hour) {
         rotationHour.animateTo(hourToDeg24(hour), spring(stiffness = 200f))

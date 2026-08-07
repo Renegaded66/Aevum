@@ -54,6 +54,8 @@ class TimelineViewModel @Inject constructor(
     tagRepository: TagRepository,
     private val ensureDefaultData: EnsureDefaultDataUseCase
 ) : ViewModel() {
+    // M18.44: Als Property gehalten, damit Quick-Create die Aktivität laden kann.
+    private val activityTypeRepository: ActivityTypeRepository = activityTypeRepository
     private val zoneId = ZoneId.systemDefault()
     private val selectedDate = MutableStateFlow(
         savedStateHandle.get<Long>("date")
@@ -116,6 +118,73 @@ class TimelineViewModel @Inject constructor(
     }
     fun acceptCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.accept(candidateId) } }
     fun dismissCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.dismiss(candidateId) } }
+
+    /**
+     * M18.44: Quick-Create aus der Tagesansicht (Google-Calendar-Prinzip).
+     * Der User tippt auf eine leere Zeitstelle -> Popup mit Activity-Wahl.
+     * Hier: fixe Session mit Start- und Endzeit anlegen.
+     */
+    fun createQuickSession(minuteOfDay: Int, activityTypeId: String, endMinuteOfDay: Int) {
+        viewModelScope.launch {
+            try {
+                val day = selectedDate.value
+                val zone = zoneId
+                val startAt = TimeFormatting.millisAtMinuteOfDay(day, minuteOfDay, zone)
+                // M18.44: Ende am Folgetag, wenn die Endzeit vor der Startzeit
+                // liegt (Mitternacht-Überquerung, z.B. 23:00 → 01:00).
+                var endAt = TimeFormatting.millisAtMinuteOfDay(day, endMinuteOfDay, zone)
+                if (endAt <= startAt) endAt += 24L * 60 * 60 * 1000
+                val type = activityTypeRepository.getById(activityTypeId).first() ?: return@launch
+                saveManualActivityUseCase(
+                    ManualActivityRequest(
+                        id = null,
+                        sourceCandidateId = null,
+                        title = type.name,
+                        categoryId = type.defaultCategoryId,
+                        activityTypeId = type.id,
+                        tagIds = emptyList(),
+                        tags = emptyList(),
+                        startAt = startAt,
+                        endAt = endAt,
+                        timezoneId = zone.id,
+                        description = "Über Tagesansicht erstellt"
+                    )
+                )
+            } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
+
+    /**
+     * M18.44: Quick-Start aus der Tagesansicht. Die Aktivität wird ab dem
+     * getippten Zeitpunkt als LAUFENDE Session gestartet (endAt = null) —
+     * die Aufzeichnung läuft also ab sofort weiter, obwohl der Start in
+     * der Vergangenheit liegt.
+     */
+    fun startQuickSession(minuteOfDay: Int, activityTypeId: String) {
+        viewModelScope.launch {
+            try {
+                val day = selectedDate.value
+                val zone = zoneId
+                val startAt = TimeFormatting.millisAtMinuteOfDay(day, minuteOfDay, zone)
+                val type = activityTypeRepository.getById(activityTypeId).first() ?: return@launch
+                saveManualActivityUseCase(
+                    ManualActivityRequest(
+                        id = null,
+                        sourceCandidateId = null,
+                        title = type.name,
+                        categoryId = type.defaultCategoryId,
+                        activityTypeId = type.id,
+                        tagIds = emptyList(),
+                        tags = emptyList(),
+                        startAt = startAt,
+                        endAt = null, // laeuft ab dem getippten Zeitpunkt weiter
+                        timezoneId = zone.id,
+                        description = "Gestartet über Tagesansicht"
+                    )
+                )
+            } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
 
     /**
      * M15: Konvertiert einen Gap-Candidate in eine echte Session mit der
