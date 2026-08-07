@@ -92,6 +92,21 @@ class LiveActivityManager @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** M18.19: Alle ActivityTypes (für das Wechsel-Popup). */
+    val allActivityTypes: StateFlow<List<ActivityType>> =
+        activityTypeRepository.getAll()
+            .catch { emit(emptyList()) }
+            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // M18.19: Synchroner In-Memory-Cache für die Notification (Farbe/Icon).
+    // buildNotification() läuft im Service-Thread und kann nicht suspendieren.
+    // Befüllt in start()/startAutoAndScheduleDiscard() — dort wird der Type
+    // ohnehin geladen.
+    private val typeCache = java.util.concurrent.ConcurrentHashMap<String, ActivityType>()
+
+    fun cachedActivityType(id: String?): ActivityType? =
+        id?.let { typeCache[it] }
+
     /** M9.2: Toggle favorite status. */
     suspend fun toggleFavorite(type: ActivityType) {
         activityTypeRepository.setFavorite(type.id, !type.isFavorite)
@@ -153,6 +168,7 @@ class LiveActivityManager @Inject constructor(
         liveSession.value?.let { existing -> forceFinish(existing) }
 
         val type = activityTypeRepository.getById(activityTypeId).first()
+        type?.let { typeCache[it.id] = it }
         val now = System.currentTimeMillis()
         val sessionStart = startedAt.coerceAtMost(now)
         val session = ActivitySession(

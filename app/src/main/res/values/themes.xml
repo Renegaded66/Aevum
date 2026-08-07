@@ -6,4 +6,17 @@
         <item name="android:navigationBarColor">@color/md_theme_dark_background</item>
         <item name="android:statusBarColor">@color/md_theme_dark_background</item>
     </style>
+
+    <!-- M18.19: Transparentes Theme für die SwitchActivity (Wechsel-Popup).
+         Die Activity selbst ist unsichtbar — der Compose-Scrim (Black 0.55)
+         erzeugt den Dialog-Look über der darunterliegenden App. -->
+    <style name="Theme.Aevum.Translucent" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import de.devondroste.aevum.MainActivity
 import de.devondroste.aevum.R
@@ -45,6 +46,8 @@ class LiveActivityService : Service() {
         const val ACTION_PAUSE = "de.devondroste.aevum.LIVE_PAUSE"
         const val ACTION_RESUME = "de.devondroste.aevum.LIVE_RESUME"
         const val ACTION_STOP = "de.devondroste.aevum.LIVE_STOP"
+        // M18.19: Wechseln — öffnet das Popup (SwitchActivity).
+        const val ACTION_SWITCH = "de.devondroste.aevum.LIVE_SWITCH"
 
         fun start(context: Context) {
             val intent = Intent(context, LiveActivityService::class.java)
@@ -69,6 +72,8 @@ class LiveActivityService : Service() {
                 liveActivityManager.stop()
                 stopSelf()
             }
+            // M18.19: Wechsel-Popup öffnen (transparente Activity).
+            ACTION_SWITCH -> openSwitchActivity()
         }
 
         // Start periodic notification updates
@@ -88,6 +93,14 @@ class LiveActivityService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    // M18.19: Wechsel-Popup (SwitchActivity) als Dialog über der App öffnen.
+    private fun openSwitchActivity() {
+        val intent = Intent(this, de.devondroste.aevum.ui.screens.dashboard.SwitchActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        startActivity(intent)
+    }
 
     override fun onDestroy() {
         updateJob?.cancel()
@@ -174,6 +187,20 @@ class LiveActivityService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // M18.19: Wechseln — öffnet das Popup (SwitchActivity).
+        val switchIntent = Intent(this, LiveActivityService::class.java).apply {
+            action = ACTION_SWITCH
+        }
+        val switchPending = PendingIntent.getService(
+            this, 3, switchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // M18.19: Aktivitätsfarbe + Emoji aus dem ActivityType laden.
+        val type = liveActivityManager.cachedActivityType(session.activityTypeId)
+        val accentColor = (type?.color?.takeIf { it != 0L } ?: 0xFF4CAF50).toInt()
+        val activityIcon = type?.icon?.takeIf { it.isNotBlank() } ?: "▶"
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
@@ -190,8 +217,32 @@ class LiveActivityService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setColor(0xFF4CAF50.toInt())
+            .setColor(accentColor)
             .setColorized(true)
+
+        // M18.19: Großes, buntes Custom-Layout (RemoteViews) mit
+        // Pause/Wechsel/Stopp-Buttons. Fallback: Standard-Notification —
+        // manche OEMs (Samsung/MIUI) brechen Custom-Layouts; die App
+        // darf nie eine kaputte Notification zeigen.
+        try {
+            val remoteViews = RemoteViews(packageName, R.layout.live_notification)
+            remoteViews.setTextViewText(R.id.notification_title, title)
+            remoteViews.setTextViewText(R.id.notification_icon, activityIcon)
+            remoteViews.setTextViewText(R.id.notification_timer, timeStr)
+            remoteViews.setTextViewText(
+                R.id.notification_status,
+                if (isPaused) "Pausiert · $subText" else subText
+            )
+            // Aktivitätsfarbe als Akzent (Header-Gradient + Buttons)
+            remoteViews.setInt(R.id.notification_header, "setBackgroundColor", accentColor)
+            remoteViews.setTextViewText(R.id.action_pause, if (isPaused) "▶ Fortsetzen" else "⏸ Pause")
+            remoteViews.setOnClickPendingIntent(R.id.action_pause, pauseResumePending)
+            remoteViews.setOnClickPendingIntent(R.id.action_switch, switchPending)
+            remoteViews.setOnClickPendingIntent(R.id.action_stop, stopPending)
+            builder.setCustomContentView(remoteViews)
+        } catch (_: Exception) {
+            // OEM-Crash-Schutz: Standard-Notification mit Actions reicht.
+        }
 
         // M18.4: BigTextStyle mit Gesamt/Aktiv bei Pause + Timer-Update.
         // Bei RUNNING zeigt der ContentText den Live-Timer (aktualisiert

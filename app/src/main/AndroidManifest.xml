@@ -116,6 +116,16 @@
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
+        <!-- M18.19: Wechsel-Popup — transparente Dialog-Activity,
+             wird aus der Live-Notification ("⇄ Wechseln") geöffnet. -->
+        <activity
+            android:name=".ui.screens.dashboard.SwitchActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Aevum.Translucent"
+            android:taskAffinity="de.devondroste.aevum.switch"
+            android:launchMode="singleTask" />
+
     </application>
 
 </manifest>

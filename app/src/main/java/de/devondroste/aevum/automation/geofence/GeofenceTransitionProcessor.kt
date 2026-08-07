@@ -190,6 +190,10 @@ class GeofenceTransitionProcessor @Inject constructor(
                         geofenceId = geofence.id,
                         autoDiscardAfterMs = AUTO_DISCARD_MS
                     )
+                    // M18.19: Notification IMMER beim Auto-Start anzeigen —
+                    // vorher fehlte dieser Aufruf im Geofence-Pfad komplett
+                    // (Root Cause: Geofence-Start ohne sichtbare Notification).
+                    de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(context)
                     debugLogger.log("PROCESSOR", "  M17 Auto-Start: ${session.title} (${session.id}) via trigger ${trigger.id}, auto-discard in ${AUTO_DISCARD_MS / 1000}s")
                 } else {
                     // M17: Selbst wenn schon die gleiche Aktivität läuft, müssen
@@ -215,6 +219,8 @@ class GeofenceTransitionProcessor @Inject constructor(
                         if (isAutoSession) {
                             liveActivityManager.cancelAutoDiscard(geofence.id)
                             liveActivityManager.stop()
+                            // M18.19: Notification beim Auto-Stop entfernen.
+                            de.devondroste.aevum.domain.liveactivity.LiveActivityService.stop(context)
                             debugLogger.log("PROCESSOR", "  M17 Auto-Stop: ${existing.title} beendet (sourceTriggerId=${existing.sourceTriggerId})")
                         } else {
                             debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: Session ${existing.id} ist manuell (sourceType=${existing.sourceType})")

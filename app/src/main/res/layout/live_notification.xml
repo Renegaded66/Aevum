@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    M18.19: Custom Live-Activity Notification-Layout (RemoteViews).
+    Groß, bunt, individuell: Aktivitätsfarbe als Hintergrund-Gradient,
+    Emoji-Icon, Live-Timer, Status-Zeile. Wird vom LiveActivityService
+    jede Sekunde aktualisiert (Manager.notify).
+    Fallback auf Standard-Notification, falls OEM das Layout bricht.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/notification_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="0dp">
+
+    <!-- Farbiger Kopfbereich: Aktivitätsfarbe als Gradient -->
+    <LinearLayout
+        android:id="@+id/notification_header"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:background="#1E1E2E">
+
+        <!-- Emoji-Icon der Aktivität -->
+        <TextView
+            android:id="@+id/notification_icon"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:textSize="24sp"
+            android:text="▶" />
+
+        <!-- Titel + Status -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+
+            <TextView
+                android:id="@+id/notification_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="Aktivität" />
+
+            <TextView
+                android:id="@+id/notification_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="#B0FFFFFF"
+                android:maxLines="1"
+                android:text="Aktiv" />
+        </LinearLayout>
+
+        <!-- Live-Timer (groß) -->
+        <TextView
+            android:id="@+id/notification_timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:fontFamily="monospace"
+            android:text="00:00" />
+    </LinearLayout>
+
+    <!-- Aktionsleiste: Pause / Wechsel / Stopp -->
+    <LinearLayout
+        android:id="@+id/notification_actions"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="#14141E">
+
+        <Button
+            android:id="@+id/action_pause"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#00000000"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:text="⏸ Pause" />
+
+        <Button
+            android:id="@+id/action_switch"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#00000000"
+            android:textColor="#FFD54F"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:text="⇄ Wechseln" />
+
+        <Button
+            android:id="@+id/action_stop"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#00000000"
+            android:textColor="#EF5350"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:text="■ Stopp" />
+    </LinearLayout>
+</LinearLayout>
