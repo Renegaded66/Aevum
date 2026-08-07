@@ -577,12 +577,23 @@ private fun DayCalendarTimeline(
                 }
             }
             if (isListMode) {
-                EventListTimeline(
-                    sessions = sessions,
-                    triggers = triggers,
-                    onOpen = onOpen,
-                    onEdit = onEdit
-                )
+                // M18.22: Scrollbar-Anzeige — die EventListTimeline bekommt
+                // eine begrenzte Höhe und verticalScroll, damit bei vielen
+                // Events eine Scroll-Leiste sichtbar ist.
+                val listScrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .verticalScroll(listScrollState)
+                ) {
+                    EventListTimeline(
+                        sessions = sessions,
+                        triggers = triggers,
+                        onOpen = onOpen,
+                        onEdit = onEdit
+                    )
+                }
             } else {
                 ZoomableDayTimeline(
                     sessions = sessions,

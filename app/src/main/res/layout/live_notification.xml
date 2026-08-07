@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    M18.19: Custom Live-Activity Notification-Layout (RemoteViews).
-    Groß, bunt, individuell: Aktivitätsfarbe als Hintergrund-Gradient,
-    Emoji-Icon, Live-Timer, Status-Zeile. Wird vom LiveActivityService
-    jede Sekunde aktualisiert (Manager.notify).
-    Fallback auf Standard-Notification, falls OEM das Layout bricht.
+    M18.22: Überarbeitetes Live-Notification-Layout.
+    Individueller, bunter, weniger langweilig:
+    - Header: kräftige Aktivitätsfarbe (vom Service gesetzt)
+    - Timer: 28sp, weiß, fett
+    - Aktions-Buttons: eigene farbige Hintergründe (statt einheitlich schwarz)
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/notification_root"
@@ -13,24 +13,24 @@
     android:orientation="vertical"
     android:padding="0dp">
 
-    <!-- Farbiger Kopfbereich: Aktivitätsfarbe als Gradient -->
+    <!-- Farbiger Kopfbereich: Aktivitätsfarbe als kräftige Fläche -->
     <LinearLayout
         android:id="@+id/notification_header"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="64dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="12dp"
-        android:background="#1E1E2E">
+        android:background="#4CAF50">
 
         <!-- Emoji-Icon der Aktivität -->
         <TextView
             android:id="@+id/notification_icon"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:gravity="center"
-            android:textSize="24sp"
+            android:textSize="28sp"
             android:text="▶" />
 
         <!-- Titel + Status -->
@@ -39,13 +39,13 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginStart="10dp">
+            android:layout_marginStart="12dp">
 
             <TextView
                 android:id="@+id/notification_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="15sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"
                 android:maxLines="1"
@@ -56,8 +56,8 @@
                 android:id="@+id/notification_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:textColor="#B0FFFFFF"
+                android:textSize="12sp"
+                android:textColor="#E0FFFFFF"
                 android:maxLines="1"
                 android:text="Aktiv" />
         </LinearLayout>
@@ -67,30 +67,30 @@
             android:id="@+id/notification_timer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="26sp"
+            android:textSize="28sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:fontFamily="monospace"
             android:text="00:00" />
     </LinearLayout>
 
-    <!-- Aktionsleiste: Pause / Wechsel / Stopp -->
+    <!-- Aktionsleiste: Pause / Wechsel / Stopp mit farbigen Hintergründen -->
     <LinearLayout
         android:id="@+id/notification_actions"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="52dp"
         android:orientation="horizontal"
         android:gravity="center"
-        android:background="#14141E">
+        android:background="#1A1A2E">
 
         <Button
             android:id="@+id/action_pause"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#00000000"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
+            android:background="#2A2A3E"
+            android:textColor="#FFD54F"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:gravity="center"
             android:text="⏸ Pause" />
@@ -100,9 +100,9 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#00000000"
-            android:textColor="#FFD54F"
-            android:textSize="13sp"
+            android:background="#2A2A3E"
+            android:textColor="#64FFDA"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:gravity="center"
             android:text="⇄ Wechseln" />
@@ -112,9 +112,9 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#00000000"
-            android:textColor="#EF5350"
-            android:textSize="13sp"
+            android:background="#2A2A3E"
+            android:textColor="#FF8A80"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:gravity="center"
             android:text="■ Stopp" />

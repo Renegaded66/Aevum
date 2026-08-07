@@ -20,12 +20,28 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import de.devondroste.aevum.navigation.AppDestination
 import de.devondroste.aevum.navigation.AppNavHost
 import de.devondroste.aevum.ui.theme.AevumTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface Deps {
+        fun liveActivityManager(): de.devondroste.aevum.domain.liveactivity.LiveActivityManager
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -37,6 +53,27 @@ class MainActivity : ComponentActivity() {
                     AevumMainApp()
                 }
             }
+        }
+    }
+
+    // M18.22: Zuverlaessiger Notification-Restore beim App-Oeffnen.
+    // AevumApplication.onCreate laeuft nur beim Cold-Start. onResume laeuft
+    // IMMER — auch wenn die App nur im Hintergrund war (Energie-Sparmodus,
+    // Swipe-away, Update). Prueft ob eine Live-Session laeuft und startet
+    // den Notification-Service falls noetig.
+    override fun onResume() {
+        super.onResume()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val deps = EntryPointAccessors.fromApplication(application, Deps::class.java)
+                val manager = deps.liveActivityManager()
+                // first() statt .value — WhileSubscribed liefert ohne
+                // aktiven Subscriber immer null (bekannter M18.21-Fix).
+                val session = manager.liveSession.first()
+                if (session != null && session.isLive) {
+                    de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+                }
+            } catch (_: Exception) { }
         }
     }
 }

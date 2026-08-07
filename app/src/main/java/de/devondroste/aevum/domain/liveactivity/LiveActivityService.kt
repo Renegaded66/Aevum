@@ -202,7 +202,7 @@ class LiveActivityService : Service() {
         val activityIcon = type?.icon?.takeIf { it.isNotBlank() } ?: "▶"
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(timeStr)
             .setSubText(subText)
@@ -260,7 +260,7 @@ class LiveActivityService : Service() {
 
     private fun buildEmptyNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Aevum")
             .setContentText("Aktivität läuft")
             .setOngoing(true)

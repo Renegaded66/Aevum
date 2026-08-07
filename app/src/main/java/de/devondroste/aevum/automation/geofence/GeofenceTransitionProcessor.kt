@@ -64,6 +64,36 @@ class GeofenceTransitionProcessor @Inject constructor(
 
         debugLogger.log("PROCESSOR", "${geofence.name}: ${transition.name} @ $occurredAt")
 
+        // M18.22: Dedup-Check — verhindert wiederholte ENTER-Trigger ohne
+        // EXIT dazwischen. Google Play Services feuert wiederholt ENTER bei
+        // Geofence-Neuregistrierung (App-Update, Reboot, GeofenceRefreshWorker),
+        // GPS-Drift am Geofence-Rand und DWELL-Events. Ohne diesen Check
+        // entstehen False-Trigger wie "08:48 zuhause angekommen", "10:45
+        // zuhause angekommen", "11:57 zuhause angekommen" — obwohl der User
+        // seit gestern durchgängig zuhause ist.
+        //
+        // Logik: Lade den letzten persistierten Trigger für diese Geofence.
+        // Wenn der letzte Trigger denselben Typ hatte (ENTER nach ENTER,
+        // EXIT nach EXIT), skippen wir — der Zustand hat sich nicht geändert.
+        val recentTriggers = triggerRepository.getByGeofenceId(geofence.id).first()
+        val lastTrigger = recentTriggers
+            .filter { it.geofenceId == geofence.id }
+            .maxByOrNull { it.occurredAt }
+        if (lastTrigger != null) {
+            val lastWasEnter = lastTrigger.type == AutomationConstants.TRIGGER_HOME_ARRIVED ||
+                lastTrigger.type.contains("ARRIVED", ignoreCase = true) ||
+                lastTrigger.type == "GEOFENCE_ENTER"
+            val lastWasExit = lastTrigger.type == AutomationConstants.TRIGGER_HOME_LEFT ||
+                lastTrigger.type.contains("LEFT", ignoreCase = true) ||
+                lastTrigger.type == "GEOFENCE_EXIT"
+            val currentIsEnter = transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell
+            val currentIsExit = transition == GeofenceTransition.Exit
+            if ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit)) {
+                debugLogger.log("PROCESSOR", "  DEDUP: ${transition.name} übersprungen — letzter Trigger war auch ${lastTrigger.type} @ ${lastTrigger.occurredAt}")
+                return GeofenceProcessingResult.Ignored
+            }
+        }
+
         // M16.6: SleepShield. Wenn der Trigger mitten in einem nachgewiesenen
         // oder sehr wahrscheinlichen Schlaf-Fenster liegt, wird er auf
         // LOW-anchor gesetzt und nicht als Travel-Start verwendet. Der
