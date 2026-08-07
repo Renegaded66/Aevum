@@ -42,5 +42,7 @@ enum class AppDestination(val route: String, val title: String) {
     Calendar("calendar", "Kalender"),
     // M18.30: Todos
     Todos("todos", "Todos"),
-    TodoCreate("todo/new", "Neues Todo")
+    TodoCreate("todo/new", "Neues Todo"),
+    // M18.35: Lebenszeit-Ansicht
+    LifeView("lifeview", "Lebenszeit")
 }

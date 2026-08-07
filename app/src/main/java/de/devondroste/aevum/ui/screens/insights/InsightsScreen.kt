@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Category
@@ -61,6 +63,8 @@ import java.time.Duration
 @Composable
 fun InsightsScreen(
     onBack: () -> Unit,
+    // M18.35: Link zur Lebenszeit-Ansicht
+    onOpenLifeView: () -> Unit = {},
     viewModel: InsightsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -84,7 +88,7 @@ fun InsightsScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = AevumSpacing.lg)
         ) {
             // 1) Hero-Header
-            item { InsightsHero(uiState) }
+            item { InsightsHero(uiState, onOpenLifeView) }
 
             // 2) Period-Toggle
             item {
@@ -216,7 +220,7 @@ fun InsightsScreen(
 }
 
 @Composable
-private fun InsightsHero(uiState: InsightsUiState) {
+private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
     val hours = uiState.totalMinutesIncludingAllowances / 60
     val minutes = uiState.totalMinutesIncludingAllowances % 60
     val accentColor = MaterialTheme.colorScheme.primary
@@ -260,6 +264,36 @@ private fun InsightsHero(uiState: InsightsUiState) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
+            // M18.35: Lebenszeit-Button — der Einstieg in die
+            // "Was bleibt dir?"-Ansicht. Bewusst als dezenter Chip,
+            // damit die Insights nicht überladen werden.
+            Spacer(Modifier.height(AevumSpacing.md))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f))
+                    .clickable(onClick = onOpenLifeView)
+                    .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text("⏳", fontSize = 18.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Lebenszeit",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text(
+                        "Wie viel Zeit bleibt dir wirklich?",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Text("›", fontSize = 16.sp, color = MaterialTheme.colorScheme.tertiary)
+            }
         }
     }
 }

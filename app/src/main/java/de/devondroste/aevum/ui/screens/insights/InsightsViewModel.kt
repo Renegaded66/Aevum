@@ -112,10 +112,39 @@ class InsightsViewModel @Inject constructor(
         // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
         // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
         // in der Timeline.
+        // M18.33: ZUSAETZLICH enabled Allowances on-the-fly fuer die
+        // aktuellen Tage einrechnen — eine heute erstellte Pauschale
+        // erscheint SOFORT, nicht erst nach dem Midnight-Worker (00:05).
         val (periodStart, periodEnd) = computePeriodRange(period)
         val allowanceAccums = dailyAllowanceRepository.getAccumulationInRange(
             periodStart.toString(), periodEnd.toString()
-        )
+        ).toMutableList()
+        // Heutige Pauschalen (und alle Tage ohne Accumulation) on-the-fly:
+        // pro Tag im Zeitraum wird jede enabled Allowance addiert, die noch
+        // keinen Accumulation-Eintrag hat (idempotent via PK-Check).
+        val existingKeys = allowanceAccums.map { it.date to it.allowanceId }.toSet()
+        val today = java.time.LocalDate.now()
+        val enabledAllowances = data.allowances.filter { it.enabled }
+        var cursor = periodStart
+        while (!cursor.isAfter(periodEnd)) {
+            if (cursor <= today) {
+                enabledAllowances.forEach { allowance ->
+                    val key = cursor.toString() to allowance.id
+                    if (key !in existingKeys) {
+                        allowanceAccums.add(
+                            de.devondroste.aevum.data.model.AllowanceAccumulationDay(
+                                date = cursor.toString(),
+                                timezoneId = zoneId.id,
+                                allowanceId = allowance.id,
+                                activityTypeId = allowance.activityTypeId,
+                                minutes = allowance.minutesPerDay
+                            )
+                        )
+                    }
+                }
+            }
+            cursor = cursor.plusDays(1)
+        }
         InsightsAnalytics.build(
             sessions = data.sessions,
             categories = data.categories,

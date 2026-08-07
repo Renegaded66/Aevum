@@ -121,8 +121,10 @@ fun AppNavHost(
             // M17.4: InsightsScreen hat jetzt nur noch onBack —
             // die Verlinkungen zu Goals/Habits/WeeklyReview sind
             // (noch) nicht Teil des Redesigns, folgen separat.
+            // M18.35: + onOpenLifeView zur Lebenszeit-Ansicht.
             InsightsScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenLifeView = { navController.navigate(AppDestination.LifeView.route) }
             )
         }
         composable(AppDestination.WeeklyReview.route) {
@@ -277,6 +279,12 @@ fun AppNavHost(
             de.devondroste.aevum.ui.screens.todos.TodoEditorScreen(
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() }
+            )
+        }
+        // M18.35: Lebenszeit-Ansicht — von Insights aus erreichbar
+        composable(AppDestination.LifeView.route) {
+            de.devondroste.aevum.ui.screens.lifeview.LifeViewScreen(
+                onBack = { navController.popBackStack() }
             )
         }
     }
