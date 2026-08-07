@@ -12,5 +12,7 @@ interface BucketListRepository {
     suspend fun getById(id: String): BucketListItem?
     suspend fun insert(item: BucketListItem)
     suspend fun setCompleted(id: String, completed: Boolean, completedAt: Long?, now: Long)
+    // M18.43: Schwierigkeitsgrad (1-5 Sterne) für die XP-Belohnung.
+    suspend fun setDifficulty(id: String, difficulty: Int, now: Long)
     suspend fun delete(id: String)
 }

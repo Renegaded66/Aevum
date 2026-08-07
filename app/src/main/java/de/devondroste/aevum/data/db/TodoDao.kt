@@ -35,6 +35,14 @@ interface TodoDao {
     @Query("SELECT * FROM todo_completion WHERE date = :date")
     fun getByDate(date: String): Flow<List<TodoCompletion>>
 
+    // M18.43: Alle Completions laden — das Dashboard filtert selbst auf
+    // das AKTUELLE Datum. Vorher wurde getByDate(today) beim combine-Setup
+    // einmal mit dem damaligen Datum abonniert; über Mitternacht blieb der
+    // Flow auf dem alten Datum -> abgehakte Todos von HEUTE erschienen
+    // nicht als erledigt.
+    @Query("SELECT * FROM todo_completion")
+    fun getAllCompletions(): Flow<List<TodoCompletion>>
+
     @Query("SELECT * FROM todo_completion WHERE todo_id = :todoId AND date = :date")
     suspend fun getCompletion(todoId: String, date: String): TodoCompletion?
 

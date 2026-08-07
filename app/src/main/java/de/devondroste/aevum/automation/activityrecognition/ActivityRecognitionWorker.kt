@@ -638,6 +638,12 @@ class ActivityRecognitionTriggerWorker(
     }
 }
 
+// M18.43: Konstanten für den Walking/Running-5-Minuten-Timer — im
+// Receiver (ActivityTransitionReceiver) und im TriggerWorker nutzbar.
+private const val WALKING_TRIGGER_DELAY_MS = 5L * 60 * 1000
+private const val WALKING_TRIGGER_WORK_NAME = "aevum.walking_trigger_delay"
+private const val RUNNING_TRIGGER_WORK_NAME = "aevum.running_trigger_delay"
+
 /**
  * M12.2: BroadcastReceiver für Activity Transition Updates.
  *
@@ -695,7 +701,49 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                     DetectedActivity.ON_BICYCLE,
                     DetectedActivity.WALKING,
                     DetectedActivity.RUNNING -> {
-                        enqueueTriggerWorker(context, event.activityType, getTransitionInt(event))
+                        // M18.43-FIX (User-Wunsch "Walking begonnen soll nur
+                        // angemerkt werden, wenn man es mindestens 5 Minuten
+                        // am Stück tut"): WALKING/RUNNING-ENTER starten einen
+                        // 5-Minuten-Timer (UniqueWork + REPLACE). Wenn der
+                        // User durchgehend läuft, feuert der Timer nach 5 Min
+                        // und erzeugt den Trigger. Ein EXIT dazwischen
+                        // cancelt den Timer -> kein False-Trigger bei
+                        // kurzen Wegen (Wohnzimmer->Küche, 30s zum Auto).
+                        // ON_BICYCLE bleibt sofort (klares Signal).
+                        val transitionType = getTransitionInt(event)
+                        if (event.activityType == DetectedActivity.ON_BICYCLE) {
+                            enqueueTriggerWorker(context, event.activityType, transitionType)
+                        } else {
+                            val isEnter = transitionType ==
+                                com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER
+                            val workName = if (event.activityType == DetectedActivity.WALKING) {
+                                WALKING_TRIGGER_WORK_NAME
+                            } else {
+                                RUNNING_TRIGGER_WORK_NAME
+                            }
+                            if (isEnter) {
+                                // Timer (neu) starten — REPLACE refresht bei
+                                // jedem weiteren ENTER-Sample.
+                                val data = androidx.work.Data.Builder()
+                                    .putString(ActivityRecognitionTriggerWorker.KEY_ACTIVITY_TYPE,
+                                        if (event.activityType == DetectedActivity.WALKING) "WALKING" else "RUNNING")
+                                    .putString(ActivityRecognitionTriggerWorker.KEY_TRANSITION, "ENTER")
+                                    .putFloat(ActivityRecognitionTriggerWorker.KEY_CONFIDENCE, 0.65f)
+                                    .build()
+                                androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+                                    workName,
+                                    androidx.work.ExistingWorkPolicy.REPLACE,
+                                    androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionTriggerWorker>()
+                                        .setInputData(data)
+                                        .setInitialDelay(WALKING_TRIGGER_DELAY_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                                        .build()
+                                )
+                            } else {
+                                // EXIT: Timer canceln — der User hat NICHT
+                                // 5 Minuten am Stück gelaufen.
+                                androidx.work.WorkManager.getInstance(context).cancelUniqueWork(workName)
+                            }
+                        }
                         hasChange = true
                     }
                 }

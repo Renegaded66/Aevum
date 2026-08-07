@@ -86,25 +86,39 @@ class GeofenceTransitionProcessor @Inject constructor(
         val lastTrigger = recentTriggers
             .filter { it.geofenceId == geofence.id }
             .maxByOrNull { it.occurredAt }
-        if (lastTrigger != null) {
-            val lastWasEnter = lastTrigger.type == AutomationConstants.TRIGGER_HOME_ARRIVED ||
-                lastTrigger.type.contains("ARRIVED", ignoreCase = true) ||
-                lastTrigger.type == "GEOFENCE_ENTER"
-            val lastWasExit = lastTrigger.type == AutomationConstants.TRIGGER_HOME_LEFT ||
-                lastTrigger.type.contains("LEFT", ignoreCase = true) ||
-                lastTrigger.type == "GEOFENCE_EXIT"
-            val currentIsEnter = transition == GeofenceTransition.Enter
-            val currentIsExit = transition == GeofenceTransition.Exit
-            // M18.41: DWELL wird NIE dedupliziert — es ist die zuverlaessigste
-            // Bestaetigung (User hat 90s im Geofence verweilt) und der
-            // Auto-Discard-Refresh haengt daran.
-            val withinDedupWindow = occurredAt - lastTrigger.occurredAt < DEDUP_WINDOW_MS
-            if (transition != GeofenceTransition.Dwell &&
-                withinDedupWindow && ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit))
-            ) {
-                debugLogger.log("PROCESSOR", "  DEDUP: ${transition.name} übersprungen — letzter Trigger war auch ${lastTrigger.type} @ ${lastTrigger.occurredAt}")
-                return GeofenceProcessingResult.Ignored
-            }
+        val lastWasEnter = lastTrigger != null && (lastTrigger.type == AutomationConstants.TRIGGER_HOME_ARRIVED ||
+            lastTrigger.type.contains("ARRIVED", ignoreCase = true) ||
+            lastTrigger.type == "GEOFENCE_ENTER")
+        val lastWasExit = lastTrigger != null && (lastTrigger.type == AutomationConstants.TRIGGER_HOME_LEFT ||
+            lastTrigger.type.contains("LEFT", ignoreCase = true) ||
+            lastTrigger.type == "GEOFENCE_EXIT")
+        val currentIsEnter = transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell
+        val currentIsExit = transition == GeofenceTransition.Exit
+        // M18.41: DWELL wird NIE dedupliziert — es ist die zuverlaessigste
+        // Bestaetigung (User hat 90s im Geofence verweilt) und der
+        // Auto-Discard-Refresh haengt daran.
+        val withinDedupWindow = lastTrigger != null && occurredAt - lastTrigger.occurredAt < DEDUP_WINDOW_MS
+
+        // M18.43-FIX (Root Cause "Gym betreten erscheint haeufiger
+        // hintereinander, obwohl nicht verlassen"): DWELL feuert alle
+        // ~90s, solange der User im Geofence bleibt. Jedes DWELL erzeugte
+        // einen neuen ENTER-Trigger (M18.41-Mapping) -> "Gym betreten"
+        // alle paar Minuten, obwohl der User nie rausging.
+        // Jetzt: DWELL erzeugt NUR dann einen neuen Trigger, wenn der
+        // letzte Trigger KEIN ENTER war (also ein EXIT dazwischen lag).
+        // Der Session-Start/Refresh (unten) laeuft trotzdem IMMER —
+        // der Auto-Discard-Schutz bleibt erhalten.
+        val skipTriggerCreation = transition == GeofenceTransition.Dwell &&
+            lastWasEnter && withinDedupWindow
+
+        if (!skipTriggerCreation &&
+            withinDedupWindow && ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit))
+        ) {
+            debugLogger.log("PROCESSOR", "  DEDUP: ${transition.name} übersprungen — letzter Trigger war auch ${lastTrigger?.type} @ ${lastTrigger?.occurredAt}")
+            return GeofenceProcessingResult.Ignored
+        }
+        if (skipTriggerCreation) {
+            debugLogger.log("PROCESSOR", "  DWELL-Dedup: kein neuer Trigger (letzter war ENTER @ ${lastTrigger?.occurredAt}) — Session-Refresh laeuft trotzdem")
         }
 
         // M16.6: SleepShield. Wenn der Trigger mitten in einem nachgewiesenen
@@ -152,50 +166,54 @@ class GeofenceTransitionProcessor @Inject constructor(
         )
         detectionRepository.insert(detection)
 
-        val trigger = TriggerEvent(
-            id = UUID.randomUUID().toString(),
-            occurredAt = occurredAt,
-            type = triggerTypeFor(geofence.name, transition),
-            source = AutomationConstants.DATA_SOURCE_GEOFENCING,
-            confidence = DEFAULT_CONFIDENCE,
-            geofenceId = geofence.id,
-            detectionEventId = detection.id,
-            // M10.1: DWELL ist die zuverlässigste Quelle — User hat nachweislich
-            // 90s im Geofence verweilt. EXIT ist weniger verlässlich (GPS-Sprung
-            // am Rand), aber immer noch nutzbar. ENTER ohne DWELL bleibt MEDIUM.
-            // M16.6: SleepShield setzt nachts auf LOW, damit Travel-Rules den
-            // Trigger nicht als Reise-Start verwenden.
-            // M16.7: anchorQualityOverride (vom Stabilization-Worker bei Burst)
-            // hat höchste Priorität. Wenn der Worker einen Burst erkannt hat,
-            // wird der Trigger definitiv auf LOW gezwungen.
-            anchorQuality = when {
-                anchorQualityOverride != null -> anchorQualityOverride
-                anchorQuality == SleepShield.AnchorQuality.LOW -> "LOW"
-                transition == GeofenceTransition.Dwell -> "HIGH"
-                else -> "MEDIUM"
-            },
-            metadataJson = """{"geofenceName":"${geofence.name}","activityTypeId":${geofence.activityTypeId?.let { "\"$it\"" } ?: "null"}}"""
-        )
-        triggerRepository.insert(trigger)
-        debugLogger.log("PROCESSOR", "  Trigger gespeichert: ${trigger.id} (${trigger.type}, anchor=${trigger.anchorQuality})")
+        // M18.43: Trigger-Erzeugung ist bei DWELL-Dedup übersprungen
+        // (kein neuer "Gym betreten" bei jedem DWELL), aber Raw/Detection
+        // werden trotzdem persistiert (Debugging-Wahrheit).
+        val trigger: TriggerEvent? = if (skipTriggerCreation) {
+            null
+        } else {
+            TriggerEvent(
+                id = UUID.randomUUID().toString(),
+                occurredAt = occurredAt,
+                type = triggerTypeFor(geofence.name, transition),
+                source = AutomationConstants.DATA_SOURCE_GEOFENCING,
+                confidence = DEFAULT_CONFIDENCE,
+                geofenceId = geofence.id,
+                detectionEventId = detection.id,
+                // M10.1: DWELL ist die zuverlässigste Quelle — User hat nachweislich
+                // 90s im Geofence verweilt. EXIT ist weniger verlässlich (GPS-Sprung
+                // am Rand), aber immer noch nutzbar. ENTER ohne DWELL bleibt MEDIUM.
+                // M16.6: SleepShield setzt nachts auf LOW, damit Travel-Rules den
+                // Trigger nicht als Reise-Start verwenden.
+                // M16.7: anchorQualityOverride (vom Stabilization-Worker bei Burst)
+                // hat höchste Priorität. Wenn der Worker einen Burst erkannt hat,
+                // wird der Trigger definitiv auf LOW gezwungen.
+                anchorQuality = when {
+                    anchorQualityOverride != null -> anchorQualityOverride
+                    anchorQuality == SleepShield.AnchorQuality.LOW -> "LOW"
+                    transition == GeofenceTransition.Dwell -> "HIGH"
+                    else -> "MEDIUM"
+                },
+                metadataJson = """{"geofenceName":"${geofence.name}","activityTypeId":${geofence.activityTypeId?.let { "\"$it\"" } ?: "null"}}"""
+            )
+        }
+        if (trigger != null) {
+            triggerRepository.insert(trigger)
+            debugLogger.log("PROCESSOR", "  Trigger gespeichert: ${trigger.id} (${trigger.type}, anchor=${trigger.anchorQuality})")
 
-        val ruleResult = ruleOrchestrator.evaluateRecentTriggers()
-        debugLogger.log("PROCESSOR", "  ${ruleResult.insertedCandidates.size} neue Candidates")
-
-        candidateReviewNotifier.notifyIfEnabled(ruleResult.insertedCandidates)
-
-        // M9.2: When the user comes home, opportunistically pull the last
-        // night of sleep from Health Connect.
-        if (trigger.type == AutomationConstants.TRIGGER_HOME_ARRIVED) {
-            try {
-                WorkManager.getInstance(context).enqueueUniqueWork(
-                    "aevum.sleep_import_on_arrival",
-                    ExistingWorkPolicy.REPLACE,
-                    OneTimeWorkRequestBuilder<SleepImportWorker>().build()
-                )
-                debugLogger.log("PROCESSOR", "  Sleep-Import bei Heimkehr getriggert")
-            } catch (e: Exception) {
-                debugLogger.log("PROCESSOR", "  Sleep-Import trigger failed: ${e.message}")
+            // M9.2: When the user comes home, opportunistically pull the last
+            // night of sleep from Health Connect.
+            if (trigger.type == AutomationConstants.TRIGGER_HOME_ARRIVED) {
+                try {
+                    WorkManager.getInstance(context).enqueueUniqueWork(
+                        "aevum.sleep_import_on_arrival",
+                        ExistingWorkPolicy.REPLACE,
+                        OneTimeWorkRequestBuilder<SleepImportWorker>().build()
+                    )
+                    debugLogger.log("PROCESSOR", "  Sleep-Import bei Heimkehr getriggert")
+                } catch (e: Exception) {
+                    debugLogger.log("PROCESSOR", "  Sleep-Import trigger failed: ${e.message}")
+                }
             }
         }
 
@@ -224,6 +242,11 @@ class GeofenceTransitionProcessor @Inject constructor(
             // der User muss in den Geofence-Settings "Auto-Start" explizit
             // aktivieren.
             if (geofence.autoStartActivityTypeId != null) {
+                // M18.43: Bei DWELL-Dedup (skipTriggerCreation) ist `trigger`
+                // null — die Session wurde schon beim ENTER gestartet. Als
+                // sourceTriggerId dient dann der letzte ENTER-Trigger, damit
+                // der Auto-Stop-Match (M18.42) weiter funktioniert.
+                val sourceTriggerId = trigger?.id ?: lastTrigger?.id
                 val existing = liveActivityManager.liveSession.value
                 val isSameActivity = existing != null &&
                     existing.isLive &&
@@ -236,7 +259,7 @@ class GeofenceTransitionProcessor @Inject constructor(
                     val session = liveActivityManager.startAutoAndScheduleDiscard(
                         activityTypeId = geofence.autoStartActivityTypeId,
                         title = geofence.name,
-                        sourceTriggerId = trigger.id,
+                        sourceTriggerId = sourceTriggerId,
                         geofenceId = geofence.id,
                         autoDiscardAfterMs = AUTO_DISCARD_MS
                     )
@@ -244,7 +267,7 @@ class GeofenceTransitionProcessor @Inject constructor(
                     // vorher fehlte dieser Aufruf im Geofence-Pfad komplett
                     // (Root Cause: Geofence-Start ohne sichtbare Notification).
                     de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(context)
-                    debugLogger.log("PROCESSOR", "  M17 Auto-Start: ${session.title} (${session.id}) via trigger ${trigger.id}, auto-discard in ${AUTO_DISCARD_MS / 1000}s")
+                    debugLogger.log("PROCESSOR", "  M17 Auto-Start: ${session.title} (${session.id}) via trigger ${sourceTriggerId}, auto-discard in ${AUTO_DISCARD_MS / 1000}s")
                 } else {
                     // M17: Selbst wenn schon die gleiche Aktivität läuft, müssen
                     // wir den Auto-Discard-Timer zurücksetzen (GPS-Sprung-Schutz
@@ -300,20 +323,39 @@ class GeofenceTransitionProcessor @Inject constructor(
             }
         }
 
-        return GeofenceProcessingResult.Stored(trigger.id, detection.id, ruleResult.insertedCandidates.size)
+        // M18.43: ruleResult ist nur definiert, wenn ein Trigger erzeugt
+        // wurde (bei DWELL-Dedup nicht). Der Rückgabewert ist nur fürs
+        // Debugging relevant — Candidate-Count 0 ist dann korrekt.
+        val candidateCount = if (trigger != null) {
+            val rr = ruleOrchestrator.evaluateRecentTriggers()
+            debugLogger.log("PROCESSOR", "  ${rr.insertedCandidates.size} neue Candidates")
+            candidateReviewNotifier.notifyIfEnabled(rr.insertedCandidates)
+            rr.insertedCandidates.size
+        } else 0
+        return GeofenceProcessingResult.Stored(trigger?.id, detection.id, candidateCount)
     }
 
     private fun triggerTypeFor(name: String, transition: GeofenceTransition): String {
         val lower = name.lowercase()
+        // M18.43-FIX (Root Cause "Beim Gym-Verlassen tauchen gleichzeitig
+        // Zuhause verlassen + Arbeit verlassen auf"): DWELL wurde als
+        // LEFT/EXIT gemappt, weil nur `transition == Enter` geprüft wurde.
+        // Google feuert DWELL aber alle ~90s, solange der User im Geofence
+        // bleibt — und GPS-Drift an den Rändern anderer Geofences erzeugt
+        // DWELLs für Zuhause/Arbeit, während der User im Gym ist. Jedes
+        // dieser DWELLs wurde als "Zuhause verlassen"/"Arbeit verlassen"
+        // gespeichert. DWELL ist ein BESTÄTIGTER ENTER (User verweilt 90s)
+        // und wird jetzt wie Enter gemappt.
+        val isEnter = transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell
         return when {
             lower.contains("zuhause") || lower.contains("home") ->
-                if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_HOME_ARRIVED
+                if (isEnter) AutomationConstants.TRIGGER_HOME_ARRIVED
                 else AutomationConstants.TRIGGER_HOME_LEFT
             lower.contains("arbeit") || lower.contains("work") ->
-                if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_WORK_ENTERED
+                if (isEnter) AutomationConstants.TRIGGER_WORK_ENTERED
                 else AutomationConstants.TRIGGER_WORK_LEFT
             else ->
-                if (transition == GeofenceTransition.Enter) AutomationConstants.TRIGGER_CUSTOM_PLACE_ENTERED
+                if (isEnter) AutomationConstants.TRIGGER_CUSTOM_PLACE_ENTERED
                 else AutomationConstants.TRIGGER_CUSTOM_PLACE_LEFT
         }
     }
@@ -336,7 +378,7 @@ class GeofenceTransitionProcessor @Inject constructor(
 }
 
 sealed class GeofenceProcessingResult {
-    data class Stored(val triggerId: String, val detectionEventId: String, val ruleCandidateCount: Int = 0) : GeofenceProcessingResult()
+    data class Stored(val triggerId: String?, val detectionEventId: String, val ruleCandidateCount: Int = 0) : GeofenceProcessingResult()
     data object UnknownGeofence : GeofenceProcessingResult()
     data object Ignored : GeofenceProcessingResult()
 }

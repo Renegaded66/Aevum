@@ -44,7 +44,7 @@ import de.devondroste.aevum.data.model.*
         Todo::class,
         TodoCompletion::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1044,6 +1044,14 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_bucket_list_item_completed` ON `bucket_list_item` (`completed`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_bucket_list_item_created_at` ON `bucket_list_item` (`created_at`)")
+            }
+        }
+
+        // M18.43: Bucket-List-Gamification — difficulty (1-5 Sterne) für
+        // XP-Belohnungen. Bestehende Eintraege bekommen Default 1.
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `bucket_list_item` ADD COLUMN `difficulty` INTEGER NOT NULL DEFAULT 1")
             }
         }
     }

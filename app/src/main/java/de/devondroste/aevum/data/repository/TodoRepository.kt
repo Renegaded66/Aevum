@@ -21,6 +21,9 @@ class TodoRepository @Inject constructor(
     // --- Completions ---
     fun getCompletions(todoId: String): Flow<List<TodoCompletion>> = dao.getCompletions(todoId)
     fun getByDate(date: String): Flow<List<TodoCompletion>> = dao.getByDate(date)
+
+    // M18.43: Alle Completions (Dashboard filtert selbst auf das aktuelle Datum).
+    fun getAllCompletions(): Flow<List<TodoCompletion>> = dao.getAllCompletions()
     suspend fun getCompletion(todoId: String, date: String): TodoCompletion? = dao.getCompletion(todoId, date)
     suspend fun insertCompletion(completion: TodoCompletion) = dao.insertCompletion(completion)
     suspend fun deleteCompletion(todoId: String, date: String) = dao.deleteCompletion(todoId, date)

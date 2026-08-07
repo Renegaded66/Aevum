@@ -22,7 +22,9 @@ import javax.inject.Singleton
 class GeofenceDebouncer @Inject constructor() {
 
     private val pendingByGeofence = ConcurrentHashMap<String, PendingTransition>()
-    private val confirmedStateByGeofence = ConcurrentHashMap<String, GeofenceTransition>()
+    // M18.43: confirmedState speichert jetzt auch den Zeitstempel der
+    // Bestätigung — der Echo-Schutz braucht ein Zeitfenster (siehe shouldEmit).
+    private val confirmedStateByGeofence = ConcurrentHashMap<String, Pair<GeofenceTransition, Long>>()
     // M16.6: Korrelations-Tracker. Wenn mehrere Geofences innerhalb eines
     // engen Zeitfensters einen EXIT feuern, ist das sehr wahrscheinlich
     // GPS-Flattern am Rand mehrerer Geofences (z.B. nachts wenn der User
@@ -92,8 +94,19 @@ class GeofenceDebouncer @Inject constructor() {
             // Play Services kann in seltenen Fällen bei Boundary-Flattern
             // doppelte EXITs feuern — der zweite wird durch den Echo-Schutz
             // (gleicher confirmedState == Exit) sauber gefangen.
+            //
+            // M18.43-FIX (Root Cause "Zuhause angekommen wurde nicht als
+            // Trigger angemerkt"): Der Echo-Schutz hatte KEIN Zeitfenster.
+            // Wenn ein EXIT durch GPS-Flattern verworfen wurde (oder die App
+            // den EXIT nie sah), blieb confirmedState ewig "Enter" — der
+            // nächste echte ENTER (z.B. nach Stunden draußen) wurde als
+            // "Echo" unterdrückt -> "Zuhause angekommen" fehlte. Jetzt:
+            // Echo nur innerhalb von ECHO_WINDOW_MS (10 Min). Danach ist
+            // ein gleicher Übergang ein echter neuer Besuch.
             val confirmed = confirmedStateByGeofence[geofenceId]
-            if (confirmed == transition) {
+            if (confirmed != null && confirmed.first == transition &&
+                now - confirmed.second < ECHO_WINDOW_MS
+            ) {
                 return false
             }
             pendingByGeofence[geofenceId] = PendingTransition(transition, now)
@@ -123,7 +136,7 @@ class GeofenceDebouncer @Inject constructor() {
         }
 
         pendingByGeofence.remove(geofenceId)
-        confirmedStateByGeofence[geofenceId] = pending.transition
+        confirmedStateByGeofence[geofenceId] = pending.transition to now
         return ConfirmationResult.Confirmed
     }
 
@@ -183,6 +196,11 @@ class GeofenceDebouncer @Inject constructor() {
         // behandeln wir den dritten als Burst. 2 reicht, weil im echten
         // Leben kaum 3 Geofences gleichzeitig verlassen werden.
         const val CONSOLIDATION_THRESHOLD = 2
+        // M18.43: Echo-Schutz-Zeitfenster. Ein gleicher Übergang (Enter nach
+        // Enter) wird nur innerhalb von 10 Minuten als Echo gewertet. Danach
+        // ist es ein echter neuer Besuch — verpasste EXITs (GPS-Flattern,
+        // App-Kill) dürfen den nächsten ENTER nicht blockieren.
+        val ECHO_WINDOW_MS = 10 * 60 * 1000L
 
         fun workName(geofenceId: String, transition: GeofenceTransition): String =
             "${GeofenceStabilizationWorker.WORK_PREFIX}${geofenceId}_${transition.name}"

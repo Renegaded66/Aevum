@@ -25,6 +25,10 @@ interface BucketListItemDao {
     @Query("UPDATE bucket_list_item SET completed = :completed, completed_at = :completedAt, updated_at = :now WHERE id = :id")
     suspend fun setCompleted(id: String, completed: Boolean, completedAt: Long?, now: Long)
 
+    // M18.43: Schwierigkeitsgrad (1-5 Sterne) für die XP-Belohnung.
+    @Query("UPDATE bucket_list_item SET difficulty = :difficulty, updated_at = :now WHERE id = :id")
+    suspend fun setDifficulty(id: String, difficulty: Int, now: Long)
+
     @Query("DELETE FROM bucket_list_item WHERE id = :id")
     suspend fun delete(id: String)
 }

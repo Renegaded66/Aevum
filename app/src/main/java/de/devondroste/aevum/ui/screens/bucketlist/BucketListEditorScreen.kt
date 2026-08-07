@@ -49,6 +49,8 @@ import de.devondroste.aevum.ui.components.CardVariant
 import de.devondroste.aevum.ui.theme.AevumSpacing
 import java.io.File
 import java.io.FileOutputStream
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.width
 
 /**
  * M18.39: Bucket-List-Editor — neuer Eintrag oder bestehenden bearbeiten.
@@ -166,6 +168,30 @@ fun BucketListEditorScreen(
                         label = { Text("Notizen (optional)") },
                         modifier = Modifier.fillMaxWidth().height(100.dp)
                     )
+                    // M18.43: Schwierigkeitsgrad (1-5 Sterne) — bestimmt die
+                    // XP-Belohnung beim Abhaken (10-50 XP).
+                    Text("Schwierigkeit (bestimmt die XP-Belohnung)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (1..5).forEach { star ->
+                            val filled = star <= state.difficulty
+                            Text(
+                                if (filled) "★" else "☆",
+                                fontSize = 30.sp,
+                                color = if (filled) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { viewModel.setDifficulty(star) }
+                                    .padding(2.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "+${state.difficulty * 10} XP",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFB300)
+                        )
+                    }
                 }
             }
         }

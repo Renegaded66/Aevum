@@ -100,7 +100,19 @@ fun BucketListScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            item { BucketHero(done = state.doneCount, total = state.totalCount, progress = state.progress) }
+            item {
+                BucketHero(
+                    done = state.doneCount,
+                    total = state.totalCount,
+                    progress = state.progress,
+                    level = state.level,
+                    levelTitle = state.levelTitle,
+                    levelProgress = state.levelProgress,
+                    totalXp = state.totalXp,
+                    xpIntoLevel = state.xpIntoLevel,
+                    xpForNextLevel = state.xpForNextLevel
+                )
+            }
 
             if (state.items.isEmpty()) {
                 item { BucketEmptyState(onCreate = onCreate) }
@@ -127,7 +139,8 @@ fun BucketListScreen(
                             item = item,
                             onToggle = { viewModel.toggleCompleted(item) },
                             onEdit = { onEdit(item.id) },
-                            onDelete = { viewModel.delete(item) }
+                            onDelete = { viewModel.delete(item) },
+                            onDifficulty = { diff -> viewModel.setDifficulty(item, diff) }
                         )
                     }
                 }
@@ -139,55 +152,122 @@ fun BucketListScreen(
 private enum class BucketFilter { ALL, OPEN, DONE }
 
 @Composable
-private fun BucketHero(done: Int, total: Int, progress: Float) {
+private fun BucketHero(
+    done: Int,
+    total: Int,
+    progress: Float,
+    level: Int,
+    levelTitle: String,
+    levelProgress: Float,
+    totalXp: Int,
+    xpIntoLevel: Int,
+    xpForNextLevel: Int
+) {
     AevumCard(variant = CardVariant.Gradient) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(AevumSpacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.lg)
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            // Fortschritts-Ring
-            Box(contentAlignment = Alignment.Center) {
-                androidx.compose.foundation.Canvas(modifier = Modifier.size(72.dp)) {
-                    val stroke = 8.dp.toPx()
-                    val arcSize = size.minDimension - stroke
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.2f),
-                        startAngle = -90f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round)
-                    )
-                    drawArc(
-                        color = Color.White,
-                        startAngle = -90f,
-                        sweepAngle = 360f * progress,
-                        useCenter = false,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.lg)
+            ) {
+                // Fortschritts-Ring
+                Box(contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.size(72.dp)) {
+                        val stroke = 8.dp.toPx()
+                        val arcSize = size.minDimension - stroke
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.2f),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round)
+                        )
+                        drawArc(
+                            color = Color.White,
+                            startAngle = -90f,
+                            sweepAngle = 360f * progress,
+                            useCenter = false,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = StrokeCap.Round)
+                        )
+                    }
+                    Text(
+                        "${(progress * 100).toInt()}%",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
-                Text(
-                    "${(progress * 100).toInt()}%",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("BUCKET LIST", fontSize = 11.sp, letterSpacing = 1.1.sp, color = Color.White.copy(alpha = 0.8f))
+                    Text(
+                        "Was willst du im Leben unbedingt machen?",
+                        fontSize = 20.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    Text(
+                        "$done von $total geschafft",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("BUCKET LIST", fontSize = 11.sp, letterSpacing = 1.1.sp, color = Color.White.copy(alpha = 0.8f))
-                Text(
-                    "Was willst du im Leben unbedingt machen?",
-                    fontSize = 20.sp,
-                    lineHeight = 26.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-                Text(
-                    "$done von $total geschafft",
-                    fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.85f)
-                )
+            // M18.43: Level + XP-Leiste (Gamification)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⭐", fontSize = 15.sp)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            "Level $level · $levelTitle",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "$xpIntoLevel / $xpForNextLevel XP",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.85f)
+                        )
+                    }
+                    // XP-Fortschrittsbalken
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(levelProgress.coerceIn(0f, 1f))
+                                .height(6.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFD54F))
+                        )
+                    }
+                }
             }
+            Text(
+                "Gesamt: $totalXp XP gesammelt",
+                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.7f)
+            )
         }
     }
 }
@@ -227,7 +307,8 @@ private fun BucketCard(
     item: BucketListItem,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onDifficulty: (Int) -> Unit
 ) {
     val accentColor = if (item.completed) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
     Surface(
@@ -304,6 +385,32 @@ private fun BucketCard(
                             color = Color(0xFF4CAF50),
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                    // M18.43: Schwierigkeits-Sterne (1-5) — Tippen setzt den
+                    // Grad, bestimmt die XP-Belohnung beim Abhaken.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Schwierigkeit", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(4.dp))
+                        (1..5).forEach { star ->
+                            val filled = star <= item.difficulty
+                            Text(
+                                if (filled) "★" else "☆",
+                                fontSize = 14.sp,
+                                color = if (filled) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onDifficulty(star) }
+                                    .padding(horizontal = 1.dp, vertical = 2.dp)
+                            )
+                        }
+                        if (!item.completed) {
+                            Text(
+                                "+${item.xpReward} XP",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFB300)
+                            )
+                        }
                     }
                 }
                 // Aktionen

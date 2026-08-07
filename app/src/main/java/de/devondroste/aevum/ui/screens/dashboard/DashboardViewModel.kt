@@ -55,9 +55,16 @@ class DashboardViewModel @Inject constructor(
     private val todoRepository: de.devondroste.aevum.data.repository.TodoRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
-    private val today = LocalDate.now()
-    private val start = TimeFormatting.startOfDayMillis(today, zoneId)
-    private val end = TimeFormatting.endOfDayMillis(today, zoneId)
+    // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
+    // Dashboard noch offen"): `today`/`start`/`end` wurden EINMAL beim
+    // ViewModel-Init berechnet. Wenn das Dashboard über Mitternacht
+    // offen blieb (oder das ViewModel vor Mitternacht erstellt wurde),
+    // zeigte es den VORTAG — die Completion von HEUTE (neues Datum)
+    // wurde nie geladen -> "1 offen" obwohl abgehakt. Jetzt: frisches
+    // Datum bei jedem State-Build (der Minuten-Tick erzwingt den Rebuild).
+    private val today: LocalDate get() = LocalDate.now()
+    private val start: Long get() = TimeFormatting.startOfDayMillis(today, zoneId)
+    private val end: Long get() = TimeFormatting.endOfDayMillis(today, zoneId)
 
     // M16: Diese Properties MÜSSEN vor dem init-Block deklariert werden.
     // Kotlin führt init-Blöcke und Property-Initializer in Deklarations-
@@ -287,7 +294,12 @@ class DashboardViewModel @Inject constructor(
         dailyAllowanceRepository.getAll(),
         // M18.37: Todos fuer die kompakte Dashboard-Karte.
         todoRepository.getAll(),
-        todoRepository.getByDate(LocalDate.now().toString()),
+        // M18.43-FIX: ALLE Completions laden — buildState filtert selbst
+        // auf das AKTUELLE Datum. Vorher wurde getByDate(today) beim
+        // combine-Setup einmal abonniert; über Mitternacht blieb der Flow
+        // auf dem alten Datum -> abgehakte Todos von HEUTE erschienen
+        // nicht als erledigt.
+        todoRepository.getAllCompletions(),
         // M18.42: Minuetlicher Tick fuer Live-Updates.
         minuteTick
     ) { values ->
@@ -301,7 +313,10 @@ class DashboardViewModel @Inject constructor(
         val screenMs = values[6] as Long
         val allowances = values[7] as List<de.devondroste.aevum.data.model.DailyAllowance>
         val allTodos = values[8] as List<de.devondroste.aevum.data.model.Todo>
-        val todayCompletions = values[9] as List<de.devondroste.aevum.data.model.TodoCompletion>
+        val allCompletions = values[9] as List<de.devondroste.aevum.data.model.TodoCompletion>
+        // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
+        // M18.43: Auf das AKTUELLE Datum filtern (frischer Getter).
+        val todayCompletions = allCompletions.filter { it.date == today.toString() }
         // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
         // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
         // today-Query würde Mitternacht-Schlaf verfehlen.

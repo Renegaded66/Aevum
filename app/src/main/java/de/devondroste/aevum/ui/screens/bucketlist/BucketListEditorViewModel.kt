@@ -40,7 +40,8 @@ class BucketListEditorViewModel @Inject constructor(
                 category = item.category ?: "",
                 targetDate = item.targetDate ?: "",
                 notes = item.notes ?: "",
-                imagePath = item.imagePath
+                imagePath = item.imagePath,
+                difficulty = item.difficulty
             )
         }
     }
@@ -52,6 +53,8 @@ class BucketListEditorViewModel @Inject constructor(
     fun setTargetDate(value: String) = formState.update { it.copy(targetDate = value) }
     fun setNotes(value: String) = formState.update { it.copy(notes = value) }
     fun setImagePath(value: String?) = formState.update { it.copy(imagePath = value) }
+    // M18.43: Schwierigkeitsgrad (1-5 Sterne) — bestimmt die XP-Belohnung.
+    fun setDifficulty(value: Int) = formState.update { it.copy(difficulty = value.coerceIn(1, 5)) }
 
     fun save() {
         val s = formState.value
@@ -71,6 +74,7 @@ class BucketListEditorViewModel @Inject constructor(
                             targetDate = s.targetDate.trim().ifBlank { null },
                             notes = s.notes.trim().ifBlank { null },
                             imagePath = s.imagePath,
+                            difficulty = s.difficulty,
                             updatedAt = now
                         )
                     )
@@ -89,6 +93,7 @@ class BucketListEditorViewModel @Inject constructor(
                     completedAt = null,
                     imagePath = s.imagePath,
                     notes = s.notes.trim().ifBlank { null },
+                    difficulty = s.difficulty,
                     createdAt = now,
                     updatedAt = now
                 )
@@ -108,5 +113,7 @@ data class BucketListEditorUiState(
     val category: String = "",
     val targetDate: String = "",
     val notes: String = "",
-    val imagePath: String? = null
+    val imagePath: String? = null,
+    // M18.43: Schwierigkeitsgrad (1-5 Sterne) — bestimmt die XP-Belohnung.
+    val difficulty: Int = 1
 )

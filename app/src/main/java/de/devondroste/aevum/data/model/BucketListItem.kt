@@ -41,6 +41,12 @@ data class BucketListItem(
     @ColumnInfo(name = "completed_at") val completedAt: Long? = null,
     @ColumnInfo(name = "image_path") val imagePath: String? = null,
     val notes: String? = null,
+    // M18.43: Schwierigkeitsgrad 1-5 (Gamification). Bestimmt die XP-
+    // Belohnung beim Abhaken: 1 Stern = 10 XP, 5 Sterne = 50 XP.
+    val difficulty: Int = 1,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long
-)
+) {
+    /** M18.43: XP-Belohnung für dieses Item (10 pro Schwierigkeits-Stern). */
+    val xpReward: Int get() = difficulty.coerceIn(1, 5) * 10
+}

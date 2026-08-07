@@ -69,10 +69,17 @@
             android:name=".automation.geofence.GeofenceBroadcastReceiver"
             android:exported="false" />
 
-        <!-- M12.2: Activity Recognition (Fahrten) -->
+        <!-- M12.2: Activity Recognition (Fahrten)
+             M18.43-CRITICAL-FIX: exported="true" ist PFLICHT! Google Play
+             Services ist eine ANDERE App und sendet den Transition-Broadcast
+             über den System-Broadcast. Mit exported="false" (vorher) wurde
+             der Broadcast von GMS blockiert -> KEINE IN_VEHICLE-Events,
+             keine Autofahrt-Erkennung, keine Trigger. Die Action ist
+             GMS-spezifisch (com.google.android.gms.location.ACTION_ACTIVITY_TRANSITIONS),
+             daher ist exported="true" hier sicher. -->
         <receiver
             android:name=".automation.activityrecognition.ActivityTransitionReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.location.ACTION_ACTIVITY_TRANSITIONS" />
             </intent-filter>
