@@ -17,8 +17,19 @@ import androidx.room.PrimaryKey
  *  - completedAt: wann erledigt (für die "geschafft"-Chronik)
  *  - imagePath: optionales Bild (App-interner Speicher, Dateipfad)
  *  - notes: Notizen (optional)
+ *
+ * WICHTIG (M18.39-Crash-Fix): Die Indices MÜSSEN hier deklariert sein,
+ * weil MIGRATION_19_20 sie erstellt. Room validiert nach der Migration
+ * die DB-Struktur gegen dieses Entity-Schema — nicht-deklarierte
+ * Indices fuehren zu IllegalStateException beim DB-Oeffnen (Crash).
  */
-@Entity(tableName = "bucket_list_item")
+@Entity(
+    tableName = "bucket_list_item",
+    indices = [
+        androidx.room.Index("completed"),
+        androidx.room.Index("created_at")
+    ]
+)
 data class BucketListItem(
     @PrimaryKey val id: String,
     val title: String,
