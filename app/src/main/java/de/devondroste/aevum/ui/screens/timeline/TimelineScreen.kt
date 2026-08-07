@@ -65,6 +65,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -120,27 +121,48 @@ fun TimelineScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).statusBarsPadding(),
-            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+        // M18.26: KEINE aeußere LazyColumn mehr fuer die Tag-Ansicht!
+        // Vorher: LazyColumn mit item { DayCalendarTimeline(...) } — die
+        // Tag-Ansicht (ZoomableDayTimeline) hatte einen eigenen
+        // verticalScroll mit fester Hoehe (560dp). Ergebnis: Nested-Scroll-
+        // Konflikt — beim Wischen scrollte mal die Timeline, mal das
+        // Fragment (genau der gemeldete Usability-Bug).
+        //
+        // Jetzt: Column mit fixem Header/Summary, und die Timeline bekommt
+        // einen EIGENEN Viewport (weight 1f). Es gibt NUR NOCH einen
+        // Scroll-Container — die Timeline selbst. Das Fragment scrollt
+        // nie mehr mit.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .statusBarsPadding()
         ) {
-            item { TimelineHeader(state, viewModel::previousDay, viewModel::nextDay, viewModel::today, viewModel::runGapDetectionNow) }
-            item { SummaryCard(state) }
+            TimelineHeader(
+                state,
+                viewModel::previousDay,
+                viewModel::nextDay,
+                viewModel::today,
+                viewModel::runGapDetectionNow
+            )
+            SummaryCard(state)
             if (state.candidates.isNotEmpty()) {
-                item {
-                    CandidateReviewCard(
-                        candidates = state.candidates,
-                        activityTypes = state.activityTypes,
-                        onAccept = viewModel::acceptCandidate,
-                        onEdit = onEditCandidate,
-                        onDismiss = viewModel::dismissCandidate,
-                        onConvertGap = viewModel::convertGapToSession
-                    )
-                }
+                CandidateReviewCard(
+                    candidates = state.candidates,
+                    activityTypes = state.activityTypes,
+                    onAccept = viewModel::acceptCandidate,
+                    onEdit = onEditCandidate,
+                    onDismiss = viewModel::dismissCandidate,
+                    onConvertGap = viewModel::convertGapToSession
+                )
             }
             if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()) {
-                item {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
                     EmptyState(
                         title = "Noch keine Aktivitäten",
                         message = "Erfasse deinen Tag manuell oder aktiviere Geofencing. Trigger erscheinen künftig direkt auf dem Tageskalender.",
@@ -149,8 +171,17 @@ fun TimelineScreen(
                     )
                 }
             } else {
-                item { DayCalendarTimeline(state.sessions, state.triggerEvents, onOpenActivity, onEditActivity, viewModel::deleteTrigger) }
-                item { Spacer(Modifier.height(72.dp)) }
+                DayCalendarTimeline(
+                    sessions = state.sessions,
+                    triggers = state.triggerEvents,
+                    onOpen = onOpenActivity,
+                    onEdit = onEditActivity,
+                    onDeleteTrigger = viewModel::deleteTrigger,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = AevumSpacing.md)
+                )
             }
         }
     }
@@ -917,7 +948,8 @@ private fun DayCalendarTimeline(
     triggers: List<TriggerEventUi>,
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
-    onDeleteTrigger: (String) -> Unit
+    onDeleteTrigger: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var isListMode by remember { mutableStateOf(false) }
     var pixelsPerHour by remember { mutableStateOf(TimelineUiState.DEFAULT_PIXELS_PER_HOUR) }
@@ -925,11 +957,22 @@ private fun DayCalendarTimeline(
     val maxLane = (lanes.values.maxOrNull() ?: 0).coerceAtLeast(0)
     val laneCount = maxLane + 1
 
-    AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            // Header: title + view mode toggle + zoom controls
+    // M18.26: Karte füllt den kompletten Viewport. Der Inhalt (Liste
+    // ODER Tag-Ansicht) scrollt eigenständig — es gibt keinen
+    // Nested-Scroll-Konflikt mehr mit einer äußeren LazyColumn.
+    AevumCard(
+        modifier = modifier,
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            // Header: title + view mode toggle + zoom controls (fix)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -949,7 +992,9 @@ private fun DayCalendarTimeline(
             // Zoom slider (only in day mode)
             if (!isListMode) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = AevumSpacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
@@ -963,66 +1008,73 @@ private fun DayCalendarTimeline(
                     Text("+", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            if (isListMode) {
-                // M18.22+: Sichtbare und ziehbare Scrollbar.
-                // Die EventListTimeline bekommt eine begrenzte Hoehe und
-                // verticalScroll. Zusaetzlich wird ein echter Scrollbar-Thumb
-                // rechts neben der Liste gerendert, dessen Position vom
-                // ScrollState abhaengt und per Drag-Geste gezogen werden kann.
-                val listScrollState = rememberScrollState()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 520.dp)
-                ) {
-                    Column(
+            // M18.26: Inhalt bekommt den REST des Platzes (weight 1f) und
+            // scrollt eigenständig. Kein heightIn(max) mehr — das war die
+            // Ursache des Nested-Scroll-Chaos.
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (isListMode) {
+                    // M18.22+: Sichtbare und ziehbare Scrollbar.
+                    // Die EventListTimeline bekommt den vollen Viewport und
+                    // verticalScroll. Zusaetzlich wird ein echter Scrollbar-Thumb
+                    // rechts neben der Liste gerendert, dessen Position vom
+                    // ScrollState abhaengt.
+                    val listScrollState = rememberScrollState()
+                    // M18.26: Viewport-Höhe dynamisch messen (statt hart 520dp),
+                    // damit der Scrollbar-Thumb immer korrekt skaliert.
+                    var viewportHeightPx by remember { mutableStateOf(0) }
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(listScrollState)
+                            .fillMaxSize()
+                            .onSizeChanged { viewportHeightPx = it.height }
                     ) {
-                        EventListTimeline(
-                            sessions = sessions,
-                            triggers = triggers,
-                            onOpen = onOpen,
-                            onEdit = onEdit,
-                            onDeleteTrigger = onDeleteTrigger
-                        )
-                    }
-                    // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
-                    // Zeichnet einen farbigen Balken, dessen Position und Hoehe
-                    // vom ScrollState abhaengen. Ziehbar via drag gesture.
-                    // M18.25: EIN ScrollState fuer Column UND Thumb — vorher
-                    // wurden zwei Instanzen erzeugt, der Thumb las den falschen.
-                    val showScrollbar = listScrollState.maxValue > 0
-                    if (showScrollbar) {
-                        val thumbHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
-                            (520.dp.toPx() * (520.dp.toPx() / (520.dp.toPx() + listScrollState.maxValue))).coerceAtLeast(24.dp.toPx())
-                        }
-                        val thumbOffset = with(androidx.compose.ui.platform.LocalDensity.current) {
-                            (listScrollState.value.toFloat() / listScrollState.maxValue.coerceAtLeast(1)) * (520.dp.toPx() - thumbHeight)
-                        }
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(end = 2.dp)
-                                .width(4.dp)
-                                .height(with(androidx.compose.ui.platform.LocalDensity.current) { thumbHeight.toDp() })
-                                .offset(y = with(androidx.compose.ui.platform.LocalDensity.current) { thumbOffset.toDp() })
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-                        )
+                                .fillMaxSize()
+                                .verticalScroll(listScrollState)
+                                .padding(horizontal = AevumSpacing.md)
+                        ) {
+                            EventListTimeline(
+                                sessions = sessions,
+                                triggers = triggers,
+                                onOpen = onOpen,
+                                onEdit = onEdit,
+                                onDeleteTrigger = onDeleteTrigger
+                            )
+                        }
+                        // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
+                        // M18.25: EIN ScrollState fuer Column UND Thumb — vorher
+                        // wurden zwei Instanzen erzeugt, der Thumb las den falschen.
+                        val showScrollbar = listScrollState.maxValue > 0 && viewportHeightPx > 0
+                        if (showScrollbar) {
+                            val viewportPx = viewportHeightPx.toFloat()
+                            val density = LocalDensity.current
+                            val thumbHeight = (viewportPx * (viewportPx / (viewportPx + listScrollState.maxValue)))
+                                .coerceAtLeast(with(density) { 24.dp.toPx() })
+                            val thumbOffset = (listScrollState.value.toFloat() / listScrollState.maxValue.coerceAtLeast(1)) *
+                                (viewportPx - thumbHeight)
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(end = 2.dp)
+                                    .width(4.dp)
+                                    .height(with(density) { thumbHeight.toDp() })
+                                    .offset(y = with(density) { thumbOffset.toDp() })
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                            )
+                        }
                     }
+                } else {
+                    ZoomableDayTimeline(
+                        sessions = sessions,
+                        triggers = triggers,
+                        lanes = lanes,
+                        pixelsPerHour = pixelsPerHour,
+                        onPixelsPerHourChange = { pixelsPerHour = it },
+                        onOpen = onOpen,
+                        onEdit = onEdit
+                    )
                 }
-            } else {
-                ZoomableDayTimeline(
-                    sessions = sessions,
-                    triggers = triggers,
-                    lanes = lanes,
-                    pixelsPerHour = pixelsPerHour,
-                    onPixelsPerHourChange = { pixelsPerHour = it },
-                    onOpen = onOpen,
-                    onEdit = onEdit
-                )
             }
         }
     }
@@ -1343,10 +1395,11 @@ private fun ZoomableDayTimeline(
     val zone = ZoneId.systemDefault()
     val nowMinute = TimeFormatting.minutesOfDay(now, zone).coerceIn(0, 1440)
 
+    // M18.26: Voller Viewport statt fixe 560dp. Die Tag-Ansicht ist der
+    // EINZIGE Scroll-Container des Screens — kein Nested-Scroll mehr.
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(560.dp)
+            .fillMaxSize()
             .clip(RoundedCornerShape(AevumRadius.md))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f))
     ) {
@@ -1367,6 +1420,25 @@ private fun ZoomableDayTimeline(
                     val blockRightPaddingLocal = blockRightPadding.toPx()
                     val blockWidth = size.width - blockXLocal - blockRightPaddingLocal
 
+                    // M18.26: Tagesabschnitt-Tönung (Google-Calendar-Prinzip).
+                    // Nacht = tiefblau, Morgen = warmes Gelb, Mittag = hell,
+                    // Abend = Orange-Rot. Jede Zone ist ein sanfter Farbverlauf
+                    // ueber die volle Breite — der Tag wird auf einen Blick
+                    // lesbar und die aktuelle Uhrzeit gefuehlt.
+                    val zoneGradient = Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color(0xFF1E1B4B).copy(alpha = 0.55f), // 00:00 Nacht
+                            0.21f to Color(0xFF1E1B4B).copy(alpha = 0.45f), // ~05:00 Nacht-Ende
+                            0.24f to Color(0xFFF59E0B).copy(alpha = 0.14f), // ~06:00 Morgen
+                            0.42f to Color(0xFFFDE68A).copy(alpha = 0.10f), // ~10:00 Vormittag
+                            0.54f to Color(0xFFFEF3C7).copy(alpha = 0.08f), // ~13:00 Mittag
+                            0.71f to Color(0xFFFDBA74).copy(alpha = 0.12f), // ~17:00 Nachmittag
+                            0.79f to Color(0xFFFB7185).copy(alpha = 0.16f), // ~19:00 Abend
+                            1.00f to Color(0xFF1E1B4B).copy(alpha = 0.55f)  // 24:00 Nacht
+                        )
+                    )
+                    drawRect(brush = zoneGradient, size = Size(size.width, size.height))
+
                     // Hour grid + axis
                     drawLine(
                         color = Color.White.copy(alpha = 0.18f),
@@ -1376,11 +1448,12 @@ private fun ZoomableDayTimeline(
                     )
                     for (hour in 0..24) {
                         val y = hour * pxHour
+                        val isMajor = hour % 3 == 0
                         drawLine(
-                            color = Color.White.copy(alpha = if (hour % 6 == 0) 0.18f else 0.06f),
+                            color = Color.White.copy(alpha = if (isMajor) 0.22f else 0.08f),
                             start = Offset(axisXLocal, y),
                             end = Offset(size.width, y),
-                            strokeWidth = if (hour % 6 == 0) 1.5f else 0.5f
+                            strokeWidth = if (isMajor) 1.5f else 0.5f
                         )
                     }
                     // Triggers
