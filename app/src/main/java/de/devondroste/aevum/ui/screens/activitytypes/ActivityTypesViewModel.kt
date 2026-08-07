@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -19,6 +20,8 @@ import javax.inject.Inject
  * - [pendingScores]: lokaler UI-State pro Type — der Slider schreibt
  *   hier während des Drags rein (kein DB-Spam).
  * - [commitScore]: schreibt den finalen Wert bei Drag-Ende in die DB.
+ *
+ * M18.12: Erweitert um Icon + Farbe + manuelles Anlegen.
  */
 @HiltViewModel
 class ActivityTypesViewModel @Inject constructor(
@@ -40,7 +43,9 @@ class ActivityTypesViewModel @Inject constructor(
                     id = type.id,
                     name = type.name,
                     score = pendingScore ?: type.positivityScore,
-                    isSystem = type.isSystem
+                    isSystem = type.isSystem,
+                    icon = type.icon,
+                    color = type.color
                 )
             }
         )
@@ -72,6 +77,44 @@ class ActivityTypesViewModel @Inject constructor(
             activityTypeRepository.setPositivityScore(typeId, score)
         }
     }
+
+    // M18.12: Icon + Farbe setzen (direkt, kein Drag-State nötig).
+    fun setIcon(typeId: String, icon: String) {
+        viewModelScope.launch {
+            activityTypeRepository.setIcon(typeId, icon)
+        }
+    }
+
+    fun setColor(typeId: String, color: Long) {
+        viewModelScope.launch {
+            activityTypeRepository.setColor(typeId, color)
+        }
+    }
+
+    /**
+     * M18.12: Neue Aktivität manuell anlegen.
+     * Erzeugt einen eigenen ActivityType (isSystem=false) mit Defaults:
+     * neutraler Score 50, Icon '•', Primärfarbe 0 (UI zeigt dann die
+     * Standard-Akzentfarbe).
+     */
+    fun createActivity(name: String, categoryId: String? = null) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val type = ActivityType(
+            id = "custom_${UUID.randomUUID().toString().take(8)}",
+            name = trimmed,
+            defaultCategoryId = categoryId,
+            isSystem = false,
+            propertiesJson = null,
+            isFavorite = false,
+            positivityScore = 50,
+            icon = "•",
+            color = 0L
+        )
+        viewModelScope.launch {
+            activityTypeRepository.insert(type)
+        }
+    }
 }
 
 data class ActivityTypesUiState(
@@ -82,5 +125,8 @@ data class ActivityTypeRow(
     val id: String,
     val name: String,
     val score: Int,
-    val isSystem: Boolean
+    val isSystem: Boolean,
+    // M18.12: Icon (Emoji) + custom Farbe (ARGB-Int, 0 = Primärfarbe)
+    val icon: String = "•",
+    val color: Long = 0L
 )

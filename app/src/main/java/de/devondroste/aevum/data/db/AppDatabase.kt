@@ -41,7 +41,7 @@ import de.devondroste.aevum.data.model.*
         DailyAllowance::class,
         AllowanceAccumulationDay::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -949,6 +949,19 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "ALTER TABLE `activity_type` ADD COLUMN `positivity_score` INTEGER NOT NULL DEFAULT 50"
+                )
+            }
+        }
+
+        // M18.12: Icon + custom Farbe auf activity_type. Einfacher ADD COLUMN —
+        // kein Rebuild nötig. Defaults: '•' (neutrales Symbol) + 0 (Primärfarbe).
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `activity_type` ADD COLUMN `icon` TEXT NOT NULL DEFAULT '•'"
+                )
+                database.execSQL(
+                    "ALTER TABLE `activity_type` ADD COLUMN `color` INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

@@ -31,6 +31,13 @@ interface ActivityTypeDao {
     @Query("UPDATE activity_type SET positivity_score = :score WHERE id = :id")
     suspend fun setPositivityScore(id: String, score: Int)
 
+    // M18.12: Icon + custom Farbe setzen.
+    @Query("UPDATE activity_type SET icon = :icon WHERE id = :id")
+    suspend fun setIcon(id: String, icon: String)
+
+    @Query("UPDATE activity_type SET color = :color WHERE id = :id")
+    suspend fun setColor(id: String, color: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(type: ActivityType)
 

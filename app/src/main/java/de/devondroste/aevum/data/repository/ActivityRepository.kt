@@ -59,6 +59,10 @@ interface ActivityTypeRepository {
     suspend fun setFavorite(id: String, isFavorite: Boolean)
     // M18: Positivitäts-Score
     suspend fun setPositivityScore(id: String, score: Int)
+
+    // M18.12: Icon + custom Farbe
+    suspend fun setIcon(id: String, icon: String)
+    suspend fun setColor(id: String, color: Long)
     suspend fun insert(type: ActivityType)
     suspend fun insertAll(types: List<ActivityType>)
     suspend fun update(type: ActivityType)

@@ -44,21 +44,22 @@ class EnsureDefaultDataUseCase @Inject constructor(
         // M18: Positivitäts-Scores (0-100). Bewusst gewählte Defaults:
         // Digital/Transport niedrig, Sport/Lernen/Meditation hoch.
         // Der User kann jeden Wert im Activity-Editor anpassen.
-        ActivityType("work", "Arbeit", "work", true, "{\"overlay\": false}", positivityScore = 50),
-        ActivityType("deep_work", "Deep Work", "work", true, "{\"overlay\": false}", positivityScore = 80),
-        ActivityType("sleep", "Schlaf", "sleep", true, "{\"overlay\": false}", positivityScore = 70),
-        ActivityType("fitness", "Fitness", "sport", true, "{\"overlay\": false}", positivityScore = 85),
-        ActivityType("learning", "Lernen", "learning", true, "{\"overlay\": false}", positivityScore = 75),
-        ActivityType("reading", "Lesen", "leisure", true, "{\"overlay\": false}", positivityScore = 65),
-        ActivityType("meditation", "Meditation", "health", true, "{\"overlay\": false}", positivityScore = 90),
-        ActivityType("eating", "Essen", "leisure", true, "{\"overlay\": false}", positivityScore = 45),
-        ActivityType("social", "Soziales", "relationships", true, "{\"overlay\": false}", positivityScore = 80),
-        ActivityType("household", "Haushalt", "household", true, "{\"overlay\": false}", positivityScore = 40),
-        ActivityType("driving", "Autofahren", "transport", true, "{\"overlay\": true}", positivityScore = 35),
-        ActivityType("transport", "Transport", "transport", true, "{\"overlay\": true}", positivityScore = 30),
-        ActivityType("digital", "Digital", "digital", true, "{\"overlay\": true}", positivityScore = 15),
-        ActivityType("leisure", "Freizeit", "leisure", true, "{\"overlay\": false}", positivityScore = 60),
-        ActivityType("other", "Sonstiges", "unknown", true, "{\"overlay\": false}", positivityScore = 50)
+        // M18.12: Icons (Emoji) + Farben (ARGB-Int) pro Aktivität.
+        ActivityType("work", "Arbeit", "work", true, "{\"overlay\": false}", positivityScore = 50, icon = "💼", color = 0xFF5C6BC0.toLong()),
+        ActivityType("deep_work", "Deep Work", "work", true, "{\"overlay\": false}", positivityScore = 80, icon = "🧠", color = 0xFF7E57C2.toLong()),
+        ActivityType("sleep", "Schlaf", "sleep", true, "{\"overlay\": false}", positivityScore = 70, icon = "🌙", color = 0xFF3949AB.toLong()),
+        ActivityType("fitness", "Fitness", "sport", true, "{\"overlay\": false}", positivityScore = 85, icon = "🏋️", color = 0xFF43A047.toLong()),
+        ActivityType("learning", "Lernen", "learning", true, "{\"overlay\": false}", positivityScore = 75, icon = "📚", color = 0xFF26A69A.toLong()),
+        ActivityType("reading", "Lesen", "leisure", true, "{\"overlay\": false}", positivityScore = 65, icon = "📖", color = 0xFF8D6E63.toLong()),
+        ActivityType("meditation", "Meditation", "health", true, "{\"overlay\": false}", positivityScore = 90, icon = "🧘", color = 0xFF66BB6A.toLong()),
+        ActivityType("eating", "Essen", "leisure", true, "{\"overlay\": false}", positivityScore = 45, icon = "🍽️", color = 0xFFFFA726.toLong()),
+        ActivityType("social", "Soziales", "relationships", true, "{\"overlay\": false}", positivityScore = 80, icon = "👥", color = 0xFFEC407A.toLong()),
+        ActivityType("household", "Haushalt", "household", true, "{\"overlay\": false}", positivityScore = 40, icon = "🧹", color = 0xFF78909C.toLong()),
+        ActivityType("driving", "Autofahren", "transport", true, "{\"overlay\": true}", positivityScore = 35, icon = "🚗", color = 0xFFEF5350.toLong()),
+        ActivityType("transport", "Transport", "transport", true, "{\"overlay\": true}", positivityScore = 30, icon = "🚆", color = 0xFFEF5350.toLong()),
+        ActivityType("digital", "Digital", "digital", true, "{\"overlay\": true}", positivityScore = 15, icon = "📱", color = 0xFFAB47BC.toLong()),
+        ActivityType("leisure", "Freizeit", "leisure", true, "{\"overlay\": false}", positivityScore = 60, icon = "🎮", color = 0xFF29B6F6.toLong()),
+        ActivityType("other", "Sonstiges", "unknown", true, "{\"overlay\": false}", positivityScore = 50, icon = "✨", color = 0xFF9E9E9E.toLong())
     )
 
     private val defaultTags = listOf(

@@ -30,5 +30,10 @@ data class ActivityType(
     // M18: Positivitäts-Score 0..100. 50 = neutral, 100 = sehr gut,
     // 0 = sehr schlecht. Wird im Dashboard als "Zeitqualität" gewichtet.
     // Default 50 ist bewusst neutral — keine Wertung ohne User-Entscheidung.
-    @ColumnInfo(name = "positivity_score", defaultValue = "50") val positivityScore: Int = 50
+    @ColumnInfo(name = "positivity_score", defaultValue = "50") val positivityScore: Int = 50,
+    // M18.12: Icon (Emoji oder Icon-Key) + custom Farbe (ARGB-Int).
+    // Jede Aktivität bekommt ein Icon, das der User custom färben kann.
+    // Default: neutrales Symbol + Primärfarbe.
+    @ColumnInfo(name = "icon", defaultValue = "•") val icon: String = "•",
+    @ColumnInfo(name = "color", defaultValue = "0") val color: Long = 0L
 ) : Serializable
