@@ -51,6 +51,9 @@ fun SettingsScreen(
     onOpenTriggers: () -> Unit = {},
     onOpenGoals: () -> Unit = {},
     onOpenHabits: () -> Unit = {},
+    // M18.30: Todos + Tagespauschalen
+    onOpenTodos: () -> Unit = {},
+    onOpenDailyAllowances: () -> Unit = {},
     // M18.2: Positivitäts-Scores pro Aktivität
     onOpenActivityTypes: () -> Unit = {},
     onOpenHomeGeofence: (String) -> Unit = {},
@@ -132,9 +135,12 @@ fun SettingsScreen(
             item { SettingsSection("Datenschutz & Daten", listOf(SettingsEntry("Datenschutz"), SettingsEntry("Export"), SettingsEntry("Backup"))) }
             // M18.10: Neben-Features (Ziele/Gewohnheiten) in eigener Sektion —
             // erreichbar, aber nicht mehr gleichwertig mit Kern-Features.
+            // M18.30: Todos + Tagespauschalen hier verlinkt.
             item { SettingsSection("Erweitert", listOf(
                 SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
-                SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits)
+                SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits),
+                SettingsEntry("Todos verwalten", onClick = onOpenTodos),
+                SettingsEntry("Tagespauschalen verwalten", onClick = onOpenDailyAllowances)
             )) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }

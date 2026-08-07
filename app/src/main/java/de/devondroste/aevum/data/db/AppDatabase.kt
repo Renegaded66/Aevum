@@ -39,9 +39,12 @@ import de.devondroste.aevum.data.model.*
         UnknownPlaceSession::class,
         // M17.3: Daily Allowances
         DailyAllowance::class,
-        AllowanceAccumulationDay::class
+        AllowanceAccumulationDay::class,
+        // M18.30: Todos
+        Todo::class,
+        TodoCompletion::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -71,6 +74,8 @@ abstract class AppDatabase : RoomDatabase() {
     // M17.2 + M17.3
     abstract fun unknownPlaceSessionDao(): UnknownPlaceSessionDao
     abstract fun dailyAllowanceDao(): DailyAllowanceDao
+    // M18.30: Todos
+    abstract fun todoDao(): TodoDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -963,6 +968,50 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "ALTER TABLE `activity_type` ADD COLUMN `color` INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        // M18.30: Todos — zwei neue Tabellen (Todo + TodoCompletion).
+        // Einfache CREATE TABLE, kein Rebuild noetig.
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `todo` (
+                        `id` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `activity_type_id` TEXT,
+                        `target_minutes` INTEGER NOT NULL DEFAULT 0,
+                        `recurrence_type` TEXT NOT NULL DEFAULT 'ONCE',
+                        `recurrence_json` TEXT NOT NULL DEFAULT '{}',
+                        `start_date` TEXT NOT NULL,
+                        `due_date` TEXT,
+                        `active` INTEGER NOT NULL DEFAULT 1,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`activity_type_id`) REFERENCES `activity_type`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_active` ON `todo` (`active`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_activity_type_id` ON `todo` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_created_at` ON `todo` (`created_at`)")
+
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `todo_completion` (
+                        `todo_id` TEXT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `completed_at` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL DEFAULT 'MANUAL',
+                        PRIMARY KEY(`todo_id`, `date`),
+                        FOREIGN KEY(`todo_id`) REFERENCES `todo`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_completion_todo_id` ON `todo_completion` (`todo_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_completion_date` ON `todo_completion` (`date`)")
             }
         }
     }

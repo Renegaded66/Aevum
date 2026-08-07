@@ -141,6 +141,9 @@ fun AppNavHost(
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
                 onOpenHabits = { navController.navigate(AppDestination.Habits.route) },
+                // M18.30: Todos + Tagespauschalen
+                onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
+                onOpenDailyAllowances = { navController.navigate(AppDestination.DailyAllowances.route) },
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
                 // M12.2: Home/Work öffnen den existierenden Geofence-Editor
@@ -262,6 +265,18 @@ fun AppNavHost(
         composable(AppDestination.Calendar.route) {
             de.devondroste.aevum.ui.screens.calendar.CalendarScreen(
                 onOpenActivity = { sessionId -> navController.navigate("activity/$sessionId") }
+            )
+        }
+        // M18.30: Todos
+        composable(AppDestination.Todos.route) {
+            de.devondroste.aevum.ui.screens.todos.TodosScreen(
+                onCreate = { navController.navigate(AppDestination.TodoCreate.route) }
+            )
+        }
+        composable(AppDestination.TodoCreate.route) {
+            de.devondroste.aevum.ui.screens.todos.TodoEditorScreen(
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
             )
         }
     }

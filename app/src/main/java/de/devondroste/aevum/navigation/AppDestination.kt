@@ -39,5 +39,8 @@ enum class AppDestination(val route: String, val title: String) {
     // M18.2: Positivitäts-Scores pro Aktivität
     ActivityTypes("activity_types", "Aktivitäten & Positivität"),
     // M18.28: Kalender-Tab (Heatmap der Zeitqualität)
-    Calendar("calendar", "Kalender")
+    Calendar("calendar", "Kalender"),
+    // M18.30: Todos
+    Todos("todos", "Todos"),
+    TodoCreate("todo/new", "Neues Todo")
 }
