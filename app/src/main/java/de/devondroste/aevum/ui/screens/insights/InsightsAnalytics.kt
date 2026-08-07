@@ -47,7 +47,9 @@ data class TimeDistributionSlice(
     val label: String,
     val color: Color,
     val durationMs: Long,
-    val percent: Int
+    val percent: Int,
+    // M18.17: Kategorie-Icon für die Kategorie-Ansicht.
+    val icon: String = "•"
 )
 
 data class PeriodChange(
@@ -189,7 +191,9 @@ object InsightsAnalytics {
                     label = slice.label,
                     color = slice.color,
                     durationMs = slice.durationMs,
-                    percent = slice.percent
+                    percent = slice.percent,
+                    // M18.17: Kategorie-Icon in der Kategorie-Ansicht.
+                    icon = slice.icon
                 )
             }
         }
@@ -277,7 +281,9 @@ object InsightsAnalytics {
                     label = category?.name ?: "Sonstiges",
                     color = categoryColor(id),
                     durationMs = duration,
-                    percent = percent(duration, total)
+                    percent = percent(duration, total),
+                    // M18.17: Kategorie-Icon für die Kategorie-Ansicht.
+                    icon = category?.icon ?: "•"
                 )
             }
             .sortedByDescending { it.durationMs }
