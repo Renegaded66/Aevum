@@ -121,7 +121,9 @@ fun DashboardScreen(
         onResumeLive = viewModel::resumeLiveActivity,
         onStopLive = viewModel::stopLiveActivity,
         onDiscardLive = viewModel::discardLiveActivity,
-        onToggleFavorite = viewModel::toggleFavorite
+        onToggleFavorite = viewModel::toggleFavorite,
+        // M18.12: Neue Aktivität anlegen + starten
+        onCreateActivity = viewModel::createAndStartActivity
     )
 }
 
@@ -143,7 +145,9 @@ private fun DashboardContent(
     onResumeLive: () -> Unit,
     onStopLive: () -> Unit,
     onDiscardLive: () -> Unit = {},
-    onToggleFavorite: (de.devondroste.aevum.data.model.ActivityType) -> Unit
+    onToggleFavorite: (de.devondroste.aevum.data.model.ActivityType) -> Unit,
+    // M18.12: Neue Aktivität anlegen + starten
+    onCreateActivity: (String) -> Unit = {}
 ) {
     val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
     val slideIn = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
@@ -187,7 +191,9 @@ private fun DashboardContent(
                         onResume = onResumeLive,
                         onStop = onStopLive,
                         onDiscard = onDiscardLive,
-                        onToggleFavorite = onToggleFavorite
+                        onToggleFavorite = onToggleFavorite,
+                        // M18.12: Neue Aktivität direkt aus dem Picker anlegen
+                        onCreateActivity = onCreateActivity
                     )
                 }
             }

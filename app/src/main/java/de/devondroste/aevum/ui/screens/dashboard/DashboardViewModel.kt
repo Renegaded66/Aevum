@@ -172,6 +172,34 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    /**
+     * M18.12: Neue Aktivität anlegen UND direkt starten.
+     * Erzeugt einen echten ActivityType (isSystem=false, Default-Icon '•',
+     * Primärfarbe 0) und startet sofort eine Session — der User will
+     * tracken, nicht erst konfigurieren. Icon/Farbe kann er danach im
+     * ActivityTypes-Screen (Settings) anpassen.
+     */
+    fun createAndStartActivity(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val type = de.devondroste.aevum.data.model.ActivityType(
+                id = "custom_${System.currentTimeMillis()}_${trimmed.hashCode().toLong().let { kotlin.math.abs(it) }}",
+                name = trimmed,
+                defaultCategoryId = null,
+                isSystem = false,
+                propertiesJson = null,
+                isFavorite = false,
+                positivityScore = 50,
+                icon = "•",
+                color = 0L
+            )
+            activityTypeRepository.insert(type)
+            liveActivityManager.start(type.id, note = null, startedAt = System.currentTimeMillis())
+            LiveActivityService.start(application)
+        }
+    }
+
     // M9.2: Toggle favorite for an activity type
     fun toggleFavorite(type: de.devondroste.aevum.data.model.ActivityType) {
         viewModelScope.launch {

@@ -60,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -98,7 +99,9 @@ fun LiveActivityCard(
     onResume: () -> Unit,
     onStop: () -> Unit,
     onDiscard: () -> Unit = {},
-    onToggleFavorite: (ActivityType) -> Unit
+    onToggleFavorite: (ActivityType) -> Unit,
+    // M18.12: Neue Aktivität manuell anlegen (Name → neuer ActivityType)
+    onCreateActivity: (String) -> Unit = {}
 ) {
     when (state) {
         is LiveActivityState.Idle -> IdleCard(
@@ -107,7 +110,8 @@ fun LiveActivityCard(
             favorites = favorites,
             onStart = onStart,
             onStartWithTime = onStartWithTime,
-            onToggleFavorite = onToggleFavorite
+            onToggleFavorite = onToggleFavorite,
+            onCreateActivity = onCreateActivity
         )
         is LiveActivityState.Running -> RunningCard(
             state = state,
@@ -138,7 +142,9 @@ private fun IdleCard(
     favorites: List<ActivityType>,
     onStart: (String, String?) -> Unit,
     onStartWithTime: (String, String?, Long) -> Unit = { _, _, _ -> },
-    onToggleFavorite: (ActivityType) -> Unit
+    onToggleFavorite: (ActivityType) -> Unit,
+    // M18.12: Neue Aktivität manuell anlegen
+    onCreateActivity: (String) -> Unit = {}
 ) {
     var showPicker by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
@@ -284,6 +290,7 @@ private fun IdleCard(
             onStart = { id -> onStart(id, null); showPicker = false },
             onStartWithTime = { id, _, t -> onStartWithTime(id, null, t); showPicker = false },
             onToggleFavorite = onToggleFavorite,
+            onCreateActivity = onCreateActivity,
             onDismiss = { showPicker = false }
         )
     }
@@ -487,6 +494,8 @@ private fun ActivityPickerSheet(
     onStart: (String) -> Unit,
     onStartWithTime: (String, String?, Long) -> Unit = { _, _, _ -> },
     onToggleFavorite: (ActivityType) -> Unit,
+    // M18.12: Neue Aktivität manuell anlegen
+    onCreateActivity: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -496,6 +505,10 @@ private fun ActivityPickerSheet(
     var showTimeOption by remember { mutableStateOf(false) }
     var pickerSelectedType by remember { mutableStateOf<String?>(null) }
     var pickerStartTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    // M18.12: "Neue Aktivität" — Name eingeben, dann anlegen + starten
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newActivityName by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -644,9 +657,55 @@ private fun ActivityPickerSheet(
                 )
             }
 
+            // M18.12: Neue Aktivität manuell anlegen — direkt aus dem Picker.
+            item {
+                OutlinedButton(
+                    onClick = { showCreateDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Text("+ Neue Aktivität anlegen", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
             item { Spacer(Modifier.height(AevumSpacing.lg)) }
             } // close else
         }
+    }
+
+    // M18.12: Dialog für neue Aktivität — Name reicht, Icon/Farbe folgen
+    // im ActivityTypes-Screen (Settings). Nach dem Anlegen wird direkt
+    // gestartet — der User will sofort tracken, nicht erst konfigurieren.
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false; newActivityName = "" },
+            title = { Text("Neue Aktivität", fontWeight = FontWeight.SemiBold) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = newActivityName,
+                    onValueChange = { newActivityName = it },
+                    label = { Text("Name (z. B. Gitarre)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val name = newActivityName.trim()
+                        if (name.isNotEmpty()) {
+                            onCreateActivity(name)
+                            showCreateDialog = false
+                            newActivityName = ""
+                        }
+                    },
+                    enabled = newActivityName.trim().isNotEmpty()
+                ) { Text("Anlegen & starten") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false; newActivityName = "" }) { Text("Abbrechen") }
+            }
+        )
     }
 }
 
@@ -670,7 +729,8 @@ private fun ActivityRow(
     onStart: () -> Unit,
     onToggleFavorite: () -> Unit
 ) {
-    val accent = categoryColor(type.defaultCategoryId ?: "unknown")
+    // M18.12: Custom-Farbe der Aktivität (falls gesetzt), sonst Kategorie-Farbe.
+    val accent = if (type.color != 0L) Color(type.color) else categoryColor(type.defaultCategoryId ?: "unknown")
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -681,13 +741,19 @@ private fun ActivityRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
     ) {
-        // Farbiger Akzent-Indicator
+        // M18.12: Icon (Emoji) in farbigem Kreis statt nacktem Punkt
         Box(
             modifier = Modifier
-                .size(8.dp)
+                .size(36.dp)
                 .clip(CircleShape)
-                .background(accent)
-        )
+                .background(accent.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (type.icon.isBlank()) "•" else type.icon,
+                fontSize = 17.sp
+            )
+        }
         Text(
             type.name,
             fontSize = 16.sp,
