@@ -174,16 +174,38 @@ object InsightsAnalytics {
         val current = active.clippedTo(window.start, window.end)
         val previous = active.clippedTo(window.previousStart, window.previousEnd)
         val totalMs = current.sumOf { it.durationMs }
+        // M17.4: Tagespauschalen → als virtuelle Sessions für die Aggregation.
+        // Wichtig: wir nutzen einen separaten Pfad, der NUR in die Top-Liste
+        // und in den Hero-Header einfließt, niemals in den Heatmap.
+        // M18.37: allowanceMs muss VOR distributionWithAllowances stehen
+        // (wird dort als Nenner fuer die Prozentwerte genutzt).
+        val allowanceMs = allowanceAccumulations.sumOf { it.minutes } * 60_000L
         val distribution = buildDistribution(current, categoryMap)
+        // M18.37: Pauschalen auch ins Kreisdiagramm mischen — als eigene
+        // Slices pro Kategorie (id "allowance_<catId>"), damit sie dort
+        // sichtbar sind und nicht nur in der Gesamtsumme aufgehen.
+        val allowanceDistribution = buildAllowanceDistribution(
+            accumulations = allowanceAccumulations,
+            categories = categories,
+            activityTypes = activityTypes
+        )
+        val distributionWithAllowances = (distribution + allowanceDistribution)
+            .groupBy { it.id }
+            .map { (id, slices) ->
+                val merged = slices.reduce { a, b ->
+                    a.copy(durationMs = a.durationMs + b.durationMs)
+                }
+                merged.copy(percent = percent(merged.durationMs, (totalMs + allowanceMs).coerceAtLeast(1L)))
+            }
+            .sortedByDescending { it.durationMs }
         val topActivities = buildTopActivities(current, typeMap, categoryMap)
         val changes = buildChanges(current, previous, categoryMap)
         val balance = buildBalance(current, categoryMap)
         val heatmap = buildWeekHeatmap(active, anchorDate, zoneId)
-        val insights = buildInsightCards(selectedPeriod, distribution, changes, topActivities, balance, heatmap, totalMs)
+        val insights = buildInsightCards(selectedPeriod, distributionWithAllowances, changes, topActivities, balance, heatmap, totalMs)
         // M17.4: Tagespauschalen → als virtuelle Sessions für die Aggregation.
         // Wichtig: wir nutzen einen separaten Pfad, der NUR in die Top-Liste
         // und in den Hero-Header einfließt, niemals in den Heatmap.
-        val allowanceMs = allowanceAccumulations.sumOf { it.minutes } * 60_000L
         val allowanceTopBreakdown = buildAllowanceTopBreakdown(
             accumulations = allowanceAccumulations,
             activityTypes = activityTypes,
@@ -191,7 +213,11 @@ object InsightsAnalytics {
             mode = breakdownMode
         )
         // M17.4: Echte Top-Liste je nach Modus
-        val topBreakdown = when (breakdownMode) {
+        // M18.37-FIX (Root Cause): allowanceTopBreakdown wurde berechnet,
+        // aber NIE in topBreakdown gemischt — die Pauschalen waren toter
+        // Code und erschienen nur in der Gesamtsumme, nie in der Top-Liste.
+        // Jetzt: echte Slices + Pauschalen-Slices mergen, sortieren, top 5.
+        val baseBreakdown = when (breakdownMode) {
             BreakdownMode.Activity -> topActivities
             BreakdownMode.Category -> distribution.take(5).map { slice ->
                 TopActivitySlice(
@@ -205,12 +231,22 @@ object InsightsAnalytics {
                 )
             }
         }
+        val topBreakdown = (baseBreakdown + allowanceTopBreakdown)
+            .groupBy { it.id }
+            .map { (id, slices) ->
+                val merged = slices.reduce { a, b ->
+                    a.copy(durationMs = a.durationMs + b.durationMs)
+                }
+                merged.copy(percent = percent(merged.durationMs, (baseBreakdown.sumOf { it.durationMs } + allowanceMs).coerceAtLeast(1L)))
+            }
+            .sortedByDescending { it.durationMs }
+            .take(5)
         return InsightsUiState(
             selectedPeriod = selectedPeriod,
             periodLabel = window.label,
             summary = buildSummary(selectedPeriod, totalMs, distribution, changes),
             startDate = window.startDate,
-            timeDistribution = distribution,
+            timeDistribution = distributionWithAllowances,
             changes = changes,
             topActivities = topActivities,
             balance = balance,
@@ -279,6 +315,38 @@ object InsightsAnalytics {
                 }
             }
         }.sortedByDescending { it.durationMs }.take(5)
+    }
+
+    /**
+     * M18.37: Pauschalen als Kategorie-Slices für das Kreisdiagramm.
+     * Gruppiert nach Kategorie (via ActivityType.defaultCategoryId),
+     * id = "allowance_<catId>" — wird beim Merge mit der echten
+     * Distribution über die Kategorie zusammengeführt.
+     */
+    private fun buildAllowanceDistribution(
+        accumulations: List<de.devondroste.aevum.data.model.AllowanceAccumulationDay>,
+        categories: List<Category>,
+        activityTypes: List<ActivityType>
+    ): List<TimeDistributionSlice> {
+        if (accumulations.isEmpty()) return emptyList()
+        val categoryMap = categories.associateBy { it.id }
+        val typeMap = activityTypes.associateBy { it.id }
+        val grouped = accumulations.groupBy { acc ->
+            typeMap[acc.activityTypeId]?.defaultCategoryId ?: "unknown"
+        }
+        val total = accumulations.sumOf { it.minutes } * 60_000L
+        return grouped.map { (key, values) ->
+            val ms = values.sumOf { it.minutes } * 60_000L
+            val cat = categoryMap[key]
+            TimeDistributionSlice(
+                id = "allowance_$key",
+                label = cat?.name ?: "Pauschale",
+                color = cat?.color?.let { parseColor(it) } ?: categoryColor(key),
+                durationMs = ms,
+                percent = percent(ms, total.coerceAtLeast(1L)),
+                icon = cat?.icon ?: "⏱"
+            )
+        }.sortedByDescending { it.durationMs }
     }
 
     private fun buildDistribution(sessions: List<ClippedInsightSession>, categoryMap: Map<String, Category>): List<TimeDistributionSlice> {

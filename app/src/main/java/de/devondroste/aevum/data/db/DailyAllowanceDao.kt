@@ -28,6 +28,12 @@ interface DailyAllowanceDao {
     @Query("DELETE FROM daily_allowance WHERE id = :id")
     suspend fun delete(id: String)
 
+    // M18.37-FIX (Root Cause): Beim Loeschen einer Pauschale muessen auch
+    // ihre Accumulations weg — sonst zaehlt eine geloeschte + neu erstellte
+    // Pauschale doppelt (alte Accumulation bleibt in der DB).
+    @Query("DELETE FROM allowance_accumulation_day WHERE allowance_id = :allowanceId")
+    suspend fun deleteAccumulationsForAllowance(allowanceId: String)
+
     // Accumulation table queries
     @Query("SELECT * FROM allowance_accumulation_day WHERE date = :date")
     suspend fun getAccumulationForDate(date: String): List<AllowanceAccumulationDay>

@@ -103,8 +103,10 @@ private fun AevumMainApp() {
     val bottomTabs = listOf(
         MainTab(AppDestination.Dashboard, "Heute"),
         MainTab(AppDestination.Insights, "Insights"),
-        MainTab(AppDestination.Calendar, "Kalender"),
+        // M18.37: Kalender und Timeline vertauscht (User-Wunsch):
+        // vorher [Kalender, Timeline], jetzt [Timeline, Kalender].
         MainTab(AppDestination.Timeline, "Timeline"),
+        MainTab(AppDestination.Calendar, "Kalender"),
         MainTab(AppDestination.Settings, "Settings")
     )
     val showBottomBar = currentDestination?.route?.let { route ->

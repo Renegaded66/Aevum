@@ -118,7 +118,13 @@ class InsightsViewModel @Inject constructor(
         val (periodStart, periodEnd) = computePeriodRange(period)
         val allowanceAccums = dailyAllowanceRepository.getAccumulationInRange(
             periodStart.toString(), periodEnd.toString()
-        ).toMutableList()
+        )
+            // M18.37-FIX (Self-Healing): Verwaiste Accumulations ignorieren —
+            // wenn die zugehoerige Allowance geloescht wurde (z.B. Pauschale
+            // geloescht + neu erstellt), zaehlt die alte Accumulation sonst
+            // doppelt. Nur Accumulations behalten, deren Allowance existiert.
+            .filter { acc -> data.allowances.any { it.id == acc.allowanceId } }
+            .toMutableList()
         // Heutige Pauschalen (und alle Tage ohne Accumulation) on-the-fly:
         // pro Tag im Zeitraum wird jede enabled Allowance addiert, die noch
         // keinen Accumulation-Eintrag hat (idempotent via PK-Check).

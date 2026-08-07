@@ -73,7 +73,12 @@ class DailyAllowancesViewModel @Inject constructor(
     }
 
     fun delete(id: String) {
-        viewModelScope.launch { repo.delete(id) }
+        viewModelScope.launch {
+            // M18.37-FIX: Accumulations mitloeschen — sonst zaehlt eine
+            // geloeschte + neu erstellte Pauschale doppelt.
+            repo.deleteAccumulationsForAllowance(id)
+            repo.delete(id)
+        }
     }
 }
 

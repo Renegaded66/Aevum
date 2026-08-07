@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -97,6 +98,8 @@ fun DashboardScreen(
     onOpenGoals: () -> Unit = {},
     onOpenSleepStatus: () -> Unit = {},
     onOpenUsageSettings: () -> Unit = {},
+    // M18.37: Todos-Karte auf dem Dashboard
+    onOpenTodos: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -116,6 +119,7 @@ fun DashboardScreen(
         onOpenGoals = onOpenGoals,
         onOpenSleepStatus = onOpenSleepStatus,
         onOpenUsageSettings = onOpenUsageSettings,
+        onOpenTodos = onOpenTodos,
         onStartLive = viewModel::startLiveActivity,
         onPauseLive = viewModel::pauseLiveActivity,
         onResumeLive = viewModel::resumeLiveActivity,
@@ -142,6 +146,8 @@ private fun DashboardContent(
     onOpenGoals: () -> Unit = {},
     onOpenSleepStatus: () -> Unit = {},
     onOpenUsageSettings: () -> Unit = {},
+    // M18.37: Todos-Karte auf dem Dashboard
+    onOpenTodos: () -> Unit = {},
     onStartLive: (String, String?, Long) -> Unit,
     onPauseLive: () -> Unit,
     onResumeLive: () -> Unit,
@@ -212,6 +218,25 @@ private fun DashboardContent(
             // 5) Insights — max 2, nur wenn relevant
             if (state.insights.isNotEmpty()) {
                 item { InsightStrip(state = state) }
+            }
+
+            // M18.37: Kompakte Todos-Karte — das Herzstueck zeigt, was
+            // heute noch ansteht. Nur sichtbar, wenn Todos existieren.
+            if (state.todoTotalCount > 0) {
+                item {
+                    DashboardTodosCard(
+                        done = state.todoDoneCount,
+                        open = state.todoOpenCount,
+                        total = state.todoTotalCount,
+                        onOpenTodos = onOpenTodos
+                    )
+                }
+            }
+
+            // M18.37: Pauschalen-Zeile — jede enabled Pauschale explizit
+            // sichtbar (Name + Minuten/Tag), nicht nur in der Summe versteckt.
+            if (state.allowanceSummary.isNotEmpty()) {
+                item { DashboardAllowancesRow(summary = state.allowanceSummary) }
             }
 
             // 6) Review-Hinweis — nur wenn Vorschläge warten
@@ -763,6 +788,143 @@ private fun LiveActivityBanner(
                     modifier = Modifier.height(36.dp)
                 ) {
                     Text("■", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * M18.37: Kompakte Todos-Karte auf dem Dashboard.
+ *
+ * Das Dashboard ist das Herzstueck und schon dicht — deshalb bewusst
+ * MINIMAL: eine Zeile mit Icon, "X von Y erledigt", Fortschrittsbalken
+ * und einem dezente Pfeil. Kein Listen-Detail, keine Checkboxen —
+ * dafuer gibt es den Todos-Tab. Ein Tipp auf die Karte oeffnet Todos.
+ */
+@Composable
+private fun DashboardTodosCard(
+    done: Int,
+    open: Int,
+    total: Int,
+    onOpenTodos: () -> Unit
+) {
+    val progress = if (total > 0) done.toFloat() / total else 0f
+    val accent = MaterialTheme.colorScheme.primary
+    AevumCard(
+        variant = CardVariant.Gradient,
+        contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(AevumRadius.md))
+                .clickable(onClick = onOpenTodos)
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+        ) {
+            // Icon-Kreis
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✅", fontSize = 16.sp)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Todos",
+                    fontSize = 11.sp,
+                    letterSpacing = 1.0.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    if (open > 0) "$open offen · $done erledigt" else "Alle erledigt 🎉",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                // Dünner Fortschrittsbalken
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(accent, MaterialTheme.colorScheme.tertiary)
+                                )
+                            )
+                    )
+                }
+            }
+            Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * M18.37: Kompakte Pauschalen-Zeile auf dem Dashboard.
+ *
+ * Zeigt jede enabled Tagespauschale explizit (Name + Minuten/Tag) —
+ * vorher gingen sie nur in der Gesamtsumme auf und der User sah
+ * "Fertig machen 30m" nie. Bewusst schlank: eine Zeile pro Pauschale,
+ * Chip-Optik, kein Scroll, kein Detail.
+ */
+@Composable
+private fun DashboardAllowancesRow(summary: List<Pair<String, Int>>) {
+    AevumCard(
+        variant = CardVariant.Gradient,
+        contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "Tagespauschalen",
+                fontSize = 11.sp,
+                letterSpacing = 1.0.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+            summary.forEach { (name, minutes) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.tertiary)
+                    )
+                    Text(
+                        name,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "$minutes min/Tag",
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

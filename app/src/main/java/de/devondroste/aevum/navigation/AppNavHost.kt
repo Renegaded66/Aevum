@@ -47,7 +47,9 @@ fun AppNavHost(
                     // zum UsageStats-Block scrollt, sobald sie erscheint.
                     de.devondroste.aevum.ui.screens.automation.AutomationScrollSignal.requestScrollToUsage()
                     navController.navigate(AppDestination.AutomationSettings.route)
-                }
+                },
+                // M18.37: Todos-Karte auf dem Dashboard
+                onOpenTodos = { navController.navigate(AppDestination.Todos.route) }
             )
         }
         composable(AppDestination.Timeline.route) {

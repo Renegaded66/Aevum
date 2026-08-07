@@ -18,6 +18,8 @@ class DailyAllowanceRepositoryImpl @Inject constructor(
     override suspend fun setEnabled(id: String, enabled: Boolean) =
         dao.setEnabled(id, enabled, System.currentTimeMillis())
     override suspend fun delete(id: String) = dao.delete(id)
+    override suspend fun deleteAccumulationsForAllowance(allowanceId: String) =
+        dao.deleteAccumulationsForAllowance(allowanceId)
 
     override suspend fun getAccumulationForDate(date: String): List<AllowanceAccumulationDay> =
         dao.getAccumulationForDate(date)

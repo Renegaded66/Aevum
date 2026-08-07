@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -128,13 +129,43 @@ fun TodoEditorScreen(
                         )
                     }
                     if (state.isDuration) {
-                        Text("Ziel-Dauer: ${state.targetMinutes} min", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        // M18.37: Praezise Dauer-Eingabe. Vorher: Slider mit
+                        // steps=18 bei 5..480 -> 25-Minuten-Schritte (230->255,
+                        // 240 unmoeglich). Jetzt: Slider in 5-Minuten-Schritten
+                        // + -5/+5-Buttons fuer Feintuning. 240 ist exakt treffbar.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Ziel-Dauer", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                "${state.targetMinutes} min",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         Slider(
                             value = state.targetMinutes.toFloat(),
                             onValueChange = { viewModel.setTargetMinutes(it.toInt()) },
                             valueRange = 5f..480f,
-                            steps = 18 // 5-min-Schritte
+                            steps = 94 // 5-Minuten-Schritte: (480-5)/5 - 1 = 94
                         )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MinuteStepButton("-15", onClick = { viewModel.setTargetMinutes(state.targetMinutes - 15) })
+                            Spacer(Modifier.width(AevumSpacing.sm))
+                            MinuteStepButton("-5", onClick = { viewModel.setTargetMinutes(state.targetMinutes - 5) })
+                            Spacer(Modifier.width(AevumSpacing.sm))
+                            MinuteStepButton("+5", onClick = { viewModel.setTargetMinutes(state.targetMinutes + 5) })
+                            Spacer(Modifier.width(AevumSpacing.sm))
+                            MinuteStepButton("+15", onClick = { viewModel.setTargetMinutes(state.targetMinutes + 15) })
+                        }
                         Text(
                             "Wird automatisch abgehakt, sobald die Aktivität diese Dauer heute erreicht hat.",
                             fontSize = 11.sp,
@@ -400,5 +431,29 @@ private fun RecurrenceCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * M18.37: Kleiner Rund-Button fuer die praezise Minuten-Eingabe.
+ * -15 / -5 / +5 / +15 — zusammen mit dem 5-Minuten-Slider ist jede
+ * Ziel-Dauer exakt treffbar (z.B. 240 min).
+ */
+@Composable
+private fun MinuteStepButton(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }

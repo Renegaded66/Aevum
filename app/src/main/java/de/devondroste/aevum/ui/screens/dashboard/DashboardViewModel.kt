@@ -50,7 +50,9 @@ class DashboardViewModel @Inject constructor(
     private val usageStatsCollector: UsageStatsCollector,
     // M18.33: Tagespauschalen — erscheinen sofort im Dashboard (on-the-fly),
     // ohne auf den Midnight-Worker zu warten.
-    private val dailyAllowanceRepository: de.devondroste.aevum.data.repository.DailyAllowanceRepository
+    private val dailyAllowanceRepository: de.devondroste.aevum.data.repository.DailyAllowanceRepository,
+    // M18.37: Todos — kompakte Uebersicht auf dem Dashboard (Herzstueck).
+    private val todoRepository: de.devondroste.aevum.data.repository.TodoRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val today = LocalDate.now()
@@ -267,7 +269,10 @@ class DashboardViewModel @Inject constructor(
         // M16: Bildschirmzeit aus topApps — vorher nie in buildState() gesetzt
         _screenTimeMs,
         // M18.33: Tagespauschalen — on-the-fly in die Statistik einrechnen.
-        dailyAllowanceRepository.getAll()
+        dailyAllowanceRepository.getAll(),
+        // M18.37: Todos fuer die kompakte Dashboard-Karte.
+        todoRepository.getAll(),
+        todoRepository.getByDate(LocalDate.now().toString())
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
@@ -278,6 +283,8 @@ class DashboardViewModel @Inject constructor(
         val allSleepSessions = values[5] as List<ActivitySession>
         val screenMs = values[6] as Long
         val allowances = values[7] as List<de.devondroste.aevum.data.model.DailyAllowance>
+        val allTodos = values[8] as List<de.devondroste.aevum.data.model.Todo>
+        val todayCompletions = values[9] as List<de.devondroste.aevum.data.model.TodoCompletion>
         // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
         // today-Query würde Mitternacht-Schlaf verfehlen.
         // M18.21-FIX (Root Cause): Der Filter prüfte NUR die Zeitüberlappung,
@@ -305,7 +312,10 @@ class DashboardViewModel @Inject constructor(
             sleepSessions = sleepSessionsToday,
             screenTimeMs = screenMs,
             // M18.33: Pauschalen sofort einrechnen
-            allowances = allowances
+            allowances = allowances,
+            // M18.37: Todos fuer die Dashboard-Karte
+            todos = allTodos,
+            todayCompletions = todayCompletions
         )
     }
         // M12.0.2: Defensive Programmierung — keine Exception darf bis zur UI
@@ -331,13 +341,28 @@ class DashboardViewModel @Inject constructor(
         // M18.33: Tagespauschalen — enabled Allowances werden sofort
         // (on-the-fly) in die Tages-Statistik eingerechnet. Vorher musste
         // man bis zum naechsten Midnight-Worker (00:05) warten.
-        allowances: List<de.devondroste.aevum.data.model.DailyAllowance> = emptyList()
+        allowances: List<de.devondroste.aevum.data.model.DailyAllowance> = emptyList(),
+        // M18.37: Todos fuer die Dashboard-Karte
+        todos: List<de.devondroste.aevum.data.model.Todo> = emptyList(),
+        todayCompletions: List<de.devondroste.aevum.data.model.TodoCompletion> = emptyList()
     ): DashboardUiState {
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
         val categoryMap = categories.associateBy { it.id }
         val clippedSessions = activeSessions.map { it.clipped(now) }
         val totalMs = clippedSessions.sumOf { it.durationMs }
+        // M18.37: Kompakte Todo-Summary fuer die Dashboard-Karte.
+        // Nur aktive Todos zaehlen; erledigt = Completion heute vorhanden.
+        val activeTodos = todos.filter { it.active }
+        val doneIds = todayCompletions.map { it.todoId }.toSet()
+        val todoDoneCount = activeTodos.count { it.id in doneIds }
+        val todoOpenCount = activeTodos.size - todoDoneCount
+        // M18.37: Pauschalen-Summary fuer die Dashboard-Zeile — jede
+        // enabled Pauschale wird explizit sichtbar (Name + Minuten),
+        // nicht nur in der Gesamtsumme versteckt.
+        val allowanceSummary = allowances
+            .filter { it.enabled }
+            .map { it.name to it.minutesPerDay }
         // M18.33: Pauschalen-Minuten addieren (nur enabled)
         val allowanceMs = allowances.filter { it.enabled }.sumOf { it.minutesPerDay * 60_000L }
         val totalMsWithAllowances = totalMs + allowanceMs
@@ -482,7 +507,13 @@ class DashboardViewModel @Inject constructor(
             // M18: Zeitqualität berechnen. Gewichtete Summe:
             // quality = Σ(dauer × score) / Σ(dauer). Pro Aktivität.
             qualityScore = computeQualityScore(activeSessions, typeMap),
-            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap)
+            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap),
+            // M18.37: Todos fuer die Dashboard-Karte
+            todoDoneCount = todoDoneCount,
+            todoOpenCount = todoOpenCount,
+            todoTotalCount = activeTodos.size,
+            // M18.37: Pauschalen explizit sichtbar
+            allowanceSummary = allowanceSummary
         )
     }
 
@@ -701,7 +732,13 @@ data class DashboardUiState(
     // M18: Zeitqualität — gewichtete Summe aus (Dauer × Positivität).
     // qualityScore 0..100, qualityBreakdown pro Aktivität für die Balken.
     val qualityScore: Int = 0,
-    val qualityBreakdown: List<QualitySlice> = emptyList()
+    val qualityBreakdown: List<QualitySlice> = emptyList(),
+    // M18.37: Kompakte Todo-Summary fuer die Dashboard-Karte.
+    val todoDoneCount: Int = 0,
+    val todoOpenCount: Int = 0,
+    val todoTotalCount: Int = 0,
+    // M18.37: Pauschalen explizit sichtbar (Titel, Minuten/Tag).
+    val allowanceSummary: List<Pair<String, Int>> = emptyList()
 )
 
 data class QualitySlice(
