@@ -105,10 +105,16 @@ class ActivityRecognitionWorker(
         }
 
         if (cluster == null) return Result.success()
-        if (cluster.durationMs < MIN_CLUSTER_DURATION_MS) {
-            // Zu kurze "Fahrt" — wahrscheinlich Bus-Haltestelle oder Beifahrer
-            return Result.success()
-        }
+
+        // M18.42-FIX (Root Cause "Autofahrt wird nicht aufgezeichnet"):
+        // Der MIN_CLUSTER_DURATION_MS-Check (90s) verhinderte den Start
+        // KOMPLETT. Google liefert mit requestActivityTransitionUpdates
+        // NUR ENTER/EXIT-Uebergangs-Events — keine kontinuierlichen
+        // Samples. Ein einzelnes ENTER hat startMs == endMs ->
+        // durationMs = 0 -> fiel IMMER unter die 90s-Schwelle -> die
+        // Session wurde NIE gestartet.
+        // Jetzt: ENTER startet sofort (Transition API ist intern bereits
+        // bestaetigt), EXIT stoppt ueber den vehicleExitedAt-Marker oben.
 
         // M16.6: SleepShield. Wenn das Cluster mitten in einem nachgewiesenen
         // oder sehr wahrscheinlichen Schlaf-Fenster liegt, handelt es sich
@@ -222,22 +228,14 @@ class ActivityRecognitionWorker(
         // als "Auto" markiert, weil dieser sourceType in AUTO_SOURCES ist.
         reviewUc.acceptAuto(listOf(candidate))
 
-        // M18.3: Kern-Fix — Start UND Stop NIE im selben Worker-Lauf.
-        //
-        // M15-Bug: Der Worker startete die Session (Zeilen 214-240) und
-        // stoppte sie im selben Lauf wieder (Zeilen 242-256), weil jedes
-        // IN_VEHICLE-Event als Sample gepuffert wurde — auch EXIT-Transitions.
-        // Ergebnis: "Android erkennt Autofahren nicht" — die Session wurde
-        // sofort beendet, der User sah nie eine laufende Fahrt.
-        //
-        // Neues Verhalten:
-        //   - ENTER-Events → Samples → Cluster → Session STARTEN (wenn keine
-        //     Mobilitäts-Session läuft)
-        //   - EXIT-Events → vehicleExitedAt-Marker → Session STOPPEN (wird
-        //     oben in doWork() verarbeitet, NIE hier im Cluster-Pfad)
-        //   - Der Cluster-Pfad (mit MIN_CLUSTER_DURATION_MS) fängt kurze
-        //     Beifahrten ab.
-        if (cluster.durationMs >= MIN_CLUSTER_DURATION_MS) {
+        // M18.3 + M18.42: Session starten — der ENTER-Transition ist
+        // die Bestaetigung. Die Dauer-Schwelle entfaellt (Transition API
+        // liefert keine kontinuierlichen Samples; MIN_CLUSTER_DURATION_MS
+        // blockierte jeden Start).
+        // M18.42: Zusaetzlicher Duplicate-Schutz: EXIT-Marker wurde oben
+        // schon konsumiert. Wenn eine Session laeuft, wird sie hier nicht
+        // doppelt gestartet.
+        run {
             // M18.3: Genug Fahrsamples — Mobilitäts-Session starten.
             try {
                 val existing = liveActivityManager.liveSession.value
@@ -266,8 +264,6 @@ class ActivityRecognitionWorker(
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Start der Mobilitäts-Session fehlgeschlagen", e)
             }
-        } else {
-            Log.d(TAG, "Cluster zu kurz (${cluster.durationMs}ms < $MIN_CLUSTER_DURATION_MS) — keine Session, nur Trigger")
         }
 
         return Result.success()

@@ -260,10 +260,24 @@ class GeofenceTransitionProcessor @Inject constructor(
             if (geofence.autoStopEnabled) {
                 val existing = liveActivityManager.liveSession.value
                 if (existing != null && existing.isLive) {
-                    // M17: sourceTriggerId ist die zuverlässigste Match-Quelle.
-                    // Wenn die laufende Session von diesem Geofence-Enter-
-                    // Trigger gestartet wurde, gehört sie zu diesem Geofence.
-                    val matchesGeofence = existing.sourceTriggerId == trigger.id
+                    // M18.42-FIX (Root Cause "Auto-Stop feuert NIE"):
+                    // Vorher wurde `existing.sourceTriggerId == trigger.id`
+                    // verglichen — `trigger` ist aber der gerade ERSTELLTE
+                    // EXIT-Trigger (neue UUID). Die Session wurde beim
+                    // ENTER mit der ENTER-Trigger-ID gestartet -> Match
+                    // war IMMER false -> die Fitness-Session lief nach dem
+                    // Gym-Verlassen endlos weiter.
+                    // Jetzt: Alle ENTER-Trigger dieses Geofence laden und
+                    // prüfen, ob die Session von einem davon gestartet
+                    // wurde (deckt ENTER- UND DWELL-Start ab).
+                    val enterTriggerIds = recentTriggers
+                        .filter { it.geofenceId == geofence.id &&
+                            (it.type.contains("ARRIVED", ignoreCase = true) ||
+                                it.type.contains("ENTER", ignoreCase = true)) }
+                        .map { it.id }
+                        .toSet()
+                    val matchesGeofence = existing.sourceTriggerId != null &&
+                        existing.sourceTriggerId in enterTriggerIds
                     if (matchesGeofence) {
                         val isAutoSession = existing.sourceType == "GEOFENCE_AUTO"
                         if (isAutoSession) {

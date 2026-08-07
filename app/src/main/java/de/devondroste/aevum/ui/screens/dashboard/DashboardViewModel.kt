@@ -257,6 +257,21 @@ class DashboardViewModel @Inject constructor(
     // auf Sessions, die den heutigen Tag überlappen.
     val sleepWindowStart = start - 24L * 60 * 60 * 1000
     val sleepWindowEnd = end + 12L * 60 * 60 * 1000
+    // M18.42: Minuetlicher Tick — das Dashboard soll sich alle 60s
+    // aktualisieren, damit die laufende Session-Dauer und alle
+    // Statistiken (Erfasst, Pauschalen-Sichtbarkeit ab 00:30, Balken)
+    // auf dem neuesten Stand bleiben. Room-Flows emittieren nur bei
+    // DB-Aenderungen — eine laufende Session aendert die DB aber nicht
+    // jede Sekunde. Der Tick erzeugt eine Emittierung pro Minute.
+    private val minuteTick = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    init {
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                minuteTick.value = System.currentTimeMillis()
+            }
+        }
+    }
     val uiState: StateFlow<DashboardUiState> = combine(
         activityRepository.getOverlappingRange(start, end),
         categoryRepository.getAll(),
@@ -272,7 +287,9 @@ class DashboardViewModel @Inject constructor(
         dailyAllowanceRepository.getAll(),
         // M18.37: Todos fuer die kompakte Dashboard-Karte.
         todoRepository.getAll(),
-        todoRepository.getByDate(LocalDate.now().toString())
+        todoRepository.getByDate(LocalDate.now().toString()),
+        // M18.42: Minuetlicher Tick fuer Live-Updates.
+        minuteTick
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
@@ -285,6 +302,7 @@ class DashboardViewModel @Inject constructor(
         val allowances = values[7] as List<de.devondroste.aevum.data.model.DailyAllowance>
         val allTodos = values[8] as List<de.devondroste.aevum.data.model.Todo>
         val todayCompletions = values[9] as List<de.devondroste.aevum.data.model.TodoCompletion>
+        // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
         // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
         // today-Query würde Mitternacht-Schlaf verfehlen.
         // M18.21-FIX (Root Cause): Der Filter prüfte NUR die Zeitüberlappung,
