@@ -221,12 +221,12 @@ fun InsightsScreen(
 
 @Composable
 private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
-    // M18.36: Exakte Anzeige — vorher wurde auf ganze Stunden gerundet
-    // (Int-Division), z.B. 7h59m -> "7 Std 59 Min" war ok, aber
-    // 7h30m + Pauschalen ergab gerundete Werte. Jetzt: Dezimal-Stunden
-    // mit 1 Nachkommastelle aus den exakten Millisekunden.
-    val totalHours = uiState.totalMsIncludingAllowances / (60.0 * 60 * 1000)
-    val hoursText = String.format(java.util.Locale.GERMANY, "%.1f", totalHours)
+    // M18.39: Exakte Anzeige OHNE Rundung. Vorher: Dezimal-Stunden mit
+    // 1 Nachkommastelle ("7,5 Std") PLUS Minuten daneben — redundant und
+    // wirkte gerundet. Jetzt: exakte Minuten -> "7 Std 32 Min", 100% praezise.
+    val totalMinutes = uiState.totalMsIncludingAllowances / 60_000
+    val hoursPart = totalMinutes / 60
+    val minutesPart = totalMinutes % 60
     val accentColor = MaterialTheme.colorScheme.primary
     GlassCard(accentColor = accentColor) {
         Column {
@@ -238,7 +238,7 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
             Spacer(Modifier.height(AevumSpacing.xs))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    hoursText,
+                    "$hoursPart",
                     style = MaterialTheme.typography.displayMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -251,7 +251,7 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
                 )
                 Spacer(Modifier.width(AevumSpacing.md))
                 Text(
-                    "${uiState.totalMinutesIncludingAllowances % 60}",
+                    "$minutesPart",
                     style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )

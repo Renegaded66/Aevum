@@ -148,6 +148,8 @@ fun AppNavHost(
                 // M18.30: Todos + Tagespauschalen
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
                 onOpenDailyAllowances = { navController.navigate(AppDestination.DailyAllowances.route) },
+                // M18.39: Bucket List
+                onOpenBucketList = { navController.navigate(AppDestination.BucketList.route) },
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
                 // M12.2: Home/Work öffnen den existierenden Geofence-Editor
@@ -295,6 +297,30 @@ fun AppNavHost(
             val todoId = backStackEntry.arguments?.getString("todoId") ?: ""
             de.devondroste.aevum.ui.screens.todos.TodoEditorScreen(
                 todoId = todoId,
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
+            )
+        }
+        // M18.39: Bucket List — eigene Seite, von Settings aus erreichbar
+        composable(AppDestination.BucketList.route) {
+            de.devondroste.aevum.ui.screens.bucketlist.BucketListScreen(
+                onCreate = { navController.navigate(AppDestination.BucketListCreate.route) },
+                onEdit = { itemId -> navController.navigate("bucketlist/edit/$itemId") }
+            )
+        }
+        composable(AppDestination.BucketListCreate.route) {
+            de.devondroste.aevum.ui.screens.bucketlist.BucketListEditorScreen(
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = AppDestination.BucketListEdit.route,
+            arguments = listOf(navArgument("itemId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
+            de.devondroste.aevum.ui.screens.bucketlist.BucketListEditorScreen(
+                itemId = itemId,
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() }
             )

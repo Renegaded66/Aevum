@@ -45,6 +45,10 @@ enum class AppDestination(val route: String, val title: String) {
     TodoCreate("todo/new", "Neues Todo"),
     // M18.38: Todo bearbeiten
     TodoEdit("todo/edit/{todoId}", "Todo bearbeiten"),
+    // M18.39: Bucket List
+    BucketList("bucketlist", "Bucket List"),
+    BucketListCreate("bucketlist/new", "Neuer Eintrag"),
+    BucketListEdit("bucketlist/edit/{itemId}", "Eintrag bearbeiten"),
     // M18.35: Lebenszeit-Ansicht
     LifeView("lifeview", "Lebenszeit")
 }

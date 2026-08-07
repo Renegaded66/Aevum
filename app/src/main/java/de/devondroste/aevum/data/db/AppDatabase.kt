@@ -44,7 +44,7 @@ import de.devondroste.aevum.data.model.*
         Todo::class,
         TodoCompletion::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1012,6 +1012,38 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_completion_todo_id` ON `todo_completion` (`todo_id`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_completion_date` ON `todo_completion` (`date`)")
+            }
+        }
+
+        // M18.39: Bucket-List — komplett neues Feature (eigene Tabelle).
+        // WICHTIG: Die alte M2-Tabelle (status/progress_percent-Schema)
+        // existiert in Bestands-DBs — sie wird DROPPED und mit dem neuen
+        // Schema neu erstellt. Kein Datenverlust: das Feature hatte nie
+        // eine UI, es gab nie echte Nutzerdaten.
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS `bucket_list_item`")
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `bucket_list_item` (
+                        `id` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `location` TEXT,
+                        `icon` TEXT,
+                        `category` TEXT,
+                        `target_date` TEXT,
+                        `completed` INTEGER NOT NULL DEFAULT 0,
+                        `completed_at` INTEGER,
+                        `image_path` TEXT,
+                        `notes` TEXT,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_bucket_list_item_completed` ON `bucket_list_item` (`completed`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_bucket_list_item_created_at` ON `bucket_list_item` (`created_at`)")
             }
         }
     }

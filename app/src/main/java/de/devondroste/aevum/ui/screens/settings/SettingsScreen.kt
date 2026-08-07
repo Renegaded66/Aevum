@@ -54,6 +54,8 @@ fun SettingsScreen(
     // M18.30: Todos + Tagespauschalen
     onOpenTodos: () -> Unit = {},
     onOpenDailyAllowances: () -> Unit = {},
+    // M18.39: Bucket List
+    onOpenBucketList: () -> Unit = {},
     // M18.2: Positivitäts-Scores pro Aktivität
     onOpenActivityTypes: () -> Unit = {},
     onOpenHomeGeofence: (String) -> Unit = {},
@@ -140,7 +142,9 @@ fun SettingsScreen(
                 SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
                 SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits),
                 SettingsEntry("Todos verwalten", onClick = onOpenTodos),
-                SettingsEntry("Tagespauschalen verwalten", onClick = onOpenDailyAllowances)
+                SettingsEntry("Tagespauschalen verwalten", onClick = onOpenDailyAllowances),
+                // M18.39: Bucket List — eigene Seite
+                SettingsEntry("Bucket List 🌍", onClick = onOpenBucketList)
             )) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
