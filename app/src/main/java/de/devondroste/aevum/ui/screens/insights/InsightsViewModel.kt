@@ -1,5 +1,6 @@
 package de.devondroste.aevum.ui.screens.insights
 
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +27,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class InsightsViewModel @Inject constructor(
+    private val application: Application,
     private val activityRepository: ActivityRepository,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
@@ -36,7 +38,14 @@ class InsightsViewModel @Inject constructor(
 ) : ViewModel() {
     private val zoneId = java.time.ZoneId.systemDefault()
     private val anchorDate = java.time.LocalDate.now()
-    private val _selectedPeriod = MutableStateFlow(InsightPeriod.Week)
+
+    // M18.34: Die letzte Period-Auswahl wird in SharedPreferences
+    // persistiert und beim naechsten Oeffnen wiederhergestellt.
+    // Default: Today (User-Praeferenz: "ich praefriere die heute ansicht").
+    private val prefs = application.getSharedPreferences("aevum_insights", android.content.Context.MODE_PRIVATE)
+    private val _selectedPeriod = MutableStateFlow(
+        InsightPeriod.fromStorage(prefs.getString(KEY_PERIOD, null))
+    )
     private val _selectedHeatmapDate = MutableStateFlow<java.time.LocalDate?>(null)
     // M17.4: Toggle zwischen Aktivitäts- und Kategorie-Aufschlüsselung.
     private val _breakdownMode = MutableStateFlow(BreakdownMode.Activity)
@@ -125,6 +134,8 @@ class InsightsViewModel @Inject constructor(
     fun selectPeriod(period: InsightPeriod) {
         _selectedPeriod.value = period
         _selectedHeatmapDate.value = null
+        // M18.34: Auswahl persistieren — beim naechsten Oeffnen direkt da.
+        prefs.edit().putString(KEY_PERIOD, period.name).apply()
     }
 
     fun selectHeatmapDay(date: java.time.LocalDate) {
@@ -158,6 +169,11 @@ class InsightsViewModel @Inject constructor(
         val habits: List<de.devondroste.aevum.data.model.Habit>,
         val allowances: List<de.devondroste.aevum.data.model.DailyAllowance>
     )
+
+    companion object {
+        // M18.34: Storage-Key fuer die persistierte Period-Auswahl.
+        private const val KEY_PERIOD = "selected_period"
+    }
 }
 
 /** M17.4: Aufschlüsselungs-Modus für die Top-Liste. */

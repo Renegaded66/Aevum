@@ -29,6 +29,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,13 +76,30 @@ fun TodosScreen(
     val state by viewModel.uiState.collectAsState()
     var showArchived by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
-        verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
-    ) {
+    // M18.31: Scaffold mit FAB — vorher gab es KEINEN sichtbaren Weg,
+    // ein Todo anzulegen (nur den Hero-Text). Jetzt: schwebender
+    // Plus-Button unten rechts, wie in allen anderen Listen-Screens.
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        floatingActionButton = {
+            FloatingActionButton(onClick = onCreate) {
+                Icon(Icons.Default.Add, contentDescription = "Neues Todo")
+            }
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(
+                start = AevumSpacing.md,
+                end = AevumSpacing.md,
+                top = AevumSpacing.lg,
+                bottom = 96.dp // Platz für FAB
+            ),
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+        ) {
         item { TodosHero(count = state.activeTodos.size, doneCount = state.activeTodos.count { it.done }, onCreate = onCreate) }
 
         if (state.activeTodos.isEmpty()) {
@@ -125,6 +143,7 @@ fun TodosScreen(
             }
         }
         item { Spacer(Modifier.height(AevumSpacing.xxl)) }
+        }
     }
 }
 

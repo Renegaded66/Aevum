@@ -47,7 +47,10 @@ class DashboardViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     private val ensureDefaultData: EnsureDefaultDataUseCase,
     val liveActivityManager: LiveActivityManager,
-    private val usageStatsCollector: UsageStatsCollector
+    private val usageStatsCollector: UsageStatsCollector,
+    // M18.33: Tagespauschalen — erscheinen sofort im Dashboard (on-the-fly),
+    // ohne auf den Midnight-Worker zu warten.
+    private val dailyAllowanceRepository: de.devondroste.aevum.data.repository.DailyAllowanceRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val today = LocalDate.now()
@@ -262,7 +265,9 @@ class DashboardViewModel @Inject constructor(
         // M16.3: 36h-Overlap-Fenster, damit über-Mitternacht-Schlaf erscheint.
         activityRepository.getOverlappingRange(sleepWindowStart, sleepWindowEnd),
         // M16: Bildschirmzeit aus topApps — vorher nie in buildState() gesetzt
-        _screenTimeMs
+        _screenTimeMs,
+        // M18.33: Tagespauschalen — on-the-fly in die Statistik einrechnen.
+        dailyAllowanceRepository.getAll()
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
@@ -272,6 +277,7 @@ class DashboardViewModel @Inject constructor(
         val types = values[4] as List<de.devondroste.aevum.data.model.ActivityType>
         val allSleepSessions = values[5] as List<ActivitySession>
         val screenMs = values[6] as Long
+        val allowances = values[7] as List<de.devondroste.aevum.data.model.DailyAllowance>
         // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
         // today-Query würde Mitternacht-Schlaf verfehlen.
         // M18.21-FIX (Root Cause): Der Filter prüfte NUR die Zeitüberlappung,
@@ -297,7 +303,9 @@ class DashboardViewModel @Inject constructor(
             typeMap = types.associateBy { it.id },
             allTypes = types,
             sleepSessions = sleepSessionsToday,
-            screenTimeMs = screenMs
+            screenTimeMs = screenMs,
+            // M18.33: Pauschalen sofort einrechnen
+            allowances = allowances
         )
     }
         // M12.0.2: Defensive Programmierung — keine Exception darf bis zur UI
@@ -319,14 +327,21 @@ class DashboardViewModel @Inject constructor(
         typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>,
         allTypes: List<de.devondroste.aevum.data.model.ActivityType> = emptyList(),
         sleepSessions: List<ActivitySession> = emptyList(),
-        screenTimeMs: Long = 0L
+        screenTimeMs: Long = 0L,
+        // M18.33: Tagespauschalen — enabled Allowances werden sofort
+        // (on-the-fly) in die Tages-Statistik eingerechnet. Vorher musste
+        // man bis zum naechsten Midnight-Worker (00:05) warten.
+        allowances: List<de.devondroste.aevum.data.model.DailyAllowance> = emptyList()
     ): DashboardUiState {
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
         val categoryMap = categories.associateBy { it.id }
         val clippedSessions = activeSessions.map { it.clipped(now) }
         val totalMs = clippedSessions.sumOf { it.durationMs }
-        val openMs = (DAY_MS - totalMs).coerceAtLeast(0L)
+        // M18.33: Pauschalen-Minuten addieren (nur enabled)
+        val allowanceMs = allowances.filter { it.enabled }.sumOf { it.minutesPerDay * 60_000L }
+        val totalMsWithAllowances = totalMs + allowanceMs
+        val openMs = (DAY_MS - totalMsWithAllowances).coerceAtLeast(0L)
         val distribution = clippedSessions
             .groupBy { it.categoryId ?: "unknown" }
             .map { (categoryId, values) ->
@@ -406,8 +421,8 @@ class DashboardViewModel @Inject constructor(
             )
         }
         val top = distribution.firstOrNull()
-        val narrative = buildNarrative(totalMs, openMs, top, candidates.size, current)
-        val insights = buildInsights(distribution, totalMs, openMs, candidates.size)
+        val narrative = buildNarrative(totalMsWithAllowances, openMs, top, candidates.size, current)
+        val insights = buildInsights(distribution, totalMsWithAllowances, openMs, candidates.size)
 
         // M7: Accepted today count
         val acceptedToday = candidates.count { it.status == "ACCEPTED" && it.resolvedAt?.let { it in start..end } == true }
@@ -422,8 +437,8 @@ class DashboardViewModel @Inject constructor(
             narrative = narrative.body,
             currentActivity = current?.title ?: "Noch nichts erfasst",
             currentDuration = current?.let { TimeFormatting.formatDuration(((it.endAt ?: now).coerceAtMost(end) - it.startAt.coerceAtLeast(start)).coerceAtLeast(0)) } ?: "0m",
-            balanceScore = estimateBalanceScore(distribution, totalMs, openMs),
-            totalTracked = TimeFormatting.formatDuration(totalMs),
+            balanceScore = estimateBalanceScore(distribution, totalMsWithAllowances, openMs),
+            totalTracked = TimeFormatting.formatDuration(totalMsWithAllowances),
             openTime = TimeFormatting.formatDuration(openMs),
             sessionCount = activeSessions.size,
             reviewCount = candidates.size,

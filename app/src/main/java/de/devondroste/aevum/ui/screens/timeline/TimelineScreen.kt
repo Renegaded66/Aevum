@@ -183,6 +183,9 @@ fun TimelineScreen(
                         .padding(horizontal = AevumSpacing.md)
                 )
             }
+            // M18.32: Bottom-Padding, damit der FAB nie Inhalte überdeckt.
+            // Vorher konnte man nicht bis zum letzten Eintrag scrollen.
+            Spacer(Modifier.height(88.dp))
         }
     }
 }
@@ -666,36 +669,75 @@ private fun TimelineHeader(
     onToday: () -> Unit,
     onRunGapDetection: () -> Unit = {}
 ) {
-    AevumCard(variant = CardVariant.Gradient) {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPreviousDay) { Text("‹", fontSize = 30.sp) }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(state.dayTitle, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
-                    Text(state.formattedDate, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                IconButton(onClick = onNextDay) { Text("›", fontSize = 30.sp) }
+    // M18.32: Kompakter Header — eine Zeile statt zwei. Der Tag-Titel
+    // ist kleiner (22sp statt 30sp), die Buttons sind kleine Chips.
+    // Ergebnis: die Timeline bekommt deutlich mehr Platz nach oben.
+    AevumCard(variant = CardVariant.Gradient, contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPreviousDay, modifier = Modifier.size(36.dp)) {
+                Text("‹", fontSize = 24.sp)
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(onClick = onToday) { Text("Heute") }
-                // M15: manueller Trigger für die Gap-Detection
-                OutlinedButton(onClick = onRunGapDetection) { Text("Lücken prüfen") }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Text(state.dayTitle, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(state.formattedDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            IconButton(onClick = onNextDay, modifier = Modifier.size(36.dp)) {
+                Text("›", fontSize = 24.sp)
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Kompakte Chips statt großer OutlinedButtons
+            HeaderChip("Heute", onClick = onToday)
+            HeaderChip("Lücken prüfen", onClick = onRunGapDetection)
         }
     }
 }
 
 @Composable
-private fun SummaryCard(state: TimelineUiState) {
-    AevumCard { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { SummaryValue("Erfasst", state.totalTracked); SummaryValue("Einträge", state.sessionCount.toString()); SummaryValue("Konflikte", if (state.hasOverlaps) "Prüfen" else "Keine") } }
+private fun HeaderChip(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(AevumRadius.full))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 5.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
 }
 
 @Composable
-private fun SummaryValue(label: String, value: String) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(value, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace); Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+private fun SummaryCard(state: TimelineUiState) {
+    // M18.32: Kompaktere Summary — kleinere Werte, weniger vertikaler Platz.
+    AevumCard(contentPadding = PaddingValues(vertical = AevumSpacing.sm)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            SummaryValue("Erfasst", state.totalTracked)
+            SummaryValue("Einträge", state.sessionCount.toString())
+            SummaryValue("Konflikte", if (state.hasOverlaps) "Prüfen" else "Keine")
+        }
+    }
+}
+
+@Composable
+private fun SummaryValue(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
 
 @Composable
 private fun CandidateReviewCard(
@@ -1249,11 +1291,22 @@ private fun EventListRow(
     // M18.20: Farbige Karte — Akzentbalken links, farbiger Hintergrund,
     // Icon-Kreis, farbiger Zeit-Chip. Jede Zeile ist jetzt ein buntes
     // Element statt einer nackten Textzeile.
+    // M18.32: Kreativ-Upgrade — sanfter Farbverlauf statt flacher Flaeche,
+    // Dauer-Chip rechts, dezenter Zeit-Pfeil. Die Zeile wirkt jetzt wie
+    // eine kleine Karte mit Tiefe statt einer flachen Liste.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .background(accent.copy(alpha = 0.09f))
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(
+                        accent.copy(alpha = 0.16f),
+                        accent.copy(alpha = 0.05f),
+                        Color.Transparent
+                    )
+                )
+            )
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1305,6 +1358,25 @@ private fun EventListRow(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+        // M18.32: Dauer-Chip rechts (Monospace, farbig) — die Dauer war
+        // vorher nur im Detail-Text versteckt, jetzt sofort lesbar.
+        val durationText = detail.substringAfter("· ").ifEmpty { "" }
+        if (durationText.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
+                    .background(accent.copy(alpha = 0.10f))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    durationText,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    color = accent
+                )
+            }
         }
         // M18.8: LIVE-Badge für laufende Sessions — sofort erkennbar
         if (isLive) {

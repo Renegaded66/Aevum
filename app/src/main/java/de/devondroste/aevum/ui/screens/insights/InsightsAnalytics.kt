@@ -17,7 +17,13 @@ import kotlin.math.roundToInt
 enum class InsightPeriod(val label: String) {
     Today("Heute"),
     Week("Woche"),
-    Month("Monat")
+    Month("Monat");
+
+    companion object {
+        /** M18.34: Period aus Storage lesen — Default Today (User-Praeferenz). */
+        fun fromStorage(raw: String?): InsightPeriod =
+            entries.firstOrNull { it.name == raw } ?: Today
+    }
 }
 
 data class InsightsUiState(
