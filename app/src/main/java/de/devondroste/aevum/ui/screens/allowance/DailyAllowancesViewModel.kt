@@ -51,6 +51,23 @@ class DailyAllowancesViewModel @Inject constructor(
         }
     }
 
+    // M18.29: Edit — bestehende Pauschale aktualisieren
+    fun update(id: String, name: String, activityTypeId: String, minutes: Int) {
+        viewModelScope.launch {
+            val existing = repo.getById(id)
+            if (existing != null) {
+                repo.insert(
+                    existing.copy(
+                        name = name,
+                        activityTypeId = activityTypeId,
+                        minutesPerDay = minutes,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
     fun setEnabled(id: String, enabled: Boolean) {
         viewModelScope.launch { repo.setEnabled(id, enabled) }
     }
