@@ -759,37 +759,64 @@ private fun EventListRow(
     // M18.13: Icon (Emoji) der Aktivität
     icon: String = "•"
 ) {
+    // M18.20: Farbige Karte — Akzentbalken links, farbiger Hintergrund,
+    // Icon-Kreis, farbiger Zeit-Chip. Jede Zeile ist jetzt ein buntes
+    // Element statt einer nackten Textzeile.
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(accent.copy(alpha = 0.09f))
             .clickable(onClick = onClick)
-            // M18.8: Größeres Touch-Target (12dp statt 10dp vertikal)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
     ) {
-        // M18.13: Icon in farbigem Kreis statt nacktem Punkt
+        // Akzentbalken links — volle Aktivitätsfarbe
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .width(4.dp)
+                .height(44.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                .background(accent)
+        )
+        // M18.13: Icon in farbigem Kreis (größer, kräftiger)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(accent.copy(alpha = 0.16f)),
+                .background(accent.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 if (icon.isBlank()) "•" else icon,
-                fontSize = 15.sp
+                fontSize = 18.sp
             )
         }
-        Text(
-            time,
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(46.dp)
-        )
+        // Zeit als farbiger Chip
+        Box(
+            modifier = Modifier
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
+                .background(accent.copy(alpha = 0.16f))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                time,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+                color = accent
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Text(detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
         // M18.8: LIVE-Badge für laufende Sessions — sofort erkennbar
@@ -820,7 +847,7 @@ private fun EventListRow(
             Box(
                 modifier = Modifier
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
-                    .background(accent.copy(alpha = 0.12f))
+                    .background(accent.copy(alpha = 0.14f))
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
                 Text(
