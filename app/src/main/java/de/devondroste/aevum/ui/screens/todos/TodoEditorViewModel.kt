@@ -35,12 +35,39 @@ class TodoEditorViewModel @Inject constructor(
     // formState + Types — jede Setter-Aenderung emittiert sofort.
     private val formState = MutableStateFlow(TodoEditorUiState())
 
+    // M18.38: Edit-Modus — die zu bearbeitende Todo-ID (null = neu).
+    private val editingId = MutableStateFlow<String?>(null)
+
     val uiState: StateFlow<TodoEditorUiState> = combine(
         formState,
         activityTypeRepository.getAll()
     ) { form, types ->
         form.copy(activityTypes = types)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, TodoEditorUiState())
+
+    /** M18.38: Bestehendes Todo laden — Form-State mit den Werten fuellen. */
+    fun loadTodo(todoId: String) {
+        viewModelScope.launch {
+            val todo = todoRepo.getById(todoId) ?: return@launch
+            editingId.value = todoId
+            val recurrence = runCatching { JSONObject(todo.recurrenceJson) }.getOrNull()
+            formState.value = TodoEditorUiState(
+                title = todo.title,
+                isDuration = todo.targetMinutes > 0,
+                targetMinutes = if (todo.targetMinutes > 0) todo.targetMinutes else 60,
+                activityTypeId = todo.activityTypeId,
+                recurrenceType = todo.recurrenceType,
+                selectedWeekdays = recurrence
+                    ?.optInt(RecurrenceEngine.KEY_WEEKDAYS, 0)
+                    ?.let { RecurrenceEngine.weekdaysFromBitmask(it) }
+                    ?.toSet()
+                    ?: setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
+                intervalDays = recurrence?.optInt(RecurrenceEngine.KEY_INTERVAL_DAYS, 2) ?: 2,
+                countPerPeriod = recurrence?.optInt(RecurrenceEngine.KEY_COUNT_PER_PERIOD, 3) ?: 3,
+                dueInDays = 0
+            )
+        }
+    }
 
     fun setTitle(title: String) {
         formState.value = formState.value.copy(title = title)
@@ -100,6 +127,26 @@ class TodoEditorViewModel @Inject constructor(
             val dueDate = if (s.recurrenceType == RecurrenceEngine.TYPE_ONCE && s.dueInDays > 0) {
                 today.plusDays(s.dueInDays.toLong()).toString()
             } else null
+
+            // M18.38: Edit-Modus — bestehendes Todo aktualisieren statt neu anlegen.
+            val existingId = editingId.value
+            if (existingId != null) {
+                val existing = todoRepo.getById(existingId)
+                if (existing != null) {
+                    todoRepo.insert(
+                        existing.copy(
+                            title = s.title.trim(),
+                            activityTypeId = s.activityTypeId,
+                            targetMinutes = if (s.isDuration) s.targetMinutes else 0,
+                            recurrenceType = s.recurrenceType,
+                            recurrenceJson = recurrenceJson,
+                            dueDate = dueDate,
+                            updatedAt = now
+                        )
+                    )
+                    return@launch
+                }
+            }
 
             todoRepo.insert(
                 Todo(

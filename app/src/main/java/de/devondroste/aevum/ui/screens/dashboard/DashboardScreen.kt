@@ -641,6 +641,10 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                             .clip(CircleShape)
                             .background(slice.color)
                     )
+                    // M18.38: Pauschalen-Balken mit ⏱-Marker kennzeichnen
+                    if (slice.activityTypeId.startsWith("allowance_")) {
+                        Text("⏱", fontSize = 11.sp)
+                    }
                     Text(
                         slice.label,
                         fontSize = 12.sp,

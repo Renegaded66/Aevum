@@ -43,6 +43,8 @@ enum class AppDestination(val route: String, val title: String) {
     // M18.30: Todos
     Todos("todos", "Todos"),
     TodoCreate("todo/new", "Neues Todo"),
+    // M18.38: Todo bearbeiten
+    TodoEdit("todo/edit/{todoId}", "Todo bearbeiten"),
     // M18.35: Lebenszeit-Ansicht
     LifeView("lifeview", "Lebenszeit")
 }

@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,9 +68,16 @@ fun TodoEditorScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onSaved: () -> Unit,
+    // M18.38: Edit-Modus — wenn gesetzt, wird das Todo geladen
+    todoId: String? = null,
     viewModel: TodoEditorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    // M18.38: Beim Oeffnen im Edit-Modus das Todo laden (einmalig).
+    LaunchedEffect(todoId) {
+        if (todoId != null) viewModel.loadTodo(todoId)
+    }
 
     LazyColumn(
         modifier = modifier
@@ -86,8 +94,14 @@ fun TodoEditorScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("NEUES TODO", fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Aufgabe erstellen", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (todoId != null) "TODO BEARBEITEN" else "NEUES TODO",
+                            fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            if (todoId != null) "Aufgabe anpassen" else "Aufgabe erstellen",
+                            fontSize = 28.sp, fontWeight = FontWeight.SemiBold
+                        )
                     }
                     TextButton(onClick = onBack) { Text("Abbrechen") }
                 }
@@ -244,7 +258,7 @@ fun TodoEditorScreen(
                 },
                 enabled = state.title.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Todo speichern") }
+            ) { Text(if (todoId != null) "Änderungen speichern" else "Todo speichern") }
         }
         item { Spacer(Modifier.height(AevumSpacing.xxl)) }
     }

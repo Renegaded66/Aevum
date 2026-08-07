@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,6 +72,8 @@ import java.util.Locale
 fun TodosScreen(
     modifier: Modifier = Modifier,
     onCreate: () -> Unit,
+    // M18.38: Todo bearbeiten — oeffnet den Editor mit geladenem Todo
+    onEdit: (String) -> Unit = {},
     viewModel: TodosViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -112,7 +115,9 @@ fun TodosScreen(
                     item = item,
                     onToggle = { viewModel.toggle(item.todo.id, !item.done) },
                     onArchive = { viewModel.archive(item.todo.id) },
-                    onDelete = { viewModel.delete(item.todo.id) }
+                    onDelete = { viewModel.delete(item.todo.id) },
+                    // M18.38: Bearbeiten-Button
+                    onEdit = { onEdit(item.todo.id) }
                 )
             }
         }
@@ -210,7 +215,9 @@ private fun TodoCard(
     item: TodoUi,
     onToggle: () -> Unit,
     onArchive: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    // M18.38: Bearbeiten-Button
+    onEdit: () -> Unit = {}
 ) {
     val todo = item.todo
     val accentColor = if (item.type?.color != null && item.type.color != 0L) {
@@ -288,6 +295,10 @@ private fun TodoCard(
                     }
                 }
                 // Aktionen
+                // M18.38: Bearbeiten-Button (Stift) — oeffnet den Editor
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "Bearbeiten", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                }
                 IconButton(onClick = onArchive) {
                     Icon(Icons.Default.Archive, contentDescription = "Archivieren", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }

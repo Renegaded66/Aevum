@@ -110,6 +110,13 @@ object RecurrenceEngine {
 
     fun dayOfWeekFromBit(bit: Int): DayOfWeek = DayOfWeek.of(bit + 1)
 
+    /** M18.38: Bitmask in DayOfWeek-Liste umwandeln (Edit-Modus). */
+    fun weekdaysFromBitmask(mask: Int): List<DayOfWeek> {
+        return (0..6).mapNotNull { bit ->
+            if (mask and (1 shl bit) != 0) DayOfWeek.of(bit + 1) else null
+        }
+    }
+
     private fun json(todo: Todo): JSONObject {
         return try {
             JSONObject(todo.recurrenceJson)

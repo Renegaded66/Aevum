@@ -274,11 +274,27 @@ fun AppNavHost(
         // M18.30: Todos
         composable(AppDestination.Todos.route) {
             de.devondroste.aevum.ui.screens.todos.TodosScreen(
-                onCreate = { navController.navigate(AppDestination.TodoCreate.route) }
+                onCreate = { navController.navigate(AppDestination.TodoCreate.route) },
+                // M18.38: Todo bearbeiten — Editor mit geladenem Todo
+                onEdit = { todoId ->
+                    navController.navigate("todo/edit/$todoId")
+                }
             )
         }
         composable(AppDestination.TodoCreate.route) {
             de.devondroste.aevum.ui.screens.todos.TodoEditorScreen(
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
+            )
+        }
+        // M18.38: Todo bearbeiten — gleicher Editor, aber mit geladenem Todo
+        composable(
+            route = AppDestination.TodoEdit.route,
+            arguments = listOf(navArgument("todoId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val todoId = backStackEntry.arguments?.getString("todoId") ?: ""
+            de.devondroste.aevum.ui.screens.todos.TodoEditorScreen(
+                todoId = todoId,
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() }
             )

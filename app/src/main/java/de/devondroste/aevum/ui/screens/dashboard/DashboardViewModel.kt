@@ -507,7 +507,7 @@ class DashboardViewModel @Inject constructor(
             // M18: Zeitqualität berechnen. Gewichtete Summe:
             // quality = Σ(dauer × score) / Σ(dauer). Pro Aktivität.
             qualityScore = computeQualityScore(activeSessions, typeMap),
-            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap),
+            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap, allowances),
             // M18.37: Todos fuer die Dashboard-Karte
             todoDoneCount = todoDoneCount,
             todoOpenCount = todoOpenCount,
@@ -538,12 +538,17 @@ class DashboardViewModel @Inject constructor(
     }
 
     // M18: Pro-Aktivitäts-Breakdown für die Positivitäts-Balken.
+    // M18.38: Pauschalen werden als eigene Balken ergänzt — aber nur,
+    // wenn die Tageszeit die Pauschaldauer schon überschritten hat
+    // (User-Logik: "30 min Pauschale gilt ab 00:30"). So erscheint
+    // "Fertig machen 30m" sofort, wenn der Tag schon weiter ist.
     private fun computeQualityBreakdown(
         sessions: List<ActivitySession>,
-        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>
+        typeMap: Map<String, de.devondroste.aevum.data.model.ActivityType>,
+        allowances: List<de.devondroste.aevum.data.model.DailyAllowance> = emptyList(),
+        now: Long = System.currentTimeMillis()
     ): List<QualitySlice> {
-        val now = System.currentTimeMillis()
-        return sessions
+        val slices = sessions
             .filter { it.activityTypeId != null }
             .groupBy { it.activityTypeId!! }
             .map { (typeId, typeSessions) ->
@@ -558,8 +563,28 @@ class DashboardViewModel @Inject constructor(
                     color = de.devondroste.aevum.ui.components.positivityColor(score)
                 )
             }
+            .toMutableList()
+        // M18.38: Pauschalen-Balken — nur wenn die Tageszeit die
+        // Pauschaldauer erreicht hat (z.B. 30 min ab 00:30).
+        val currentMinute = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
+        allowances.filter { it.enabled }.forEach { allowance ->
+            if (currentMinute >= allowance.minutesPerDay) {
+                val type = typeMap[allowance.activityTypeId]
+                val score = type?.positivityScore ?: 50
+                slices.add(
+                    QualitySlice(
+                        activityTypeId = "allowance_${allowance.id}",
+                        label = allowance.name,
+                        durationMs = allowance.minutesPerDay * 60_000L,
+                        score = score,
+                        color = de.devondroste.aevum.ui.components.positivityColor(score)
+                    )
+                )
+            }
+        }
+        return slices
             .sortedByDescending { it.durationMs }
-            .take(5)
+            .take(6) // M18.38: 6 statt 5, damit die Pauschale nicht verdrängt wird
     }
 
     private fun currentMinute(now: Long) = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
