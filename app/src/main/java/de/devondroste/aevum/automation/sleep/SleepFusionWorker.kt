@@ -30,6 +30,7 @@ class SleepFusionWorker(
     @InstallIn(SingletonComponent::class)
     interface Deps {
         fun sleepFusionEngine(): SleepFusionEngine
+        fun sleepHeuristicEngine(): SleepHeuristicEngine
         fun appUsageSampleDao(): AppUsageSampleDao
         fun screenEventRepository(): ScreenEventRepository
     }
@@ -50,6 +51,15 @@ class SleepFusionWorker(
             // explizit nötig, weil `appContext` als Var gesetzt wird.
             deps.screenEventRepository().init(applicationContext)
 
+            // M18.11: BEIDE Engines triggern — die Screen-Heuristik (immer)
+            // UND die 3-Signal-Fusion (nur wenn aktiviert).
+            //
+            // Vorher triggerte der Morgen-Scheduler nur die Fusion. Die
+            // Heuristik lief nur bei App-Start/Screen-ON. Wenn der User
+            // morgens die App nicht öffnete, wurde der Schlaf nie erkannt.
+            // Jetzt deckt der periodische Morgen-Lauf beide Pfade ab.
+            deps.sleepHeuristicEngine().analyzeLatest()
+
             // M16: sleepFusionEnabled prüfen. Die einfache Screen-Heuristik
             // (SleepHeuristicEngine) läuft immer — sie braucht keine Settings.
             // Die 3-Signal-Fusion ist optional und muss vom User aktiviert
@@ -63,7 +73,7 @@ class SleepFusionWorker(
                 null // Wenn Settings nicht lesbar, läuft der Worker (Best-Effort)
             }
             if (settings?.sleepFusionEnabled == false) {
-                android.util.Log.d(TAG, "sleepFusionEnabled = false — Worker ist No-Op")
+                android.util.Log.d(TAG, "sleepFusionEnabled = false — Fusion ist No-Op (Heuristik lief bereits)")
                 return Result.success()
             }
 

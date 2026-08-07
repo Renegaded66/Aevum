@@ -253,25 +253,28 @@ class SleepHeuristicEngine @Inject constructor(
         )
         candidateRepository.insert(candidate)
 
-        // M16.3: Auto-Accept, wenn die Confidence hoch genug ist.
-        // Vorher endete die Heuristik bei einem bloßen Vorschlag in der
-        // Review-Inbox. Jetzt: bei Confidence ≥ 0.70 wird der Candidate
-        // sofort in eine echte ActivitySession überführt und landet in
-        // der Timeline. Die Review-Inbox ist nur noch der Fallback für
-        // niedrigere Confidence.
-        if (confidence >= SAFE_CONFIDENCE_THRESHOLD) {
-            val result = reviewCandidateUseCase.acceptAuto(listOf(candidate))
-            android.util.Log.d(
-                "SleepHeuristicEngine",
-                "Auto-Accept: ${result.accepted} von 1 (Confidence=$confidence, " +
-                        "Window=${formatHm(offEvent.timestamp, zoneId)}–${formatHm(resolvedWakeMs, zoneId)})"
-            )
-        } else {
-            android.util.Log.d(
-                "SleepHeuristicEngine",
-                "Candidate wartet auf Review (Confidence=$confidence < $SAFE_CONFIDENCE_THRESHOLD)"
-            )
-        }
+        // M18.11: IMMER direkt eintragen — kein Vorschlag mehr.
+        //
+        // Vorher: Auto-Accept nur bei Confidence >= 0.70. Die Screen-
+        // Heuristik erzeugt aber Confidence 0.50-0.75 — bei 7h Schlaf mit
+        // Rand-Abzug (z.B. 0.60) blieb der Schlaf als Vorschlag in der
+        // Review-Inbox hängen. Genau das war "letzte Nacht hat die
+        // Schlafaufzeichnung nicht geklappt": Der User sah keinen
+        // automatischen Eintrag.
+        //
+        // Warum ist der Screen-Pfad sicher genug für Direkt-Eintrag?
+        //   - OFF nach 20:00 + ON zwischen 04:00-11:00 ist ein sehr
+        //     starkes Signal (Bildschirm aus = schläft)
+        //   - Der User hat es explizit so gewünscht: "kein Vorschlag,
+        //     sondern wirklich direkt eingetragen"
+        //   - Die Session ist als HEALTH_SLEEP_AUTO markiert und kann in
+        //     der Timeline jederzeit bearbeitet/gelöscht werden
+        val result = reviewCandidateUseCase.acceptAuto(listOf(candidate))
+        android.util.Log.d(
+            "SleepHeuristicEngine",
+            "Direkt eingetragen: ${result.accepted} von 1 (Confidence=$confidence, " +
+                    "Window=${formatHm(offEvent.timestamp, zoneId)}–${formatHm(resolvedWakeMs, zoneId)})"
+        )
     }
 
     /**
