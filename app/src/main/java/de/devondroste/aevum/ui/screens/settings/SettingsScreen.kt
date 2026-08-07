@@ -76,8 +76,9 @@ fun SettingsScreen(
             // Anlegen einer Aktivität verwaltet).
             item { SettingsSection("Deine Aktivitäten", listOf(
                 // M18.2: Aktivitäten mit Positivitäts-Slider
-                SettingsEntry("Activity Types verwalten", onClick = onOpenActivityTypes),
-                SettingsEntry("Tags verwalten")
+                // M18.24: "Tags verwalten" entfernt — Tags sind ein
+                // ungenutztes Neben-Feature ohne UI-Wert.
+                SettingsEntry("Activity Types verwalten", onClick = onOpenActivityTypes)
             )) }
             item {
                 // M12.2: Home/Work-Status wird jetzt live aus dem Geofence-Repository gelesen.

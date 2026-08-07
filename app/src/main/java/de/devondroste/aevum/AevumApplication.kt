@@ -22,7 +22,6 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
 import javax.inject.Inject
@@ -213,22 +212,20 @@ class AevumApplication : Application() {
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 try {
                     val manager = deps.liveActivityManager()
-                    // WICHTIG: NICHT .value verwenden! liveSession ist mit
-                    // SharingStarted.WhileSubscribed initialisiert — ohne
-                    // aktiven Subscriber (beim App-Start gibt es noch kein
-                    // ViewModel) liefert .value IMMER null. first() sammelt
-                    // den Flow aktiv und bekommt den echten DB-Wert.
-                    val session = manager.liveSession.first()
+                    // M18.24: liveSession ist jetzt SharingStarted.Eagerly —
+                    // .value liefert IMMER den echten DB-Wert, auch ohne
+                    // aktiven Subscriber. Kein first() mehr noetig.
+                    val session = manager.liveSession.value
                     if (session != null && session.isLive) {
                         de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(this@AevumApplication)
-                        Log.d("AevumApplication", "M18.21: Live-Session aktiv (${session.title}) — Notification wiederhergestellt")
+                        Log.d("AevumApplication", "M18.24: Live-Session aktiv (${session.title}) — Notification wiederhergestellt")
                     }
                 } catch (e: Exception) {
-                    Log.e("AevumApplication", "M18.21: Notification-Restore failed — continuing", e)
+                    Log.e("AevumApplication", "M18.24: Notification-Restore failed — continuing", e)
                 }
             }
         } catch (e: Exception) {
-            Log.e("AevumApplication", "M18.21: Notification-Restore EntryPoint init failed — continuing", e)
+            Log.e("AevumApplication", "M18.24: Notification-Restore EntryPoint init failed — continuing", e)
         }
     }
 

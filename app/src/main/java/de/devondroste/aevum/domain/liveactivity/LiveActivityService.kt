@@ -51,7 +51,18 @@ class LiveActivityService : Service() {
 
         fun start(context: Context) {
             val intent = Intent(context, LiveActivityService::class.java)
-            context.startForegroundService(intent)
+            try {
+                context.startForegroundService(intent)
+            } catch (e: Exception) {
+                // M18.24: ForegroundServiceStartNotAllowedException (Android 12+)
+                // oder andere Start-Fehler — die App darf NIE crashen, nur
+                // weil die Notification nicht erscheinen kann. Fallback:
+                // normaler Service-Start (funktioniert auf Android < 8 und
+                // wenn die App im Vordergrund ist).
+                try {
+                    context.startService(intent)
+                } catch (_: Exception) { }
+            }
         }
 
         fun stop(context: Context) {
@@ -80,14 +91,27 @@ class LiveActivityService : Service() {
         if (updateJob == null || updateJob?.isActive != true) {
             updateJob = scope.launch {
                 while (true) {
-                    updateNotification()
+                    try {
+                        updateNotification()
+                    } catch (e: Exception) {
+                        // M18.24: Ein fehlerhaftes Notification-Update darf
+                        // den Loop nicht killen — sonst friert der Timer ein.
+                    }
                     delay(1000)
                 }
             }
         }
 
         // Ensure we're foreground
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // M18.24: startForeground kann crashen (ForegroundServiceDidNotStartInTimeException,
+        // kaputte Notification auf OEM-Geraeten). Die App darf NIE abstuerzen,
+        // nur weil die Notification nicht gebaut werden kann.
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (e: Exception) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         return START_STICKY
     }
@@ -131,7 +155,11 @@ class LiveActivityService : Service() {
 
     private fun updateNotification() {
         val session = liveActivityManager.liveSession.value
-        if (session == null || !session.isLive) {
+        // M18.24: NICHT bei null stoppen! Beim Service-Start kann die
+        // Room-Query noch laufen (liveSession.value == null, obwohl eine
+        // Session existiert). Nur stoppen, wenn WIRKLICH keine Live-Session
+        // mehr existiert (Session geladen UND nicht live).
+        if (session != null && !session.isLive) {
             stopSelf()
             return
         }

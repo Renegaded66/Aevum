@@ -30,7 +30,6 @@ import de.devondroste.aevum.ui.theme.AevumTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -56,22 +55,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // M18.22: Zuverlaessiger Notification-Restore beim App-Oeffnen.
+    // M18.22/M18.24: Zuverlaessiger Notification-Restore beim App-Oeffnen.
     // AevumApplication.onCreate laeuft nur beim Cold-Start. onResume laeuft
     // IMMER — auch wenn die App nur im Hintergrund war (Energie-Sparmodus,
     // Swipe-away, Update). Prueft ob eine Live-Session laeuft und startet
     // den Notification-Service falls noetig.
+    //
+    // M18.24: Zusaetzlich wird geprueft, ob die Notification mit ID 9001
+    // wirklich in der Benachrichtigungszeile aktiv ist. Falls der Service
+    // gekillt wurde (Battery-Optimierung, OEM-RAM-Manager), aber die Session
+    // noch laeuft, wird der Service neu gestartet — die Notification
+    // "ploppt" dann wieder auf.
     override fun onResume() {
         super.onResume()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val deps = EntryPointAccessors.fromApplication(application, Deps::class.java)
                 val manager = deps.liveActivityManager()
-                // first() statt .value — WhileSubscribed liefert ohne
-                // aktiven Subscriber immer null (bekannter M18.21-Fix).
-                val session = manager.liveSession.first()
+                // M18.24: liveSession ist jetzt SharingStarted.Eagerly —
+                // .value liefert IMMER den echten DB-Wert, auch ohne
+                // aktiven Subscriber. Kein first() mehr noetig.
+                val session = manager.liveSession.value
                 if (session != null && session.isLive) {
-                    de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+                    // M18.24: Pruefen ob die Notification wirklich aktiv ist.
+                    // activeNotifications kann auf manchen OEM-Geraeten
+                    // (Xiaomi/Samsung) eine SecurityException werfen —
+                    // defensiv abfangen, der Service-Start ist wichtiger.
+                    var notificationActive = false
+                    try {
+                        val nm = getSystemService(android.app.NotificationManager::class.java)
+                        notificationActive = nm.activeNotifications.any { it.id == de.devondroste.aevum.domain.liveactivity.LiveActivityService.NOTIFICATION_ID }
+                    } catch (_: Exception) { }
+                    if (!notificationActive) {
+                        de.devondroste.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+                    }
                 }
             } catch (_: Exception) { }
         }

@@ -59,12 +59,12 @@ class LiveActivityManager @Inject constructor(
     val liveSession: StateFlow<ActivitySession?> =
         activityRepository.getLiveSession()
             .catch { emit(null) }
-            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+            .stateIn(scope, SharingStarted.Eagerly, null)
 
     val liveState: StateFlow<LiveActivityState> =
         liveSession.map { session -> mapState(session) }
             .catch { emit(LiveActivityState.Idle) }
-            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), LiveActivityState.Idle)
+            .stateIn(scope, SharingStarted.Eagerly, LiveActivityState.Idle)
 
     /** Liste der zuletzt verwendeten Activity Types für Quick-Start. */
     val recentActivityTypes: StateFlow<List<RecentActivityType>> =
