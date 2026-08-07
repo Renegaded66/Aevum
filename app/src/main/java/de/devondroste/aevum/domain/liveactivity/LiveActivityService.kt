@@ -33,6 +33,12 @@ class LiveActivityService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var updateJob: Job? = null
+    // M18.41: Zeitpunkt des Service-Starts. Wird fuer die
+    // Initialisierungsphase genutzt: Beim Start kann die Room-Query
+    // noch laufen (liveSession.value == null, obwohl eine Session
+    // existiert). Nach 3s ist die Phase vorbei — dann ist null
+    // wirklich "keine Session" und der Service stoppt.
+    private var serviceStartTime = 0L
 
     companion object {
         // M18.4: NEUE Channel-ID — NotificationChannels sind nach dem ersten
@@ -75,6 +81,7 @@ class LiveActivityService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        serviceStartTime = System.currentTimeMillis()
         when (intent?.action) {
             ACTION_PAUSE -> scope.launch { liveActivityManager.pause() }
             ACTION_RESUME -> scope.launch { liveActivityManager.resume() }
@@ -154,11 +161,19 @@ class LiveActivityService : Service() {
 
     private fun updateNotification() {
         val session = liveActivityManager.liveSession.value
-        // M18.24: NICHT bei null stoppen! Beim Service-Start kann die
-        // Room-Query noch laufen (liveSession.value == null, obwohl eine
-        // Session existiert). Nur stoppen, wenn WIRKLICH keine Live-Session
-        // mehr existiert (Session geladen UND nicht live).
-        if (session != null && !session.isLive) {
+        // M18.41-FIX (Root Cause "Notification bleibt ewig"): Vorher wurde
+        // bei session == null NIE gestoppt (M18.24-Entscheidung) — der
+        // Service zeigte stattdessen buildEmptyNotification() "Aktivität
+        // läuft" FÜR IMMER, auch wenn gar keine Session existierte.
+        // Jetzt: 3s Initialisierungsphase (Room-Query kann beim Start noch
+        // laufen), danach ist null wirklich "keine Session" -> stoppen.
+        if (session == null) {
+            if (System.currentTimeMillis() - serviceStartTime > 3_000) {
+                stopSelf()
+            }
+            return
+        }
+        if (!session.isLive) {
             stopSelf()
             return
         }
@@ -273,12 +288,22 @@ class LiveActivityService : Service() {
     }
 
     private fun buildEmptyNotification(): Notification {
+        // M18.41-FIX (Root Cause "Vibration alle paar Sekunden"): Die
+        // Empty-Notification wurde JEDE Sekunde neu gepostet (updateLoop),
+        // ohne setOnlyAlertOnce/setSilent -> jeder notify() war ein neuer
+        // Alert -> Channel hat enableVibration(true) + IMPORTANCE_HIGH ->
+        // Vibration + Heads-up alle paar Sekunden. Jetzt: silent + nur
+        // einmal alerten. (Diese Notification wird nur noch in der 3s-
+        // Initialisierungsphase gezeigt, danach stoppt der Service.)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Aevum")
             .setContentText("Aktivität läuft")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setShowWhen(false)
             .build()
     }
 

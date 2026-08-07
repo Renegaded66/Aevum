@@ -77,7 +77,14 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     val transitionEnum = when (transition) {
                         Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceTransition.Enter
                         Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceTransition.Exit
-                        Geofence.GEOFENCE_TRANSITION_DWELL -> GeofenceTransition.Enter
+                        // M18.41-FIX (Root Cause "Geofence startet keine Session"):
+                        // DWELL wurde als Enter gemappt — dadurch fraß der
+                        // Dedup-Check (ENTER nach ENTER) das DWELL, der
+                        // Auto-Discard-Refresh kam nie an, und echte Sessions
+                        // wurden nach 60s verworfen. Jetzt: DWELL als eigenes
+                        // Transition-Enum, das im Processor nie dedupliziert
+                        // wird und die Session startet/refresht.
+                        Geofence.GEOFENCE_TRANSITION_DWELL -> GeofenceTransition.Dwell
                         else -> GeofenceTransition.Unknown
                     }
                     if (transitionEnum == GeofenceTransition.Unknown) {

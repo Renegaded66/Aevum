@@ -72,9 +72,16 @@ class GeofenceTransitionProcessor @Inject constructor(
         // zuhause angekommen", "11:57 zuhause angekommen" — obwohl der User
         // seit gestern durchgängig zuhause ist.
         //
-        // Logik: Lade den letzten persistierten Trigger für diese Geofence.
+        // M18.41-FIX (Root Cause "Geofence startet keine Session"): Der
+        // Dedup-Check hatte KEIN Zeitfenster. Wenn ein EXIT verpasst wurde
+        // (GPS-Verlust, App-Kill), blieb der letzte Trigger ewig ENTER —
+        // der naechste Besuch (z.B. naechster Tag im Gym) wurde IMMER
+        // uebersprungen. Jetzt: Dedup nur innerhalb von 10 Minuten. Ein
+        // ENTER nach >10min ist ein echter neuer Besuch.
+        //
+        // Logik: Lade den letzten persistierten Trigger fuer diese Geofence.
         // Wenn der letzte Trigger denselben Typ hatte (ENTER nach ENTER,
-        // EXIT nach EXIT), skippen wir — der Zustand hat sich nicht geändert.
+        // EXIT nach EXIT) UND weniger als 10 Minuten alt ist, skippen wir.
         val recentTriggers = triggerRepository.getByGeofenceId(geofence.id).first()
         val lastTrigger = recentTriggers
             .filter { it.geofenceId == geofence.id }
@@ -86,9 +93,15 @@ class GeofenceTransitionProcessor @Inject constructor(
             val lastWasExit = lastTrigger.type == AutomationConstants.TRIGGER_HOME_LEFT ||
                 lastTrigger.type.contains("LEFT", ignoreCase = true) ||
                 lastTrigger.type == "GEOFENCE_EXIT"
-            val currentIsEnter = transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell
+            val currentIsEnter = transition == GeofenceTransition.Enter
             val currentIsExit = transition == GeofenceTransition.Exit
-            if ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit)) {
+            // M18.41: DWELL wird NIE dedupliziert — es ist die zuverlaessigste
+            // Bestaetigung (User hat 90s im Geofence verweilt) und der
+            // Auto-Discard-Refresh haengt daran.
+            val withinDedupWindow = occurredAt - lastTrigger.occurredAt < DEDUP_WINDOW_MS
+            if (transition != GeofenceTransition.Dwell &&
+                withinDedupWindow && ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit))
+            ) {
                 debugLogger.log("PROCESSOR", "  DEDUP: ${transition.name} übersprungen — letzter Trigger war auch ${lastTrigger.type} @ ${lastTrigger.occurredAt}")
                 return GeofenceProcessingResult.Ignored
             }
@@ -196,8 +209,15 @@ class GeofenceTransitionProcessor @Inject constructor(
         // Enter-Trigger für den gleichen Geofence kommt, wird die Session
         // verworfen. Das fängt GPS-Sprünge ab, ohne den "direkt
         // automatisch"-Use-Case zu zerstören.
+        //
+        // M18.41-FIX (Root Cause "Geofence startet keine Session"):
+        // DWELL wird wie ENTER behandelt — Google Play Services liefert
+        // oft NUR DWELL (ENTER kam beim App-Start/Neuregistrierung und
+        // wurde dedupliziert). Vorher startete DWELL nie eine Session
+        // und refreshte den Auto-Discard nicht -> echte Sessions wurden
+        // nach 60s verworfen. Jetzt: DWELL startet + refresht.
         // ============================================================
-        if (transition == GeofenceTransition.Enter) {
+        if (transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell) {
             // M17: Auto-Start, wenn der Geofence explizit eine Auto-Start-
             // Aktivität konfiguriert hat (autoStartActivityTypeId). Wenn
             // nur die normale activityTypeId gesetzt ist, reicht das nicht —
@@ -286,6 +306,11 @@ class GeofenceTransitionProcessor @Inject constructor(
 
     private companion object {
         const val DEFAULT_CONFIDENCE = 0.82f
+        // M18.41: Dedup-Zeitfenster — ein ENTER nach ENTER wird nur
+        // innerhalb von 10 Minuten als Duplikat gewertet. Danach ist es
+        // ein echter neuer Besuch (verpasster EXIT durch GPS-Verlust
+        // darf den naechsten Besuch nicht blockieren).
+        const val DEDUP_WINDOW_MS = 10 * 60 * 1000L
         // M17: Auto-Discard-Schutz gegen GPS-Sprünge. Wenn eine Auto-Session
         // 60s läuft und KEIN zweiter Enter-Trigger für den gleichen Geofence
         // gekommen ist, wurde sie durch einen GPS-Sprung ausgelöst und wird
