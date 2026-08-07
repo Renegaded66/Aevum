@@ -63,6 +63,8 @@ interface ActivityTypeRepository {
     // M18.12: Icon + custom Farbe
     suspend fun setIcon(id: String, icon: String)
     suspend fun setColor(id: String, color: Long)
+    // M18.17: Kategorie einer Aktivität zuweisen (null = keine).
+    suspend fun setCategory(id: String, categoryId: String?)
     suspend fun insert(type: ActivityType)
     suspend fun insertAll(types: List<ActivityType>)
     suspend fun update(type: ActivityType)

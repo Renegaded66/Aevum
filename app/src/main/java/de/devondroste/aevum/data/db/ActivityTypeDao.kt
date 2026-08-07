@@ -38,6 +38,10 @@ interface ActivityTypeDao {
     @Query("UPDATE activity_type SET color = :color WHERE id = :id")
     suspend fun setColor(id: String, color: Long)
 
+    // M18.17: Kategorie einer Aktivität zuweisen (null = keine).
+    @Query("UPDATE activity_type SET default_category_id = :categoryId WHERE id = :id")
+    suspend fun setCategory(id: String, categoryId: String?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(type: ActivityType)
 

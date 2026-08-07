@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -68,6 +69,8 @@ fun ActivityTypesScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
+    // M18.17: Kategorie-Auswahl beim Anlegen
+    var newCategoryId by remember { mutableStateOf<String?>(null) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -121,10 +124,13 @@ fun ActivityTypesScreen(
                     items(state.activityTypes, key = { it.id }) { row ->
                         ActivityTypeCard(
                             row = row,
+                            categories = state.categories,
                             onScoreChange = { viewModel.onScoreDragged(row.id, it) },
                             onScoreCommit = { viewModel.commitScore(row.id) },
                             onIconChange = { viewModel.setIcon(row.id, it) },
-                            onColorChange = { viewModel.setColor(row.id, it) }
+                            onColorChange = { viewModel.setColor(row.id, it) },
+                            onCategoryChange = { viewModel.setCategory(row.id, it) },
+                            onCreateCategory = viewModel::createCategory
                         )
                     }
                     item { Spacer(Modifier.height(AevumSpacing.xl)) }
@@ -136,29 +142,58 @@ fun ActivityTypesScreen(
     // M18.12: Dialog für neue Aktivität
     if (showCreateDialog) {
         AlertDialog(
-            onDismissRequest = { showCreateDialog = false; newName = "" },
+            onDismissRequest = { showCreateDialog = false; newName = ""; newCategoryId = null },
             title = { Text("Neue Aktivität", fontWeight = FontWeight.SemiBold) },
             text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Name (z. B. Gitarre)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("Name (z. B. Gitarre)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // M18.17: Kategorie beim Anlegen wählen
+                    Text("Kategorie (optional)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        state.categories.forEach { cat ->
+                            val selected = cat.id == newCategoryId
+                            Box(
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.large)
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                    .clickable { newCategoryId = if (selected) null else cat.id }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    "${cat.icon} ${cat.name}",
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.createActivity(newName)
+                        viewModel.createActivity(newName, newCategoryId)
                         showCreateDialog = false
                         newName = ""
+                        newCategoryId = null
                     },
                     enabled = newName.trim().isNotEmpty()
                 ) { Text("Anlegen") }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false; newName = "" }) { Text("Abbrechen") }
+                TextButton(onClick = { showCreateDialog = false; newName = ""; newCategoryId = null }) { Text("Abbrechen") }
             }
         )
     }
@@ -175,12 +210,19 @@ fun ActivityTypesScreen(
 @Composable
 private fun ActivityTypeCard(
     row: ActivityTypeRow,
+    categories: List<CategoryRow>,
     onScoreChange: (Int) -> Unit,
     onScoreCommit: () -> Unit,
     onIconChange: (String) -> Unit,
-    onColorChange: (Long) -> Unit
+    onColorChange: (Long) -> Unit,
+    // M18.17: Kategorie-Zuordnung
+    onCategoryChange: (String?) -> Unit,
+    onCreateCategory: (String) -> Unit
 ) {
     var showIconPicker by remember { mutableStateOf(false) }
+    // M18.17: Kategorie-Picker-Dialog
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    var newCategoryName by remember { mutableStateOf("") }
     val accent = if (row.color != 0L) Color(row.color) else positivityColor(row.score)
 
     GlassCard(accentColor = accent) {
@@ -231,6 +273,39 @@ private fun ActivityTypeCard(
                 onScoreChange = onScoreChange,
                 onValueChangeFinished = onScoreCommit
             )
+
+            // M18.17: Kategorie-Zuordnung — Chip zeigt aktuelle Kategorie,
+            // Tippen öffnet den Picker (inkl. "Keine" + "Neue Kategorie").
+            Text(
+                "KATEGORIE",
+                fontSize = 9.sp,
+                letterSpacing = 1.0.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.large)
+                        .background(
+                            if (row.categoryId != null) accent.copy(alpha = 0.18f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        )
+                        .clickable { showCategoryPicker = true }
+                        .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        row.categoryName ?: "Keine Kategorie",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (row.categoryId != null) accent else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             // M18.12: Farb-Palette — custom Farbe pro Aktivität
             Text(
@@ -303,6 +378,95 @@ private fun ActivityTypeCard(
             },
             confirmButton = {
                 TextButton(onClick = { showIconPicker = false }) { Text("Fertig") }
+            }
+        )
+    }
+
+    // M18.17: Kategorie-Picker — Auswahl + "Keine" + "Neue Kategorie".
+    if (showCategoryPicker) {
+        AlertDialog(
+            onDismissRequest = { showCategoryPicker = false },
+            title = { Text("Kategorie für \"${row.name}\"", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // "Keine Kategorie" — Zuordnung entfernen
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (row.categoryId == null) accent.copy(alpha = 0.25f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            )
+                            .clickable {
+                                onCategoryChange(null)
+                                showCategoryPicker = false
+                            }
+                            .padding(horizontal = AevumSpacing.md, vertical = 10.dp)
+                    ) {
+                        Text(
+                            "Keine Kategorie",
+                            fontSize = 14.sp,
+                            fontWeight = if (row.categoryId == null) FontWeight.Bold else FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    // Bestehende Kategorien
+                    categories.forEach { cat ->
+                        val selected = cat.id == row.categoryId
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (selected) accent.copy(alpha = 0.25f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                )
+                                .clickable {
+                                    onCategoryChange(cat.id)
+                                    showCategoryPicker = false
+                                }
+                                .padding(horizontal = AevumSpacing.md, vertical = 10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(cat.icon, fontSize = 14.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    cat.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    // Neue Kategorie anlegen
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = newCategoryName,
+                            onValueChange = { newCategoryName = it },
+                            label = { Text("Neue Kategorie…") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                val name = newCategoryName.trim()
+                                if (name.isNotEmpty()) {
+                                    onCreateCategory(name)
+                                    newCategoryName = ""
+                                }
+                            },
+                            enabled = newCategoryName.trim().isNotEmpty()
+                        ) { Text("Anlegen") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCategoryPicker = false }) { Text("Fertig") }
             }
         )
     }

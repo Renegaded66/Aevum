@@ -85,6 +85,7 @@ class ActivityTypeRepositoryImpl(
     // M18.12: Icon + custom Farbe
     override suspend fun setIcon(id: String, icon: String) = typeDao.setIcon(id, icon)
     override suspend fun setColor(id: String, color: Long) = typeDao.setColor(id, color)
+    override suspend fun setCategory(id: String, categoryId: String?) = typeDao.setCategory(id, categoryId)
     override suspend fun insert(type: ActivityType) = typeDao.insert(type)
     override suspend fun insertAll(types: List<ActivityType>) = typeDao.insertAll(types)
     override suspend fun update(type: ActivityType) = typeDao.update(type)

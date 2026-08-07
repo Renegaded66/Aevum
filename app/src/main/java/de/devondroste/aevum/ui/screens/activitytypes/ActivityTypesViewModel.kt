@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.devondroste.aevum.data.model.ActivityType
+import de.devondroste.aevum.data.model.Category
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
+import de.devondroste.aevum.data.repository.CategoryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +27,9 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class ActivityTypesViewModel @Inject constructor(
-    private val activityTypeRepository: ActivityTypeRepository
+    private val activityTypeRepository: ActivityTypeRepository,
+    // M18.17: Kategorien für die Zuordnung pro Aktivität.
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
 
     // M18.2: Lokaler Drag-State: typeId -> pendingScore.
@@ -34,8 +38,9 @@ class ActivityTypesViewModel @Inject constructor(
 
     val uiState: StateFlow<ActivityTypesUiState> = combine(
         activityTypeRepository.getAll(),
+        categoryRepository.getAll(),
         pendingScores
-    ) { types, pending ->
+    ) { types, categories, pending ->
         ActivityTypesUiState(
             activityTypes = types.map { type ->
                 val pendingScore = pending[type.id]
@@ -45,7 +50,17 @@ class ActivityTypesViewModel @Inject constructor(
                     score = pendingScore ?: type.positivityScore,
                     isSystem = type.isSystem,
                     icon = type.icon,
-                    color = type.color
+                    color = type.color,
+                    categoryId = type.defaultCategoryId,
+                    categoryName = categories.firstOrNull { it.id == type.defaultCategoryId }?.name
+                )
+            },
+            categories = categories.map { cat ->
+                CategoryRow(
+                    id = cat.id,
+                    name = cat.name,
+                    color = cat.color,
+                    icon = cat.icon
                 )
             }
         )
@@ -91,6 +106,30 @@ class ActivityTypesViewModel @Inject constructor(
         }
     }
 
+    // M18.17: Kategorie einer Aktivität zuweisen (null = keine).
+    fun setCategory(typeId: String, categoryId: String?) {
+        viewModelScope.launch {
+            activityTypeRepository.setCategory(typeId, categoryId)
+        }
+    }
+
+    // M18.17: Neue Kategorie anlegen (z. B. "Sport" für Joggen + Gym).
+    fun createCategory(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val cat = Category(
+            id = "custom_${UUID.randomUUID().toString().take(8)}",
+            name = trimmed,
+            color = "#6366F1",
+            icon = "◆",
+            isSystem = false,
+            sortOrder = 1000
+        )
+        viewModelScope.launch {
+            categoryRepository.insert(cat)
+        }
+    }
+
     /**
      * M18.12: Neue Aktivität manuell anlegen.
      * Erzeugt einen eigenen ActivityType (isSystem=false) mit Defaults:
@@ -118,7 +157,9 @@ class ActivityTypesViewModel @Inject constructor(
 }
 
 data class ActivityTypesUiState(
-    val activityTypes: List<ActivityTypeRow> = emptyList()
+    val activityTypes: List<ActivityTypeRow> = emptyList(),
+    // M18.17: Kategorien für die Zuordnung.
+    val categories: List<CategoryRow> = emptyList()
 )
 
 data class ActivityTypeRow(
@@ -128,5 +169,16 @@ data class ActivityTypeRow(
     val isSystem: Boolean,
     // M18.12: Icon (Emoji) + custom Farbe (ARGB-Int, 0 = Primärfarbe)
     val icon: String = "•",
-    val color: Long = 0L
+    val color: Long = 0L,
+    // M18.17: Kategorie-Zuordnung (z. B. Joggen -> Sport)
+    val categoryId: String? = null,
+    val categoryName: String? = null
+)
+
+// M18.17: Kategorie für die Zuordnung im Screen.
+data class CategoryRow(
+    val id: String,
+    val name: String,
+    val color: String,
+    val icon: String
 )
