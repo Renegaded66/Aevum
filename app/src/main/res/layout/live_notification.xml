@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    M18.22: Überarbeitetes Live-Notification-Layout.
-    Individueller, bunter, weniger langweilig:
-    - Header: kräftige Aktivitätsfarbe (vom Service gesetzt)
-    - Timer: 28sp, weiß, fett
-    - Aktions-Buttons: eigene farbige Hintergründe (statt einheitlich schwarz)
+    M18.23: Live-Notification — fancy modernes Design.
+    - Header: Gradient-Hintergrund (Aktivitaetsfarbe) mit weichen Ecken
+    - Timer: 30sp, weiss, fett, Monospace
+    - Buttons: eigene farbige Hintergruende, groessere Touch-Targets
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/notification_root"
@@ -13,25 +12,25 @@
     android:orientation="vertical"
     android:padding="0dp">
 
-    <!-- Farbiger Kopfbereich: Aktivitätsfarbe als kräftige Fläche -->
+    <!-- Farbiger Kopfbereich mit Gradient -->
     <LinearLayout
         android:id="@+id/notification_header"
         android:layout_width="match_parent"
-        android:layout_height="64dp"
+        android:layout_height="72dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="12dp"
-        android:background="#4CAF50">
+        android:paddingStart="20dp"
+        android:paddingEnd="16dp"
+        android:background="@drawable/live_notification_header_bg">
 
-        <!-- Emoji-Icon der Aktivität -->
+        <!-- Emoji-Icon der Aktivitaet — gross -->
         <TextView
             android:id="@+id/notification_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:gravity="center"
-            android:textSize="28sp"
-            android:text="▶" />
+            android:textSize="32sp"
+            android:text=">>" />
 
         <!-- Titel + Status -->
         <LinearLayout
@@ -39,84 +38,106 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginStart="12dp">
+            android:layout_marginStart="14dp">
 
             <TextView
                 android:id="@+id/notification_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
+                android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:text="Aktivität" />
+                android:shadowColor="#80000000"
+                android:shadowRadius="3"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:text="Aktivitaet" />
 
             <TextView
                 android:id="@+id/notification_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="12sp"
-                android:textColor="#E0FFFFFF"
+                android:textSize="13sp"
+                android:textColor="#E8FFFFFF"
                 android:maxLines="1"
+                android:shadowColor="#80000000"
+                android:shadowRadius="2"
+                android:shadowDx="0"
+                android:shadowDy="1"
                 android:text="Aktiv" />
         </LinearLayout>
 
-        <!-- Live-Timer (groß) -->
+        <!-- Live-Timer — gross, Monospace -->
         <TextView
             android:id="@+id/notification_timer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="28sp"
+            android:textSize="30sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:fontFamily="monospace"
+            android:shadowColor="#80000000"
+            android:shadowRadius="4"
+            android:shadowDx="0"
+            android:shadowDy="2"
             android:text="00:00" />
     </LinearLayout>
 
-    <!-- Aktionsleiste: Pause / Wechsel / Stopp mit farbigen Hintergründen -->
+    <!-- Aktionsleiste: Pause / Wechsel / Stopp mit farbigen Hintergruenden -->
     <LinearLayout
         android:id="@+id/notification_actions"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
+        android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center"
-        android:background="#1A1A2E">
+        android:background="#15151F">
 
         <Button
             android:id="@+id/action_pause"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#2A2A3E"
+            android:background="#15151F"
             android:textColor="#FFD54F"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:text="⏸ Pause" />
+            android:text="PAUSE" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="36dp"
+            android:background="#252535" />
 
         <Button
             android:id="@+id/action_switch"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#2A2A3E"
+            android:background="#15151F"
             android:textColor="#64FFDA"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:text="⇄ Wechseln" />
+            android:text="WECHSEL" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="36dp"
+            android:background="#252535" />
 
         <Button
             android:id="@+id/action_stop"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="#2A2A3E"
+            android:background="#15151F"
             android:textColor="#FF8A80"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:text="■ Stopp" />
+            android:text="STOPP" />
     </LinearLayout>
 </LinearLayout>

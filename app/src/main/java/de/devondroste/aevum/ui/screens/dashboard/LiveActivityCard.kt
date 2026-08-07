@@ -32,7 +32,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -102,7 +106,9 @@ fun LiveActivityCard(
     onDiscard: () -> Unit = {},
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen (Name → neuer ActivityType)
-    onCreateActivity: (String) -> Unit = {}
+    onCreateActivity: (String) -> Unit = {},
+    // M18.23: Aktivität wechseln — aktueller Timer wird beendet, neue gestartet
+    onSwitch: (String, String?) -> Unit = { _, _ -> }
 ) {
     when (state) {
         is LiveActivityState.Idle -> IdleCard(
@@ -119,14 +125,17 @@ fun LiveActivityCard(
             nowMs = nowMs,
             onPause = onPause,
             onStop = onStop,
-            onDiscard = onDiscard
+            onDiscard = onDiscard,
+            onSwitch = onSwitch,
+            activityTypes = activityTypes
         )
         is LiveActivityState.Paused -> PausedCard(
             state = state,
             nowMs = nowMs,
             onResume = onResume,
             onStop = onStop,
-            onDiscard = onDiscard
+            onDiscard = onDiscard,
+            onSwitch = onSwitch
         )
     }
 }
@@ -843,9 +852,14 @@ private fun RunningCard(
     nowMs: Long,
     onPause: () -> Unit,
     onStop: () -> Unit,
-    onDiscard: () -> Unit = {}
+    onDiscard: () -> Unit = {},
+    onSwitch: (String, String?) -> Unit = { _, _ -> },
+    activityTypes: List<ActivityType> = emptyList()
 ) {
     val accentColor = categoryColor(state.categoryId ?: "unknown")
+
+    // M18.23: State fuer Wechsel-Sheet
+    var showSwitchSheet by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -953,7 +967,29 @@ private fun RunningCard(
                     secondary = HeroAction(Icons.Default.Stop, "Stoppen", onStop, isDestructive = true)
                 )
             }
+            // M18.23: Wechsel-Button — oeffnet ActivityPicker zum Wechseln
+            OutlinedButton(
+                onClick = { showSwitchSheet = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(AevumRadius.full)
+            ) {
+                Text("\u21C4", fontSize = 18.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("Aktivitaet wechseln", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
         }
+    }
+    // M18.23: Switch-Picker als BottomSheet
+    if (showSwitchSheet) {
+        SwitchActivityPickerSheet(
+            currentTitle = state.title,
+            activityTypes = activityTypes,
+            onSwitch = { newTypeId, newCategoryId ->
+                onSwitch(newTypeId, newCategoryId)
+                showSwitchSheet = false
+            },
+            onDismiss = { showSwitchSheet = false }
+        )
     }
 }
 
@@ -967,7 +1003,8 @@ private fun PausedCard(
     nowMs: Long,
     onResume: () -> Unit,
     onStop: () -> Unit,
-    onDiscard: () -> Unit = {}
+    onDiscard: () -> Unit = {},
+    onSwitch: (String, String?) -> Unit = { _, _ -> }
 ) {
     AevumCard(
         variant = CardVariant.Gradient,
@@ -1178,5 +1215,84 @@ fun formatHumanDuration(ms: Long): String {
         hours > 0 -> "$hours h $minutes min"
         minutes > 0 -> "$minutes min"
         else -> "$seconds s"
+    }
+}
+
+// M18.23: Switch-Picker — einfaches BottomSheet zum Wechseln der Aktivitaet.
+// Zeigt alle ActivityTypes mit Icon in farbigem Kreis. Bei Auswahl wird
+// onSwitch(typeId, categoryId) aufgerufen — der Aufrufer beendet die
+// aktuelle Session und startet die neue.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwitchActivityPickerSheet(
+    currentTitle: String,
+    activityTypes: List<ActivityType>,
+    onSwitch: (String, String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.md)
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+        ) {
+            Text(
+                "Wechseln zu...",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = AevumSpacing.sm)
+            )
+            Text(
+                "Aktuell: $currentTitle wird beendet",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = AevumSpacing.sm)
+            )
+            activityTypes.sortedBy { it.name }.forEach { type ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onSwitch(type.id, type.defaultCategoryId)
+                        },
+                    shape = RoundedCornerShape(AevumRadius.md),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                    ) {
+                        // Icon in farbigem Kreis
+                        val color = if (type.color != 0L) Color(type.color)
+                            else categoryColor(type.defaultCategoryId ?: "unknown")
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(color.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                type.icon.takeIf { it.isNotBlank() } ?: "\u2022",
+                                fontSize = 18.sp
+                            )
+                        }
+                        Text(type.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text("\u2192", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Spacer(Modifier.height(AevumSpacing.lg))
+        }
     }
 }

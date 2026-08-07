@@ -467,6 +467,10 @@ class ActivityRecognitionTriggerWorker(
         fun triggerEventRepository(): TriggerEventRepository
         fun rawSourceRepository(): RawSourceEventRepository
         fun detectionRepository(): DetectionEventRepository
+        // M18.23: Event-driven GPS-Check
+        fun eventDrivenLocationChecker(): de.devondroste.aevum.automation.geofence.EventDrivenLocationChecker
+        fun geofenceTransitionProcessor(): de.devondroste.aevum.automation.geofence.GeofenceTransitionProcessor
+        fun geofenceRepository(): de.devondroste.aevum.data.repository.PlaceGeofenceRepository
     }
 
     override suspend fun doWork(): Result {
@@ -483,6 +487,57 @@ class ActivityRecognitionTriggerWorker(
         val triggerType = triggerTypeFor(activityType, transition) ?: return Result.success()
         val confidence = inputData.getFloat(KEY_CONFIDENCE, 0.5f).coerceIn(0f, 1f)
         val externalId = "ar_${activityType.lowercase()}_${transition.lowercase()}_$now"
+
+        // M18.23: Event-driven GPS-Check. Bei jedem Activity-Recognition-Event
+        // wird ein einmaliger GPS-Fix geholt und geprueft, ob der User in einer
+        // Geofence ist. Das ersetzt das 24/7 Geofencing und verhindert False-Trigger.
+        try {
+            val locResult = deps.eventDrivenLocationChecker().checkCurrentLocationAgainstGeofences()
+            val matchedGeofence = locResult.matchedGeofence
+            val allGeofences = locResult.allGeofences
+
+            if (matchedGeofence != null && matchedGeofence.autoStartActivityTypeId != null) {
+                // User ist in einer Geofence mit Auto-Start → Geofence-Enter
+                // verarbeiten (wie ein normaler Geofence-Trigger, aber ohne
+                // die Stabilisierungs-Verzoegerung, weil das GPS schon gefiltert ist)
+                android.util.Log.d(TAG, "GPS-Check: User in Geofence ${matchedGeofence.name}")
+                if (transition == "ENTER") {
+                    deps.geofenceTransitionProcessor().processTransition(
+                        geofenceId = matchedGeofence.id,
+                        transition = de.devondroste.aevum.automation.geofence.GeofenceTransition.Enter,
+                        occurredAt = now,
+                        latitude = locResult.location?.latitude,
+                        longitude = locResult.location?.longitude
+                    )
+                }
+                // Bei EXIT (Activity-Recognition meldet Ende der Bewegung):
+                // pruefen ob der User die Geofence verlassen hat. Wenn er in
+                // keiner Geofence mehr ist, aber eine Auto-Session fuer diese
+                // Geofence laeuft, sie beenden.
+                // (Vereinfacht: wir verlassen das EXIT-Handling an den Geofence-
+                // Processor, wenn die Activity Recognition einen Wechsel meldet.)
+            } else if (matchedGeofence == null && allGeofences.isNotEmpty() && transition == "EXIT") {
+                // User ist nicht in einer Geofence, aber es gibt Geofences und
+                // die Bewegung endet. Das kann bedeuten, dass der User eine
+                // Geofence verlassen hat. Wir pruefen ob eine Auto-Session laeuft.
+                android.util.Log.d(TAG, "GPS-Check: User nicht in Geofence, pruefe Auto-Stop")
+                // Der GeofenceTransitionProcessor kann den Auto-Stop uebernehmen,
+                // wenn wir fuer alle Geofences einen EXIT-Trigger senden, fuer die
+                // eine Auto-Session laufen koennte. Vereinfacht: wir senden EXIT
+                // fuer alle Geofences, die Auto-Start haben.
+                allGeofences.filter { it.autoStartActivityTypeId != null }.forEach { gf ->
+                    deps.geofenceTransitionProcessor().processTransition(
+                        geofenceId = gf.id,
+                        transition = de.devondroste.aevum.automation.geofence.GeofenceTransition.Exit,
+                        occurredAt = now,
+                        latitude = locResult.location?.latitude,
+                        longitude = locResult.location?.longitude
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "GPS-Check fehlgeschlagen (nicht blockierend): ${e.message}")
+        }
 
         val existing = rawRepo.getBySourceAndExternalId("activity_recognition", externalId).first()
         if (existing != null) return Result.success()

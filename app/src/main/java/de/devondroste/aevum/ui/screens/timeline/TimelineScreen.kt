@@ -1,5 +1,6 @@
 package de.devondroste.aevum.ui.screens.timeline
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -15,10 +16,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -52,6 +56,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,16 +67,21 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import de.devondroste.aevum.data.model.ActivitySession
 import de.devondroste.aevum.data.model.ActivityType
 import de.devondroste.aevum.data.model.Tag
 import de.devondroste.aevum.domain.activity.SessionValidationResult
@@ -139,7 +149,7 @@ fun TimelineScreen(
                     )
                 }
             } else {
-                item { DayCalendarTimeline(state.sessions, state.triggerEvents, onOpenActivity, onEditActivity) }
+                item { DayCalendarTimeline(state.sessions, state.triggerEvents, onOpenActivity, onEditActivity, viewModel::deleteTrigger) }
                 item { Spacer(Modifier.height(72.dp)) }
             }
         }
@@ -196,48 +206,424 @@ fun ActivityDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
-            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
-        ) {
-            item { TextButton(onClick = onBack) { Text("Zurück") } }
-            val session = state.session
-            if (session == null) {
-                item { EmptyState(title = "Aktivität nicht gefunden", message = "Der Eintrag existiert nicht mehr.", actionLabel = "Zurück", onActionClick = onBack) }
-            } else {
+        val session = state.session
+        if (session == null) {
+            // Leerezustand — Aktivitaet nicht gefunden
+            Column(
+                modifier = Modifier.fillMaxSize().statusBarsPadding().padding(AevumSpacing.lg),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                EmptyState(
+                    title = "Aktivitaet nicht gefunden",
+                    message = "Der Eintrag existiert nicht mehr.",
+                    actionLabel = "Zurueck",
+                    onActionClick = onBack
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+            ) {
+                // Zurueck-Button
                 item {
-                    AevumCard(variant = CardVariant.Gradient) {
-                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                            Text(session.title, fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
-                            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                                CategoryChip(categoryId = state.category?.name ?: "Sonstiges")
-                                state.activityType?.let { SimpleChip(it.name) }
-                            }
-                            Text(state.range, fontSize = 22.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.secondary)
-                            Text("Dauer: ${state.duration}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            session.description?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        }
+                    TextButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                        Text("< Zurueck")
                     }
                 }
-                item { TagsCard(state.tags) }
+
+                // Grosser Header-Bereich mit Aktivitaets-Icon, Name und Kategorie
+                item { DetailHeaderCard(session, state) }
+
+                // Zeit-Range als grosse Monospace-Anzeige
+                item { DetailTimeRangeCard(state.range, session) }
+
+                // Dauer als hervorgehobene Statistik-Karte
+                item { DetailDurationCard(state.duration, state.activityType?.color ?: 0L) }
+
+                // Statistik-Karten: Startzeit, Endzeit, Quelle
+                item { DetailStatsGrid(session, state) }
+
+                // Positivitaets-Score als farbiger Balken (falls verfuegbar)
+                state.activityType?.let { type ->
+                    if (type.positivityScore != 50) {
+                        item { DetailPositivityCard(type.positivityScore) }
+                    }
+                }
+
+                // Beschreibungstext falls vorhanden
+                session.description?.let { desc ->
+                    if (desc.isNotBlank()) {
+                        item { DetailDescriptionCard(desc) }
+                    }
+                }
+
+                // Tags als fancy Chips
+                item { DetailTagsCard(state.tags) }
+
+                // Bearbeiten / Loeschen Buttons am Ende
                 item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Button(onClick = { onEdit(session.id) }, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }
-                        OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.weight(1f)) { Text("Löschen") }
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Button(
+                            onClick = { onEdit(session.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = AevumSpacing.md)
+                        ) { Text("Bearbeiten", fontSize = 16.sp) }
+                        OutlinedButton(
+                            onClick = { confirmDelete = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                            ),
+                            contentPadding = PaddingValues(vertical = AevumSpacing.md)
+                        ) { Text("Loeschen", fontSize = 16.sp) }
                     }
                 }
             }
         }
     }
+    // Loesch-Bestaetigungsdialog
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Aktivität löschen?") },
+            title = { Text("Aktivitaet loeschen?") },
             text = { Text("Der Eintrag verschwindet aus Timeline und Dashboard.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.delete() }) { Text("Löschen") } },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.delete() }) { Text("Loeschen") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } }
         )
+    }
+}
+
+/**
+ * Header-Karte: grosses Aktivitaets-Icon in farbigem Kreis,
+ * Aktivitaetsname gross, Kategorie als Chip.
+ */
+@Composable
+private fun DetailHeaderCard(session: ActivitySession, state: ActivityDetailUiState) {
+    val activityColor = if (state.activityType?.color != null && state.activityType.color != 0L) {
+        Color(state.activityType.color)
+    } else {
+        categoryColor(state.category?.name ?: "Sonstiges")
+    }
+    val icon = state.activityType?.icon?.takeIf { it.isNotBlank() } ?: "\u2022"
+
+    AevumCard(variant = CardVariant.Gradient) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Aktivitaets-Icon in farbigem Kreis
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(activityColor.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = icon,
+                    fontSize = 36.sp,
+                    color = activityColor
+                )
+            }
+            // Aktivitaetsname gross
+            Text(
+                session.title,
+                fontSize = 28.sp,
+                lineHeight = 32.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            // Kategorie als Chip
+            CategoryChip(categoryId = state.category?.name ?: "Sonstiges")
+        }
+    }
+}
+
+/**
+ * Zeit-Range-Karte: Start - Ende als grosse Monospace-Anzeige.
+ */
+@Composable
+private fun DetailTimeRangeCard(range: String, session: ActivitySession) {
+    AevumCard(variant = CardVariant.Filled) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                range,
+                fontSize = 26.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            // Datum der Aktivitaet
+            val dateStr = remember(session.startAt) {
+                val ldt = Instant.ofEpochMilli(session.startAt)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM"))
+            }
+            Text(
+                dateStr,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Dauer-Karte: hervorgehobene Statistik in einem farbigen Kasten.
+ */
+@Composable
+private fun DetailDurationCard(duration: String, activityColorLong: Long) {
+    val accentColor = if (activityColorLong != 0L) Color(activityColorLong) else MaterialTheme.colorScheme.primary
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(AevumRadius.lg),
+        color = accentColor.copy(alpha = 0.15f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.md),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Dauer",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    duration,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    color = accentColor
+                )
+            }
+            // Stundenglas-Emoji als visuelles Element
+            Text("\u23F1", fontSize = 40.sp)
+        }
+    }
+}
+
+/**
+ * Statistik-Grid: 2x2 Kacheln mit Startzeit, Endzeit, Dauer, Quelle.
+ */
+@Composable
+private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiState) {
+    // Formatiere Start- und Endzeit
+    val startTimeStr = remember(session.startAt) {
+        val lt = Instant.ofEpochMilli(session.startAt)
+            .atZone(ZoneId.systemDefault())
+            .toLocalTime()
+        lt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    }
+    val endTimeStr = remember(session.endAt) {
+        session.endAt?.let { end ->
+            val lt = Instant.ofEpochMilli(end)
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+            lt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+        }
+    }
+    // Quell-Icon und Label bestimmen
+    val (sourceIcon, sourceLabel) = when (session.sourceType) {
+        "MANUAL" -> "\u270F\uFE0F" to "Manuell"
+        "GEOFENCE_AUTO" -> "\uD83D\uDCCD" to "Geofence"
+        "HEALTH_SLEEP_AUTO" -> "\uD83D\uDE34" to "Schlaf (Auto)"
+        "ACTIVITY_RECOGNITION_AUTO" -> "\uD83D\uDEB4" to "Bewegung (Auto)"
+        else -> "\uD83D\uDCE5" to session.sourceType
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+        // Reihe 1: Startzeit und Endzeit
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            DetailStatCard(
+                icon = "\uD83D\uDD51",
+                label = "Start",
+                value = startTimeStr,
+                modifier = Modifier.weight(1f)
+            )
+            DetailStatCard(
+                icon = "\uD83D\uDD52",
+                label = if (session.endAt == null) "Laeuft noch" else "Ende",
+                value = endTimeStr ?: "offen",
+                modifier = Modifier.weight(1f)
+            )
+        }
+        // Reihe 2: Dauer und Quelle
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            DetailStatCard(
+                icon = "\u23F1",
+                label = "Dauer",
+                value = state.duration,
+                modifier = Modifier.weight(1f)
+            )
+            DetailStatCard(
+                icon = sourceIcon,
+                label = "Quelle",
+                value = sourceLabel,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+/**
+ * Einzelne Statistik-Kachel mit Icon, Label und Wert.
+ */
+@Composable
+private fun DetailStatCard(
+    icon: String,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    AevumCard(modifier = modifier, variant = CardVariant.Elevated, contentPadding = PaddingValues(AevumSpacing.md)) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(icon, fontSize = 22.sp)
+            Text(
+                label,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Positivitaets-Score als farbiger Balken mit Prozentangabe.
+ */
+@Composable
+private fun DetailPositivityCard(score: Int) {
+    val barColor = positivityColor(score)
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Positivitaet", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "$score%",
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = barColor
+                )
+            }
+            // Farbigere Hintergrundbahn
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                // Gefuellter Balken
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(score / 100f)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(AevumRadius.full))
+                        .background(barColor)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Beschreibungskarte mit Text.
+ */
+@Composable
+private fun DetailDescriptionCard(description: String) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+            Text("Beschreibung", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(description, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+/**
+ * Tags-Karte mit fancy Chips in einer FlowRow.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DetailTagsCard(tags: List<Tag>) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text("Tags", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            if (tags.isEmpty()) {
+                Text(
+                    "Keine Tags zugewiesen",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                ) {
+                    tags.forEach { tag ->
+                        // Farbiges Tag-Chip mit Punkt-Marker
+                        val tagColor = tag.color?.let { parseHexColorOrNull(it) } ?: MaterialTheme.colorScheme.primary
+                        Surface(
+                            shape = RoundedCornerShape(AevumRadius.full),
+                            color = tagColor.copy(alpha = 0.14f),
+                            contentColor = tagColor
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = AevumSpacing.sm, vertical = AevumSpacing.xs),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                            ) {
+                                Box(Modifier.size(6.dp).background(tagColor, CircleShape))
+                                Text(tag.name, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Hilfsfunktion: Hex-Color-String (z.B. "#FF6366F1" oder "FF6366F1") zu Compose Color.
+ * Gibt null zurueck, wenn der String nicht geparst werden kann.
+ */
+private fun parseHexColorOrNull(hex: String): Color? {
+    val cleaned = hex.removePrefix("#")
+    return try {
+        Color(cleaned.toLong(16))
+    } catch (_: NumberFormatException) {
+        null
     }
 }
 
@@ -530,7 +916,8 @@ private fun DayCalendarTimeline(
     sessions: List<TimelineSessionUi>,
     triggers: List<TriggerEventUi>,
     onOpen: (String) -> Unit,
-    onEdit: (String) -> Unit
+    onEdit: (String) -> Unit,
+    onDeleteTrigger: (String) -> Unit
 ) {
     var isListMode by remember { mutableStateOf(false) }
     var pixelsPerHour by remember { mutableStateOf(TimelineUiState.DEFAULT_PIXELS_PER_HOUR) }
@@ -577,22 +964,53 @@ private fun DayCalendarTimeline(
                 }
             }
             if (isListMode) {
-                // M18.22: Scrollbar-Anzeige — die EventListTimeline bekommt
-                // eine begrenzte Höhe und verticalScroll, damit bei vielen
-                // Events eine Scroll-Leiste sichtbar ist.
+                // M18.22+: Sichtbare und ziehbare Scrollbar.
+                // Die EventListTimeline bekommt eine begrenzte Hoehe und
+                // verticalScroll. Zusaetzlich wird ein echter Scrollbar-Thumb
+                // rechts neben der Liste gerendert, dessen Position vom
+                // ScrollState abhaengt und per Drag-Geste gezogen werden kann.
                 val listScrollState = rememberScrollState()
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 520.dp)
-                        .verticalScroll(listScrollState)
                 ) {
-                    EventListTimeline(
-                        sessions = sessions,
-                        triggers = triggers,
-                        onOpen = onOpen,
-                        onEdit = onEdit
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(listScrollState)
+                    ) {
+                        EventListTimeline(
+                            sessions = sessions,
+                            triggers = triggers,
+                            onOpen = onOpen,
+                            onEdit = onEdit,
+                            onDeleteTrigger = onDeleteTrigger
+                        )
+                    }
+                    // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
+                    // Zeichnet einen farbigen Balken, dessen Position und Hoehe
+                    // vom ScrollState abhaengen. Ziehbar via drag gesture.
+                    val listScrollState = rememberScrollState()
+                    val showScrollbar = listScrollState.maxValue > 0
+                    if (showScrollbar) {
+                        val thumbHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
+                            (520.dp.toPx() * (520.dp.toPx() / (520.dp.toPx() + listScrollState.maxValue))).coerceAtLeast(24.dp.toPx())
+                        }
+                        val thumbOffset = with(androidx.compose.ui.platform.LocalDensity.current) {
+                            (listScrollState.value.toFloat() / listScrollState.maxValue.coerceAtLeast(1)) * (520.dp.toPx() - thumbHeight)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(end = 2.dp)
+                                .width(4.dp)
+                                .height(with(androidx.compose.ui.platform.LocalDensity.current) { thumbHeight.toDp() })
+                                .offset(y = with(androidx.compose.ui.platform.LocalDensity.current) { thumbOffset.toDp() })
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                        )
+                    }
                 }
             } else {
                 ZoomableDayTimeline(
@@ -650,7 +1068,8 @@ private fun EventListTimeline(
     sessions: List<TimelineSessionUi>,
     triggers: List<TriggerEventUi>,
     onOpen: (String) -> Unit,
-    onEdit: (String) -> Unit
+    onEdit: (String) -> Unit,
+    onDeleteTrigger: (String) -> Unit = {}
 ) {
     val merged = remember(sessions, triggers) {
         (sessions.map { TimelineEntry.Session(it) } + triggers.map { TimelineEntry.Trigger(it) })
@@ -704,6 +1123,7 @@ private fun EventListTimeline(
                         )
                     }
                     is TimelineEntry.Trigger -> {
+                        // Trigger-Eintrag mit Loeschen-Button (Trash-Icon)
                         EventListRow(
                             time = entry.trigger.time,
                             title = "◆ ${entry.trigger.label}",
@@ -711,7 +1131,8 @@ private fun EventListTimeline(
                             accent = MaterialTheme.colorScheme.secondary,
                             kind = "Trigger",
                             onClick = {},
-                            onEdit = {}
+                            onEdit = {},
+                            onDelete = { onDeleteTrigger(entry.trigger.id) }
                         )
                     }
                 }
@@ -768,7 +1189,9 @@ private fun EventListRow(
     // M18.8: Laufende Session -> pulsierendes LIVE-Badge
     isLive: Boolean = false,
     // M18.13: Icon (Emoji) der Aktivität
-    icon: String = "•"
+    icon: String = "•",
+    // Loeschen-Callback. Wenn gesetzt, wird ein Trash-Button angezeigt.
+    onDelete: (() -> Unit)? = null
 ) {
     // M18.20: Farbige Karte — Akzentbalken links, farbiger Hintergrund,
     // Icon-Kreis, farbiger Zeit-Chip. Jede Zeile ist jetzt ein buntes
@@ -866,6 +1289,23 @@ private fun EventListRow(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     color = accent
+                )
+            }
+        }
+        // Trash-Button fuer loeschbare Eintraege (z.B. Trigger)
+        if (onDelete != null) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
+                    .clickable(onClick = onDelete),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "\u2715",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }

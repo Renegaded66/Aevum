@@ -199,6 +199,20 @@ class TimelineViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Loescht einen Trigger-Eintrag anhand seiner ID.
+     * Wird vom Trash-Button in der EventListTimeline aufgerufen.
+     * Da triggerEventRepository.delete eine suspend-Funktion ist,
+     * muss der Aufruf in viewModelScope.launch gewrappt werden.
+     */
+    fun deleteTrigger(id: String) {
+        viewModelScope.launch {
+            try {
+                triggerEventRepository.delete(id)
+            } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
+
     private fun buildTimelineState(
         date: LocalDate,
         allSessions: List<ActivitySession>,
@@ -264,11 +278,18 @@ class TimelineViewModel @Inject constructor(
             val clippedStartMin = TimeFormatting.minutesOfDay(clip.clippedStartMs, zoneId)
             val clippedEndMin = TimeFormatting.minutesOfDay(clip.clippedEndMs, zoneId)
             val visibleDurationMs = (clip.clippedEndMs - clip.clippedStartMs).coerceAtLeast(0L)
+            // M18.23-FIX: Kategorie-Fallback. Wenn die Session keine
+            // categoryId hat (z.B. wegen Race Condition beim Live-Start:
+            // ActivityType wurde gerade erstellt, defaultCategoryId war
+            // noch nicht im Cache), dann die defaultCategoryId des
+            // ActivityTypes als Fallback verwenden.
+            val effectiveCategoryId = session.categoryId
+                ?: typeMap[session.activityTypeId]?.defaultCategoryId
             TimelineSessionUi(
                 id = session.id,
                 title = session.title,
-                categoryId = session.categoryId,
-                categoryName = categoryMap[session.categoryId]?.name ?: "Sonstiges",
+                categoryId = effectiveCategoryId,
+                categoryName = categoryMap[effectiveCategoryId]?.name ?: "Sonstiges",
                 activityTypeName = typeMap[session.activityTypeId]?.name ?: "Freie Aktivität",
                 time = TimeFormatting.formatTime(clip.clippedStartMs, zoneId),
                 // M16.5: Range spiegelt den sichtbaren Tagesausschnitt wider.
@@ -592,7 +613,7 @@ class ActivityDetailViewModel @Inject constructor(
     ) { session: ActivitySession?, categories: List<Category>, types: List<ActivityType>, tags: List<Tag>, selectedTagIds: List<String> ->
         ActivityDetailUiState(
             session = session,
-            category = categories.firstOrNull { it.id == session?.categoryId },
+            category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },
             activityType = types.firstOrNull { it.id == session?.activityTypeId },
             tags = tags.filter { it.id in selectedTagIds },
             range = session?.let { "${TimeFormatting.formatTime(it.startAt, zoneId)}–${it.endAt?.let { end -> TimeFormatting.formatTime(end, zoneId) } ?: "läuft"}" }.orEmpty(),

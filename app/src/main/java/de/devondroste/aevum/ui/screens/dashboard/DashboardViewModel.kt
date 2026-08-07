@@ -230,6 +230,19 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    // M18.23: Aktivitaet wechseln — beendet die aktuelle Session und startet
+    // sofort die neue. Kein Pause-Zustand, keine Zwischen-Schritt.
+    fun switchActivity(newActivityTypeId: String, categoryId: String?) {
+        viewModelScope.launch {
+            liveActivityManager.stop()
+            LiveActivityService.stop(application)
+            // Kurz warten damit die alte Session sauber geschlossen ist
+            kotlinx.coroutines.delay(100)
+            liveActivityManager.start(newActivityTypeId, sourceType = "MANUAL")
+            LiveActivityService.start(application)
+        }
+    }
+
     // M16.3: Sleep-Sessions werden mit einem 36h-Overlap-Fenster gelesen,
     // damit Schlaf über Mitternacht (z.B. Start 23:30 Vortag, Ende 08:20 heute)
     // korrekt erfasst wird. Eine reine "heute"-Query wie
