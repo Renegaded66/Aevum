@@ -258,5 +258,11 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() }
             )
         }
+        // M18.28: Kalender — Heatmap der Zeitqualität + Tages-Detail
+        composable(AppDestination.Calendar.route) {
+            de.devondroste.aevum.ui.screens.calendar.CalendarScreen(
+                onOpenActivity = { sessionId -> navController.navigate("activity/$sessionId") }
+            )
+        }
     }
 }

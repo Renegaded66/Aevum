@@ -103,6 +103,7 @@ private fun AevumMainApp() {
     val bottomTabs = listOf(
         MainTab(AppDestination.Dashboard, "Heute"),
         MainTab(AppDestination.Insights, "Insights"),
+        MainTab(AppDestination.Calendar, "Kalender"),
         MainTab(AppDestination.Timeline, "Timeline"),
         MainTab(AppDestination.Settings, "Settings")
     )
@@ -158,6 +159,7 @@ private data class MainTab(
     val icon: String = when (destination) {
         AppDestination.Dashboard -> "◷"
         AppDestination.Insights -> "◌"
+        AppDestination.Calendar -> "▦"
         AppDestination.Timeline -> "▤"
         AppDestination.Settings -> "⚙"
         else -> "•"

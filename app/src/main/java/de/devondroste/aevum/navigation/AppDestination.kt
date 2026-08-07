@@ -37,5 +37,7 @@ enum class AppDestination(val route: String, val title: String) {
     UnknownPlaces("unknown_places", "Unbekannte Orte"),
     DailyAllowances("daily_allowances", "Tagespauschalen"),
     // M18.2: Positivitäts-Scores pro Aktivität
-    ActivityTypes("activity_types", "Aktivitäten & Positivität")
+    ActivityTypes("activity_types", "Aktivitäten & Positivität"),
+    // M18.28: Kalender-Tab (Heatmap der Zeitqualität)
+    Calendar("calendar", "Kalender")
 }
