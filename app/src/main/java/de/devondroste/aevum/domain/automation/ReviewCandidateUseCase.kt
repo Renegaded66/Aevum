@@ -6,6 +6,7 @@ import de.devondroste.aevum.data.model.ActivitySessionChange
 import de.devondroste.aevum.data.repository.ActivityCandidateRepository
 import de.devondroste.aevum.data.repository.ActivityRepository
 import de.devondroste.aevum.data.repository.ActivitySessionChangeRepository
+import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import kotlinx.coroutines.flow.first
 import java.util.UUID
 import javax.inject.Inject
@@ -13,7 +14,11 @@ import javax.inject.Inject
 class ReviewCandidateUseCase @Inject constructor(
     private val candidateRepository: ActivityCandidateRepository,
     private val activityRepository: ActivityRepository,
-    private val changeRepository: ActivitySessionChangeRepository
+    private val changeRepository: ActivitySessionChangeRepository,
+    // M18.51: Fallback auf "Sonstiges", wenn der ActivityType inzwischen
+    // gelöscht wurde (User kann seit M18.50/51 alle Typen außer sleep/other
+    // löschen). Default null, damit bestehende Tests ohne Repo weiterlaufen.
+    private val activityTypeRepository: ActivityTypeRepository? = null
 ) {
     suspend fun accept(candidateId: String): CandidateReviewResult {
         val candidate = candidateRepository.getById(candidateId).first() ?: return CandidateReviewResult.NotFound
@@ -118,11 +123,14 @@ class ReviewCandidateUseCase @Inject constructor(
         // M12.2: sourceType bestimmen — Auto-Quellen werden entsprechend markiert,
         // wenn ein Override übergeben wurde; sonst der Default "CONFIRMED_CANDIDATE".
         val finalSourceType = sourceTypeOverride ?: "CONFIRMED_CANDIDATE"
+        // M18.51: Fallback auf "Sonstiges", wenn der ActivityType inzwischen
+        // gelöscht wurde — sonst FK-Crash beim Session-INSERT.
+        val resolvedTypeId = resolveTypeId(candidate.activityTypeId)
         val session = ActivitySession(
             id = sessionId,
             title = candidate.suggestedTitle,
             categoryId = candidate.suggestedCategoryId,
-            activityTypeId = candidate.activityTypeId,
+            activityTypeId = resolvedTypeId,
             startAt = candidate.startAt,
             endAt = candidate.endAt,
             sourceType = finalSourceType,
@@ -180,6 +188,18 @@ class ReviewCandidateUseCase @Inject constructor(
         "sleep" -> "HEALTH_SLEEP_AUTO"
         "driving" -> "ACTIVITY_RECOGNITION_AUTO"
         else -> null
+    }
+
+    /**
+     * M18.51: Löst die ActivityType-ID auf. Existiert der Typ nicht mehr
+     * (User hat ihn in Einstellungen → Activities gelöscht), wird auf den
+     * System-Typ "Sonstiges" (other) zurückgefallen — sonst verletzt der
+     * Session-INSERT die FK-Constraint und der Auto-Track crasht.
+     */
+    private suspend fun resolveTypeId(activityTypeId: String?): String? {
+        if (activityTypeId == null) return null
+        val repo = activityTypeRepository ?: return activityTypeId
+        return if (repo.getById(activityTypeId).first() != null) activityTypeId else "other"
     }
 }
 

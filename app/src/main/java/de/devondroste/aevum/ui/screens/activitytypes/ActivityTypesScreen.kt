@@ -131,8 +131,15 @@ fun ActivityTypesScreen(
                             onColorChange = { viewModel.setColor(row.id, it) },
                             onCategoryChange = { viewModel.setCategory(row.id, it) },
                             onCreateCategory = viewModel::createCategory,
-                            // M18.50: Löschen nur für eigene Typen (isSystem=false).
-                            onDelete = if (row.isSystem) null else { alsoDeleteSessions: Boolean ->
+                            // M18.51 (User: "nicht alle einen Lösch-Button erhalten
+                            // muss nicht sein, das einzige was kaputt gehen könnte
+                            // ist Schlaf, von mir aus darf die Activity keinen
+                            // Lösch-Button erhalten, aber alles andere schon"):
+                            // Geschützt sind nur "sleep" (Schlaf-Erkennung) und
+                            // "other" (Fallback "Sonstiges" für Umbuchungen).
+                            // Alle anderen Typen sind löschbar — die Auto-Engines
+                            // fallen bei gelöschten Typen auf "Sonstiges" zurück.
+                            onDelete = if (row.id == "sleep" || row.id == "other") null else { alsoDeleteSessions: Boolean ->
                                 viewModel.deleteActivity(row.id, alsoDeleteSessions)
                             }
                         )

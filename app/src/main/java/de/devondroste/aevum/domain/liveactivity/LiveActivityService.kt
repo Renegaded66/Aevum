@@ -454,16 +454,40 @@ class LiveActivityService : Service() {
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
         paint.shader = null
 
-        // 2) Großes Punkt-Raster als Muster (Duolingo-artig) — Abstand und
-        //    Radius hängen von der Accent-Farbe ab (einzigartig pro Aktivität).
-        val dotAlpha = 26 + (r % 14)
+        // 2) M18.51 (User: "Ich hätte gerne ein Muster als Hintergrund"):
+        //    Echte diagonale Streifen (Duolingo/Fitness-App-Look) statt nur
+        //    Punkte. Ein LinearGradient mit REPEAT-TileMode über die
+        //    Streifenbreite erzeugt saubere 45°-Streifen — transparent →
+        //    weiß → transparent. Streifenbreite und Alpha leiten sich aus
+        //    der Accent-Farbe ab (einzigartig pro Aktivität).
+        val stripePeriod = 48 + (g % 24) // 48..71 px Streifenbreite
+        val stripeAlpha = 16 + (r % 12) // 16..27 weiße Streifen
+        val stripeShader = android.graphics.LinearGradient(
+            0f, 0f, stripePeriod.toFloat(), stripePeriod.toFloat(),
+            intArrayOf(
+                android.graphics.Color.argb(0, 255, 255, 255),
+                android.graphics.Color.argb(stripeAlpha, 255, 255, 255),
+                android.graphics.Color.argb(0, 255, 255, 255)
+            ),
+            floatArrayOf(0f, 0.5f, 1f),
+            android.graphics.Shader.TileMode.REPEAT
+        )
+        val stripePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            shader = stripeShader
+        }
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), stripePaint)
+        stripePaint.shader = null
+
+        // 3) Dezente Punkte zwischen den Streifen (zweite Musterebene) —
+        //    Abstand und Radius hängen von der Accent-Farbe ab.
+        val dotAlpha = 20 + (b % 10)
         val dotPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.argb(dotAlpha, 255, 255, 255)
         }
-        val step = 34 + (g % 10) // 34..43 px Abstand
+        val step = 44 + (r % 12) // 44..55 px Abstand
         for (x in 0 until w step step) {
             for (y in 0 until h step step) {
-                canvas.drawCircle(x.toFloat() + step / 2f, y.toFloat() + step / 2f, 3.5f, dotPaint)
+                canvas.drawCircle(x.toFloat() + step / 2f, y.toFloat() + step / 2f, 3f, dotPaint)
             }
         }
 

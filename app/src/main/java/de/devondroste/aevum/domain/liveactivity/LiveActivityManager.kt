@@ -167,15 +167,21 @@ class LiveActivityManager @Inject constructor(
     ): ActivitySession {
         liveSession.value?.let { existing -> forceFinish(existing) }
 
+        // M18.51 (User: "alles andere [als Schlaf] darf einen Lösch-Button
+        // haben"): Wenn der User einen Auto-Typ (z. B. "Mobilität" oder einen
+        // Geofence-Typ) gelöscht hat, darf der Auto-Start nicht an der
+        // DB-FK crashen. Fallback auf den System-Typ "Sonstiges" (other).
         val type = activityTypeRepository.getById(activityTypeId).first()
+        val resolvedTypeId = if (type != null) activityTypeId else "other"
+        val resolvedType = type ?: activityTypeRepository.getById("other").first()
         type?.let { typeCache[it.id] = it }
         val now = System.currentTimeMillis()
         val sessionStart = startedAt.coerceAtMost(now)
         val session = ActivitySession(
             id = UUID.randomUUID().toString(),
-            title = title?.takeIf { it.isNotBlank() } ?: type?.name ?: "Aktivität",
-            categoryId = type?.defaultCategoryId,
-            activityTypeId = activityTypeId,
+            title = title?.takeIf { it.isNotBlank() } ?: resolvedType?.name ?: "Aktivität",
+            categoryId = resolvedType?.defaultCategoryId,
+            activityTypeId = resolvedTypeId,
             startAt = sessionStart,
             endAt = null,
             timezoneId = TimeZone.getDefault().id,
