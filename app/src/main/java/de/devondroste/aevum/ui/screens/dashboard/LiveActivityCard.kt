@@ -297,11 +297,16 @@ private fun IdleCard(
             activityTypes = activityTypes,
             recents = recents,
             favorites = favorites,
-            onStart = { id -> onStart(id, null); showPicker = false },
-            onStartWithTime = { id, _, t -> onStartWithTime(id, null, t); showPicker = false },
+            onStart = { id -> onStart(id, null); showPicker = false; startTimeMode = false; customStartTime = System.currentTimeMillis() },
+            onStartWithTime = { id, _, t -> onStartWithTime(id, null, t); showPicker = false; startTimeMode = false; customStartTime = System.currentTimeMillis() },
             onToggleFavorite = onToggleFavorite,
             onCreateActivity = onCreateActivity,
-            onDismiss = { showPicker = false }
+            onDismiss = { showPicker = false },
+            // M18.52 (User: "Activity mit Startzeit starten funktioniert
+            // nicht mehr — zählt bei 0"): Die in der Karte eingestellte
+            // Startzeit ins Sheet durchreichen, sonst startet das Sheet
+            // mit "jetzt" und die eingestellte Zeit geht verloren.
+            initialStartTime = customStartTime
         )
     }
 }
@@ -506,7 +511,10 @@ private fun ActivityPickerSheet(
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen
     onCreateActivity: (String) -> Unit = {},
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    // M18.52: In der Karte eingestellte Startzeit (sonst startet das
+    // Sheet mit "jetzt" und die Zeit geht verloren).
+    initialStartTime: Long = System.currentTimeMillis()
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val recentTypeIds = recents.map { it.id }.toSet()
@@ -514,7 +522,8 @@ private fun ActivityPickerSheet(
     // M11: optional start time in picker
     var showTimeOption by remember { mutableStateOf(false) }
     var pickerSelectedType by remember { mutableStateOf<String?>(null) }
-    var pickerStartTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    // M18.52: Mit der übergebenen Startzeit initialisieren statt "jetzt".
+    var pickerStartTime by remember { mutableStateOf(initialStartTime) }
 
     // M18.12: "Neue Aktivität" — Name eingeben, dann anlegen + starten
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -526,6 +535,18 @@ private fun ActivityPickerSheet(
     val filteredFavorites = if (query.isEmpty()) favorites else favorites.filter { it.name.contains(query, ignoreCase = true) }
     val filteredRecents = if (query.isEmpty()) recents else recents.filter { it.title.contains(query, ignoreCase = true) }
     val filteredAll = if (query.isEmpty()) activityTypes else activityTypes.filter { it.name.contains(query, ignoreCase = true) }
+
+    // M18.52: Startet mit der eingestellten Startzeit, wenn sie von
+    // "jetzt" abweicht — sonst normal (ohne Zeit). Vorher ging die in
+    // der Karte eingestellte Zeit beim Antippen verloren (Start bei 0).
+    fun startWithPendingTime(typeId: String) {
+        val now = System.currentTimeMillis()
+        if (kotlin.math.abs(pickerStartTime - now) > 60_000L) {
+            onStartWithTime(typeId, null, pickerStartTime)
+        } else {
+            onStart(typeId)
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -654,7 +675,7 @@ private fun ActivityPickerSheet(
                     ActivityRow(
                         type = type,
                         isFavorite = true,
-                        onStart = { onStart(type.id) },
+                        onStart = { startWithPendingTime(type.id) },
                         onToggleFavorite = { onToggleFavorite(type) }
                     )
                 }
@@ -671,13 +692,13 @@ private fun ActivityPickerSheet(
                         ActivityRow(
                             type = type,
                             isFavorite = false,
-                            onStart = { onStart(type.id) },
+                            onStart = { startWithPendingTime(type.id) },
                             onToggleFavorite = { onToggleFavorite(type) }
                         )
                     } else {
                         GenericRow(
                             title = recent.title,
-                            onStart = { onStart(recent.id) }
+                            onStart = { startWithPendingTime(recent.id) }
                         )
                     }
                 }
@@ -691,7 +712,7 @@ private fun ActivityPickerSheet(
                 ActivityRow(
                     type = type,
                     isFavorite = false,
-                    onStart = { onStart(type.id) },
+                    onStart = { startWithPendingTime(type.id) },
                     onToggleFavorite = { onToggleFavorite(type) }
                 )
             }
