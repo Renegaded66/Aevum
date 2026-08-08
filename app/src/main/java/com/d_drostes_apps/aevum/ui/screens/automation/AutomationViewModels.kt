@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -483,31 +484,39 @@ class GeofenceEditorViewModel @Inject constructor(
 
     fun save() {
         viewModelScope.launch {
-            val c = form.value
-            val lat = c.latitude.replace(',', '.').toDoubleOrNull()
-            val lon = c.longitude.replace(',', '.').toDoubleOrNull()
-            val r = c.radius.toFloatOrNull()
-            if (c.name.isBlank() || lat == null || lat !in -90.0..90.0 || lon == null || lon !in -180.0..180.0 || r == null || r < 50f) {
-                form.update { it.copy(error = "Name, Position und Radius ab 50m prüfen") }
-                return@launch
+            try {
+                val c = form.value
+                val lat = c.latitude.replace(',', '.').toDoubleOrNull()
+                val lon = c.longitude.replace(',', '.').toDoubleOrNull()
+                val r = c.radius.toFloatOrNull()
+                if (c.name.isBlank() || lat == null || lat !in -90.0..90.0 || lon == null || lon !in -180.0..180.0 || r == null || r < 50f) {
+                    form.update { it.copy(error = "Name, Position und Radius ab 50m prüfen") }
+                    return@launch
+                }
+                val now = System.currentTimeMillis()
+                val existing = c.id?.let { geofenceRepository.getById(it).first() }
+                val gf = PlaceGeofence(
+                    id = c.id ?: UUID.randomUUID().toString(), name = c.name.trim(),
+                    latitude = lat, longitude = lon, radiusMeters = r,
+                    icon = c.icon.ifBlank { "📍" }, color = c.color.ifBlank { "#6366F1" },
+                    enabled = c.enabled, activityTypeId = c.activityTypeId, categoryId = c.categoryId,
+                    createdAt = existing?.createdAt ?: now, updatedAt = now, deletedAt = existing?.deletedAt,
+                    // M11+: separate autoStart activity type (may differ from default).
+                    // When null, no auto-start happens. When set, the system starts
+                    // a session of that type whenever the geofence is entered.
+                    autoStartActivityTypeId = if (c.autoEnabled) c.autoStartActivityTypeId ?: c.activityTypeId else null,
+                    autoStopEnabled = c.autoStopEnabled
+                )
+                geofenceRepository.insertWithTags(gf, c.selectedTagIds)
+                geofenceRegistrar.refreshRegisteredGeofences()
+                saved.value = true
+            } catch (e: Exception) {
+                // M18.56: Fehler sichtbar machen statt schlucken — vorher
+                // "passierte nichts" beim Speichern, weil DB-Exceptions von
+                // viewModelScope.launch verschluckt wurden.
+                Log.e("GeofenceEditor", "save() fehlgeschlagen", e)
+                form.update { it.copy(error = "Speichern fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}") }
             }
-            val now = System.currentTimeMillis()
-            val existing = c.id?.let { geofenceRepository.getById(it).first() }
-            val gf = PlaceGeofence(
-                id = c.id ?: UUID.randomUUID().toString(), name = c.name.trim(),
-                latitude = lat, longitude = lon, radiusMeters = r,
-                icon = c.icon.ifBlank { "📍" }, color = c.color.ifBlank { "#6366F1" },
-                enabled = c.enabled, activityTypeId = c.activityTypeId, categoryId = c.categoryId,
-                createdAt = existing?.createdAt ?: now, updatedAt = now, deletedAt = existing?.deletedAt,
-                // M11+: separate autoStart activity type (may differ from default).
-                // When null, no auto-start happens. When set, the system starts
-                // a session of that type whenever the geofence is entered.
-                autoStartActivityTypeId = if (c.autoEnabled) c.autoStartActivityTypeId ?: c.activityTypeId else null,
-                autoStopEnabled = c.autoStopEnabled
-            )
-            geofenceRepository.insertWithTags(gf, c.selectedTagIds)
-            geofenceRegistrar.refreshRegisteredGeofences()
-            saved.value = true
         }
     }
 }

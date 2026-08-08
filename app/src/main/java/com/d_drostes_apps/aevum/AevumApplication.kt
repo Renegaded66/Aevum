@@ -78,6 +78,18 @@ class AevumApplication : Application() {
         // super.onCreate() auf — also ist "so früh wie möglich in unserer
         // onCreate" der früheste sinnvolle Punkt). Schreibt Trace nach
         // /sdcard/Android/data/<pkg>/files/last-crash.log (Files-app-reachable).
+        // M18.56: Zusätzlich DB-Integrität prüfen — eine korrupte DB-Datei
+        // (z.B. durch abgebrochenes Backup/Restore oder Android-Auto-Backup)
+        // lässt Room beim Öffnen crashen; die ViewModels fangen das ab und
+        // die App läuft mit leerer DB weiter, aber ALLE Inserts schlagen
+        // stillschweigend fehl ("nichts passiert" beim Speichern, Toggles
+        // tot, keine Defaults). Deshalb: korrupte DB vor dem ersten
+        // Room-Zugriff erkennen und neu erstellen lassen.
+        try {
+            ensureDatabaseIntegrity()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "DB-Integritätscheck fehlgeschlagen — weiter", e)
+        }
         com.d_drostes_apps.aevum.util.CrashLogger.install(this)
         // M12.0.2: Defensive Initialisierung — jede Komponente wird einzeln
         // in try-catch gewrappt. Ein Fehler in MapLibre, SleepImport oder
@@ -333,6 +345,50 @@ class AevumApplication : Application() {
             }
         } catch (e: Exception) {
             Log.w("AevumApplication", "Lifecycle fallback init failed for $type", e)
+        }
+    }
+
+    /**
+     * M18.56: DB-Integritätscheck beim App-Start.
+     *
+     * Eine korrupte SQLite-Datei (z.B. durch abgebrochenes Backup/Restore,
+     * Android-Auto-Backup-Wiederherstellung oder Dateisystem-Fehler) lässt
+     * Room beim Öffnen crashen. Die ViewModels fangen das mit .catch ab —
+     * die App läuft dann mit leerer DB weiter, aber ALLE Inserts schlagen
+     * stillschweigend fehl. Symptome: "nichts passiert" beim Speichern,
+     * Toggles springen zurück, keine Default-Activities nach Neuinstallation.
+     *
+     * Fix: Vor dem ersten Room-Zugriff PRAGMA quick_check ausführen. Bei
+     * Korruption werden die DB-Dateien gelöscht — Room erstellt sie beim
+     * nächsten Zugriff frisch (inkl. Seeds). Datenverlust nur im
+     * Crash-Fall; Backup/Export existieren als Schutz.
+     */
+    private fun ensureDatabaseIntegrity() {
+        val dbFile = getDatabasePath("aevum_database")
+        if (!dbFile.exists()) return
+        // Nur prüfen, wenn die Datei plausibel groß ist (leere/0-Byte-Datei
+        // ist kein Korruptionsfall — Room erstellt sie ohnehin neu).
+        if (dbFile.length() < 1024) return
+        try {
+            val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+                dbFile.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            )
+            val result = db.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else "error"
+            }
+            db.close()
+            if (result != "ok") {
+                Log.e("AevumApplication", "DB-Integrität FEHLERHAFT ($result) — Dateien werden neu erstellt")
+                dbFile.delete()
+                getDatabasePath("aevum_database-wal").delete()
+                getDatabasePath("aevum_database-shm").delete()
+            } else {
+                Log.d("AevumApplication", "DB-Integrität OK")
+            }
+        } catch (e: Exception) {
+            // Datei nicht lesbar (z.B. noch von anderem Prozess offen) —
+            // nicht löschen, Room entscheidet selbst.
+            Log.w("AevumApplication", "DB-Integritätscheck nicht möglich: ${e.message}")
         }
     }
 }

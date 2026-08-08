@@ -607,25 +607,33 @@ class ActivityEditorViewModel @Inject constructor(
 
     fun save() {
         viewModelScope.launch {
-            val state = uiState.value
-            val selectedTags = state.tags.filter { it.id in state.form.selectedTagIds }
-            when (val result = saveManualActivity(
-                ManualActivityRequest(
-                    id = sessionId,
-                    sourceCandidateId = candidateId,
-                    title = state.form.title,
-                    categoryId = state.form.categoryId,
-                    activityTypeId = state.form.activityTypeId,
-                    tagIds = state.form.selectedTagIds,
-                    tags = selectedTags,
-                    startAt = state.form.startAt,
-                    endAt = state.form.endAt,
-                    timezoneId = zoneId.id,
-                    description = state.form.description
-                )
-            )) {
-                is SaveManualActivityResult.Success -> savedId.value = result.sessionId
-                is SaveManualActivityResult.Failure -> form.update { it.copy(errorMessage = result.message) }
+            try {
+                val state = uiState.value
+                val selectedTags = state.tags.filter { it.id in state.form.selectedTagIds }
+                when (val result = saveManualActivity(
+                    ManualActivityRequest(
+                        id = sessionId,
+                        sourceCandidateId = candidateId,
+                        title = state.form.title,
+                        categoryId = state.form.categoryId,
+                        activityTypeId = state.form.activityTypeId,
+                        tagIds = state.form.selectedTagIds,
+                        tags = selectedTags,
+                        startAt = state.form.startAt,
+                        endAt = state.form.endAt,
+                        timezoneId = zoneId.id,
+                        description = state.form.description
+                    )
+                )) {
+                    is SaveManualActivityResult.Success -> savedId.value = result.sessionId
+                    is SaveManualActivityResult.Failure -> form.update { it.copy(errorMessage = result.message) }
+                }
+            } catch (e: Exception) {
+                // M18.56: Fehler sichtbar machen statt schlucken — vorher
+                // "passierte nichts" beim Speichern, weil DB-Exceptions von
+                // viewModelScope.launch verschluckt wurden.
+                Log.e("ActivityEditor", "save() fehlgeschlagen", e)
+                form.update { it.copy(errorMessage = "Speichern fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}") }
             }
         }
     }

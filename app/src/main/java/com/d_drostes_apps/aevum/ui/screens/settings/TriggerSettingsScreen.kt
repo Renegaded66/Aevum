@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.settings
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -266,7 +267,14 @@ class TriggerSettingsViewModel @Inject constructor(
     private fun upsert(transform: (AutomationSettings) -> AutomationSettings) {
         val current = uiState.value.settings
         viewModelScope.launch {
-            settingsRepository.upsert(transform(current))
+            try {
+                settingsRepository.upsert(transform(current))
+            } catch (e: Exception) {
+                // M18.56: Fehler sichtbar machen statt schlucken — vorher
+                // sprangen Toggles stillschweigend zurück, weil DB-Exceptions
+                // von viewModelScope.launch verschluckt wurden.
+                Log.e("TriggerSettings", "upsert fehlgeschlagen", e)
+            }
         }
     }
 }

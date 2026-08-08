@@ -4,7 +4,11 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.d_drostes_apps.aevum.data.db.AppDatabase
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -190,7 +194,15 @@ class DataManager @Inject constructor(
                 return@withContext ExportResult.Error("Backup-Datei ist beschädigt (Integritätsprüfung fehlgeschlagen)")
             }
 
-            // 4. Aktuelle DB ersetzen (mit Sicherung der alten)
+            // 4. Aktuelle DB ersetzen (mit Sicherung der alten).
+            //    WICHTIG (M18.56-Fix): Room zuerst schließen, sonst
+            //    korrumpiert das Ersetzen der offenen Datei die DB.
+            try {
+                val deps = EntryPointAccessors.fromApplication(context, DataManagerDeps::class.java)
+                deps.database().close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Room-Close vor Restore fehlgeschlagen (nicht kritisch)", e)
+            }
             val oldBackup = File(dbFile.parentFile, "aevum_database.bak")
             if (dbFile.exists()) {
                 oldBackup.delete()
@@ -219,21 +231,34 @@ class DataManager @Inject constructor(
     /**
      * Löscht ALLE lokalen Daten (DB + SharedPreferences + Cache).
      * Die App muss danach neu gestartet werden.
+     *
+     * WICHTIG (M18.56-Fix): Room hält die DB-Datei offen. Ein direktes
+     * Löschen der Dateien während Room läuft korrumpiert die Datenbank
+     * (WAL-Desync) — danach schlagen ALLE DB-Operationen stillschweigend
+     * fehl. Deshalb: erst Room sauber schließen (EntryPoint), dann löschen.
      */
     suspend fun deleteAllData(): ExportResult = withContext(Dispatchers.IO) {
         try {
-            // DB-Dateien löschen
+            // 1. Room-Datenbank sauber schließen (WAL-Checkpoint + Close)
+            try {
+                val deps = EntryPointAccessors.fromApplication(context, DataManagerDeps::class.java)
+                deps.database().close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Room-Close vor Löschen fehlgeschlagen (nicht kritisch)", e)
+            }
+
+            // 2. DB-Dateien löschen
             dbFile.delete()
             walFile.delete()
             shmFile.delete()
             File(dbFile.parentFile, "aevum_database.bak").delete()
 
-            // SharedPreferences löschen
+            // 3. SharedPreferences löschen
             context.getSharedPreferences("aevum_prefs", Context.MODE_PRIVATE).edit().clear().commit()
             context.getSharedPreferences("automation_prefs", Context.MODE_PRIVATE).edit().clear().commit()
             context.getSharedPreferences("life_profile_prefs", Context.MODE_PRIVATE).edit().clear().commit()
 
-            // Cache leeren
+            // 4. Cache leeren
             context.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
 
             ExportResult.Success(
@@ -318,6 +343,17 @@ class DataManager @Inject constructor(
          */
         private const val CURRENT_SCHEMA_VERSION = 22
     }
+}
+
+/**
+ * M18.56: Hilt-EntryPoint, damit DataManager die Room-Datenbank vor
+ * Löschen/Restore sauber schließen kann (sonst WAL-Desync → alle
+ * DB-Operationen schlagen stillschweigend fehl).
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface DataManagerDeps {
+    fun database(): AppDatabase
 }
 
 sealed class ExportResult {

@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.domain.seed
 
+import android.util.Log
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.data.model.Tag
@@ -15,14 +16,31 @@ class EnsureDefaultDataUseCase @Inject constructor(
     private val tagRepository: TagRepository
 ) {
     suspend operator fun invoke() {
-        if (categoryRepository.getAll().first().isEmpty()) {
-            categoryRepository.insertAll(defaultCategories)
+        // M18.56: Jeder Seed-Schritt einzeln abgesichert — ein Fehler bei
+        // Categories darf die ActivityTypes/Tags nicht blockieren (und
+        // umgekehrt). Ohne diese Härtung führt ein einzelner DB-Fehler
+        // dazu, dass ALLE Defaults fehlen (Symptom: "Schlaf/Arbeit/Sport
+        // nicht vor eingestellt nach Neuinstallation").
+        try {
+            if (categoryRepository.getAll().first().isEmpty()) {
+                categoryRepository.insertAll(defaultCategories)
+            }
+        } catch (e: Exception) {
+            Log.e("EnsureDefaultData", "Categories-Seed fehlgeschlagen", e)
         }
-        if (activityTypeRepository.getAll().first().isEmpty()) {
-            activityTypeRepository.insertAll(defaultActivityTypes)
+        try {
+            if (activityTypeRepository.getAll().first().isEmpty()) {
+                activityTypeRepository.insertAll(defaultActivityTypes)
+            }
+        } catch (e: Exception) {
+            Log.e("EnsureDefaultData", "ActivityTypes-Seed fehlgeschlagen", e)
         }
-        if (tagRepository.getAll().first().isEmpty()) {
-            tagRepository.insertAll(defaultTags)
+        try {
+            if (tagRepository.getAll().first().isEmpty()) {
+                tagRepository.insertAll(defaultTags)
+            }
+        } catch (e: Exception) {
+            Log.e("EnsureDefaultData", "Tags-Seed fehlgeschlagen", e)
         }
     }
 
