@@ -6,7 +6,7 @@
 
 **Begründung:** Aevum bedeutet sinngemäß Zeitalter/Lebenszeit und wirkt kurz, hochwertig, international und passend zu Zeit/Bewusstsein/Fortschritt.
 
-**Paketname:** `de.devondroste.aevum`
+**Paketname:** `com.d_drostes_apps.aevum`
 
 ## ADR-0002 — Offline-first ohne Backend
 

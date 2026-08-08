@@ -1,6 +1,6 @@
 # Architecture
 
-Projekt: **Aevum** (`de.devondroste.aevum`)
+Projekt: **Aevum** (`com.d_drostes_apps.aevum`)
 
 Aevum ist ein offline-first Life-Management- und Life-Analytics-Assistent. Keine Cloud, kein Login, kein Backend.
 

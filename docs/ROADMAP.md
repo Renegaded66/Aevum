@@ -12,7 +12,7 @@
 **Ziel:** Produktvision, Name, Paket, Kernfeatures und Offline-Entscheidung festlegen.
 **Status:** Abgeschlossen.
 
-**Ergebnis:** Aevum, Paket `de.devondroste.aevum`, Life-Analytics-Assistent, offline-first.
+**Ergebnis:** Aevum, Paket `com.d_drostes_apps.aevum`, Life-Analytics-Assistent, offline-first.
 
 ## M2 — Android-Projektgrundlage
 
@@ -22,7 +22,7 @@
 **Erledigte Aufgaben:**
 
 - [x] Gradle Wrapper, Kotlin und Android Gradle Plugin eingerichtet
-- [x] Package/Namespace `de.devondroste.aevum` eingerichtet
+- [x] Package/Namespace `com.d_drostes_apps.aevum` eingerichtet
 - [x] Compose + Material 3 eingerichtet
 - [x] Aevum Light/Dark Theme eingerichtet
 - [x] Hilt eingerichtet

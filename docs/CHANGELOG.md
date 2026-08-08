@@ -6,7 +6,7 @@
 
 - Produktvision für **Aevum** eingearbeitet.
 - Appname festgelegt: **Aevum**.
-- Paketname festgelegt: `de.devondroste.aevum`.
+- Paketname festgelegt: `com.d_drostes_apps.aevum`.
 - Offline-first Entscheidung konkretisiert: kein Login, kein Backend, keine Cloud.
 - Kernfeatures dokumentiert:
   - automatische Lebenszeit-Erfassung
@@ -22,7 +22,7 @@
 - Roadmap auf Aevum-spezifische Meilensteine aktualisiert.
 - **M2 Android-Projektgrundlage abgeschlossen:**
   - Gradle Wrapper und Kotlin/Android Gradle Projekt
-  - Package/Namespace `de.devondroste.aevum`
+  - Package/Namespace `com.d_drostes_apps.aevum`
   - Jetpack Compose + Material 3
   - Aevum Light/Dark Theme
   - Hilt Application und DI Module
@@ -56,7 +56,7 @@
   - `./gradlew lintDebug --no-daemon --console=plain --max-workers=1` erfolgreich.
   - `./gradlew assembleDebug --no-daemon --console=plain --max-workers=1` erfolgreich.
 - APK Badging geprüft:
-  - package: `de.devondroste.aevum.debug`
+  - package: `com.d_drostes_apps.aevum.debug`
   - versionName: `0.1.0-debug`
   - minSdk: 29
   - targetSdk: 35
@@ -91,8 +91,8 @@
 - `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1` **erfolgreich** (53s)
 - `./gradlew lintDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 23s)
 - `./gradlew assembleDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (54s)
-- APK: 28.99 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
-- Datenbank-Schema-Export: `schemas/debug/de.devondroste.aevum/data/db/AppDatabase/2.json`
+- APK: 28.99 MB, package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- Datenbank-Schema-Export: `schemas/debug/com.d_drostes_apps.aevum/data/db/AppDatabase/2.json`
 - Migrationstest v1→v2 in AndroidTest erfolgreich
 
 ### M5 — Timeline & manuelle Activity Sessions (2026-07-18)
@@ -122,7 +122,7 @@
 - `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 10s)
 - `./gradlew lintDebug --no-daemon --console=plain --max-workers=1` **erfolgreich**
 - `./gradlew assembleDebug --no-daemon --console=plain --max-workers=1` **erfolgreich** (1m 29s)
-- APK: 29.24 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- APK: 29.24 MB, package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
 ### M5.5 — UX Polish vor Automatisierung (2026-07-18)
 
@@ -150,7 +150,7 @@
 
 - `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 47s)
 - `./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 54s)
-- APK: 29.56 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- APK: 29.56 MB, package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
 ### M6.1 — Geofencing & Trigger Events (2026-07-18)
 
@@ -167,7 +167,7 @@
 - Timeline zeigt Trigger Marker und Pending Candidates
 - Review Flow: Candidate übernehmen, bearbeiten oder verwerfen
 - Activity Editor kann Candidate-Daten vorbefüllen
-- Schema Export: `app/schemas/de.devondroste.aevum.data.db.AppDatabase/3.json`
+- Schema Export: `app/schemas/com.d_drostes_apps.aevum.data.db.AppDatabase/3.json`
 
 #### Changed
 
@@ -181,7 +181,7 @@
 - `./gradlew testDebugUnitTest --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (1m 6s)
 - `./gradlew lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (2m 16s)
 - `connectedDebugAndroidTest`: Android-Test-APK kompiliert, echter Testlauf blockiert durch `No connected devices!`
-- APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- APK: 39.29 MB, package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
 ### M6.1 Crash Fix — Room Migration 2→3 (2026-07-19)
 
@@ -228,7 +228,7 @@
 
 - `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (3m 12s)
 - `connectedDebugAndroidTest`: Android-Test-APK wurde gebaut; echter Testlauf blockiert durch `No connected devices!`
-- APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- APK: 39.29 MB, package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
 ### M6.3a — Daily Review & Premium Dashboard (2026-07-19)
 
@@ -256,7 +256,7 @@
 
 - `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich** (2m 46s)
 - `connectedDebugAndroidTest`: Android-Test-APK wurde gebaut; echter Testlauf blockiert durch `No connected devices!`
-- APK: 39.29 MB, package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
+- APK: 39.29 MB, package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2
 
 ### M6.3b — Dashboard Feedback & Review Inbox (2026-07-19)
 
@@ -279,7 +279,7 @@
 - `./gradlew compileDebugKotlin --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
 - `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
 - `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
-- APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
+- APK: package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
 
 ### M6.4 — Life Analytics v1 (2026-07-20)
 
@@ -307,7 +307,7 @@
 
 - `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
 - `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
-- APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
+- APK: package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
 
 ### M6.5 — Weekly Review (2026-07-20)
 
@@ -336,7 +336,7 @@
 
 - `./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug assembleDebug --no-daemon --console=plain --max-workers=1 -Dkotlin.compiler.execution.strategy=in-process` **erfolgreich**.
 - `connectedDebugAndroidTest`: echter Testlauf in dieser Umgebung blockiert durch fehlendes Gerät/Emulator (`No connected devices!`).
-- APK: package `de.devondroste.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
+- APK: package `com.d_drostes_apps.aevum.debug`, version `0.1.0-debug`, minSdk 29, targetSdk 35, APK Signature Scheme v2.
 
 ### Known Limitations
 

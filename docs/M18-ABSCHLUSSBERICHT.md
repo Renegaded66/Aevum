@@ -2,7 +2,7 @@
 
 **Branch:** `hermes/auto-tracking-and-stats-redesign` (fortgesetzt auf M17.5-Fix)
 **Commits (M18):** `ab9353a` → `2c70822` → `2dc8e5b` → `aa9a92b` → `216caff`
-**APK:** `de.devondroste.aevum.debug` v0.1.0-debug, **114 MB**, **BUILD SUCCESSFUL** in 1m 5s
+**APK:** `com.d_drostes_apps.aevum.debug` v0.1.0-debug, **114 MB**, **BUILD SUCCESSFUL** in 1m 5s
 **Diff:** 21 Dateien, +3 973 / −89
 
 ## Was umgesetzt wurde

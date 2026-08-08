@@ -271,7 +271,7 @@ Details: `docs/DATABASE.md`.
 ## M2/M3 Implementierte Projektgrundlage
 
 - Android Application Modul `app`
-- Package/Namespace `de.devondroste.aevum`
+- Package/Namespace `com.d_drostes_apps.aevum`
 - Kotlin + Android Gradle Plugin + Gradle Wrapper
 - Jetpack Compose + Material 3
 - Aevum Light/Dark Theme und Design Tokens

@@ -130,7 +130,7 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Aevum.Translucent"
-            android:taskAffinity="de.devondroste.aevum.switch"
+            android:taskAffinity="com.d_drostes_apps.aevum.switch"
             android:launchMode="singleTask" />
 
     </application>

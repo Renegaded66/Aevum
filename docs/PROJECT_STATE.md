@@ -2,7 +2,7 @@
 
 > Stand: 2026-07-21T18:00:00Z
 > Produktname: **Aevum**
-> Paketname: `de.devondroste.aevum`
+> Paketname: `com.d_drostes_apps.aevum`
 > Status: **M7.1 — Core UX & Reliability abgeschlossen**.
 
 ## Aktueller Entwicklungsstand

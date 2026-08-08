@@ -5,7 +5,7 @@ Siehe `docs/DECISIONS.md`.
 Wichtige aktuelle Entscheidungen:
 
 - Appname: Aevum
-- Paket: `de.devondroste.aevum`
+- Paket: `com.d_drostes_apps.aevum`
 - Offline-first ohne Backend/Login/Cloud
 - Kotlin + Compose + Material 3
 - Room als Source of Truth

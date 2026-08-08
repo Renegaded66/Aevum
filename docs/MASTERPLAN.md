@@ -3,7 +3,7 @@
 > Stand: 2026-07-17T14:00:34Z  
 > Projektpfad: `/root/ai-projects/premium-android-app`  
 > Produktname: **Aevum**  
-> Paketname: `de.devondroste.aevum`  
+> Paketname: `com.d_drostes_apps.aevum`  
 > Status: Produktvision konkretisiert, Architekturplanung aktualisiert, noch kein App-Code.
 
 ## Produktvision
@@ -114,4 +114,4 @@ Aevum kombiniert sensible lokale Daten, automatische Signale, manuelle Korrektur
 
 ## Nächster Meilenstein
 
-**M2 — Android-Projektgrundlage**: Kotlin/Compose/Hilt/Room/DataStore/Navigation/Testsetup für `de.devondroste.aevum` erstellen. Erst danach beginnt Feature-Implementierung in vertikalen TDD-Slices.
+**M2 — Android-Projektgrundlage**: Kotlin/Compose/Hilt/Room/DataStore/Navigation/Testsetup für `com.d_drostes_apps.aevum` erstellen. Erst danach beginnt Feature-Implementierung in vertikalen TDD-Slices.

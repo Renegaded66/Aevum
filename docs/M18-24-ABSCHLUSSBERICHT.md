@@ -38,4 +38,4 @@ Das hatte zwei fatale Folgen:
 
 ## Ehrliche Grenzen
 - **`activeNotifications`-Check** funktioniert nur, wenn die App die Berechtigung hat, Notifications zu sehen (Android 13+ braucht POST_NOTIFICATIONS). Falls der User die Notification-Berechtigung entzogen hat, kann die App die Notification nicht wiederherstellen — das ist ein Android-Systemlimit.
-- **Der Crash nach Screen-Timeout** ist nicht reproduzierbar auf diesem Rechner (kein Gerät). Die abgesicherten Stellen decken die wahrscheinlichsten Ursachen ab, aber es kann noch andere geben. Falls der Crash weiterhin auftritt: `last-crash.log` unter `Android/data/de.devondroste.aevum.debug/files/` prüfen.
+- **Der Crash nach Screen-Timeout** ist nicht reproduzierbar auf diesem Rechner (kein Gerät). Die abgesicherten Stellen decken die wahrscheinlichsten Ursachen ab, aber es kann noch andere geben. Falls der Crash weiterhin auftritt: `last-crash.log` unter `Android/data/com.d_drostes_apps.aevum.debug/files/` prüfen.

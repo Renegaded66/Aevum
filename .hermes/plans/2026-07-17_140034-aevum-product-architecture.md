@@ -4,6 +4,6 @@
 
 Produkt: **Aevum** — offline-first Life-Management- und Life-Analytics-Assistent.
 
-Paket: `de.devondroste.aevum`
+Paket: `com.d_drostes_apps.aevum`
 
 Nächster Schritt: M2 Android-Projektgrundlage. Kein Feature-Code vor Projektgrundlage und Testsetup.

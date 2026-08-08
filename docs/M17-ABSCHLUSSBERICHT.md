@@ -2,7 +2,7 @@
 
 **Branch:** `hermes/auto-tracking-and-stats-redesign`
 **Commits:** `41ed5f2` (Phase 1) → `826e865` (Phase 2+3) → `4f16f25` (Phase 4) + 1 APK-Build
-**APK:** `de.devondroste.aevum.debug` v0.1.0-debug, 109 MB, **BUILD SUCCESSFUL** in 3:19
+**APK:** `com.d_drostes_apps.aevum.debug` v0.1.0-debug, 109 MB, **BUILD SUCCESSFUL** in 3:19
 **Dateien:** 39 files changed, 5 734 insertions, 540 deletions
 
 ## Was umgesetzt wurde
@@ -61,7 +61,7 @@ BUILD SUCCESSFUL in 3m 19s
 43 actionable tasks: 10 executed, 33 up-to-date
 
 APK: /root/ai-projects/premium-android-app/app/build/outputs/apk/debug/app-debug.apk
-Package: de.devondroste.aevum.debug
+Package: com.d_drostes_apps.aevum.debug
 Version: 0.1.0-debug
 Size: 109 MB (debug, enthält alle Compose-Play-Services-Deps)
 Permissions: INTERNET, ACCESS_FINE/COARSE/BACKGROUND_LOCATION,

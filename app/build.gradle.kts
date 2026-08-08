@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "de.devondroste.aevum"
+    namespace = "com.d_drostes_apps.aevum"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "de.devondroste.aevum"
+        applicationId = "com.d_drostes_apps.aevum"
         minSdk = 29
         targetSdk = 35
         versionCode = 1
