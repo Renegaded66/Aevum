@@ -1,7 +1,15 @@
 package com.d_drostes_apps.aevum.ui.screens.settings
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,77 +23,249 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
+import com.d_drostes_apps.aevum.automation.sleep.SleepFusionEngine
+import com.d_drostes_apps.aevum.automation.sleep.SleepFusionStatus
+import com.d_drostes_apps.aevum.automation.sleep.SleepFusionWorker
+import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicEngine
+import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicStatus
 import com.d_drostes_apps.aevum.data.model.AutomationSettings
+import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
+import com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+import com.d_drostes_apps.aevum.domain.digital.UsageStatsCollector
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.screens.automation.AutomationScrollSignal
+import com.d_drostes_apps.aevum.ui.screens.automation.SleepFusionStatusDialog
+import com.d_drostes_apps.aevum.ui.screens.automation.SleepStatusDialog
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * M18.44: Trigger-Settings — eine eigene Einstellungsseite für ALLE
- * automatischen Erkennungen. Der User entscheidet pro Trigger-Quelle,
- * ob sie aktiv ist:
+ * M18.57: Trigger & Erkennung — die FUSIONIERTE Einstellungsseite.
  *
- *   🏠 Geofences          — Zuhause/Arbeit/Gym betreten & verlassen
- *   🚗 Autofahren          — Android Activity Recognition (IN_VEHICLE)
- *   🚶 Walking / Laufen    — Activity Recognition (WALKING/RUNNING, 5-Min-Regel)
- *   🚴 Radfahren           — Activity Recognition (ON_BICYCLE)
- *   🌙 Schlaf-Erkennung    — 3-Signal-Fusion (Screen + STILL + Bildschirmzeit)
+ * Vorher gab es zwei Seiten:
+ *   1. "Trigger & Erkennung" (nur Toggles, keine Berechtigungen)
+ *   2. "Berechtigungen" / Automation (Status + Permission-Cards + Health/Digital)
  *
- * Die Toggles sind ECHTE Gates (nicht nur Anzeige): Deaktivierte Quellen
- * werden in den Receivern/Workern übersprungen (GeofenceBroadcastReceiver,
- * ActivityTransitionReceiver, SleepFusionWorker) und Geofences zusätzlich
- * beim System deregistriert.
+ * Jetzt gibt es NUR NOCH diese eine Seite. Der User entscheidet pro
+ * Trigger-Quelle, ob sie aktiv ist, und die benötigten Berechtigungen
+ * werden direkt hier verwaltet:
  *
- * Zukunftssicher: Die AutomationSettings-Entity ist bewusst erweiterbar —
- * neue Trigger-Arten ergänzen einfach ein Feld + einen Eintrag hier.
+ *   🏠 Geofences          — braucht Standort (Vordergrund) + Hintergrund
+ *                           ("Immer erlauben" — Geofences müssen auch bei
+ *                           geschlossener App funktionieren)
+ *   🚗 Autofahren          — braucht Aktivitätserkennung
+ *   🚶 Walking / Laufen    — braucht Aktivitätserkennung
+ *   🚴 Radfahren           — braucht Aktivitätserkennung
+ *   🌙 Schlaf-Erkennung    — braucht Aktivitätserkennung (STILL-Signal)
+ *
+ * Permission-Gating (M18.57): Bei frischer Installation sind keine
+ * Berechtigungen erteilt → alle Trigger, die Berechtigungen brauchen,
+ * sind DEAKTIVIERT (Switch aus, dezent roter Hinweis "Berechtigung noch
+ * nicht erteilt"). Tippt man auf einen blockierten Trigger, wird man
+ * zuerst zum Berechtigungs-Flow geleitet. Erst wenn die Berechtigung
+ * erteilt ist, springt der Schieberegler auf aktiviert und der Hinweis
+ * wird grün ("Berechtigung erteilt").
+ *
+ * Die DB-Flags bleiben dabei unverändert (keine Migration nötig): Der
+ * Switch zeigt `flag && permissionGranted`. Wird die Berechtigung später
+ * entzogen, fällt der Trigger sichtbar zurück; nach erneuter Erteilung
+ * springt er wieder an.
  */
 @Composable
 fun TriggerSettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    onOpenGeofences: () -> Unit = {},
+    onOpenTriggers: () -> Unit = {},
+    onOpenStatus: () -> Unit = {},
     viewModel: TriggerSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val isAnalyzingSleep by viewModel.isAnalyzingSleep.collectAsState()
+    val sleepStatus by viewModel.sleepStatus.collectAsState()
+    val isAnalyzingFusion by viewModel.isAnalyzingFusion.collectAsState()
+    val fusionStatus by viewModel.fusionStatus.collectAsState()
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // M18.57: Welcher Trigger wartet gerade auf seine Berechtigung?
+    // Nach erfolgreicher Erteilung wird genau dieser Trigger aktiviert.
+    var pendingTrigger by remember { mutableStateOf<String?>(null) }
+
+    fun openAppDetails() {
+        try {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${context.packageName}")
+                )
+            )
+        } catch (e: Exception) {
+            Log.e("TriggerSettings", "App-Details öffnen fehlgeschlagen", e)
+        }
+    }
+
+    // ── Permission-Launcher ──────────────────────────────────────────
+    // Standort (Vordergrund): Geofences. Nach Grant ggf. weiter zu den
+    // App-Details, damit der User "Immer erlauben" (Hintergrund) wählen kann.
+    val locationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            val fresh = viewModel.uiState.value
+            if (!fresh.backgroundLocationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Hintergrund-Standort ist KEINE Runtime-Permission — der User
+                // muss "Immer erlauben" in den App-Details wählen.
+                openAppDetails()
+            } else if (pendingTrigger == "geofences") {
+                viewModel.setGeofencing(true)
+                pendingTrigger = null
+            }
+        }
+        viewModel.refreshPermissions()
+    }
+
+    // Aktivitätserkennung: Autofahren, Walking, Radfahren, Schlaf-Fusion
+    val activityLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            when (pendingTrigger) {
+                "driving" -> viewModel.setDriving(true)
+                "walking" -> viewModel.setWalking(true)
+                "bicycle" -> viewModel.setBicycle(true)
+                "sleep" -> viewModel.setSleepFusion(true)
+            }
+            pendingTrigger = null
+        }
+        viewModel.refreshPermissions()
+    }
+
+    // Benachrichtigungen (nur Status-Zeile, kein Trigger-Gate)
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { viewModel.refreshPermissions() }
+
+    // M18.57: Bei Rückkehr aus den System-Einstellungen (z.B. nach
+    // "Immer erlauben") den Permission-Status neu prüfen und einen
+    // wartenden Geofence-Trigger abschließen.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissions()
+                val fresh = viewModel.uiState.value
+                if (pendingTrigger == "geofences" &&
+                    fresh.foregroundLocationGranted && fresh.backgroundLocationGranted
+                ) {
+                    viewModel.setGeofencing(true)
+                    pendingTrigger = null
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // M12.1: Scroll-Signal vom Dashboard ("Bildschirmzeit aktivieren")
+    // → zur Digital-Balance-Sektion scrollen.
+    val listState = rememberLazyListState()
+    val scrollToUsage = AutomationScrollSignal.consumeScrollToUsage()
+    LaunchedEffect(scrollToUsage) {
+        if (scrollToUsage) listState.animateScrollToItem(DIGITAL_BALANCE_ITEM_INDEX)
+    }
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             item { TriggerSettingsHero(onBack) }
 
+            // ── Berechtigungen (fusioniert) ──────────────────────────
+            item {
+                PermissionStatusCard(
+                    foregroundGranted = state.foregroundLocationGranted,
+                    backgroundGranted = state.backgroundLocationGranted,
+                    activityRecognitionGranted = state.activityRecognitionGranted,
+                    notificationsGranted = state.notificationsGranted,
+                    usageStatsGranted = state.usageStatsGranted,
+                    onRequestForeground = {
+                        locationLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    onRequestBackground = { openAppDetails() },
+                    onRequestActivityRecognition = {
+                        activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                    },
+                    onRequestNotifications = {
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
+                    onOpenUsageAccess = { viewModel.openUsageAccess() }
+                )
+            }
+
             // ── Ortsbasiert ──────────────────────────────────────────
             item {
+                val geofenceBlocked = !state.foregroundLocationGranted || !state.backgroundLocationGranted
                 TriggerGroup(
                     title = "Ortsbasiert",
                     items = listOf(
@@ -95,7 +275,21 @@ fun TriggerSettingsScreen(
                             description = "Zuhause, Arbeit & Co. erkennen — Betreten startet, Verlassen stoppt die Aktivität",
                             accent = Color(0xFF4F9CF9),
                             checked = state.settings.geofencingEnabled,
-                            onCheckedChange = viewModel::setGeofencing
+                            permissionGranted = !geofenceBlocked,
+                            onCheckedChange = viewModel::setGeofencing,
+                            onRequestPermission = {
+                                pendingTrigger = "geofences"
+                                if (!state.foregroundLocationGranted) {
+                                    locationLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION
+                                        )
+                                    )
+                                } else {
+                                    openAppDetails()
+                                }
+                            }
                         )
                     )
                 )
@@ -103,6 +297,7 @@ fun TriggerSettingsScreen(
 
             // ── Bewegung ─────────────────────────────────────────────
             item {
+                val arBlocked = !state.activityRecognitionGranted
                 TriggerGroup(
                     title = "Bewegung",
                     items = listOf(
@@ -112,7 +307,12 @@ fun TriggerSettingsScreen(
                             description = "Automatisch starten, wenn Android eine Fahrt erkennt — stoppt beim Aussteigen",
                             accent = Color(0xFFF59E0B),
                             checked = state.settings.drivingDetectionEnabled,
-                            onCheckedChange = viewModel::setDriving
+                            permissionGranted = !arBlocked,
+                            onCheckedChange = viewModel::setDriving,
+                            onRequestPermission = {
+                                pendingTrigger = "driving"
+                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                            }
                         ),
                         TriggerToggle(
                             icon = "🚶",
@@ -120,7 +320,12 @@ fun TriggerSettingsScreen(
                             description = "Trigger erst nach 5 Minuten am Stück (kein False-Trigger bei kurzen Wegen)",
                             accent = Color(0xFF10B981),
                             checked = state.settings.walkingDetectionEnabled,
-                            onCheckedChange = viewModel::setWalking
+                            permissionGranted = !arBlocked,
+                            onCheckedChange = viewModel::setWalking,
+                            onRequestPermission = {
+                                pendingTrigger = "walking"
+                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                            }
                         ),
                         TriggerToggle(
                             icon = "🚴",
@@ -128,7 +333,12 @@ fun TriggerSettingsScreen(
                             description = "Sofort-Trigger bei erkannten Fahrrad-Fahrten",
                             accent = Color(0xFF8B5CF6),
                             checked = state.settings.bicycleDetectionEnabled,
-                            onCheckedChange = viewModel::setBicycle
+                            permissionGranted = !arBlocked,
+                            onCheckedChange = viewModel::setBicycle,
+                            onRequestPermission = {
+                                pendingTrigger = "bicycle"
+                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                            }
                         )
                     )
                 )
@@ -136,6 +346,7 @@ fun TriggerSettingsScreen(
 
             // ── Schlaf ───────────────────────────────────────────────
             item {
+                val arBlocked = !state.activityRecognitionGranted
                 TriggerGroup(
                     title = "Schlaf",
                     items = listOf(
@@ -145,30 +356,120 @@ fun TriggerSettingsScreen(
                             description = "3-Signal-Fusion aus Bildschirm, STILL-Erkennung & Bildschirmzeit",
                             accent = Color(0xFF6366F1),
                             checked = state.settings.sleepFusionEnabled,
-                            onCheckedChange = viewModel::setSleepFusion
+                            permissionGranted = !arBlocked,
+                            onCheckedChange = viewModel::setSleepFusion,
+                            onRequestPermission = {
+                                pendingTrigger = "sleep"
+                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                            }
                         )
-                    )
+                    ),
+                    footer = {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = AevumSpacing.xs),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
+                        )
+                        // Bildschirm-Muster-Heuristik (funktioniert ohne Berechtigung)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                        ) {
+                            Button(
+                                onClick = { viewModel.analyzeSleepNow() },
+                                enabled = !isAnalyzingSleep,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (isAnalyzingSleep) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(Modifier.size(6.dp))
+                                }
+                                Text("Bildschirm-Analyse")
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.openSleepStatus() },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Status") }
+                        }
+                        // 3-Signal-Fusion manuell anstoßen
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                        ) {
+                            Button(
+                                onClick = { viewModel.analyzeSleepFusionNow() },
+                                enabled = !isAnalyzingFusion,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (isAnalyzingFusion) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(Modifier.size(6.dp))
+                                }
+                                Text("Fusion analysieren")
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.openFusionStatus() },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Status") }
+                        }
+                    }
                 )
             }
 
-            // ── Ausblick ─────────────────────────────────────────────
+            // ── Weitere Automatisierung (aus der alten Automation-Seite) ──
             item {
-                AevumCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                        Text("Mehr Trigger folgen", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Die Architektur ist offen für weitere Trigger-Arten (z.B. Smart-Home, Kopfhörer, App-Nutzung). " +
-                                "Neue Quellen erscheinen automatisch hier, sobald sie verfügbar sind.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                AdditionalAutomationCard(
+                    backgroundCaptureEnabled = state.settings.backgroundCaptureEnabled,
+                    healthSleepEnabled = state.settings.healthSleepEnabled,
+                    digitalBalanceEnabled = state.settings.digitalBalanceEnabled,
+                    usageStatsGranted = state.usageStatsGranted,
+                    onBackgroundCapture = viewModel::setBackgroundCapture,
+                    onHealthSleep = viewModel::setHealthSleep,
+                    onDigitalBalance = viewModel::setDigitalBalance,
+                    onOpenUsageAccess = { viewModel.openUsageAccess() }
+                )
+            }
+
+            // ── Daten & Status ───────────────────────────────────────
+            item {
+                DataCard(
+                    geofenceCount = state.geofenceCount,
+                    triggerCount = state.triggerCount,
+                    pendingCandidateCount = state.pendingCandidateCount,
+                    registrationMessage = state.registrationMessage,
+                    onOpenGeofences = onOpenGeofences,
+                    onOpenTriggers = onOpenTriggers,
+                    onOpenStatus = onOpenStatus
+                )
             }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }
+
+    // Schlaf-Status-Dialoge (aus der alten Automation-Seite übernommen)
+    sleepStatus?.let { status ->
+        SleepStatusDialog(
+            status = status,
+            onDismiss = { viewModel.dismissSleepStatus() }
+        )
+    }
+    fusionStatus?.let { status ->
+        SleepFusionStatusDialog(
+            status = status,
+            onDismiss = { viewModel.dismissFusionStatus() }
+        )
+    }
 }
+
+/** Item-Index der "Weitere Automatisierung"-Karte (Digital Balance) in der LazyColumn. */
+private const val DIGITAL_BALANCE_ITEM_INDEX = 5
 
 @Composable
 private fun TriggerSettingsHero(onBack: () -> Unit) {
@@ -177,7 +478,7 @@ private fun TriggerSettingsHero(onBack: () -> Unit) {
             Text("Trigger & Erkennung", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 "Entscheide pro Quelle, was Aevum automatisch erkennen darf. " +
-                    "Alles läuft lokal auf deinem Gerät.",
+                    "Berechtigungen werden direkt hier verwaltet — alles läuft lokal auf deinem Gerät.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 20.sp
             )
@@ -185,8 +486,72 @@ private fun TriggerSettingsHero(onBack: () -> Unit) {
     }
 }
 
+/**
+ * M18.57: Kompakte Berechtigungs-Status-Karte (die fusionierte
+ * "Berechtigungen"-Seite). Jede Zeile zeigt den Status und öffnet bei
+ * Klick den passenden Berechtigungs-Flow.
+ */
 @Composable
-private fun TriggerGroup(title: String, items: List<TriggerToggle>) {
+private fun PermissionStatusCard(
+    foregroundGranted: Boolean,
+    backgroundGranted: Boolean,
+    activityRecognitionGranted: Boolean,
+    notificationsGranted: Boolean,
+    usageStatsGranted: Boolean,
+    onRequestForeground: () -> Unit,
+    onRequestBackground: () -> Unit,
+    onRequestActivityRecognition: () -> Unit,
+    onRequestNotifications: () -> Unit,
+    onOpenUsageAccess: () -> Unit
+) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+            Text(
+                "Berechtigungen",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            PermissionStatusRow("Standort", foregroundGranted, onRequestForeground)
+            PermissionStatusRow(
+                "Standort im Hintergrund (Immer erlauben)",
+                backgroundGranted,
+                onRequestBackground
+            )
+            PermissionStatusRow("Aktivitätserkennung", activityRecognitionGranted, onRequestActivityRecognition)
+            PermissionStatusRow("Benachrichtigungen", notificationsGranted, onRequestNotifications)
+            PermissionStatusRow("Nutzungszugriff (Bildschirmzeit)", usageStatsGranted, onOpenUsageAccess)
+        }
+    }
+}
+
+@Composable
+private fun PermissionStatusRow(label: String, granted: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp)
+        Text(
+            if (granted) "✓ Erteilt" else "Ausstehend",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (granted) PermissionGreen else PermissionRed
+        )
+    }
+}
+
+@Composable
+private fun TriggerGroup(
+    title: String,
+    items: List<TriggerToggle>,
+    footer: (@Composable () -> Unit)? = null
+) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text(
@@ -199,6 +564,7 @@ private fun TriggerGroup(title: String, items: List<TriggerToggle>) {
             items.forEach { toggle ->
                 TriggerToggleRow(toggle)
             }
+            footer?.invoke()
         }
     }
 }
@@ -206,7 +572,15 @@ private fun TriggerGroup(title: String, items: List<TriggerToggle>) {
 @Composable
 private fun TriggerToggleRow(toggle: TriggerToggle) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (!toggle.permissionGranted) {
+                    Modifier.clickable(onClick = toggle.onRequestPermission)
+                } else {
+                    Modifier
+                }
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
     ) {
@@ -222,9 +596,34 @@ private fun TriggerToggleRow(toggle: TriggerToggle) {
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(toggle.title, fontWeight = FontWeight.SemiBold)
-            Text(toggle.description, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 15.sp)
+            Text(
+                toggle.description,
+                fontSize = 11.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 15.sp
+            )
+            // M18.57: Permission-Hinweis — rot (fehlt) / grün (erteilt)
+            if (toggle.permissionGranted) {
+                Text(
+                    "✓ Berechtigung erteilt",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = PermissionGreen
+                )
+            } else {
+                Text(
+                    "⚠ Berechtigung noch nicht erteilt — tippen zum Erteilen",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = PermissionRed
+                )
+            }
         }
-        Switch(checked = toggle.checked, onCheckedChange = toggle.onCheckedChange)
+        Switch(
+            checked = toggle.checked && toggle.permissionGranted,
+            onCheckedChange = toggle.onCheckedChange,
+            enabled = toggle.permissionGranted
+        )
     }
 }
 
@@ -234,19 +633,190 @@ private data class TriggerToggle(
     val description: String,
     val accent: Color,
     val checked: Boolean,
-    val onCheckedChange: (Boolean) -> Unit
+    val permissionGranted: Boolean,
+    val onCheckedChange: (Boolean) -> Unit,
+    val onRequestPermission: () -> Unit
 )
 
-/** M18.44: ViewModel für die Trigger-Settings-Seite. */
+/** M18.57: Weitere Automatisierung (aus der alten Automation-Seite übernommen). */
+@Composable
+private fun AdditionalAutomationCard(
+    backgroundCaptureEnabled: Boolean,
+    healthSleepEnabled: Boolean,
+    digitalBalanceEnabled: Boolean,
+    usageStatsGranted: Boolean,
+    onBackgroundCapture: (Boolean) -> Unit,
+    onHealthSleep: (Boolean) -> Unit,
+    onDigitalBalance: (Boolean) -> Unit,
+    onOpenUsageAccess: () -> Unit
+) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                "Weitere Automatisierung",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SettingSwitchRow(
+                "Hintergrunderfassung",
+                "Geofences erkennen, auch wenn Aevum geschlossen ist",
+                backgroundCaptureEnabled,
+                onBackgroundCapture
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f))
+            SettingSwitchRow(
+                "Health Connect",
+                "Schlaf aus Health Connect importieren",
+                healthSleepEnabled,
+                onHealthSleep
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f))
+            SettingSwitchRow(
+                "Bildschirmzeit erfassen",
+                "Nutzungsstatistiken lokal analysieren",
+                digitalBalanceEnabled,
+                onDigitalBalance
+            )
+            if (!usageStatsGranted && digitalBalanceEnabled) {
+                TextButton(onClick = onOpenUsageAccess) { Text("Nutzungszugriff öffnen") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingSwitchRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun DataCard(
+    geofenceCount: Int,
+    triggerCount: Int,
+    pendingCandidateCount: Int,
+    registrationMessage: String?,
+    onOpenGeofences: () -> Unit,
+    onOpenTriggers: () -> Unit,
+    onOpenStatus: () -> Unit
+) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                "Daten & Status",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "$geofenceCount Geofences · $triggerCount Trigger · $pendingCandidateCount offene Vorschläge",
+                fontSize = 13.sp
+            )
+            registrationMessage?.let {
+                Text(it, color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Button(onClick = onOpenGeofences) { Text("Geofences") }
+                OutlinedButton(onClick = onOpenTriggers) { Text("Trigger") }
+                OutlinedButton(onClick = onOpenStatus) { Text("Status-Details") }
+            }
+        }
+    }
+}
+
+private val PermissionGreen = Color(0xFF10B981)
+private val PermissionRed = Color(0xFFEF4444)
+
+/** M18.57: ViewModel für die fusionierte Trigger-&-Erkennung-Seite. */
 @HiltViewModel
 class TriggerSettingsViewModel @Inject constructor(
+    private val app: android.app.Application,
     private val settingsRepository: AutomationSettingsRepository,
-    private val geofenceRegistrar: com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
+    private val geofenceRegistrar: GeofenceRegistrar,
+    private val geofenceRepository: PlaceGeofenceRepository,
+    private val triggerRepository: TriggerEventRepository,
+    private val candidateRepository: ActivityCandidateRepository,
+    private val usageStatsCollector: UsageStatsCollector,
+    private val sleepHeuristicEngine: SleepHeuristicEngine,
+    private val sleepFusionEngine: SleepFusionEngine
 ) : ViewModel() {
 
-    val uiState: StateFlow<TriggerSettingsUiState> = settingsRepository.get()
-        .map { settings -> TriggerSettingsUiState(settings ?: AutomationSettings()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerSettingsUiState())
+    private val registrationMessage = MutableStateFlow<String?>(null)
+
+    // M18.57: Permission-Status wird bei jedem Tick frisch geprüft.
+    // refreshPermissions() wird nach Permission-Dialogen und bei
+    // ON_RESUME (Rückkehr aus System-Settings) aufgerufen.
+    private data class PermissionSnapshot(
+        val foregroundGranted: Boolean = false,
+        val backgroundGranted: Boolean = false,
+        val activityRecognitionGranted: Boolean = false,
+        val notificationsGranted: Boolean = false,
+        val usageStatsGranted: Boolean = false
+    )
+
+    private data class UiExtras(
+        val message: String? = null,
+        val perms: PermissionSnapshot = PermissionSnapshot()
+    )
+
+    private val permissionState = MutableStateFlow(PermissionSnapshot())
+
+    private val extras = combine(registrationMessage, permissionState) { msg, perms ->
+        UiExtras(msg, perms)
+    }
+
+    init {
+        refreshPermissions()
+    }
+
+    val uiState: StateFlow<TriggerSettingsUiState> = combine(
+        settingsRepository.get(),
+        geofenceRepository.getAll(),
+        triggerRepository.getAll(),
+        candidateRepository.getByStatus("PENDING"),
+        extras
+    ) { settings, geofences, triggers, candidates, extras ->
+        TriggerSettingsUiState(
+            settings = settings ?: AutomationSettings(),
+            foregroundLocationGranted = extras.perms.foregroundGranted,
+            backgroundLocationGranted = extras.perms.backgroundGranted,
+            activityRecognitionGranted = extras.perms.activityRecognitionGranted,
+            notificationsGranted = extras.perms.notificationsGranted,
+            usageStatsGranted = extras.perms.usageStatsGranted,
+            geofenceCount = geofences.size,
+            triggerCount = triggers.size,
+            pendingCandidateCount = candidates.size,
+            registrationMessage = extras.message
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerSettingsUiState())
+
+    fun refreshPermissions() {
+        val perms = geofenceRegistrar.getPermissionStatus()
+        permissionState.value = PermissionSnapshot(
+            foregroundGranted = perms.foregroundGranted,
+            backgroundGranted = perms.backgroundGranted,
+            activityRecognitionGranted = has(Manifest.permission.ACTIVITY_RECOGNITION),
+            notificationsGranted = Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS),
+            usageStatsGranted = usageStatsCollector.hasPermission()
+        )
+    }
 
     fun setGeofencing(enabled: Boolean) {
         upsert { it.copy(geofencingEnabled = enabled) }
@@ -255,20 +825,137 @@ class TriggerSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 geofenceRegistrar.refreshRegisteredGeofences()
-            } catch (_: Exception) { /* Berechtigungen/Systemfehler — kein Crash */ }
+            } catch (e: Exception) {
+                Log.e("TriggerSettings", "Geofence-Registrierung fehlgeschlagen", e)
+            }
         }
     }
 
     fun setDriving(enabled: Boolean) = upsert { it.copy(drivingDetectionEnabled = enabled) }
     fun setWalking(enabled: Boolean) = upsert { it.copy(walkingDetectionEnabled = enabled) }
     fun setBicycle(enabled: Boolean) = upsert { it.copy(bicycleDetectionEnabled = enabled) }
-    fun setSleepFusion(enabled: Boolean) = upsert { it.copy(sleepFusionEnabled = enabled) }
+
+    fun setSleepFusion(enabled: Boolean) {
+        upsert { it.copy(sleepFusionEnabled = enabled) }
+        if (enabled) {
+            viewModelScope.launch {
+                try {
+                    val request = androidx.work.OneTimeWorkRequestBuilder<SleepFusionWorker>().build()
+                    androidx.work.WorkManager.getInstance(app)
+                        .enqueueUniqueWork(
+                            SleepFusionWorker.WORK_NAME,
+                            androidx.work.ExistingWorkPolicy.REPLACE,
+                            request
+                        )
+                    registrationMessage.value = "✓ Intelligente Schlaf-Erkennung aktiv. Analyse läuft."
+                } catch (e: Exception) {
+                    registrationMessage.value = "Worker-Start fehlgeschlagen: ${e.message}"
+                }
+            }
+        }
+    }
+
+    fun setBackgroundCapture(enabled: Boolean) =
+        upsert { it.copy(backgroundCaptureEnabled = enabled, geofencingEnabled = enabled) }
+
+    fun setHealthSleep(enabled: Boolean) = upsert { it.copy(healthSleepEnabled = enabled) }
+
+    fun setDigitalBalance(enabled: Boolean) = upsert { it.copy(digitalBalanceEnabled = enabled) }
+
+    fun openUsageAccess() = usageStatsCollector.openUsageAccessSettings()
+
+    // ── Schlaf-Heuristik (Bildschirm-Muster) ─────────────────────────
+
+    private val _isAnalyzingSleep = MutableStateFlow(false)
+    val isAnalyzingSleep: StateFlow<Boolean> = _isAnalyzingSleep
+
+    private val _sleepStatus = MutableStateFlow<SleepHeuristicStatus?>(null)
+    val sleepStatus: StateFlow<SleepHeuristicStatus?> = _sleepStatus
+
+    fun analyzeSleepNow() {
+        viewModelScope.launch {
+            _isAnalyzingSleep.value = true
+            try {
+                sleepHeuristicEngine.init(app)
+                val sleepCandidatesBefore = candidateRepository.getByStatus("PENDING").first()
+                    .count { it.activityTypeId == "sleep" }
+                sleepHeuristicEngine.analyzeLatest()
+                _sleepStatus.value = sleepHeuristicEngine.getStatus()
+                val sleepCandidatesAfter = candidateRepository.getByStatus("PENDING").first()
+                    .count { it.activityTypeId == "sleep" }
+                registrationMessage.value = when {
+                    sleepCandidatesAfter > sleepCandidatesBefore ->
+                        "✓ Schlaf-Vorschlag in der Review-Inbox bereit."
+                    sleepCandidatesAfter == sleepCandidatesBefore ->
+                        "✓ Schlaf wurde direkt in die Timeline übernommen (Auto-Accept)."
+                    else ->
+                        "✓ Schlaf-Analyse abgeschlossen. Bereits erkannt — keine Änderung."
+                }
+            } catch (e: Exception) {
+                registrationMessage.value = "Analyse fehlgeschlagen: ${e.message}"
+            } finally {
+                _isAnalyzingSleep.value = false
+            }
+        }
+    }
+
+    fun openSleepStatus() {
+        viewModelScope.launch {
+            try {
+                sleepHeuristicEngine.init(app)
+                _sleepStatus.value = sleepHeuristicEngine.getStatus()
+            } catch (e: Exception) {
+                registrationMessage.value = "Status nicht verfügbar: ${e.message}"
+            }
+        }
+    }
+
+    fun dismissSleepStatus() {
+        _sleepStatus.value = null
+    }
+
+    // ── 3-Signal-Fusion ──────────────────────────────────────────────
+
+    private val _isAnalyzingFusion = MutableStateFlow(false)
+    val isAnalyzingFusion: StateFlow<Boolean> = _isAnalyzingFusion
+
+    private val _fusionStatus = MutableStateFlow<SleepFusionStatus?>(null)
+    val fusionStatus: StateFlow<SleepFusionStatus?> = _fusionStatus
+
+    fun openFusionStatus() {
+        viewModelScope.launch {
+            try {
+                _fusionStatus.value = sleepFusionEngine.getStatus()
+            } catch (e: Exception) {
+                registrationMessage.value = "Fusion-Status nicht verfügbar: ${e.message}"
+            }
+        }
+    }
+
+    fun dismissFusionStatus() {
+        _fusionStatus.value = null
+    }
+
+    fun analyzeSleepFusionNow() {
+        viewModelScope.launch {
+            _isAnalyzingFusion.value = true
+            try {
+                sleepFusionEngine.analyzeLatest()
+                _fusionStatus.value = sleepFusionEngine.getStatus()
+                registrationMessage.value = "✓ Schlaf-Fusion ausgeführt. Ergebnis in der Review-Inbox / Timeline prüfen."
+            } catch (e: Exception) {
+                registrationMessage.value = "Fusion fehlgeschlagen: ${e.message}"
+            } finally {
+                _isAnalyzingFusion.value = false
+            }
+        }
+    }
 
     private fun upsert(transform: (AutomationSettings) -> AutomationSettings) {
         val current = uiState.value.settings
         viewModelScope.launch {
             try {
-                settingsRepository.upsert(transform(current))
+                settingsRepository.upsert(transform(current).copy(updatedAt = System.currentTimeMillis()))
             } catch (e: Exception) {
                 // M18.56: Fehler sichtbar machen statt schlucken — vorher
                 // sprangen Toggles stillschweigend zurück, weil DB-Exceptions
@@ -277,8 +964,21 @@ class TriggerSettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun has(permission: String): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(app, permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
 }
 
 data class TriggerSettingsUiState(
-    val settings: AutomationSettings = AutomationSettings()
+    val settings: AutomationSettings = AutomationSettings(),
+    val foregroundLocationGranted: Boolean = false,
+    val backgroundLocationGranted: Boolean = false,
+    val activityRecognitionGranted: Boolean = false,
+    val notificationsGranted: Boolean = false,
+    val usageStatsGranted: Boolean = false,
+    val geofenceCount: Int = 0,
+    val triggerCount: Int = 0,
+    val pendingCandidateCount: Int = 0,
+    val registrationMessage: String? = null
 )

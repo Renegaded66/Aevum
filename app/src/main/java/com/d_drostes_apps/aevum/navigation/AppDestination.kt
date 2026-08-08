@@ -12,8 +12,8 @@ enum class AppDestination(val route: String, val title: String) {
     WeeklyReview("weekly_review", "Weekly Review"),
     Growth("growth", "Wachstum"),
     Settings("settings", "Einstellungen"),
-    AutomationSettings("automation", "Automatisierung"),
     // M18.44: Eigene Seite für alle Trigger-Quellen (Geofence/Auto/Walking/Rad/Schlaf)
+    // M18.57: Fusioniert mit der alten "Berechtigungen"-Seite (AutomationSettings entfernt).
     TriggerSettings("trigger_settings", "Trigger & Erkennung"),
     GeofenceList("geofences", "Geofences"),
     GeofenceCreate("geofence/new", "Geofence anlegen"),

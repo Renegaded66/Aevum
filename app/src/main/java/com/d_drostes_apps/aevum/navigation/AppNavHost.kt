@@ -18,7 +18,6 @@ import com.d_drostes_apps.aevum.ui.screens.settings.TriggerSettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.PrivacyScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.ExportScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.BackupScreen
-import com.d_drostes_apps.aevum.ui.screens.automation.AutomationSettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.AutomationStatusScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.GeofenceDebugScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.GeofenceEditorScreen
@@ -47,10 +46,10 @@ fun AppNavHost(
                 onOpenReview = { navController.navigate(AppDestination.ReviewInbox.route) },
                 onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
                 onOpenUsageSettings = {
-                    // M12.1: Signal setzen, damit die Automation-Screen
-                    // zum UsageStats-Block scrollt, sobald sie erscheint.
+                    // M12.1: Signal setzen, damit die Trigger-&-Erkennung-Seite
+                    // zum Digital-Balance-Block scrollt, sobald sie erscheint.
                     com.d_drostes_apps.aevum.ui.screens.automation.AutomationScrollSignal.requestScrollToUsage()
-                    navController.navigate(AppDestination.AutomationSettings.route)
+                    navController.navigate(AppDestination.TriggerSettings.route)
                 },
                 // M18.37: Todos-Karte auf dem Dashboard
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) }
@@ -145,9 +144,10 @@ fun AppNavHost(
         composable(AppDestination.Settings.route) {
             SettingsScreen(
                 // M18.44: Trigger & Erkennung ist die PRIMÄRE Automatisierungs-
-                // Seite — alle Quellen einzeln schaltbar.
+                // Seite — alle Quellen einzeln schaltbar. M18.57: Die Seite
+                // "Berechtigungen" wurde hier hinein fusioniert (nur noch
+                // diese eine Seite existiert).
                 onOpenTriggerSettings = { navController.navigate(AppDestination.TriggerSettings.route) },
-                onOpenAutomation = { navController.navigate(AppDestination.AutomationSettings.route) },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
@@ -181,16 +181,15 @@ fun AppNavHost(
         composable(AppDestination.Backup.route) {
             BackupScreen(onBack = { navController.popBackStack() })
         }
-        composable(AppDestination.AutomationSettings.route) {
-            AutomationSettingsScreen(
+        // M18.44: Trigger & Erkennung — eigene Seite, alle Quellen einzeln schaltbar.
+        // M18.57: Fusioniert mit der alten "Berechtigungen"-Seite (AutomationSettings).
+        composable(AppDestination.TriggerSettings.route) {
+            TriggerSettingsScreen(
+                onBack = { navController.popBackStack() },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 onOpenStatus = { navController.navigate(AppDestination.AutomationStatus.route) }
             )
-        }
-        // M18.44: Trigger & Erkennung — eigene Seite, alle Quellen einzeln schaltbar
-        composable(AppDestination.TriggerSettings.route) {
-            TriggerSettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(AppDestination.AutomationStatus.route) {
             AutomationStatusScreen(onBack = { navController.popBackStack() })

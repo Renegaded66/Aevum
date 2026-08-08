@@ -48,7 +48,6 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     // M18.44: Trigger & Erkennung als eigene Seite (alle Quellen einzeln schaltbar)
     onOpenTriggerSettings: () -> Unit = {},
-    onOpenAutomation: () -> Unit = {},
     onOpenGeofences: () -> Unit = {},
     onOpenTriggers: () -> Unit = {},
     onOpenGoals: () -> Unit = {},
@@ -92,8 +91,10 @@ fun SettingsScreen(
                 SettingsSection(
                     "Automatisierung",
                     listOf(
-                        SettingsEntry("Trigger & Erkennung", "Geofences · Auto · Walking · Schlaf", onOpenTriggerSettings),
-                        SettingsEntry("Berechtigungen & Status", "Standort, Aktivität, Benachrichtigungen", onOpenAutomation),
+                        // M18.57: Die Seite "Berechtigungen" wurde in
+                        // "Trigger & Erkennung" fusioniert — nur noch diese
+                        // eine Seite existiert (inkl. Berechtigungs-Status).
+                        SettingsEntry("Trigger & Erkennung", "Geofences · Auto · Walking · Schlaf · Berechtigungen", onOpenTriggerSettings),
                         SettingsEntry("Geofences verwalten", "Orte, Radien & Auto-Start", onOpenGeofences),
                         SettingsEntry("Trigger Events", "Alle erkannten Ereignisse", onOpenTriggers)
                     )
