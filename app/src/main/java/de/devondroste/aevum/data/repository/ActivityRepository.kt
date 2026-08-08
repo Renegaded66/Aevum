@@ -37,6 +37,12 @@ interface ActivityRepository {
     suspend fun insertTagMapping(mapping: ActivitySessionTag)
     fun getTagIdsForSession(sessionId: String): Flow<List<String>>
     suspend fun deleteTagMappings(sessionId: String)
+
+    // M18.50: Activity löschen — Session-Bestand eines Typs.
+    suspend fun countSessionsByType(typeId: String): Int
+    suspend fun countLiveSessionsByType(typeId: String): Int
+    suspend fun reassignSessionsToType(typeId: String, fallbackTypeId: String, now: Long)
+    suspend fun hardDeleteSessionsByType(typeId: String)
 }
 
 interface ActivityCandidateRepository {
@@ -68,6 +74,9 @@ interface ActivityTypeRepository {
     suspend fun insert(type: ActivityType)
     suspend fun insertAll(types: List<ActivityType>)
     suspend fun update(type: ActivityType)
+
+    // M18.50: Activity löschen (nur eigene Typen, isSystem=false).
+    suspend fun delete(typeId: String)
 }
 
 interface SessionEvidenceRepository {

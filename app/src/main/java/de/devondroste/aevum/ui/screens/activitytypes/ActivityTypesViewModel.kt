@@ -5,12 +5,14 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.devondroste.aevum.data.model.ActivityType
 import de.devondroste.aevum.data.model.Category
+import de.devondroste.aevum.data.repository.ActivityRepository
 import de.devondroste.aevum.data.repository.ActivityTypeRepository
 import de.devondroste.aevum.data.repository.CategoryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -29,7 +31,9 @@ import javax.inject.Inject
 class ActivityTypesViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     // M18.17: Kategorien für die Zuordnung pro Aktivität.
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    // M18.50: Session-Bestand für das Lösch-Konzept (Umbuchen/Hart-Löschen).
+    private val activityRepository: ActivityRepository
 ) : ViewModel() {
 
     // M18.2: Lokaler Drag-State: typeId -> pendingScore.
@@ -152,6 +156,57 @@ class ActivityTypesViewModel @Inject constructor(
         )
         viewModelScope.launch {
             activityTypeRepository.insert(type)
+        }
+    }
+
+    /**
+     * M18.50 (User: "Es ist immer noch nicht möglich Activities zu löschen,
+     * also komplett das die nicht mehr verfügbar sind, das sollte sein in
+     * den Einstellungen->Activities. mit Bestätigungsdialog zum Löschen.
+     * Musst du dir selber ein Konzept ausdenken, was passiert mit
+     * Aufzeichnungen einer Activity die man löscht. Vielleicht auch alle
+     * Aufzeichnungen löschen").
+     *
+     * Konzept:
+     *  - System-Typen (Schlaf, Auto, Sonstiges …) sind NICHT löschbar —
+     *    sie sind das Fundament von Auto-Tracking und Fallback.
+     *  - Eigene Typen sind löschbar. Der Bestätigungsdialog zeigt die
+     *    Anzahl betroffener Aufzeichnungen und bietet zwei Optionen:
+     *      1. "Nur Activity löschen" → Sessions werden auf den Fallback-Typ
+     *         "Sonstiges" umgebucht (Timeline bleibt konsistent, keine
+     *         Daten verloren).
+     *      2. "Activity + alle Aufzeichnungen löschen" → Sessions werden
+     *         hart gelöscht (CASCADE räumt Evidence/Changes/Tags ab).
+     *  - Läuft gerade eine Session dieses Typs, ist das Löschen blockiert
+     *    (erst stoppen, dann löschen).
+     */
+    fun deleteActivity(typeId: String, alsoDeleteSessions: Boolean) {
+        viewModelScope.launch {
+            try {
+                // Live-Schutz: laufende Session dieses Typs blockiert das Löschen.
+                if (activityRepository.countLiveSessionsByType(typeId) > 0) return@launch
+
+                if (alsoDeleteSessions) {
+                    // Option 2: Sessions hart löschen (CASCADE räumt ab).
+                    activityRepository.hardDeleteSessionsByType(typeId)
+                } else {
+                    // Option 1: Sessions auf "Sonstiges" umbuchen.
+                    val fallback = activityTypeRepository.getAll().first()
+                        .firstOrNull { it.id == "other" }
+                    if (fallback != null) {
+                        activityRepository.reassignSessionsToType(
+                            typeId,
+                            fallback.id,
+                            System.currentTimeMillis()
+                        )
+                    }
+                }
+                // Activity selbst löschen (nur eigene Typen erreichbar).
+                activityTypeRepository.delete(typeId)
+            } catch (_: Exception) {
+                // Defensiv: kein UI-Crash bei DB-Race (z. B. parallel
+                // gestartete Session zwischen Check und Delete).
+            }
         }
     }
 }

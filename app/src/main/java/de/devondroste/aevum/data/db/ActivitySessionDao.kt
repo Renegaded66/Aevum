@@ -73,6 +73,25 @@ interface ActivitySessionDao {
     @Query("UPDATE activity_session SET deleted_at = :now, updated_at = :now WHERE id = :id")
     suspend fun softDelete(id: String, now: Long)
 
+    // M18.50: Activity löschen — Anzahl der Aufzeichnungen eines Typs.
+    @Query("SELECT COUNT(*) FROM activity_session WHERE activity_type_id = :typeId AND deleted_at IS NULL")
+    suspend fun countByActivityType(typeId: String): Int
+
+    // M18.50: Activity löschen — läuft gerade eine Session dieses Typs?
+    @Query("SELECT COUNT(*) FROM activity_session WHERE activity_type_id = :typeId AND deleted_at IS NULL AND session_status IN ('RUNNING', 'PAUSED')")
+    suspend fun countLiveByActivityType(typeId: String): Int
+
+    // M18.50: Activity löschen (Option "nur Activity") — Sessions auf den
+    // Fallback-Typ "Sonstiges" umbuchen, damit die Timeline konsistent bleibt.
+    @Query("UPDATE activity_session SET activity_type_id = :fallbackTypeId, updated_at = :now WHERE activity_type_id = :typeId AND deleted_at IS NULL")
+    suspend fun reassignSessionsToType(typeId: String, fallbackTypeId: String, now: Long)
+
+    // M18.50: Activity löschen (Option "alles") — Sessions hart löschen.
+    // activity_session_change/session_evidence/activity_session_tag räumen
+    // sich per ON DELETE CASCADE selbst ab.
+    @Query("DELETE FROM activity_session WHERE activity_type_id = :typeId")
+    suspend fun hardDeleteSessionsByType(typeId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTagMapping(mapping: ActivitySessionTag)
 

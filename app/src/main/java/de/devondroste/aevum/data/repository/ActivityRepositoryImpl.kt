@@ -55,6 +55,13 @@ class ActivityRepositoryImpl(
     override suspend fun insertTagMapping(mapping: ActivitySessionTag) = activityDao.insertTagMapping(mapping)
     override fun getTagIdsForSession(sessionId: String): Flow<List<String>> = activityDao.getTagIdsForSession(sessionId)
     override suspend fun deleteTagMappings(sessionId: String) = activityDao.deleteTagMappings(sessionId)
+
+    // M18.50: Activity löschen — Session-Bestand eines Typs.
+    override suspend fun countSessionsByType(typeId: String): Int = activityDao.countByActivityType(typeId)
+    override suspend fun countLiveSessionsByType(typeId: String): Int = activityDao.countLiveByActivityType(typeId)
+    override suspend fun reassignSessionsToType(typeId: String, fallbackTypeId: String, now: Long) =
+        activityDao.reassignSessionsToType(typeId, fallbackTypeId, now)
+    override suspend fun hardDeleteSessionsByType(typeId: String) = activityDao.hardDeleteSessionsByType(typeId)
 }
 
 class ActivityCandidateRepositoryImpl(
@@ -89,6 +96,7 @@ class ActivityTypeRepositoryImpl(
     override suspend fun insert(type: ActivityType) = typeDao.insert(type)
     override suspend fun insertAll(types: List<ActivityType>) = typeDao.insertAll(types)
     override suspend fun update(type: ActivityType) = typeDao.update(type)
+    override suspend fun delete(typeId: String) = typeDao.delete(typeId)
 }
 
 class SessionEvidenceRepositoryImpl(

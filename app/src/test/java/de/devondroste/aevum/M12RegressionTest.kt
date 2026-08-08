@@ -195,6 +195,11 @@ class M12RegressionTest {
         override suspend fun insertTagMapping(mapping: de.devondroste.aevum.data.model.ActivitySessionTag) {}
         override fun getTagIdsForSession(sessionId: String): Flow<List<String>> = flowOf(emptyList())
         override suspend fun deleteTagMappings(sessionId: String) {}
+        // M18.50: Activity löschen — Test-Fake ergänzt.
+        override suspend fun countSessionsByType(typeId: String): Int = 0
+        override suspend fun countLiveSessionsByType(typeId: String): Int = 0
+        override suspend fun reassignSessionsToType(typeId: String, fallbackTypeId: String, now: Long) {}
+        override suspend fun hardDeleteSessionsByType(typeId: String) {}
     }
 
     private class FakeCandidateRepository : ActivityCandidateRepository {

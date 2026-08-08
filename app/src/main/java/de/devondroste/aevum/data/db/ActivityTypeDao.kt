@@ -50,4 +50,8 @@ interface ActivityTypeDao {
 
     @Update
     suspend fun update(type: ActivityType)
+
+    // M18.50: Activity löschen (nur eigene Typen, isSystem=false).
+    @Query("DELETE FROM activity_type WHERE id = :id")
+    suspend fun delete(id: String)
 }

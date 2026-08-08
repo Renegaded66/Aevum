@@ -130,7 +130,11 @@ fun ActivityTypesScreen(
                             onIconChange = { viewModel.setIcon(row.id, it) },
                             onColorChange = { viewModel.setColor(row.id, it) },
                             onCategoryChange = { viewModel.setCategory(row.id, it) },
-                            onCreateCategory = viewModel::createCategory
+                            onCreateCategory = viewModel::createCategory,
+                            // M18.50: Löschen nur für eigene Typen (isSystem=false).
+                            onDelete = if (row.isSystem) null else { alsoDeleteSessions: Boolean ->
+                                viewModel.deleteActivity(row.id, alsoDeleteSessions)
+                            }
                         )
                     }
                     item { Spacer(Modifier.height(AevumSpacing.xl)) }
@@ -217,12 +221,17 @@ private fun ActivityTypeCard(
     onColorChange: (Long) -> Unit,
     // M18.17: Kategorie-Zuordnung
     onCategoryChange: (String?) -> Unit,
-    onCreateCategory: (String) -> Unit
+    onCreateCategory: (String) -> Unit,
+    // M18.50: Löschen (null = System-Typ, nicht löschbar).
+    // Parameter: alsoDeleteSessions (true = Activity + alle Aufzeichnungen).
+    onDelete: ((Boolean) -> Unit)? = null
 ) {
     var showIconPicker by remember { mutableStateOf(false) }
     // M18.17: Kategorie-Picker-Dialog
     var showCategoryPicker by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
+    // M18.50: Bestätigungsdialog für das Löschen.
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val accent = if (row.color != 0L) Color(row.color) else positivityColor(row.score)
 
     GlassCard(accentColor = accent) {
@@ -260,11 +269,25 @@ private fun ActivityTypeCard(
                         )
                     }
                 }
+                // M18.50: Lösch-Button (nur eigene Typen) + Score
+                if (onDelete != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.10f))
+                            .clickable { showDeleteDialog = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🗑", fontSize = 15.sp)
+                    }
+                }
                 Text(
                     row.score.toString(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = positivityColor(row.score)
+                    color = positivityColor(row.score),
+                    modifier = Modifier.padding(start = AevumSpacing.sm)
                 )
             }
 
@@ -467,6 +490,82 @@ private fun ActivityTypeCard(
             },
             confirmButton = {
                 TextButton(onClick = { showCategoryPicker = false }) { Text("Fertig") }
+            }
+        )
+    }
+
+    // M18.50: Bestätigungsdialog für das Löschen einer eigenen Activity.
+    // Zwei Optionen: "Nur Activity löschen" (Aufzeichnungen bleiben, werden
+    // auf "Sonstiges" umgebucht) oder "Activity + Aufzeichnungen löschen"
+    // (Sessions werden hart entfernt).
+    if (showDeleteDialog && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("„${row.name}“ löschen?", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Die Activity wird dauerhaft entfernt und ist danach nicht mehr verfügbar.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Was soll mit den Aufzeichnungen passieren?",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    // Option 1: Nur Activity löschen (Sessions umbuchen)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .clickable {
+                                onDelete(false)
+                                showDeleteDialog = false
+                            }
+                            .padding(horizontal = AevumSpacing.md, vertical = 12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Nur Activity löschen", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Aufzeichnungen bleiben erhalten und werden „Sonstiges“ zugeordnet.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // Option 2: Activity + alle Aufzeichnungen löschen
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.10f))
+                            .clickable {
+                                onDelete(true)
+                                showDeleteDialog = false
+                            }
+                            .padding(horizontal = AevumSpacing.md, vertical = 12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Activity + alle Aufzeichnungen löschen",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                "Alle Sessions dieser Activity werden dauerhaft entfernt.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
             }
         )
     }
