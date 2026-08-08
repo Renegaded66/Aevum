@@ -94,22 +94,24 @@ class GeofenceTransitionProcessor @Inject constructor(
             lastTrigger.type == "GEOFENCE_EXIT")
         val currentIsEnter = transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell
         val currentIsExit = transition == GeofenceTransition.Exit
-        // M18.41: DWELL wird NIE dedupliziert — es ist die zuverlaessigste
-        // Bestaetigung (User hat 90s im Geofence verweilt) und der
-        // Auto-Discard-Refresh haengt daran.
+        // DWELL bestaetigt die Anwesenheit, erzeugt aber bei bereits
+        // bestaetigtem ENTER keinen neuen ENTER-Zustand.
         val withinDedupWindow = lastTrigger != null && occurredAt - lastTrigger.occurredAt < DEDUP_WINDOW_MS
 
-        // M18.43-FIX (Root Cause "Gym betreten erscheint haeufiger
-        // hintereinander, obwohl nicht verlassen"): DWELL feuert alle
-        // ~90s, solange der User im Geofence bleibt. Jedes DWELL erzeugte
-        // einen neuen ENTER-Trigger (M18.41-Mapping) -> "Gym betreten"
-        // alle paar Minuten, obwohl der User nie rausging.
-        // Jetzt: DWELL erzeugt NUR dann einen neuen Trigger, wenn der
-        // letzte Trigger KEIN ENTER war (also ein EXIT dazwischen lag).
-        // Der Session-Start/Refresh (unten) laeuft trotzdem IMMER —
-        // der Auto-Discard-Schutz bleibt erhalten.
-        val skipTriggerCreation = transition == GeofenceTransition.Dwell &&
-            lastWasEnter && withinDedupWindow
+        // M18.48-FIX (User: "Zuhause angekommen' obwohl ich schon seit vielen
+        // Stunden zuhause bin und mich nicht bewegt habe. Unlogisch, weil der
+        // letzte Standort-Trigger ebenfalls 'Zuhause angekommen' ist, also
+        // kein 'Zuhause verlassen' ersichtlich ist"): Die Dedup-Logik war
+        // reine Zeitfenster-Logik (nur wenn der letzte Trigger < 10 Min alt
+        // ist). Google Play Services feuert aber auch nach Stunden erneut
+        // ENTER/DWELL für eine Geofence, in der der User die ganze Zeit
+        // geblieben ist (Neuregistrierung, GPS-Drift am Rand, DWELL-Echo).
+        // Wenn der letzte Trigger für diese Geofence ein ENTER war (User ist
+        // also nie wieder rausgegangen), erzeugen wir KEINEN neuen
+        // "angekommen"-Trigger — egal wie viel Zeit vergangen ist.
+        // Der EXIT-basierte Wechsel (Gym betreten → verlassen) bleibt davon
+        // unberührt, weil dort `lastWasExit` greift.
+        val skipTriggerCreation = currentIsEnter && lastWasEnter
 
         if (!skipTriggerCreation &&
             withinDedupWindow && ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit))
@@ -241,7 +243,10 @@ class GeofenceTransitionProcessor @Inject constructor(
             // nur die normale activityTypeId gesetzt ist, reicht das nicht —
             // der User muss in den Geofence-Settings "Auto-Start" explizit
             // aktivieren.
-            if (geofence.autoStartActivityTypeId != null) {
+            if (geofence.autoStartActivityTypeId != null &&
+                anchorQualityOverride != "LOW" &&
+                anchorQuality != SleepShield.AnchorQuality.LOW
+            ) {
                 // M18.43: Bei DWELL-Dedup (skipTriggerCreation) ist `trigger`
                 // null — die Session wurde schon beim ENTER gestartet. Als
                 // sourceTriggerId dient dann der letzte ENTER-Trigger, damit
@@ -326,10 +331,18 @@ class GeofenceTransitionProcessor @Inject constructor(
         // M18.43: ruleResult ist nur definiert, wenn ein Trigger erzeugt
         // wurde (bei DWELL-Dedup nicht). Der Rückgabewert ist nur fürs
         // Debugging relevant — Candidate-Count 0 ist dann korrekt.
+        // M18.48 (User: "Vorschläge brauche ich nicht mehr, stattdessen will
+        // ich, wenn die App sich sicher ist, direkt automatische Aufzeichnung"):
+        // Die Candidate-Review-Vorschlagsbenachrichtigung wird NICHT mehr
+        // ausgelöst. Der User wurde von "Unterwegs zum Gym erkannt"-Hinweisen
+        // gestört, die oft falsch waren. Die automatische Aufzeichnung läuft
+        // direkt über den Auto-Start/Stop-Pfad weiter (siehe oben) — es gibt
+        // keine separate Vorschlags-Benachrichtigung mehr. Candidates werden
+        // weiterhin still in der DB gespeichert (für die Timeline/Review), aber
+        // ohne störende Heads-up-Notification.
         val candidateCount = if (trigger != null) {
             val rr = ruleOrchestrator.evaluateRecentTriggers()
             debugLogger.log("PROCESSOR", "  ${rr.insertedCandidates.size} neue Candidates")
-            candidateReviewNotifier.notifyIfEnabled(rr.insertedCandidates)
             rr.insertedCandidates.size
         } else 0
         return GeofenceProcessingResult.Stored(trigger?.id, detection.id, candidateCount)

@@ -211,10 +211,21 @@ class SleepHeuristicEngine @Inject constructor(
 
         // 3) Session-Dedup: wenn bereits eine echte Sleep-Session im Fenster
         // existiert (≥30 min Überlappung), keinen neuen Candidate anlegen.
+        //
+        // M18.48-FIX (User: "Ich habe ein Ziel 8h Schlaf pro Nacht. Es wurde
+        // fälschlich zweimal aufgezeichnet ... die eine habe ich gelöscht,
+        // aber beim Ziel steht weiterhin 200%"): Vorher wurde hier mit
+        // `deletedAt == null` gefiltert. Wenn der User eine doppelte
+        // Schlaf-Session löschte, war sie für den Dedup unsichtbar — der
+        // nächtliche Auto-Tracker erzeugte sie am nächsten Morgen erneut,
+        // und das Ziel sprang zurück auf 200%. Jetzt zählt jede bereits
+        // aufgezeichnete Nacht (auch eine vom User gelöschte) als "diese
+        // Nacht wurde schon erfasst" — Aevum rekonstruiert gelöschte
+        // Schlaf-Einträge nicht mehr.
         val existingSleepSessions = activityRepository.getOverlappingRange(
             candidateWindowStart,
             candidateWindowEnd
-        ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
+        ).first().filter { it.activityTypeId == "sleep" }
         val hasOverlap = existingSleepSessions.any { existing ->
             val overlapMs = minOf(finalWakeMs, existing.endAt ?: Long.MAX_VALUE) -
                     maxOf(offEvent.timestamp, existing.startAt)

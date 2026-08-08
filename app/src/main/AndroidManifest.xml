@@ -67,7 +67,7 @@
 
         <receiver
             android:name=".automation.geofence.GeofenceBroadcastReceiver"
-            android:exported="false" />
+            android:exported="true" />
 
         <!-- M12.2: Activity Recognition (Fahrten)
              M18.43-CRITICAL-FIX: exported="true" ist PFLICHT! Google Play

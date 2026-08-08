@@ -71,16 +71,17 @@ class GeofenceRegistrar @Inject constructor(
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
-                    // M17: ENTER + EXIT, KEIN DWELL mehr. Wir wollen den Enter
-                    // SOFORT, ohne 90s Loitering. DWELL wäre redundant, da
-                    // der GeofenceDebouncer die 8s-Stabilisierung macht.
+                    // ENTER + EXIT + DWELL: Google kann nach Reboot/Refresh
+                    // nur DWELL liefern. Der Processor dedupliziert DWELL,
+                    // nutzt ihn aber als bestätigten Aufenthalt.
                     .addGeofences(geofences.map { place ->
                         Geofence.Builder()
                             .setRequestId(place.id)
                             .setCircularRegion(place.latitude, place.longitude, place.radiusMeters.coerceAtLeast(MIN_RADIUS_METERS))
                             .setTransitionTypes(
                                 Geofence.GEOFENCE_TRANSITION_ENTER or
-                                Geofence.GEOFENCE_TRANSITION_EXIT
+                                Geofence.GEOFENCE_TRANSITION_EXIT or
+                                Geofence.GEOFENCE_TRANSITION_DWELL
                             )
                             .setExpirationDuration(Geofence.NEVER_EXPIRE)
                             // M17: NotificationResponsiveness 20s statt 60s.

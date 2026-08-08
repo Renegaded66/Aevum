@@ -241,10 +241,20 @@ class LiveActivityService : Service() {
         // M18.19: Aktivitätsfarbe aus dem ActivityType laden.
         val type = liveActivityManager.cachedActivityType(session.activityTypeId)
         val accentColor = (type?.color?.takeIf { it != 0L } ?: 0xFF4CAF50).toInt()
+        val activityIcon = type?.icon?.takeIf { it.isNotBlank() } ?: "•"
+
+        // M18.48 (User: "sollte schöner aussehen. Wie bei Duolingo mit einem
+        // schönen Bild, statt einfach nur grüne Farbe"): Statt nur Farbe wird
+        // ein farbiger Kreis mit dem Aktivitäts-Icon (Emoji) als LargeIcon
+        // gezeichnet. setLargeIcon ist eine STANDARD-Notification-Methode —
+        // kein RemoteViews (das hat in M18.25 gecrasht). So entsteht ein
+        // markantes, bildhaftes Icon auf jedem Gerät.
+        val largeIcon = buildActivityIcon(activityIcon, accentColor)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
+            .setLargeIcon(largeIcon)
+            .setContentTitle(if (isPaused) "⏸ $title" else "▶ $title")
             .setContentText(timeStr)
             .setSubText(subText)
             .setContentIntent(openPending)
@@ -253,8 +263,8 @@ class LiveActivityService : Service() {
             .setSilent(true)
             .setShowWhen(false)
             .addAction(0, pauseResumeLabel, pauseResumePending)
-            .addAction(0, "Wechseln", switchPending)
-            .addAction(0, "Stoppen", stopPending)
+            .addAction(0, "⇄ Wechseln", switchPending)
+            .addAction(0, "■ Stoppen", stopPending)
             // M18.4: HIGH + STOPWATCH — Heads-up Banner über allem.
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
@@ -305,6 +315,28 @@ class LiveActivityService : Service() {
             .setSilent(true)
             .setShowWhen(false)
             .build()
+    }
+
+    /**
+     * M18.48: Zeichnet das Aktivitäts-Icon (Emoji) als farbigen Kreis auf
+     * einen Bitmap-LargeIcon für die Notification. setLargeIcon ist eine
+     * Standard-Notification-Methode (kein RemoteViews -> kein M18.25-Crash).
+     */
+    private fun buildActivityIcon(emoji: String, accent: Int): android.graphics.Bitmap {
+        val size = 96
+        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        // Farbiger Kreis als Hintergrund
+        paint.color = accent
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, paint)
+        // Emoji in der Mitte
+        paint.textAlign = android.graphics.Paint.Align.CENTER
+        paint.textSize = size * 0.55f
+        paint.isFakeBoldText = true
+        val baseline = (size / 2f) - ((paint.descent() + paint.ascent()) / 2f)
+        canvas.drawText(emoji, size / 2f, baseline, paint)
+        return bitmap
     }
 
     private fun formatDuration(ms: Long): String {

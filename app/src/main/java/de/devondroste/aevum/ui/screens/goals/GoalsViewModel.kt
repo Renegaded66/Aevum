@@ -46,11 +46,11 @@ class GoalsViewModel @Inject constructor(
     ): GoalsUiState {
         val active = activeGoals.map { goal ->
             GoalProgressAnalytics.evaluateGoal(goal, sessions, today, zoneId, typeMap)
-        }.sortedByDescending { it.progress }
+        }.sortedWith(goalProgressComparator())
 
         val archived = archivedGoals.map { goal ->
             GoalProgressAnalytics.evaluateGoal(goal, sessions, today, zoneId, typeMap)
-        }.sortedByDescending { it.progress }
+        }.sortedWith(goalProgressComparator())
 
         return GoalsUiState(
             activeGoals = active.map { it.toGoalWithProgress() },
@@ -68,6 +68,11 @@ class GoalsViewModel @Inject constructor(
         isMet = isMet
     )
 
+    private fun goalProgressComparator(): Comparator<GoalProgressAnalytics.GoalProgressResult> =
+        compareBy {
+            if (it.goal.type == "AT_MOST") it.currentValue else -it.progress
+        }
+
     companion object {
         /** For Dashboard: return top N active goals sorted by progress descending */
         fun getTopProgressGoals(
@@ -75,7 +80,9 @@ class GoalsViewModel @Inject constructor(
             maxCount: Int = 3
         ): List<GoalWithProgress> {
             return activeProgress
-                .sortedByDescending { it.progress }
+                .sortedWith(compareBy {
+                    if (it.goal.type == "AT_MOST") it.currentValue else -it.progress
+                })
                 .take(maxCount)
         }
     }

@@ -7,8 +7,11 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -771,27 +775,48 @@ fun TriggerEventsScreen(
             if (state.triggers.isEmpty()) item {
                 EmptyState(title = "Noch keine Trigger", message = "Sobald ein Geofence ausgelöst wird, erscheint der Zeitpunkt hier.")
             }
-            state.triggers.forEach { trigger -> item { TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name) } }
+            state.triggers.forEach { trigger -> item { TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name, viewModel::delete) } }
         }
     }
 }
 
 @Composable
-private fun TriggerRow(trigger: TriggerEvent, geofenceName: String?) {
+private fun TriggerRow(trigger: TriggerEvent, geofenceName: String?, onDelete: (String) -> Unit) {
     AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-            // M11.2: lesbare Beschriftung mit Geofence-Name
-            val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
-            val displayLabel = geofenceName?.let { if (isEnter) "$it betreten" else "$it verlassen" }
-                ?: trigger.type.replace('_', ' ').lowercase().replaceFirstChar { c -> c.titlecase() }
-            Text(displayLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            // M12.1.1: Datum + Zeit statt nur Zeit, damit klar ist,
-            // an welchem Tag der Trigger ausgelöst wurde.
-            Text(
-                "${TimeFormatting.formatSmartDateTime(trigger.occurredAt)} · ${(trigger.confidence * 100).toInt()}% Konfidenz",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+            ) {
+                // M11.2: lesbare Beschriftung mit Geofence-Name
+                val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
+                val displayLabel = geofenceName?.let { if (isEnter) "$it betreten" else "$it verlassen" }
+                    ?: trigger.type.replace('_', ' ').lowercase().replaceFirstChar { c -> c.titlecase() }
+                Text(displayLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                // M12.1.1: Datum + Zeit statt nur Zeit, damit klar ist,
+                // an welchem Tag der Trigger ausgelöst wurde.
+                Text(
+                    "${TimeFormatting.formatSmartDateTime(trigger.occurredAt)} · ${(trigger.confidence * 100).toInt()}% Konfidenz",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            }
+            // M18.48: Trigger löschen (User-Anforderung). Ein Trash-Button
+            // mit Bestätigungsdialog entfernt den Trigger dauerhaft.
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
+                    .clickable { onDelete(trigger.id) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("🗑", fontSize = 16.sp)
+            }
         }
     }
 }
@@ -891,17 +916,26 @@ fun GeofenceListScreen(
             if (state.geofences.isEmpty()) item {
                 EmptyState(title = "Noch keine Orte", message = "Lege Zuhause, Arbeit oder Fitnessstudio an.", actionLabel = "Geofence anlegen", onActionClick = onCreate)
             }
-            state.geofences.forEach { gf -> item { GeofenceRow(gf, onEdit, viewModel::delete) } }
+            state.geofences.forEach { gf -> item { GeofenceRow(gf, onEdit, viewModel::setEnabled, viewModel::delete) } }
         }
     }
 }
 
 @Composable
-private fun GeofenceRow(geofence: PlaceGeofence, onEdit: (String) -> Unit, onDelete: (String) -> Unit) {
+private fun GeofenceRow(
+    geofence: PlaceGeofence,
+    onEdit: (String) -> Unit,
+    onEnabledChange: (PlaceGeofence, Boolean) -> Unit,
+    onDelete: (String) -> Unit
+) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text("${geofence.icon} ${geofence.name}", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text("${geofence.latitude}, ${geofence.longitude} · ${geofence.radiusMeters.toInt()}m", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Switch(checked = geofence.enabled, onCheckedChange = { onEnabledChange(geofence, it) })
+                Text(if (geofence.enabled) "Aktiv" else "Deaktiviert", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 Button(onClick = { onEdit(geofence.id) }) { Text("Bearbeiten") }
                 OutlinedButton(onClick = { onDelete(geofence.id) }) { Text("Löschen") }

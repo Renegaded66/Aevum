@@ -173,11 +173,15 @@ class SleepFusionEngine @Inject constructor(
             return
         }
 
-        // 3) Session-Dedup: ≥30 min Überlappung mit existierender Sleep-Session
+        // 3) Session-Dedup: ≥30 min Überlappung mit existierender Sleep-Session.
+        // M18.48-FIX: Auch gelöschte Sleep-Sessions zählen als "diese Nacht
+        // wurde erfasst" — Aevum rekonstruiert vom User gelöschte Einträge
+        // nicht mehr (sonst springt das Schlaf-Ziel nach dem Löschen wieder
+        // auf 200%).
         val existingSleepSessions = activityRepository.getOverlappingRange(
             candidateWindowStart,
             candidateWindowEnd
-        ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
+        ).first().filter { it.activityTypeId == "sleep" }
         val hasOverlap = existingSleepSessions.any { existing ->
             val overlapMs = minOf(sleepEnd, existing.endAt ?: Long.MAX_VALUE) -
                     maxOf(sleepStart, existing.startAt)

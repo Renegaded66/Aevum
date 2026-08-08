@@ -100,12 +100,8 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
         //     filter { anchorQuality != "LOW" } oben erledigt — doppelte
         //     Sicherheit.)
         if (!passesPlausibilityCheck(candidate, first, second, allTriggers, geofences)) {
-            android.util.Log.d(
-                "TriggerPairRule",
-                "Plausibility-Check fehlgeschlagen für ${candidate.suggestedTitle} " +
-                    "(${first.geofenceId} → ${second.geofenceId}, " +
-                    "start=${first.occurredAt}, end=${second.occurredAt})"
-            )
+            // Keine Android-Log-Aufrufe in der reinen Rule-Engine: Die Klasse
+            // wird auch in JVM-Unit-Tests ohne Android-Runtime ausgeführt.
             return null
         }
         return candidate
@@ -135,7 +131,7 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
         // einem HOME_LEFT in den letzten Stunden. Ohne HOME_LEFT ist es ein
         // Phantom: der User war die ganze Zeit zu Hause, und der Geofence-
         // Rand des Nicht-Home-Geofences hat nur GPS-Drift gezeigt.
-        if (secondPlace.isHomeLike() && !firstPlace.isHomeLike()) {
+        if (secondPlace.isHomeLike() && !firstPlace.isHomeLike() && !firstPlace.isWorkLike()) {
             val homeLeftExists = allTriggers.any { t ->
                 t.type == AutomationConstants.TRIGGER_HOME_LEFT &&
                     t.occurredAt in (first.occurredAt - HOME_LEFT_LOOKBACK_MS)..second.occurredAt

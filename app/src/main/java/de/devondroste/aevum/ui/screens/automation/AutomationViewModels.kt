@@ -364,6 +364,13 @@ class GeofenceListViewModel @Inject constructor(
         .combine(MutableStateFlow(Unit)) { geofences, _ -> GeofenceListUiState(geofences) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GeofenceListUiState())
 
+    fun setEnabled(geofence: PlaceGeofence, enabled: Boolean) {
+        viewModelScope.launch {
+            geofenceRepository.update(geofence.copy(enabled = enabled, updatedAt = System.currentTimeMillis()))
+            geofenceRegistrar.refreshRegisteredGeofences()
+        }
+    }
+
     fun delete(id: String) {
         viewModelScope.launch {
             geofenceRepository.softDelete(id, System.currentTimeMillis())
@@ -542,13 +549,19 @@ data class GeofenceEditorUiState(
 
 @HiltViewModel
 class TriggerEventsViewModel @Inject constructor(
-    triggerRepository: TriggerEventRepository,
+    private val triggerRepository: TriggerEventRepository,
     geofenceRepository: PlaceGeofenceRepository
 ) : ViewModel() {
     val uiState: StateFlow<TriggerEventsUiState> = combine(
         triggerRepository.getAll(), geofenceRepository.getAll()
     ) { triggers, geofences -> TriggerEventsUiState(triggers, geofences.associateBy { it.id }) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerEventsUiState())
+
+    // M18.48 (User: "In der Auflistung aller Trigger soll es die Möglichkeit
+    // geben, Trigger zu löschen"): Löscht einen Trigger dauerhaft aus der DB.
+    fun delete(triggerId: String) {
+        viewModelScope.launch { triggerRepository.delete(triggerId) }
+    }
 }
 
 data class TriggerEventsUiState(

@@ -180,6 +180,7 @@ fun TimelineScreen(
                     onOpen = onOpenActivity,
                     onEdit = onEditActivity,
                     onDeleteTrigger = viewModel::deleteTrigger,
+                    onDeleteSession = viewModel::deleteSession,
                     onCreateAt = { minute -> quickCreateMinute = minute },
                     modifier = Modifier
                         .weight(1f)
@@ -1037,8 +1038,10 @@ private fun QuickCreateDialog(
     // M18.45 (User: "start und zielzeit manuell festlegen können"):
     // Die getippte Zeit ist nur der VORSCHLAG — der User kann die
     // Startzeit im Dialog frei anpassen.
-    var startMinute by remember { mutableStateOf(minuteOfDay) }
-    var endMinute by remember { mutableStateOf((minuteOfDay + 60).coerceAtMost(1439)) }
+    var startMinute by remember(minuteOfDay) { mutableStateOf(minuteOfDay.coerceIn(0, 1439)) }
+    // Über Mitternacht darf die Endzeit kleiner als die Startzeit sein. Die
+    // ViewModel-Schicht interpretiert das korrekt als Folgetag.
+    var endMinute by remember(minuteOfDay) { mutableStateOf((minuteOfDay + 60) % 1440) }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
     // M18.45 (User: "oder statt zielzeit die auswahl, dass die app von
@@ -1050,11 +1053,7 @@ private fun QuickCreateDialog(
     val endLabel = "%02d:%02d".format(endMinute / 60, endMinute % 60)
     val visibleTypes = remember(types) { types.sortedBy { it.name } }
 
-    // M18.45: Wenn die Endzeit vor die (neue) Startzeit rutscht, wird sie
-    // automatisch auf Startzeit + 1h gesetzt — keine ungültigen Sessions.
-    if (endMinute <= startMinute) {
-        endMinute = (startMinute + 60).coerceAtMost(1439)
-    }
+    val hasValidFixedRange = endMinute != startMinute
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1199,7 +1198,7 @@ private fun QuickCreateDialog(
                     // Feste Session mit Start- UND Endzeit
                     Button(
                         onClick = { selectedTypeId?.let { onCreate(it, startMinute, endMinute) } },
-                        enabled = selectedTypeId != null
+                        enabled = selectedTypeId != null && hasValidFixedRange
                     ) { Text("Erstellen") }
                 }
             }
@@ -1239,6 +1238,8 @@ private fun DayCalendarTimeline(
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
     onDeleteTrigger: (String) -> Unit,
+    // M18.48: Löschen einer Session aus der Liste (mit Bestätigungsdialog).
+    onDeleteSession: (String) -> Unit,
     // M18.44: Quick-Create aus der Tagesansicht (leere Stelle antippen)
     onCreateAt: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -1335,7 +1336,8 @@ private fun DayCalendarTimeline(
                                 triggers = triggers,
                                 onOpen = onOpen,
                                 onEdit = onEdit,
-                                onDeleteTrigger = onDeleteTrigger
+                                onDeleteTrigger = onDeleteTrigger,
+                                onDeleteSession = onDeleteSession
                             )
                         }
                         // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
@@ -1420,7 +1422,9 @@ private fun EventListTimeline(
     triggers: List<TriggerEventUi>,
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
-    onDeleteTrigger: (String) -> Unit = {}
+    onDeleteTrigger: (String) -> Unit = {},
+    // M18.48: Löschen einer Session aus der Liste (mit Bestätigungsdialog).
+    onDeleteSession: (String) -> Unit = {}
 ) {
     val merged = remember(sessions, triggers) {
         (sessions.map { TimelineEntry.Session(it) } + triggers.map { TimelineEntry.Trigger(it) })
@@ -1443,6 +1447,9 @@ private fun EventListTimeline(
 
     // M18.8: Nach Tagesabschnitten gruppieren — sofort scannbar.
     val grouped = remember(merged) { groupByDayPart(merged) }
+    // M18.48: Zu löschende Session (für den Sicherheitsdialog). Erst nach
+    // Bestätigung wird onDeleteSession aufgerufen.
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         grouped.forEach { (part, entries) ->
             // Abschnitts-Header
@@ -1470,7 +1477,8 @@ private fun EventListTimeline(
                             kind = if (entry.session.isAuto) "Auto" else "Erfasst",
                             isLive = entry.session.isRunning,
                             onClick = { onOpen(entry.session.id) },
-                            onEdit = { onEdit(entry.session.id) }
+                            onEdit = { onEdit(entry.session.id) },
+                            onDelete = { pendingDeleteId = entry.session.id }
                         )
                     }
                     is TimelineEntry.Trigger -> {
@@ -1493,6 +1501,32 @@ private fun EventListTimeline(
                 )
             }
         }
+    }
+
+    // M18.48: Sicherheitsdialog für das Löschen einer Session aus der Liste.
+    // Der User muss die Löschung explizit bestätigen — kein Sofort-Löschen.
+    pendingDeleteId?.let { id ->
+        val session = sessions.firstOrNull { it.id == id }
+        AlertDialog(
+            onDismissRequest = { pendingDeleteId = null },
+            title = { Text("Aktivität löschen?") },
+            text = {
+                Text(
+                    "„${session?.title ?: "Diese Aktivität"}“ (${
+                        session?.range ?: ""
+                    }) wird aus Timeline und Dashboard entfernt. Dieser Schritt kann nicht rückgängig gemacht werden."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteSession(id)
+                        pendingDeleteId = null
+                    }
+                ) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text("Abbrechen") } }
+        )
     }
 }
 
@@ -1755,7 +1789,11 @@ private fun ZoomableDayTimeline(
                     .pointerInput(sessions, pixelsPerHour) {
                         detectTapGestures { offset ->
                             val pxHour = pixelsPerHour.dp.toPx()
-                            val minute = ((offset.y / (24 * pxHour)) * 1440f).toInt().coerceIn(0, 1439)
+                            // Canvas-Höhe = 24 * pxHour. Eine Stunde entspricht
+                            // 60 Minuten; die alte Formel teilte zusätzlich durch
+                            // 24 und ordnete fast den gesamten Tag den ersten
+                            // 60 Minuten zu.
+                            val minute = ((offset.y / pxHour) * 60f).toInt().coerceIn(0, 1439)
                             val hit = sessions.firstOrNull { s ->
                                 val startMin = s.startMinuteOfDay.coerceIn(0, 1440)
                                 val rawEnd = s.endMinuteOfDay
@@ -1868,14 +1906,27 @@ private fun ZoomableDayTimeline(
                         // M18.15: Custom-Farbe der Aktivität bevorzugen,
                         // sonst Kategorie-Farbe.
                         val color = if (session.activityColor != 0L) Color(session.activityColor) else categoryColor(session.categoryName)
+                        // M18.48 (User: "die Farbe etwas prägnanter"): Der
+                        // Block-Fill wurde von 0.42 auf 0.62 angehoben, damit
+                        // die Aktivitätsfarbe klar erkennbar ist. Bei
+                        // Überlappungen 0.8 (weiterhin leicht abgesetzt).
+                        val fillAlpha = if (session.isOverlapping) 0.80f else 0.62f
                         drawRoundRect(
-                            color = color.copy(alpha = if (session.isOverlapping) 0.65f else 0.42f),
+                            color = color.copy(alpha = fillAlpha),
                             topLeft = Offset(blockXLocal, laneY),
                             size = Size(blockWidth.coerceAtLeast(0f), laneHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
                         )
+                        // M18.48: Kräftigere Akzentkante links — Farbe bleibt
+                        // auch bei kurzen, hellen Blöcken sichtbar.
                         drawLine(
-                            color = color.copy(alpha = 0.78f),
+                            color = color.copy(alpha = 0.95f),
+                            start = Offset(blockXLocal, laneY + 1f),
+                            end = Offset(blockXLocal + 4.dp.toPx(), laneY + 1f),
+                            strokeWidth = (laneHeight - 2f).coerceAtLeast(2f)
+                        )
+                        drawLine(
+                            color = color.copy(alpha = 0.85f),
                             start = Offset(blockXLocal, laneY),
                             end = Offset(blockXLocal + blockWidth, laneY),
                             strokeWidth = 1.5f
@@ -1883,14 +1934,29 @@ private fun ZoomableDayTimeline(
                         // M18.15: Icon (Emoji) der Aktivität im Block zeichnen.
                         // M18.21: Schwelle auf 16dp gesenkt — dank Mindesthöhe
                         // (18dp) haben auch kurze Aktivitäten ein sichtbares Icon.
-                        if (laneHeight >= 16.dp.toPx() && session.activityIcon.isNotBlank() && session.activityIcon != "•") {
-                            val iconSize = 12.dp.toPx()
-                            val iconY = laneY + (laneHeight - iconSize) / 2f
+                        // M18.48 (User: "Icons sollten sichtbar sein, aber bei
+                        // kleinen Elementen nicht überladen"): Icon leicht größer
+                        // (14sp) und auf einem kleinen weißen, halbtransparenten
+                        // Pill-Hintergrund — dadurch hebt es sich von der Farbe
+                        // ab und bleibt bei kurzen Blöcken lesbar, ohne den
+                        // Block zu überladen.
+                        if (laneHeight >= 18.dp.toPx() && session.activityIcon.isNotBlank() && session.activityIcon != "•") {
+                            val iconSize = 14.dp.toPx()
+                            val pillW = 24.dp.toPx()
+                            val pillH = (iconSize + 4.dp.toPx())
+                            val iconX = blockXLocal + 6.dp.toPx()
+                            val iconY = laneY + (laneHeight - pillH) / 2f
+                            drawRoundRect(
+                                color = Color.White.copy(alpha = 0.28f),
+                                topLeft = Offset(iconX, iconY),
+                                size = Size(pillW, pillH),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(pillH / 2f, pillH / 2f)
+                            )
                             drawText(
                                 textMeasurer = textMeasurer,
                                 text = session.activityIcon,
-                                topLeft = Offset(blockXLocal + 6.dp.toPx(), iconY),
-                                style = TextStyle(fontSize = 12.sp)
+                                topLeft = Offset(iconX + 3.dp.toPx(), iconY + (pillH - iconSize) / 2f),
+                                style = TextStyle(fontSize = 14.sp)
                             )
                         }
                     }

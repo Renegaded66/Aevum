@@ -234,6 +234,9 @@ class LiveActivityManager @Inject constructor(
         activityRepository.finishSession(
             session.id, now, session.effectivePausedMs(now), session.pauseSegmentsJson
         )
+        // Ein manueller Stop muss auch jeden ausstehenden Auto-Watchdog
+        // invalidieren, damit er keine bereits beendete Session mehr anfasst.
+        cancelAutoDiscardForSession(session.id)
     }
 
     /** M11: Force-finish the current session (if any) during auto-start. */
@@ -362,6 +365,14 @@ class LiveActivityManager @Inject constructor(
     fun cancelAutoDiscard(geofenceId: String) {
         val entry = autoDiscardByGeofence.remove(geofenceId) ?: return
         entry.job.cancel()
+    }
+
+    private fun cancelAutoDiscardForSession(sessionId: String) {
+        autoDiscardByGeofence
+            .filterValues { it.sessionId == sessionId }
+            .keys
+            .toList()
+            .forEach(::cancelAutoDiscard)
     }
 
     private fun mapState(session: ActivitySession?): LiveActivityState {

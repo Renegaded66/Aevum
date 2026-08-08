@@ -88,41 +88,11 @@ class ActivityRecognitionWorker(
         val cluster = bridge.drainVehicleCluster()
         val exitAt = bridge.consumeVehicleExited()
 
-        // M18.45: Bestätigungs-Gate. Der Worker wird nur noch vom
-        // DriveConfirmWorker angestoßen (2 Min + ≥200m GPS-Bewegung).
-        // Falls er trotzdem ohne Bestätigung läuft (z.B. manuell),
-        // wird der Cluster NICHT in eine Session verwandelt.
-        if (cluster != null && !bridge.consumeDriveConfirmation()) {
+        // M18.45: Bestätigungs-Gate gilt nur für einen Start-Cluster.
+        // Bei einem EXIT darf ein leerer/alter Cluster niemals verhindern,
+        // dass die laufende Session zuerst beendet wird.
+        if (cluster != null && !bridge.consumeDriveConfirmation() && exitAt == null) {
             Log.d(TAG, "Fahrt nicht per GPS bestätigt — Cluster verworfen (kein Sofort-Start)")
-            return Result.success()
-        }
-
-        // M18.45: Duplikat-Schutz — wenn bereits eine laufende Auto-
-        // Mobilitäts-Session existiert, keinen zweiten Start erzwingen.
-        // (Der LiveActivityManager forceFinisht zwar, aber dann ginge die
-        // laufende Zeit verloren; der Watchdog kümmert sich um den Stop.)
-        val existingLive = liveActivityManager.liveSession.value
-        if (existingLive != null && existingLive.isLive &&
-            existingLive.activityTypeId == "transport" &&
-            existingLive.sourceType == "ACTIVITY_RECOGNITION_AUTO"
-        ) {
-            Log.d(TAG, "Auto-Mobilitäts-Session läuft bereits — Cluster nur als Trigger verbucht")
-            // Nur Trigger aktualisieren, keine neue Session.
-            if (cluster != null) {
-                val detId = UUID.randomUUID().toString()
-                detRepo.insert(
-                    DetectionEvent(
-                        id = detId,
-                        rawEventId = null,
-                        sourceId = "activity_recognition",
-                        kind = AutomationConstants.DETECTION_ACTIVITY_RECOGNITION_IN_VEHICLE,
-                        startAt = cluster.startMs,
-                        endAt = cluster.endMs,
-                        confidence = (cluster.peakConfidence / 100f).coerceIn(0f, 1f),
-                        metadataJson = "{\"duplicate\":true}"
-                    )
-                )
-            }
             return Result.success()
         }
 
@@ -140,6 +110,32 @@ class ActivityRecognitionWorker(
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Stop der Mobilitäts-Session fehlgeschlagen", e)
             }
+        }
+
+        // M18.45: Duplikat-Schutz erst nach dem EXIT-Pfad. So kann ein
+        // EXIT eine laufende Auto-Session zuverlässig beenden.
+        val existingLive = liveActivityManager.liveSession.value
+        if (existingLive != null && existingLive.isLive &&
+            existingLive.activityTypeId == "transport" &&
+            existingLive.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        ) {
+            Log.d(TAG, "Auto-Mobilitäts-Session läuft bereits — Cluster nur als Trigger verbucht")
+            if (cluster != null) {
+                val detId = UUID.randomUUID().toString()
+                detRepo.insert(
+                    DetectionEvent(
+                        id = detId,
+                        rawEventId = null,
+                        sourceId = "activity_recognition",
+                        kind = AutomationConstants.DETECTION_ACTIVITY_RECOGNITION_IN_VEHICLE,
+                        startAt = cluster.startMs,
+                        endAt = cluster.endMs,
+                        confidence = (cluster.peakConfidence / 100f).coerceIn(0f, 1f),
+                        metadataJson = "{\"duplicate\":true}"
+                    )
+                )
+            }
+            return Result.success()
         }
 
         if (cluster == null) return Result.success()
@@ -627,49 +623,22 @@ class ActivityRecognitionTriggerWorker(
             // Geofence-Enter (Auto-Start) NICHT verhindern. Suppressed wird
             // nur: (a) EXIT-Transitions (Ende eines Raumwechsels) und
             // (b) ENTER in einer Geofence OHNE Auto-Start (reiner Raumwechsel).
-            val walkingSuppressed =
+            walkingSuppressed =
                 (activityType == "WALKING" || activityType == "RUNNING") &&
                 matchedGeofence != null &&
                 (transition == "EXIT" || matchedGeofence.autoStartActivityTypeId == null)
 
             if (matchedGeofence != null && matchedGeofence.autoStartActivityTypeId != null) {
-                // User ist in einer Geofence mit Auto-Start → Geofence-Enter
-                // verarbeiten (wie ein normaler Geofence-Trigger, aber ohne
-                // die Stabilisierungs-Verzoegerung, weil das GPS schon gefiltert ist)
-                android.util.Log.d(TAG, "GPS-Check: User in Geofence ${matchedGeofence.name}")
-                if (transition == "ENTER") {
-                    deps.geofenceTransitionProcessor().processTransition(
-                        geofenceId = matchedGeofence.id,
-                        transition = de.devondroste.aevum.automation.geofence.GeofenceTransition.Enter,
-                        occurredAt = now,
-                        latitude = locResult.location?.latitude,
-                        longitude = locResult.location?.longitude
-                    )
-                }
-                // Bei EXIT (Activity-Recognition meldet Ende der Bewegung):
-                // pruefen ob der User die Geofence verlassen hat. Wenn er in
-                // keiner Geofence mehr ist, aber eine Auto-Session fuer diese
-                // Geofence laeuft, sie beenden.
-                // (Vereinfacht: wir verlassen das EXIT-Handling an den Geofence-
-                // Processor, wenn die Activity Recognition einen Wechsel meldet.)
+                // Der Activity-Recognition-GPS-Fallback ist nur ein Signal für
+                // Suppression/Diagnostik. Er darf keinen bestätigten Geofence-
+                // Übergang erzeugen, weil er Debouncer und StabilizationWorker
+                // umgehen würde. Echte Übergänge kommen ausschließlich über
+                // GeofenceBroadcastReceiver.
+                android.util.Log.d(TAG, "GPS-Check: Geofence ${matchedGeofence.name} erkannt; GMS bleibt authoritative")
             } else if (matchedGeofence == null && allGeofences.isNotEmpty() && transition == "EXIT") {
-                // User ist nicht in einer Geofence, aber es gibt Geofences und
-                // die Bewegung endet. Das kann bedeuten, dass der User eine
-                // Geofence verlassen hat. Wir pruefen ob eine Auto-Session laeuft.
-                android.util.Log.d(TAG, "GPS-Check: User nicht in Geofence, pruefe Auto-Stop")
-                // Der GeofenceTransitionProcessor kann den Auto-Stop uebernehmen,
-                // wenn wir fuer alle Geofences einen EXIT-Trigger senden, fuer die
-                // eine Auto-Session laufen koennte. Vereinfacht: wir senden EXIT
-                // fuer alle Geofences, die Auto-Start haben.
-                allGeofences.filter { it.autoStartActivityTypeId != null }.forEach { gf ->
-                    deps.geofenceTransitionProcessor().processTransition(
-                        geofenceId = gf.id,
-                        transition = de.devondroste.aevum.automation.geofence.GeofenceTransition.Exit,
-                        occurredAt = now,
-                        latitude = locResult.location?.latitude,
-                        longitude = locResult.location?.longitude
-                    )
-                }
+                // Ein GPS-Fix außerhalb ist ebenfalls kein bestätigter EXIT.
+                // Dieser Pfad bleibt dem GMS-Geofence-Ereignis vorbehalten.
+                android.util.Log.d(TAG, "GPS-Check: außerhalb einer Geofence; EXIT bleibt GMS vorbehalten")
             }
         } catch (e: Exception) {
             android.util.Log.w(TAG, "GPS-Check fehlgeschlagen (nicht blockierend): ${e.message}")

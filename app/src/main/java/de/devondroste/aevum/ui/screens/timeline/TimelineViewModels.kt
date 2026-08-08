@@ -282,6 +282,20 @@ class TimelineViewModel @Inject constructor(
         }
     }
 
+    /**
+     * M18.48 (User: "Bei der Liste aller Activities will ich auch die
+     * Möglichkeit haben, sie zu löschen. Aber mit Sicherheitsfrage, nicht
+     * direkt beim Löschen-Button."): Soft-Löscht eine Session aus der
+     * Timeline/Liste. Die UI zeigt VOR diesem Aufruf einen Bestätigungsdialog.
+     */
+    fun deleteSession(id: String) {
+        viewModelScope.launch {
+            try {
+                activityRepository.softDelete(id, System.currentTimeMillis())
+            } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
+
     private fun buildTimelineState(
         date: LocalDate,
         allSessions: List<ActivitySession>,

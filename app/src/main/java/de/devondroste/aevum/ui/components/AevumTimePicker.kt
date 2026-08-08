@@ -77,21 +77,35 @@ fun AevumTimePicker(
     label: String? = null,
     showDigitalDisplay: Boolean = true
 ) {
-    var hour by remember(initialHour) { mutableStateOf(initialHour.coerceIn(0, 23)) }
-    var minute by remember(initialMinute) { mutableStateOf(initialMinute.coerceIn(0, 59)) }
+    // M18.48 (User: "die Stunde einzutragen funktioniert nicht richtig" /
+    // "start und zielzeit im Popup wählen"): Einmalige Initialisierung statt
+    // remember(initialHour, initialMinute)-Key. Der alte Key setzte den
+    // lokalen Zustand bei JEDER externen Änderung zurück: onTimeChange →
+    // Parent aktualisiert den Form-State → initialHour/Minute ändern sich →
+    // remember-Key ist neu → Stunde/Minute springen zurück und der Drag bricht
+    // ab. Jetzt wird nur beim ersten Compose initialisiert; Drags bleiben
+    // stabil und jede Nutzeränderung feuert exakt einen onTimeChange.
+    var hour by remember { mutableStateOf(initialHour.coerceIn(0, 23)) }
+    var minute by remember { mutableStateOf(initialMinute.coerceIn(0, 59)) }
     var isMinuteMode by remember { mutableStateOf(false) }
-    // M18.44: rotation-Animationen an die (ggf. neue) Startzeit koppeln —
-    // ohne remember(initialHour) blieb der Zeiger beim alten Wert stehen.
-    val rotationHour = remember(initialHour) { Animatable(hourToDeg24(hour)) }
-    val rotationMinute = remember(initialMinute) { Animatable(minuteToDeg(minute)) }
+    val rotationHour = remember { Animatable(hourToDeg24(initialHour.coerceIn(0, 23))) }
+    val rotationMinute = remember { Animatable(minuteToDeg(initialMinute.coerceIn(0, 59))) }
 
+    // Animation und Änderungsausgabe sind bewusst getrennt: genau ein Callback
+    // pro sichtbarem HH:MM-Zustand, statt je ein Callback für Stunde und Minute.
+    var lastEmitted by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     LaunchedEffect(hour) {
         rotationHour.animateTo(hourToDeg24(hour), spring(stiffness = 200f))
-        onTimeChange(hour, minute)
     }
     LaunchedEffect(minute) {
         rotationMinute.animateTo(minuteToDeg(minute), spring(stiffness = 200f))
-        onTimeChange(hour, minute)
+    }
+    LaunchedEffect(hour, minute) {
+        val value = hour to minute
+        if (lastEmitted != value) {
+            lastEmitted = value
+            onTimeChange(hour, minute)
+        }
     }
 
     Column(
