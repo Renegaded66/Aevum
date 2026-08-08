@@ -88,6 +88,44 @@ class ActivityRecognitionWorker(
         val cluster = bridge.drainVehicleCluster()
         val exitAt = bridge.consumeVehicleExited()
 
+        // M18.45: Bestätigungs-Gate. Der Worker wird nur noch vom
+        // DriveConfirmWorker angestoßen (2 Min + ≥200m GPS-Bewegung).
+        // Falls er trotzdem ohne Bestätigung läuft (z.B. manuell),
+        // wird der Cluster NICHT in eine Session verwandelt.
+        if (cluster != null && !bridge.consumeDriveConfirmation()) {
+            Log.d(TAG, "Fahrt nicht per GPS bestätigt — Cluster verworfen (kein Sofort-Start)")
+            return Result.success()
+        }
+
+        // M18.45: Duplikat-Schutz — wenn bereits eine laufende Auto-
+        // Mobilitäts-Session existiert, keinen zweiten Start erzwingen.
+        // (Der LiveActivityManager forceFinisht zwar, aber dann ginge die
+        // laufende Zeit verloren; der Watchdog kümmert sich um den Stop.)
+        val existingLive = liveActivityManager.liveSession.value
+        if (existingLive != null && existingLive.isLive &&
+            existingLive.activityTypeId == "transport" &&
+            existingLive.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        ) {
+            Log.d(TAG, "Auto-Mobilitäts-Session läuft bereits — Cluster nur als Trigger verbucht")
+            // Nur Trigger aktualisieren, keine neue Session.
+            if (cluster != null) {
+                val detId = UUID.randomUUID().toString()
+                detRepo.insert(
+                    DetectionEvent(
+                        id = detId,
+                        rawEventId = null,
+                        sourceId = "activity_recognition",
+                        kind = AutomationConstants.DETECTION_ACTIVITY_RECOGNITION_IN_VEHICLE,
+                        startAt = cluster.startMs,
+                        endAt = cluster.endMs,
+                        confidence = (cluster.peakConfidence / 100f).coerceIn(0f, 1f),
+                        metadataJson = "{\"duplicate\":true}"
+                    )
+                )
+            }
+            return Result.success()
+        }
+
         // M18.3: EXIT zuerst verarbeiten — Fahrt-Ende ohne Cluster nötig.
         if (exitAt != null) {
             try {
@@ -299,14 +337,49 @@ class ActivityRecognitionBridge @Inject constructor(
     @Volatile private var pending: VehicleCluster? = null
     private val maxGapMs = 5L * 60 * 1000 // 5 Minuten
 
-    // M18.3: EXIT-Signal für Fahrzeug. Der Receiver setzt diesen Marker,
-    // wenn Google eine IN_VEHICLE-EXIT-Transition liefert. Der Worker
-    // konsumiert ihn und stoppt die Session — so wird nie im selben Lauf
-    // gestartet UND gestoppt (M15-Bug).
+    /** M18.3: EXIT-Signal für Fahrzeug. Der Receiver setzt diesen Marker,
+     * wenn Google eine IN_VEHICLE-EXIT-Transition liefert. Der Worker
+     * konsumiert ihn und stoppt die Session — so wird nie im selben Lauf
+     * gestartet UND gestoppt (M15-Bug). */
     @Volatile private var vehicleExitedAt: Long? = null
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.45: SMARTE FAHRTERKENNUNG (User-Feedback: "kurze Erkennungen
+    // verwerfen", "Activity + Standort kombinieren", "Timer stoppen").
+    //
+    // lastVehicleSampleMs: Herzschlag der Fahrt. Der DriveWatchdog
+    // stoppt die Session, wenn 8 Minuten lang kein IN_VEHICLE-Signal
+    // mehr kam (Google liefert oft keinen EXIT — User steht am Ziel)
+    // und der GPS-Bewegungs-Check den Stillstand bestätigt.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var lastVehicleSampleMs: Long = 0L
+
+    /** Letzter IN_VEHICLE-Sample — Herzschlag für den Watchdog. */
+    @Synchronized
+    fun lastVehicleSample(): Long = lastVehicleSampleMs
+
+    // M18.45: Bestätigungs-Flag. Der DriveConfirmWorker setzt es, wenn
+    // nach 2 Minuten die GPS-Bewegung ≥ 200 m bestätigt hat. Der
+    // ActivityRecognitionWorker drainet den Cluster nur dann.
+    @Volatile private var driveConfirmed = false
+
+    @Synchronized
+    fun markDriveConfirmed() {
+        driveConfirmed = true
+    }
+
+    @Synchronized
+    fun consumeDriveConfirmation(): Boolean {
+        val c = driveConfirmed
+        driveConfirmed = false
+        return c
+    }
 
     @Synchronized
     fun addSample(epochMs: Long, confidence: Int) {
+        // M18.45: Herzschlag für den DriveWatchdog — jedes IN_VEHICLE-
+        // Signal bestätigt, dass die Fahrt noch läuft.
+        lastVehicleSampleMs = epochMs
         val c = pending
         if (c == null || epochMs - c.lastMs > maxGapMs) {
             // Neuer Cluster
@@ -735,8 +808,26 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT
                         ) {
                             bridge.markVehicleExited(now)
+                            // M18.45: EXIT = Fahrt (vermutlich) vorbei.
+                            // Geplante Bestätigung abbrechen, Cluster leeren
+                            // (alte Fahrt soll nicht in neue ragen), und den
+                            // 90s-Watchdog starten (Ampel-Toleranz: kommt in
+                            // 90s wieder IN_VEHICLE, läuft die Fahrt weiter).
+                            DriveConfirmWorker.cancel(context)
+                            bridge.drainVehicleCluster()
+                            DriveWatchdogWorker.schedule(context, DriveWatchdogWorker.MODE_TRANSITION)
                         } else {
                             bridge.addSample(now, 75)
+                            // M18.45: Kein Sofort-Start mehr! Der
+                            // DriveConfirmWorker wartet 2 Minuten und prüft
+                            // dann per GPS-Bewegung (≥200m), ob es eine
+                            // echte Fahrt ist. REPLACE: jeder weitere ENTER
+                            // resetet den Timer.
+                            DriveConfirmWorker.schedule(context)
+                            // Watchdog vorsorglich starten: Feuert nach 8
+                            // Minuten — wenn dann keine Session läuft
+                            // (Fahrt nie bestätigt), ist er ein No-Op.
+                            DriveWatchdogWorker.schedule(context, DriveWatchdogWorker.MODE_NO_SIGNAL)
                         }
                         hasChange = true
                     }
@@ -810,10 +901,10 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                 }
             }
             if (!hasChange) return
-            // M12.2: Worker enqueuen — der aggregiert und entscheidet.
-            androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionWorker>().build().also {
-                androidx.work.WorkManager.getInstance(context).enqueue(it)
-            }
+            // M18.45: Der ActivityRecognitionWorker (Session-Starter) wird
+            // NICHT mehr direkt enqueued — er läuft nur noch nach
+            // Bestätigung durch den DriveConfirmWorker (2 Min + GPS-Bewegung).
+            // Das verhindert Sofort-Starts bei kurzen Fehl-Erkennungen.
             // M14: separater Worker für die Schlaf-Fusion. Wir enqueuen ihn
             // ebenfalls, der dedupliziert sich selbst über source_candidate_id.
             androidx.work.OneTimeWorkRequestBuilder<

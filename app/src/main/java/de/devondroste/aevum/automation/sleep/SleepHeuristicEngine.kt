@@ -40,7 +40,9 @@ class SleepHeuristicEngine @Inject constructor(
     private val screenEventRepository: ScreenEventRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val activityRepository: ActivityRepository,
-    private val reviewCandidateUseCase: ReviewCandidateUseCase
+    private val reviewCandidateUseCase: ReviewCandidateUseCase,
+    // M18.45-FIX: UsageStats-Wake-Korrektur (Android 14+ Broadcast-Limit)
+    private val usageWakeDetector: UsageWakeDetector
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isInitialized = false
@@ -153,10 +155,21 @@ class SleepHeuristicEngine @Inject constructor(
         }
         val resolvedWakeMs = prioritizeWakeTime(wakeCandidates) ?: onEvent.timestamp
 
+        // M18.45-FIX: UsageStats-Wake-Korrektur — siehe
+        // SleepFusionEngine.detectScreenSleepWindow (Android 14+ liefert
+        // SCREEN_ON nicht mehr an Hintergrund-Apps).
+        val usageWake = usageWakeDetector.firstUsageSince(offEvent.timestamp)
+        val finalWakeMs = if (usageWake != null && usageWake < resolvedWakeMs) {
+            android.util.Log.d("SleepHeuristicEngine", "Wake-Korrektur via UsageStats: $resolvedWakeMs → $usageWake")
+            usageWake
+        } else {
+            resolvedWakeMs
+        }
+
         // M16.3: Dauer und Confidence aus dem resolvedWakeMs (priorisierte Wake-Time),
         // nicht aus dem naiven onEvent.timestamp. Damit passt die Heuristik
         // zur semantisch korrekten Aufwachzeit.
-        val durationMs = resolvedWakeMs - offEvent.timestamp
+        val durationMs = finalWakeMs - offEvent.timestamp
         val hours = durationMs / 3_600_000.0
 
         // Dedup: externalId = "screen_sleep_<dateOfOn>"
@@ -169,7 +182,7 @@ class SleepHeuristicEngine @Inject constructor(
         // ±24h um den erkannten Schlaf herum (Mitternacht-Sessions
         // überschreiten den 12h-Bereich, daher breiter).
         val candidateWindowStart = offEvent.timestamp - 24L * 3_600_000L
-        val candidateWindowEnd = resolvedWakeMs + 24L * 3_600_000L
+        val candidateWindowEnd = finalWakeMs + 24L * 3_600_000L
         val existingCandidatesInWindow = candidateRepository.getByDateRange(
             candidateWindowStart,
             candidateWindowEnd
@@ -185,7 +198,7 @@ class SleepHeuristicEngine @Inject constructor(
         val hasNearbySleepCandidate = existingCandidatesInWindow.any { existing ->
             // 60min-Toleranz am Start oder am Ende reicht für "dieselbe Nacht"
             val sameStart = kotlin.math.abs(existing.startAt - offEvent.timestamp) < overlapToleranceMs
-            val sameEnd = kotlin.math.abs(existing.endAt - resolvedWakeMs) < overlapToleranceMs
+            val sameEnd = kotlin.math.abs(existing.endAt - finalWakeMs) < overlapToleranceMs
             sameStart || sameEnd
         }
         if (hasNearbySleepCandidate) {
@@ -203,7 +216,7 @@ class SleepHeuristicEngine @Inject constructor(
             candidateWindowEnd
         ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
         val hasOverlap = existingSleepSessions.any { existing ->
-            val overlapMs = minOf(resolvedWakeMs, existing.endAt ?: Long.MAX_VALUE) -
+            val overlapMs = minOf(finalWakeMs, existing.endAt ?: Long.MAX_VALUE) -
                     maxOf(offEvent.timestamp, existing.startAt)
             overlapMs > 30L * 60 * 1000
         }
@@ -214,7 +227,7 @@ class SleepHeuristicEngine @Inject constructor(
 
         // Heuristic 4: Confidence — base 0.55, +0.1 wenn 7-9h, -0.2 wenn OFF/ON am Rand
         val offHour = Instant.ofEpochMilli(offEvent.timestamp).atZone(zoneId).hour
-        val onHour = Instant.ofEpochMilli(resolvedWakeMs).atZone(zoneId).hour
+        val onHour = Instant.ofEpochMilli(finalWakeMs).atZone(zoneId).hour
         val confidence = when {
             hours in 6.0..9.5 -> 0.65f
             hours in 4.0..10.0 -> 0.58f
@@ -233,9 +246,9 @@ class SleepHeuristicEngine @Inject constructor(
         val title = "Schlaf erkannt ($durationStr)"
 
         // M16: Verständliche Begründung statt technischer Kryptik.
-        // M16.3: Nutze resolvedWakeMs statt onEvent.timestamp, damit die
+        // M16.3: Nutze finalWakeMs statt onEvent.timestamp, damit die
         // Begründung zur tatsächlichen Aufwachzeit passt.
-        val reason = buildSleepReason(offEvent, offEvent.timestamp, resolvedWakeMs, zoneId, hours)
+        val reason = buildSleepReason(offEvent, offEvent.timestamp, finalWakeMs, zoneId, hours)
 
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
@@ -243,7 +256,7 @@ class SleepHeuristicEngine @Inject constructor(
             suggestedCategoryId = "sleep",
             activityTypeId = "sleep",
             startAt = offEvent.timestamp,
-            endAt = resolvedWakeMs,
+            endAt = finalWakeMs,
             confidence = confidence,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
             reason = reason,
@@ -273,7 +286,7 @@ class SleepHeuristicEngine @Inject constructor(
         android.util.Log.d(
             "SleepHeuristicEngine",
             "Direkt eingetragen: ${result.accepted} von 1 (Confidence=$confidence, " +
-                    "Window=${formatHm(offEvent.timestamp, zoneId)}–${formatHm(resolvedWakeMs, zoneId)})"
+                    "Window=${formatHm(offEvent.timestamp, zoneId)}–${formatHm(finalWakeMs, zoneId)})"
         )
     }
 

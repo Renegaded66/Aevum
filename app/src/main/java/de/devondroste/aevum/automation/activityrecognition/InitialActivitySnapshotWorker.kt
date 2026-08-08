@@ -113,23 +113,22 @@ class InitialActivitySnapshotWorker(
         }
 
         // M17.4: 4) Cluster-Buffer prüfen. Wenn IN_VEHICLE-Samples in der
-        // Bridge liegen, enqueuen wir den normalen Recognition-Worker, der
-        // den Rest übernimmt (Confidence-Check, Auto-Start, SleepShield).
+        // Bridge liegen, enqueuen wir den DriveConfirmWorker — der prüft
+        // per GPS-Bewegung (M18.45), ob es eine echte Fahrt ist, und
+        // stößt dann den Recognition-Worker an. Kein Sofort-Start mehr.
         val vehicleCluster = bridge.drainVehicleCluster()
         if (vehicleCluster != null && vehicleCluster.durationMs >= MIN_PROBE_DURATION_MS) {
             Log.d(
                 TAG,
                 "Initial-Snapshot erkannte IN_VEHICLE-Cluster: " +
-                    "${vehicleCluster.durationMs / 1000}s, confidence=${vehicleCluster.peakConfidence} → Auto-Start"
+                    "${vehicleCluster.durationMs / 1000}s, confidence=${vehicleCluster.peakConfidence} → DriveConfirm"
             )
             // M17.4: Probe-Cluster in den Buffer zurückschreiben (Bridge wurde
             // durch drain() geleert), damit der Worker ihn verarbeiten kann.
             bridge.addSample(vehicleCluster.endMs, vehicleCluster.peakConfidence)
             bridge.addSample(vehicleCluster.endMs + 1_000, vehicleCluster.peakConfidence)
-            // Normalen Recognition-Worker enqueuen — der macht den Rest.
-            androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionWorker>().build().also {
-                androidx.work.WorkManager.getInstance(ctx).enqueue(it)
-            }
+            // M18.45: Bestätigungs-Pipeline statt Sofort-Start.
+            DriveConfirmWorker.schedule(ctx)
         } else {
             Log.d(TAG, "Initial-Snapshot: keine IN_VEHICLE-Aktivität erkannt (cluster=$vehicleCluster)")
         }

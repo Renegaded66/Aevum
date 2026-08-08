@@ -40,6 +40,13 @@ class SleepImportWorker(
         fun healthConnectManager(): HealthConnectManager
         fun candidateRepository(): ActivityCandidateRepository
         fun reviewCandidateUseCase(): ReviewCandidateUseCase
+        // M18.45-FIX (Root Cause "Schlaf doppelt aufgezeichnet"):
+        // Das Duplikat kam vom Health-Connect-Import: Er deduplizierte
+        // NUR gegen PENDING-Candidates. Nach dem Auto-Accept (Status
+        // ACCEPTED) war der Candidate aus dem Filter gefallen, und der
+        // nächste Import legte eine zweite, identische Session an.
+        // Jetzt wird auch gegen bestehende Sessions dedupliziert.
+        fun activityRepository(): de.devondroste.aevum.data.repository.ActivityRepository
     }
 
     override suspend fun doWork(): Result {
@@ -50,6 +57,8 @@ class SleepImportWorker(
         val healthConnectManager = deps.healthConnectManager()
         val candidateRepository = deps.candidateRepository()
         val reviewCandidateUseCase = deps.reviewCandidateUseCase()
+        // M18.45: Repository für den Duplikat-Dedup gegen Sessions.
+        val activityRepository = deps.activityRepository()
 
         if (!healthConnectManager.isAvailable()) {
             return Result.success()
@@ -70,11 +79,71 @@ class SleepImportWorker(
 
         if (imported.isEmpty()) return Result.success()
 
-        val existing = candidateRepository.getByStatus(AutomationConstants.CANDIDATE_STATUS_PENDING).first()
-        val existingExternalIds = existing.mapNotNull { it.sourceCandidateId }.toSet()
+        // M18.45: Bestands-Bereinigung — bereits entstandene Duplikate
+        // entfernen (softDelete), BEVOR der neue Import prüft. Kriterium:
+        // zwei Sleep-Sessions mit identischer startAt+endAt (exakte
+        // Duplikate durch den alten PENDING-only-Dedup). Die ältere
+        // (frühestes createdAt) bleibt, die jüngere wird verworfen.
+        try {
+            val cleanupStart = System.currentTimeMillis() - 3L * 24 * 3_600_000L
+            val cleanupEnd = System.currentTimeMillis() + 24L * 3_600_000L
+            val sleepSessions = activityRepository.getOverlappingRange(cleanupStart, cleanupEnd)
+                .first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
+            val seen = mutableMapOf<Pair<Long, Long>, String>() // (start,end) -> sessionId
+            sleepSessions.sortedBy { it.createdAt ?: 0L }.forEach { session ->
+                val key = (session.startAt to (session.endAt ?: 0L))
+                val existingId = seen[key]
+                if (existingId != null) {
+                    android.util.Log.d(
+                        TAG,
+                        "Duplikat-Sleep-Session entfernt: ${session.id} (behalte $existingId)"
+                    )
+                    activityRepository.softDelete(session.id, System.currentTimeMillis())
+                } else {
+                    seen[key] = session.id
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Bestands-Bereinigung fehlgeschlagen (nicht blockierend): ${e.message}")
+        }
 
-        val newCandidates = imported.filter { it.sourceCandidateId !in existingExternalIds }
-        if (newCandidates.isEmpty()) return Result.success()
+        // M18.45-FIX: Breiter Dedup — gegen ALLE Candidates (nicht nur
+        // PENDING!) UND gegen bestehende Sessions. Das schließt die Lücke,
+        // durch die nach Auto-Accept (ACCEPTED) ein Duplikat entstand.
+        val windowStart = imported.minOfOrNull { it.startAt } ?: start
+        val windowEnd = imported.maxOfOrNull { it.endAt } ?: end
+
+        // 1) Alle Candidates im Fenster (jeder Status).
+        val existingCandidates = candidateRepository.getByDateRange(
+            windowStart - 24L * 3_600_000L,
+            windowEnd + 24L * 3_600_000L
+        ).first()
+        val existingCandidateIds = existingCandidates.mapNotNull { it.sourceCandidateId }.toSet()
+
+        // 2) Bestehende Sleep-Sessions im Fenster (≥30 Min Überlappung =
+        //    bereits erfasst).
+        val existingSessions = activityRepository.getOverlappingRange(
+            windowStart - 24L * 3_600_000L,
+            windowEnd + 24L * 3_600_000L
+        ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
+        val overlapToleranceMs = 30L * 60 * 1000
+
+        val newCandidates = imported.filter { candidate ->
+            // Achtung (M18.45-Reflexion): `importedIds` NICHT als Dedup
+            // verwenden — jeder Importierte ist per Definition in seiner
+            // eigenen Liste; das würde ALLE Imports als Duplikat verwerfen.
+            val idKnown = candidate.sourceCandidateId in existingCandidateIds
+            val sessionKnown = existingSessions.any { existing ->
+                val overlap = minOf(candidate.endAt, existing.endAt ?: Long.MAX_VALUE) -
+                    maxOf(candidate.startAt, existing.startAt)
+                overlap > overlapToleranceMs
+            }
+            !idKnown && !sessionKnown
+        }
+        if (newCandidates.isEmpty()) {
+            android.util.Log.d(TAG, "Alle ${imported.size} Importe bereits erfasst (Candidates/Sessions) — kein Duplikat")
+            return Result.success()
+        }
 
         candidateRepository.insertAll(newCandidates)
 
@@ -94,5 +163,9 @@ class SleepImportWorker(
     @Suppress("unused")
     internal fun shouldAutoAccept(candidate: ActivityCandidate): Boolean {
         return candidate.status == "PENDING" && candidate.confidence >= 0.70f && candidate.activityTypeId == "sleep"
+    }
+
+    companion object {
+        private const val TAG = "SleepImportWorker"
     }
 }

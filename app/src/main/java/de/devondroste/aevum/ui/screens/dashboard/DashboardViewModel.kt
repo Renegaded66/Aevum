@@ -52,7 +52,13 @@ class DashboardViewModel @Inject constructor(
     // ohne auf den Midnight-Worker zu warten.
     private val dailyAllowanceRepository: de.devondroste.aevum.data.repository.DailyAllowanceRepository,
     // M18.37: Todos — kompakte Uebersicht auf dem Dashboard (Herzstueck).
-    private val todoRepository: de.devondroste.aevum.data.repository.TodoRepository
+    private val todoRepository: de.devondroste.aevum.data.repository.TodoRepository,
+    // M18.45-FIX (User: "1h 8m Bildschirmzeit passt nicht, ich bin erst
+    // vor 15 Minuten aufgestanden"): UsageStatsManager kumuliert
+    // totalTimeInForeground seit Tagesbeginn (inkl. Nutzung VOR dem
+    // Aufwachen). Der Wake-Detector liefert die erste echte Nutzung —
+    // damit capen wir die Anzeige auf die Wachzeit.
+    private val usageWakeDetector: de.devondroste.aevum.automation.sleep.UsageWakeDetector
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
@@ -104,7 +110,15 @@ class DashboardViewModel @Inject constructor(
         // App anzeigen, weil der combine-Flow topApps nie kannte.
         viewModelScope.launch {
             _topApps.collect { apps ->
-                _screenTimeMs.value = apps.sumOf { it.durationMs }
+                // M18.45-FIX: Cap auf die Wachzeit. totalTimeInForeground
+                // kumuliert seit Mitternacht — der User sieht sonst Nutzung
+                // von VOR dem Aufwachen. Erste echte Nutzung heute = Wake.
+                val wakeMs = try {
+                    usageWakeDetector.firstUsageSince(start)
+                } catch (_: Exception) { null }
+                val now = System.currentTimeMillis()
+                val capMs = if (wakeMs != null) (now - wakeMs).coerceAtLeast(0L) else Long.MAX_VALUE
+                _screenTimeMs.value = apps.sumOf { it.durationMs.coerceAtMost(capMs) }
             }
         }
     }

@@ -55,7 +55,11 @@ class SleepFusionEngine @Inject constructor(
     private val detectionRepository: DetectionEventRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val activityRepository: de.devondroste.aevum.data.repository.ActivityRepository,
-    private val reviewCandidateUseCase: ReviewCandidateUseCase
+    private val reviewCandidateUseCase: ReviewCandidateUseCase,
+    // M18.45-FIX (User: "07:50 entsperrt, aber Aevum sagt 07:57"):
+    // UsageStats als Wahrheits-Quelle für die Aufwachzeit, weil Android
+    // 14+ SCREEN_ON-Broadcasts an Hintergrund-Apps nicht mehr liefert.
+    private val usageWakeDetector: UsageWakeDetector
 ) {
     /**
      * Hauptmethode — analysiert die letzte Nacht und erzeugt ggf. einen Candidate.
@@ -326,7 +330,21 @@ class SleepFusionEngine @Inject constructor(
         }
         val resolvedWakeMs = prioritizeWakeTime(wakeCandidates) ?: rawOnTs
 
-        return SleepWindow(offTs, resolvedWakeMs, "SCREEN")
+        // M18.45-FIX (User: "Handy um 07:50 entsperrt, aber Aevum sagt
+        // 07:57"): Android 14+ liefert SCREEN_ON-Broadcasts nicht mehr an
+        // Hintergrund-Apps — der beste verfügbare Wake-Candidate ist dann
+        // der LIFECYCLE-Fallback (App-Öffnung). UsageStats kennt die
+        // echte erste Nutzung. Wenn die VOR dem bisherigen Wake liegt,
+        // ist das die korrekte Aufwachzeit.
+        val usageWake = usageWakeDetector.firstUsageSince(offTs)
+        val finalWakeMs = if (usageWake != null && usageWake < resolvedWakeMs) {
+            Log.d(TAG, "Wake-Korrektur via UsageStats: $resolvedWakeMs → $usageWake (echte erste Nutzung)")
+            usageWake
+        } else {
+            resolvedWakeMs
+        }
+
+        return SleepWindow(offTs, finalWakeMs, "SCREEN")
     }
 
     /**

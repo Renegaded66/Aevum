@@ -196,17 +196,18 @@ fun TimelineScreen(
     }
     // M18.44: Quick-Create-Dialog (Google-Calendar-Prinzip). Erscheint
     // nach Tap auf eine leere Zeitstelle der Tagesansicht.
+    // M18.45: Start- UND Endzeit editierbar, plus "Weiter aufzeichnen"-Modus.
     quickCreateMinute?.let { minute ->
         QuickCreateDialog(
             minuteOfDay = minute,
             types = state.activityTypes,
             onDismiss = { quickCreateMinute = null },
-            onCreate = { typeId, endMinute ->
-                viewModel.createQuickSession(minute, typeId, endMinute)
+            onCreate = { typeId, startMinute, endMinute ->
+                viewModel.createQuickSession(startMinute, typeId, endMinute)
                 quickCreateMinute = null
             },
-            onStartNow = { typeId ->
-                viewModel.startQuickSession(minute, typeId)
+            onStartNow = { typeId, startMinute ->
+                viewModel.startQuickSession(startMinute, typeId)
                 quickCreateMinute = null
             }
         )
@@ -1029,23 +1030,45 @@ private fun QuickCreateDialog(
     minuteOfDay: Int,
     types: List<ActivityType>,
     onDismiss: () -> Unit,
-    onCreate: (typeId: String, endMinute: Int) -> Unit,
-    onStartNow: (typeId: String) -> Unit
+    onCreate: (typeId: String, startMinute: Int, endMinute: Int) -> Unit,
+    onStartNow: (typeId: String, startMinute: Int) -> Unit
 ) {
     var selectedTypeId by remember { mutableStateOf<String?>(null) }
+    // M18.45 (User: "start und zielzeit manuell festlegen können"):
+    // Die getippte Zeit ist nur der VORSCHLAG — der User kann die
+    // Startzeit im Dialog frei anpassen.
+    var startMinute by remember { mutableStateOf(minuteOfDay) }
     var endMinute by remember { mutableStateOf((minuteOfDay + 60).coerceAtMost(1439)) }
+    var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
-    val zone = ZoneId.systemDefault()
-    val startLabel = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
+    // M18.45 (User: "oder statt zielzeit die auswahl, dass die app von
+    // der startzeit aufgezeichnet werden sollte und weiter läuft"):
+    // Segment-Umschalter: "Mit Endzeit" (fixe Session) oder
+    // "Weiter aufzeichnen" (endAt = null, läuft ab Startzeit).
+    var continueMode by remember { mutableStateOf(false) }
+    val startLabel = "%02d:%02d".format(startMinute / 60, startMinute % 60)
     val endLabel = "%02d:%02d".format(endMinute / 60, endMinute % 60)
     val visibleTypes = remember(types) { types.sortedBy { it.name } }
+
+    // M18.45: Wenn die Endzeit vor die (neue) Startzeit rutscht, wird sie
+    // automatisch auf Startzeit + 1h gesetzt — keine ungültigen Sessions.
+    if (endMinute <= startMinute) {
+        endMinute = (startMinute + 60).coerceAtMost(1439)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Neue Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                // M18.45: Beide Zeiten sind antippbar (öffnen den Picker).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showStartPicker = !showStartPicker; showEndPicker = false },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
                     Text(
                         "Start $startLabel",
                         fontSize = 14.sp,
@@ -1053,7 +1076,7 @@ private fun QuickCreateDialog(
                         color = Color(0xFFF5A623)
                     )
                     Text(
-                        "→ Ende $endLabel",
+                        if (continueMode) "→ läuft weiter…" else "→ Ende $endLabel",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1065,11 +1088,31 @@ private fun QuickCreateDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 360.dp)
+                    .heightIn(max = 420.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                // Aktivitäts-Auswahl (Icon + Name)
+                // ── Modus-Umschalter (fancy Segment) ──────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AevumRadius.md))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    SegmentButton(
+                        label = "Mit Endzeit",
+                        selected = !continueMode,
+                        modifier = Modifier.weight(1f)
+                    ) { continueMode = false }
+                    SegmentButton(
+                        label = "● Weiter aufzeichnen",
+                        selected = continueMode,
+                        modifier = Modifier.weight(1f)
+                    ) { continueMode = true }
+                }
+                // ── Aktivitäts-Auswahl (Icon + Name) ─────────────────
                 if (visibleTypes.isEmpty()) {
                     Text("Keine Aktivitäten verfügbar.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 } else {
@@ -1104,18 +1147,41 @@ private fun QuickCreateDialog(
                         }
                     }
                 }
-                // Endzeit-Wahl (kleiner Picker, nur bei Bedarf aufklappen)
-                TextButton(onClick = { showEndPicker = !showEndPicker }) {
-                    Text(if (showEndPicker) "Endzeit fertig" else "Endzeit ändern")
+                // ── Startzeit-Picker ──────────────────────────────────
+                TextButton(onClick = { showStartPicker = !showStartPicker; showEndPicker = false }) {
+                    Text(if (showStartPicker) "Startzeit fertig" else "Startzeit ändern")
                 }
-                if (showEndPicker) {
+                if (showStartPicker) {
                     AevumTimePicker(
-                        initialHour = endMinute / 60,
-                        initialMinute = endMinute % 60,
-                        accent = MaterialTheme.colorScheme.primary,
-                        onTimeChange = { h, m -> endMinute = (h * 60 + m).coerceIn(0, 1439) },
-                        label = "ENDE",
+                        initialHour = startMinute / 60,
+                        initialMinute = startMinute % 60,
+                        accent = Color(0xFFF5A623),
+                        onTimeChange = { h, m -> startMinute = (h * 60 + m).coerceIn(0, 1439) },
+                        label = "START",
                         showDigitalDisplay = true
+                    )
+                }
+                // ── Endzeit-Picker (nur im Endzeit-Modus) ────────────
+                if (!continueMode) {
+                    TextButton(onClick = { showEndPicker = !showEndPicker; showStartPicker = false }) {
+                        Text(if (showEndPicker) "Endzeit fertig" else "Endzeit ändern")
+                    }
+                    if (showEndPicker) {
+                        AevumTimePicker(
+                            initialHour = endMinute / 60,
+                            initialMinute = endMinute % 60,
+                            accent = MaterialTheme.colorScheme.primary,
+                            onTimeChange = { h, m -> endMinute = (h * 60 + m).coerceIn(0, 1439) },
+                            label = "ENDE",
+                            showDigitalDisplay = true
+                        )
+                    }
+                }
+                if (continueMode) {
+                    Text(
+                        "Die Aufzeichnung startet ab $startLabel und läuft weiter, bis du sie stoppst.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1123,25 +1189,47 @@ private fun QuickCreateDialog(
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
                 TextButton(onClick = onDismiss) { Text("Abbrechen") }
-                // Primär: feste Session mit Ende
-                Button(
-                    onClick = { selectedTypeId?.let { onCreate(it, endMinute) } },
-                    enabled = selectedTypeId != null
-                ) { Text("Erstellen") }
-            }
-        },
-        dismissButton = {
-            // "Jetzt aufzeichnen": Session startet ab getippter Zeit und
-            // läuft weiter (endAt = null) — genau wie beim automatischen
-            // Tracking, nur manuell ausgelöst.
-            TextButton(
-                onClick = { selectedTypeId?.let(onStartNow) },
-                enabled = selectedTypeId != null
-            ) {
-                Text("● Jetzt aufzeichnen", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                if (continueMode) {
+                    // M18.45: "Weiter aufzeichnen" — Session ab Startzeit, endAt = null
+                    Button(
+                        onClick = { selectedTypeId?.let { onStartNow(it, startMinute) } },
+                        enabled = selectedTypeId != null
+                    ) { Text("● Aufzeichnen", color = Color.White, fontWeight = FontWeight.Bold) }
+                } else {
+                    // Feste Session mit Start- UND Endzeit
+                    Button(
+                        onClick = { selectedTypeId?.let { onCreate(it, startMinute, endMinute) } },
+                        enabled = selectedTypeId != null
+                    ) { Text("Erstellen") }
+                }
             }
         }
     )
+}
+
+/** M18.45: Segment-Button für den Modus-Umschalter (fancy, aktiv = Primary). */
+@Composable
+private fun SegmentButton(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clip(RoundedCornerShape(AevumRadius.md)).clickable(onClick = onClick),
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+    ) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 6.dp)
+        )
+    }
 }
 
 @Composable
