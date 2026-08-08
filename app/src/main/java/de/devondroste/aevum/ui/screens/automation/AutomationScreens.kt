@@ -42,7 +42,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -769,14 +771,46 @@ fun TriggerEventsScreen(
     viewModel: TriggerEventsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.49 (User: "Beim löschen von Triggern in den Einstellungen sollte
+    // noch ein Bestätigungsdialog erscheinen"): Löschen erst nach
+    // expliziter Bestätigung — der Trash-Button setzt nur pendingDeleteId.
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             item { Header("Trigger Events", "Gespeicherte Zeitpunkte aus Geofences", onBack, null, {}) }
             if (state.triggers.isEmpty()) item {
                 EmptyState(title = "Noch keine Trigger", message = "Sobald ein Geofence ausgelöst wird, erscheint der Zeitpunkt hier.")
             }
-            state.triggers.forEach { trigger -> item { TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name, viewModel::delete) } }
+            state.triggers.forEach { trigger -> item { TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name, onDelete = { pendingDeleteId = trigger.id }) } }
         }
+    }
+
+    // M18.49: Sicherheitsdialog vor dem Löschen eines Triggers.
+    pendingDeleteId?.let { id ->
+        val trigger = state.triggers.firstOrNull { it.id == id }
+        val geofenceName = trigger?.let { state.geofenceNames[it.geofenceId]?.name }
+        val isEnter = trigger?.type?.contains("ENTER") == true || trigger?.type?.contains("ARRIVED") == true
+        val displayLabel = geofenceName?.let { if (isEnter) "$it betreten" else "$it verlassen" }
+            ?: trigger?.type?.replace('_', ' ')?.lowercase()?.replaceFirstChar { c -> c.titlecase() }
+            ?: "diesen Trigger"
+        AlertDialog(
+            onDismissRequest = { pendingDeleteId = null },
+            title = { Text("Trigger löschen?") },
+            text = {
+                Text(
+                    "„$displayLabel“ vom ${trigger?.let { TimeFormatting.formatSmartDateTime(it.occurredAt) } ?: "unbekanntem Zeitpunkt"} wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.delete(id)
+                        pendingDeleteId = null
+                    }
+                ) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text("Abbrechen") } }
+        )
     }
 }
 

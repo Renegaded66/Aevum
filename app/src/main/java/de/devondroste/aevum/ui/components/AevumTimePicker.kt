@@ -168,13 +168,26 @@ fun AevumTimePicker(
             modifier = Modifier
                 .size(220.dp)
                 .pointerInput(Unit) {
+                    // M18.49 (User: "Ich muss genau den Zeiger treffen um ihn
+                    // zu verschieben. Und der ist so Mini"): Tap-to-set statt
+                    // Zeiger-Jagd. Beim Drücken springt der Zeiger SOFORT an
+                    // die angetippte Position (kein Treffen nötig). Beim
+                    // Loslassen wechselt der Picker automatisch in den
+                    // Minuten-Modus (Google-Kalender-Prinzip: erst Stunde
+                    // wählen, dann Minute).
                     detectDragGestures(
                         onDragStart = { pos ->
                             val (cx, cy) = centerPx(size)
                             val dx = pos.x - cx
                             val dy = pos.y - cy
                             val angle = ((atan2(dy.toDouble(), dx.toDouble()) * 180.0 / PI) + 90.0 + 360.0) % 360.0
-                            isMinuteMode = (angle < 60.0 || angle > 300.0 || (angle > 120.0 && angle < 240.0))
+                            if (isMinuteMode) {
+                                val newMin = snapMinute(((angle / 360.0) * 60.0).toInt())
+                                if (newMin != minute) minute = newMin
+                            } else {
+                                val newHour = snapHour(((angle / 360.0) * 24.0).toInt())
+                                if (newHour != hour) hour = newHour
+                            }
                         },
                         onDrag = { change, _ ->
                             val (cx, cy) = centerPx(size)
@@ -188,23 +201,33 @@ fun AevumTimePicker(
                                 val newHour = snapHour(((angle / 360.0) * 24.0).toInt())
                                 if (newHour != hour) hour = newHour
                             }
+                        },
+                        onDragEnd = {
+                            // Loslassen: vom Stunden- in den Minuten-Modus.
+                            if (!isMinuteMode) isMinuteMode = true
+                        },
+                        onDragCancel = {
+                            if (!isMinuteMode) isMinuteMode = true
                         }
                     )
                 }
                 .pointerInput(Unit) {
+                    // M18.49: Tap-to-set. Ein Tap setzt die gewählte Einheit
+                    // an der angetippten Position und wechselt danach in den
+                    // Minuten-Modus — der Zeiger muss nie getroffen werden.
                     detectTapGestures { pos ->
                         val (cx, cy) = centerPx(size)
                         val dx = pos.x - cx
                         val dy = pos.y - cy
                         val angle = ((atan2(dy.toDouble(), dx.toDouble()) * 180.0 / PI) + 90.0 + 360.0) % 360.0
-                        val isOuter = (dx * dx + dy * dy) > (size.width * 0.34f) * (size.width * 0.34f)
-                        if (isOuter) {
-                            isMinuteMode = true
+                        if (isMinuteMode) {
                             val newMin = snapMinute(((angle / 360.0) * 60.0).toInt())
                             if (newMin != minute) minute = newMin
                         } else {
                             val newHour = snapHour(((angle / 360.0) * 24.0).toInt())
                             if (newHour != hour) hour = newHour
+                            // Nach dem Tippen sofort Minuten wählen können.
+                            isMinuteMode = true
                         }
                     }
                 }

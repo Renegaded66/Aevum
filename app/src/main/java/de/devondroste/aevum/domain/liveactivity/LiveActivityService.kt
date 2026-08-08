@@ -229,11 +229,25 @@ class LiveActivityService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // M18.19: Wechseln — öffnet das Popup (SwitchActivity).
-        val switchIntent = Intent(this, LiveActivityService::class.java).apply {
-            action = ACTION_SWITCH
+        // M18.49 (User: "Beim Klick auf Wechsel in der Benachrichtigung
+        // passiert nichts falls man die App nicht geöffnet hat. Da darf
+        // sich ruhig die App öffnen und dann das PopUp erscheinen."):
+        // Der alte Weg lief über PendingIntent.getService -> Service ->
+        // startActivity(). Das ist ein Activity-Launch-Trampolin aus dem
+        // Hintergrund — Android 10+ blockiert genau das, sobald die App
+        // nicht im Vordergrund ist (daher "passiert nichts").
+        // Jetzt zeigt der PendingIntent DIREKT auf die SwitchActivity
+        // (Notification-Action-PendingIntents auf Activities sind von den
+        // Background-Launch-Restrictions ausgenommen — sie öffnen die App
+        // inkl. Popup, egal ob sie im Hintergrund oder beendet ist).
+        val switchIntent = Intent(this, de.devondroste.aevum.ui.screens.dashboard.SwitchActivity::class.java).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
         }
-        val switchPending = PendingIntent.getService(
+        val switchPending = PendingIntent.getActivity(
             this, 3, switchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -250,6 +264,10 @@ class LiveActivityService : Service() {
         // kein RemoteViews (das hat in M18.25 gecrasht). So entsteht ein
         // markantes, bildhaftes Icon auf jedem Gerät.
         val largeIcon = buildActivityIcon(activityIcon, accentColor)
+        // M18.49 (User: "fancy Muster als Hintergrund statt einer Farbe"):
+        // Die aufgeklappte Notification zeigt ein generiertes 2:1-Bild mit
+        // Farbverlauf + Punkte-Muster (Duolingo-artig) statt flacher Farbe.
+        val patternBitmap = buildPatternBackground(activityIcon, accentColor, title, timeStr)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -271,6 +289,16 @@ class LiveActivityService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setColor(accentColor)
             .setColorized(true)
+            // M18.49: Aufgeklappte Notification mit Muster-Bild statt Text.
+            // BigPictureStyle ist eine Standard-Style-Methode (kein
+            // RemoteViews) — der Text steht direkt auf dem Bild.
+            .setStyle(
+                NotificationCompat.BigPictureStyle()
+                    .bigPicture(patternBitmap)
+                    .bigLargeIcon(largeIcon)
+                    .setBigContentTitle(if (isPaused) "⏸ $title" else "▶ $title")
+                    .setSummaryText(timeStr)
+            )
 
         // M18.25: KEIN Custom-RemoteViews-Layout mehr!
         // Das M18.23-Layout (live_notification.xml) enthielt
@@ -286,12 +314,18 @@ class LiveActivityService : Service() {
         // M18.4: BigTextStyle mit Gesamt/Aktiv bei Pause + Timer-Update.
         // Bei RUNNING zeigt der ContentText den Live-Timer (aktualisiert
         // jede Sekunde via updateNotification).
+        // M18.49: Bei Pause zusätzlich als Zusatztext auf das Muster-Bild —
+        // der BigPictureStyle bleibt erhalten, damit das Bild nicht wieder
+        // durch einen Text-Style verdrängt wird.
         if (isPaused) {
             val totalStr = formatHumanDuration(totalMs)
             val activeStr = formatHumanDuration(activeMs)
             builder.setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("$timeStr aktiv · $totalStr gesamt")
+                NotificationCompat.BigPictureStyle()
+                    .bigPicture(patternBitmap)
+                    .bigLargeIcon(largeIcon)
+                    .setBigContentTitle(if (isPaused) "⏸ $title" else "▶ $title")
+                    .setSummaryText("$timeStr aktiv · $totalStr gesamt")
             )
         }
         return builder.build()
@@ -321,21 +355,147 @@ class LiveActivityService : Service() {
      * M18.48: Zeichnet das Aktivitäts-Icon (Emoji) als farbigen Kreis auf
      * einen Bitmap-LargeIcon für die Notification. setLargeIcon ist eine
      * Standard-Notification-Methode (kein RemoteViews -> kein M18.25-Crash).
+     *
+     * M18.49 (User: "Ich möchte ein fancy Muster als Hintergrund statt einer
+     * Farbe"): Statt eines flachen Kreises wird jetzt ein radialer Gradient
+     * (hell→dunkel) mit dezentem Punkte-Muster gezeichnet — das wirkt
+     * plastisch statt flach, bleibt aber als Small-LargeIcon lesbar.
      */
     private fun buildActivityIcon(emoji: String, accent: Int): android.graphics.Bitmap {
         val size = 96
         val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        // Farbiger Kreis als Hintergrund
-        paint.color = accent
+
+        // Radialer Gradient: heller Mittelpunkt -> dunkler Rand (Duolingo-artige Tiefe)
+        val light = android.graphics.Color.argb(255, 255, 255, 255)
+        val base = android.graphics.Color.rgb(
+            android.graphics.Color.red(accent),
+            android.graphics.Color.green(accent),
+            android.graphics.Color.blue(accent)
+        )
+        val dark = android.graphics.Color.rgb(
+            (android.graphics.Color.red(accent) * 0.55).toInt(),
+            (android.graphics.Color.green(accent) * 0.55).toInt(),
+            (android.graphics.Color.blue(accent) * 0.55).toInt()
+        )
+        val shader = android.graphics.RadialGradient(
+            size / 2f, size / 2f, size / 2f,
+            intArrayOf(light, base, dark),
+            floatArrayOf(0.0f, 0.55f, 1.0f),
+            android.graphics.Shader.TileMode.CLAMP
+        )
+        paint.shader = shader
         canvas.drawCircle(size / 2f, size / 2f, size / 2f - 2f, paint)
+        paint.shader = null
+
+        // Dezent weiße Punkte als Muster (Duolingo-artig), alpha 0.14
+        val dotPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(36, 255, 255, 255)
+        }
+        for (row in 0 until 4) {
+            for (col in 0 until 4) {
+                val dx = size * 0.18f + col * size * 0.22f
+                val dy = size * 0.16f + row * size * 0.24f
+                canvas.drawCircle(dx, dy, size * 0.028f, dotPaint)
+            }
+        }
+
         // Emoji in der Mitte
+        paint.color = android.graphics.Color.WHITE
         paint.textAlign = android.graphics.Paint.Align.CENTER
-        paint.textSize = size * 0.55f
+        paint.textSize = size * 0.5f
         paint.isFakeBoldText = true
         val baseline = (size / 2f) - ((paint.descent() + paint.ascent()) / 2f)
         canvas.drawText(emoji, size / 2f, baseline, paint)
+        return bitmap
+    }
+
+    /**
+     * M18.49 (User: "fancy Muster als Hintergrund statt einer Farbe"):
+     * Erzeugt das aufgeklappte Notification-Bild (BigPictureStyle) im
+     * 2:1-Format: farbiger Verlauf + Punkte-Muster als Hintergrund, großes
+     * Aktivitäts-Emoji links, Titel + Timer als Text rechts. Das ist eine
+     * Standard-Notification-Methode (setStyle(BigPictureStyle)) — kein
+     * RemoteViews, also kein M18.25-Crash-Risiko. Das Muster ist pro
+     * Aktivitätsfarbe einzigartig (Farbe + Rotation des Punkt-Rasters
+     * leiten sich vom Accent ab), was der App Wiedererkennungswert gibt.
+     */
+    private fun buildPatternBackground(
+        emoji: String,
+        accent: Int,
+        title: String,
+        timeStr: String
+    ): android.graphics.Bitmap {
+        val w = 800
+        val h = 400
+        val bitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+
+        // 1) Linearer Gradient (diagonal, hell -> dunkel) — statt flacher Farbe
+        val r = android.graphics.Color.red(accent)
+        val g = android.graphics.Color.green(accent)
+        val b = android.graphics.Color.blue(accent)
+        val dark = android.graphics.Color.rgb((r * 0.45).toInt(), (g * 0.45).toInt(), (b * 0.45).toInt())
+        val base = android.graphics.Color.rgb(r, g, b)
+        val mid = android.graphics.Color.rgb(
+            ((r + 255) * 0.6).toInt().coerceAtMost(255),
+            ((g + 255) * 0.6).toInt().coerceAtMost(255),
+            ((b + 255) * 0.6).toInt().coerceAtMost(255)
+        )
+        val gradient = android.graphics.LinearGradient(
+            0f, 0f, w.toFloat(), h.toFloat(),
+            intArrayOf(mid, base, dark),
+            floatArrayOf(0.0f, 0.55f, 1.0f),
+            android.graphics.Shader.TileMode.CLAMP
+        )
+        paint.shader = gradient
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+        paint.shader = null
+
+        // 2) Großes Punkt-Raster als Muster (Duolingo-artig) — Abstand und
+        //    Radius hängen von der Accent-Farbe ab (einzigartig pro Aktivität).
+        val dotAlpha = 26 + (r % 14)
+        val dotPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(dotAlpha, 255, 255, 255)
+        }
+        val step = 34 + (g % 10) // 34..43 px Abstand
+        for (x in 0 until w step step) {
+            for (y in 0 until h step step) {
+                canvas.drawCircle(x.toFloat() + step / 2f, y.toFloat() + step / 2f, 3.5f, dotPaint)
+            }
+        }
+
+        // 3) Emoji in einem weißen, halbtransparenten Kreis links
+        val circlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(90, 255, 255, 255)
+        }
+        val iconCenterX = 110f
+        val iconCenterY = 200f
+        val iconRadius = 76f
+        canvas.drawCircle(iconCenterX, iconCenterY, iconRadius, circlePaint)
+        val emojiPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = android.graphics.Paint.Align.CENTER
+            textSize = 78f
+        }
+        val emojiBaseline = iconCenterY - ((emojiPaint.descent() + emojiPaint.ascent()) / 2f)
+        canvas.drawText(emoji, iconCenterX, emojiBaseline, emojiPaint)
+
+        // 4) Titel + Timer als weißen Text rechts daneben
+        val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            textSize = 40f
+            isFakeBoldText = true
+        }
+        val timePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(220, 255, 255, 255)
+            textSize = 30f
+        }
+        val textX = 230f
+        canvas.drawText(title, textX, 185f, titlePaint)
+        canvas.drawText(timeStr, textX, 232f, timePaint)
+
         return bitmap
     }
 

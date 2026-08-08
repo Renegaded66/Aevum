@@ -1091,79 +1091,31 @@ private fun QuickCreateDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                // ── Modus-Umschalter (fancy Segment) ──────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(AevumRadius.md))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .padding(3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    SegmentButton(
-                        label = "Mit Endzeit",
-                        selected = !continueMode,
-                        modifier = Modifier.weight(1f)
-                    ) { continueMode = false }
-                    SegmentButton(
-                        label = "● Weiter aufzeichnen",
-                        selected = continueMode,
-                        modifier = Modifier.weight(1f)
-                    ) { continueMode = true }
-                }
-                // ── Aktivitäts-Auswahl (Icon + Name) ─────────────────
-                if (visibleTypes.isEmpty()) {
-                    Text("Keine Aktivitäten verfügbar.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                } else {
-                    visibleTypes.forEach { type ->
-                        val selected = type.id == selectedTypeId
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedTypeId = type.id },
-                            shape = RoundedCornerShape(AevumRadius.md),
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                            ) {
-                                if (type.icon.isNotBlank()) {
-                                    Text(type.icon, fontSize = 20.sp)
-                                }
-                                Text(type.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                                if (selected) {
-                                    Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-                // ── Startzeit-Picker ──────────────────────────────────
-                TextButton(onClick = { showStartPicker = !showStartPicker; showEndPicker = false }) {
-                    Text(if (showStartPicker) "Startzeit fertig" else "Startzeit ändern")
-                }
-                if (showStartPicker) {
-                    AevumTimePicker(
-                        initialHour = startMinute / 60,
-                        initialMinute = startMinute % 60,
-                        accent = Color(0xFFF5A623),
-                        onTimeChange = { h, m -> startMinute = (h * 60 + m).coerceIn(0, 1439) },
-                        label = "START",
-                        showDigitalDisplay = true
-                    )
-                }
-                // ── Endzeit-Picker (nur im Endzeit-Modus) ────────────
-                if (!continueMode) {
-                    TextButton(onClick = { showEndPicker = !showEndPicker; showStartPicker = false }) {
-                        Text(if (showEndPicker) "Endzeit fertig" else "Endzeit ändern")
+                // M18.49 (User: "Das Popup hat immer noch nicht die
+                // Funktionalität, Start und Zielzeit anzupassen bevor man
+                // speichert, obwohl sie das haben sollte"): Die Picker waren
+                // hinter kleinen TextButtons ("Startzeit ändern") unter der
+                // langen Activity-Liste versteckt — bei vielen Aktivitäten
+                // musste man erst scrollen und der 220dp-Picker quetschte
+                // sich neben die Liste. Jetzt: Sobald ein Picker geöffnet
+                // ist, wird die Activity-Liste ausgeblendet und der Picker
+                // bekommt den kompletten Dialog-Platz. Ein Zurück-Button
+                // ("← Aktivität wählen") führt zur Liste zurück.
+                if (showStartPicker || showEndPicker) {
+                    // ── Picker-Modus: volle Breite für die Zeitwahl ────
+                    TextButton(onClick = {
+                        showStartPicker = false
+                        showEndPicker = false
+                    }) { Text("← Aktivität wählen") }
+                    if (showStartPicker) {
+                        AevumTimePicker(
+                            initialHour = startMinute / 60,
+                            initialMinute = startMinute % 60,
+                            accent = Color(0xFFF5A623),
+                            onTimeChange = { h, m -> startMinute = (h * 60 + m).coerceIn(0, 1439) },
+                            label = "STARTZEIT",
+                            showDigitalDisplay = true
+                        )
                     }
                     if (showEndPicker) {
                         AevumTimePicker(
@@ -1171,17 +1123,92 @@ private fun QuickCreateDialog(
                             initialMinute = endMinute % 60,
                             accent = MaterialTheme.colorScheme.primary,
                             onTimeChange = { h, m -> endMinute = (h * 60 + m).coerceIn(0, 1439) },
-                            label = "ENDE",
+                            label = "ENDZEIT",
                             showDigitalDisplay = true
                         )
                     }
-                }
-                if (continueMode) {
-                    Text(
-                        "Die Aufzeichnung startet ab $startLabel und läuft weiter, bis du sie stoppst.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                } else {
+                    // ── Normal-Modus: Modus-Umschalter + Aktivitäts-Wahl ──
+                    // ── Modus-Umschalter (fancy Segment) ──────────────────
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.md))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        SegmentButton(
+                            label = "Mit Endzeit",
+                            selected = !continueMode,
+                            modifier = Modifier.weight(1f)
+                        ) { continueMode = false }
+                        SegmentButton(
+                            label = "● Weiter aufzeichnen",
+                            selected = continueMode,
+                            modifier = Modifier.weight(1f)
+                        ) { continueMode = true }
+                    }
+                    // ── Aktivitäts-Auswahl (Icon + Name) ─────────────────
+                    if (visibleTypes.isEmpty()) {
+                        Text("Keine Aktivitäten verfügbar.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    } else {
+                        visibleTypes.forEach { type ->
+                            val selected = type.id == selectedTypeId
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedTypeId = type.id },
+                                shape = RoundedCornerShape(AevumRadius.md),
+                                color = if (selected) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                                ) {
+                                    if (type.icon.isNotBlank()) {
+                                        Text(type.icon, fontSize = 20.sp)
+                                    }
+                                    Text(type.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                                    if (selected) {
+                                        Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // ── Zeit-Buttons: öffnen den Picker-Modus ──────────
+                    // M18.49: Die Zeitzeile oben im Titel öffnet ebenfalls
+                    // den Picker (showStartPicker/showEndPicker togglen).
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showStartPicker = true; showEndPicker = false },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Startzeit ändern") }
+                        if (!continueMode) {
+                            OutlinedButton(
+                                onClick = { showEndPicker = true; showStartPicker = false },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Endzeit ändern") }
+                        }
+                    }
+                    if (continueMode) {
+                        Text(
+                            "Die Aufzeichnung startet ab $startLabel und läuft weiter, bis du sie stoppst.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         },
