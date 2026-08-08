@@ -52,5 +52,9 @@ enum class AppDestination(val route: String, val title: String) {
     BucketListCreate("bucketlist/new", "Neuer Eintrag"),
     BucketListEdit("bucketlist/edit/{itemId}", "Eintrag bearbeiten"),
     // M18.35: Lebenszeit-Ansicht
-    LifeView("lifeview", "Lebenszeit")
+    LifeView("lifeview", "Lebenszeit"),
+    // M18.55: Datenschutz, Export, Backup
+    Privacy("privacy", "Datenschutz"),
+    Export("export", "Export"),
+    Backup("backup", "Backup")
 }

@@ -15,6 +15,9 @@ import com.d_drostes_apps.aevum.ui.screens.insights.InsightsScreen
 import com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.SettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.TriggerSettingsScreen
+import com.d_drostes_apps.aevum.ui.screens.settings.PrivacyScreen
+import com.d_drostes_apps.aevum.ui.screens.settings.ExportScreen
+import com.d_drostes_apps.aevum.ui.screens.settings.BackupScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.AutomationSettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.AutomationStatusScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.GeofenceDebugScreen
@@ -161,8 +164,22 @@ fun AppNavHost(
                 onOpenHomeGeofence = { id -> navController.navigate("geofence/edit/$id") },
                 onOpenWorkGeofence = { id -> navController.navigate("geofence/edit/$id") },
                 onCreateHomeGeofence = { navController.navigate(AppDestination.GeofenceCreateHome.route) },
-                onCreateWorkGeofence = { navController.navigate(AppDestination.GeofenceCreateWork.route) }
+                onCreateWorkGeofence = { navController.navigate(AppDestination.GeofenceCreateWork.route) },
+                // M18.55: Datenschutz, Export, Backup
+                onOpenPrivacy = { navController.navigate(AppDestination.Privacy.route) },
+                onOpenExport = { navController.navigate(AppDestination.Export.route) },
+                onOpenBackup = { navController.navigate(AppDestination.Backup.route) }
             )
+        }
+        // M18.55: Datenschutz, Export, Backup — eigene Seiten
+        composable(AppDestination.Privacy.route) {
+            PrivacyScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.Export.route) {
+            ExportScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppDestination.Backup.route) {
+            BackupScreen(onBack = { navController.popBackStack() })
         }
         composable(AppDestination.AutomationSettings.route) {
             AutomationSettingsScreen(

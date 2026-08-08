@@ -63,7 +63,11 @@ fun SettingsScreen(
     onOpenHomeGeofence: (String) -> Unit = {},
     onOpenWorkGeofence: (String) -> Unit = {},
     onCreateHomeGeofence: () -> Unit = {},
-    onCreateWorkGeofence: () -> Unit = {}
+    onCreateWorkGeofence: () -> Unit = {},
+    // M18.55: Datenschutz, Export, Backup
+    onOpenPrivacy: () -> Unit = {},
+    onOpenExport: () -> Unit = {},
+    onOpenBackup: () -> Unit = {}
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -130,7 +134,12 @@ fun SettingsScreen(
                 // M18.39: Bucket List — eigene Seite
                 SettingsEntry("Bucket List 🌍", onClick = onOpenBucketList)
             )) }
-            item { SettingsSection("Datenschutz & Daten", listOf(SettingsEntry("Datenschutz"), SettingsEntry("Export"), SettingsEntry("Backup"))) }
+            // M18.55: Datenschutz, Export, Backup — echte Seiten statt Platzhalter
+            item { SettingsSection("Datenschutz & Daten", listOf(
+                SettingsEntry("Datenschutz", "Lokale Daten, Löschen", onOpenPrivacy),
+                SettingsEntry("Export", "Alle Daten als JSON", onOpenExport),
+                SettingsEntry("Backup", "Sichern & Wiederherstellen", onOpenBackup)
+            )) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }
