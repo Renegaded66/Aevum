@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.automation.geofence
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import dagger.hilt.android.AndroidEntryPoint
 import com.d_drostes_apps.aevum.automation.activityrecognition.InitialActivitySnapshotScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -46,11 +47,22 @@ class BootReceiver : BroadcastReceiver() {
 
     private fun handleBoot(context: Context) {
         // M9.2: Ensure foreground service is up so geofences can fire reliably on Android 14+
-        try {
-            GeofenceForegroundService.start(context)
-        } catch (e: Exception) {
-            debugLogger.log("BOOT", "ForegroundService start failed: ${e.message}")
+        // M18.45: SDK 35 Crash-Fix — den Service nur starten, wenn wir die nötigen
+        // Berechtigungen haben. Im Hintergrund (Boot) braucht ein Location-FGS
+        // zwingend Background-Location, sonst SecurityException.
+        val hasForeground = registrar.hasForegroundLocation()
+        val hasBackground = registrar.hasBackgroundLocation()
+
+        if (hasForeground && (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE || hasBackground)) {
+            try {
+                GeofenceForegroundService.start(context)
+            } catch (e: Exception) {
+                debugLogger.log("BOOT", "ForegroundService start failed: ${e.message}")
+            }
+        } else {
+            debugLogger.log("BOOT", "FGS-Start übersprungen (Permissions: fore=$hasForeground, back=$hasBackground)")
         }
+
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 when (val result = registrar.refreshRegisteredGeofences()) {

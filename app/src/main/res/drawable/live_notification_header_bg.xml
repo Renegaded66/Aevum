@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    M18.23: Fancy Notification-Hintergrund mit Gradient + diagonalen Streifen.
-    RemoteViews kann keine Compose-Drawables, aber Layer-List mit Shape-Drawables.
-    Die Aktivitaetsfarbe wird zur Laufzeit per remoteViews.setInt(background, "setColorFilter", color) gesetzt.
-    Das Pattern darueber ist ein halbtransparentes Diagonal-Stripe-Muster.
+    Legacy-Hintergrund für den nicht mehr verwendeten RemoteViews-Entwurf.
+    Das aktuelle „Activity Signal“-Muster wird als kontraststarkes Bitmap in
+    LiveActivityService erzeugt, damit es auf Android 12+ und OEM-System-UIs
+    konsistent erscheint.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Basis-Farbe (wird zur Laufzeit gesetzt) -->

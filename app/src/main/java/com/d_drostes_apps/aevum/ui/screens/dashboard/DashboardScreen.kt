@@ -164,8 +164,10 @@ private fun DashboardContent(
     val slideOut = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        Box(modifier = Modifier.fillMaxSize()) {
+            DashboardAtmosphere()
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
@@ -245,7 +247,26 @@ private fun DashboardContent(
             }
 
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
+            }
         }
+    }
+}
+
+@Composable
+private fun DashboardAtmosphere() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val primary = Color(0xFF8F82FF)
+        val mint = Color(0xFF5EEAD4)
+        drawCircle(
+            color = primary.copy(alpha = 0.10f),
+            radius = size.minDimension * 0.52f,
+            center = Offset(size.width * 0.92f, size.height * 0.04f)
+        )
+        drawCircle(
+            color = mint.copy(alpha = 0.055f),
+            radius = size.minDimension * 0.46f,
+            center = Offset(size.width * 0.05f, size.height * 0.66f)
+        )
     }
 }
 
@@ -735,13 +756,14 @@ private fun LiveActivityBanner(
                 .fillMaxWidth()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(
-                            accent.copy(alpha = 0.25f),
-                            accent.copy(alpha = 0.08f)
+                        colors = listOf(
+                            accent.copy(alpha = 0.42f),
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.24f)
                         )
                     )
                 )
-                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)
+                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.md)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

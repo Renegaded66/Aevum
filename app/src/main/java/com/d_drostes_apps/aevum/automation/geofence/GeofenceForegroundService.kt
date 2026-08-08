@@ -7,9 +7,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.d_drostes_apps.aevum.MainActivity
 
 /**
@@ -54,10 +57,30 @@ class GeofenceForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(6202, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(6202, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // M18.45: SecurityException-Schutz für SDK 35. Ein FGS mit Typ "location"
+                // darf im Hintergrund nur starten, wenn die Berechtigungen (Fine/Coarse + Background)
+                // wirklich erteilt sind. Wenn nicht, stürzt die App ab.
+                try {
+                    startForeground(
+                        6202,
+                        notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                    )
+                } catch (e: SecurityException) {
+                    // Fallback: Wenn Location-FGS verweigert wird (z.B. im Hintergrund ohne Background-Permission),
+                    // versuchen wir es als "normalen" Service ohne speziellen Typ (0).
+                    // WICHTIG: 0 übergeben, damit das System nicht den manifest-default (location) nimmt.
+                    startForeground(6202, notification, 0)
+                }
+            } else {
+                startForeground(6202, notification)
+            }
+        } catch (e: Exception) {
+            // Wenn alles fehlschlägt (z.B. Background-Start-Restriction ohne Exemption),
+            // beenden wir uns selbst, um den Crash des Prozesses zu verhindern.
+            stopSelf()
         }
 
         return START_STICKY

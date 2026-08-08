@@ -433,65 +433,60 @@ class LiveActivityService : Service() {
         val canvas = android.graphics.Canvas(bitmap)
         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
 
-        // 1) Linearer Gradient (diagonal, hell -> dunkel) — statt flacher Farbe
+        // 1) „Activity Signal“: tiefes Night-Surface mit Akzent-Aura.
+        //    Die dunkle Basis sichert Kontrast im System-Dark- und Light-Mode;
+        //    nur die Aura übernimmt die Farbe der jeweiligen Aktivität.
         val r = android.graphics.Color.red(accent)
         val g = android.graphics.Color.green(accent)
         val b = android.graphics.Color.blue(accent)
-        val dark = android.graphics.Color.rgb((r * 0.45).toInt(), (g * 0.45).toInt(), (b * 0.45).toInt())
-        val base = android.graphics.Color.rgb(r, g, b)
-        val mid = android.graphics.Color.rgb(
-            ((r + 255) * 0.6).toInt().coerceAtMost(255),
-            ((g + 255) * 0.6).toInt().coerceAtMost(255),
-            ((b + 255) * 0.6).toInt().coerceAtMost(255)
+        val baseNight = android.graphics.Color.rgb(12, 15, 30)
+        val ink = android.graphics.Color.rgb(7, 9, 19)
+        val aura = android.graphics.Color.rgb(
+            ((r + 20) * 0.72f).toInt().coerceAtMost(255),
+            ((g + 18) * 0.72f).toInt().coerceAtMost(255),
+            ((b + 35) * 0.78f).toInt().coerceAtMost(255)
         )
-        val gradient = android.graphics.LinearGradient(
+        paint.shader = android.graphics.LinearGradient(
             0f, 0f, w.toFloat(), h.toFloat(),
-            intArrayOf(mid, base, dark),
-            floatArrayOf(0.0f, 0.55f, 1.0f),
+            intArrayOf(aura, baseNight, ink),
+            floatArrayOf(0f, 0.48f, 1f),
             android.graphics.Shader.TileMode.CLAMP
         )
-        paint.shader = gradient
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
         paint.shader = null
 
-        // 2) M18.51 (User: "Ich hätte gerne ein Muster als Hintergrund"):
-        //    Echte diagonale Streifen (Duolingo/Fitness-App-Look) statt nur
-        //    Punkte. Ein LinearGradient mit REPEAT-TileMode über die
-        //    Streifenbreite erzeugt saubere 45°-Streifen — transparent →
-        //    weiß → transparent. Streifenbreite und Alpha leiten sich aus
-        //    der Accent-Farbe ab (einzigartig pro Aktivität).
-        val stripePeriod = 48 + (g % 24) // 48..71 px Streifenbreite
-        val stripeAlpha = 16 + (r % 12) // 16..27 weiße Streifen
-        val stripeShader = android.graphics.LinearGradient(
-            0f, 0f, stripePeriod.toFloat(), stripePeriod.toFloat(),
-            intArrayOf(
-                android.graphics.Color.argb(0, 255, 255, 255),
-                android.graphics.Color.argb(stripeAlpha, 255, 255, 255),
-                android.graphics.Color.argb(0, 255, 255, 255)
-            ),
-            floatArrayOf(0f, 0.5f, 1f),
-            android.graphics.Shader.TileMode.REPEAT
-        )
-        val stripePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            shader = stripeShader
+        // 2) Orbit-Linien: die wiedererkennbare Aevum-Signatur statt einer
+        //    flachen Farbe. Sie suggerieren Zeitfluss, bleiben aber dezent.
+        val orbitPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 2f
+            color = android.graphics.Color.argb(44, 255, 255, 255)
         }
-        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), stripePaint)
-        stripePaint.shader = null
+        val orbitCenterX = w * 0.86f
+        val orbitCenterY = h * 0.28f
+        repeat(4) { index ->
+            canvas.drawCircle(
+                orbitCenterX,
+                orbitCenterY,
+                92f + index * 60f,
+                orbitPaint
+            )
+        }
 
-        // 3) Dezente Punkte zwischen den Streifen (zweite Musterebene) —
-        //    Abstand und Radius hängen von der Accent-Farbe ab.
-        val dotAlpha = 20 + (b % 10)
+        // 3) Punkt-Raster als zweite, materielle Ebene. Die Phasenverschiebung
+        //    stammt aus der Aktivitätsfarbe und macht jedes Signal subtil anders.
         val dotPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.argb(dotAlpha, 255, 255, 255)
+            color = android.graphics.Color.argb(34 + (b % 16), 255, 255, 255)
         }
-        val step = 44 + (r % 12) // 44..55 px Abstand
-        for (x in 0 until w step step) {
+        val step = 42 + (r % 12)
+        val offsetX = g % step
+        for (x in -step until w + step step step) {
             for (y in 0 until h step step) {
-                canvas.drawCircle(x.toFloat() + step / 2f, y.toFloat() + step / 2f, 3f, dotPaint)
+                canvas.drawCircle((x + offsetX).toFloat(), y + step / 2f, 2.6f, dotPaint)
             }
         }
 
-        // 3) Emoji in einem weißen, halbtransparenten Kreis links
+        // 4) Emoji in einem weißen, halbtransparenten Kreis links
         val circlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.argb(90, 255, 255, 255)
         }
@@ -506,19 +501,41 @@ class LiveActivityService : Service() {
         val emojiBaseline = iconCenterY - ((emojiPaint.descent() + emojiPaint.ascent()) / 2f)
         canvas.drawText(emoji, iconCenterX, emojiBaseline, emojiPaint)
 
-        // 4) Titel + Timer als weißen Text rechts daneben
+        // 5) Status, Titel und Live-Timer. Titel werden aktiv gekürzt, damit
+        //    der Timer nie vom Artwork oder von langen Namen verdrängt wird.
+        val labelPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(184, 255, 255, 255)
+            textSize = 18f
+            letterSpacing = 0.12f
+        }
         val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
-            textSize = 40f
+            textSize = 42f
             isFakeBoldText = true
         }
         val timePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.argb(220, 255, 255, 255)
-            textSize = 30f
+            color = android.graphics.Color.rgb(206, 252, 244)
+            textSize = 46f
+            typeface = android.graphics.Typeface.MONOSPACE
+            isFakeBoldText = true
         }
         val textX = 230f
-        canvas.drawText(title, textX, 185f, titlePaint)
-        canvas.drawText(timeStr, textX, 232f, timePaint)
+        val maxTitleWidth = w - textX - 48f
+        val compactTitle = if (titlePaint.measureText(title) > maxTitleWidth) {
+            buildString {
+                title.forEach { character ->
+                    if (titlePaint.measureText(this.toString() + character + "…") <= maxTitleWidth) {
+                        append(character)
+                    }
+                }
+                append("…")
+            }
+        } else {
+            title
+        }
+        canvas.drawText("AEVUM  •  AKTIVITÄTSSIGNAL", textX, 132f, labelPaint)
+        canvas.drawText(compactTitle, textX, 188f, titlePaint)
+        canvas.drawText(timeStr, textX, 250f, timePaint)
 
         return bitmap
     }

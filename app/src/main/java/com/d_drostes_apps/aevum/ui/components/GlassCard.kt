@@ -43,14 +43,14 @@ fun GlassCard(
             width = borderWidth,
             brush = Brush.linearGradient(
                 colors = listOf(
-                    accent.copy(alpha = 0.6f),
-                    accent.copy(alpha = 0.2f),
-                    accent.copy(alpha = 0.05f)
+                    accent.copy(alpha = 0.70f),
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.28f),
+                    accent.copy(alpha = 0.08f)
                 )
             )
         ),
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        shadowElevation = 2.dp
     ) {
         Box(
             modifier = Modifier
@@ -58,8 +58,9 @@ fun GlassCard(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
                         )
                     )
                 )

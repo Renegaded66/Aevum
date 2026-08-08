@@ -3,15 +3,33 @@ package com.d_drostes_apps.aevum
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SpaceDashboard
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SpaceDashboard
+import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -143,14 +161,39 @@ private fun AevumBottomNavigation(
     currentDestination: NavDestination?,
     onTabSelected: (MainTab) -> Unit
 ) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)) {
-        tabs.forEach { tab ->
-            NavigationBarItem(
-                selected = currentDestination.isTopLevelRoute(tab.destination.route),
-                onClick = { onTabSelected(tab) },
-                icon = { Text(tab.icon) },
-                label = { Text(tab.label) }
-            )
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        shadowElevation = 12.dp
+    ) {
+        NavigationBar(
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 0.dp
+        ) {
+            tabs.forEach { tab ->
+                val selected = currentDestination.isTopLevelRoute(tab.destination.route)
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onTabSelected(tab) },
+                    icon = {
+                        Icon(
+                            imageVector = if (selected) tab.selectedIcon else tab.icon,
+                            contentDescription = tab.label
+                        )
+                    },
+                    label = { Text(tab.label) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
         }
     }
 }
@@ -158,13 +201,21 @@ private fun AevumBottomNavigation(
 private data class MainTab(
     val destination: AppDestination,
     val label: String,
-    val icon: String = when (destination) {
-        AppDestination.Dashboard -> "◷"
-        AppDestination.Insights -> "◌"
-        AppDestination.Calendar -> "▦"
-        AppDestination.Timeline -> "▤"
-        AppDestination.Settings -> "⚙"
-        else -> "•"
+    val icon: ImageVector = when (destination) {
+        AppDestination.Dashboard -> Icons.Outlined.SpaceDashboard
+        AppDestination.Insights -> Icons.Outlined.Insights
+        AppDestination.Calendar -> Icons.Outlined.CalendarMonth
+        AppDestination.Timeline -> Icons.Outlined.Timeline
+        AppDestination.Settings -> Icons.Outlined.Settings
+        else -> Icons.Outlined.SpaceDashboard
+    },
+    val selectedIcon: ImageVector = when (destination) {
+        AppDestination.Dashboard -> Icons.Filled.SpaceDashboard
+        AppDestination.Insights -> Icons.Filled.Insights
+        AppDestination.Calendar -> Icons.Filled.CalendarMonth
+        AppDestination.Timeline -> Icons.Filled.Timeline
+        AppDestination.Settings -> Icons.Filled.Settings
+        else -> Icons.Filled.SpaceDashboard
     }
 )
 

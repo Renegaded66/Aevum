@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    M18.23: Live-Notification — fancy modernes Design.
-    - Header: Gradient-Hintergrund (Aktivitaetsfarbe) mit weichen Ecken
-    - Timer: 30sp, weiss, fett, Monospace
-    - Buttons: eigene farbige Hintergruende, groessere Touch-Targets
+    Legacy-Entwurf für RemoteViews.
+
+    Die Live-Notification wird absichtlich über NotificationCompat.BigPictureStyle
+    aufgebaut, weil Android 12+ eigene Notification-Dekorationen erzwingt und
+    RemoteViews zwischen OEMs unterschiedlich rendern. Das einzigartige
+    „Activity Signal“-Muster entsteht deshalb zuverlässig in LiveActivityService
+    als Bitmap. Diese Ressource bleibt nur für Kompatibilität mit alten Builds.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/notification_root"
@@ -12,7 +15,7 @@
     android:orientation="vertical"
     android:padding="0dp">
 
-    <!-- Farbiger Kopfbereich mit Gradient -->
+    <!-- Legacy-Kopfbereich: nicht mehr zur Laufzeit verwendet. -->
     <LinearLayout
         android:id="@+id/notification_header"
         android:layout_width="match_parent"
