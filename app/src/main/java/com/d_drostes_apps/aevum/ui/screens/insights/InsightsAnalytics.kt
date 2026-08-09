@@ -512,7 +512,14 @@ object InsightsAnalytics {
     }
 
     private fun List<ActivitySession>.clippedTo(start: Long, end: Long): List<ClippedInsightSession> = mapNotNull { session ->
-        val sessionEnd = session.endAt ?: end
+        // M18.59-FIX (User: "Insights zeigt 12h 32 gelernt, live sind es
+        // erst 1h 09"): Bei laufender Session (endAt = null) wurde bis zum
+        // FENSTERENDE (24:00) gerechnet — die laufende Session erschien
+        // als bis Mitternacht laufend. Jetzt endet sie effektiv bei
+        // "jetzt" (gecappt aufs Fensterende). Gleiches gilt für die
+        // Heatmap, die dieselbe Funktion nutzt.
+        val now = System.currentTimeMillis()
+        val sessionEnd = session.endAt ?: minOf(now, end)
         val clippedStart = session.startAt.coerceAtLeast(start)
         val clippedEnd = sessionEnd.coerceAtMost(end)
         val duration = clippedEnd - clippedStart

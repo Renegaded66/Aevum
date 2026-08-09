@@ -125,6 +125,35 @@ class InsightsAnalyticsTest {
         assertThat(result.weekHeatmap.days.last().durationMs).isEqualTo(HOUR)
     }
 
+    /**
+     * M18.59-REGRESSION (User: "Insights zeigt 12h 32 gelernt, live sind
+     * es erst 1h 09"): Eine laufende Session (endAt = null) wurde bis zum
+     * FENSTERENDE (24:00) gerechnet statt bis "jetzt". Der Test startet
+     * eine Session vor ~1h und prüft, dass die gezählte Dauer ≈ 1h ist
+     * (Toleranz 5 min) — nicht bis Mitternacht.
+     */
+    @Test
+    fun runningSessionCountsOnlyUntilNowNotUntilMidnight() {
+        val now = System.currentTimeMillis()
+        val start = now - 60L * 60 * 1000 // vor 1h gestartet, läuft noch
+        val running = ActivitySession(
+            id = "running", title = "Studium", activityTypeId = "deep_work",
+            categoryId = "work", startAt = start, endAt = null
+        )
+        val result = InsightsAnalytics.build(
+            sessions = listOf(running),
+            categories = categories,
+            activityTypes = types,
+            selectedPeriod = InsightPeriod.Today,
+            anchorDate = LocalDate.now(zone),
+            zoneId = zone
+        )
+        val total = result.totalMsIncludingAllowances
+        // Erwartung: ~1h (60 min), Toleranz ±5 min — NICHT bis 24:00
+        assertThat(total).isAtLeast(55L * 60 * 1000)
+        assertThat(total).isAtMost(65L * 60 * 1000)
+    }
+
     private fun session(
         id: String,
         typeId: String,

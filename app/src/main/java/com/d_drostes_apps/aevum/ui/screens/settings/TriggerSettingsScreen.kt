@@ -86,6 +86,7 @@ import com.d_drostes_apps.aevum.ui.screens.automation.SleepFusionStatusDialog
 import com.d_drostes_apps.aevum.ui.screens.automation.SleepStatusDialog
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -636,14 +637,22 @@ private fun SleepSourceCard(
             // Kacheln). Jetzt: Rahmen = exakt Button-Höhe.
             var buttonHeightPx by remember { mutableStateOf(0f) }
             val density = LocalDensity.current
+            // M18.59-FIX 2 (User: "der Rahmen flackert im Leerlauf, aber
+            // nicht beim Scrollen"): Das Flackern kam von der spring-Animation
+            // mit Subpixel-Zielwerten (positionInParent liefert Float-Pixel).
+            // Die spring-Animation "schwingt" bei minimalen Ziel-Schwankungen
+            // endlos nach → Zittern im Leerlauf. Beim Scrollen wird die
+            // Composable neu aufgebaut (einmalige Messung) → kein Flackern.
+            // Fix: Zielwert auf ganze Pixel runden (stabil) + tween statt
+            // spring (kein Überschwingen, kein Nachzittern).
             val targetCenterPx = if (buttonWidthPx > 0f && activeIndex < buttonLefts.size) {
-                buttonLefts[activeIndex] + buttonWidthPx / 2f
+                (buttonLefts[activeIndex] + buttonWidthPx / 2f).roundToInt().toFloat()
             } else 0f
             val animatedCenterPx by androidx.compose.animation.core.animateFloatAsState(
                 targetValue = targetCenterPx,
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = 0.72f,
-                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = 260,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
                 ),
                 label = "sleep-source-indicator"
             )
