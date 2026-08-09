@@ -622,29 +622,17 @@ private fun SleepSourceCard(
             val activeIndex = sources.indexOfFirst { it.id == currentSource }
                 .coerceAtLeast(0)
 
-            // M18.58: Rahmen-Position messen. Jeder Button registriert sein
-            // linkes x (in px). Der schwebende Rahmen nutzt das Zentrum des
-            // aktiven Buttons als Ziel-Offset.
-            // M18.59-FIX (User: "der Rahmen flackert"): onGloballyPositioned
-            // erzeugte bei JEDEM Layout-Pass eine neue Liste (toMutableList)
-            // → State-Änderung → Recomposition → onGloballyPositioned feuert
-            // wieder → Flacker-Schleife. Jetzt wird nur geschrieben, wenn
-            // sich ein Wert wirklich ändert (stabiler State, kein Loop).
+            // M18.59-FIX 3 (User: "das untere Ende flackert weiter nach
+            // unten"): ROOT CAUSE — "Health Connect" bricht auf 2 Zeilen
+            // um → dieser Button ist HÖHER als die 1-zeiligen. buttonHeightPx
+            // wurde von JEDEM Button überschrieben (der letzte gewinnt) →
+            // die Rahmen-Höhe sprang zwischen den Button-Höhen hin und her.
+            // Fix: ALLE Buttons auf eine feste Höhe (64.dp) zwingen — die
+            // Rahmen-Höhe ist damit konstant, Flackern ist unmöglich.
+            val buttonHeightDp = 64.dp
             var buttonLefts by remember { mutableStateOf(listOf(0f, 0f, 0f, 0f)) }
             var buttonWidthPx by remember { mutableStateOf(0f) }
-            // M18.59-FIX: Die echte Button-HÖHE messen (vorher wurde die
-            // Breite × 2.1 als Höhe genommen → Rahmen ragte weit unter die
-            // Kacheln). Jetzt: Rahmen = exakt Button-Höhe.
-            var buttonHeightPx by remember { mutableStateOf(0f) }
             val density = LocalDensity.current
-            // M18.59-FIX 2 (User: "der Rahmen flackert im Leerlauf, aber
-            // nicht beim Scrollen"): Das Flackern kam von der spring-Animation
-            // mit Subpixel-Zielwerten (positionInParent liefert Float-Pixel).
-            // Die spring-Animation "schwingt" bei minimalen Ziel-Schwankungen
-            // endlos nach → Zittern im Leerlauf. Beim Scrollen wird die
-            // Composable neu aufgebaut (einmalige Messung) → kein Flackern.
-            // Fix: Zielwert auf ganze Pixel runden (stabil) + tween statt
-            // spring (kein Überschwingen, kein Nachzittern).
             val targetCenterPx = if (buttonWidthPx > 0f && activeIndex < buttonLefts.size) {
                 (buttonLefts[activeIndex] + buttonWidthPx / 2f).roundToInt().toFloat()
             } else 0f
@@ -667,19 +655,21 @@ private fun SleepSourceCard(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
+                                // M18.59-FIX 3: FESTE Höhe für ALLE Buttons —
+                                // "Health Connect" (2 Zeilen) macht sonst
+                                // diesen Button höher → Rahmen-Höhe sprang.
+                                .height(buttonHeightDp)
                                 .onGloballyPositioned { coords ->
                                     val idx = sources.indexOfFirst { it.id == option.id }
                                     if (idx !in buttonLefts.indices) return@onGloballyPositioned
                                     val newLeft = coords.positionInParent().x
                                     val newWidth = coords.size.width.toFloat()
-                                    val newHeight = coords.size.height.toFloat()
                                     // Nur bei echten Änderungen schreiben —
                                     // verhindert die Recomposition-Schleife.
                                     if (buttonLefts[idx] != newLeft) {
                                         buttonLefts = buttonLefts.toMutableList().also { it[idx] = newLeft }
                                     }
                                     if (buttonWidthPx != newWidth) buttonWidthPx = newWidth
-                                    if (buttonHeightPx != newHeight) buttonHeightPx = newHeight
                                 }
                                 .clip(RoundedCornerShape(AevumRadius.md))
                                 .background(
@@ -716,15 +706,16 @@ private fun SleepSourceCard(
                 }
 
                 // Der schwebende Rahmen (Overlay, animiert zwischen Buttons)
-                if (buttonWidthPx > 0f && buttonHeightPx > 0f) {
+                if (buttonWidthPx > 0f) {
                     val frameWidth = with(density) { buttonWidthPx.toDp() }
                     val frameOffset = with(density) { (animatedCenterPx - buttonWidthPx / 2f).toDp() }
                     Box(
                         modifier = Modifier
                             .offset(x = frameOffset)
                             .width(frameWidth)
-                            // M18.59-FIX: exakt Button-Höhe statt Breite × 2.1
-                            .height(with(density) { buttonHeightPx.toDp() })
+                            // M18.59-FIX 3: feste Höhe = Button-Höhe (64.dp) —
+                            // konstant, kein Flackern des unteren Endes.
+                            .height(buttonHeightDp)
                             .border(
                                 width = 2.dp,
                                 color = MaterialTheme.colorScheme.primary,

@@ -160,6 +160,7 @@ fun AppNavHost(
                 onOpenBucketList = { navController.navigate(AppDestination.BucketList.route) },
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
+                onOpenCategories = { navController.navigate(AppDestination.Categories.route) },
                 // M12.2: Home/Work öffnen den existierenden Geofence-Editor
                 // oder legen den Geofence direkt mit dem passenden QuickSetup an.
                 onOpenHomeGeofence = { id -> navController.navigate("geofence/edit/$id") },
@@ -295,6 +296,12 @@ fun AppNavHost(
         // M18.2: Positivitäts-Scores pro Aktivität
         composable(AppDestination.ActivityTypes.route) {
             com.d_drostes_apps.aevum.ui.screens.activitytypes.ActivityTypesScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        // M18.59: Kategorien verwalten
+        composable(AppDestination.Categories.route) {
+            com.d_drostes_apps.aevum.ui.screens.categories.CategoriesScreen(
                 onBack = { navController.popBackStack() }
             )
         }

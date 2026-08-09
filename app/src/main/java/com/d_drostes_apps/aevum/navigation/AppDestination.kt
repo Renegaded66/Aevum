@@ -40,6 +40,8 @@ enum class AppDestination(val route: String, val title: String) {
     DailyAllowances("daily_allowances", "Tagespauschalen"),
     // M18.2: Positivitäts-Scores pro Aktivität
     ActivityTypes("activity_types", "Aktivitäten & Positivität"),
+    // M18.59: Kategorien verwalten (erstellen, Aktivitäten zuordnen, Icon+Farbe)
+    Categories("categories", "Kategorien"),
     // M18.28: Kalender-Tab (Heatmap der Zeitqualität)
     Calendar("calendar", "Kalender"),
     // M18.30: Todos

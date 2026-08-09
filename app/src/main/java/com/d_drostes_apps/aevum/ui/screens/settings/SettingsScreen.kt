@@ -59,6 +59,8 @@ fun SettingsScreen(
     onOpenBucketList: () -> Unit = {},
     // M18.2: Positivitäts-Scores pro Aktivität
     onOpenActivityTypes: () -> Unit = {},
+    // M18.59: Kategorien-Seite
+    onOpenCategories: () -> Unit = {},
     onOpenHomeGeofence: (String) -> Unit = {},
     onOpenWorkGeofence: (String) -> Unit = {},
     onCreateHomeGeofence: () -> Unit = {},
@@ -124,8 +126,11 @@ fun SettingsScreen(
                 )
             }
             // M18.2: Aktivitäten mit Positivitäts-Slider
+            // M18.59: + Kategorien-Seite (User-Wunsch: Kategorien auflisten,
+            // neue erstellen, Aktivitäten zuordnen, Icon+Farbe personalisieren)
             item { SettingsSection("Deine Aktivitäten", listOf(
-                SettingsEntry("Activity Types verwalten", "Icons, Farben, Positivität", onOpenActivityTypes)
+                SettingsEntry("Activity Types verwalten", "Icons, Farben, Positivität", onOpenActivityTypes),
+                SettingsEntry("Kategorien", "Erstellen, Aktivitäten zuordnen, Icon & Farbe", onOpenCategories)
             )) }
             // M18.44: Neben-Features (Ziele/Gewohnheiten/Todos/Pauschalen/Bucket List)
             // in eigener Sektion — erreichbar, aber klar getrennt vom Kern.

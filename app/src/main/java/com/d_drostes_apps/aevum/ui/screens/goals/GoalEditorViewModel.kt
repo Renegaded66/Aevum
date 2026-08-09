@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -28,6 +29,32 @@ class GoalEditorViewModel @Inject constructor(
 
     private val _form = MutableStateFlow(GoalFormState())
     val form: StateFlow<GoalFormState> = _form
+
+    // M18.59-FIX (User: "Beim Bearbeiten eines Ziels kommt man in die
+    // Ansicht, ein NEUES zu erstellen, wo nichts ausgefüllt ist"): Das
+    // ViewModel hatte KEINE loadGoal-Funktion — der Editor zeigte immer
+    // das leere Formular und saveGoal() erzeugte immer ein NEUES Goal
+    // (neue UUID). Jetzt: loadGoal(goalId) befüllt das Formular, und
+    // saveGoal() UPDATET das bestehende Goal, wenn eine ID geladen ist.
+    private var editingGoalId: String? = null
+
+    fun loadGoal(goalId: String) {
+        editingGoalId = goalId
+        viewModelScope.launch {
+            val goal = goalRepository.getById(goalId).firstOrNull()
+            if (goal != null) {
+                _form.value = GoalFormState(
+                    title = goal.title,
+                    activityTypeId = goal.activityTypeId,
+                    selectedActivityTypeName = null, // wird aus der Typ-Liste aufgelöst
+                    period = goal.period,
+                    goalType = goal.type,
+                    targetValue = if (goal.targetValue > 0f) goal.targetValue.toString() else "",
+                    targetUnit = goal.targetUnit
+                )
+            }
+        }
+    }
 
     val uiState: StateFlow<GoalEditorUiState> = combine(
         activityTypeRepository.getAll(),
@@ -82,19 +109,41 @@ class GoalEditorViewModel @Inject constructor(
             return
         }
 
-        val goal = Goal(
-            id = UUID.randomUUID().toString(),
-            title = form.title,
-            activityTypeId = form.activityTypeId,
-            type = form.goalType,
-            period = form.period,
-            targetValue = form.targetValue.toFloatOrNull() ?: 0f,
-            targetUnit = form.targetUnit,
-            status = "ACTIVE",
-            startAt = System.currentTimeMillis()
-        )
-
+        val now = System.currentTimeMillis()
+        val existingId = editingGoalId
         viewModelScope.launch {
+            if (existingId != null) {
+                // M18.59-FIX: Bearbeiten → bestehendes Goal UPDATEN
+                // (vorher wurde immer ein NEUES Goal mit neuer UUID
+                // angelegt — der User sah nach dem Speichern zwei Ziele).
+                val existing = goalRepository.getById(existingId).firstOrNull()
+                if (existing != null) {
+                    goalRepository.update(
+                        existing.copy(
+                            title = form.title,
+                            activityTypeId = form.activityTypeId,
+                            type = form.goalType,
+                            period = form.period,
+                            targetValue = form.targetValue.toFloatOrNull() ?: 0f,
+                            targetUnit = form.targetUnit,
+                            updatedAt = now
+                        )
+                    )
+                    _form.update { it.copy(saved = true) }
+                    return@launch
+                }
+            }
+            val goal = Goal(
+                id = UUID.randomUUID().toString(),
+                title = form.title,
+                activityTypeId = form.activityTypeId,
+                type = form.goalType,
+                period = form.period,
+                targetValue = form.targetValue.toFloatOrNull() ?: 0f,
+                targetUnit = form.targetUnit,
+                status = "ACTIVE",
+                startAt = now
+            )
             goalRepository.insert(goal)
             _form.update { it.copy(saved = true) }
         }

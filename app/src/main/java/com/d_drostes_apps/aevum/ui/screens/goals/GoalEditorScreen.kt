@@ -52,6 +52,12 @@ fun GoalEditorScreen(
 ) {
     val state by viewModel.uiState.collectAsState(initial = GoalEditorUiState())
 
+    // M18.59-FIX: Beim Bearbeiten das bestehende Ziel laden — vorher
+    // zeigte der Editor immer das leere Neu-Formular.
+    LaunchedEffect(goalId) {
+        if (goalId != null) viewModel.loadGoal(goalId)
+    }
+
     LaunchedEffect(state.saved) {
         if (state.saved) onBack()
     }
