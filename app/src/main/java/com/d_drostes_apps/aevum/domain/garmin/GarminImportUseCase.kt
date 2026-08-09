@@ -73,6 +73,13 @@ class GarminImportUseCase @Inject constructor(
             val existing = garminRepository.getActivityByExternalId(activity.externalId)
             if (existing != null) continue
 
+            // M18.61f-FUSION: Garmin-Typ früh auflösen, um manuelle
+            // Sessions desselben Typs zu erkennen (User: "manuell
+            // Krafttraining + Fitnesstracker synchronisiert -> doppelte
+            // Aktivität. Es sollte nur eine sein, frühester Start +
+            // spätester Endpunkt").
+            val typeId = typeIdResolver(activity.activityType)
+
             // 2) Überlappende Sessions kürzen/löschen
             val overlapping = activityRepository.getOverlappingRange(
                 activity.startAt - 1000L,
@@ -84,7 +91,43 @@ class GarminImportUseCase @Inject constructor(
             // nie den Schlaf.
             val splittable = overlapping.filter { it.activityTypeId != "sleep" }
 
+            // M18.61f-FUSION: Gibt es eine MANUELLE Session mit demselben
+            // Aktivitätstyp im Überlappungsbereich? Dann wird NICHT
+            // gesplittet, sondern fusioniert: frühester Start + spätester
+            // Endpunkt, eine Session. (Garmin-Auto-Sessions werden nicht
+            // fusioniert — die sind bereits der Import selbst.)
+            val manualMatch = splittable.firstOrNull {
+                it.sourceType != "GARMIN_AUTO" &&
+                    it.activityTypeId != null &&
+                    it.activityTypeId == typeId
+            }
+
             val now = System.currentTimeMillis()
+            if (manualMatch != null) {
+                // FUSION: manuelle Session erweitern auf [min(Start), max(Ende)]
+                val fusedStart = minOf(manualMatch.startAt, activity.startAt)
+                val fusedEnd = maxOf(manualMatch.endAt ?: now, activity.endAt)
+                activityRepository.update(
+                    manualMatch.copy(
+                        startAt = fusedStart,
+                        endAt = fusedEnd,
+                        title = manualMatch.title,
+                        updatedAt = now,
+                        revision = manualMatch.revision + 1
+                    )
+                )
+                // Garmin-Aktivität als importiert markieren (Link auf die
+                // fusionierte Session — kein neuer Eintrag).
+                garminRepository.upsertActivity(
+                    activity.copy(
+                        sessionId = manualMatch.id,
+                        importedAt = now
+                    )
+                )
+                imported++
+                continue
+            }
+
             for (session in splittable) {
                 val sessionStart = session.startAt
                 val sessionEnd = session.endAt ?: now
@@ -162,7 +205,6 @@ class GarminImportUseCase @Inject constructor(
             }
 
             // 3) Neue Garmin-Session eintragen (FK-sicher aufgelöst)
-            val typeId = typeIdResolver(activity.activityType)
             val session = ActivitySession(
                 id = UUID.randomUUID().toString(),
                 title = activity.title,

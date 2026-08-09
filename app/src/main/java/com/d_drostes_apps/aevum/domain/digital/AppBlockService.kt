@@ -23,6 +23,7 @@ import android.widget.TextView
 import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.AppLimit
 import com.d_drostes_apps.aevum.data.repository.AppLimitRepository
+import com.d_drostes_apps.aevum.data.repository.BalanceProfileRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,8 @@ class AppBlockService : Service() {
 
     @Inject lateinit var appLimitRepository: AppLimitRepository
     @Inject lateinit var aggregator: AppUsageAggregator
+    // M18.61f: Profile — aktives Profil sperrt ALLE zugeordneten Apps
+    @Inject lateinit var balanceProfileRepository: BalanceProfileRepository
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val handler = Handler(Looper.getMainLooper())
@@ -101,6 +104,19 @@ class AppBlockService : Service() {
         if (pkg == ignoredTodayPkg) return // "Heute ignorieren" aktiv
 
         scope.launch {
+            // M18.61f: Aktives Profil? Dann sind ALLE Profil-Apps gesperrt
+            // (unabhängig von individuellen Limits) — z.B. Lern-Profil
+            // sperrt Social Media komplett.
+            val activeProfile = balanceProfileRepository.getActiveOnce()
+            if (activeProfile != null) {
+                val profileApps = balanceProfileRepository.getAppPackages(activeProfile.id)
+                if (pkg in profileApps) {
+                    lastForegroundPkg = pkg
+                    handler.post { showOverlay(pkg, null, activeProfile.name) }
+                    return@launch
+                }
+            }
+
             val limit = appLimitRepository.getByPackageOnce(pkg)
             if (limit == null || !limit.enabled) return@launch
             val used = aggregator.usageTodayFor(pkg)
@@ -108,7 +124,7 @@ class AppBlockService : Service() {
             val blocked = AppLimitChecker.isBlocked(limit, used, now)
             if (blocked) {
                 lastForegroundPkg = pkg
-                handler.post { showOverlay(pkg, limit) }
+                handler.post { showOverlay(pkg, limit, null) }
             } else {
                 // M18.61: Warnschwelle 80% (Google-Muster) — einmalige
                 // Benachrichtigung, wenn das Limit fast erreicht ist.
@@ -139,7 +155,7 @@ class AppBlockService : Service() {
         } catch (_: Exception) { null }
     }
 
-    private fun showOverlay(pkg: String, limit: AppLimit) {
+    private fun showOverlay(pkg: String, limit: AppLimit?, profileName: String?) {
         if (overlayView != null) return
         currentBlockedPkg = pkg
 
@@ -152,7 +168,11 @@ class AppBlockService : Service() {
         } catch (_: Exception) { pkg }
         view.findViewById<TextView>(R.id.block_title).text = "$label gesperrt"
         view.findViewById<TextView>(R.id.block_subtitle).text =
-            "Tägliches Limit von ${limit.limitMinutes} Minuten erreicht."
+            if (profileName != null) {
+                "Profil \"$profileName\" ist aktiv — diese App ist gesperrt."
+            } else {
+                "Tägliches Limit von ${limit?.limitMinutes ?: 0} Minuten erreicht."
+            }
 
         view.findViewById<Button>(R.id.block_extend).setOnClickListener {
             extensionGrantedFor = pkg

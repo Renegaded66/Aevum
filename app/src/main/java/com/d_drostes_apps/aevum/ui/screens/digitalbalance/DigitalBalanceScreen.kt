@@ -11,13 +11,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
@@ -30,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -37,14 +41,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +66,7 @@ import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /**
@@ -92,6 +102,50 @@ fun DigitalBalanceScreen(
         return
     }
 
+    // M18.61f: Zwei Seiten — Balance & Pomodoro — per Swipe (HorizontalPager).
+    // Oben ein dezenter Seiten-Indikator, damit klar ist, dass man swipen kann.
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.xs),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf("Balance", "Pomodoro").forEachIndexed { index, label ->
+                val selected = pagerState.currentPage == index
+                Text(
+                    label,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AevumRadius.full))
+                        .clickable { scope.launch { pagerState.animateScrollToPage(index) } }
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+            }
+        }
+        androidx.compose.foundation.pager.HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            if (page == 0) {
+                BalancePage(state, viewModel)
+            } else {
+                PomodoroPage(viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BalancePage(
+    state: DigitalBalanceUiState,
+    viewModel: DigitalBalanceViewModel
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
@@ -99,6 +153,8 @@ fun DigitalBalanceScreen(
     ) {
         item { TodayHeroCard(state, onRefresh = viewModel::refresh) }
         item { RangeStatsCard(state, onRangeChange = viewModel::setRangeDays) }
+        // M18.61f: Profile-Karte (Lern-Profil sperrt Social Media)
+        item { ProfilesCard(viewModel) }
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -394,23 +450,41 @@ private fun AppLimitCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                // App-Icon-Kreis (erster Buchstabe)
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (app.isBlocked) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
-                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        app.appLabel.take(1).uppercase(),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (app.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                    )
+                // M18.61f: ECHTES App-Icon (Drawable aus dem PackageManager)
+                // statt Buchstaben-Kreis. Fallback: erster Buchstabe.
+                val appIcon = app.icon
+                if (appIcon != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = BitmapPainter(drawableToBitmap(appIcon)),
+                            contentDescription = app.appLabel,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (app.isBlocked) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            app.appLabel.take(1).uppercase(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (app.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -618,4 +692,314 @@ private fun AppLimitEditorDialog(
             }
         }
     )
+}
+
+// ===================== M18.61f: PROFILE =====================
+
+/**
+ * Profile-Karte: erstellt Profile (z.B. "Lernen" sperrt Social Media),
+ * zeigt aktive Profile, aktiviert/deaktiviert sie per Toggle.
+ */
+@Composable
+private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
+    val profiles by viewModel.profiles.collectAsStateWithLifecycle()
+    val activeProfile by viewModel.activeProfile.collectAsStateWithLifecycle()
+    var showCreate by remember { mutableStateOf(false) }
+
+    AevumCard(variant = CardVariant.Gradient) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Profile", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                TextButton(onClick = { showCreate = true }) {
+                    Text("+ Neu", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+            if (profiles.isEmpty()) {
+                Text(
+                    "Erstelle Profile, um mehrere Apps auf einmal zu sperren — z.B. ein Lern-Profil, das alle Social-Media-Apps blockiert.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            profiles.forEach { profile ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AevumRadius.md))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    Text(profile.icon, fontSize = 20.sp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(profile.name, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (activeProfile?.id == profile.id) "Aktiv — Apps gesperrt" else "Inaktiv",
+                            fontSize = 11.sp,
+                            color = if (activeProfile?.id == profile.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = activeProfile?.id == profile.id,
+                        onCheckedChange = { checked ->
+                            if (checked) viewModel.setProfileActive(profile.id)
+                            else viewModel.deactivateProfile()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showCreate) {
+        ProfileCreateDialog(
+            viewModel = viewModel,
+            onDismiss = { showCreate = false }
+        )
+    }
+}
+
+/**
+ * Dialog zum Erstellen eines Profils: Name + Icon + App-Auswahl
+ * (alle installierten Apps mit Namen + echten Icons).
+ */
+@Composable
+private fun ProfileCreateDialog(
+    viewModel: DigitalBalanceViewModel,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var icon by remember { mutableStateOf("📚") }
+    val icons = listOf("📚", "💼", "🧘", "🎮", "🎵", "📱", "🌙", "🏋️")
+    val installedApps by remember { mutableStateOf(loadInstalledApps(viewModel.appContext())) }
+    val selected = remember { mutableStateListOf<String>() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Neues Profil", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text("Name", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.material3.OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text("z.B. Lernen") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Icon", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    icons.forEach { i ->
+                        Text(
+                            i,
+                            fontSize = 22.sp,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(if (icon == i) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable { icon = i }
+                                .padding(8.dp)
+                        )
+                    }
+                }
+                Text("Apps sperren", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                installedApps.forEach { app ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.md))
+                            .clickable {
+                                if (selected.contains(app.first)) selected.remove(app.first)
+                                else selected.add(app.first)
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        val appDrawable = app.second
+                        if (appDrawable != null) {
+                            androidx.compose.foundation.Image(
+                                painter = BitmapPainter(drawableToBitmap(appDrawable)),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.size(24.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) { Text(app.first.take(1).uppercase(), fontSize = 12.sp) }
+                        }
+                        Text(app.first, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        if (selected.contains(app.first)) {
+                            Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank() && selected.isNotEmpty()) {
+                        viewModel.createProfile(name.trim(), icon, "#6366F1", selected.toList())
+                        onDismiss()
+                    }
+                },
+                enabled = name.isNotBlank() && selected.isNotEmpty()
+            ) { Text("Erstellen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}
+
+private fun loadInstalledApps(context: android.content.Context): List<Pair<String, android.graphics.drawable.Drawable?>> {
+    return try {
+        val pm = context.packageManager
+        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        pm.queryIntentActivities(intent, 0)
+            .sortedBy { it.loadLabel(pm).toString().lowercase() }
+            .map { it.loadLabel(pm).toString() to it.loadIcon(pm) }
+    } catch (_: Exception) { emptyList() }
+}
+
+/**
+ * M18.61f: Drawable → ImageBitmap (für App-Icons in Compose).
+ * rememberDrawablePainter existiert in dieser Compose-Version nicht.
+ */
+private fun drawableToBitmap(drawable: android.graphics.drawable.Drawable): ImageBitmap {
+    return try {
+        val width = drawable.intrinsicWidth.coerceAtLeast(1)
+        val height = drawable.intrinsicHeight.coerceAtLeast(1)
+        val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        bitmap.asImageBitmap()
+    } catch (_: Exception) {
+        // Fallback: 1x1 transparentes Bitmap
+        android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+    }
+}
+
+// ===================== M18.61f: POMODORO =====================
+
+/**
+ * Pomodoro-Seite: Fokus-Timer mit Phasen (Fokus/Kurzpause/Lange Pause),
+ * Start/Pause, Reset, Minuten-Wahl. Kompakt und nicht überladen.
+ */
+@Composable
+private fun PomodoroPage(viewModel: DigitalBalanceViewModel) {
+    val pomodoro by viewModel.pomodoro.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+    ) {
+        // Phasen-Auswahl
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DigitalBalanceViewModel.PomodoroPhase.entries.forEach { phase ->
+                val selected = pomodoro.phase == phase
+                FilterChip(
+                    selected = selected,
+                    onClick = { viewModel.setPomodoroPhase(phase) },
+                    label = { Text(phase.label, fontSize = 12.sp) }
+                )
+            }
+        }
+
+        // Minuten-Wahl (nur im Fokus)
+        if (pomodoro.phase == DigitalBalanceViewModel.PomodoroPhase.FOCUS) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Dauer:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                listOf(15, 25, 45, 60).forEach { min ->
+                    FilterChip(
+                        selected = pomodoro.customMinutes == min,
+                        onClick = { viewModel.setPomodoroMinutes(min) },
+                        label = { Text("$min min", fontSize = 12.sp) }
+                    )
+                }
+            }
+        }
+
+        // Großer Timer
+        AevumCard(variant = CardVariant.Gradient) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text(
+                    pomodoro.phase.label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "%02d:%02d".format(pomodoro.remainingSeconds / 60, pomodoro.remainingSeconds % 60),
+                    fontSize = 56.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = (-1).sp
+                )
+                // Fortschrittsring
+                val progress = if (pomodoro.totalSeconds > 0) {
+                    pomodoro.remainingSeconds.toFloat() / pomodoro.totalSeconds
+                } else 0f
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(AevumRadius.full))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(AevumRadius.full))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+                Text(
+                    "Abgeschlossene Fokus-Sessions: ${pomodoro.completedFocusSessions}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                    Button(
+                        onClick = viewModel::togglePomodoro,
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text(if (pomodoro.running) "⏸ Pause" else "▶ Start", fontSize = 14.sp)
+                    }
+                    OutlinedButton(
+                        onClick = viewModel::resetPomodoro,
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text("↺ Reset", fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        Text(
+            "Tipp: Nutze den Fokus-Timer zusammen mit einem Profil — während des Lernens bleiben Social-Media-Apps gesperrt.",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
 }

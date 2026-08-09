@@ -49,12 +49,16 @@ import com.d_drostes_apps.aevum.data.model.*
         // M18.60: Pro-Tag-Overrides der Tagespauschalen
         AllowanceDayOverride::class,
         // M18.61: Digital Balance — App-Limits
-        AppLimit::class
+        AppLimit::class,
+        // M18.61f: Digital Balance — Profile (z.B. "Lernen" sperrt Social Media)
+        BalanceProfile::class,
+        BalanceProfileApp::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
     // M18.61: v26 — app_limit Tabelle (Digital Balance).
-    version = 27,
+    // M18.61f: v28 — balance_profile + balance_profile_app.
+    version = 28,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -79,6 +83,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun appUsageSampleDao(): AppUsageSampleDao
     // M18.61: Digital Balance — App-Limits
     abstract fun appLimitDao(): AppLimitDao
+    abstract fun balanceProfileDao(): BalanceProfileDao
     abstract fun activitySessionChangeDao(): ActivitySessionChangeDao
     abstract fun sessionEvidenceDao(): SessionEvidenceDao
     abstract fun activityAggregateDayDao(): ActivityAggregateDayDao
@@ -1191,6 +1196,31 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("DROP INDEX IF EXISTS `index_app_limit_package_name`")
                 database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_app_limit_package_name` ON `app_limit` (`package_name`)")
+            }
+        }
+
+        // M18.61f: Digital Balance — Profile (Lern-Profil sperrt Social Media)
+        val MIGRATION_27_28 = object : Migration(27, 28) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `balance_profile` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`icon` TEXT NOT NULL, " +
+                        "`color` TEXT NOT NULL, " +
+                        "`is_active` INTEGER NOT NULL, " +
+                        "`created_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_balance_profile_name` ON `balance_profile` (`name`)")
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `balance_profile_app` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`profile_id` TEXT NOT NULL, " +
+                        "`package_name` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_balance_profile_app_profile_id_package_name` ON `balance_profile_app` (`profile_id`, `package_name`)")
             }
         }
     }
