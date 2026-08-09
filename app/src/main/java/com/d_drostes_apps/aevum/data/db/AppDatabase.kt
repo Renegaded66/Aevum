@@ -54,7 +54,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
     // M18.61: v26 — app_limit Tabelle (Digital Balance).
-    version = 26,
+    version = 27,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1176,7 +1176,21 @@ abstract class AppDatabase : RoomDatabase() {
                         "`updated_at` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`package_name`))"
                 )
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_app_limit_package_name` ON `app_limit` (`package_name`)")
+                // M18.61b-HOTFIX: Room-Schema erwartet UNIQUE-Index (Entity:
+                // Index(value=["package_name"], unique=true)). Die erste
+                // Veröffentlichung erstellte einen nicht-uniquen Index —
+                // das führte zum Validierungs-Crash beim App-Start.
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_app_limit_package_name` ON `app_limit` (`package_name`)")
+            }
+        }
+
+        // M18.61b-HOTFIX: Reparatur für Geräte, die bereits v26 mit dem
+        // nicht-uniquen Index erreicht haben (App-Crash beim Start).
+        // Der Index wird gelöscht und als UNIQUE neu erstellt.
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP INDEX IF EXISTS `index_app_limit_package_name`")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_app_limit_package_name` ON `app_limit` (`package_name`)")
             }
         }
     }
