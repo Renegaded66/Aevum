@@ -40,6 +40,68 @@ class AppUsageAggregator @Inject constructor(
         val totalMs: Long
     )
 
+    data class TodayDetail(
+        val totalMs: Long,
+        val unlockCount: Int,
+        val hourlyMs: List<Long> // 24 Einträge, ms pro Stunde
+    )
+
+    /**
+     * M18.61: Detaillierte Heute-Statistik: Gesamtzeit, Unlocks
+     * (Anzahl der MOVE_TO_FOREGROUND-Events) und Stunden-Breakdown
+     * (24 Balken — Google-Digital-Wellbeing-Muster).
+     */
+    suspend fun todayDetail(): TodayDetail = withContext(Dispatchers.IO) {
+        try {
+            val zone = ZoneId.systemDefault()
+            val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+            val now = System.currentTimeMillis()
+            val events = usageStats.queryEvents(startOfDay, now) ?: return@withContext TodayDetail(0, 0, List(24) { 0L })
+
+            val foregroundSince = HashMap<String, Long>()
+            val totals = HashMap<String, Long>()
+            val hourly = LongArray(24)
+            var unlocks = 0
+            val event = UsageEvents.Event()
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                when (event.eventType) {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND,
+                    UsageEvents.Event.ACTIVITY_RESUMED -> {
+                        foregroundSince[event.packageName] = event.timeStamp
+                        unlocks++
+                    }
+                    UsageEvents.Event.MOVE_TO_BACKGROUND,
+                    UsageEvents.Event.ACTIVITY_PAUSED,
+                    UsageEvents.Event.ACTIVITY_STOPPED -> {
+                        foregroundSince.remove(event.packageName)?.let { start ->
+                            val dur = (event.timeStamp - start).coerceAtLeast(0L)
+                            totals[event.packageName] = (totals[event.packageName] ?: 0L) + dur
+                            // Stunden-Bucket: Start-Stunde der Nutzung
+                            val hour = java.time.Instant.ofEpochMilli(start).atZone(zone).hour
+                            hourly[hour.coerceIn(0, 23)] += dur
+                        }
+                    }
+                }
+            }
+            foregroundSince.forEach { (pkg, start) ->
+                val dur = (now - start).coerceAtLeast(0L)
+                totals[pkg] = (totals[pkg] ?: 0L) + dur
+                val hour = java.time.Instant.ofEpochMilli(start).atZone(zone).hour
+                hourly[hour.coerceIn(0, 23)] += dur
+            }
+
+            TodayDetail(
+                totalMs = totals.values.sum(),
+                unlockCount = unlocks,
+                hourlyMs = hourly.toList()
+            )
+        } catch (_: Exception) {
+            TodayDetail(0, 0, List(24) { 0L })
+        }
+    }
+
     /**
      * Nutzung pro App HEUTE (seit Mitternacht) via Event-API.
      * Liefert nur Apps mit > 0 Nutzung, sortiert absteigend.

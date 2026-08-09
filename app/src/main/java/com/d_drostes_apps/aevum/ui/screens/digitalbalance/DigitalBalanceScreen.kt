@@ -170,36 +170,117 @@ private fun TodayHeroCard(
                     Icon(Icons.Default.Refresh, contentDescription = "Aktualisieren", modifier = Modifier.size(16.dp))
                 }
             }
-            Text(
-                DigitalBalanceViewModel.formatDuration(state.todayTotalMs),
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Light,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = (-1).sp
-            )
-            Text(
-                "Bildschirmzeit · ${state.todayAppCount} Apps",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (state.topAppName != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                    Text("Top:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            // M18.61: Ring-Diagramm (Google-Digital-Wellbeing-Muster) —
+            // Füllung = verbrauchte Zeit vs. Tagesziel (5h), Mitte = Zeit.
+            val goalMs = state.dailyGoalMs
+            val progress = (state.todayTotalMs.toFloat() / goalMs).coerceIn(0f, 1f)
+            val ringColor = when {
+                progress >= 1f -> MaterialTheme.colorScheme.error
+                progress >= 0.8f -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.primary
+            }
+            // Farben vor dem Canvas-DrawScope extrahieren (Compose-Regel:
+            // @Composable-Zugriffe nur im Composable-Kontext)
+            val trackColor = MaterialTheme.colorScheme.surfaceVariant
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .align(Alignment.CenterHorizontally),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                    val stroke = 12.dp.toPx()
+                    val inset = stroke / 2
+                    drawArc(
+                        color = trackColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                        topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
+                        size = androidx.compose.ui.geometry.Size(size.width - 2 * inset, size.height - 2 * inset)
+                    )
+                    drawArc(
+                        color = ringColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * progress,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                        topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
+                        size = androidx.compose.ui.geometry.Size(size.width - 2 * inset, size.height - 2 * inset)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        state.topAppName,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        DigitalBalanceViewModel.formatDuration(state.todayTotalMs),
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Light,
+                        fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        "· ${DigitalBalanceViewModel.formatDuration(state.topAppMs)}",
-                        fontSize = 12.sp,
+                        "von ${DigitalBalanceViewModel.formatDuration(goalMs)} Ziel",
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+
+            // Drei Metriken nebeneinander (Google-Muster)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                HeroMetric("Apps", state.todayAppCount.toString())
+                HeroMetric("Unlocks", state.unlockCount.toString())
+                HeroMetric("Top", state.topAppName?.take(8) ?: "—")
+            }
+
+            // M18.61: 24-Stunden-Breakdown (Google-Muster: "ablenkend
+            // zwischen 14–16 Uhr" erkennen)
+            val maxHour = (state.hourlyMs.maxOrNull() ?: 0L).coerceAtLeast(1L)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                state.hourlyMs.forEachIndexed { hour, ms ->
+                    val frac = ms.toFloat() / maxHour
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height((frac * 40f).coerceAtLeast(if (ms > 0) 3f else 1.5f).dp)
+                            .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                            .background(
+                                if (ms > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            )
+                    )
+                }
+            }
+            Text(
+                "Nutzung pro Stunde (0–24 Uhr)",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
+    }
+}
+
+@Composable
+private fun HeroMetric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

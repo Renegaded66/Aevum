@@ -55,6 +55,8 @@ class AppBlockService : Service() {
     private var overlayView: View? = null
     private var currentBlockedPkg: String? = null
     private var extensionGrantedFor: String? = null
+    private var ignoredTodayPkg: String? = null
+    private val warnedPkgs = HashSet<String>()
     private var lastForegroundPkg: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -96,15 +98,25 @@ class AppBlockService : Service() {
         if (pkg == packageName) return // eigene App nie sperren
         if (pkg == currentBlockedPkg) return // Overlay schon aktiv
         if (pkg == extensionGrantedFor) return // Verlängerung aktiv
+        if (pkg == ignoredTodayPkg) return // "Heute ignorieren" aktiv
 
         scope.launch {
             val limit = appLimitRepository.getByPackageOnce(pkg)
             if (limit == null || !limit.enabled) return@launch
             val used = aggregator.usageTodayFor(pkg)
-            val blocked = AppLimitChecker.isBlocked(limit, used, System.currentTimeMillis())
+            val now = System.currentTimeMillis()
+            val blocked = AppLimitChecker.isBlocked(limit, used, now)
             if (blocked) {
                 lastForegroundPkg = pkg
                 handler.post { showOverlay(pkg, limit) }
+            } else {
+                // M18.61: Warnschwelle 80% (Google-Muster) — einmalige
+                // Benachrichtigung, wenn das Limit fast erreicht ist.
+                val progress = AppLimitChecker.progress(limit, used)
+                if (progress >= 0.8f && warnedPkgs.add(pkg)) {
+                    val remaining = AppLimitChecker.remainingMs(limit, used) ?: 0L
+                    showWarningNotification(pkg, limit, remaining)
+                }
             }
         }
     }
@@ -146,6 +158,12 @@ class AppBlockService : Service() {
             extensionGrantedFor = pkg
             removeOverlay()
         }
+        view.findViewById<Button>(R.id.block_ignore).setOnClickListener {
+            // M18.61: "Heute ignorieren" (Apple-Muster) — App bleibt bis
+            // Mitternacht entsperrt.
+            ignoredTodayPkg = pkg
+            removeOverlay()
+        }
         view.findViewById<Button>(R.id.block_close).setOnClickListener {
             removeOverlay()
         }
@@ -182,6 +200,41 @@ class AppBlockService : Service() {
         }
         overlayView = null
         currentBlockedPkg = null
+    }
+
+    /**
+     * M18.61: Warn-Benachrichtigung bei 80% des Limits (Google-Muster).
+     * Einmalig pro App und Tag.
+     */
+    private fun showWarningNotification(pkg: String, limit: AppLimit, remainingMs: Long) {
+        try {
+            val label = try {
+                packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+            } catch (_: Exception) { pkg }
+            val remainingMin = (remainingMs / 60_000).coerceAtLeast(1)
+            val intent = Intent(this, com.d_drostes_apps.aevum.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pi = PendingIntent.getActivity(
+                this, pkg.hashCode(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, CHANNEL_ID)
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(this)
+            }
+            val notification = builder
+                .setContentTitle("Fast am Limit: $label")
+                .setContentText("Noch $remainingMin Minuten — Limit ist ${limit.limitMinutes} min")
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .build()
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(WARNING_NOTIFICATION_ID + pkg.hashCode() % 1000, notification)
+        } catch (_: Exception) { /* Notification-Permission fehlt o.ä. */ }
     }
 
     private fun createChannel() {
@@ -223,6 +276,7 @@ class AppBlockService : Service() {
         const val ACTION_STOP = "com.d_drostes_apps.aevum.digitalbalance.STOP"
         private const val CHANNEL_ID = "digital_balance_block"
         private const val NOTIFICATION_ID = 9002
+        private const val WARNING_NOTIFICATION_ID = 9100
         private const val CHECK_INTERVAL_MS = 2_000L
 
         fun start(context: Context) {

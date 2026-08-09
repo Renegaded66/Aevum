@@ -39,6 +39,9 @@ data class DigitalBalanceUiState(
     val todayAppCount: Int = 0,
     val topAppName: String? = null,
     val topAppMs: Long = 0L,
+    val unlockCount: Int = 0,
+    val hourlyMs: List<Long> = List(24) { 0L },
+    val dailyGoalMs: Long = 5 * 60 * 60 * 1000L, // Tagesziel: 5h (Google-Default)
     val rangeDays: Int = 7,
     val dailyTotals: List<Pair<LocalDate, Long>> = emptyList(),
     val apps: List<DigitalAppUi> = emptyList(),
@@ -73,6 +76,7 @@ class DigitalBalanceViewModel @Inject constructor(
         val todayUsage = aggregator.todayUsageByApp()
         val rangeUsage = aggregator.rangeUsageByApp(days)
         val daily = aggregator.dailyTotals(days).map { it.date to it.totalMs }
+        val detail = aggregator.todayDetail()
         val now = System.currentTimeMillis()
 
         val limitMap = limits.associateBy { it.packageName }
@@ -101,6 +105,8 @@ class DigitalBalanceViewModel @Inject constructor(
             todayAppCount = apps.size,
             topAppName = apps.firstOrNull()?.appLabel,
             topAppMs = apps.firstOrNull()?.todayMs ?: 0L,
+            unlockCount = detail.unlockCount,
+            hourlyMs = detail.hourlyMs,
             rangeDays = days,
             dailyTotals = daily,
             apps = apps,
