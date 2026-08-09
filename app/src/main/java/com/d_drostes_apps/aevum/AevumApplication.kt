@@ -24,6 +24,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
 import javax.inject.Inject
@@ -66,6 +67,11 @@ class AevumApplication : Application() {
         // (recordForegroundEvent("ON")). Dieser Pfad muss daher ebenfalls
         // die Heuristic-Engine anstoßen, sonst läuft sie nie.
         fun sleepHeuristicEngine(): com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicEngine
+        // M18.61e: Selbstheilung — Geofencing aktivieren, wenn Geofences
+        // existieren, aber das Gate (noch) aus ist (Bestandsinstallationen
+        // vor dem Editor-Fix).
+        fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+        fun geofenceRepository(): com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
     }
 
     /**
@@ -156,6 +162,32 @@ class AevumApplication : Application() {
                 )
         } catch (e: Exception) {
             Log.e("AevumApplication", "Geofence-Refresh (immediate) failed — continuing", e)
+        }
+        // M18.61e-SELBSTHEILUNG: Wenn Geofences existieren, aber das
+        // Geofencing-Gate (noch) aus ist, wird es aktiviert. Root Cause
+        // "kein einziger Trigger": Der Geofence-Editor setzte das Gate
+        // nie (Default false) — der Registrar deregistrierte gespeicherte
+        // Geofences sofort wieder. Bestandsinstallationen (Geofence schon
+        // gespeichert) werden hier einmalig geheilt.
+        try {
+            val deps = EntryPointAccessors.fromApplication(this, Deps::class.java)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val settingsRepo = deps.settingsRepository()
+                    val geofenceRepo = deps.geofenceRepository()
+                    val settings = settingsRepo.get().first()
+                    val hasGeofences = geofenceRepo.getAllEnabled().first().isNotEmpty()
+                    if (hasGeofences && settings?.geofencingEnabled != true) {
+                        settingsRepo.upsert(settings?.copy(geofencingEnabled = true)
+                            ?: com.d_drostes_apps.aevum.data.model.AutomationSettings(geofencingEnabled = true))
+                        Log.d("AevumApplication", "Selbstheilung: Geofencing aktiviert (${geofenceRepo.getAllEnabled().first().size} Geofences)")
+                    }
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "Geofencing-Selbstheilung failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Geofencing-Selbstheilung init failed — continuing", e)
         }
         // M18.58: Garmin Connect Sync — alle 30 min (Schritte/Kalorien/
         // Distanz-Kacheln + Aktivitäts-Import). Schlaf-Import läuft über

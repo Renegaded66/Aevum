@@ -14,11 +14,13 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SpaceDashboard
 import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -206,7 +208,9 @@ private data class MainTab(
         AppDestination.Dashboard -> Icons.Outlined.SpaceDashboard
         AppDestination.Insights -> Icons.Outlined.Insights
         AppDestination.Calendar -> Icons.Outlined.CalendarMonth
-        AppDestination.DigitalBalance -> Icons.Outlined.Insights
+        // M18.61e-FIX: Digital Balance hatte Icons.Outlined.Insights —
+        // identisch mit dem Insights-Tab (User: "3 Zeichen fast identisch").
+        AppDestination.DigitalBalance -> Icons.Outlined.Timer
         AppDestination.Timeline -> Icons.Outlined.Timeline
         AppDestination.Settings -> Icons.Outlined.Settings
         else -> Icons.Outlined.SpaceDashboard
@@ -215,7 +219,7 @@ private data class MainTab(
         AppDestination.Dashboard -> Icons.Filled.SpaceDashboard
         AppDestination.Insights -> Icons.Filled.Insights
         AppDestination.Calendar -> Icons.Filled.CalendarMonth
-        AppDestination.DigitalBalance -> Icons.Filled.Insights
+        AppDestination.DigitalBalance -> Icons.Filled.Timer
         AppDestination.Timeline -> Icons.Filled.Timeline
         AppDestination.Settings -> Icons.Filled.Settings
         else -> Icons.Filled.SpaceDashboard

@@ -276,16 +276,34 @@ data class DigitalDayStats(
  * "Protected permission" — must be granted via Settings, not at runtime.
  */
 object UsageStatsPermission {
+    /**
+     * M18.61e-FIX (User: "Berechtigung wird dauerhaft als fehlend
+     * angezeigt, obwohl sie erteilt wurde"): Der alte Check fragte
+     * queryUsageStats in einem 1-Sekunden-Fenster ab — wenn in dieser
+     * Sekunde kein Usage-Event anfiel, kam eine leere Liste zurück und
+     * die Permission galt als fehlend, obwohl sie erteilt war.
+     *
+     * Der zuverlässige Weg ist der AppOps-Check (OPSTR_GET_USAGE_STATS):
+     * der spiegelt exakt den Schalter in den System-Settings wider.
+     */
     fun isGranted(context: android.content.Context): Boolean {
         return try {
-            val now = System.currentTimeMillis()
-            val mgr = context.getSystemService(android.content.Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
-            val stats = mgr.queryUsageStats(
-                android.app.usage.UsageStatsManager.INTERVAL_DAILY,
-                now - 1000,
-                now
-            )
-            !stats.isNullOrEmpty()
+            val appOps = context.getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                appOps.unsafeCheckOpNoThrow(
+                    android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    context.packageName
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                appOps.checkOpNoThrow(
+                    android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(),
+                    context.packageName
+                )
+            }
+            mode == android.app.AppOpsManager.MODE_ALLOWED
         } catch (_: Exception) { false }
     }
 

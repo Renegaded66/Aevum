@@ -935,7 +935,23 @@ class TriggerSettingsViewModel @Inject constructor(
         }
     }
 
-    fun setDriving(enabled: Boolean) = upsert { it.copy(drivingDetectionEnabled = enabled) }
+    fun setDriving(enabled: Boolean) {
+        upsert { it.copy(drivingDetectionEnabled = enabled) }
+        // M18.61e-FIX: Beim Aktivieren die Activity-Transitions (neu)
+        // registrieren. Vorher geschah das nur beim App-Start — wenn die
+        // App damals crashte (DB-Bug) oder GMS nicht bereit war, blieben
+        // die Transitions dauerhaft unregistriert und es kam nie ein
+        // IN_VEHICLE-Event (keine Autofahrt-Erkennung).
+        if (enabled) {
+            viewModelScope.launch {
+                try {
+                    com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionRegistrar.register(app)
+                } catch (e: Exception) {
+                    Log.e("TriggerSettings", "Activity-Recognition-Registrierung fehlgeschlagen", e)
+                }
+            }
+        }
+    }
     fun setWalking(enabled: Boolean) = upsert { it.copy(walkingDetectionEnabled = enabled) }
     fun setBicycle(enabled: Boolean) = upsert { it.copy(bicycleDetectionEnabled = enabled) }
 

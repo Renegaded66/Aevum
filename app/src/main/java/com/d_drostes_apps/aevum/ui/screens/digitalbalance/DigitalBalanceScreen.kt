@@ -73,6 +73,20 @@ fun DigitalBalanceScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // M18.61e-FIX: Nach Rückkehr aus den System-Settings (Permission
+    // erteilt) sofort neu prüfen. Vorher blieb die PermissionCard
+    // dauerhaft stehen, bis man manuell refreshte.
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     if (!state.hasPermission) {
         PermissionCard(onOpenSettings = viewModel::openUsageAccessSettings)
         return

@@ -974,9 +974,13 @@ private fun RunningCard(
             }
 
             // Hero-Timer — nowMs drives a real-time recompose
+            // M18.61e-FIX (User: "Timer Feld ist viel zu groß, richtig
+            // überdimensioniert seit du den neuen button eingefügt hast"):
+            // 64sp war riesig. Auf 40sp reduziert — groß genug für den
+            // Hero-Charakter, aber nicht mehr überdimensioniert.
             Text(
                 text = formatLiveDuration(state.activeMs(nowMs)),
-                fontSize = 64.sp,
+                fontSize = 40.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Light,
                 color = MaterialTheme.colorScheme.onSurface,

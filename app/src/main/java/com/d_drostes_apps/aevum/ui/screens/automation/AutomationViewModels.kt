@@ -186,6 +186,9 @@ class GeofenceEditorViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     private val geofenceRegistrar: GeofenceRegistrar,
     private val currentLocationProvider: CurrentLocationProvider,
+    // M18.61e: Geofencing-Gate beim Speichern automatisch aktivieren
+    // (Root Cause "kein einziger Trigger").
+    private val settingsRepository: AutomationSettingsRepository,
     savedStateHandle: androidx.lifecycle.SavedStateHandle
 ) : ViewModel() {
     private val geofenceId: String? = savedStateHandle["geofenceId"]
@@ -238,7 +241,15 @@ class GeofenceEditorViewModel @Inject constructor(
     fun setActivityType(id: String?, catId: String?) = form.update { it.copy(activityTypeId = id, categoryId = catId ?: it.categoryId, error = null) }
     fun setCoordinates(lat: Double, lon: Double) = form.update { it.copy(latitude = "%.6f".format(Locale.US, lat), longitude = "%.6f".format(Locale.US, lon), error = null) }
     // M11: Automation rules
-    fun setAutoEnabled(v: Boolean) = form.update { it.copy(autoEnabled = v, error = null) }
+    fun setAutoEnabled(v: Boolean) = form.update {
+        // M18.61e-FIX (User: "soll automatisch gestartet werden und beendet
+        // wenn ich geofence Gym betrete und verlasse"): Auto-Start impliziert
+        // Auto-Stop. Vorher blieb autoStopEnabled=false (Default) — die
+        // Session lief nach dem Verlassen endlos weiter. Wer automatisch
+        // startet, will auch automatisch stoppen; explizit ausschalten
+        // kann man es danach immer noch.
+        it.copy(autoEnabled = v, autoStopEnabled = if (v) true else it.autoStopEnabled, error = null)
+    }
     fun setAutoStopEnabled(v: Boolean) = form.update { it.copy(autoStopEnabled = v, error = null) }
     fun setAutoStartActivityTypeId(id: String?) = form.update { it.copy(autoStartActivityTypeId = id, error = null) }
 
@@ -297,6 +308,17 @@ class GeofenceEditorViewModel @Inject constructor(
                     autoStopEnabled = c.autoStopEnabled
                 )
                 geofenceRepository.insert(gf)
+                // M18.61e-FIX (User: "kein einziger Trigger vorhanden"):
+                // Beim Speichern eines Geofences wird Geofencing automatisch
+                // aktiviert. Vorher blieb geofencingEnabled=false (Default),
+                // und der Registrar deregistrierte den frisch gespeicherten
+                // Geofence sofort wieder — keine ENTER/EXIT-Events, keine
+                // Trigger, kein Auto-Start/Stop. Ein angelegter Geofence
+                // muss immer funktionieren.
+                settingsRepository.upsert(
+                    settingsRepository.get().first()?.copy(geofencingEnabled = true)
+                        ?: com.d_drostes_apps.aevum.data.model.AutomationSettings(geofencingEnabled = true)
+                )
                 geofenceRegistrar.refreshRegisteredGeofences()
                 saved.value = true
             } catch (e: Exception) {
