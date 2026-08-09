@@ -502,7 +502,7 @@ private fun QuietChip(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun ActivityPickerSheet(
+fun ActivityPickerSheet(
     activityTypes: List<ActivityType>,
     recents: List<RecentActivityType>,
     favorites: List<ActivityType>,

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import android.util.Log
@@ -58,7 +59,10 @@ class DashboardViewModel @Inject constructor(
     // totalTimeInForeground seit Tagesbeginn (inkl. Nutzung VOR dem
     // Aufwachen). Der Wake-Detector liefert die erste echte Nutzung —
     // damit capen wir die Anzeige auf die Wachzeit.
-    private val usageWakeDetector: com.d_drostes_apps.aevum.automation.sleep.UsageWakeDetector
+    private val usageWakeDetector: com.d_drostes_apps.aevum.automation.sleep.UsageWakeDetector,
+    // M18.58: Garmin Connect — Kachel-Daten (Schritte/Distanz/Kalorien)
+    // + importierte Aktivitäten.
+    private val garminRepository: com.d_drostes_apps.aevum.data.repository.GarminRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
@@ -375,6 +379,82 @@ class DashboardViewModel @Inject constructor(
             emit(DashboardUiState())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+
+    // M18.58: Garmin-Kacheln — Schritte, Distanz, Kalorien für den heutigen Tag.
+    // Die Kacheln erscheinen NUR, wenn Daten synchronisiert wurden (User:
+    // "schöne moderne kleine Kacheln haben, aber nur wenn auch was
+    // synchronisiert ist").
+    private val _garminSummary = MutableStateFlow<com.d_drostes_apps.aevum.data.model.GarminDailySummary?>(null)
+    val garminSummary: StateFlow<com.d_drostes_apps.aevum.data.model.GarminDailySummary?> = _garminSummary.asStateFlow()
+
+    private val _garminActivities = MutableStateFlow<List<com.d_drostes_apps.aevum.data.model.GarminActivity>>(emptyList())
+    val garminActivities: StateFlow<List<com.d_drostes_apps.aevum.data.model.GarminActivity>> = _garminActivities.asStateFlow()
+
+    // M18.58: Güte-Verlauf — Quality-Score pro Tag für die letzten 365 Tage.
+    // Wird on-the-fly aus allen Sessions berechnet (keine neue Aggregations-
+    // Infrastruktur). Die UI wählt das Fenster (7/30/365 Tage) und zeichnet
+    // den Verlauf als animierten Area-Chart.
+    private val _qualityTrend = MutableStateFlow<List<DailyQualityPoint>>(emptyList())
+    val qualityTrend: StateFlow<List<DailyQualityPoint>> = _qualityTrend.asStateFlow()
+
+    init {
+        // M18.58: Alle Sessions beobachten (deletedAt==null via DAO-Filter)
+        // und pro Tag den gewichteten Positivitäts-Score berechnen.
+        viewModelScope.launch {
+            activityRepository.getAll().collect { sessions ->
+                val types = activityTypeRepository.getAll().firstOrNull() ?: emptyList()
+                val typeMap = types.associateBy { it.id }
+                _qualityTrend.value = computeDailyQuality(sessions, typeMap, zoneId)
+            }
+        }
+        // M18.58: Garmin-Tageszusammenfassung + Aktivitäten für heute beobachten.
+        viewModelScope.launch {
+            garminRepository.getSummaryByDate(LocalDate.now().toString()).collect { summary ->
+                _garminSummary.value = summary
+            }
+        }
+        viewModelScope.launch {
+            garminRepository.getActivitiesByRange(start, end).collect { activities ->
+                _garminActivities.value = activities
+            }
+        }
+    }
+
+    /**
+     * M18.58: Berechnet pro Kalendertag den gewichteten Quality-Score
+     * (gleiche Formel wie computeQualityScore, nur tagesweise):
+     * score = Σ(dauer × positivität) / Σ(dauer). Tage ohne Sessions
+     * werden weggelassen — die UI zeichnet nur vorhandene Tage.
+     */
+    private fun computeDailyQuality(
+        sessions: List<ActivitySession>,
+        typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
+        zoneId: ZoneId
+    ): List<DailyQualityPoint> {
+        val dayStartMs = 24L * 60 * 60 * 1000
+        val byDay = mutableMapOf<String, MutableList<ActivitySession>>()
+        sessions.forEach { session ->
+            val day = java.time.Instant.ofEpochMilli(session.startAt).atZone(zoneId).toLocalDate().toString()
+            byDay.getOrPut(day) { mutableListOf() }.add(session)
+        }
+        return byDay.map { (day, daySessions) ->
+            var totalWeight = 0L
+            var weighted = 0.0
+            daySessions.forEach { session ->
+                val duration = (session.endAt ?: System.currentTimeMillis()) - session.startAt
+                if (duration <= 0L) return@forEach
+                val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
+                totalWeight += duration
+                weighted += duration * score
+            }
+            val score = if (totalWeight <= 0L) 0 else (weighted / totalWeight).toInt().coerceIn(0, 100)
+            DailyQualityPoint(
+                date = day,
+                score = score,
+                durationMs = totalWeight
+            )
+        }.sortedBy { it.date }
+    }
 
     private fun buildState(
         sessions: List<ActivitySession>,
@@ -890,4 +970,15 @@ data class DashboardInsight(
     val title: String,
     val message: String,
     val icon: String
+)
+
+/**
+ * M18.58: Ein Punkt im Güte-Verlauf — der gewichtete Quality-Score
+ * (0..100) eines Kalendertags plus erfasste Dauer. Wird für den
+ * 7/30/365-Tage-Verlaufs-Chart im Dashboard genutzt.
+ */
+data class DailyQualityPoint(
+    val date: String,
+    val score: Int,
+    val durationMs: Long
 )

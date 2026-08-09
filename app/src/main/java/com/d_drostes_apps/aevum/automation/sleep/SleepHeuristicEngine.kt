@@ -42,7 +42,11 @@ class SleepHeuristicEngine @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val reviewCandidateUseCase: ReviewCandidateUseCase,
     // M18.45-FIX: UsageStats-Wake-Korrektur (Android 14+ Broadcast-Limit)
-    private val usageWakeDetector: UsageWakeDetector
+    private val usageWakeDetector: UsageWakeDetector,
+    // M18.58: Schlaf-Quellen-Gate. Optional (Tests ohne DAO bleiben
+    // kompatibel). Wenn der User eine andere Schlaf-Quelle gewählt hat
+    // (health_connect/garmin/none), ist die Screen-Heuristik ein No-Op.
+    private val settingsDao: com.d_drostes_apps.aevum.data.db.AutomationSettingsDao? = null
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isInitialized = false
@@ -68,8 +72,27 @@ class SleepHeuristicEngine @Inject constructor(
      */
     suspend fun analyzeLatest() {
         if (!isInitialized) init(appContext)
+        // M18.58: Schlaf-Quellen-Gate — nur bei Quelle "screen" läuft die
+        // Screen-Heuristik. Bei health_connect/garmin/none ist sie No-Op
+        // (die Quelle ist in den Settings die Single Source of Truth).
+        val source = try {
+            settingsDao?.getSettingsSync()?.sleepSource
+        } catch (_: Exception) { null }
+        if (source != null && source != "screen") {
+            android.util.Log.d("SleepHeuristicEngine", "sleepSource=$source — Heuristik No-Op")
+            return
+        }
         val events = screenEventRepository.readAll()
-        if (events.size < 2) return
+        if (events.size < 2) {
+            // M18.58-FIX (User: "die App zeichnet Bildschirmzeiten nur auf,
+            // wenn sie geöffnet ist"): Seit Android 14 kommen SCREEN_ON/OFF-
+            // Broadcasts an Hintergrund-Apps nicht mehr an. Wenn Aevum abends
+            // geschlossen war, fehlen die Events komplett → KEIN Schlaf.
+            // Fallback: UsageStats-Events (MOVE_TO_FOREGROUND) — die längste
+            // Nutzungslücke im Schlaf-Fenster ist die Screen-off-Phase.
+            analyzeFromUsageStatsFallback()
+            return
+        }
 
         val zoneId = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
@@ -286,6 +309,12 @@ class SleepHeuristicEngine @Inject constructor(
         // Schlafaufzeichnung nicht geklappt": Der User sah keinen
         // automatischen Eintrag.
         //
+        // M18.58: acceptAutoDirect — auch Confidence < 0.70 wird direkt
+        // eingetragen (User-Feedback: "Die Schlafzeit wurde immer noch als
+        // Vorschlag angemerkt, den man erst bestätigen musste"). Der
+        // DIRECT-Import ist bewusst, der User will keinen Review-Schritt
+        // für Schlaf.
+        //
         // Warum ist der Screen-Pfad sicher genug für Direkt-Eintrag?
         //   - OFF nach 20:00 + ON zwischen 04:00-11:00 ist ein sehr
         //     starkes Signal (Bildschirm aus = schläft)
@@ -293,11 +322,100 @@ class SleepHeuristicEngine @Inject constructor(
         //     sondern wirklich direkt eingetragen"
         //   - Die Session ist als HEALTH_SLEEP_AUTO markiert und kann in
         //     der Timeline jederzeit bearbeitet/gelöscht werden
-        val result = reviewCandidateUseCase.acceptAuto(listOf(candidate))
+        val result = reviewCandidateUseCase.acceptAutoDirect(listOf(candidate))
         android.util.Log.d(
             "SleepHeuristicEngine",
             "Direkt eingetragen: ${result.accepted} von 1 (Confidence=$confidence, " +
                     "Window=${formatHm(offEvent.timestamp, zoneId)}–${formatHm(finalWakeMs, zoneId)})"
+        )
+    }
+
+    /**
+     * M18.58: Schlaf-Erkennung ohne ScreenEvents — UsageStats-Fallback.
+     *
+     * User-Feedback ("die App zeichnet Bildschirmzeiten nur auf, wenn sie
+     * geöffnet ist"): Seit Android 14 liefern SCREEN_ON/OFF-Broadcasts an
+     * Hintergrund-Apps nicht mehr an. Wenn der User abends die App
+     * schließt und morgens wieder öffnet, fehlen beide Events → die
+     * Heuristik hatte nie genug Daten.
+     *
+     * UsageStats (PACKAGE_USAGE_STATS-Permission) kennt die echte
+     * App-Nutzung: MOVE_TO_FOREGROUND-Events. Die LÄNGSTE Lücke zwischen
+     * zwei Nutzungen im Schlaf-Fenster (20:00–02:00 → 04:00–11:59) ist
+     * die Screen-off-Phase = Schlaf. Das wird als Candidate erzeugt und
+     * direkt eingetragen (User-Wunsch: Schlaf ohne Bestätigung).
+     *
+     * Wichtig: Dieser Pfad braucht die Nutzungszugriffs-Berechtigung.
+     * Ohne sie bleibt er ein No-Op (kein Crash, kein Fehl-Alarm).
+     */
+    private suspend fun analyzeFromUsageStatsFallback() {
+        val window = usageWakeDetector.longestSleepWindow() ?: return
+        val now = System.currentTimeMillis()
+        val zoneId = ZoneId.systemDefault()
+        val endDate = Instant.ofEpochMilli(window.endMs).atZone(zoneId).toLocalDate()
+        val externalId = "usage_sleep_${endDate}"
+
+        // Dedup: sourceCandidateId- und Zeitraum-Prüfung gegen ALLE Candidates
+        // + Sessions (gleiche Logik wie im Hauptpfad).
+        val candidateWindowStart = window.startMs - 24L * 3_600_000L
+        val candidateWindowEnd = window.endMs + 24L * 3_600_000L
+        val existingCandidatesInWindow = candidateRepository.getByDateRange(
+            candidateWindowStart,
+            candidateWindowEnd
+        ).first().filter { it.activityTypeId == "sleep" }
+        if (existingCandidatesInWindow.any { it.sourceCandidateId == externalId }) {
+            android.util.Log.d("SleepHeuristicEngine", "Usage-Sleep $externalId existiert bereits — skip")
+            return
+        }
+        val overlapToleranceMs = 60L * 60 * 1000
+        val hasNearby = existingCandidatesInWindow.any { existing ->
+            kotlin.math.abs(existing.startAt - window.startMs) < overlapToleranceMs ||
+                kotlin.math.abs(existing.endAt - window.endMs) < overlapToleranceMs
+        }
+        if (hasNearby) {
+            android.util.Log.d("SleepHeuristicEngine", "Usage-Sleep: Candidate im ±60min-Fenster — skip")
+            return
+        }
+        val existingSleepSessions = activityRepository.getOverlappingRange(
+            candidateWindowStart,
+            candidateWindowEnd
+        ).first().filter { it.activityTypeId == "sleep" }
+        val hasOverlap = existingSleepSessions.any { existing ->
+            val overlapMs = minOf(window.endMs, existing.endAt ?: Long.MAX_VALUE) -
+                maxOf(window.startMs, existing.startAt)
+            overlapMs > 30L * 60 * 1000
+        }
+        if (hasOverlap) {
+            android.util.Log.d("SleepHeuristicEngine", "Usage-Sleep: Session im Fenster — skip")
+            return
+        }
+
+        val durationMs = window.endMs - window.startMs
+        val hours = durationMs / 3_600_000.0
+        val h = hours.toInt()
+        val m = ((hours - h) * 60).toInt()
+        val durationStr = if (m > 0) "${h}h ${m}min" else "${h}h"
+        val candidate = ActivityCandidate(
+            id = UUID.randomUUID().toString(),
+            suggestedTitle = "Schlaf erkannt ($durationStr)",
+            suggestedCategoryId = "sleep",
+            activityTypeId = "sleep",
+            startAt = window.startMs,
+            endAt = window.endMs,
+            confidence = 0.60f,
+            status = AutomationConstants.CANDIDATE_STATUS_PENDING,
+            reason = "Keine Handy-Nutzung zwischen ${formatHm(window.startMs, zoneId)} und " +
+                "${formatHm(window.endMs, zoneId)} ($durationStr). " +
+                "Erkannt aus der Nutzungsstatistik (Bildschirm aus + Ruhephase).",
+            createdBy = "USAGE_STATS_V1",
+            createdAt = now,
+            sourceCandidateId = externalId
+        )
+        candidateRepository.insert(candidate)
+        val result = reviewCandidateUseCase.acceptAutoDirect(listOf(candidate))
+        android.util.Log.d(
+            "SleepHeuristicEngine",
+            "Usage-Stats-Direkteintrag: ${result.accepted} von 1 (${formatHm(window.startMs, zoneId)}–${formatHm(window.endMs, zoneId)})"
         )
     }
 

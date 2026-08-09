@@ -2,6 +2,7 @@ package com.d_drostes_apps.aevum.ui.screens.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -30,15 +31,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -107,6 +113,8 @@ fun DashboardScreen(
     val nowMs by viewModel.liveActivityManager.nowMs.collectAsState()
     val recents by viewModel.liveActivityManager.recentActivityTypes.collectAsState()
     val favorites by viewModel.liveActivityManager.favoriteActivityTypes.collectAsState()
+    // M18.58: Güte-Verlauf (7/30/365 Tage)
+    val qualityTrend by viewModel.qualityTrend.collectAsState()
     DashboardContent(
         modifier = modifier,
         state = state,
@@ -114,6 +122,7 @@ fun DashboardScreen(
         nowMs = nowMs,
         recents = recents,
         favorites = favorites,
+        qualityTrend = qualityTrend,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
         onOpenGoals = onOpenGoals,
@@ -141,6 +150,8 @@ private fun DashboardContent(
     nowMs: Long,
     recents: List<com.d_drostes_apps.aevum.domain.liveactivity.RecentActivityType>,
     favorites: List<com.d_drostes_apps.aevum.data.model.ActivityType>,
+    // M18.58: Güte-Verlauf-Daten
+    qualityTrend: List<DailyQualityPoint> = emptyList(),
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenGoals: () -> Unit = {},
@@ -162,13 +173,18 @@ private fun DashboardContent(
     val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
     val slideIn = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
     val slideOut = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+    // M18.58: Das +-Popup (fancy Bottom-Sheet mit allen Start-Optionen).
+    var showStartPicker by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             DashboardAtmosphere()
             LazyColumn(
                 modifier = Modifier.fillMaxSize().statusBarsPadding(),
-            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
+            // M18.58: Abstand zum oberen Bildschirmrand reduziert (User-Wunsch).
+            // Vorher vertical = AevumSpacing.lg (16dp) — jetzt nur noch 8dp oben,
+            // unten bleibt 16dp fürs Scroll-Ende.
+            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             // 1) Live-Banner — wichtigste Info zuerst. Gleitet von oben rein.
@@ -187,30 +203,18 @@ private fun DashboardContent(
             // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
             item { PulsHero(state = state) }
 
-            // 3) Schnellstart — NUR wenn nichts läuft. Wenn eine Session
-            // aktiv ist, übernimmt das Banner die Steuerung (keine Dopplung).
+            // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik (User-Wunsch:
+            // "Statistik über den Güte Verlauf der letzten Tage, wobei man
+            // INNERHALB der Statistik einstellen können soll, ob in den
+            // letzten 7, 30, 365 Tagen").
             item {
-                AnimatedVisibility(visible = !isLive, enter = slideIn, exit = slideOut) {
-                    LiveActivityCard(
-                        state = liveState,
-                        nowMs = nowMs,
-                        activityTypes = state.activityTypes,
-                        recents = recents,
-                        favorites = favorites,
-                        onStart = { typeId, note -> onStartLive(typeId, note, System.currentTimeMillis()) },
-                        onStartWithTime = { typeId, note, time -> onStartLive(typeId, note, time) },
-                        onPause = onPauseLive,
-                        onResume = onResumeLive,
-                        onStop = onStopLive,
-                        onDiscard = onDiscardLive,
-                        onToggleFavorite = onToggleFavorite,
-                        // M18.12: Neue Aktivität direkt aus dem Picker anlegen
-                        onCreateActivity = onCreateActivity,
-                        // M18.23: Aktivität wechseln
-                        onSwitch = onSwitchLive
-                    )
-                }
+                QualityTrendCard(trend = qualityTrend)
             }
+
+            // 3) M18.58: Der komplette Schnellstart-BEREICH ist entfernt
+            // (User: "der gesamte Bereich zum starten einer Activity kann
+            // weg"). Stattdessen: schwebender +-Button unten rechts, der
+            // ein fancy Popup (ActivityPickerSheet) öffnet.
 
             // 4) Wo deine Zeit hingeht — Top-4 mit Score-Farbe
             if (state.qualityBreakdown.isNotEmpty()) {
@@ -248,7 +252,88 @@ private fun DashboardContent(
 
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
             }
+
+            // M18.58: Schwebender +-Button unten rechts (User: "der gesamte
+            // Bereich zum starten einer Activity kann weg. Stattdessen
+            // könnte man irgendwo ein + hin machen. Dieses sollte aber
+            // passend in eine moderne App integriert werden.").
+            // Nur sichtbar, wenn KEINE Session läuft (das Banner übernimmt
+            // dann die Steuerung). Animierter FAB: dreht sich beim Öffnen.
+            FloatingPlusButton(
+                expanded = showStartPicker,
+                onClick = { showStartPicker = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = AevumSpacing.lg, bottom = AevumSpacing.lg)
+            )
         }
+    }
+
+    // M18.58: Das fancy Popup — alle Optionen zum Starten einer Activity
+    // (Favoriten, Kürzlich, alle Typen, Startzeit, neue Aktivität).
+    if (showStartPicker) {
+        ActivityPickerSheet(
+            activityTypes = state.activityTypes,
+            recents = recents,
+            favorites = favorites,
+            onStart = { typeId ->
+                onStartLive(typeId, null, System.currentTimeMillis())
+                showStartPicker = false
+            },
+            onStartWithTime = { typeId, note, time ->
+                onStartLive(typeId, note, time)
+                showStartPicker = false
+            },
+            onToggleFavorite = onToggleFavorite,
+            onCreateActivity = onCreateActivity,
+            onDismiss = { showStartPicker = false }
+        )
+    }
+}
+
+/**
+ * M18.58: Der schwebende +-Button. Modern futuristisch: Gradient,
+ * weicher Schatten, rotierendes Plus beim Öffnen des Popups.
+ */
+@Composable
+private fun FloatingPlusButton(
+    expanded: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 45f else 0f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
+        label = "fab-rotation"
+    )
+    Box(
+        modifier = modifier
+            .size(60.dp)
+            .shadow(
+                elevation = 12.dp,
+                shape = CircleShape,
+                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            )
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.tertiary
+                    )
+                )
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            "+",
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.graphicsLayer { rotationZ = rotation }
+        )
     }
 }
 

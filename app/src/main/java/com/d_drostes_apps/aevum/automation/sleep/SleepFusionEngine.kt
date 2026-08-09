@@ -59,7 +59,10 @@ class SleepFusionEngine @Inject constructor(
     // M18.45-FIX (User: "07:50 entsperrt, aber Aevum sagt 07:57"):
     // UsageStats als Wahrheits-Quelle für die Aufwachzeit, weil Android
     // 14+ SCREEN_ON-Broadcasts an Hintergrund-Apps nicht mehr liefert.
-    private val usageWakeDetector: UsageWakeDetector
+    private val usageWakeDetector: UsageWakeDetector,
+    // M18.58: Schlaf-Quellen-Gate. Optional (Tests ohne DAO bleiben
+    // kompatibel). Die Fusion ist Teil der Quelle "screen".
+    private val settingsDao: com.d_drostes_apps.aevum.data.db.AutomationSettingsDao? = null
 ) {
     /**
      * Hauptmethode — analysiert die letzte Nacht und erzeugt ggf. einen Candidate.
@@ -69,6 +72,16 @@ class SleepFusionEngine @Inject constructor(
      */
     suspend fun analyzeLatest(referenceTime: Long = System.currentTimeMillis()) {
         val zoneId = ZoneId.systemDefault()
+
+        // M18.58: Schlaf-Quellen-Gate — die Fusion ist Teil der Quelle
+        // "screen". Bei health_connect/garmin/none ist sie ein No-Op.
+        val source = try {
+            settingsDao?.getSettingsSync()?.sleepSource
+        } catch (_: Exception) { null }
+        if (source != null && source != "screen") {
+            Log.d(TAG, "sleepSource=$source — Fusion No-Op")
+            return
+        }
 
         // M18.9: NACHTS-SPERRE — "Schlaf kann erst am Morgen bestimmt werden."
         //
@@ -247,16 +260,14 @@ class SleepFusionEngine @Inject constructor(
         )
         candidateRepository.insert(candidate)
 
-        // Auto-Accept, wenn Confidence hoch genug ist. Sonst bleibt der
-        // Candidate in der Review-Inbox liegen. Die Schwelle ist die
-        // top-level-Konstante SAFE_CONFIDENCE_THRESHOLD aus dem
-        // ReviewCandidateUseCase, damit beide Engines synchron bleiben.
-        if (confidence >= SAFE_CONFIDENCE_THRESHOLD) {
-            val result = reviewCandidateUseCase.acceptAuto(listOf(candidate))
-            Log.d(TAG, "Auto-Accept: ${result.accepted} von 1 Candidates akzeptiert (Signal-Anzahl=${signals.size})")
-        } else {
-            Log.d(TAG, "Candidate wartet auf Review (Confidence=$confidence < $SAFE_CONFIDENCE_THRESHOLD)")
-        }
+        // M18.58: IMMER direkt eintragen (kein Review) — der User will
+        // Schlaf ohne Bestätigung in der Timeline. Vorher: nur bei
+        // Confidence >= SAFE_CONFIDENCE_THRESHOLD (0.70); 2-Signal-
+        // Fusionen (0.70) kamen durch, 1-Signal (0.55) blieb hängen.
+        // Der Direkteintrag ist expliziter User-Wunsch ("direkt ohne
+        // vorherige Bestätigung in die Timeline eingetragen").
+        val result = reviewCandidateUseCase.acceptAutoDirect(listOf(candidate))
+        Log.d(TAG, "Direkt eingetragen: ${result.accepted} von 1 Candidates akzeptiert (Signal-Anzahl=${signals.size})")
     }
 
     /**

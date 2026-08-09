@@ -23,5 +23,12 @@ data class AutomationSettings(
     // Default AN — die automatische Erkennung ist das Kern-Feature.
     @ColumnInfo(name = "driving_detection_enabled", defaultValue = "1") val drivingDetectionEnabled: Boolean = true,
     @ColumnInfo(name = "walking_detection_enabled", defaultValue = "1") val walkingDetectionEnabled: Boolean = true,
-    @ColumnInfo(name = "bicycle_detection_enabled", defaultValue = "1") val bicycleDetectionEnabled: Boolean = true
+    @ColumnInfo(name = "bicycle_detection_enabled", defaultValue = "1") val bicycleDetectionEnabled: Boolean = true,
+    // M18.58: EINE Schlaf-Quelle statt vieler Toggles.
+    // Werte: "screen" (Bildschirmzeit-Heuristik, Default), "health_connect",
+    // "garmin", "none" (keine Aufzeichnung). Der User wählt GENAU EINE
+    // Quelle — die alten Einzel-Toggles (healthSleepEnabled,
+    // sleepFusionEnabled) sind damit obsolet, bleiben aber für
+    // Bestands-Daten in der DB.
+    @ColumnInfo(name = "sleep_source", defaultValue = "screen") val sleepSource: String = "screen"
 ) : Serializable

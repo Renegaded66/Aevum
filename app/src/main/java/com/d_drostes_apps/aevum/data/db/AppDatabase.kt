@@ -42,9 +42,12 @@ import com.d_drostes_apps.aevum.data.model.*
         AllowanceAccumulationDay::class,
         // M18.30: Todos
         Todo::class,
-        TodoCompletion::class
+        TodoCompletion::class,
+        // M18.58: Garmin Connect (Tageszusammenfassung + Aktivitäten)
+        GarminDailySummary::class,
+        GarminActivity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -76,6 +79,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dailyAllowanceDao(): DailyAllowanceDao
     // M18.30: Todos
     abstract fun todoDao(): TodoDao
+    // M18.58: Garmin Connect
+    abstract fun garminDao(): GarminDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1060,6 +1065,42 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `driving_detection_enabled` INTEGER NOT NULL DEFAULT 1")
                 database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `walking_detection_enabled` INTEGER NOT NULL DEFAULT 1")
                 database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `bicycle_detection_enabled` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+        // M18.58: EINE Schlaf-Quelle statt vieler Toggles ("screen" Default —
+        // Bildschirmzeit-Heuristik, wie bisher das Verhalten der App) +
+        // Garmin Connect Tabellen (Tageszusammenfassung + Aktivitäten).
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `automation_settings` ADD COLUMN `sleep_source` TEXT NOT NULL DEFAULT 'screen'")
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `garmin_daily_summary` (" +
+                        "`date` TEXT NOT NULL, " +
+                        "`steps` INTEGER NOT NULL DEFAULT 0, " +
+                        "`distance_meters` REAL NOT NULL DEFAULT 0, " +
+                        "`calories` INTEGER NOT NULL DEFAULT 0, " +
+                        "`active_calories` INTEGER NOT NULL DEFAULT 0, " +
+                        "`updated_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`date`))"
+                )
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `garmin_activity` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`external_id` TEXT NOT NULL, " +
+                        "`activity_type` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`start_at` INTEGER NOT NULL, " +
+                        "`end_at` INTEGER NOT NULL, " +
+                        "`distance_meters` REAL NOT NULL DEFAULT 0, " +
+                        "`calories` INTEGER NOT NULL DEFAULT 0, " +
+                        "`imported_at` INTEGER NOT NULL, " +
+                        "`session_id` TEXT, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_daily_summary_date` ON `garmin_daily_summary` (`date`)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_garmin_activity_external_id` ON `garmin_activity` (`external_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_activity_start_at` ON `garmin_activity` (`start_at`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_activity_activity_type` ON `garmin_activity` (`activity_type`)")
             }
         }
     }

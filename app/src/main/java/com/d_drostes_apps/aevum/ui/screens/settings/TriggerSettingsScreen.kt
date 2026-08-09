@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,12 +20,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -46,9 +50,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -74,6 +82,7 @@ import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.screens.automation.AutomationScrollSignal
 import com.d_drostes_apps.aevum.ui.screens.automation.SleepFusionStatusDialog
 import com.d_drostes_apps.aevum.ui.screens.automation.SleepStatusDialog
+import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -345,93 +354,34 @@ fun TriggerSettingsScreen(
             }
 
             // ── Schlaf ───────────────────────────────────────────────
+            // M18.58: GENAU EINE Schlaf-Quelle (User-Wunsch: "nur einen
+            // auswählbaren Trigger, entweder health connect oder
+            // Bildschirmzeit. Oder keine Aufzeichnung. fancy Auswahl, wo
+            // die drei Auswahlmöglichkeiten als Buttons nebeneinander sind,
+            // und ein Rahmen um einen Button, und wenn man eine andere
+            // Quelle will, klickt man auf die andere Quelle und der Rahmen
+            // schwebt in einer Animation zur anderen Quelle").
+            // Die alten "Bildschirm-Analyse"/"Fusion analysieren"-Buttons
+            // sind entfernt (User: "alle Buttons die irgendwie die
+            // Bildschirmzeiten anzeigen und fusionieren voll unnötig").
             item {
-                val arBlocked = !state.activityRecognitionGranted
-                TriggerGroup(
-                    title = "Schlaf",
-                    items = listOf(
-                        TriggerToggle(
-                            icon = "🌙",
-                            title = "Schlaf-Erkennung",
-                            description = "3-Signal-Fusion aus Bildschirm, STILL-Erkennung & Bildschirmzeit",
-                            accent = Color(0xFF6366F1),
-                            checked = state.settings.sleepFusionEnabled,
-                            permissionGranted = !arBlocked,
-                            onCheckedChange = viewModel::setSleepFusion,
-                            onRequestPermission = {
-                                pendingTrigger = "sleep"
-                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-                            }
-                        )
-                    ),
-                    footer = {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = AevumSpacing.xs),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
-                        )
-                        // Bildschirm-Muster-Heuristik (funktioniert ohne Berechtigung)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                        ) {
-                            Button(
-                                onClick = { viewModel.analyzeSleepNow() },
-                                enabled = !isAnalyzingSleep,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isAnalyzingSleep) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                    Spacer(Modifier.size(6.dp))
-                                }
-                                Text("Bildschirm-Analyse")
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.openSleepStatus() },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("Status") }
-                        }
-                        // 3-Signal-Fusion manuell anstoßen
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                        ) {
-                            Button(
-                                onClick = { viewModel.analyzeSleepFusionNow() },
-                                enabled = !isAnalyzingFusion,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isAnalyzingFusion) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                    Spacer(Modifier.size(6.dp))
-                                }
-                                Text("Fusion analysieren")
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.openFusionStatus() },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("Status") }
-                        }
-                    }
+                SleepSourceCard(
+                    currentSource = state.settings.sleepSource,
+                    onSelectSource = viewModel::setSleepSource
                 )
             }
 
             // ── Weitere Automatisierung (aus der alten Automation-Seite) ──
+            // M18.58: Health-Connect-Schalter ENTFERNT — die Schlaf-Quelle
+            // oben ist jetzt die einzige Stelle (User: "alle Buttons die
+            // irgendwie die Bildschirmzeiten anzeigen und fusionieren voll
+            // unnötig").
             item {
                 AdditionalAutomationCard(
                     backgroundCaptureEnabled = state.settings.backgroundCaptureEnabled,
-                    healthSleepEnabled = state.settings.healthSleepEnabled,
                     digitalBalanceEnabled = state.settings.digitalBalanceEnabled,
                     usageStatsGranted = state.usageStatsGranted,
                     onBackgroundCapture = viewModel::setBackgroundCapture,
-                    onHealthSleep = viewModel::setHealthSleep,
                     onDigitalBalance = viewModel::setDigitalBalance,
                     onOpenUsageAccess = { viewModel.openUsageAccess() }
                 )
@@ -638,15 +588,166 @@ private data class TriggerToggle(
     val onRequestPermission: () -> Unit
 )
 
+/**
+ * M18.58: Schlaf-Quellen-Auswahl — die EINE fancy Auswahl für Schlaf.
+ *
+ * User-Wunsch: "Ich will, dass die Schlafzeit nur einen auswählbaren
+ * Trigger hat, entweder health connect oder Bildschirmzeit. Oder keine
+ * Aufzeichnung. Das sollte so mit einer fancy Auswahl passieren, wo die
+ * drei Auswahlmöglichkeiten als Buttons nebeneinander sind, und ein
+ * Rahmen um einen Button, und wenn man eine andere Quelle will, klickt
+ * man auf die andere Quelle und der Rahmen schwebt in einer Animation
+ * zur anderen Quelle."
+ *
+ * M18.58-Erweiterung: Garmin als vierte Quelle (User-Wunsch Garmin-
+ * Integration). Vier Buttons: Bildschirmzeit | Health Connect | Garmin |
+ * Aus. Der Rahmen (Overlay-Box mit Border) SCHWEBT per Animation zur
+ * aktiven Quelle: onGloballyPositioned misst die Button-Mittelpunkte,
+ * animateFloatAsState gleitet zum Ziel, Modifier.offset setzt den Rahmen.
+ */
+@Composable
+private fun SleepSourceCard(
+    currentSource: String,
+    onSelectSource: (String) -> Unit
+) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                "Schlaf-Quelle",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Eine Quelle — Aevum trägt erkannten Schlaf automatisch in die Timeline ein.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            val sources = listOf(
+                SleepSourceOption("screen", "📱", "Bildschirmzeit"),
+                SleepSourceOption("health_connect", "❤️", "Health Connect"),
+                SleepSourceOption("garmin", "⌚", "Garmin"),
+                SleepSourceOption("none", "🚫", "Aus")
+            )
+            val activeIndex = sources.indexOfFirst { it.id == currentSource }
+                .coerceAtLeast(0)
+
+            // M18.58: Rahmen-Position messen. Jeder Button registriert sein
+            // linkes x (in px). Der schwebende Rahmen nutzt das Zentrum des
+            // aktiven Buttons als Ziel-Offset.
+            var buttonLefts by remember { mutableStateOf(listOf(0f, 0f, 0f, 0f)) }
+            var buttonWidthPx by remember { mutableStateOf(0f) }
+            val density = LocalDensity.current
+            val targetCenterPx = if (buttonWidthPx > 0f && activeIndex < buttonLefts.size) {
+                buttonLefts[activeIndex] + buttonWidthPx / 2f
+            } else 0f
+            val animatedCenterPx by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = targetCenterPx,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 0.72f,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                ),
+                label = "sleep-source-indicator"
+            )
+
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Die 4 Buttons (Basis-Ebene, ohne eigenen Rahmen)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                ) {
+                    sources.forEach { option ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .onGloballyPositioned { coords ->
+                                    val lefts = buttonLefts.toMutableList()
+                                    val idx = sources.indexOfFirst { it.id == option.id }
+                                    if (idx in lefts.indices) lefts[idx] = coords.positionInParent().x
+                                    buttonLefts = lefts
+                                    buttonWidthPx = coords.size.width.toFloat()
+                                }
+                                .clip(RoundedCornerShape(AevumRadius.md))
+                                .background(
+                                    if (option.id == currentSource) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+                                    }
+                                )
+                                .clickable { onSelectSource(option.id) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(option.icon, fontSize = 16.sp)
+                                Text(
+                                    option.label,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (option.id == currentSource) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (option.id == currentSource) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Der schwebende Rahmen (Overlay, animiert zwischen Buttons)
+                if (buttonWidthPx > 0f) {
+                    val frameWidth = with(density) { buttonWidthPx.toDp() }
+                    val frameOffset = with(density) { (animatedCenterPx - buttonWidthPx / 2f).toDp() }
+                    Box(
+                        modifier = Modifier
+                            .offset(x = frameOffset)
+                            .width(frameWidth)
+                            .height(with(density) { (buttonWidthPx * 2.1f).toDp() })
+                            .border(
+                                width = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(AevumRadius.md)
+                            )
+                    )
+                }
+            }
+
+            // Beschreibung der aktiven Quelle
+            val description = when (currentSource) {
+                "screen" -> "Bildschirm aus = schlafen. Erkennt Schlaf aus deinen Bildschirm-Phasen — ohne zusätzliche Geräte."
+                "health_connect" -> "Importiert Schlaf aus Health Connect (z.B. Smartwatch, Fitnessband)."
+                "garmin" -> "Importiert Schlaf aus Garmin Connect — direkt in die Timeline, sobald Daten verfügbar sind."
+                else -> "Keine automatische Schlaf-Aufzeichnung. Schlaf kannst du weiterhin manuell eintragen."
+            }
+            Text(
+                description,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private data class SleepSourceOption(
+    val id: String,
+    val icon: String,
+    val label: String
+)
+
 /** M18.57: Weitere Automatisierung (aus der alten Automation-Seite übernommen). */
 @Composable
 private fun AdditionalAutomationCard(
     backgroundCaptureEnabled: Boolean,
-    healthSleepEnabled: Boolean,
     digitalBalanceEnabled: Boolean,
     usageStatsGranted: Boolean,
     onBackgroundCapture: (Boolean) -> Unit,
-    onHealthSleep: (Boolean) -> Unit,
     onDigitalBalance: (Boolean) -> Unit,
     onOpenUsageAccess: () -> Unit
 ) {
@@ -664,13 +765,6 @@ private fun AdditionalAutomationCard(
                 "Geofences erkennen, auch wenn Aevum geschlossen ist",
                 backgroundCaptureEnabled,
                 onBackgroundCapture
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f))
-            SettingSwitchRow(
-                "Health Connect",
-                "Schlaf aus Health Connect importieren",
-                healthSleepEnabled,
-                onHealthSleep
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f))
             SettingSwitchRow(
@@ -858,7 +952,26 @@ class TriggerSettingsViewModel @Inject constructor(
     fun setBackgroundCapture(enabled: Boolean) =
         upsert { it.copy(backgroundCaptureEnabled = enabled, geofencingEnabled = enabled) }
 
-    fun setHealthSleep(enabled: Boolean) = upsert { it.copy(healthSleepEnabled = enabled) }
+    /**
+     * M18.58: EINE Schlaf-Quelle (User-Wunsch: "nur einen auswählbaren
+     * Trigger, entweder health connect oder Bildschirmzeit. Oder keine
+     * Aufzeichnung"). Werte: "screen" | "health_connect" | "garmin" | "none".
+     * Die alten Toggles (healthSleepEnabled, sleepFusionEnabled) werden
+     * damit abgelöst — die Quelle ist die Single Source of Truth.
+     */
+    fun setSleepSource(source: String) {
+        upsert {
+            it.copy(
+                sleepSource = source,
+                // Rückwärtskompatibilität: healthSleepEnabled steuert den
+                // Health-Connect-Import-Scheduler (SleepImportWorker).
+                healthSleepEnabled = source == "health_connect",
+                // sleepFusionEnabled war bisher der Fusion-Toggle — die
+                // Fusion ist jetzt Teil der Quelle "screen".
+                sleepFusionEnabled = source == "screen"
+            )
+        }
+    }
 
     fun setDigitalBalance(enabled: Boolean) = upsert { it.copy(digitalBalanceEnabled = enabled) }
 

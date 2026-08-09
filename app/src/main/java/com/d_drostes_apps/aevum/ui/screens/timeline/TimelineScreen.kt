@@ -1,4 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.timeline
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -159,34 +161,68 @@ fun TimelineScreen(
                     onConvertGap = viewModel::convertGapToSession
                 )
             }
-            if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    EmptyState(
-                        title = "Noch keine Aktivitäten",
-                        message = "Erfasse deinen Tag manuell oder aktiviere Geofencing. Trigger erscheinen künftig direkt auf dem Tageskalender.",
-                        actionLabel = "Erste Aktivität anlegen",
-                        onActionClick = { onCreateActivity(TimeFormatting.startOfDayMillis(state.selectedDate)) }
+            // M18.58: Slide-Animation beim Tag-Wechsel (nur über die
+            // Pfeil-Buttons — KEIN Gesten-Swipe). previousDay → von links
+            // reinschieben (wie Rückwärtsblättern), nextDay → von rechts.
+            // Die Richtung wird in der transitionSpec aus dem Vergleich der
+            // beiden LocalDate-Werte abgeleitet (kein Extra-State nötig).
+            androidx.compose.animation.AnimatedContent(
+                targetState = state.selectedDate,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                transitionSpec = {
+                    val slideLeft = androidx.compose.animation.slideInHorizontally(
+                        animationSpec = tween(320),
+                        initialOffsetX = { it }
+                    ) + androidx.compose.animation.fadeIn(tween(320))
+                    val slideRight = androidx.compose.animation.slideInHorizontally(
+                        animationSpec = tween(320),
+                        initialOffsetX = { -it }
+                    ) + androidx.compose.animation.fadeIn(tween(320))
+                    val exitLeft = androidx.compose.animation.slideOutHorizontally(
+                        animationSpec = tween(320),
+                        targetOffsetX = { -it }
+                    ) + androidx.compose.animation.fadeOut(tween(320))
+                    val exitRight = androidx.compose.animation.slideOutHorizontally(
+                        animationSpec = tween(320),
+                        targetOffsetX = { it }
+                    ) + androidx.compose.animation.fadeOut(tween(320))
+                    if (targetState > initialState) {
+                        // Vorwärts (nextDay): neuer Tag kommt von rechts
+                        (slideLeft togetherWith exitRight).using(androidx.compose.animation.SizeTransform(clip = false))
+                    } else {
+                        // Rückwärts (previousDay): neuer Tag kommt von links
+                        (slideRight togetherWith exitLeft).using(androidx.compose.animation.SizeTransform(clip = false))
+                    }
+                },
+                label = "day-slide"
+            ) { date ->
+                if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EmptyState(
+                            title = "Noch keine Aktivitäten",
+                            message = "Erfasse deinen Tag manuell oder aktiviere Geofencing. Trigger erscheinen künftig direkt auf dem Tageskalender.",
+                            actionLabel = "Erste Aktivität anlegen",
+                            onActionClick = { onCreateActivity(TimeFormatting.startOfDayMillis(date)) }
+                        )
+                    }
+                } else {
+                    DayCalendarTimeline(
+                        sessions = state.sessions,
+                        triggers = state.triggerEvents,
+                        onOpen = onOpenActivity,
+                        onEdit = onEditActivity,
+                        onDeleteTrigger = viewModel::deleteTrigger,
+                        onDeleteSession = viewModel::deleteSession,
+                        onCreateAt = { minute -> quickCreateMinute = minute },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AevumSpacing.md)
                     )
                 }
-            } else {
-                DayCalendarTimeline(
-                    sessions = state.sessions,
-                    triggers = state.triggerEvents,
-                    onOpen = onOpenActivity,
-                    onEdit = onEditActivity,
-                    onDeleteTrigger = viewModel::deleteTrigger,
-                    onDeleteSession = viewModel::deleteSession,
-                    onCreateAt = { minute -> quickCreateMinute = minute },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = AevumSpacing.md)
-                )
             }
             // M18.36: KEIN Spacer mehr hier! Der 88dp-Spacer erzeugte
             // toten Platz UNTER der Timeline. Der FAB-Schutz liegt jetzt
@@ -1273,6 +1309,10 @@ private fun DayCalendarTimeline(
 ) {
     var isListMode by remember { mutableStateOf(false) }
     var pixelsPerHour by remember { mutableStateOf(TimelineUiState.DEFAULT_PIXELS_PER_HOUR) }
+    // M18.58: Slide-Animation beim Wechsel Liste ↔ Tag. Die Richtung folgt
+    // dem Ziel-Modus: Wechsel zu "Tag" schiebt von rechts rein (wie
+    // Vorwärtsblättern), Wechsel zu "Liste" von links.
+    val modeTransition = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left
     val lanes = remember(sessions) { assignTimelineLanes(sessions) }
     val maxLane = (lanes.values.maxOrNull() ?: 0).coerceAtLeast(0)
     val laneCount = maxLane + 1
@@ -1328,11 +1368,40 @@ private fun DayCalendarTimeline(
                     Text("+", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            // M18.26: Inhalt bekommt den REST des Platzes (weight 1f) und
-            // scrollt eigenständig. Kein heightIn(max) mehr — das war die
-            // Ursache des Nested-Scroll-Chaos.
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (isListMode) {
+            // M18.58: Slide-Animation beim Wechsel Liste ↔ Tag (nur über den
+            // Umschalter — KEIN Gesten-Swipe). Wechsel zu "Tag" schiebt von
+            // rechts rein (wie Vorwärtsblättern), Wechsel zu "Liste" von links.
+            androidx.compose.animation.AnimatedContent(
+                targetState = isListMode,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                transitionSpec = {
+                    val slideInFromRight = androidx.compose.animation.slideInHorizontally(
+                        animationSpec = tween(320),
+                        initialOffsetX = { it }
+                    ) + androidx.compose.animation.fadeIn(tween(320))
+                    val slideInFromLeft = androidx.compose.animation.slideInHorizontally(
+                        animationSpec = tween(320),
+                        initialOffsetX = { -it }
+                    ) + androidx.compose.animation.fadeIn(tween(320))
+                    val exitToLeft = androidx.compose.animation.slideOutHorizontally(
+                        animationSpec = tween(320),
+                        targetOffsetX = { -it }
+                    ) + androidx.compose.animation.fadeOut(tween(320))
+                    val exitToRight = androidx.compose.animation.slideOutHorizontally(
+                        animationSpec = tween(320),
+                        targetOffsetX = { it }
+                    ) + androidx.compose.animation.fadeOut(tween(320))
+                    if (targetState) {
+                        // → Liste: Liste kommt von links, Tag geht nach rechts
+                        (slideInFromLeft togetherWith exitToRight).using(androidx.compose.animation.SizeTransform(clip = false))
+                    } else {
+                        // → Tag: Tag kommt von rechts, Liste geht nach links
+                        (slideInFromRight togetherWith exitToLeft).using(androidx.compose.animation.SizeTransform(clip = false))
+                    }
+                },
+                label = "mode-slide"
+            ) { listMode ->
+                if (listMode) {
                     // M18.22+: Sichtbare und ziehbare Scrollbar.
                     // Die EventListTimeline bekommt den vollen Viewport und
                     // verticalScroll. Zusaetzlich wird ein echter Scrollbar-Thumb

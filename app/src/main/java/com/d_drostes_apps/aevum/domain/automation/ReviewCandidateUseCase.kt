@@ -184,6 +184,36 @@ class ReviewCandidateUseCase @Inject constructor(
         return CandidateBatchResult(accepted = accepted, dismissed = 0)
     }
 
+    /**
+     * M18.58: Schlaf-Direkteintrag OHNE Confidence-Gate.
+     *
+     * User-Feedback (\"Die Schlafzeit wurde immer noch als Vorschlag
+     * angemerkt, den man erst bestätigen musste, anstatt dass es direkt
+     * eingetragen war wie es sollte\"): Die Screen-Heuristik erzeugt
+     * Confidence 0.50–0.75. [acceptAuto] filtert auf ≥ 0.70 — ein Schlaf
+     * mit z.B. 0.63 (23:00–09:05) blieb als Vorschlag in der Review-Inbox.
+     * Der User will aber: Bildschirmzeit-Schlaf IMMER direkt eintragen
+     * (kein Review). Garmin-Schlaf ebenso (\"sobald Daten verfügbar sind,
+     * direkt ohne vorherige Bestätigung in die Timeline\").
+     *
+     * Sicherheit: Die Session wird als HEALTH_SLEEP_AUTO markiert und kann
+     * in der Timeline jederzeit bearbeitet/gelöscht werden (User-Policy
+     * M18.51: sleep löschbar? — nein, sleep ist geschützt vor Löschen,
+     * aber editierbar). Die Dedup-Sperren der Engines verhindern Mehrfach-
+     * Einträge pro Nacht unabhängig von der Confidence.
+     */
+    suspend fun acceptAutoDirect(candidates: List<ActivityCandidate>): CandidateBatchResult {
+        if (candidates.isEmpty()) return CandidateBatchResult(accepted = 0, dismissed = 0)
+        var accepted = 0
+        for (candidate in candidates) {
+            if (candidate.status != "PENDING") continue
+            val sourceType = sourceTypeForActivityType(candidate.activityTypeId)
+            confirmCandidate(candidate, sourceTypeOverride = sourceType)
+            accepted++
+        }
+        return CandidateBatchResult(accepted = accepted, dismissed = 0)
+    }
+
     private fun sourceTypeForActivityType(activityTypeId: String?): String? = when (activityTypeId) {
         "sleep" -> "HEALTH_SLEEP_AUTO"
         "driving" -> "ACTIVITY_RECOGNITION_AUTO"

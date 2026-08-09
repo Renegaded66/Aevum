@@ -51,6 +51,32 @@ class SleepFusionWorker(
             // explizit nötig, weil `appContext` als Var gesetzt wird.
             deps.screenEventRepository().init(applicationContext)
 
+            // M18.58: sleepSource steuert, welche Schlaf-Erkennung läuft.
+            //   "screen"          → Screen-Heuristik IMMER + 3-Signal-Fusion
+            //                       (Fusion verbessert die Screen-Erkennung
+            //                       mit AR-Signal, wenn Permission da ist)
+            //   "health_connect"  → Health-Connect-Import (eigener Scheduler)
+            //   "garmin"          → Garmin-Import (eigener Worker)
+            //   "none"            → KEINE automatische Schlaf-Erkennung
+            // Vorher: sleepFusionEnabled-Toggle (default false) — jetzt ist
+            // die Fusion Teil der Quelle "screen" (User-Wunsch: genau EIN
+            // Trigger für Schlaf, keine vielen Toggles).
+            val settingsDeps = EntryPointAccessors.fromApplication(applicationContext, SettingsDeps::class.java)
+            val settings = try {
+                settingsDeps.automationSettingsDao().getSettingsSync()
+            } catch (e: Exception) {
+                null // Wenn Settings nicht lesbar, läuft der Worker (Best-Effort)
+            }
+            val sleepSource = settings?.sleepSource ?: "screen"
+            if (sleepSource == "none") {
+                android.util.Log.d(TAG, "sleepSource = none — keine Schlaf-Erkennung aktiv")
+                return Result.success()
+            }
+            if (sleepSource != "screen") {
+                android.util.Log.d(TAG, "sleepSource = $sleepSource — Screen-Heuristik ist No-Op (Quelle: $sleepSource)")
+                return Result.success()
+            }
+
             // M18.11: BEIDE Engines triggern — die Screen-Heuristik (immer)
             // UND die 3-Signal-Fusion (nur wenn aktiviert).
             //
@@ -59,23 +85,6 @@ class SleepFusionWorker(
             // morgens die App nicht öffnete, wurde der Schlaf nie erkannt.
             // Jetzt deckt der periodische Morgen-Lauf beide Pfade ab.
             deps.sleepHeuristicEngine().analyzeLatest()
-
-            // M16: sleepFusionEnabled prüfen. Die einfache Screen-Heuristik
-            // (SleepHeuristicEngine) läuft immer — sie braucht keine Settings.
-            // Die 3-Signal-Fusion ist optional und muss vom User aktiviert
-            // werden. Wenn der Toggle aus ist, ist der Worker ein No-Op.
-            // Default ist false (siehe AutomationSettings), also läuft die
-            // Fusion nur, wenn der User sie bewusst einschaltet.
-            val settingsDeps = EntryPointAccessors.fromApplication(applicationContext, SettingsDeps::class.java)
-            val settings = try {
-                settingsDeps.automationSettingsDao().getSettingsSync()
-            } catch (e: Exception) {
-                null // Wenn Settings nicht lesbar, läuft der Worker (Best-Effort)
-            }
-            if (settings?.sleepFusionEnabled == false) {
-                android.util.Log.d(TAG, "sleepFusionEnabled = false — Fusion ist No-Op (Heuristik lief bereits)")
-                return Result.success()
-            }
 
             deps.sleepFusionEngine().analyzeLatest()
             Result.success()

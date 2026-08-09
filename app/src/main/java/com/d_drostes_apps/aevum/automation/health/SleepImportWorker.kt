@@ -150,8 +150,11 @@ class SleepImportWorker(
         // M12.2: Auto-Accept Schlaf-Candidates direkt zu Sessions.
         // Damit läuft die Schlaf-Erkennung durch die gleiche Pipeline
         // wie Geofence-Trigger und wird in der Timeline als "Auto" markiert.
-        // Niedrig-confidente Imports (< 0.70) bleiben als Candidate für den Review-Inbox.
-        reviewCandidateUseCase.acceptAuto(newCandidates)
+        // M18.58: acceptAutoDirect — Schlaf aus Health Connect wird IMMER
+        // direkt eingetragen (User-Wunsch: "sobald Daten verfügbar sind,
+        // direkt ohne vorherige Bestätigung in die Timeline eingetragen").
+        // Das Confidence-Gate (0.70) entfällt für Schlaf-Imports.
+        reviewCandidateUseCase.acceptAutoDirect(newCandidates)
 
         return Result.success()
     }
