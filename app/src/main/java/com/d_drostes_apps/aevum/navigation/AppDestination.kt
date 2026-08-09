@@ -56,5 +56,7 @@ enum class AppDestination(val route: String, val title: String) {
     // M18.55: Datenschutz, Export, Backup
     Privacy("privacy", "Datenschutz"),
     Export("export", "Export"),
-    Backup("backup", "Backup")
+    Backup("backup", "Backup"),
+    // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
+    FitnessTrackers("fitness_trackers", "Fitness-Tracker")
 }

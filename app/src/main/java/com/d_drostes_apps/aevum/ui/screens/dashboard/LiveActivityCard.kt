@@ -676,7 +676,13 @@ fun ActivityPickerSheet(
                         type = type,
                         isFavorite = true,
                         onStart = { startWithPendingTime(type.id) },
-                        onToggleFavorite = { onToggleFavorite(type) }
+                        onToggleFavorite = { onToggleFavorite(type) },
+                        // M18.59: ⏱ → Vorlaufzeit-Flow für diese Aktivität
+                        onStartWithTime = {
+                            pickerSelectedType = type.id
+                            pickerStartTime = System.currentTimeMillis()
+                            showTimeOption = true
+                        }
                     )
                 }
             }
@@ -693,7 +699,13 @@ fun ActivityPickerSheet(
                             type = type,
                             isFavorite = false,
                             onStart = { startWithPendingTime(type.id) },
-                            onToggleFavorite = { onToggleFavorite(type) }
+                            onToggleFavorite = { onToggleFavorite(type) },
+                            // M18.59: ⏱ → Vorlaufzeit-Flow für diese Aktivität
+                            onStartWithTime = {
+                                pickerSelectedType = type.id
+                                pickerStartTime = System.currentTimeMillis()
+                                showTimeOption = true
+                            }
                         )
                     } else {
                         GenericRow(
@@ -713,7 +725,13 @@ fun ActivityPickerSheet(
                     type = type,
                     isFavorite = false,
                     onStart = { startWithPendingTime(type.id) },
-                    onToggleFavorite = { onToggleFavorite(type) }
+                    onToggleFavorite = { onToggleFavorite(type) },
+                    // M18.59: ⏱ → Vorlaufzeit-Flow für diese Aktivität
+                    onStartWithTime = {
+                        pickerSelectedType = type.id
+                        pickerStartTime = System.currentTimeMillis()
+                        showTimeOption = true
+                    }
                 )
             }
 
@@ -799,7 +817,11 @@ private fun ActivityRow(
     type: ActivityType,
     isFavorite: Boolean,
     onStart: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    // M18.59-FIX: Vorlaufzeit-Start war toter Code (showTimeOption wurde
+    // nie auf true gesetzt, pickerSelectedType nie befüllt). Jetzt öffnet
+    // der ⏱-Button den Zeit-Flow für genau diese Aktivität.
+    onStartWithTime: (() -> Unit)? = null
 ) {
     // M18.12: Custom-Farbe der Aktivität (falls gesetzt), sonst Kategorie-Farbe.
     val accent = if (type.color != 0L) Color(type.color) else categoryColor(type.defaultCategoryId ?: "unknown")
@@ -833,6 +855,20 @@ private fun ActivityRow(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
+        // M18.59: ⏱-Button — Aktivität mit Vorlaufzeit starten
+        // (z. B. wenn man zu spät merkt, dass man aufzeichnen sollte).
+        if (onStartWithTime != null) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .clickable(onClick = onStartWithTime),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⏱", fontSize = 14.sp)
+            }
+        }
         Icon(
             imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
             contentDescription = "Favorit",

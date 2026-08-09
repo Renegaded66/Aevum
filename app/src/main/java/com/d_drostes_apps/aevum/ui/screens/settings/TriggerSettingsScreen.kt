@@ -67,13 +67,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionEngine
-import com.d_drostes_apps.aevum.automation.garmin.GarminSyncScheduler
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionStatus
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionWorker
 import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicEngine
 import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicStatus
-import com.d_drostes_apps.aevum.data.garmin.GarminApiClient
-import com.d_drostes_apps.aevum.data.garmin.GarminStatus
 import com.d_drostes_apps.aevum.data.model.AutomationSettings
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
@@ -373,18 +370,6 @@ fun TriggerSettingsScreen(
                 )
             }
 
-            // ── M18.58: Garmin Connect Status ────────────────────────
-            item {
-                GarminStatusCard(
-                    connected = state.garminConnected,
-                    checking = state.garminChecking,
-                    lastSyncAt = state.garminLastSyncAt,
-                    error = state.garminError,
-                    onSync = viewModel::garminSyncNow,
-                    onRefresh = viewModel::refreshGarminStatus
-                )
-            }
-
             // ── Weitere Automatisierung (aus der alten Automation-Seite) ──
             // M18.58: Health-Connect-Schalter ENTFERNT — die Schlaf-Quelle
             // oben ist jetzt die einzige Stelle (User: "alle Buttons die
@@ -639,6 +624,10 @@ private fun SleepSourceCard(
             // aktiven Buttons als Ziel-Offset.
             var buttonLefts by remember { mutableStateOf(listOf(0f, 0f, 0f, 0f)) }
             var buttonWidthPx by remember { mutableStateOf(0f) }
+            // M18.59-FIX: Die echte Button-HÖHE messen (vorher wurde die
+            // Breite × 2.1 als Höhe genommen → Rahmen ragte weit unter die
+            // Kacheln). Jetzt: Rahmen = exakt Button-Höhe.
+            var buttonHeightPx by remember { mutableStateOf(0f) }
             val density = LocalDensity.current
             val targetCenterPx = if (buttonWidthPx > 0f && activeIndex < buttonLefts.size) {
                 buttonLefts[activeIndex] + buttonWidthPx / 2f
@@ -668,6 +657,7 @@ private fun SleepSourceCard(
                                     if (idx in lefts.indices) lefts[idx] = coords.positionInParent().x
                                     buttonLefts = lefts
                                     buttonWidthPx = coords.size.width.toFloat()
+                                    buttonHeightPx = coords.size.height.toFloat()
                                 }
                                 .clip(RoundedCornerShape(AevumRadius.md))
                                 .background(
@@ -692,7 +682,10 @@ private fun SleepSourceCard(
                                     fontWeight = if (option.id == currentSource) FontWeight.Bold else FontWeight.Medium,
                                     color = if (option.id == currentSource) MaterialTheme.colorScheme.primary
                                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
+                                    // M18.59: "Health Connect" darf umbrechen
+                                    // (vorher maxLines=1 → abgeschnitten).
+                                    maxLines = 2,
+                                    lineHeight = 11.sp,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -701,14 +694,15 @@ private fun SleepSourceCard(
                 }
 
                 // Der schwebende Rahmen (Overlay, animiert zwischen Buttons)
-                if (buttonWidthPx > 0f) {
+                if (buttonWidthPx > 0f && buttonHeightPx > 0f) {
                     val frameWidth = with(density) { buttonWidthPx.toDp() }
                     val frameOffset = with(density) { (animatedCenterPx - buttonWidthPx / 2f).toDp() }
                     Box(
                         modifier = Modifier
                             .offset(x = frameOffset)
                             .width(frameWidth)
-                            .height(with(density) { (buttonWidthPx * 2.1f).toDp() })
+                            // M18.59-FIX: exakt Button-Höhe statt Breite × 2.1
+                            .height(with(density) { buttonHeightPx.toDp() })
                             .border(
                                 width = 2.dp,
                                 color = MaterialTheme.colorScheme.primary,
@@ -740,109 +734,6 @@ private data class SleepSourceOption(
     val icon: String,
     val label: String
 )
-
-/**
- * M18.58: Garmin-Connect-Status-Karte.
- *
- * Zeigt, ob die Aevum-Garmin-Bridge verbunden ist (Token auf dem Server
- * vorhanden), wann der letzte Sync war, und bietet "Jetzt synchronisieren"
- * + Status-Neuprüfung. Der eigentliche Garmin-Login läuft NICHT in der
- * App — die Bridge übernimmt die bestehende Garmin-Session vom
- * Calorie-Tracker (gleiche Maschine, gleiche Tokens).
- */
-@Composable
-private fun GarminStatusCard(
-    connected: Boolean,
-    checking: Boolean,
-    lastSyncAt: Long,
-    error: String?,
-    onSync: () -> Unit,
-    onRefresh: () -> Unit
-) {
-    AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        "Garmin Connect",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.2.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        if (connected) "Verbunden — Kacheln & Aktivitäten synchronisiert"
-                        else "Nicht verbunden — keine Kacheln, kein Aktivitäts-Import",
-                        fontSize = 12.sp,
-                        color = if (connected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.error
-                    )
-                }
-                if (checking) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        if (connected) "●" else "○",
-                        fontSize = 20.sp,
-                        color = if (connected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-
-            // Letzter Sync + Fehler
-            if (lastSyncAt > 0L) {
-                Text(
-                    "Letzter Sync: ${formatGarminTime(lastSyncAt)}",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            error?.let {
-                Text(
-                    it,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(
-                    onClick = onSync,
-                    enabled = !checking,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (checking) "Synchronisiere…" else "Jetzt synchronisieren")
-                }
-                OutlinedButton(
-                    onClick = onRefresh,
-                    enabled = !checking
-                ) {
-                    Text("Status prüfen")
-                }
-            }
-
-            Text(
-                "Login: läuft über die Bridge auf dem Server (bestehende Garmin-Session vom Calorie Tracker). Kein Passwort in der App.",
-                fontSize = 10.sp,
-                lineHeight = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private fun formatGarminTime(ms: Long): String {
-    val sdf = java.text.SimpleDateFormat("dd.MM. HH:mm", java.util.Locale.GERMAN)
-    return sdf.format(java.util.Date(ms))
-}
 
 /** M18.57: Weitere Automatisierung (aus der alten Automation-Seite übernommen). */
 @Composable
@@ -952,10 +843,7 @@ class TriggerSettingsViewModel @Inject constructor(
     private val candidateRepository: ActivityCandidateRepository,
     private val usageStatsCollector: UsageStatsCollector,
     private val sleepHeuristicEngine: SleepHeuristicEngine,
-    private val sleepFusionEngine: SleepFusionEngine,
-    // M18.58: Garmin Connect — Status + Sync aus den Einstellungen.
-    private val garminApiClient: GarminApiClient,
-    private val garminSyncScheduler: GarminSyncScheduler
+    private val sleepFusionEngine: SleepFusionEngine
 ) : ViewModel() {
 
     private val registrationMessage = MutableStateFlow<String?>(null)
@@ -973,39 +861,17 @@ class TriggerSettingsViewModel @Inject constructor(
 
     private data class UiExtras(
         val message: String? = null,
-        val perms: PermissionSnapshot = PermissionSnapshot(),
-        // M18.58: Garmin-Status
-        val garminConnected: Boolean = false,
-        val garminChecking: Boolean = false,
-        val garminLastSync: Long = 0L,
-        val garminError: String? = null
+        val perms: PermissionSnapshot = PermissionSnapshot()
     )
 
     private val permissionState = MutableStateFlow(PermissionSnapshot())
-    // M18.58: Garmin-Status (verbunden, letzter Sync, Fehler)
-    private val garminState = MutableStateFlow(
-        GarminUiState(
-            connected = false,
-            checking = false,
-            lastSyncAt = garminApiClient.lastSyncAt,
-            error = null
-        )
-    )
 
-    private val extras = combine(registrationMessage, permissionState, garminState) { msg, perms, garmin ->
-        UiExtras(
-            msg,
-            perms,
-            garminConnected = garmin.connected,
-            garminChecking = garmin.checking,
-            garminLastSync = garmin.lastSyncAt,
-            garminError = garmin.error
-        )
+    private val extras = combine(registrationMessage, permissionState) { msg, perms ->
+        UiExtras(msg, perms)
     }
 
     init {
         refreshPermissions()
-        refreshGarminStatus()
     }
 
     val uiState: StateFlow<TriggerSettingsUiState> = combine(
@@ -1025,12 +891,7 @@ class TriggerSettingsViewModel @Inject constructor(
             geofenceCount = geofences.size,
             triggerCount = triggers.size,
             pendingCandidateCount = candidates.size,
-            registrationMessage = extras.message,
-            // M18.58: Garmin-Status
-            garminConnected = extras.garminConnected,
-            garminChecking = extras.garminChecking,
-            garminLastSyncAt = extras.garminLastSync,
-            garminError = extras.garminError
+            registrationMessage = extras.message
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerSettingsUiState())
 
@@ -1043,37 +904,6 @@ class TriggerSettingsViewModel @Inject constructor(
             notificationsGranted = Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS),
             usageStatsGranted = usageStatsCollector.hasPermission()
         )
-    }
-
-    // ── M18.58: Garmin Connect ─────────────────────────────────────────
-    fun refreshGarminStatus() {
-        viewModelScope.launch {
-            garminState.value = garminState.value.copy(checking = true)
-            val status = try {
-                garminApiClient.getStatus()
-            } catch (e: Exception) {
-                GarminStatus(connected = false, error = e.message)
-            }
-            garminState.value = GarminUiState(
-                connected = status.connected,
-                checking = false,
-                lastSyncAt = garminApiClient.lastSyncAt,
-                error = status.error
-            )
-        }
-    }
-
-    /** M18.58: Manueller Garmin-Sync (sofort). */
-    fun garminSyncNow() {
-        viewModelScope.launch {
-            garminState.value = garminState.value.copy(checking = true)
-            garminSyncScheduler.syncNow()
-            // Nach kurzer Wartezeit Status neu prüfen — der Worker läuft
-            // asynchron, der letzteSync wird beim nächsten Status-Refresh
-            // aktualisiert.
-            delay(2_000)
-            refreshGarminStatus()
-        }
     }
 
     fun setGeofencing(enabled: Boolean) {
@@ -1257,18 +1087,5 @@ data class TriggerSettingsUiState(
     val geofenceCount: Int = 0,
     val triggerCount: Int = 0,
     val pendingCandidateCount: Int = 0,
-    val registrationMessage: String? = null,
-    // M18.58: Garmin Connect Status
-    val garminConnected: Boolean = false,
-    val garminChecking: Boolean = false,
-    val garminLastSyncAt: Long = 0L,
-    val garminError: String? = null
-)
-
-/** M18.58: Interner Garmin-Status im ViewModel. */
-private data class GarminUiState(
-    val connected: Boolean = false,
-    val checking: Boolean = false,
-    val lastSyncAt: Long = 0L,
-    val error: String? = null
+    val registrationMessage: String? = null
 )

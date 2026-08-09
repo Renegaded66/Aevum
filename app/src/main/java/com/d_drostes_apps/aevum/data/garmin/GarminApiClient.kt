@@ -8,25 +8,31 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * M18.58: HTTP-Client für die Aevum-Garmin-Bridge.
+ * M18.59: HTTP-Client für die Aevum-Garmin-Bridge (Multi-User).
  *
- * Die Bridge (Flask auf dem Server, gleiche Maschine wie der
- * Calorie-Tracker) hält die Garmin-Connect-Session und liefert:
- *   GET /api/status       — verbunden?
- *   GET /api/today        — Schritte/Kalorien/Distanz (heute oder Datum)
- *   GET /api/sleep        — Schlaf (Start/Ende GMT, Dauer)
- *   GET /api/activities   — letzte Aktivitäten (Laufen, Radfahren, ...)
+ * Jeder Nutzer authentifiziert sich mit SEINEN Garmin-Credentials:
+ *   POST /api/connect    {email, password} → Login, Tokens pro user_id
+ *   POST /api/disconnect                    → Tokens löschen
+ *   GET  /api/status     ?user_id=          → verbunden?
+ *   GET  /api/today      ?user_id=&date=    → Schritte/Kalorien/Distanz
+ *   GET  /api/sleep      ?user_id=&date=    → Schlaf (Start/Ende GMT)
+ *   GET  /api/activities ?user_id=&limit=   → letzte Aktivitäten
  *
- * Implementierung: pures HttpURLConnection (wie im Points Tracker) —
- * kein Retrofit/OkHttp-Overhead. Basis-URL aus BuildConfig, überschreibbar
- * über die DatenStore-Präferenz "garmin_bridge_url" (falls der
- * Cloudflare-Quick-Tunnel neu gestartet wird und eine neue URL bekommt).
+ * Die user_id wird beim ersten Verbinden generiert (UUID) und lokal
+ * gespeichert — die Bridge ordnet ihr die Garmin-Tokens zu. Das Passwort
+ * wird NUR an die Bridge geschickt und dort nach dem Login verworfen
+ * (kein Passwort-Speicher auf Server ODER Gerät).
+ *
+ * Jeder Request trägt den Header X-Aevum-Key (BuildConfig) — verhindert,
+ * dass Fremde die Bridge als offenen Proxy missbrauchen.
  */
 @Singleton
 class GarminApiClient @Inject constructor(
@@ -40,10 +46,43 @@ class GarminApiClient @Inject constructor(
         get() = prefs.getString(KEY_BASE_URL, null) ?: BuildConfig.GARMIN_BRIDGE_URL
         set(value) = prefs.edit().putString(KEY_BASE_URL, value.trimEnd('/')).apply()
 
+    /** M18.59: Lokale Geräte-ID — identifiziert den Nutzer an der Bridge. */
+    val userId: String
+        get() {
+            prefs.getString(KEY_USER_ID, null)?.let { return it }
+            val id = UUID.randomUUID().toString()
+            prefs.edit().putString(KEY_USER_ID, id).apply()
+            return id
+        }
+
     /** M18.58: Letzter erfolgreicher Sync (ms) — für die Status-Karte. */
     var lastSyncAt: Long
         get() = prefs.getLong(KEY_LAST_SYNC, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_SYNC, value).apply()
+
+    /**
+     * M18.59: Garmin-Login über die Bridge. Das Passwort wird nur an die
+     * Bridge geschickt (dort nach Login verworfen) und NIE lokal gespeichert.
+     *
+     * @return null bei Erfolg, sonst Fehlermeldung (deutsch, anzeigbar).
+     */
+    suspend fun connect(email: String, password: String): String? = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("email", email.trim())
+            .put("password", password)
+        val json = post("/api/connect", body) ?: return@withContext "Bridge nicht erreichbar"
+        if (json.optBoolean("connected", false)) {
+            null
+        } else {
+            json.optString("error", "Verbindung fehlgeschlagen")
+        }
+    }
+
+    /** M18.59: Garmin-Tokens auf der Bridge löschen. */
+    suspend fun disconnect(): Boolean = withContext(Dispatchers.IO) {
+        val json = post("/api/disconnect", JSONObject()) ?: return@withContext false
+        json.optBoolean("connected", false).not()
+    }
 
     suspend fun getStatus(): GarminStatus = withContext(Dispatchers.IO) {
         val json = get("/api/status") ?: return@withContext GarminStatus(connected = false, error = "Keine Antwort")
@@ -109,6 +148,8 @@ class GarminApiClient @Inject constructor(
             conn.connectTimeout = 20_000
             conn.readTimeout = 90_000
             conn.setRequestProperty("Accept", "application/json")
+            conn.setRequestProperty("X-Aevum-Key", BuildConfig.GARMIN_BRIDGE_KEY)
+            conn.setRequestProperty("X-Aevum-User", userId)
             val code = conn.responseCode
             if (code !in 200..299) {
                 android.util.Log.w(TAG, "Garmin-Bridge $path → HTTP $code")
@@ -126,10 +167,45 @@ class GarminApiClient @Inject constructor(
         }
     }
 
+    private fun post(path: String, body: JSONObject): JSONObject? {
+        val url = URL("${baseUrl.trimEnd('/')}$path")
+        val conn = url.openConnection() as HttpURLConnection
+        return try {
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 120_000 // Login kann 30 s+ dauern (Garmin-WAF)
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Accept", "application/json")
+            conn.setRequestProperty("X-Aevum-Key", BuildConfig.GARMIN_BRIDGE_KEY)
+            conn.setRequestProperty("X-Aevum-User", userId)
+            val out: OutputStream = conn.outputStream
+            out.write(body.toString().toByteArray(Charsets.UTF_8))
+            out.flush()
+            out.close()
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val reader = BufferedReader(InputStreamReader(stream))
+            val sb = StringBuilder()
+            reader.forEachLine { sb.append(it) }
+            if (code !in 200..299) {
+                android.util.Log.w(TAG, "Garmin-Bridge $path → HTTP $code: ${sb}")
+                return null
+            }
+            JSONObject(sb.toString())
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Garmin-Bridge $path fehlgeschlagen: ${e.message}")
+            null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     companion object {
         private const val TAG = "GarminApiClient"
         private const val KEY_BASE_URL = "bridge_base_url"
         private const val KEY_LAST_SYNC = "last_sync_at"
+        private const val KEY_USER_ID = "user_id"
     }
 }
 

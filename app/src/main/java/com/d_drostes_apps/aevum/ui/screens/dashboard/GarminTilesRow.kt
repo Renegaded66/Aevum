@@ -74,7 +74,6 @@ fun GarminTilesRow(
         tiles += GarminTile(
             icon = "🌙",
             value = formatDuration(sleepDurationMs),
-            label = "Schlaf",
             colors = listOf(Color(0xFF1E3A8A), Color(0xFF3B82F6))
         )
     }
@@ -83,7 +82,6 @@ fun GarminTilesRow(
             tiles += GarminTile(
                 icon = "👟",
                 value = String.format(Locale.GERMAN, "%,d", s.steps),
-                label = "Schritte",
                 colors = listOf(Color(0xFF155E75), Color(0xFF22D3EE))
             )
         }
@@ -91,7 +89,6 @@ fun GarminTilesRow(
             tiles += GarminTile(
                 icon = "🔥",
                 value = "${s.calories}",
-                label = "kcal",
                 colors = listOf(Color(0xFF78350F), Color(0xFFFBBF24))
             )
         }
@@ -99,7 +96,6 @@ fun GarminTilesRow(
             tiles += GarminTile(
                 icon = "📏",
                 value = formatDistance(s.distanceMeters),
-                label = "Distanz",
                 colors = listOf(Color(0xFF065F46), Color(0xFF34D399))
             )
         }
@@ -120,7 +116,6 @@ fun GarminTilesRow(
             },
             value = if (hasDistance) formatDistance(activity.distanceMeters)
             else formatDuration(activity.endAt - activity.startAt),
-            label = activity.title.take(14),
             colors = listOf(Color(0xFF0E7490), Color(0xFF06B6D4))
         )
     }
@@ -152,7 +147,6 @@ fun GarminTilesRow(
 private data class GarminTile(
     val icon: String,
     val value: String,
-    val label: String,
     val colors: List<Color>
 )
 
@@ -184,12 +178,6 @@ private fun GarminTileBox(tile: GarminTile) {
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
                 color = Color.White,
-                maxLines = 1
-            )
-            Text(
-                tile.label,
-                fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.85f),
                 maxLines = 1
             )
         }

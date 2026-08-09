@@ -66,7 +66,9 @@ fun SettingsScreen(
     // M18.55: Datenschutz, Export, Backup
     onOpenPrivacy: () -> Unit = {},
     onOpenExport: () -> Unit = {},
-    onOpenBackup: () -> Unit = {}
+    onOpenBackup: () -> Unit = {},
+    // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
+    onOpenFitnessTrackers: () -> Unit = {}
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -140,6 +142,10 @@ fun SettingsScreen(
                 SettingsEntry("Datenschutz", "Lokale Daten, Löschen", onOpenPrivacy),
                 SettingsEntry("Export", "Alle Daten als JSON", onOpenExport),
                 SettingsEntry("Backup", "Sichern & Wiederherstellen", onOpenBackup)
+            )) }
+            // M18.59: Fitness-Tracker — Garmin Connect Login + Sync
+            item { SettingsSection("Fitness-Tracker", listOf(
+                SettingsEntry("Garmin Connect", "Verbinden, Synchronisieren, Trennen", onOpenFitnessTrackers)
             )) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }

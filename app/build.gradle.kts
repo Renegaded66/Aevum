@@ -26,6 +26,16 @@ android {
             "GARMIN_BRIDGE_URL",
             "\"https://residence-joe-virtue-enclosure.trycloudflare.com\""
         )
+        // M18.59: Bridge-API-Key — kommt aus ~/.gradle/gradle.properties
+        // (NICHT im Repo, das Repo ist öffentlich!). Leerer Fallback für
+        // Fremd-Builds; die App zeigt dann einen klaren Hinweis.
+        val bridgeKey = providers.gradleProperty("aevumGarminBridgeKey")
+            .orElse("").get()
+        buildConfigField(
+            "String",
+            "GARMIN_BRIDGE_KEY",
+            "\"$bridgeKey\""
+        )
     }
 
     buildTypes {

@@ -16,6 +16,7 @@ import com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.SettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.TriggerSettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.PrivacyScreen
+import com.d_drostes_apps.aevum.ui.screens.settings.FitnessTrackersScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.ExportScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.BackupScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.AutomationStatusScreen
@@ -168,8 +169,14 @@ fun AppNavHost(
                 // M18.55: Datenschutz, Export, Backup
                 onOpenPrivacy = { navController.navigate(AppDestination.Privacy.route) },
                 onOpenExport = { navController.navigate(AppDestination.Export.route) },
-                onOpenBackup = { navController.navigate(AppDestination.Backup.route) }
+                onOpenBackup = { navController.navigate(AppDestination.Backup.route) },
+                // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
+                onOpenFitnessTrackers = { navController.navigate(AppDestination.FitnessTrackers.route) }
             )
+        }
+        // M18.59: Fitness-Tracker — eigene Seite (Garmin Login + Sync)
+        composable(AppDestination.FitnessTrackers.route) {
+            FitnessTrackersScreen(onBack = { navController.popBackStack() })
         }
         // M18.55: Datenschutz, Export, Backup — eigene Seiten
         composable(AppDestination.Privacy.route) {

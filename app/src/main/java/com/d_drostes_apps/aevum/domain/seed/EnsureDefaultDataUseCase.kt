@@ -29,8 +29,18 @@ class EnsureDefaultDataUseCase @Inject constructor(
             Log.e("EnsureDefaultData", "Categories-Seed fehlgeschlagen", e)
         }
         try {
-            if (activityTypeRepository.getAll().first().isEmpty()) {
+            // M18.59: Nicht nur bei leerer Tabelle seeden — auch fehlende
+            // System-Typen NACHträglich ergänzen (bestehende Installationen
+            // bekommen so die neuen Garmin-Typen joggen/radfahren/spazieren).
+            val existing = activityTypeRepository.getAll().first()
+            if (existing.isEmpty()) {
                 activityTypeRepository.insertAll(defaultActivityTypes)
+            } else {
+                val existingIds = existing.map { it.id }.toSet()
+                val missing = defaultActivityTypes.filter { it.id !in existingIds }
+                if (missing.isNotEmpty()) {
+                    activityTypeRepository.insertAll(missing)
+                }
             }
         } catch (e: Exception) {
             Log.e("EnsureDefaultData", "ActivityTypes-Seed fehlgeschlagen", e)
@@ -67,6 +77,13 @@ class EnsureDefaultDataUseCase @Inject constructor(
         ActivityType("deep_work", "Deep Work", "work", true, "{\"overlay\": false}", positivityScore = 80, icon = "🧠", color = 0xFF7E57C2.toLong()),
         ActivityType("sleep", "Schlaf", "sleep", true, "{\"overlay\": false}", positivityScore = 70, icon = "🌙", color = 0xFF3949AB.toLong()),
         ActivityType("fitness", "Fitness", "sport", true, "{\"overlay\": false}", positivityScore = 85, icon = "🏋️", color = 0xFF43A047.toLong()),
+        // M18.59: Garmin-Typen — joggen/radfahren/spazieren sind die
+        // Ziel-Typen des Garmin-Imports (running/cycling/walking/hiking).
+        // Vorher fiel alles auf "other" (User: "meine joggen Aktivität
+        // wurde als sonstiges abgespeichert").
+        ActivityType("joggen", "Joggen", "sport", true, "{\"overlay\": false}", positivityScore = 90, icon = "🏃", color = 0xFF26A69A.toLong()),
+        ActivityType("radfahren", "Radfahren", "sport", true, "{\"overlay\": false}", positivityScore = 85, icon = "🚴", color = 0xFF29B6F6.toLong()),
+        ActivityType("spazieren", "Spazieren", "sport", true, "{\"overlay\": false}", positivityScore = 70, icon = "🚶", color = 0xFF66BB6A.toLong()),
         ActivityType("learning", "Lernen", "learning", true, "{\"overlay\": false}", positivityScore = 75, icon = "📚", color = 0xFF26A69A.toLong()),
         ActivityType("reading", "Lesen", "leisure", true, "{\"overlay\": false}", positivityScore = 65, icon = "📖", color = 0xFF8D6E63.toLong()),
         ActivityType("meditation", "Meditation", "health", true, "{\"overlay\": false}", positivityScore = 90, icon = "🧘", color = 0xFF66BB6A.toLong()),
