@@ -66,6 +66,9 @@ fun GarminTilesRow(
     // Kacheln bauen — nur wenn Daten existieren (User: "nur wenn auch was
     // synchronisiert ist"). Schlaf-Kachel erscheint immer, wenn Schlaf
     // erfasst wurde (unabhängig von der Quelle).
+    // Farben nach Design-Research (M18.58): eine Akzentfarbe pro Metrik —
+    // Schlaf DUNKELBLAU (expliziter User-Wunsch "Mond, die Kachel in
+    // dunkelblau"), Schritte Cyan, Kalorien Amber, Distanz Grün.
     val tiles = mutableListOf<GarminTile>()
     if (sleepDurationMs > 0) {
         tiles += GarminTile(
@@ -81,7 +84,7 @@ fun GarminTilesRow(
                 icon = "👟",
                 value = String.format(Locale.GERMAN, "%,d", s.steps),
                 label = "Schritte",
-                colors = listOf(Color(0xFF065F46), Color(0xFF10B981))
+                colors = listOf(Color(0xFF155E75), Color(0xFF22D3EE))
             )
         }
         if (s.calories > 0) {
@@ -89,7 +92,7 @@ fun GarminTilesRow(
                 icon = "🔥",
                 value = "${s.calories}",
                 label = "kcal",
-                colors = listOf(Color(0xFF7C2D12), Color(0xFFF97316))
+                colors = listOf(Color(0xFF78350F), Color(0xFFFBBF24))
             )
         }
         if (s.distanceMeters > 0) {
@@ -97,7 +100,7 @@ fun GarminTilesRow(
                 icon = "📏",
                 value = formatDistance(s.distanceMeters),
                 label = "Distanz",
-                colors = listOf(Color(0xFF4C1D95), Color(0xFF8B5CF6))
+                colors = listOf(Color(0xFF065F46), Color(0xFF34D399))
             )
         }
     }
