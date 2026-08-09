@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,13 +28,21 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -63,6 +72,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
@@ -74,10 +84,14 @@ import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicStatus
 import com.d_drostes_apps.aevum.data.garmin.GarminApiClient
 import com.d_drostes_apps.aevum.data.garmin.GarminStatus
 import com.d_drostes_apps.aevum.data.model.AutomationSettings
+import com.d_drostes_apps.aevum.data.model.ActivityType
+import com.d_drostes_apps.aevum.data.model.PingTrigger
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+import com.d_drostes_apps.aevum.data.repository.PingTriggerRepository
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
 import com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.domain.digital.UsageStatsCollector
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -352,6 +366,20 @@ fun TriggerSettingsScreen(
                             }
                         )
                     )
+                )
+            }
+
+            // ── Netzwerk (Ping) ──────────────────────────────────────
+            // M18.61g: Ping-Trigger — IP-Adresse (z.B. FireTV) überwachen.
+            // Sobald die IP erreichbar ist, startet Aevum die konfigurierte
+            // Activity; sobald sie nicht mehr antwortet, wird sie beendet.
+            item {
+                PingTriggerCard(
+                    triggers = state.pingTriggers,
+                    activityTypes = viewModel.activityTypes.collectAsState().value,
+                    onCreate = viewModel::createPingTrigger,
+                    onToggle = viewModel::setPingTriggerEnabled,
+                    onDelete = viewModel::deletePingTrigger
                 )
             }
 
@@ -859,10 +887,17 @@ class TriggerSettingsViewModel @Inject constructor(
     private val sleepFusionEngine: SleepFusionEngine,
     // M18.59: Garmin-Verbindungs-Check für die Schlaf-Quellen-Auswahl
     // (Regler springt zurück, wenn Garmin nicht angemeldet ist).
-    private val garminApiClient: GarminApiClient
+    private val garminApiClient: GarminApiClient,
+    // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+    private val pingTriggerRepository: PingTriggerRepository,
+    private val activityTypeRepository: ActivityTypeRepository
 ) : ViewModel() {
 
     private val registrationMessage = MutableStateFlow<String?>(null)
+
+    // M18.61g: Alle Aktivitätstypen für die Ping-Trigger-Auswahl
+    val activityTypes: StateFlow<List<ActivityType>> = activityTypeRepository.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // M18.57: Permission-Status wird bei jedem Tick frisch geprüft.
     // refreshPermissions() wird nach Permission-Dialogen und bei
@@ -877,13 +912,17 @@ class TriggerSettingsViewModel @Inject constructor(
 
     private data class UiExtras(
         val message: String? = null,
-        val perms: PermissionSnapshot = PermissionSnapshot()
+        val perms: PermissionSnapshot = PermissionSnapshot(),
+        // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+        val pingTriggers: List<PingTrigger> = emptyList()
     )
 
     private val permissionState = MutableStateFlow(PermissionSnapshot())
 
-    private val extras = combine(registrationMessage, permissionState) { msg, perms ->
-        UiExtras(msg, perms)
+    // M18.61g: combine unterstützt nur 5 Flows — der Ping-Flow wird in
+    // den extras-Flow integriert (gleicher M18.57-Pitfall).
+    private val extras = combine(registrationMessage, permissionState, pingTriggerRepository.getAll()) { msg, perms, pings ->
+        UiExtras(msg, perms, pings)
     }
 
     init {
@@ -907,7 +946,8 @@ class TriggerSettingsViewModel @Inject constructor(
             geofenceCount = geofences.size,
             triggerCount = triggers.size,
             pendingCandidateCount = candidates.size,
-            registrationMessage = extras.message
+            registrationMessage = extras.message,
+            pingTriggers = extras.pingTriggers
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerSettingsUiState())
 
@@ -1028,6 +1068,59 @@ class TriggerSettingsViewModel @Inject constructor(
 
     fun setDigitalBalance(enabled: Boolean) = upsert { it.copy(digitalBalanceEnabled = enabled) }
 
+    // ── M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen) ──
+
+    fun createPingTrigger(name: String, ipAddress: String, activityTypeId: String) {
+        viewModelScope.launch {
+            try {
+                pingTriggerRepository.create(name.trim(), ipAddress.trim(), activityTypeId)
+                registrationMessage.value = "✓ Ping-Trigger \"$name\" angelegt — prüft alle 2 Minuten."
+                // Worker sofort anstoßen (nicht erst auf den nächsten
+                // periodischen Lauf warten)
+                androidx.work.WorkManager.getInstance(app)
+                    .enqueueUniqueWork(
+                        "aevum.ping_trigger_immediate",
+                        androidx.work.ExistingWorkPolicy.REPLACE,
+                        androidx.work.OneTimeWorkRequestBuilder<com.d_drostes_apps.aevum.automation.ping.PingTriggerWorker>()
+                            .setInitialDelay(5, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+                    )
+            } catch (e: Exception) {
+                registrationMessage.value = "Ping-Trigger konnte nicht angelegt werden: ${e.message}"
+            }
+        }
+    }
+
+    fun setPingTriggerEnabled(id: String, enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                pingTriggerRepository.setEnabled(id, enabled)
+                if (enabled) {
+                    androidx.work.WorkManager.getInstance(app)
+                        .enqueueUniqueWork(
+                            "aevum.ping_trigger_immediate",
+                            androidx.work.ExistingWorkPolicy.REPLACE,
+                            androidx.work.OneTimeWorkRequestBuilder<com.d_drostes_apps.aevum.automation.ping.PingTriggerWorker>()
+                                .setInitialDelay(5, java.util.concurrent.TimeUnit.SECONDS)
+                                .build()
+                        )
+                }
+            } catch (e: Exception) {
+                registrationMessage.value = "Ping-Trigger konnte nicht aktualisiert werden: ${e.message}"
+            }
+        }
+    }
+
+    fun deletePingTrigger(id: String) {
+        viewModelScope.launch {
+            try {
+                pingTriggerRepository.delete(id)
+            } catch (e: Exception) {
+                registrationMessage.value = "Ping-Trigger konnte nicht gelöscht werden: ${e.message}"
+            }
+        }
+    }
+
     fun openUsageAccess() = usageStatsCollector.openUsageAccessSettings()
 
     // ── Schlaf-Heuristik (Bildschirm-Muster) ─────────────────────────
@@ -1146,5 +1239,175 @@ data class TriggerSettingsUiState(
     val geofenceCount: Int = 0,
     val triggerCount: Int = 0,
     val pendingCandidateCount: Int = 0,
-    val registrationMessage: String? = null
+    val registrationMessage: String? = null,
+    // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+    val pingTriggers: List<PingTrigger> = emptyList()
 )
+
+// ===================== M18.61g: PING-TRIGGER =====================
+
+/**
+ * Ping-Trigger-Karte: IP-Adresse (z.B. FireTV) überwachen. Sobald die IP
+ * erreichbar ist, startet Aevum die konfigurierte Activity; sobald sie
+ * nicht mehr antwortet, wird sie beendet.
+ */
+@Composable
+private fun PingTriggerCard(
+    triggers: List<PingTrigger>,
+    activityTypes: List<ActivityType>,
+    onCreate: (String, String, String) -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var showCreate by remember { mutableStateOf(false) }
+
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Netzwerk (Ping)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "IP-Adresse überwachen — z.B. FireTV. Erreichbar → Activity startet, nicht erreichbar → stoppt.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(onClick = { showCreate = true }) {
+                    Text("+ Neu", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            if (triggers.isEmpty()) {
+                Text(
+                    "Noch keine Ping-Trigger. Füge die IP deines FireTV hinzu, um automatisch eine Activity zu starten, sobald er an ist.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            triggers.forEach { trigger ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AevumRadius.md))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    Text("📡", fontSize = 20.sp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(trigger.name, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "${trigger.ipAddress} · ${trigger.activityTypeId}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(
+                        onClick = { onDelete(trigger.id) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Löschen",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Switch(
+                        checked = trigger.enabled,
+                        onCheckedChange = { onToggle(trigger.id, it) }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showCreate) {
+        PingTriggerCreateDialog(
+            activityTypes = activityTypes,
+            onCreate = { name, ip, typeId ->
+                onCreate(name, ip, typeId)
+                showCreate = false
+            },
+            onDismiss = { showCreate = false }
+        )
+    }
+}
+
+@Composable
+private fun PingTriggerCreateDialog(
+    activityTypes: List<ActivityType>,
+    onCreate: (String, String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var ip by remember { mutableStateOf("") }
+    var activityTypeId by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Neuer Ping-Trigger", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text("Name", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text("z.B. FireTV Wohnzimmer") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("IP-Adresse", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = ip,
+                    onValueChange = { ip = it },
+                    placeholder = { Text("z.B. 192.168.1.42") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Aktivität", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                activityTypes.forEach { type ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.md))
+                            .clickable { activityTypeId = type.id }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(type.icon, fontSize = 18.sp)
+                        Text(type.name, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        if (activityTypeId == type.id) {
+                            Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onCreate(name, ip, activityTypeId) },
+                enabled = name.isNotBlank() && ip.isNotBlank() && activityTypeId.isNotEmpty()
+            ) { Text("Erstellen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
+}

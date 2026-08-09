@@ -40,6 +40,17 @@
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
+    <!-- M18.61g: Paket-Sichtbarkeit (Android 11+) — ohne <queries> sieht
+         die App nur sich selbst + System-Apps. getApplicationLabel/
+         getApplicationIcon werfen sonst NameNotFoundException für fast
+         alle Apps → Paketname statt App-Name, kein Logo. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".AevumApplication"
         android:allowBackup="false"

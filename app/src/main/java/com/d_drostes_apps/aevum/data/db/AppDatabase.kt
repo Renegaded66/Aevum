@@ -52,13 +52,15 @@ import com.d_drostes_apps.aevum.data.model.*
         AppLimit::class,
         // M18.61f: Digital Balance — Profile (z.B. "Lernen" sperrt Social Media)
         BalanceProfile::class,
-        BalanceProfileApp::class
+        BalanceProfileApp::class,
+        // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+        PingTrigger::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
     // M18.61: v26 — app_limit Tabelle (Digital Balance).
     // M18.61f: v28 — balance_profile + balance_profile_app.
-    version = 28,
+    version = 29,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -84,6 +86,7 @@ abstract class AppDatabase : RoomDatabase() {
     // M18.61: Digital Balance — App-Limits
     abstract fun appLimitDao(): AppLimitDao
     abstract fun balanceProfileDao(): BalanceProfileDao
+    abstract fun pingTriggerDao(): PingTriggerDao
     abstract fun activitySessionChangeDao(): ActivitySessionChangeDao
     abstract fun sessionEvidenceDao(): SessionEvidenceDao
     abstract fun activityAggregateDayDao(): ActivityAggregateDayDao
@@ -1221,6 +1224,27 @@ abstract class AppDatabase : RoomDatabase() {
                         "PRIMARY KEY(`id`))"
                 )
                 database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_balance_profile_app_profile_id_package_name` ON `balance_profile_app` (`profile_id`, `package_name`)")
+            }
+        }
+
+        // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+        val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ping_trigger` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`ip_address` TEXT NOT NULL, " +
+                        "`activity_type_id` TEXT NOT NULL, " +
+                        "`enabled` INTEGER NOT NULL, " +
+                        "`created_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                // M18.61g-CRASH-FIX: Index-Name MUSS exakt dem Room-Schema
+                // entsprechen (`index_ping_trigger_ipAddress`, camelCase) —
+                // sonst schlägt die Schema-Validierung nach der Migration
+                // fehl (gleicher Bug wie M18.61c: v26 app_limit-Index).
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_ping_trigger_ipAddress` ON `ping_trigger` (`ip_address`)")
             }
         }
     }

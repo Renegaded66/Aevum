@@ -52,7 +52,10 @@ data class DigitalBalanceUiState(
     val dailyTotals: List<Pair<LocalDate, Long>> = emptyList(),
     val apps: List<DigitalAppUi> = emptyList(),
     val blockedCount: Int = 0,
-    val loading: Boolean = true
+    val loading: Boolean = true,
+    // M18.61g: Sortierung — "usage" (absteigend nach Nutzung, Default)
+    // oder "alpha" (alphabetisch nach App-Name)
+    val sortMode: String = "usage"
 )
 
 @HiltViewModel
@@ -66,6 +69,8 @@ class DigitalBalanceViewModel @Inject constructor(
 
     private val rangeDays = MutableStateFlow(7)
     private val refreshTick = MutableStateFlow(0L)
+    // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder "alpha"
+    private val sortMode = MutableStateFlow("usage")
 
     // M18.61f: Profile-Flows für die Profile-Karte
     val profiles: StateFlow<List<BalanceProfile>> = balanceProfileRepository.getAll()
@@ -78,17 +83,18 @@ class DigitalBalanceViewModel @Inject constructor(
     val uiState: StateFlow<DigitalBalanceUiState> = combine(
         rangeDays,
         refreshTick,
+        sortMode,
         appLimitRepository.getAll()
-    ) { days, _, limits ->
+    ) { days, _, sort, limits ->
         val permission = UsageStatsPermission.isGranted(getApplication())
         if (!permission) {
             DigitalBalanceUiState(hasPermission = false, loading = false)
         } else {
-            buildState(days, limits)
+            buildState(days, limits, sort)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DigitalBalanceUiState())
 
-    private suspend fun buildState(days: Int, limits: List<AppLimit>): DigitalBalanceUiState {
+    private suspend fun buildState(days: Int, limits: List<AppLimit>, sort: String = "usage"): DigitalBalanceUiState {
         val todayUsage = aggregator.todayUsageByApp()
         val rangeUsage = aggregator.rangeUsageByApp(days)
         val daily = aggregator.dailyTotals(days).map { it.date to it.totalMs }
@@ -116,7 +122,14 @@ class DigitalBalanceViewModel @Inject constructor(
                     getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
                 } catch (_: Exception) { null }
             )
-        }.sortedByDescending { it.todayMs }
+        }.let { list ->
+            // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder
+            // "alpha" (alphabetisch nach App-Name, case-insensitive)
+            when (sort) {
+                "alpha" -> list.sortedBy { it.appLabel.lowercase(Locale.getDefault()) }
+                else -> list.sortedByDescending { it.todayMs }
+            }
+        }
 
         val todayTotal = todayUsage.sumOf { it.durationMs }
 
@@ -132,8 +145,13 @@ class DigitalBalanceViewModel @Inject constructor(
             dailyTotals = daily,
             apps = apps,
             blockedCount = apps.count { it.isBlocked },
-            loading = false
+            loading = false,
+            sortMode = sort
         )
+    }
+
+    fun setSortMode(mode: String) {
+        sortMode.value = mode
     }
 
     fun setRangeDays(days: Int) {

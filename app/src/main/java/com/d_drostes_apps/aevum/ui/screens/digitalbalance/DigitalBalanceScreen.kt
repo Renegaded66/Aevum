@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -162,13 +164,37 @@ private fun BalancePage(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Apps", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                if (state.blockedCount > 0) {
-                    Text(
-                        "${state.blockedCount} gesperrt",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Medium
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // M18.61g: Dezente Sortier-Buttons (Icons) —
+                    // alphabetisch (A-Z) oder absteigend nach Nutzung
+                    IconButton(
+                        onClick = { viewModel.setSortMode("alpha") },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SortByAlpha,
+                            contentDescription = "Alphabetisch sortieren",
+                            tint = if (state.sortMode == "alpha") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.setSortMode("usage") },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Sort,
+                            contentDescription = "Nach Nutzung sortieren",
+                            tint = if (state.sortMode == "usage") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (state.blockedCount > 0) {
+                        Text(
+                            "${state.blockedCount} gesperrt",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
@@ -679,18 +705,39 @@ private fun AppLimitEditorDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(minutes, enabled, exceptionType, windowStart, windowEnd) }) {
-                Text("Speichern")
+            Button(
+                onClick = { onSave(minutes, enabled, exceptionType, windowStart, windowEnd) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Speichern", modifier = Modifier.padding(horizontal = 8.dp))
             }
         },
         dismissButton = {
-            Row {
+            // M18.61g-FIX: Buttons vertikal stapeln statt quetschen —
+            // vorher standen "Entfernen" + "Abbrechen" in einer Row und
+            // wurden bei schmalen Dialogen zusammengedrückt.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (app.limit != null) {
-                    TextButton(onClick = onRemove) { Text("Entfernen", color = MaterialTheme.colorScheme.error) }
+                    OutlinedButton(
+                        onClick = onRemove,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Limit entfernen", modifier = Modifier.padding(horizontal = 8.dp))
+                    }
                 }
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Abbrechen", modifier = Modifier.padding(horizontal = 8.dp))
+                }
             }
-        }
+        },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
     )
 }
 

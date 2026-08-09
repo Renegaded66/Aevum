@@ -12,6 +12,7 @@ import com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
 import com.d_drostes_apps.aevum.data.db.AppLimitDao
 import com.d_drostes_apps.aevum.data.db.AppUsageSampleDao
 import com.d_drostes_apps.aevum.data.db.BalanceProfileDao
+import com.d_drostes_apps.aevum.data.db.PingTriggerDao
 import com.d_drostes_apps.aevum.data.db.GeofenceEventLogDao
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepositoryImpl
@@ -43,6 +44,8 @@ import com.d_drostes_apps.aevum.data.repository.AppLimitRepository
 import com.d_drostes_apps.aevum.data.repository.AppLimitRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.BalanceProfileRepository
 import com.d_drostes_apps.aevum.data.repository.BalanceProfileRepositoryImpl
+import com.d_drostes_apps.aevum.data.repository.PingTriggerRepository
+import com.d_drostes_apps.aevum.data.repository.PingTriggerRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.AppUsageSampleRepository
 import com.d_drostes_apps.aevum.data.repository.AppUsageSampleRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.GeofenceEventLogRepository
@@ -154,6 +157,9 @@ object RepositoryModule {
     // M18.61f: Digital Balance — Profile
     @Provides @Singleton
     fun provideBalanceProfileRepository(dao: BalanceProfileDao): BalanceProfileRepository = BalanceProfileRepositoryImpl(dao)
+    // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+    @Provides @Singleton
+    fun providePingTriggerRepository(dao: PingTriggerDao): PingTriggerRepository = PingTriggerRepositoryImpl(dao)
 
     @Provides
     fun provideGeofenceEventLogRepository(dao: GeofenceEventLogDao): GeofenceEventLogRepository = GeofenceEventLogRepositoryImpl(dao)

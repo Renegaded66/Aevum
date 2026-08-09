@@ -72,6 +72,11 @@ class AevumApplication : Application() {
         // vor dem Editor-Fix).
         fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
         fun geofenceRepository(): com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
+        // M18.61g: Digital-Balance-Sperr-Service beim App-Start starten,
+        // wenn Limits oder ein Profil aktiv sind (vorher lief er nur nach
+        // manueller Limit-Änderung — nach App-Neustart nie → kein Banner).
+        fun appLimitRepository(): com.d_drostes_apps.aevum.data.repository.AppLimitRepository
+        fun balanceProfileRepository(): com.d_drostes_apps.aevum.data.repository.BalanceProfileRepository
     }
 
     /**
@@ -189,6 +194,32 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "Geofencing-Selbstheilung init failed — continuing", e)
         }
+        // M18.61g: Digital-Balance-Sperr-Service beim App-Start starten.
+        // Vorher wurde er nur bei Limit-Änderungen im ViewModel gestartet —
+        // nach einem App-Neustart lief er nie, obwohl Limits aktiv waren
+        // (User: "ich dachte, wenn eine App über ihr Limit kommt, wird sie
+        // blockiert und ein Banner erscheint"). Jetzt: sofort prüfen und
+        // starten, wenn Limits oder ein aktives Profil existieren.
+        try {
+            val deps = EntryPointAccessors.fromApplication(this, Deps::class.java)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val limits = deps.appLimitRepository().getAll().first()
+                    val anyActive = limits.any {
+                        it.enabled && it.exceptionType != com.d_drostes_apps.aevum.data.model.AppLimit.EXCEPTION_ALWAYS_ALLOW
+                    }
+                    val activeProfile = deps.balanceProfileRepository().getActiveOnce()
+                    if (anyActive || activeProfile != null) {
+                        com.d_drostes_apps.aevum.domain.digital.AppBlockService.start(this@AevumApplication)
+                        Log.d("AevumApplication", "Digital-Balance-Sperr-Service gestartet (${limits.count { it.enabled }} Limits, Profil: ${activeProfile?.name})")
+                    }
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "AppBlockService-Start failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "AppBlockService-Start init failed — continuing", e)
+        }
         // M18.58: Garmin Connect Sync — alle 30 min (Schritte/Kalorien/
         // Distanz-Kacheln + Aktivitäts-Import). Schlaf-Import läuft über
         // denselben Worker (sleepSource-Gate).
@@ -220,6 +251,14 @@ class AevumApplication : Application() {
             sleepFusionMorningScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "SleepFusionMorningScheduler failed — continuing", e)
+        }
+        // M18.61g: Ping-Trigger-Scheduler (FireTV-IP → Activity starten/stoppen)
+        try {
+            com.d_drostes_apps.aevum.automation.ping.PingTriggerScheduler(
+                this
+            ).schedule()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "PingTriggerScheduler failed — continuing", e)
         }
         // M14: ActivityRecognition (IN_VEHICLE + STILL) Transition-Updates
         // abonnieren. No-Op, falls ACTIVITY_RECOGNITION nicht gewährt — wird

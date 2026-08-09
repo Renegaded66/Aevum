@@ -131,6 +131,11 @@ class InsightsAnalyticsTest {
      * FENSTERENDE (24:00) gerechnet statt bis "jetzt". Der Test startet
      * eine Session vor ~1h und prüft, dass die gezählte Dauer ≈ 1h ist
      * (Toleranz 5 min) — nicht bis Mitternacht.
+     *
+     * M18.61g-FIX (Test war nachts rot): Der Test ist tageszeitabhängig —
+     * startet die Session um 23:16 und der Test läuft um 00:16, zählt
+     * "Today" nur die 16 Minuten nach Mitternacht. Erwartung jetzt
+     * dynamisch: min(1h, Zeit seit Mitternacht) ± 5 min.
      */
     @Test
     fun runningSessionCountsOnlyUntilNowNotUntilMidnight() {
@@ -149,9 +154,12 @@ class InsightsAnalyticsTest {
             zoneId = zone
         )
         val total = result.totalMsIncludingAllowances
-        // Erwartung: ~1h (60 min), Toleranz ±5 min — NICHT bis 24:00
-        assertThat(total).isAtLeast(55L * 60 * 1000)
-        assertThat(total).isAtMost(65L * 60 * 1000)
+        // Erwartung: die heute gezählte Dauer = min(1h, Zeit seit 00:00),
+        // Toleranz ±5 min — NICHT bis 24:00.
+        val startOfToday = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+        val expectedToday = minOf(60L * 60 * 1000, now - startOfToday)
+        assertThat(total).isAtLeast(expectedToday - 5L * 60 * 1000)
+        assertThat(total).isAtMost(expectedToday + 5L * 60 * 1000)
     }
 
     private fun session(
