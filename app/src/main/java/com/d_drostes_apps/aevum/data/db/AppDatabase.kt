@@ -49,7 +49,9 @@ import com.d_drostes_apps.aevum.data.model.*
         // M18.60: Pro-Tag-Overrides der Tagespauschalen
         AllowanceDayOverride::class
     ],
-    version = 24,
+    // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
+    // kaputte v24 (allowance_day_override ohne FK).
+    version = 25,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1112,17 +1114,47 @@ abstract class AppDatabase : RoomDatabase() {
         //  - todo.check_in_only: Streak-only-Todo ("heute kein Alkohol").
         val MIGRATION_23_24 = object : Migration(23, 24) {
             override fun migrate(database: SupportSQLiteDatabase) {
+                // M18.60-CRASH-FIX: Room erwartet in allowance_day_override
+                // einen FOREIGN KEY (allowance_id -> daily_allowance.id,
+                // ON DELETE CASCADE). Die erste Version der Tabelle hatte
+                // keinen FK -> Room-Schema-Validierung schlug fehl ->
+                // IllegalStateException beim App-Start (Crash). Fix:
+                // Tabelle mit korrektem Schema neu erstellen.
+                database.execSQL("DROP TABLE IF EXISTS `allowance_day_override`")
                 database.execSQL(
                     "CREATE TABLE IF NOT EXISTS `allowance_day_override` (" +
                         "`date` TEXT NOT NULL, " +
                         "`allowance_id` TEXT NOT NULL, " +
                         "`minutes` INTEGER NOT NULL, " +
                         "`updated_at` INTEGER NOT NULL, " +
-                        "PRIMARY KEY(`date`, `allowance_id`))"
+                        "PRIMARY KEY(`date`, `allowance_id`), " +
+                        "FOREIGN KEY(`allowance_id`) REFERENCES `daily_allowance`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_date` ON `allowance_day_override` (`date`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_allowance_id` ON `allowance_day_override` (`allowance_id`)")
                 database.execSQL("ALTER TABLE `todo` ADD COLUMN `check_in_only` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        // M18.60-CRASH-FIX 2: Der User hat bereits die kaputte v24
+        // installiert (Tabelle OHNE FK). Die MIGRATION_23_24 laeuft dort
+        // nie wieder — deshalb repariert 24->25 die Tabelle: Tabelle mit
+        // korrektem Schema (FK + CASCADE) neu erstellen. Bestands-Daten
+        // gehen dabei verloren (es gab noch keine UI, um Overrides zu
+        // erstellen — nur die leere Tabelle existiert).
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS `allowance_day_override`")
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `allowance_day_override` (" +
+                        "`date` TEXT NOT NULL, " +
+                        "`allowance_id` TEXT NOT NULL, " +
+                        "`minutes` INTEGER NOT NULL, " +
+                        "`updated_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`date`, `allowance_id`), " +
+                        "FOREIGN KEY(`allowance_id`) REFERENCES `daily_allowance`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_date` ON `allowance_day_override` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_allowance_id` ON `allowance_day_override` (`allowance_id`)")
             }
         }
     }
