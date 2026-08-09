@@ -117,12 +117,27 @@ class DashboardViewModel @Inject constructor(
                 // M18.45-FIX: Cap auf die Wachzeit. totalTimeInForeground
                 // kumuliert seit Mitternacht — der User sieht sonst Nutzung
                 // von VOR dem Aufwachen. Erste echte Nutzung heute = Wake.
-                val wakeMs = try {
-                    usageWakeDetector.firstUsageSince(start)
+                // M18.59-FIX (User: "2h 39 Bildschirmzeit stimmt nicht"):
+                // totalTimeInForeground kumuliert auf vielen Geräten über
+                // MEHRERE Tage (OEM-Bug) und zählt Screen-off-Zeit (Musik
+                // im Hintergrund). Primärquelle ist jetzt die Event-API
+                // (SCREEN_INTERACTIVE-Intervalle seit Mitternacht = echte
+                // Bildschirmzeit). Nur wenn die Events fehlen (OEM ohne
+                // Screen-Events), fällt die Berechnung auf die gecappte
+                // topApps-Summe zurück.
+                val precise = try {
+                    usageStatsCollector.screenTimeTodayMs()
                 } catch (_: Exception) { null }
-                val now = System.currentTimeMillis()
-                val capMs = if (wakeMs != null) (now - wakeMs).coerceAtLeast(0L) else Long.MAX_VALUE
-                _screenTimeMs.value = apps.sumOf { it.durationMs.coerceAtMost(capMs) }
+                if (precise != null) {
+                    _screenTimeMs.value = precise
+                } else {
+                    val wakeMs = try {
+                        usageWakeDetector.firstUsageSince(start)
+                    } catch (_: Exception) { null }
+                    val now = System.currentTimeMillis()
+                    val capMs = if (wakeMs != null) (now - wakeMs).coerceAtLeast(0L) else Long.MAX_VALUE
+                    _screenTimeMs.value = apps.sumOf { it.durationMs.coerceAtMost(capMs) }
+                }
             }
         }
     }

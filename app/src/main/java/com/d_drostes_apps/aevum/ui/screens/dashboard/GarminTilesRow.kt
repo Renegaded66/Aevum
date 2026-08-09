@@ -154,27 +154,29 @@ private data class GarminTile(
 private fun GarminTileBox(tile: GarminTile) {
     Box(
         modifier = Modifier
-            .width(104.dp)
-            .height(96.dp)
+            // M18.59: 4 nebeneinander — 104dp war zu breit (nur 3 passten).
+            // 76dp × 4 + 3×8dp Spacing = 328dp → passt auf 360dp-Screens.
+            .width(76.dp)
+            .height(72.dp)
             .clip(RoundedCornerShape(AevumRadius.lg))
             .background(
                 Brush.linearGradient(
                     colors = tile.colors,
                     start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                    end = androidx.compose.ui.geometry.Offset(104f, 96f)
+                    end = androidx.compose.ui.geometry.Offset(76f, 72f)
                 )
             )
-            .padding(10.dp),
+            .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(tile.icon, fontSize = 22.sp)
+            Text(tile.icon, fontSize = 18.sp)
             Text(
                 tile.value,
-                fontSize = 15.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
                 color = Color.White,

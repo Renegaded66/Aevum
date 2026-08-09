@@ -162,6 +162,53 @@ class UsageStatsCollector @Inject constructor(
     }
 
     /**
+     * M18.59-FIX (User: "Dashboard zeigt 2h 39 Bildschirmzeit, stimmt aber
+     * nicht"): `totalTimeInForeground` kumuliert auf vielen Geräten über
+     * mehrere Tage (OEM-Bug) und zählt auch Screen-off-Zeit (z.B. Musik-
+     * Apps im Hintergrund). Die ehrliche Quelle ist die Event-API:
+     * SCREEN_INTERACTIVE / SCREEN_NON_INTERACTIVE liefern die echten
+     * Screen-an-Phasen. Summe der Intervalle seit Mitternacht = echte
+     * Bildschirmzeit heute.
+     *
+     * @return Bildschirmzeit seit Mitternacht in ms, oder null wenn keine
+     * Permission / keine Events (dann nutzt der Aufrufer den Fallback).
+     */
+    fun screenTimeTodayMs(): Long? {
+        return try {
+            val mgr = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val zone = ZoneId.systemDefault()
+            val startOfDay = java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+            val now = System.currentTimeMillis()
+            val events = mgr.queryEvents(startOfDay, now) ?: return null
+
+            var total = 0L
+            var screenOnAt: Long? = null
+            val event = android.app.usage.UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                when (event.eventType) {
+                    android.app.usage.UsageEvents.Event.SCREEN_INTERACTIVE -> {
+                        if (screenOnAt == null) screenOnAt = event.timeStamp
+                    }
+                    android.app.usage.UsageEvents.Event.SCREEN_NON_INTERACTIVE -> {
+                        screenOnAt?.let { on ->
+                            total += (event.timeStamp - on).coerceAtLeast(0L)
+                        }
+                        screenOnAt = null
+                    }
+                }
+            }
+            // Screen ist gerade an → bis jetzt zählen
+            screenOnAt?.let { on ->
+                total += (now - on).coerceAtLeast(0L)
+            }
+            if (total <= 0L) null else total
+        } catch (_: Exception) {
+            null // keine Permission / OEM-Blockade — nie crashen
+        }
+    }
+
+    /**
      * M13: Get top apps for a given day (returns the most-used ones).
      * Returns empty list if no permission.
      */

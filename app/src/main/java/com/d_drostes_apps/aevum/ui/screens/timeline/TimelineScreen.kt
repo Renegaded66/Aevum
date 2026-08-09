@@ -162,10 +162,13 @@ fun TimelineScreen(
                 )
             }
             // M18.58: Slide-Animation beim Tag-Wechsel (nur über die
-            // Pfeil-Buttons — KEIN Gesten-Swipe). previousDay → von links
-            // reinschieben (wie Rückwärtsblättern), nextDay → von rechts.
-            // Die Richtung wird in der transitionSpec aus dem Vergleich der
-            // beiden LocalDate-Werte abgeleitet (kein Extra-State nötig).
+            // Pfeil-Buttons — KEIN Gesten-Swipe).
+            // M18.59-FIX (User: "zurück = nach rechts swipen, vor = nach
+            // links swipen"): Die Paare waren vertauscht — nextDay nutzte
+            // slideLeft+exitRight (beide von rechts), previousDay das
+            // Gegenteil. Jetzt klassische Blätter-Metapher:
+            //   vor (nextDay)     → neuer Tag von RECHTS rein, alter nach LINKS raus
+            //   zurück (prevDay)  → neuer Tag von LINKS rein, alter nach RECHTS raus
             androidx.compose.animation.AnimatedContent(
                 targetState = state.selectedDate,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -187,11 +190,11 @@ fun TimelineScreen(
                         targetOffsetX = { it }
                     ) + androidx.compose.animation.fadeOut(tween(320))
                     if (targetState > initialState) {
-                        // Vorwärts (nextDay): neuer Tag kommt von rechts
-                        (slideLeft togetherWith exitRight).using(androidx.compose.animation.SizeTransform(clip = false))
+                        // Vorwärts (nextDay): nach links swipen
+                        (slideLeft togetherWith exitLeft).using(androidx.compose.animation.SizeTransform(clip = false))
                     } else {
-                        // Rückwärts (previousDay): neuer Tag kommt von links
-                        (slideRight togetherWith exitLeft).using(androidx.compose.animation.SizeTransform(clip = false))
+                        // Rückwärts (previousDay): nach rechts swipen
+                        (slideRight togetherWith exitRight).using(androidx.compose.animation.SizeTransform(clip = false))
                     }
                 },
                 label = "day-slide"

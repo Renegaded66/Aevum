@@ -338,8 +338,16 @@ class TimelineViewModel @Inject constructor(
         // (z.B. Schlaf 23:30–08:30). Im aktuellen Tag zeigen wir nur den
         // sichtbaren Ausschnitt [dayStart, dayEnd]. Session selbst bleibt
         // unverändert in der DB — das Clipping ist rein für die Anzeige.
+        //
+        // M18.59-FIX (User: "laufende Activity erscheint an jedem ZUKÜNFTIGEN
+        // Tag von 0 Uhr bis Startzeit"): endAt=null wurde von
+        // SessionTimeValidator.rangesOverlap als Long.MAX_VALUE behandelt →
+        // die laufende Session überlappte mit JEDEM zukünftigen Tag und wurde
+        // dort als 0:00–24:00 gerendert. Eine laufende Session endet effektiv
+        // bei "jetzt" — sie darf nur an Tagen ≤ heute erscheinen.
+        val nowMs = System.currentTimeMillis()
         val filteredSessions = allSessions
-            .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt) }
+            .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
             .sortedBy { it.startAt }
 
         // M16.5: Pro Session den sichtbaren Tagesausschnitt berechnen.
