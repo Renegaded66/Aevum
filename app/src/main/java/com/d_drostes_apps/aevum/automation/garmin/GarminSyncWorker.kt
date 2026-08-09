@@ -135,13 +135,20 @@ class GarminSyncWorker(
      * bestehende Sleep-Session der Nacht (softDelete + Insert). Nur
      * Sleep-Sessions werden ersetzt — andere Aktivitäten bleiben
      * unberührt.
+     *
+     * M18.59-FIX 2 (User: "letzte Nacht wird nicht überschrieben"):
+     * Garmin ordnet Schlaf dem AUFWACH-Tag zu (die Bridge liefert für
+     * date=X den Schlaf, der am Morgen von X endet). Der Import startete
+     * bei minusDays(1) — damit fehlte die NACHT ZUM HEUTE (die letzte
+     * Nacht!) und die Screen-Heuristik-Session blieb stehen. Jetzt:
+     * 0..6 (heute + 6 zurück) — die letzte Nacht wird mitimportiert.
      */
     private suspend fun importSleep(
         api: GarminApiClient,
         repo: com.d_drostes_apps.aevum.data.repository.ActivityRepository,
         today: LocalDate
     ) {
-        for (i in 1..7) {
+        for (i in 0..6) {
             val day = today.minusDays(i.toLong())
             val sleep = api.getSleep(day.toString()) ?: continue
 

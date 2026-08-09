@@ -150,8 +150,27 @@ class FitnessTrackersViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(syncing = true, error = null)
             syncScheduler.syncNow()
-            // Kurz warten, damit der Worker starten kann, dann Status aktualisieren
-            kotlinx.coroutines.delay(1500)
+            // M18.59-FIX (User: "Textfeld der letzten Synchronisation ändert
+            // sich nicht, erst nach zurück+rauf"): Der Worker läuft asynchron
+            // und braucht oft 10-30s (Bridge-Aufrufe). Vorher wurde nur 1,5s
+            // gewartet — lastSyncAt war noch der alte Wert. Jetzt wird bis
+            // zu 45s gepollt, bis der Worker den Zeitstempel geschrieben hat.
+            val target = api.lastSyncAt
+            var waited = 0
+            while (waited < 45_000) {
+                kotlinx.coroutines.delay(1_000)
+                waited += 1_000
+                val fresh = api.lastSyncAt
+                if (fresh > target) {
+                    _uiState.value = _uiState.value.copy(
+                        syncing = false,
+                        lastSyncAt = fresh,
+                        message = "Synchronisierung abgeschlossen."
+                    )
+                    return@launch
+                }
+            }
+            // Timeout — Status trotzdem aktualisieren (letzter bekannter Wert)
             _uiState.value = _uiState.value.copy(
                 syncing = false,
                 lastSyncAt = api.lastSyncAt,

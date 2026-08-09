@@ -624,6 +624,11 @@ private fun SleepSourceCard(
             // M18.58: Rahmen-Position messen. Jeder Button registriert sein
             // linkes x (in px). Der schwebende Rahmen nutzt das Zentrum des
             // aktiven Buttons als Ziel-Offset.
+            // M18.59-FIX (User: "der Rahmen flackert"): onGloballyPositioned
+            // erzeugte bei JEDEM Layout-Pass eine neue Liste (toMutableList)
+            // → State-Änderung → Recomposition → onGloballyPositioned feuert
+            // wieder → Flacker-Schleife. Jetzt wird nur geschrieben, wenn
+            // sich ein Wert wirklich ändert (stabiler State, kein Loop).
             var buttonLefts by remember { mutableStateOf(listOf(0f, 0f, 0f, 0f)) }
             var buttonWidthPx by remember { mutableStateOf(0f) }
             // M18.59-FIX: Die echte Button-HÖHE messen (vorher wurde die
@@ -654,12 +659,18 @@ private fun SleepSourceCard(
                             modifier = Modifier
                                 .weight(1f)
                                 .onGloballyPositioned { coords ->
-                                    val lefts = buttonLefts.toMutableList()
                                     val idx = sources.indexOfFirst { it.id == option.id }
-                                    if (idx in lefts.indices) lefts[idx] = coords.positionInParent().x
-                                    buttonLefts = lefts
-                                    buttonWidthPx = coords.size.width.toFloat()
-                                    buttonHeightPx = coords.size.height.toFloat()
+                                    if (idx !in buttonLefts.indices) return@onGloballyPositioned
+                                    val newLeft = coords.positionInParent().x
+                                    val newWidth = coords.size.width.toFloat()
+                                    val newHeight = coords.size.height.toFloat()
+                                    // Nur bei echten Änderungen schreiben —
+                                    // verhindert die Recomposition-Schleife.
+                                    if (buttonLefts[idx] != newLeft) {
+                                        buttonLefts = buttonLefts.toMutableList().also { it[idx] = newLeft }
+                                    }
+                                    if (buttonWidthPx != newWidth) buttonWidthPx = newWidth
+                                    if (buttonHeightPx != newHeight) buttonHeightPx = newHeight
                                 }
                                 .clip(RoundedCornerShape(AevumRadius.md))
                                 .background(
