@@ -135,10 +135,6 @@ fun TriggerSettingsScreen(
     viewModel: TriggerSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    val isAnalyzingSleep by viewModel.isAnalyzingSleep.collectAsState()
-    val sleepStatus by viewModel.sleepStatus.collectAsState()
-    val isAnalyzingFusion by viewModel.isAnalyzingFusion.collectAsState()
-    val fusionStatus by viewModel.fusionStatus.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -191,7 +187,9 @@ fun TriggerSettingsScreen(
                 "driving" -> viewModel.setDriving(true)
                 "walking" -> viewModel.setWalking(true)
                 "bicycle" -> viewModel.setBicycle(true)
-                "sleep" -> viewModel.setSleepFusion(true)
+                // M18.58: "sleep" nicht mehr — die Schlaf-Quelle wird über
+                // die SleepSourceCard (sleepSource) gewählt, nicht über
+                // einen AR-Permission-Trigger.
             }
             pendingTrigger = null
         }
@@ -401,20 +399,6 @@ fun TriggerSettingsScreen(
             }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
-    }
-
-    // Schlaf-Status-Dialoge (aus der alten Automation-Seite übernommen)
-    sleepStatus?.let { status ->
-        SleepStatusDialog(
-            status = status,
-            onDismiss = { viewModel.dismissSleepStatus() }
-        )
-    }
-    fusionStatus?.let { status ->
-        SleepFusionStatusDialog(
-            status = status,
-            onDismiss = { viewModel.dismissFusionStatus() }
-        )
     }
 }
 
