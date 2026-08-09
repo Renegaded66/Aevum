@@ -32,6 +32,8 @@ class DailyAllowanceRepositoryImpl @Inject constructor(
     // M18.60: Pro-Tag-Overrides
     override suspend fun getOverridesForDate(date: String): List<AllowanceDayOverride> =
         dao.getOverridesForDate(date)
+    override fun getOverridesForDateFlow(date: String): Flow<List<AllowanceDayOverride>> =
+        dao.getOverridesForDateFlow(date)
     override suspend fun getOverride(date: String, allowanceId: String): AllowanceDayOverride? =
         dao.getOverride(date, allowanceId)
     override suspend fun insertOverride(override: AllowanceDayOverride) =

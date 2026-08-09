@@ -22,6 +22,7 @@ interface DailyAllowanceRepository {
 
     // M18.60: Pro-Tag-Overrides — Tageswert einer Pauschale einmalig anpassen.
     suspend fun getOverridesForDate(date: String): List<AllowanceDayOverride>
+    fun getOverridesForDateFlow(date: String): Flow<List<AllowanceDayOverride>>
     suspend fun getOverride(date: String, allowanceId: String): AllowanceDayOverride?
     suspend fun insertOverride(override: AllowanceDayOverride)
     suspend fun deleteOverride(date: String, allowanceId: String)

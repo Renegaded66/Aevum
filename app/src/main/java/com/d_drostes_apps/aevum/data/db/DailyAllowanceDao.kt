@@ -43,6 +43,12 @@ interface DailyAllowanceDao {
     @Query("SELECT * FROM allowance_day_override WHERE date = :date")
     suspend fun getOverridesForDate(date: String): List<AllowanceDayOverride>
 
+    // M18.60-CRASH-FIX 3: Flow-Version fuer die Tages-Navigation.
+    // Der Dashboard-combine muss Overrides pro Tag FRISCH abonnieren
+    // (flatMapLatest) — sonst bleiben die Daten beim Tag-Wechsel stehen.
+    @Query("SELECT * FROM allowance_day_override WHERE date = :date")
+    fun getOverridesForDateFlow(date: String): Flow<List<AllowanceDayOverride>>
+
     @Query("SELECT * FROM allowance_day_override WHERE date = :date AND allowance_id = :allowanceId")
     suspend fun getOverride(date: String, allowanceId: String): AllowanceDayOverride?
 

@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import android.util.Log
@@ -404,89 +406,83 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
-    val uiState: StateFlow<DashboardUiState> = combine(
-        activityRepository.getOverlappingRange(start, end),
-        categoryRepository.getAll(),
-        candidateRepository.getByStatus("PENDING"),
-        goalRepository.getByStatus("ACTIVE"),
-        activityTypeRepository.getAll(),
-        // M10: today's sleep — used for the "Guten Morgen" summary card.
-        // M16.3: 36h-Overlap-Fenster, damit über-Mitternacht-Schlaf erscheint.
-        activityRepository.getOverlappingRange(sleepWindowStart, sleepWindowEnd),
-        // M16: Bildschirmzeit aus topApps — vorher nie in buildState() gesetzt
-        _screenTimeMs,
-        // M18.33: Tagespauschalen — on-the-fly in die Statistik einrechnen.
-        dailyAllowanceRepository.getAll(),
-        // M18.37: Todos fuer die kompakte Dashboard-Karte.
-        todoRepository.getAll(),
-        // M18.43-FIX: ALLE Completions laden — buildState filtert selbst
-        // auf das AKTUELLE Datum. Vorher wurde getByDate(today) beim
-        // combine-Setup einmal abonniert; über Mitternacht blieb der Flow
-        // auf dem alten Datum -> abgehakte Todos von HEUTE erschienen
-        // nicht als erledigt.
-        todoRepository.getAllCompletions(),
-        // M18.42: Minuetlicher Tick fuer Live-Updates.
-        minuteTick,
-        // M18.60: Overrides des gewählten Tages (Pauschalen pro Tag).
-        _dayOverrides
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
-        val sessions = values[0] as List<ActivitySession>
-        val categories = values[1] as List<com.d_drostes_apps.aevum.data.model.Category>
-        val candidates = values[2] as List<ActivityCandidate>
-        val activeGoals = values[3] as List<com.d_drostes_apps.aevum.data.model.Goal>
-        val types = values[4] as List<com.d_drostes_apps.aevum.data.model.ActivityType>
-        val allSleepSessions = values[5] as List<ActivitySession>
-        val screenMs = values[6] as Long
-        val allowances = values[7] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
-        val allTodos = values[8] as List<com.d_drostes_apps.aevum.data.model.Todo>
-        val allCompletions = values[9] as List<com.d_drostes_apps.aevum.data.model.TodoCompletion>
-        // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
-        val dayOverrides = values[11] as List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride>
-        // M18.43: Auf das AKTUELLE Datum filtern (frischer Getter).
-        val todayCompletions = allCompletions.filter { it.date == today.toString() }
-        // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
-        // M16.3: Auf "den heutigen Tag überlappend" filtern — eine reine
-        // today-Query würde Mitternacht-Schlaf verfehlen.
-        // M18.21-FIX (Root Cause): Der Filter prüfte NUR die Zeitüberlappung,
-        // aber NIE die Aktivität — dadurch landeten ALLE heutigen Sessions
-        // (z.B. die laufende Studium-Session) in sleepSessionsToday und
-        // lastSleepDurationMs zeigte die Dauer der letzten Session des Tages
-        // als "Schlaf" (User-Bug: "1:16 Erfasst" = "1:16 Schlaf").
-        val nowApprox = System.currentTimeMillis()
-        val sleepSessionsToday = allSleepSessions.filter { session ->
-            val s = session.startAt
-            val e = session.endAt ?: nowApprox
-            // NUR echte Schlaf-Sessions (activityTypeId "sleep" ODER
-            // Kategorie "sleep" — deckt custom Schlaf-Typen ab).
-            val isSleep = session.activityTypeId == "sleep" || session.categoryId == "sleep"
-            // Session überlappt mit [start, end], wenn start < endUnd end > startOfDay.
-            isSleep && s < end && e > start
+    /**
+     * M18.60-FIX 3 (User: "Tage wechseln funktioniert nicht — da passiert
+     * nichts"): ROOT CAUSE — der combine abonnierte die datumsabhaengigen
+     * Room-Queries (getOverlappingRange(start, end)) EINMAL beim Aufbau.
+     * Room-Queries mit festen Parametern emittieren nur bei DB-Aenderungen —
+     * ein Offset-Wechsel aenderte zwar das Label, aber die Sessions kamen
+     * weiterhin vom urspruenglich abonnierten Tag. Fix: flatMapLatest auf
+     * den Tag-Key — bei jedem Tag-Wechsel werden ALLE datumsabhaengigen
+     * Flows frisch abonniert (der alte wird automatisch abbestellt).
+     *
+     * Der Tag-Key-Flow (tagKey) emittiert bei Offset-Wechsel eine neue
+     * Instanz → flatMapLatest baut den kompletten combine neu auf.
+     * Datumsunabhaengige Flows (Kategorien, Typen, Todos) werden dabei
+     * zwar auch neu abonniert — das ist harmlos (Room cached).
+     */
+    private val tagKey: kotlinx.coroutines.flow.Flow<String> =
+        _selectedDayOffset.map { offset -> LocalDate.now().plusDays(offset.toLong()).toString() }
+
+    val uiState: StateFlow<DashboardUiState> = tagKey
+        .flatMapLatest { dayStr ->
+            val day = LocalDate.parse(dayStr)
+            val dayStart = TimeFormatting.startOfDayMillis(day, zoneId)
+            val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
+            val sleepStart = dayStart - 24L * 60 * 60 * 1000
+            val sleepEnd = dayEnd + 12L * 60 * 60 * 1000
+            combine(
+                activityRepository.getOverlappingRange(dayStart, dayEnd),
+                categoryRepository.getAll(),
+                candidateRepository.getByStatus("PENDING"),
+                goalRepository.getByStatus("ACTIVE"),
+                activityTypeRepository.getAll(),
+                activityRepository.getOverlappingRange(sleepStart, sleepEnd),
+                _screenTimeMs,
+                dailyAllowanceRepository.getAll(),
+                todoRepository.getAll(),
+                todoRepository.getAllCompletions(),
+                minuteTick,
+                dailyAllowanceRepository.getOverridesForDateFlow(dayStr)
+            ) { values ->
+                @Suppress("UNCHECKED_CAST")
+                val sessions = values[0] as List<ActivitySession>
+                val categories = values[1] as List<com.d_drostes_apps.aevum.data.model.Category>
+                val candidates = values[2] as List<ActivityCandidate>
+                val activeGoals = values[3] as List<com.d_drostes_apps.aevum.data.model.Goal>
+                val types = values[4] as List<com.d_drostes_apps.aevum.data.model.ActivityType>
+                val allSleepSessions = values[5] as List<ActivitySession>
+                val screenMs = values[6] as Long
+                val allowances = values[7] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
+                val allTodos = values[8] as List<com.d_drostes_apps.aevum.data.model.Todo>
+                val allCompletions = values[9] as List<com.d_drostes_apps.aevum.data.model.TodoCompletion>
+                // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
+                val dayOverrides = values[11] as List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride>
+                val todayCompletions = allCompletions.filter { it.date == dayStr }
+                val nowApprox = System.currentTimeMillis()
+                val sleepSessionsToday = allSleepSessions.filter { session ->
+                    val s = session.startAt
+                    val e = session.endAt ?: nowApprox
+                    val isSleep = session.activityTypeId == "sleep" || session.categoryId == "sleep"
+                    isSleep && s < dayEnd && e > dayStart
+                }
+                buildState(
+                    sessions = sessions,
+                    categories = categories,
+                    candidates = candidates.filter { it.startAt < dayEnd && it.endAt > dayStart },
+                    activeGoals = activeGoals,
+                    typeMap = types.associateBy { it.id },
+                    allTypes = types,
+                    sleepSessions = sleepSessionsToday,
+                    screenTimeMs = screenMs,
+                    allowances = allowances,
+                    todos = allTodos,
+                    todayCompletions = todayCompletions,
+                    dayOverrides = dayOverrides,
+                    displayedDate = day
+                )
+            }
         }
-        buildState(
-            sessions = sessions,
-            categories = categories,
-            candidates = candidates.filter { it.startAt < end && it.endAt > start },
-            activeGoals = activeGoals,
-            typeMap = types.associateBy { it.id },
-            allTypes = types,
-            sleepSessions = sleepSessionsToday,
-            screenTimeMs = screenMs,
-            // M18.33: Pauschalen sofort einrechnen
-            allowances = allowances,
-            // M18.37: Todos fuer die Dashboard-Karte
-            todos = allTodos,
-            todayCompletions = todayCompletions,
-            // M18.60: Overrides des gewählten Tages + Datum fuer die UI
-            dayOverrides = dayOverrides,
-            displayedDate = today
-        )
-    }
-        // M12.0.2: Defensive Programmierung — keine Exception darf bis zur UI
-        // propagieren. Wenn ein der 6 Flows fehlschlägt (z.B. Room-Schema-Mismatch,
-        // DB-Corruption, unzulässige Query), wird der Fehler geloggt und der
-        // Default-State (leeres DashboardUiState) beibehalten. Die App bleibt
-        // stabil, das Dashboard ist sichtbar — nur eben ohne Daten.
         .catch { e ->
             Log.e("DashboardViewModel", "uiState combine() failed — emitting default state", e)
             emit(DashboardUiState())
@@ -743,7 +739,11 @@ class DashboardViewModel @Inject constructor(
             currentDuration = current?.let { TimeFormatting.formatDuration(((it.endAt ?: now).coerceAtMost(end) - it.startAt.coerceAtLeast(start)).coerceAtLeast(0)) } ?: "0m",
             balanceScore = estimateBalanceScore(distribution, totalMsWithAllowances, openMs),
             totalTracked = TimeFormatting.formatDuration(totalMsWithAllowances),
+            // M18.60: Numerischer Wert fuer die Lade-Animation (Werte
+            // zaehlen sich beim Tag-Wechsel animiert hoch/runter).
+            totalTrackedMs = totalMsWithAllowances,
             openTime = TimeFormatting.formatDuration(openMs),
+            openMsValue = openMs,
             sessionCount = activeSessions.size,
             reviewCount = candidates.size,
             distribution = distribution,
@@ -1008,6 +1008,9 @@ data class DashboardUiState(
     val currentDuration: String = "0m",
     val balanceScore: Int = 0,
     val totalTracked: String = "0m",
+    // M18.60: Numerische Werte fuer die Zaehl-Animation beim Tag-Wechsel.
+    val totalTrackedMs: Long = 0L,
+    val openMsValue: Long = 24 * 60 * 60 * 1000L,
     val openTime: String = "24h",
     val sessionCount: Int = 0,
     val reviewCount: Int = 0,

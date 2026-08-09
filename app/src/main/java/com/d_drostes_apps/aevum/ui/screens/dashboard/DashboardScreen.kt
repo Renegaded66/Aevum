@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -202,6 +203,36 @@ private fun DashboardContent(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             DashboardAtmosphere()
+            // M18.60-FIX (User: "Tage wechseln — da sollte eine Animation
+            // passieren, die das gesamte Fragment nach links/rechts
+            // verschiebt"): AnimatedContent um den kompletten Inhalt,
+            // getriggert durch das angezeigte Datum. Vor: Tag-Wechsel
+            // ohne jede visuelle Reaktion. Jetzt: Slide-Richtung je
+            // Navigationsrichtung (tagKey enthaelt das Datum; die
+            // Richtung wird ueber den Vergleich der LocalDates bestimmt).
+            val dayKey = state.displayedDate.toString()
+            var lastDayKey by remember { mutableStateOf(dayKey) }
+            var slideDirection by remember { mutableStateOf(1) }
+            if (lastDayKey != dayKey) {
+                val old = java.time.LocalDate.parse(lastDayKey)
+                val new = java.time.LocalDate.parse(dayKey)
+                slideDirection = if (new.isAfter(old)) 1 else -1
+                lastDayKey = dayKey
+            }
+            androidx.compose.animation.AnimatedContent(
+                targetState = dayKey,
+                transitionSpec = {
+                    val offset = slideDirection * 80
+                    (
+                        androidx.compose.animation.slideInHorizontally(initialOffsetX = { offset }) +
+                            androidx.compose.animation.fadeIn(animationSpec = tween(300))
+                        ) togetherWith (
+                        androidx.compose.animation.slideOutHorizontally(targetOffsetX = { -offset }) +
+                            androidx.compose.animation.fadeOut(animationSpec = tween(200))
+                        )
+                },
+                label = "day-slide"
+            ) { _ ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize().statusBarsPadding(),
             // M18.58: Abstand zum oberen Bildschirmrand reduziert (User-Wunsch).
@@ -312,7 +343,8 @@ private fun DashboardContent(
             }
 
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
-            }
+            } // Ende LazyColumn (innerhalb AnimatedContent)
+            } // Ende AnimatedContent
 
             // M18.58: Schwebender +-Button unten rechts (User: "der gesamte
             // Bereich zum starten einer Activity kann weg. Stattdessen
@@ -507,9 +539,13 @@ private fun PulsHero(state: DashboardUiState) {
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        HeroMetric(
+                        // M18.60-FIX (User: "Statistiken sollen sich mit
+                        // einer Animation aufladen bis zu den Werten des
+                        // jeweiligen Tages"): Der Erfasst-Wert zaehlt beim
+                        // Tag-Wechsel animiert von alt zu neu (600ms).
+                        AnimatedHeroMetric(
                             icon = "⏱️",
-                            value = state.totalTracked,
+                            valueMs = state.totalTrackedMs,
                             label = "Erfasst"
                         )
                         HeroMetric(
@@ -561,6 +597,47 @@ private fun HeroMetric(icon: String, value: String, label: String) {
         Text(icon, fontSize = 15.sp)
         Text(
             value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * M18.60: Animierte Hero-Metrik — der Wert zaehlt beim Tag-Wechsel
+ * (oder Daten-Update) von alt zu neu (600ms, FastOutSlowIn). Liefert
+ * den "Werte laden sich auf"-Effekt, den der User beim Dashboard-
+ * Tageswechsel sehen will.
+ */
+@Composable
+private fun AnimatedHeroMetric(icon: String, valueMs: Long, label: String) {
+    // M18.60: animateLongAsState existiert in dieser Compose-Version
+    // nicht — stattdessen Float-Animation (exakt genug fuer Zeitwerte).
+    val animatedMs by animateFloatAsState(
+        targetValue = valueMs.toFloat(),
+        animationSpec = tween(durationMillis = 600, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "hero-metric"
+    )
+    val hours = animatedMs.toLong() / 3_600_000
+    val minutes = (animatedMs.toLong() % 3_600_000) / 60_000
+    val text = when {
+        hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
+        hours > 0 -> "${hours}h"
+        else -> "${minutes}m"
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(icon, fontSize = 15.sp)
+        Text(
+            text,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace,

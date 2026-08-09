@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -320,23 +321,6 @@ private fun TodoCard(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        // M18.60: Streak-Badge — ersichtlich auf jeder Karte.
-                        // Wöchentliche Todos zeigen "🔥 3 Wochen", tägliche "🔥 12".
-                        if (item.streak > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    item.streakLabel,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
                     }
                 }
                 // Aktionen
@@ -390,6 +374,45 @@ private fun TodoCard(
                             fontFamily = FontFamily.Monospace
                         )
                     }
+                }
+            }
+
+            // M18.60-FIX (User: "Von den Streaks sehe ich gar nichts"):
+            // Das Streak-Badge war zu dezent (10sp in der Meta-Zeile).
+            // Jetzt: prominente eigene Zeile mit 🔥-Badge, gut sichtbar.
+            // Wöchentliche Todos zeigen "🔥 3 Wochen", tägliche "🔥 12".
+            if (item.streak > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            item.streakLabel,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Text(
+                        if (item.bestStreak > item.streak) "Best: $item.bestStreak"
+                        else "Am Stück",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
