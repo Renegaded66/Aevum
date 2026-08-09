@@ -17,6 +17,15 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        // M18.58: Garmin-Bridge-Basis-URL (Cloudflare-Quick-Tunnel zur
+        // Aevum-Garmin-Bridge auf dem Server). In der App überschreibbar
+        // über die Garmin-Einstellungen (falls der Tunnel neu startet und
+        // eine neue URL erhält).
+        buildConfigField(
+            "String",
+            "GARMIN_BRIDGE_URL",
+            "\"https://residence-joe-virtue-enclosure.trycloudflare.com\""
+        )
     }
 
     buildTypes {
@@ -35,6 +44,8 @@ android {
 
     buildFeatures {
         compose = true
+        // M18.58: Custom BuildConfig-Feld GARMIN_BRIDGE_URL
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"

@@ -67,10 +67,13 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionEngine
+import com.d_drostes_apps.aevum.automation.garmin.GarminSyncScheduler
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionStatus
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionWorker
 import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicEngine
 import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicStatus
+import com.d_drostes_apps.aevum.data.garmin.GarminApiClient
+import com.d_drostes_apps.aevum.data.garmin.GarminStatus
 import com.d_drostes_apps.aevum.data.model.AutomationSettings
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
@@ -84,6 +87,7 @@ import com.d_drostes_apps.aevum.ui.screens.automation.SleepFusionStatusDialog
 import com.d_drostes_apps.aevum.ui.screens.automation.SleepStatusDialog
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -366,6 +370,18 @@ fun TriggerSettingsScreen(
                 SleepSourceCard(
                     currentSource = state.settings.sleepSource,
                     onSelectSource = viewModel::setSleepSource
+                )
+            }
+
+            // ── M18.58: Garmin Connect Status ────────────────────────
+            item {
+                GarminStatusCard(
+                    connected = state.garminConnected,
+                    checking = state.garminChecking,
+                    lastSyncAt = state.garminLastSyncAt,
+                    error = state.garminError,
+                    onSync = viewModel::garminSyncNow,
+                    onRefresh = viewModel::refreshGarminStatus
                 )
             }
 
@@ -725,6 +741,109 @@ private data class SleepSourceOption(
     val label: String
 )
 
+/**
+ * M18.58: Garmin-Connect-Status-Karte.
+ *
+ * Zeigt, ob die Aevum-Garmin-Bridge verbunden ist (Token auf dem Server
+ * vorhanden), wann der letzte Sync war, und bietet "Jetzt synchronisieren"
+ * + Status-Neuprüfung. Der eigentliche Garmin-Login läuft NICHT in der
+ * App — die Bridge übernimmt die bestehende Garmin-Session vom
+ * Calorie-Tracker (gleiche Maschine, gleiche Tokens).
+ */
+@Composable
+private fun GarminStatusCard(
+    connected: Boolean,
+    checking: Boolean,
+    lastSyncAt: Long,
+    error: String?,
+    onSync: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Garmin Connect",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (connected) "Verbunden — Kacheln & Aktivitäten synchronisiert"
+                        else "Nicht verbunden — keine Kacheln, kein Aktivitäts-Import",
+                        fontSize = 12.sp,
+                        color = if (connected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
+                }
+                if (checking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        if (connected) "●" else "○",
+                        fontSize = 20.sp,
+                        color = if (connected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            // Letzter Sync + Fehler
+            if (lastSyncAt > 0L) {
+                Text(
+                    "Letzter Sync: ${formatGarminTime(lastSyncAt)}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            error?.let {
+                Text(
+                    it,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Button(
+                    onClick = onSync,
+                    enabled = !checking,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (checking) "Synchronisiere…" else "Jetzt synchronisieren")
+                }
+                OutlinedButton(
+                    onClick = onRefresh,
+                    enabled = !checking
+                ) {
+                    Text("Status prüfen")
+                }
+            }
+
+            Text(
+                "Login: läuft über die Bridge auf dem Server (bestehende Garmin-Session vom Calorie Tracker). Kein Passwort in der App.",
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun formatGarminTime(ms: Long): String {
+    val sdf = java.text.SimpleDateFormat("dd.MM. HH:mm", java.util.Locale.GERMAN)
+    return sdf.format(java.util.Date(ms))
+}
+
 /** M18.57: Weitere Automatisierung (aus der alten Automation-Seite übernommen). */
 @Composable
 private fun AdditionalAutomationCard(
@@ -833,7 +952,10 @@ class TriggerSettingsViewModel @Inject constructor(
     private val candidateRepository: ActivityCandidateRepository,
     private val usageStatsCollector: UsageStatsCollector,
     private val sleepHeuristicEngine: SleepHeuristicEngine,
-    private val sleepFusionEngine: SleepFusionEngine
+    private val sleepFusionEngine: SleepFusionEngine,
+    // M18.58: Garmin Connect — Status + Sync aus den Einstellungen.
+    private val garminApiClient: GarminApiClient,
+    private val garminSyncScheduler: GarminSyncScheduler
 ) : ViewModel() {
 
     private val registrationMessage = MutableStateFlow<String?>(null)
@@ -851,17 +973,39 @@ class TriggerSettingsViewModel @Inject constructor(
 
     private data class UiExtras(
         val message: String? = null,
-        val perms: PermissionSnapshot = PermissionSnapshot()
+        val perms: PermissionSnapshot = PermissionSnapshot(),
+        // M18.58: Garmin-Status
+        val garminConnected: Boolean = false,
+        val garminChecking: Boolean = false,
+        val garminLastSync: Long = 0L,
+        val garminError: String? = null
     )
 
     private val permissionState = MutableStateFlow(PermissionSnapshot())
+    // M18.58: Garmin-Status (verbunden, letzter Sync, Fehler)
+    private val garminState = MutableStateFlow(
+        GarminUiState(
+            connected = false,
+            checking = false,
+            lastSyncAt = garminApiClient.lastSyncAt,
+            error = null
+        )
+    )
 
-    private val extras = combine(registrationMessage, permissionState) { msg, perms ->
-        UiExtras(msg, perms)
+    private val extras = combine(registrationMessage, permissionState, garminState) { msg, perms, garmin ->
+        UiExtras(
+            msg,
+            perms,
+            garminConnected = garmin.connected,
+            garminChecking = garmin.checking,
+            garminLastSync = garmin.lastSyncAt,
+            garminError = garmin.error
+        )
     }
 
     init {
         refreshPermissions()
+        refreshGarminStatus()
     }
 
     val uiState: StateFlow<TriggerSettingsUiState> = combine(
@@ -881,7 +1025,12 @@ class TriggerSettingsViewModel @Inject constructor(
             geofenceCount = geofences.size,
             triggerCount = triggers.size,
             pendingCandidateCount = candidates.size,
-            registrationMessage = extras.message
+            registrationMessage = extras.message,
+            // M18.58: Garmin-Status
+            garminConnected = extras.garminConnected,
+            garminChecking = extras.garminChecking,
+            garminLastSyncAt = extras.garminLastSync,
+            garminError = extras.garminError
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerSettingsUiState())
 
@@ -894,6 +1043,37 @@ class TriggerSettingsViewModel @Inject constructor(
             notificationsGranted = Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS),
             usageStatsGranted = usageStatsCollector.hasPermission()
         )
+    }
+
+    // ── M18.58: Garmin Connect ─────────────────────────────────────────
+    fun refreshGarminStatus() {
+        viewModelScope.launch {
+            garminState.value = garminState.value.copy(checking = true)
+            val status = try {
+                garminApiClient.getStatus()
+            } catch (e: Exception) {
+                GarminStatus(connected = false, error = e.message)
+            }
+            garminState.value = GarminUiState(
+                connected = status.connected,
+                checking = false,
+                lastSyncAt = garminApiClient.lastSyncAt,
+                error = status.error
+            )
+        }
+    }
+
+    /** M18.58: Manueller Garmin-Sync (sofort). */
+    fun garminSyncNow() {
+        viewModelScope.launch {
+            garminState.value = garminState.value.copy(checking = true)
+            garminSyncScheduler.syncNow()
+            // Nach kurzer Wartezeit Status neu prüfen — der Worker läuft
+            // asynchron, der letzteSync wird beim nächsten Status-Refresh
+            // aktualisiert.
+            delay(2_000)
+            refreshGarminStatus()
+        }
     }
 
     fun setGeofencing(enabled: Boolean) {
@@ -1077,5 +1257,18 @@ data class TriggerSettingsUiState(
     val geofenceCount: Int = 0,
     val triggerCount: Int = 0,
     val pendingCandidateCount: Int = 0,
-    val registrationMessage: String? = null
+    val registrationMessage: String? = null,
+    // M18.58: Garmin Connect Status
+    val garminConnected: Boolean = false,
+    val garminChecking: Boolean = false,
+    val garminLastSyncAt: Long = 0L,
+    val garminError: String? = null
+)
+
+/** M18.58: Interner Garmin-Status im ViewModel. */
+private data class GarminUiState(
+    val connected: Boolean = false,
+    val checking: Boolean = false,
+    val lastSyncAt: Long = 0L,
+    val error: String? = null
 )

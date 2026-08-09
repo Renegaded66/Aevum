@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.domain.garmin
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.GarminActivity
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
+import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.GarminRepository
 import kotlinx.coroutines.flow.first
 import java.util.UUID
@@ -28,29 +29,44 @@ import javax.inject.Singleton
  *          (der überlappte Teil wird entfernt, der Rest bleibt)
  *       c. Session liegt KOMPLETT innerhalb → wird gelöscht (softDelete)
  *          — sie ist vollständig durch die Garmin-Aktivität ersetzt.
+ *       d. Aktivität liegt MITTEN in einer Session → Session wird in zwei
+ *          Teile gesplittet (vorher/nachher), der überlappte Teil entfällt.
  *  3. Die Garmin-Aktivität wird als neue Session eingetragen
- *     (activityTypeId via Mapping, sourceType = "GARMIN_AUTO").
+ *     (sourceType = "GARMIN_AUTO").
  *
  * Der User will "überschreiben, aber nicht die gesamte Activity löschen" —
  * also wird die bestehende Session nur im überlappten Zeitraum entfernt.
+ *
+ * M18.58-FIX (FK-Sicherheit): Die Ziel-ActivityType-ID wird NICHT hart
+ * gemappt ("joggen", "radfahren" existieren nicht in den Seeds). Statt-
+ * dessen wird zur Laufzeit gegen die echten Typen in der DB aufgelöst:
+ *   running → joggen, sonst fitness, sonst other
+ *   cycling → radfahren, sonst fitness, sonst other
+ *   walking/hiking → spazieren, sonst leisure, sonst other
+ *   strength_training/swimming → fitness/sport, sonst other
+ * "other" ist ein System-Typ und kann vom User nicht gelöscht werden
+ * (M18.51) — damit kann der Insert nie an einem FK scheitern.
  */
 @Singleton
 class GarminImportUseCase @Inject constructor(
     private val activityRepository: ActivityRepository,
-    private val garminRepository: GarminRepository
+    private val garminRepository: GarminRepository,
+    private val activityTypeRepository: ActivityTypeRepository
 ) {
     /**
      * Importiert eine Liste von Garmin-Aktivitäten (idempotent).
      *
      * @param activities Garmin-Aktivitäten (bereits von der API gefetcht)
-     * @param typeIdResolver Mappt Garmin-Typ (running/cycling/...) auf eine
-     *                       Aevum-ActivityType-ID. Null → System-Typ "other".
      * @return Anzahl der neu eingetragenen Sessions
      */
     suspend fun importActivities(
-        activities: List<GarminActivity>,
-        typeIdResolver: (String) -> String? = { garminTypeToAevumTypeId(it) }
+        activities: List<GarminActivity>
     ): Int {
+        if (activities.isEmpty()) return 0
+        // Einmal laden: alle existierenden ActivityTypes (FK-Sicherheit).
+        val typeIds = activityTypeRepository.getAll().first().map { it.id }.toSet()
+        val typeIdResolver: (String) -> String? = { garminTypeToAevumTypeId(it, typeIds) }
+
         var imported = 0
         for (activity in activities) {
             // 1) Dedup: schon importiert?
@@ -145,12 +161,12 @@ class GarminImportUseCase @Inject constructor(
                 }
             }
 
-            // 3) Neue Garmin-Session eintragen
+            // 3) Neue Garmin-Session eintragen (FK-sicher aufgelöst)
             val typeId = typeIdResolver(activity.activityType)
             val session = ActivitySession(
                 id = UUID.randomUUID().toString(),
                 title = activity.title,
-                categoryId = typeId?.let { resolveCategoryId(it) },
+                categoryId = null, // Kategorie leitet die Timeline aus dem Typ ab
                 activityTypeId = typeId,
                 startAt = activity.startAt,
                 endAt = activity.endAt,
@@ -179,23 +195,20 @@ class GarminImportUseCase @Inject constructor(
     }
 
     /**
-     * M18.58: Garmin-Typ → Aevum-ActivityType-ID.
-     * System-Typen existieren aus den Seeds (EnsureDefaultDataUseCase):
-     *   running → joggen, cycling → radfahren, walking → spazieren
+     * M18.58: Garmin-Typ → Aevum-ActivityType-ID — dynamisch gegen die
+     * wirklich existierenden Typen aufgelöst (FK-Sicherheit, s. Klassen-
+     * Doku). [typeIds] = IDs aller Typen in der DB.
      */
-    private fun garminTypeToAevumTypeId(garminType: String): String? = when (garminType.lowercase()) {
-        "running" -> "joggen"
-        "cycling" -> "radfahren"
-        "walking" -> "spazieren"
-        "hiking" -> "spazieren"
-        "swimming" -> "sport"
-        "strength_training" -> "sport"
-        "other" -> "other"
-        else -> "sport"
-    }
-
-    private fun resolveCategoryId(typeId: String): String? = when (typeId) {
-        "joggen", "radfahren", "spazieren", "sport" -> "sport"
-        else -> null
+    private fun garminTypeToAevumTypeId(garminType: String, typeIds: Set<String>): String? {
+        val preferred = when (garminType.lowercase()) {
+            "running" -> listOf("joggen", "fitness", "other")
+            "cycling" -> listOf("radfahren", "fitness", "other")
+            "walking", "hiking" -> listOf("spazieren", "leisure", "other")
+            "swimming" -> listOf("fitness", "sport", "other")
+            "strength_training" -> listOf("fitness", "sport", "other")
+            "other" -> listOf("other")
+            else -> listOf("other", "fitness")
+        }
+        return preferred.firstOrNull { it in typeIds } ?: "other"
     }
 }

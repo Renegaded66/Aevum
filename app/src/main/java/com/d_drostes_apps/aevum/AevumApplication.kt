@@ -11,6 +11,7 @@ import com.d_drostes_apps.aevum.automation.sleep.SleepFusionMorningScheduler
 import com.d_drostes_apps.aevum.automation.unknownplace.UnknownPlaceDetectorScheduler
 import com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionRegistrar
 import com.d_drostes_apps.aevum.automation.health.SleepImportScheduler
+import com.d_drostes_apps.aevum.automation.garmin.GarminSyncScheduler
 import com.d_drostes_apps.aevum.automation.sleep.ScreenEvent
 import com.d_drostes_apps.aevum.automation.sleep.ScreenEventRepository
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionWorker
@@ -29,6 +30,8 @@ import javax.inject.Inject
 @HiltAndroidApp
 class AevumApplication : Application() {
     @Inject lateinit var sleepImportScheduler: SleepImportScheduler
+    // M18.58: Garmin Connect Sync
+    @Inject lateinit var garminSyncScheduler: GarminSyncScheduler
     @Inject lateinit var geofenceRefreshScheduler: GeofenceRefreshScheduler
     @Inject lateinit var unknownPlaceScheduler: UnknownPlaceDetectorScheduler
     @Inject lateinit var midnightAllowanceScheduler: MidnightAllowanceScheduler
@@ -131,6 +134,14 @@ class AevumApplication : Application() {
             geofenceRefreshScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "GeofenceRefreshScheduler failed — continuing", e)
+        }
+        // M18.58: Garmin Connect Sync — alle 30 min (Schritte/Kalorien/
+        // Distanz-Kacheln + Aktivitäts-Import). Schlaf-Import läuft über
+        // denselben Worker (sleepSource-Gate).
+        try {
+            garminSyncScheduler.schedule()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "GarminSyncScheduler failed — continuing", e)
         }
         // M17.2: Unknown Place Detector — alle 5 min, prüft ob User
         // an einem nicht-Geofence-Ort sesshaft ist (Restaurant,
