@@ -288,4 +288,33 @@ object UsageStatsPermission {
             !stats.isNullOrEmpty()
         } catch (_: Exception) { false }
     }
+
+    /**
+     * M18.61: Öffnet den Usage-Access-Settings-Screen (mit Fallbacks).
+     */
+    fun openSettings(context: android.content.Context) {
+        try {
+            val pm = context.packageManager
+            val packageSpecific = android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                data = android.net.Uri.fromParts("package", context.packageName, null)
+            }
+            if (packageSpecific.resolveActivity(pm) != null) {
+                context.startActivity(packageSpecific)
+                return
+            }
+            val generic = android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (generic.resolveActivity(pm) != null) {
+                context.startActivity(generic)
+                return
+            }
+            val appInfo = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                data = android.net.Uri.fromParts("package", context.packageName, null)
+            }
+            context.startActivity(appInfo)
+        } catch (_: Exception) { /* nothing we can do */ }
+    }
 }

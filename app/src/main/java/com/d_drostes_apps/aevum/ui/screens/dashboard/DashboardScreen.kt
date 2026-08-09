@@ -1054,10 +1054,11 @@ private fun LiveActivityBanner(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                // Timer (Monospace, groß)
+                // Timer (Monospace) — M18.60: kompakt, damit die Zeile mit
+                // Pause/Wechsel/Stop nicht überdimensioniert wirkt.
                 Text(
                     timerText,
-                    fontSize = 20.sp,
+                    fontSize = 15.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     color = accent

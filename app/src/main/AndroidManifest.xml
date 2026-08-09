@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <!-- M9: Live Activity foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- M18.61: Digital Balance — Overlay-Sperre -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- M8: Health Connect -->
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
@@ -132,6 +134,16 @@
             android:theme="@style/Theme.Aevum.Translucent"
             android:taskAffinity="com.d_drostes_apps.aevum.switch"
             android:launchMode="singleTask" />
+
+        <!-- M18.61: Digital Balance — Sperr-Service (Overlay) -->
+        <service
+            android:name=".domain.digital.AppBlockService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="digital_balance_app_limits" />
+        </service>
 
     </application>
 

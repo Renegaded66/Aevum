@@ -1,0 +1,526 @@
+package com.d_drostes_apps.aevum.ui.screens.digitalbalance
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.data.model.AppLimit
+import com.d_drostes_apps.aevum.ui.components.AevumCard
+import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.theme.AevumRadius
+import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import java.time.LocalDate
+
+/**
+ * M18.61: Digital Balance — ersetzt den Kalender-Tab.
+ *
+ *  - Heute-Übersicht: Gesamt-Bildschirmzeit, Top-App, gesperrte Apps
+ *  - 7/30-Tage-Umschalter: Balken pro Tag + Durchschnitt
+ *  - App-Liste: Nutzung heute + Zeitraum, Limit-Slider, Sperr-Schalter,
+ *    Ausnahmen (immer erlauben / Zeitfenster)
+ */
+@Composable
+fun DigitalBalanceScreen(
+    viewModel: DigitalBalanceViewModel
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    if (!state.hasPermission) {
+        PermissionCard(onOpenSettings = viewModel::openUsageAccessSettings)
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+    ) {
+        item { TodayHeroCard(state, onRefresh = viewModel::refresh) }
+        item { RangeStatsCard(state, onRangeChange = viewModel::setRangeDays) }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Apps", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                if (state.blockedCount > 0) {
+                    Text(
+                        "${state.blockedCount} gesperrt",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+        items(state.apps, key = { it.packageName }) { app ->
+            AppLimitCard(
+                app = app,
+                onLimitChange = { minutes, enabled ->
+                    viewModel.setLimit(app.packageName, minutes, enabled)
+                },
+                onException = { type, start, end ->
+                    viewModel.setException(app.packageName, type, start, end)
+                },
+                onRemove = { viewModel.removeLimit(app.packageName) }
+            )
+        }
+        item { Spacer(Modifier.height(AevumSpacing.lg)) }
+    }
+}
+
+@Composable
+private fun PermissionCard(onOpenSettings: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(AevumSpacing.lg),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AevumCard(variant = CardVariant.Gradient) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+            ) {
+                Text("📊", fontSize = 48.sp)
+                Text(
+                    "Digital Balance",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Um deine App-Nutzung zu sehen und Limits zu setzen, " +
+                        "braucht Aevum Zugriff auf die Nutzungsdaten.",
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                    Text("Nutzungszugriff erlauben")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayHeroCard(
+    state: DigitalBalanceUiState,
+    onRefresh: () -> Unit
+) {
+    AevumCard(variant = CardVariant.Gradient) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Heute", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Aktualisieren", modifier = Modifier.size(16.dp))
+                }
+            }
+            Text(
+                DigitalBalanceViewModel.formatDuration(state.todayTotalMs),
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Light,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = (-1).sp
+            )
+            Text(
+                "Bildschirmzeit · ${state.todayAppCount} Apps",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (state.topAppName != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+                    Text("Top:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        state.topAppName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "· ${DigitalBalanceViewModel.formatDuration(state.topAppMs)}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RangeStatsCard(
+    state: DigitalBalanceUiState,
+    onRangeChange: (Int) -> Unit
+) {
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Verlauf", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(7, 30).forEach { days ->
+                        FilterChip(
+                            selected = state.rangeDays == days,
+                            onClick = { onRangeChange(days) },
+                            label = { Text("$days Tage", fontSize = 12.sp) }
+                        )
+                    }
+                }
+            }
+
+            // Balken-Diagramm: letzte N Tage
+            val totals = state.dailyTotals
+            val maxMs = (totals.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+            val today = LocalDate.now()
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                totals.forEach { (date, ms) ->
+                    val fraction = ms.toFloat() / maxMs
+                    val isToday = date == today
+                    val barColor = if (isToday) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height((fraction * 72f).coerceAtLeast(if (ms > 0) 4f else 2f).dp)
+                            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                            .background(barColor)
+                    )
+                }
+            }
+
+            // Durchschnitt
+            val avg = if (totals.isNotEmpty()) totals.sumOf { it.second } / totals.size else 0L
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Ø ${DigitalBalanceViewModel.formatDuration(avg)}/Tag",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Σ ${DigitalBalanceViewModel.formatDuration(totals.sumOf { it.second })}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppLimitCard(
+    app: DigitalAppUi,
+    onLimitChange: (Int, Boolean) -> Unit,
+    onException: (String, Int, Int) -> Unit,
+    onRemove: () -> Unit
+) {
+    var showEditor by remember { mutableStateOf(false) }
+    val limit = app.limit
+    val hasLimit = limit != null && limit.enabled
+
+    AevumCard(
+        variant = if (app.isBlocked) CardVariant.Filled else CardVariant.Elevated,
+        contentPadding = PaddingValues(AevumSpacing.md)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                // App-Icon-Kreis (erster Buchstabe)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (app.isBlocked) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        app.appLabel.take(1).uppercase(),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (app.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        app.appLabel,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Heute ${DigitalBalanceViewModel.formatDuration(app.todayMs)}" +
+                            if (app.rangeMs > app.todayMs) " · ${app.rangeMs / 3_600_000}h im Zeitraum" else "",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (app.isBlocked) {
+                    Surface(
+                        shape = RoundedCornerShape(AevumRadius.full),
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.error
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Text("Gesperrt", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            if (hasLimit) {
+                // Fortschrittsbalken zum Limit
+                val progress = app.progress
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(AevumRadius.full))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(AevumRadius.full))
+                            .background(
+                                if (app.isBlocked) MaterialTheme.colorScheme.error
+                                else if (progress > 0.8f) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.primary
+                            )
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Limit ${limit?.limitMinutes ?: 0} min",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    app.remainingMs?.let { rem ->
+                        Text(
+                            if (app.isBlocked) "Limit erreicht" else "Noch ${DigitalBalanceViewModel.formatDuration(rem)}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (app.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (hasLimit) "Limit aktiv" else "Kein Limit",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { showEditor = true }) {
+                        Text(if (hasLimit) "Bearbeiten" else "Limit setzen", fontSize = 12.sp)
+                    }
+                    if (hasLimit) {
+                        Switch(
+                            checked = limit?.enabled ?: false,
+                            onCheckedChange = { onLimitChange(limit?.limitMinutes ?: 0, it) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showEditor) {
+        AppLimitEditorDialog(
+            app = app,
+            onSave = { minutes, enabled, exceptionType, start, end ->
+                onLimitChange(minutes, enabled)
+                onException(exceptionType, start, end)
+                showEditor = false
+            },
+            onRemove = {
+                onRemove()
+                showEditor = false
+            },
+            onDismiss = { showEditor = false }
+        )
+    }
+}
+
+@Composable
+private fun AppLimitEditorDialog(
+    app: DigitalAppUi,
+    onSave: (Int, Boolean, String, Int, Int) -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var minutes by remember { mutableStateOf(app.limit?.limitMinutes ?: 60) }
+    var enabled by remember { mutableStateOf(app.limit?.enabled ?: true) }
+    var exceptionType by remember {
+        mutableStateOf(app.limit?.exceptionType ?: AppLimit.EXCEPTION_NONE)
+    }
+    var windowStart by remember { mutableStateOf(app.limit?.windowStartMin ?: 22 * 60) }
+    var windowEnd by remember { mutableStateOf(app.limit?.windowEndMin ?: 6 * 60) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(app.appLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                Text(
+                    "Tägliches Limit: ${minutes} min",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Slider(
+                    value = minutes.toFloat(),
+                    onValueChange = { minutes = it.toInt() },
+                    valueRange = 5f..480f,
+                    steps = 18
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Limit aktiv", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+
+                Text("Ausnahme", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = exceptionType == AppLimit.EXCEPTION_NONE,
+                        onClick = { exceptionType = AppLimit.EXCEPTION_NONE },
+                        label = { Text("Keine", fontSize = 12.sp) }
+                    )
+                    FilterChip(
+                        selected = exceptionType == AppLimit.EXCEPTION_ALWAYS_ALLOW,
+                        onClick = { exceptionType = AppLimit.EXCEPTION_ALWAYS_ALLOW },
+                        label = { Text("Immer erlauben", fontSize = 12.sp) }
+                    )
+                    FilterChip(
+                        selected = exceptionType == AppLimit.EXCEPTION_TIME_WINDOW,
+                        onClick = { exceptionType = AppLimit.EXCEPTION_TIME_WINDOW },
+                        label = { Text("Zeitfenster", fontSize = 12.sp) }
+                    )
+                }
+
+                if (exceptionType == AppLimit.EXCEPTION_TIME_WINDOW) {
+                    Text(
+                        "Sperre nur zwischen ${windowStart / 60}:%02d".format(windowStart % 60) +
+                            " und ${windowEnd / 60}:%02d".format(windowEnd % 60),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Slider(
+                        value = windowStart.toFloat(),
+                        onValueChange = { windowStart = it.toInt() },
+                        valueRange = 0f..1439f
+                    )
+                    Slider(
+                        value = windowEnd.toFloat(),
+                        onValueChange = { windowEnd = it.toInt() },
+                        valueRange = 0f..1439f
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(minutes, enabled, exceptionType, windowStart, windowEnd) }) {
+                Text("Speichern")
+            }
+        },
+        dismissButton = {
+            Row {
+                if (app.limit != null) {
+                    TextButton(onClick = onRemove) { Text("Entfernen", color = MaterialTheme.colorScheme.error) }
+                }
+                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            }
+        }
+    )
+}

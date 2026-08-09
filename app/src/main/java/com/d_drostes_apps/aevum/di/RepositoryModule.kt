@@ -9,6 +9,7 @@ import com.d_drostes_apps.aevum.data.db.ActivitySessionChangeDao
 import com.d_drostes_apps.aevum.data.db.ActivitySessionDao
 import com.d_drostes_apps.aevum.data.db.ActivityTypeDao
 import com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
+import com.d_drostes_apps.aevum.data.db.AppLimitDao
 import com.d_drostes_apps.aevum.data.db.AppUsageSampleDao
 import com.d_drostes_apps.aevum.data.db.GeofenceEventLogDao
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
@@ -37,6 +38,8 @@ import com.d_drostes_apps.aevum.data.repository.ActivitySessionChangeRepository
 import com.d_drostes_apps.aevum.data.repository.ActivitySessionChangeRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepositoryImpl
+import com.d_drostes_apps.aevum.data.repository.AppLimitRepository
+import com.d_drostes_apps.aevum.data.repository.AppLimitRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.AppUsageSampleRepository
 import com.d_drostes_apps.aevum.data.repository.AppUsageSampleRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.GeofenceEventLogRepository
@@ -141,6 +144,10 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideAppUsageSampleRepository(dao: AppUsageSampleDao): AppUsageSampleRepository = AppUsageSampleRepositoryImpl(dao)
+
+    // M18.61: Digital Balance — App-Limits
+    @Provides @Singleton
+    fun provideAppLimitRepository(dao: AppLimitDao): AppLimitRepository = AppLimitRepositoryImpl(dao)
 
     @Provides
     fun provideGeofenceEventLogRepository(dao: GeofenceEventLogDao): GeofenceEventLogRepository = GeofenceEventLogRepositoryImpl(dao)

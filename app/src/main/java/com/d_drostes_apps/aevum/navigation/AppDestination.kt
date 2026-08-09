@@ -41,6 +41,8 @@ enum class AppDestination(val route: String, val title: String) {
     Categories("categories", "Kategorien"),
     // M18.28: Kalender-Tab (Heatmap der Zeitqualität)
     Calendar("calendar", "Kalender"),
+    // M18.61: Digital Balance — ersetzt den Kalender-Tab
+    DigitalBalance("digital_balance", "Digital Balance"),
     // M18.30: Todos
     Todos("todos", "Todos"),
     TodoCreate("todo/new", "Neues Todo"),

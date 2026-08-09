@@ -47,11 +47,14 @@ import com.d_drostes_apps.aevum.data.model.*
         GarminDailySummary::class,
         GarminActivity::class,
         // M18.60: Pro-Tag-Overrides der Tagespauschalen
-        AllowanceDayOverride::class
+        AllowanceDayOverride::class,
+        // M18.61: Digital Balance — App-Limits
+        AppLimit::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
-    version = 25,
+    // M18.61: v26 — app_limit Tabelle (Digital Balance).
+    version = 26,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -74,6 +77,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun habitLogDao(): HabitLogDao
     abstract fun bucketListItemDao(): BucketListItemDao
     abstract fun appUsageSampleDao(): AppUsageSampleDao
+    // M18.61: Digital Balance — App-Limits
+    abstract fun appLimitDao(): AppLimitDao
     abstract fun activitySessionChangeDao(): ActivitySessionChangeDao
     abstract fun sessionEvidenceDao(): SessionEvidenceDao
     abstract fun activityAggregateDayDao(): ActivityAggregateDayDao
@@ -1155,6 +1160,23 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_date` ON `allowance_day_override` (`date`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_allowance_id` ON `allowance_day_override` (`allowance_id`)")
+            }
+        }
+        // M18.61: Digital Balance — app_limit Tabelle (App-Limits + Ausnahmen)
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `app_limit` (" +
+                        "`package_name` TEXT NOT NULL, " +
+                        "`limit_minutes` INTEGER NOT NULL, " +
+                        "`enabled` INTEGER NOT NULL, " +
+                        "`exception_type` TEXT NOT NULL, " +
+                        "`window_start_min` INTEGER NOT NULL, " +
+                        "`window_end_min` INTEGER NOT NULL, " +
+                        "`updated_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`package_name`))"
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_app_limit_package_name` ON `app_limit` (`package_name`)")
             }
         }
     }

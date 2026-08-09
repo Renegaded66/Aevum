@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -58,7 +59,9 @@ fun AppNavHost(
                 onCreateActivity = { date -> navController.navigate("activity/new/$date") },
                 onEditActivity = { id -> navController.navigate("activity/edit/$id") },
                 onEditCandidate = { id -> navController.navigate("activity/candidate/$id") },
-                onOpenActivity = { id -> navController.navigate("activity/$id") }
+                onOpenActivity = { id -> navController.navigate("activity/$id") },
+                // M18.61: Kalender-Icon in der Timeline → Kalenderansicht
+                onOpenCalendar = { navController.navigate(AppDestination.Calendar.route) }
             )
         }
         composable(
@@ -285,6 +288,12 @@ fun AppNavHost(
         composable(AppDestination.Calendar.route) {
             com.d_drostes_apps.aevum.ui.screens.calendar.CalendarScreen(
                 onOpenActivity = { sessionId -> navController.navigate("activity/$sessionId") }
+            )
+        }
+        // M18.61: Digital Balance — ersetzt den Kalender-Tab
+        composable(AppDestination.DigitalBalance.route) {
+            com.d_drostes_apps.aevum.ui.screens.digitalbalance.DigitalBalanceScreen(
+                viewModel = hiltViewModel()
             )
         }
         // M18.30: Todos

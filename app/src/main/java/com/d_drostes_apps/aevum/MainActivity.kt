@@ -124,7 +124,8 @@ private fun AevumMainApp() {
         // M18.37: Kalender und Timeline vertauscht (User-Wunsch):
         // vorher [Kalender, Timeline], jetzt [Timeline, Kalender].
         MainTab(AppDestination.Timeline, "Timeline"),
-        MainTab(AppDestination.Calendar, "Kalender"),
+        // M18.61: Digital Balance ersetzt den Kalender-Tab
+        MainTab(AppDestination.DigitalBalance, "Balance"),
         MainTab(AppDestination.Settings, "Settings")
     )
     val showBottomBar = currentDestination?.route?.let { route ->
@@ -205,6 +206,7 @@ private data class MainTab(
         AppDestination.Dashboard -> Icons.Outlined.SpaceDashboard
         AppDestination.Insights -> Icons.Outlined.Insights
         AppDestination.Calendar -> Icons.Outlined.CalendarMonth
+        AppDestination.DigitalBalance -> Icons.Outlined.Insights
         AppDestination.Timeline -> Icons.Outlined.Timeline
         AppDestination.Settings -> Icons.Outlined.Settings
         else -> Icons.Outlined.SpaceDashboard
@@ -213,6 +215,7 @@ private data class MainTab(
         AppDestination.Dashboard -> Icons.Filled.SpaceDashboard
         AppDestination.Insights -> Icons.Filled.Insights
         AppDestination.Calendar -> Icons.Filled.CalendarMonth
+        AppDestination.DigitalBalance -> Icons.Filled.Insights
         AppDestination.Timeline -> Icons.Filled.Timeline
         AppDestination.Settings -> Icons.Filled.Settings
         else -> Icons.Filled.SpaceDashboard

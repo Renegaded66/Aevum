@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -325,26 +327,31 @@ fun GeofenceEditorScreen(
                             // M18.60 (User: "Ein icon soll vergeben werden
                             // können für geofences. Aus einer Vorauswahl,
                             // nicht zum selber eintippen. Eine große Auswahl
-                            // bitte."): Grid mit 40 Emoji-Icons.
-                            androidx.compose.foundation.lazy.LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                            // bitte."): 40 Emoji-Icons.
+                            // M18.61 (User: "die icons sollten nicht alle in
+                            // einer horizontalen scroll leiste sein, lieber
+                            // in einem pop up fenster auswählbar damit man
+                            // den überblick behält"): Button + Popup-Dialog
+                            // mit Grid statt LazyRow.
+                            var showIconPicker by remember { mutableStateOf(false) }
+                            OutlinedButton(
+                                onClick = { showIconPicker = true },
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                items(GeofenceIconChoices) { icon ->
-                                    val selected = state.form.icon == icon
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(RoundedCornerShape(AevumRadius.md))
-                                            .background(
-                                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                            )
-                                            .clickable { viewModel.setIcon(icon) },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(icon, fontSize = 22.sp)
-                                    }
-                                }
+                                Text(
+                                    "${state.form.icon.ifBlank { "📍" }}  Icon auswählen",
+                                    fontSize = 14.sp
+                                )
+                            }
+                            if (showIconPicker) {
+                                GeofenceIconPickerDialog(
+                                    current = state.form.icon,
+                                    onPick = { icon ->
+                                        viewModel.setIcon(icon)
+                                        showIconPicker = false
+                                    },
+                                    onDismiss = { showIconPicker = false }
+                                )
                             }
                         }
                     }
@@ -915,3 +922,63 @@ private val GeofenceIconChoices: List<String> = listOf(
     "🎮", "🎵", "📚", "💻", "🛏️", "🚿", "🧹", "🌳", "🏖️", "⛰️",
     "🚗", "🚌", "🚆", "✈️", "⛽", "🏥", "💊", "✂️", "🐕", "👨‍👩‍👧"
 )
+
+/**
+ * M18.61 (User: "lieber in einem pop up fenster auswählbar damit man
+ * den überblick behält"): Popup-Dialog mit Grid statt horizontaler
+ * Scroll-Leiste. 5 Spalten, scrollbar bei Bedarf, aktuelle Auswahl
+ * markiert.
+ */
+@Composable
+private fun GeofenceIconPickerDialog(
+    current: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Icon auswählen", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                Text(
+                    "Wähle ein Symbol für diesen Ort",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(AevumSpacing.sm))
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    items(GeofenceIconChoices.chunked(5)) { rowIcons ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                        ) {
+                            rowIcons.forEach { icon ->
+                                val selected = icon == current
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .clip(RoundedCornerShape(AevumRadius.md))
+                                        .background(
+                                            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                        .clickable { onPick(icon) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(icon, fontSize = 24.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        }
+    )
+}

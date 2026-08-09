@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M18.61: Digital Balance — Vollbild-Sperr-Overlay -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#E6141620"
+    android:gravity="center"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/block_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔒"
+        android:textSize="56sp"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/block_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="App gesperrt"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/block_subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tägliches Limit erreicht."
+        android:textColor="#B0B8C8"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/block_extend"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Noch 5 Minuten"
+        android:textSize="15sp"
+        android:paddingLeft="24dp"
+        android:paddingRight="24dp"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/block_close"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Schließen"
+        android:textSize="15sp"
+        android:backgroundTint="#3A3F4B"
+        android:paddingLeft="24dp"
+        android:paddingRight="24dp" />
+
+</LinearLayout>

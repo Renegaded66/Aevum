@@ -110,6 +110,8 @@ fun TimelineScreen(
     onEditActivity: (String) -> Unit,
     onEditCandidate: (String) -> Unit,
     onOpenActivity: (String) -> Unit,
+    // M18.61: Kalender-Icon in der Timeline → öffnet die Kalenderansicht
+    onOpenCalendar: () -> Unit = {},
     viewModel: TimelineViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -148,7 +150,8 @@ fun TimelineScreen(
                 viewModel::previousDay,
                 viewModel::nextDay,
                 viewModel::today,
-                viewModel::runGapDetectionNow
+                viewModel::runGapDetectionNow,
+                onOpenCalendar = onOpenCalendar
             )
             SummaryCard(state)
             if (state.candidates.isNotEmpty()) {
@@ -683,7 +686,9 @@ private fun TimelineHeader(
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onToday: () -> Unit,
-    onRunGapDetection: () -> Unit = {}
+    onRunGapDetection: () -> Unit = {},
+    // M18.61: Kalender-Icon → öffnet die Kalenderansicht
+    onOpenCalendar: () -> Unit = {}
 ) {
     // M18.36: Header radikal kompakt — EINE Zeile, kein Overlap moeglich.
     // Vorher: zwei Zeilen (Titel/Datum + Chips) — der Datumstext konnte
@@ -736,6 +741,12 @@ private fun TimelineHeader(
             }
             IconButton(onClick = onNextDay, modifier = Modifier.size(36.dp)) {
                 Text("›", fontSize = 24.sp)
+            }
+            // M18.61: Kalender-Icon — öffnet die Kalenderansicht
+            // (User: "in der timeline ein kalender icon haben und wenn man
+            // darauf klickt kommt man zur kalender ansicht")
+            IconButton(onClick = onOpenCalendar, modifier = Modifier.size(36.dp)) {
+                Text("📅", fontSize = 16.sp)
             }
         }
     }
