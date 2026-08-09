@@ -94,10 +94,9 @@ class TimelineViewModel @Inject constructor(
         timelineBase,
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
-        tagRepository.getAll(),
         pixelsPerHour
-    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, tags: List<Tag>, pph: Float ->
-        buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types, tags)
+    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, pph: Float ->
+        buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types)
             .copy(pixelsPerHour = pph)
     }
         .catch { e ->
@@ -157,8 +156,6 @@ class TimelineViewModel @Inject constructor(
                         title = type.name,
                         categoryId = type.defaultCategoryId,
                         activityTypeId = type.id,
-                        tagIds = emptyList(),
-                        tags = emptyList(),
                         startAt = startAt,
                         endAt = endAt,
                         timezoneId = zone.id,
@@ -189,8 +186,6 @@ class TimelineViewModel @Inject constructor(
                         title = type.name,
                         categoryId = type.defaultCategoryId,
                         activityTypeId = type.id,
-                        tagIds = emptyList(),
-                        tags = emptyList(),
                         startAt = startAt,
                         endAt = null, // laeuft ab dem getippten Zeitpunkt weiter
                         timezoneId = zone.id,
@@ -220,8 +215,6 @@ class TimelineViewModel @Inject constructor(
                     title = titleForCategory(categoryId, activityTypeId),
                     categoryId = categoryId,
                     activityTypeId = activityTypeId,
-                    tagIds = emptyList(),
-                    tags = emptyList(),
                     startAt = candidate.startAt,
                     endAt = candidate.endAt,
                     timezoneId = zoneId.id,
@@ -317,8 +310,7 @@ class TimelineViewModel @Inject constructor(
         allCandidates: List<ActivityCandidate>,
         allTriggers: List<TriggerEvent>,
         categories: List<Category>,
-        types: List<ActivityType>,
-        tags: List<Tag>
+        types: List<ActivityType>
     ): TimelineUiState {
         val dayStart = TimeFormatting.startOfDayMillis(date, zoneId)
         val dayEnd = TimeFormatting.endOfDayMillis(date, zoneId)
@@ -472,7 +464,6 @@ class TimelineViewModel @Inject constructor(
             sessionCount = filteredSessions.size,
             categories = categories,
             activityTypes = types,
-            tags = tags,
             categoryDurations = categoryDurations,
             triggerEvents = triggers,
             candidates = candidates,
@@ -508,7 +499,6 @@ class ActivityEditorViewModel @Inject constructor(
     private val activityCandidateRepository: ActivityCandidateRepository,
     categoryRepository: CategoryRepository,
     activityTypeRepository: ActivityTypeRepository,
-    tagRepository: TagRepository,
     triggerEventRepository: TriggerEventRepository,
     private val saveManualActivity: SaveManualActivityUseCase,
     private val ensureDefaultData: EnsureDefaultDataUseCase
@@ -537,10 +527,9 @@ class ActivityEditorViewModel @Inject constructor(
 
     val uiState: StateFlow<ActivityEditorUiState> = combine(
         editorBase,
-        tagRepository.getAll(),
         triggerEventRepository.getAll(),
         savedId
-    ) { base: EditorBase, tags: List<Tag>, triggers: List<TriggerEvent>, saved: String? ->
+    ) { base: EditorBase, triggers: List<TriggerEvent>, saved: String? ->
         val formValue = base.form
         val dayStart = TimeFormatting.startOfDayMillis(formValue.date, zoneId)
         val dayEnd = TimeFormatting.endOfDayMillis(formValue.date, zoneId)
@@ -549,7 +538,6 @@ class ActivityEditorViewModel @Inject constructor(
             form = formValue,
             categories = base.categories,
             activityTypes = base.types,
-            tags = tags,
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId),
             triggerMarkers = triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
@@ -577,9 +565,6 @@ class ActivityEditorViewModel @Inject constructor(
             categoryId = type.defaultCategoryId ?: current.categoryId,
             title = current.title.ifBlank { type.name }
         )
-    }
-    fun toggleTag(tagId: String) = form.update { current ->
-        current.copy(selectedTagIds = if (tagId in current.selectedTagIds) current.selectedTagIds - tagId else current.selectedTagIds + tagId)
     }
     fun setStartHour(value: Int) = updateStart(hour = value)
     fun setStartMinute(value: Int) = updateStart(minute = value)
@@ -617,7 +602,6 @@ class ActivityEditorViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val state = uiState.value
-                val selectedTags = state.tags.filter { it.id in state.form.selectedTagIds }
                 when (val result = saveManualActivity(
                     ManualActivityRequest(
                         id = sessionId,
@@ -625,8 +609,6 @@ class ActivityEditorViewModel @Inject constructor(
                         title = state.form.title,
                         categoryId = state.form.categoryId,
                         activityTypeId = state.form.activityTypeId,
-                        tagIds = state.form.selectedTagIds,
-                        tags = selectedTags,
                         startAt = state.form.startAt,
                         endAt = state.form.endAt,
                         timezoneId = zoneId.id,
@@ -650,13 +632,11 @@ class ActivityEditorViewModel @Inject constructor(
         val id = sessionId
         if (id != null) {
             val session = activityRepository.getById(id).first() ?: return
-            val tags = activityRepository.getTagIdsForSession(id).first()
             form.value = ActivityEditorForm(
                 title = session.title,
                 description = session.description.orEmpty(),
                 categoryId = session.categoryId,
                 activityTypeId = session.activityTypeId,
-                selectedTagIds = tags,
                 startAt = session.startAt,
                 endAt = session.endAt ?: session.startAt + ONE_HOUR,
                 date = TimeFormatting.millisToLocalDate(session.startAt, zoneId)
@@ -710,26 +690,21 @@ class ActivityDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
-    activityTypeRepository: ActivityTypeRepository,
-    tagRepository: TagRepository
+    activityTypeRepository: ActivityTypeRepository
 ) : ViewModel() {
     private val sessionId: String = checkNotNull(savedStateHandle["sessionId"])
     private val deleted = MutableStateFlow(false)
     private val zoneId = ZoneId.systemDefault()
-    private val tagIds: Flow<List<String>> = activityRepository.getTagIdsForSession(sessionId)
 
     private val detailBase = combine(
         activityRepository.getById(sessionId),
         categoryRepository.getAll(),
-        activityTypeRepository.getAll(),
-        tagRepository.getAll(),
-        tagIds
-    ) { session: ActivitySession?, categories: List<Category>, types: List<ActivityType>, tags: List<Tag>, selectedTagIds: List<String> ->
+        activityTypeRepository.getAll()
+    ) { session: ActivitySession?, categories: List<Category>, types: List<ActivityType> ->
         ActivityDetailUiState(
             session = session,
             category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },
             activityType = types.firstOrNull { it.id == session?.activityTypeId },
-            tags = tags.filter { it.id in selectedTagIds },
             range = session?.let { "${TimeFormatting.formatTime(it.startAt, zoneId)}–${it.endAt?.let { end -> TimeFormatting.formatTime(end, zoneId) } ?: "läuft"}" }.orEmpty(),
             duration = session?.let { TimeFormatting.formatDuration((it.endAt ?: System.currentTimeMillis()) - it.startAt) }.orEmpty()
         )
@@ -769,7 +744,6 @@ data class TimelineUiState(
     val sessionCount: Int = 0,
     val categories: List<Category> = emptyList(),
     val activityTypes: List<ActivityType> = emptyList(),
-    val tags: List<Tag> = emptyList(),
     val categoryDurations: Map<String, Long> = emptyMap(),
     val triggerEvents: List<TriggerEventUi> = emptyList(),
     val candidates: List<CandidateReviewUi> = emptyList(),
@@ -870,7 +844,6 @@ data class ActivityEditorForm(
     val description: String = "",
     val categoryId: String? = null,
     val activityTypeId: String? = null,
-    val selectedTagIds: List<String> = emptyList(),
     val startAt: Long = System.currentTimeMillis(),
     val endAt: Long? = System.currentTimeMillis() + 60 * 60 * 1000,
     val date: LocalDate = LocalDate.now(),
@@ -882,7 +855,6 @@ data class ActivityEditorUiState(
     val form: ActivityEditorForm = ActivityEditorForm(),
     val categories: List<Category> = emptyList(),
     val activityTypes: List<ActivityType> = emptyList(),
-    val tags: List<Tag> = emptyList(),
     val duration: String = "1h",
     val validation: SessionValidationResult = SessionValidationResult.Valid,
     val triggerMarkers: List<TriggerEventMarker> = emptyList(),
@@ -893,7 +865,6 @@ data class ActivityDetailUiState(
     val session: ActivitySession? = null,
     val category: Category? = null,
     val activityType: ActivityType? = null,
-    val tags: List<Tag> = emptyList(),
     val range: String = "",
     val duration: String = "",
     val deleted: Boolean = false

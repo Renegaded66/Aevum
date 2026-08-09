@@ -374,6 +374,32 @@ private fun TodoCard(
                             fontFamily = FontFamily.Monospace
                         )
                     }
+                    // M18.60 (User: "Trotzdem soll weiterhin ersichtlich sein,
+                    // wie viel länger man das todo gemacht hat als die
+                    // zielzeit"): Bei Übererfüllung (autoDone + mehr als
+                    // Ziel) zeigt ein grüner Chip die Überzeit an.
+                    val overMs = item.progressMs - todo.targetMinutes * 60_000L
+                    if (item.autoDone && overMs > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "✓ Ziel erreicht",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "+${TimeFormatting.formatDuration(overMs)} über Ziel",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
                 }
             }
 

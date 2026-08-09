@@ -98,8 +98,16 @@ class CalendarViewModel @Inject constructor(
         val rangeEndMs = TimeFormatting.endOfDayMillis(monthEnd, zoneId)
 
         // Sessions des Monats (inkl. Mitternacht-Sessions, die hereinschneiden)
+        // M18.60-FIX (User: "In der kalenderansicht steht bei jedem
+        // zukünftigen tag schon die aktivität, die ich gerade live am
+        // aufzeichnen bin"): Eine LAUFENDE Session (endAt == null) darf
+        // nur in Monaten erscheinen, die bereits begonnen haben — sonst
+        // taucht sie in zukünftigen Monaten auf.
+        val nowMs = System.currentTimeMillis()
         val monthSessions = sessions.filter {
-            it.deletedAt == null && it.startAt < rangeEndMs && (it.endAt == null || it.endAt > rangeStartMs)
+            it.deletedAt == null && it.startAt < rangeEndMs && (
+                if (it.endAt == null) rangeStartMs <= nowMs else it.endAt > rangeStartMs
+                )
         }
 
         // Pro Tag aggregieren
@@ -141,10 +149,14 @@ class CalendarViewModel @Inject constructor(
         }
 
         // Tages-Detail für die ausgewählte Selektion
+        // M18.60-FIX: Laufende Session (endAt == null) nur am HEUTIGEN
+        // Tag (oder früher) anzeigen — nie an zukünftigen Tagen.
         val selStart = TimeFormatting.startOfDayMillis(selected, zoneId)
         val selEnd = TimeFormatting.endOfDayMillis(selected, zoneId)
         val daySessions = sessions.filter {
-            it.deletedAt == null && it.startAt < selEnd && (it.endAt == null || it.endAt > selStart)
+            it.deletedAt == null && it.startAt < selEnd && (
+                if (it.endAt == null) selStart <= nowMs else it.endAt > selStart
+                )
         }.sortedBy { it.startAt }
 
         val dayDetails = daySessions.map { session ->

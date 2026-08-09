@@ -70,7 +70,7 @@ class SaveManualActivityUseCase @Inject constructor(
             )
         }
 
-        activityRepository.insertWithTags(session, request.tags)
+        activityRepository.insert(session)
         if (request.sourceCandidateId != null) {
             candidateRepository.getById(request.sourceCandidateId).first()?.let { candidate ->
                 candidateRepository.update(candidate.copy(status = "EDITED", resolvedAt = now, resolvedSessionId = session.id))
@@ -100,8 +100,6 @@ data class ManualActivityRequest(
     val title: String,
     val categoryId: String?,
     val activityTypeId: String?,
-    val tagIds: List<String>,
-    val tags: List<Tag>,
     val startAt: Long,
     val endAt: Long?,
     val timezoneId: String,

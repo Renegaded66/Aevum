@@ -184,7 +184,6 @@ class GeofenceEditorViewModel @Inject constructor(
     private val geofenceRepository: PlaceGeofenceRepository,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val tagRepository: TagRepository,
     private val geofenceRegistrar: GeofenceRegistrar,
     private val currentLocationProvider: CurrentLocationProvider,
     savedStateHandle: androidx.lifecycle.SavedStateHandle
@@ -200,14 +199,12 @@ class GeofenceEditorViewModel @Inject constructor(
             geofenceId?.let { id ->
                 geofenceRepository.getById(id).collect { geofence ->
                     geofence ?: return@collect
-                    val tags = geofenceRepository.getTagIdsForGeofence(id).first()
                     form.value = GeofenceForm(
                         id = geofence.id, name = geofence.name,
                         latitude = geofence.latitude.toString(), longitude = geofence.longitude.toString(),
                         radius = geofence.radiusMeters.toInt().toString(), icon = geofence.icon,
                         color = geofence.color, enabled = geofence.enabled,
                         activityTypeId = geofence.activityTypeId, categoryId = geofence.categoryId,
-                        selectedTagIds = tags,
                         // M11+: separate autoStart activity type (may differ from default).
                         // Falls back to default if null.
                         autoEnabled = geofence.autoStartActivityTypeId != null,
@@ -224,11 +221,11 @@ class GeofenceEditorViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<GeofenceEditorUiState> = combine(
-        form, categoryRepository.getAll(), activityTypeRepository.getAll(), tagRepository.getAll()
-    ) { f, cats, types, tags -> GeofenceEditorBase(f, cats, types, tags) }
+        form, categoryRepository.getAll(), activityTypeRepository.getAll()
+    ) { f, cats, types -> GeofenceEditorBase(f, cats, types) }
         .combine(saved) { base, s -> base to s }
         .combine(locationMessage) { (base, s), msg ->
-            GeofenceEditorUiState(base.form, base.categories, base.activityTypes, base.tags, s, msg)
+            GeofenceEditorUiState(base.form, base.categories, base.activityTypes, s, msg)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GeofenceEditorUiState())
 
     fun setName(v: String) = form.update { it.copy(name = v, error = null) }
@@ -239,7 +236,6 @@ class GeofenceEditorViewModel @Inject constructor(
     fun setColor(v: String) = form.update { it.copy(color = v, error = null) }
     fun setEnabled(v: Boolean) = form.update { it.copy(enabled = v, error = null) }
     fun setActivityType(id: String?, catId: String?) = form.update { it.copy(activityTypeId = id, categoryId = catId ?: it.categoryId, error = null) }
-    fun toggleTag(id: String) = form.update { it.copy(selectedTagIds = if (id in it.selectedTagIds) it.selectedTagIds - id else it.selectedTagIds + id, error = null) }
     fun setCoordinates(lat: Double, lon: Double) = form.update { it.copy(latitude = "%.6f".format(Locale.US, lat), longitude = "%.6f".format(Locale.US, lon), error = null) }
     // M11: Automation rules
     fun setAutoEnabled(v: Boolean) = form.update { it.copy(autoEnabled = v, error = null) }
@@ -300,7 +296,7 @@ class GeofenceEditorViewModel @Inject constructor(
                     autoStartActivityTypeId = if (c.autoEnabled) c.autoStartActivityTypeId ?: c.activityTypeId else null,
                     autoStopEnabled = c.autoStopEnabled
                 )
-                geofenceRepository.insertWithTags(gf, c.selectedTagIds)
+                geofenceRepository.insert(gf)
                 geofenceRegistrar.refreshRegisteredGeofences()
                 saved.value = true
             } catch (e: Exception) {
@@ -319,15 +315,14 @@ enum class QuickPlaceKind { Home, Work }
 private data class GeofenceEditorBase(
     val form: GeofenceForm,
     val categories: List<com.d_drostes_apps.aevum.data.model.Category>,
-    val activityTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType>,
-    val tags: List<com.d_drostes_apps.aevum.data.model.Tag>
+    val activityTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType>
 )
 
 data class GeofenceForm(
     val id: String? = null, val name: String = "", val latitude: String = "", val longitude: String = "",
     val radius: String = "150", val icon: String = "📍", val color: String = "#6366F1",
     val enabled: Boolean = true, val activityTypeId: String? = null, val categoryId: String? = null,
-    val selectedTagIds: List<String> = emptyList(), val error: String? = null,
+    val error: String? = null,
     val quickKind: QuickPlaceKind? = null,
     // M11: Automatisierung
     val autoEnabled: Boolean = false,
@@ -340,7 +335,6 @@ data class GeofenceEditorUiState(
     val form: GeofenceForm = GeofenceForm(),
     val categories: List<com.d_drostes_apps.aevum.data.model.Category> = emptyList(),
     val activityTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType> = emptyList(),
-    val tags: List<com.d_drostes_apps.aevum.data.model.Tag> = emptyList(),
     val saved: Boolean = false,
     val locationMessage: String? = null
 )

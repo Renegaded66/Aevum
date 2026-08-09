@@ -272,7 +272,6 @@ fun ActivityEditorScreen(
             item { EditorHeader(state.isEditing, state.duration, onBack, viewModel::save) }
             item { BasicFields(state, viewModel::setTitle, viewModel::setDescription) }
             item { UnifiedActivitySelector(state.activityTypes, state.form.activityTypeId, viewModel::setActivityType) }
-            item { TagPickerCard(state.tags, state.form.selectedTagIds, viewModel::toggleTag) }
             item {
                 VisualTimeEditorCard(
                     state = state,
@@ -357,9 +356,6 @@ fun ActivityDetailScreen(
                         item { DetailDescriptionCard(desc) }
                     }
                 }
-
-                // Tags als fancy Chips
-                item { DetailTagsCard(state.tags) }
 
                 // Bearbeiten / Loeschen Buttons am Ende
                 item {
@@ -664,50 +660,6 @@ private fun DetailDescriptionCard(description: String) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
             Text("Beschreibung", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(description, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
-        }
-    }
-}
-
-/**
- * Tags-Karte mit fancy Chips in einer FlowRow.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DetailTagsCard(tags: List<Tag>) {
-    AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("Tags", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            if (tags.isEmpty()) {
-                Text(
-                    "Keine Tags zugewiesen",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs),
-                    verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
-                ) {
-                    tags.forEach { tag ->
-                        // Farbiges Tag-Chip mit Punkt-Marker
-                        val tagColor = tag.color?.let { parseHexColorOrNull(it) } ?: MaterialTheme.colorScheme.primary
-                        Surface(
-                            shape = RoundedCornerShape(AevumRadius.full),
-                            color = tagColor.copy(alpha = 0.14f),
-                            contentColor = tagColor
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = AevumSpacing.sm, vertical = AevumSpacing.xs),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
-                            ) {
-                                Box(Modifier.size(6.dp).background(tagColor, CircleShape))
-                                Text(tag.name, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -2171,24 +2123,6 @@ private fun UnifiedActivitySelector(types: List<ActivityType>, selectedId: Strin
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun TagPickerCard(tags: List<Tag>, selectedIds: List<String>, onToggle: (String) -> Unit) {
-    var showSheet by remember { mutableStateOf(false) }
-    AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Column { Text("Tags", fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text(if (selectedIds.isEmpty()) "Optionaler Kontext" else "${selectedIds.size} gewählt", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }; OutlinedButton(onClick = { showSheet = true }) { Text("Auswählen") } }; Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { tags.filter { it.id in selectedIds }.forEach { SimpleChip(it.name) } } } }
-    if (showSheet) {
-        ModalBottomSheet(onDismissRequest = { showSheet = false }) {
-            Column(modifier = Modifier.padding(AevumSpacing.md), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                Text("Tags hinzufügen", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(value = "", onValueChange = {}, enabled = false, modifier = Modifier.fillMaxWidth(), label = { Text("Suche vorbereitet") }, placeholder = { Text("M6+: Tags suchen/filtern") })
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { tags.forEach { tag -> FilterChip(selected = tag.id in selectedIds, onClick = { onToggle(tag.id) }, label = { Text(tag.name) }) } }
-                Button(onClick = { showSheet = false }, modifier = Modifier.fillMaxWidth()) { Text("Fertig") }
-                Spacer(Modifier.height(AevumSpacing.lg))
-            }
-        }
-    }
-}
-
 @Composable
 private fun VisualTimeEditorCard(
     state: ActivityEditorUiState,
@@ -2272,9 +2206,3 @@ private fun TriggerSnapRow(markers: List<TriggerEventMarker>, onSnapStart: (Trig
 
 @Composable
 private fun ValidationCard(validation: SessionValidationResult, errorMessage: String?) { val message = errorMessage ?: when (validation) { SessionValidationResult.Valid -> "Zeitfenster plausibel. Du kannst speichern."; is SessionValidationResult.Invalid -> validation.message; is SessionValidationResult.Warning -> validation.message }; AevumCard(variant = CardVariant.Filled) { Text(message, fontSize = 13.sp, color = if (validation is SessionValidationResult.Invalid || errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } }
-
-@Composable
-private fun TagsCard(tags: List<Tag>) { AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Tags", fontWeight = FontWeight.SemiBold); if (tags.isEmpty()) Text("Keine Tags", color = MaterialTheme.colorScheme.onSurfaceVariant) else Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), modifier = Modifier.horizontalScroll(rememberScrollState())) { tags.forEach { SimpleChip(it.name) } } } } }
-
-@Composable
-private fun SimpleChip(label: String) { AssistChip(onClick = {}, label = { Text(label) }) }

@@ -246,7 +246,10 @@ private fun DashboardContent(
                         nowMs = nowMs,
                         onPause = onPauseLive,
                         onResume = onResumeLive,
-                        onStop = onStopLive
+                        onStop = onStopLive,
+                        // M18.60: Wechsel-Button im Banner (wie Benachrichtigung)
+                        onSwitch = onSwitchLive,
+                        activityTypes = state.activityTypes
                     )
                 }
             }
@@ -347,15 +350,19 @@ private fun DashboardContent(
             // Bereich zum starten einer Activity kann weg. Stattdessen
             // könnte man irgendwo ein + hin machen. Dieses sollte aber
             // passend in eine moderne App integriert werden.").
-            // Nur sichtbar, wenn KEINE Session läuft (das Banner übernimmt
-            // dann die Steuerung). Animierter FAB: dreht sich beim Öffnen.
-            FloatingPlusButton(
-                expanded = showStartPicker,
-                onClick = { showStartPicker = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = AevumSpacing.lg, bottom = AevumSpacing.lg)
-            )
+            // M18.60-FIX (User: "Solange eine Aktivität aufgezeichnet wird
+            // kann der floating button verschwinden"): Nur sichtbar, wenn
+            // KEINE Session läuft (das Banner übernimmt dann die Steuerung).
+            // Animierter FAB: dreht sich beim Öffnen.
+            if (!isLive) {
+                FloatingPlusButton(
+                    expanded = showStartPicker,
+                    onClick = { showStartPicker = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = AevumSpacing.lg, bottom = AevumSpacing.lg)
+                )
+            }
         }
     }
 
@@ -961,7 +968,11 @@ private fun LiveActivityBanner(
     nowMs: Long,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    // M18.60: Wechsel-Button wie in der Benachrichtigung — oeffnet das
+    // Switch-Sheet, beendet die aktuelle Session und startet die neue.
+    onSwitch: (String, String?) -> Unit = { _, _ -> },
+    activityTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType> = emptyList()
 ) {
     val title = when (state) {
         is LiveActivityState.Running -> state.title
@@ -969,6 +980,8 @@ private fun LiveActivityBanner(
         else -> return
     }
     val isPaused = state is LiveActivityState.Paused
+    // M18.60: State fuer das Wechsel-Sheet
+    var showSwitchSheet by remember { mutableStateOf(false) }
     val accent = if (isPaused) {
         MaterialTheme.colorScheme.tertiary
     } else {
@@ -1056,6 +1069,14 @@ private fun LiveActivityBanner(
                 ) {
                     Text(if (isPaused) "▶" else "⏸", fontSize = 14.sp)
                 }
+                // M18.60: Wechsel-Button — wie in der Benachrichtigung.
+                // Oeffnet das Switch-Sheet (alle Aktivitaeten).
+                OutlinedButton(
+                    onClick = { showSwitchSheet = true },
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text("⇄", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                }
                 // Stoppen
                 OutlinedButton(
                     onClick = onStop,
@@ -1065,6 +1086,19 @@ private fun LiveActivityBanner(
                 }
             }
         }
+    }
+
+    // M18.60: Wechsel-Sheet — gleiche Auswahl wie in der Benachrichtigung.
+    if (showSwitchSheet) {
+        SwitchActivityPickerSheet(
+            currentTitle = title,
+            activityTypes = activityTypes,
+            onSwitch = { newTypeId, newCategoryId ->
+                onSwitch(newTypeId, newCategoryId)
+                showSwitchSheet = false
+            },
+            onDismiss = { showSwitchSheet = false }
+        )
     }
 }
 

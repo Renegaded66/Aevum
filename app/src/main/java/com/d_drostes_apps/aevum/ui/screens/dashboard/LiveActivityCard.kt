@@ -1279,9 +1279,11 @@ fun formatHumanDuration(ms: Long): String {
 // Zeigt alle ActivityTypes mit Icon in farbigem Kreis. Bei Auswahl wird
 // onSwitch(typeId, categoryId) aufgerufen — der Aufrufer beendet die
 // aktuelle Session und startet die neue.
+// M18.60: public gemacht — der Dashboard-Banner nutzt dasselbe Sheet
+// fuer den Wechsel-Button neben Pause/Stop.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwitchActivityPickerSheet(
+fun SwitchActivityPickerSheet(
     currentTitle: String,
     activityTypes: List<ActivityType>,
     onSwitch: (String, String?) -> Unit,

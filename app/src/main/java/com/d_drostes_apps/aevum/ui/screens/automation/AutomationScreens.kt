@@ -23,8 +23,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,6 +67,7 @@ import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.AevumMapView
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.EmptyState
+import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 
 // ══════════════════════════════════════════════════════
@@ -236,7 +240,13 @@ fun GeofenceEditorScreen(
                         onQuick = viewModel::applyQuickSetup,
                         onCurrentLocation = viewModel::useCurrentLocation,
                         onRequestLocation = { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
-                        message = state.locationMessage
+                        message = state.locationMessage,
+                        // M18.60: "Standort erlauben" nur zeigen, wenn die
+                        // Berechtigung noch nicht erteilt ist.
+                        locationGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                            androidx.compose.ui.platform.LocalContext.current,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                     )
                 }
             }
@@ -306,14 +316,34 @@ fun GeofenceEditorScreen(
                 item {
                     AevumCard {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Text("Tags", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                                state.tags.forEach { tag ->
-                                    FilterChip(
-                                        selected = tag.id in state.form.selectedTagIds,
-                                        onClick = { viewModel.toggleTag(tag.id) },
-                                        label = { Text(tag.name) }
-                                    )
+                            Text("Icon", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Wähle ein Symbol für diesen Ort",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            // M18.60 (User: "Ein icon soll vergeben werden
+                            // können für geofences. Aus einer Vorauswahl,
+                            // nicht zum selber eintippen. Eine große Auswahl
+                            // bitte."): Grid mit 40 Emoji-Icons.
+                            androidx.compose.foundation.lazy.LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                            ) {
+                                items(GeofenceIconChoices) { icon ->
+                                    val selected = state.form.icon == icon
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(RoundedCornerShape(AevumRadius.md))
+                                            .background(
+                                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                            .clickable { viewModel.setIcon(icon) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(icon, fontSize = 22.sp)
+                                    }
                                 }
                             }
                         }
@@ -354,7 +384,12 @@ fun GeofenceEditorScreen(
                                     onClick = { viewModel.setAutoStartActivityTypeId(null) },
                                     label = { Text("Nichts starten") }
                                 )
-                                state.activityTypes.take(6).forEach { type ->
+                                // M18.60 (User: "Bei der Automatisierung eines
+                                // geofences sollten aber alle activitys
+                                // aufgelistet werden, bei mir ist das nicht
+                                // so"): Vorher take(6) — nur die ersten 6
+                                // Typen waren wählbar. Jetzt ALLE.
+                                state.activityTypes.forEach { type ->
                                     FilterChip(
                                         selected = state.form.autoStartActivityTypeId == type.id,
                                         onClick = { viewModel.setAutoStartActivityTypeId(type.id) },
@@ -461,7 +496,9 @@ private fun QuickSetupCard(
     onQuick: (QuickPlaceKind) -> Unit,
     onCurrentLocation: () -> Unit,
     onRequestLocation: () -> Unit,
-    message: String?
+    message: String?,
+    // M18.60: "Standort erlauben" nur zeigen, wenn nicht erteilt.
+    locationGranted: Boolean = false
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -473,7 +510,10 @@ private fun QuickSetupCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 Button(onClick = onCurrentLocation) { Text("Aktuelle Position") }
-                OutlinedButton(onClick = onRequestLocation) { Text("Standort erlauben") }
+                // M18.60: Button nur anzeigen, wenn die Berechtigung fehlt.
+                if (!locationGranted) {
+                    OutlinedButton(onClick = onRequestLocation) { Text("Standort erlauben") }
+                }
             }
             message?.let { Text(it, color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp) }
         }
@@ -863,3 +903,15 @@ private fun StatusRow(label: String, value: String) {
         Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
     }
 }
+
+/**
+ * M18.60: Große Icon-Vorauswahl für Geofences (User: "Aus einer
+ * Vorauswahl, nicht zum selber eintippen. Eine große Auswahl bitte.").
+ * 40 Emoji — Orte, Aktivitäten, Alltag.
+ */
+private val GeofenceIconChoices: List<String> = listOf(
+    "🏠", "💼", "🏢", "🏫", "🎓", "🏋️", "🏃", "🚴", "🏊", "⚽",
+    "🏀", "🎾", "⛳", "🧘", "🛒", "🏪", "🍽️", "☕", "🍺", "🎬",
+    "🎮", "🎵", "📚", "💻", "🛏️", "🚿", "🧹", "🌳", "🏖️", "⛰️",
+    "🚗", "🚌", "🚆", "✈️", "⛽", "🏥", "💊", "✂️", "🐕", "👨‍👩‍👧"
+)
