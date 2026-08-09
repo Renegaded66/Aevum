@@ -71,6 +71,9 @@ import com.d_drostes_apps.aevum.data.db.TagDao
 import com.d_drostes_apps.aevum.data.db.TriggerEventDao
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepositoryImpl
+import com.d_drostes_apps.aevum.data.repository.GarminRepository
+import com.d_drostes_apps.aevum.data.repository.GarminRepositoryImpl
+import com.d_drostes_apps.aevum.data.db.GarminDao
 import javax.inject.Singleton
 
 @Module
@@ -128,6 +131,10 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideAutomationSettingsRepository(dao: AutomationSettingsDao): AutomationSettingsRepository = AutomationSettingsRepositoryImpl(dao)
+
+    // M18.58: Garmin Connect
+    @Provides @Singleton
+    fun provideGarminRepository(dao: GarminDao): GarminRepository = GarminRepositoryImpl(dao)
 
     @Provides @Singleton
     fun provideRawDetectionEventRepository(dao: RawDetectionEventDao): RawDetectionEventRepository = RawDetectionEventRepositoryImpl(dao)

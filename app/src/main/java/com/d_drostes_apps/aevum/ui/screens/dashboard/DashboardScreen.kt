@@ -115,6 +115,9 @@ fun DashboardScreen(
     val favorites by viewModel.liveActivityManager.favoriteActivityTypes.collectAsState()
     // M18.58: Güte-Verlauf (7/30/365 Tage)
     val qualityTrend by viewModel.qualityTrend.collectAsState()
+    // M18.58: Garmin-Kachel-Daten
+    val garminSummary by viewModel.garminSummary.collectAsState()
+    val garminActivities by viewModel.garminActivities.collectAsState()
     DashboardContent(
         modifier = modifier,
         state = state,
@@ -123,6 +126,8 @@ fun DashboardScreen(
         recents = recents,
         favorites = favorites,
         qualityTrend = qualityTrend,
+        garminSummary = garminSummary,
+        garminActivities = garminActivities,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
         onOpenGoals = onOpenGoals,
@@ -152,6 +157,9 @@ private fun DashboardContent(
     favorites: List<com.d_drostes_apps.aevum.data.model.ActivityType>,
     // M18.58: Güte-Verlauf-Daten
     qualityTrend: List<DailyQualityPoint> = emptyList(),
+    // M18.58: Garmin-Kachel-Daten
+    garminSummary: com.d_drostes_apps.aevum.data.model.GarminDailySummary? = null,
+    garminActivities: List<com.d_drostes_apps.aevum.data.model.GarminActivity> = emptyList(),
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenGoals: () -> Unit = {},
@@ -209,6 +217,16 @@ private fun DashboardContent(
             // letzten 7, 30, 365 Tagen").
             item {
                 QualityTrendCard(trend = qualityTrend)
+            }
+
+            // M18.58: Garmin-Kacheln — moderne kleine Kacheln (User-Wunsch).
+            // Nur sichtbar, wenn Daten synchronisiert wurden.
+            item {
+                GarminTilesRow(
+                    sleepDurationMs = state.lastSleepDurationMs,
+                    summary = garminSummary,
+                    activities = garminActivities
+                )
             }
 
             // 3) M18.58: Der komplette Schnellstart-BEREICH ist entfernt
