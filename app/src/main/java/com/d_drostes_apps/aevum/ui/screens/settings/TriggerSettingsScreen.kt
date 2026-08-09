@@ -71,6 +71,8 @@ import com.d_drostes_apps.aevum.automation.sleep.SleepFusionStatus
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionWorker
 import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicEngine
 import com.d_drostes_apps.aevum.automation.sleep.SleepHeuristicStatus
+import com.d_drostes_apps.aevum.data.garmin.GarminApiClient
+import com.d_drostes_apps.aevum.data.garmin.GarminStatus
 import com.d_drostes_apps.aevum.data.model.AutomationSettings
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
@@ -843,7 +845,10 @@ class TriggerSettingsViewModel @Inject constructor(
     private val candidateRepository: ActivityCandidateRepository,
     private val usageStatsCollector: UsageStatsCollector,
     private val sleepHeuristicEngine: SleepHeuristicEngine,
-    private val sleepFusionEngine: SleepFusionEngine
+    private val sleepFusionEngine: SleepFusionEngine,
+    // M18.59: Garmin-Verbindungs-Check für die Schlaf-Quellen-Auswahl
+    // (Regler springt zurück, wenn Garmin nicht angemeldet ist).
+    private val garminApiClient: GarminApiClient
 ) : ViewModel() {
 
     private val registrationMessage = MutableStateFlow<String?>(null)
@@ -952,8 +957,35 @@ class TriggerSettingsViewModel @Inject constructor(
      * Aufzeichnung"). Werte: "screen" | "health_connect" | "garmin" | "none".
      * Die alten Toggles (healthSleepEnabled, sleepFusionEnabled) werden
      * damit abgelöst — die Quelle ist die Single Source of Truth.
+     *
+     * M18.59-FIX (User: "wenn man den Regler auf Garmin stellt, ohne dass
+     * Garmin angemeldet ist, soll er zurückspringen + Meldung"): Garmin
+     * als Schlafquelle erfordert eine aktive Bridge-Verbindung. Ohne
+     * Verbindung wird die Auswahl verworfen (Quelle bleibt wie sie war)
+     * und eine Meldung angezeigt.
      */
     fun setSleepSource(source: String) {
+        if (source == "garmin") {
+            viewModelScope.launch {
+                val status = try {
+                    garminApiClient.getStatus()
+                } catch (e: Exception) {
+                    GarminStatus(connected = false, error = e.message)
+                }
+                if (!status.connected) {
+                    // Regler springt zurück: Quelle bleibt unverändert.
+                    registrationMessage.value =
+                        "Garmin ist nicht verbunden. Bitte zuerst in Einstellungen → Fitness-Tracker anmelden."
+                    return@launch
+                }
+                applySleepSource(source)
+            }
+        } else {
+            applySleepSource(source)
+        }
+    }
+
+    private fun applySleepSource(source: String) {
         upsert {
             it.copy(
                 sleepSource = source,

@@ -92,7 +92,12 @@ class FitnessTrackersViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 connected = status.connected,
                 checking = false,
-                error = status.error
+                error = status.error,
+                // M18.59-FIX (User: "nach Seitenwechsel steht wieder 'Noch
+                // nie synchronisiert'"): lastSyncAt ist in SharedPreferences
+                // persistiert, wurde aber beim Status-Refresh nie geladen —
+                // beim Neuerstellen des ViewModels stand es wieder auf 0.
+                lastSyncAt = api.lastSyncAt
             )
         }
     }

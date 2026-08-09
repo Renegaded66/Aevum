@@ -127,7 +127,14 @@ class GarminSyncWorker(
 
     /**
      * M18.58: Garmin-Schlaf DIREKT in die Timeline (kein Review).
-     * Dedup gegen bestehende Sleep-Sessions (≥30 min Überlappung).
+     * M18.59-FIX (User: "Schlaf der letzten Nacht wurde nicht mit den
+     * Garmin-Daten überschrieben"): Vorher wurde bei Überlappung mit
+     * einer bestehenden Sleep-Session NUR dedupliziert (skip) — die
+     * per Bildschirmzeit erkannte Session blieb stehen. Jetzt: Wenn
+     * Garmin die Schlaf-Quelle ist, ERSETZT der Garmin-Schlaf die
+     * bestehende Sleep-Session der Nacht (softDelete + Insert). Nur
+     * Sleep-Sessions werden ersetzt — andere Aktivitäten bleiben
+     * unberührt.
      */
     private suspend fun importSleep(
         api: GarminApiClient,
@@ -138,14 +145,19 @@ class GarminSyncWorker(
             val day = today.minusDays(i.toLong())
             val sleep = api.getSleep(day.toString()) ?: continue
 
-            val existing = repo.getOverlappingRange(
+            val now = System.currentTimeMillis()
+            val existingSleep = repo.getOverlappingRange(
                 sleep.startGmtMs - 30L * 60 * 1000,
                 sleep.endGmtMs + 30L * 60 * 1000
-            ).first().any { it.activityTypeId == "sleep" && it.deletedAt == null }
+            ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
 
-            if (existing) continue
+            // M18.59: Bestehende Schlaf-Session der Nacht ersetzen
+            // (Garmin ist die Wahrheit, wenn die Quelle auf Garmin steht).
+            for (old in existingSleep) {
+                repo.softDelete(old.id, now)
+                android.util.Log.i(TAG, "Garmin-Schlaf ersetzt alte Session ${old.id}")
+            }
 
-            val now = System.currentTimeMillis()
             val session = com.d_drostes_apps.aevum.data.model.ActivitySession(
                 id = UUID.randomUUID().toString(),
                 title = "Schlaf",
