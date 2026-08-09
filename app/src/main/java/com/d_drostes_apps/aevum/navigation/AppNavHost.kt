@@ -29,8 +29,6 @@ import com.d_drostes_apps.aevum.ui.screens.timeline.ActivityEditorScreen
 import com.d_drostes_apps.aevum.ui.screens.timeline.TimelineScreen
 import com.d_drostes_apps.aevum.ui.screens.review.ReviewInboxScreen
 import com.d_drostes_apps.aevum.ui.screens.weekly.WeeklyReviewScreen
-import com.d_drostes_apps.aevum.ui.screens.goals.GoalsScreen
-import com.d_drostes_apps.aevum.ui.screens.goals.GoalEditorScreen
 import com.d_drostes_apps.aevum.ui.screens.habits.HabitsScreen
 import com.d_drostes_apps.aevum.ui.screens.habits.HabitEditorScreen
 
@@ -45,7 +43,6 @@ fun AppNavHost(
             DashboardScreen(
                 onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
                 onOpenReview = { navController.navigate(AppDestination.ReviewInbox.route) },
-                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
                 onOpenUsageSettings = {
                     // M12.1: Signal setzen, damit die Trigger-&-Erkennung-Seite
                     // zum Digital-Balance-Block scrollt, sobald sie erscheint.
@@ -151,7 +148,6 @@ fun AppNavHost(
                 onOpenTriggerSettings = { navController.navigate(AppDestination.TriggerSettings.route) },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
-                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
                 onOpenHabits = { navController.navigate(AppDestination.Habits.route) },
                 // M18.30: Todos + Tagespauschalen
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
@@ -248,27 +244,7 @@ fun AppNavHost(
         composable(AppDestination.PlacesSetup.route) { OnboardingScreen() }
         composable(AppDestination.DashboardIntro.route) { OnboardingScreen() }
 
-        // Goals & Habits
-        composable(AppDestination.Goals.route) {
-            GoalsScreen(
-                onBack = { navController.popBackStack() },
-                onCreate = { navController.navigate(AppDestination.GoalCreate.route) },
-                onEdit = { id -> navController.navigate("goal/edit/$id") }
-            )
-        }
-        composable(AppDestination.GoalCreate.route) {
-            GoalEditorScreen(onBack = { navController.popBackStack() })
-        }
-        composable(
-            route = AppDestination.GoalEdit.route,
-            arguments = listOf(navArgument("goalId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val goalId = backStackEntry.arguments?.getString("goalId")
-            GoalEditorScreen(
-                onBack = { navController.popBackStack() },
-                goalId = goalId
-            )
-        }
+        // Habits
         composable(AppDestination.Habits.route) {
             HabitsScreen(
                 onBack = { navController.popBackStack() },

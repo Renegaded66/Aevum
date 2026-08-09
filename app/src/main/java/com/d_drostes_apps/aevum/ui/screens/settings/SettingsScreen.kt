@@ -50,7 +50,6 @@ fun SettingsScreen(
     onOpenTriggerSettings: () -> Unit = {},
     onOpenGeofences: () -> Unit = {},
     onOpenTriggers: () -> Unit = {},
-    onOpenGoals: () -> Unit = {},
     onOpenHabits: () -> Unit = {},
     // M18.30: Todos + Tagespauschalen
     onOpenTodos: () -> Unit = {},
@@ -132,10 +131,11 @@ fun SettingsScreen(
                 SettingsEntry("Activity Types verwalten", "Icons, Farben, Positivität", onOpenActivityTypes),
                 SettingsEntry("Kategorien", "Erstellen, Aktivitäten zuordnen, Icon & Farbe", onOpenCategories)
             )) }
-            // M18.44: Neben-Features (Ziele/Gewohnheiten/Todos/Pauschalen/Bucket List)
+            // M18.44: Neben-Features (Gewohnheiten/Todos/Pauschalen/Bucket List)
             // in eigener Sektion — erreichbar, aber klar getrennt vom Kern.
+            // M18.60: "Ziele verwalten" entfernt — Todos erfüllen die
+            // Anforderungen eines Ziels (Ziel-Chip + Streak auf jeder Karte).
             item { SettingsSection("Erweitert", listOf(
-                SettingsEntry("Ziele verwalten", onClick = onOpenGoals),
                 SettingsEntry("Gewohnheiten verwalten", onClick = onOpenHabits),
                 SettingsEntry("Todos verwalten", onClick = onOpenTodos),
                 SettingsEntry("Tagespauschalen verwalten", onClick = onOpenDailyAllowances),

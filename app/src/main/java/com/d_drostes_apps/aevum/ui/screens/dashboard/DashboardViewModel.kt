@@ -14,16 +14,12 @@ import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
-import com.d_drostes_apps.aevum.data.repository.GoalRepository
-import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.domain.digital.UsageStatsCollector
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
 import com.d_drostes_apps.aevum.domain.seed.EnsureDefaultDataUseCase
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
-import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
-import com.d_drostes_apps.aevum.ui.screens.goals.toGoalWithProgress
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +42,6 @@ class DashboardViewModel @Inject constructor(
     activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
     candidateRepository: ActivityCandidateRepository,
-    private val goalRepository: GoalRepository,
     private val activityTypeRepository: ActivityTypeRepository,
     private val ensureDefaultData: EnsureDefaultDataUseCase,
     val liveActivityManager: LiveActivityManager,
@@ -435,7 +430,6 @@ class DashboardViewModel @Inject constructor(
                 activityRepository.getOverlappingRange(dayStart, dayEnd),
                 categoryRepository.getAll(),
                 candidateRepository.getByStatus("PENDING"),
-                goalRepository.getByStatus("ACTIVE"),
                 activityTypeRepository.getAll(),
                 activityRepository.getOverlappingRange(sleepStart, sleepEnd),
                 _screenTimeMs,
@@ -449,15 +443,14 @@ class DashboardViewModel @Inject constructor(
                 val sessions = values[0] as List<ActivitySession>
                 val categories = values[1] as List<com.d_drostes_apps.aevum.data.model.Category>
                 val candidates = values[2] as List<ActivityCandidate>
-                val activeGoals = values[3] as List<com.d_drostes_apps.aevum.data.model.Goal>
-                val types = values[4] as List<com.d_drostes_apps.aevum.data.model.ActivityType>
-                val allSleepSessions = values[5] as List<ActivitySession>
-                val screenMs = values[6] as Long
-                val allowances = values[7] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
-                val allTodos = values[8] as List<com.d_drostes_apps.aevum.data.model.Todo>
-                val allCompletions = values[9] as List<com.d_drostes_apps.aevum.data.model.TodoCompletion>
-                // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
-                val dayOverrides = values[11] as List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride>
+                val types = values[3] as List<com.d_drostes_apps.aevum.data.model.ActivityType>
+                val allSleepSessions = values[4] as List<ActivitySession>
+                val screenMs = values[5] as Long
+                val allowances = values[6] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
+                val allTodos = values[7] as List<com.d_drostes_apps.aevum.data.model.Todo>
+                val allCompletions = values[8] as List<com.d_drostes_apps.aevum.data.model.TodoCompletion>
+                // values[9] = minuteTick — nur Trigger, kein Inhalt noetig.
+                val dayOverrides = values[10] as List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride>
                 val todayCompletions = allCompletions.filter { it.date == dayStr }
                 val nowApprox = System.currentTimeMillis()
                 val sleepSessionsToday = allSleepSessions.filter { session ->
@@ -470,7 +463,6 @@ class DashboardViewModel @Inject constructor(
                     sessions = sessions,
                     categories = categories,
                     candidates = candidates.filter { it.startAt < dayEnd && it.endAt > dayStart },
-                    activeGoals = activeGoals,
                     typeMap = types.associateBy { it.id },
                     allTypes = types,
                     sleepSessions = sleepSessionsToday,
@@ -569,7 +561,6 @@ class DashboardViewModel @Inject constructor(
         sessions: List<ActivitySession>,
         categories: List<com.d_drostes_apps.aevum.data.model.Category>,
         candidates: List<com.d_drostes_apps.aevum.data.model.ActivityCandidate>,
-        activeGoals: List<com.d_drostes_apps.aevum.data.model.Goal>,
         typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
         allTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType> = emptyList(),
         sleepSessions: List<ActivitySession> = emptyList(),
@@ -728,10 +719,6 @@ class DashboardViewModel @Inject constructor(
         val acceptedToday = candidates.count { it.status == "ACCEPTED" && it.resolvedAt?.let { it in start..end } == true }
 
         val activeSessionsList = sessions
-        val goalProgressList = activeGoals.map { goal ->
-            GoalProgressAnalytics.evaluateGoal(goal, activeSessionsList, today, zoneId, typeMap)
-        }.sortedByDescending { it.progress }.take(3).map { it.toGoalWithProgress() }
-
         return DashboardUiState(
             headline = narrative.headline,
             narrative = narrative.body,
@@ -756,7 +743,6 @@ class DashboardViewModel @Inject constructor(
             topCategoryDuration = top?.let { TimeFormatting.formatDuration(it.durationMs) } ?: "0m",
             hasData = activeSessions.isNotEmpty(),
             dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f),
-            goalProgress = goalProgressList,
             // M7: Automation capture
             capturedTodayCount = activeSessions.size + candidates.size,
             candidateCount = candidates.size,
@@ -1024,7 +1010,6 @@ data class DashboardUiState(
     val topCategoryDuration: String = "0m",
     val hasData: Boolean = false,
     val dayProgress: Float = 0f,
-    val goalProgress: List<GoalWithProgress> = emptyList(),
     // M7: Automation capture
     val capturedTodayCount: Int = 0,
     val candidateCount: Int = 0,

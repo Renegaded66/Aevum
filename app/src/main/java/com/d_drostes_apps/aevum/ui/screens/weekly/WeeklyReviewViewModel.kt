@@ -7,7 +7,6 @@ import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
-import com.d_drostes_apps.aevum.data.repository.GoalRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -21,8 +20,7 @@ class WeeklyReviewViewModel @Inject constructor(
     activityRepository: ActivityRepository,
     candidateRepository: ActivityCandidateRepository,
     categoryRepository: CategoryRepository,
-    activityTypeRepository: ActivityTypeRepository,
-    goalRepository: GoalRepository
+    activityTypeRepository: ActivityTypeRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val anchorDate = LocalDate.now()
@@ -31,15 +29,13 @@ class WeeklyReviewViewModel @Inject constructor(
         activityRepository.getAll(),
         candidateRepository.getByStatus("PENDING"),
         categoryRepository.getAll(),
-        activityTypeRepository.getAll(),
-        goalRepository.getByStatus("ACTIVE")
-    ) { sessions, candidates, categories, types, activeGoals ->
+        activityTypeRepository.getAll()
+    ) { sessions, candidates, categories, types ->
         WeeklyReviewAnalytics.build(
             sessions = sessions,
             candidates = candidates,
             categories = categories,
             activityTypes = types,
-            activeGoals = activeGoals,
             anchorDate = anchorDate,
             zoneId = zoneId
         )

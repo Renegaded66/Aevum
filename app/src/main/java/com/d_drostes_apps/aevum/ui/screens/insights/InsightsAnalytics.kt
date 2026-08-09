@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.Color
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
-import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
 import com.d_drostes_apps.aevum.ui.screens.habits.HabitWithProgress
 import com.d_drostes_apps.aevum.ui.theme.AevumCategoryColors
 import java.time.DayOfWeek
@@ -39,7 +38,6 @@ data class InsightsUiState(
     val weekHeatmap: WeekHeatmap = WeekHeatmap(),
     val hasData: Boolean = false,
     val selectedHeatmapDate: LocalDate? = null,
-    val goalProgress: List<GoalWithProgress> = emptyList(),
     val habitProgress: List<HabitWithProgress> = emptyList(),
     // M17.4: Toggle-Zustand + neue "Top Breakdown" Liste je nach Modus
     val breakdownMode: BreakdownMode = BreakdownMode.Activity,
@@ -159,7 +157,6 @@ object InsightsAnalytics {
         selectedPeriod: InsightPeriod,
         anchorDate: LocalDate,
         zoneId: ZoneId,
-        goalProgress: List<GoalWithProgress> = emptyList(),
         habitProgress: List<HabitWithProgress> = emptyList(),
         // M17.4: Tagespauschalen-Accumulationals aus DailyAllowanceRepository.
         // Werden NUR in die Statistik-Aggregation gemischt, niemals in die Timeline.
@@ -253,7 +250,6 @@ object InsightsAnalytics {
             insightCards = insights,
             weekHeatmap = heatmap,
             hasData = totalMs > 0 || allowanceMs > 0,
-            goalProgress = goalProgress,
             habitProgress = habitProgress,
             breakdownMode = breakdownMode,
             topBreakdown = topBreakdown,

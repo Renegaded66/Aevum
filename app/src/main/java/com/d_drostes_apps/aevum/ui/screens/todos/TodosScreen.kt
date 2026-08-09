@@ -415,6 +415,49 @@ private fun TodoCard(
                     )
                 }
             }
+
+            // M18.60 (User: "bei Todos auch noch Ziele hinschreiben, da
+            // todos ebenfalls die anforderungen eines ziels erfüllen"):
+            // Ziel-Chip mit Perioden-Fortschritt (z.B. "🎯 3/5 diese
+            // Woche"). Nur bei Mehrfach-Perioden-Todos (N_PER_WEEK/
+            // N_PER_MONTH) sinnvoll — bei täglichen ist 1/1 trivial.
+            if (item.periodRequired > 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.22f),
+                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            "🎯 ${item.periodLabel}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                    Text(
+                        when (item.todo.recurrenceType) {
+                            com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine.TYPE_N_PER_WEEK -> "diese Woche"
+                            com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine.TYPE_N_PER_MONTH -> "diesen Monat"
+                            else -> "Ziel"
+                        },
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

@@ -100,9 +100,6 @@ private fun WeeklyReviewContent(
                 if (state.changes.isNotEmpty()) item { WeeklyChangesSection(state.changes) }
                 if (state.highlights.isNotEmpty()) item { HighlightsSection(state.highlights) }
                 if (state.patterns.isNotEmpty()) item { PatternSection(state.patterns) }
-                state.goalProgressText?.let { text ->
-                    item { GoalProgressWeekSection(text) }
-                }
                 item { OpenTimeSection(state.openTimeMs, onOpenTimeline) }
                 if (state.pendingReviewCount > 0) item { ReviewInboxSection(state.pendingReviewCount, onOpenReviewInbox) }
                 item { ClosingSection(state.closingText) }
@@ -249,16 +246,6 @@ private fun HighlightsSection(highlights: List<WeeklyHighlight>) {
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun GoalProgressWeekSection(text: String) {
-    AevumCard(variant = CardVariant.Filled) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            Text("🎯", fontSize = 24.sp)
-            Text(text, modifier = Modifier.weight(1f), fontSize = 14.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

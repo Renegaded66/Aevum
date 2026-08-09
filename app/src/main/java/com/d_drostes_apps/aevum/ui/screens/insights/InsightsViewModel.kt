@@ -12,11 +12,8 @@ import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
-import com.d_drostes_apps.aevum.data.repository.GoalRepository
 import com.d_drostes_apps.aevum.data.repository.HabitRepository
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
-import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
-import com.d_drostes_apps.aevum.ui.screens.goals.toGoalWithProgress
 import com.d_drostes_apps.aevum.ui.screens.habits.HabitWithProgress
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,7 +28,6 @@ class InsightsViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val goalRepository: GoalRepository,
     private val habitRepository: HabitRepository,
     // M17.4: Tagespauschalen für die Statistik-Aggregation.
     private val dailyAllowanceRepository: DailyAllowanceRepository
@@ -54,7 +50,6 @@ class InsightsViewModel @Inject constructor(
         activityRepository.getAll(),
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
-        goalRepository.getByStatus("ACTIVE"),
         habitRepository.getActive(),
         // M17.4: Tagespauschalen — wir laden ALLE Accumululations, weil
         // die Period-Filter (Woche/Monat) in InsightsAnalytics.apply()
@@ -66,17 +61,15 @@ class InsightsViewModel @Inject constructor(
         val categories = values[1] as List<Category>
         val types = values[2] as List<ActivityType>
         @Suppress("UNCHECKED_CAST")
-        val goals = values[3] as List<com.d_drostes_apps.aevum.data.model.Goal>
+        val habits = values[3] as List<com.d_drostes_apps.aevum.data.model.Habit>
         @Suppress("UNCHECKED_CAST")
-        val habits = values[4] as List<com.d_drostes_apps.aevum.data.model.Habit>
-        @Suppress("UNCHECKED_CAST")
-        val allowances = values[5] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
+        val allowances = values[4] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
         // M17.4: Hole die Accumulations einmalig (suspend → first())
         // Achtung: getAll() auf Accumulation existiert nicht im
         // Repository, also müssen wir die Accumulation-Reads im
         // Analytics-Build machen. Wir übergeben nur die Allowance-Liste
         // und laden die Accumulations dort on-demand.
-        DataLayer(sessions, categories, types, goals, habits, allowances)
+        DataLayer(sessions, categories, types, habits, allowances)
     }
 
     val uiState: StateFlow<InsightsUiState> = combine(
@@ -86,9 +79,6 @@ class InsightsViewModel @Inject constructor(
         _breakdownMode
     ) { data, period, heatmapDate, breakdownMode ->
         val typeMap = data.types.associateBy { it.id }
-        val goalProgress = data.goals.map { goal ->
-            GoalProgressAnalytics.evaluateGoal(goal, data.sessions, anchorDate, zoneId, typeMap)
-        }.sortedByDescending { it.progress }.map { it.toGoalWithProgress() }
         val habitProgress = data.habits.map { habit ->
             GoalProgressAnalytics.evaluateHabit(habit, data.sessions, anchorDate, zoneId, typeMap)
         }.map { result ->
@@ -158,7 +148,6 @@ class InsightsViewModel @Inject constructor(
             selectedPeriod = period,
             anchorDate = anchorDate,
             zoneId = zoneId,
-            goalProgress = goalProgress,
             habitProgress = habitProgress,
             // M17.4: neue Parameter
             allowanceAccumulations = allowanceAccums,
@@ -200,7 +189,6 @@ class InsightsViewModel @Inject constructor(
         val sessions: List<ActivitySession>,
         val categories: List<Category>,
         val types: List<ActivityType>,
-        val goals: List<com.d_drostes_apps.aevum.data.model.Goal>,
         val habits: List<com.d_drostes_apps.aevum.data.model.Habit>,
         val allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
     )

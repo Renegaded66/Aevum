@@ -104,6 +104,11 @@ class TodosViewModel @Inject constructor(
             // Recurrence-Typ). Ersichtlich als 🔥-Badge auf der Todo-Karte.
             val streak = StreakEngine.currentStreak(todo, allCompletions, today)
             val bestStreak = StreakEngine.bestStreak(todo, allCompletions, today)
+            // M18.60: Ziel-Fortschritt in der AKTUELLEN Periode (z.B. 3/5
+            // diese Woche) — Todos erfüllen die Anforderungen eines Ziels.
+            val periodKey = RecurrenceEngine.periodKey(todo, today)
+            val periodCount = allCompletions.count { it.todoId == todo.id && RecurrenceEngine.periodKey(todo, LocalDate.parse(it.date)) == periodKey }
+            val periodRequired = RecurrenceEngine.requiredCompletionsInPeriod(todo, today)
 
             TodoUi(
                 todo = todo,
@@ -113,7 +118,9 @@ class TodosViewModel @Inject constructor(
                 progressMs = progressMs,
                 type = typeMap[todo.activityTypeId],
                 streak = streak,
-                bestStreak = bestStreak
+                bestStreak = bestStreak,
+                periodCount = periodCount,
+                periodRequired = periodRequired
             )
         }
 
@@ -148,9 +155,13 @@ data class TodoUi(
     val type: ActivityType?,
     // M18.60: Streaks
     val streak: Int = 0,
-    val bestStreak: Int = 0
+    val bestStreak: Int = 0,
+    // M18.60: Ziel-Fortschritt in der aktuellen Periode (X/Y)
+    val periodCount: Int = 0,
+    val periodRequired: Int = 1
 ) {
     val isDuration: Boolean get() = todo.targetMinutes > 0
     val recurrenceLabel: String get() = RecurrenceEngine.labelFor(todo.recurrenceType)
     val streakLabel: String get() = StreakEngine.streakLabel(todo, streak)
+    val periodLabel: String get() = "$periodCount/$periodRequired"
 }

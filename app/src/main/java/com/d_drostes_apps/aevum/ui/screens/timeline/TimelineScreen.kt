@@ -2016,13 +2016,19 @@ private fun ZoomableDayTimeline(
                             size = Size(blockWidth.coerceAtLeast(0f), laneHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
                         )
-                        // M18.48: Kräftigere Akzentkante links — Farbe bleibt
-                        // auch bei kurzen, hellen Blöcken sichtbar.
-                        drawLine(
+                        // M18.60-FIX (User: "der Strich ragt zur Hälfte über
+                        // die Activity"): ROOT CAUSE — der Akzentbalken war
+                        // eine drawLine mit dicker strokeWidth bei y=laneY+1.
+                        // drawLine zentriert den Stroke um die y-Position:
+                        // bei laneHeight=100 ging der Strich von laneY-48 bis
+                        // laneY+51 — ragt ~50% über die Block-Oberkante und
+                        // endet in der Block-Mitte. Fix: drawRoundRect mit
+                        // exakt der Blockhöhe, bündig an der Oberkante.
+                        drawRoundRect(
                             color = color.copy(alpha = 0.95f),
-                            start = Offset(blockXLocal, laneY + 1f),
-                            end = Offset(blockXLocal + 4.dp.toPx(), laneY + 1f),
-                            strokeWidth = (laneHeight - 2f).coerceAtLeast(2f)
+                            topLeft = Offset(blockXLocal, laneY),
+                            size = Size(4.dp.toPx(), laneHeight),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
                         )
                         drawLine(
                             color = color.copy(alpha = 0.85f),

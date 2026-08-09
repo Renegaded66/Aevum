@@ -105,7 +105,6 @@ fun DashboardScreen(
     modifier: Modifier = Modifier,
     onOpenTimeline: () -> Unit = {},
     onOpenReview: () -> Unit = onOpenTimeline,
-    onOpenGoals: () -> Unit = {},
     onOpenSleepStatus: () -> Unit = {},
     onOpenUsageSettings: () -> Unit = {},
     // M18.37: Todos-Karte auf dem Dashboard
@@ -134,7 +133,6 @@ fun DashboardScreen(
         garminActivities = garminActivities,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
-        onOpenGoals = onOpenGoals,
         onOpenSleepStatus = onOpenSleepStatus,
         onOpenUsageSettings = onOpenUsageSettings,
         onOpenTodos = onOpenTodos,
@@ -171,7 +169,6 @@ private fun DashboardContent(
     garminActivities: List<com.d_drostes_apps.aevum.data.model.GarminActivity> = emptyList(),
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
-    onOpenGoals: () -> Unit = {},
     onOpenSleepStatus: () -> Unit = {},
     onOpenUsageSettings: () -> Unit = {},
     // M18.37: Todos-Karte auf dem Dashboard
