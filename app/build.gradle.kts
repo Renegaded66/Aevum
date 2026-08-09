@@ -130,6 +130,9 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("androidx.room:room-testing:2.6.1")
+    // M18.60: Echte org.json-Implementierung fuer JVM-Unit-Tests
+    // (android.jar mocked org.json nicht — "not mocked" Fehler).
+    testImplementation("org.json:json:20240303")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

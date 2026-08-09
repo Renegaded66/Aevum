@@ -45,9 +45,11 @@ import com.d_drostes_apps.aevum.data.model.*
         TodoCompletion::class,
         // M18.58: Garmin Connect (Tageszusammenfassung + Aktivitäten)
         GarminDailySummary::class,
-        GarminActivity::class
+        GarminActivity::class,
+        // M18.60: Pro-Tag-Overrides der Tagespauschalen
+        AllowanceDayOverride::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1100,7 +1102,27 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_daily_summary_date` ON `garmin_daily_summary` (`date`)")
                 database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_garmin_activity_external_id` ON `garmin_activity` (`external_id`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_activity_start_at` ON `garmin_activity` (`start_at`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_activity_activity_type` ON `garmin_activity` (`activity_type`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_garmin_activity_activity_type` ON `garmin_activity` (`activity_type`)\n")
+            }
+        }
+        // M18.60: Tagespauschalen-Overrides + Check-in-only-Todos.
+        //  - allowance_day_override: Pro-Tag-Abweichung einer Pauschale
+        //    ("an einem Tag mal mehr/weniger Zeit gebraucht") — die
+        //    Pauschale selbst bleibt unveraendert.
+        //  - todo.check_in_only: Streak-only-Todo ("heute kein Alkohol").
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `allowance_day_override` (" +
+                        "`date` TEXT NOT NULL, " +
+                        "`allowance_id` TEXT NOT NULL, " +
+                        "`minutes` INTEGER NOT NULL, " +
+                        "`updated_at` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`date`, `allowance_id`))"
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_date` ON `allowance_day_override` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_allowance_day_override_allowance_id` ON `allowance_day_override` (`allowance_id`)")
+                database.execSQL("ALTER TABLE `todo` ADD COLUMN `check_in_only` INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

@@ -59,14 +59,20 @@ class MidnightAllowanceWorker(
         }
 
         var insertedCount = 0
+        // M18.60-FIX: Overrides des Tages schützen — hat der User die
+        // Pauschale fuer diesen Tag angepasst (allowance_day_override),
+        // darf der Worker den Tageswert NICHT mit dem Standardwert
+        // ueberschreiben. Der Override gewinnt.
+        val overrides = repo.getOverridesForDate(dateStr).associateBy { it.allowanceId }
         allowances.forEach { allowance ->
             try {
+                val effectiveMinutes = overrides[allowance.id]?.minutes ?: allowance.minutesPerDay
                 val acc = AllowanceAccumulationDay(
                     date = dateStr,
                     timezoneId = zoneId.id,
                     allowanceId = allowance.id,
                     activityTypeId = allowance.activityTypeId,
-                    minutes = allowance.minutesPerDay
+                    minutes = effectiveMinutes
                 )
                 repo.insertAccumulation(acc)
                 insertedCount++

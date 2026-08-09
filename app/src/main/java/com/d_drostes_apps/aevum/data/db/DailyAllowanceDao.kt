@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay
+import com.d_drostes_apps.aevum.data.model.AllowanceDayOverride
 import com.d_drostes_apps.aevum.data.model.DailyAllowance
 import kotlinx.coroutines.flow.Flow
 
@@ -33,6 +34,23 @@ interface DailyAllowanceDao {
     // Pauschale doppelt (alte Accumulation bleibt in der DB).
     @Query("DELETE FROM allowance_accumulation_day WHERE allowance_id = :allowanceId")
     suspend fun deleteAccumulationsForAllowance(allowanceId: String)
+
+    // M18.60: Pro-Tag-Overrides — der Tageswert einer Pauschale kann
+    // fuer einen einzelnen Tag abweichen (User: "Pauschalzeiten einmalig
+    // anpassen, z.B. wenn man an einem Tag mehr/weniger Zeit gebraucht
+    // hat"). Der Override gewinnt gegen den Pauschalen-Wert beim Lesen,
+    // die Pauschale selbst bleibt unveraendert.
+    @Query("SELECT * FROM allowance_day_override WHERE date = :date")
+    suspend fun getOverridesForDate(date: String): List<AllowanceDayOverride>
+
+    @Query("SELECT * FROM allowance_day_override WHERE date = :date AND allowance_id = :allowanceId")
+    suspend fun getOverride(date: String, allowanceId: String): AllowanceDayOverride?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOverride(override: AllowanceDayOverride)
+
+    @Query("DELETE FROM allowance_day_override WHERE date = :date AND allowance_id = :allowanceId")
+    suspend fun deleteOverride(date: String, allowanceId: String)
 
     // Accumulation table queries
     @Query("SELECT * FROM allowance_accumulation_day WHERE date = :date")

@@ -131,15 +131,31 @@ fun TodoEditorScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         TypeToggle(
                             label = "Checkbox",
-                            selected = !state.isDuration,
-                            onClick = { viewModel.setDuration(false) },
+                            selected = !state.isDuration && !state.checkInOnly,
+                            onClick = { viewModel.setCheckInOnly(false); viewModel.setDuration(false) },
                             modifier = Modifier.weight(1f)
                         )
                         TypeToggle(
                             label = "Dauer-Ziel",
                             selected = state.isDuration,
-                            onClick = { viewModel.setDuration(true) },
+                            onClick = { viewModel.setCheckInOnly(false); viewModel.setDuration(true) },
                             modifier = Modifier.weight(1f)
+                        )
+                        // M18.60: Streak-only ("heute kein Alkohol") —
+                        // kein Abhaken, nur Streak erhöhen.
+                        TypeToggle(
+                            label = "Streak only",
+                            selected = state.checkInOnly,
+                            onClick = { viewModel.setCheckInOnly(true) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (state.checkInOnly) {
+                        Text(
+                            "„Heute dabei“ — kein Abhaken, nur Streak erhöhen. Perfekt für „heute kein Alkohol“ oder „Sport gemacht“.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 16.sp
                         )
                     }
                     if (state.isDuration) {

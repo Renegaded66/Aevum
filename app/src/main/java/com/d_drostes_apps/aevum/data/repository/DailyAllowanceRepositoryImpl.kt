@@ -2,6 +2,7 @@ package com.d_drostes_apps.aevum.data.repository
 
 import com.d_drostes_apps.aevum.data.db.DailyAllowanceDao
 import com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay
+import com.d_drostes_apps.aevum.data.model.AllowanceDayOverride
 import com.d_drostes_apps.aevum.data.model.DailyAllowance
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -27,4 +28,14 @@ class DailyAllowanceRepositoryImpl @Inject constructor(
         dao.getAccumulationInRange(startDate, endDate)
     override suspend fun insertAccumulation(accumulation: AllowanceAccumulationDay) =
         dao.insertAccumulation(accumulation)
+
+    // M18.60: Pro-Tag-Overrides
+    override suspend fun getOverridesForDate(date: String): List<AllowanceDayOverride> =
+        dao.getOverridesForDate(date)
+    override suspend fun getOverride(date: String, allowanceId: String): AllowanceDayOverride? =
+        dao.getOverride(date, allowanceId)
+    override suspend fun insertOverride(override: AllowanceDayOverride) =
+        dao.insertOverride(override)
+    override suspend fun deleteOverride(date: String, allowanceId: String) =
+        dao.deleteOverride(date, allowanceId)
 }

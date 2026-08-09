@@ -72,9 +72,101 @@ class DashboardViewModel @Inject constructor(
     // zeigte es den VORTAG — die Completion von HEUTE (neues Datum)
     // wurde nie geladen -> "1 offen" obwohl abgehakt. Jetzt: frisches
     // Datum bei jedem State-Build (der Minuten-Tick erzwingt den Rebuild).
-    private val today: LocalDate get() = LocalDate.now()
+    //
+    // M18.60: Tages-Navigation — das Dashboard zeigt per Offset auch
+    // vergangene Tage (User: "wie bei der Timeline andere Tage sehen").
+    // 0 = heute, -1 = gestern, ... Der Offset wird beim State-Build
+    // berücksichtigt, sodass alle Statistiken (Sessions, Pauschalen,
+    // Todos, Schlaf) den gewählten Tag zeigen. Bewusst dezent in der UI.
+    private val _selectedDayOffset = MutableStateFlow(0)
+    val selectedDayOffset: StateFlow<Int> = _selectedDayOffset
+
+    // M18.60: Overrides des gewählten Tages — wird bei Tag-Wechsel und
+    // nach set/clear neu geladen. Der combine nimmt diesen Flow auf,
+    // damit Änderungen sofort im UI-State landen.
+    private val _dayOverrides = MutableStateFlow<List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride>>(emptyList())
+
+    private val today: LocalDate get() = LocalDate.now().plusDays(_selectedDayOffset.value.toLong())
     private val start: Long get() = TimeFormatting.startOfDayMillis(today, zoneId)
     private val end: Long get() = TimeFormatting.endOfDayMillis(today, zoneId)
+
+    /** M18.60: Einen Tag vor/zurück springen (dezent im Dashboard). */
+    fun navigateDay(delta: Int) {
+        val newOffset = (_selectedDayOffset.value + delta).coerceIn(-365, 0)
+        if (newOffset == _selectedDayOffset.value) return
+        _selectedDayOffset.value = newOffset
+        reloadDayOverrides()
+    }
+
+    /** M18.60: Zurück zu heute springen. */
+    fun resetToToday() {
+        if (_selectedDayOffset.value == 0) return
+        _selectedDayOffset.value = 0
+        reloadDayOverrides()
+    }
+
+    private fun reloadDayOverrides() {
+        viewModelScope.launch {
+            _dayOverrides.value = dailyAllowanceRepository.getOverridesForDate(today.toString())
+        }
+    }
+
+    /**
+     * M18.60: Pauschalzeit für den GEWÄHLTEN Tag einmalig anpassen —
+     * die Pauschale selbst bleibt unverändert. Der Override überschreibt
+     * nur die Minuten dieses Tages (User: "an einem Tag mal mehr/weniger
+     * Zeit gebraucht"). Zusätzlich wird die Accumulation des Tages sofort
+     * angepasst, damit Insights/Statistik den neuen Wert zeigen (der
+     * Midnight-Worker läuft sonst erst wieder um 00:05).
+     */
+    fun setAllowanceOverride(allowanceId: String, minutes: Int) {
+        viewModelScope.launch {
+            val date = today.toString()
+            dailyAllowanceRepository.insertOverride(
+                com.d_drostes_apps.aevum.data.model.AllowanceDayOverride(
+                    date = date,
+                    allowanceId = allowanceId,
+                    minutes = minutes.coerceIn(0, 1440)
+                )
+            )
+            syncAccumulationForDay(date, allowanceId)
+            reloadDayOverrides()
+        }
+    }
+
+    /** M18.60: Override für den gewählten Tag entfernen → Pauschalen-Wert gilt wieder. */
+    fun clearAllowanceOverride(allowanceId: String) {
+        viewModelScope.launch {
+            val date = today.toString()
+            dailyAllowanceRepository.deleteOverride(date, allowanceId)
+            syncAccumulationForDay(date, allowanceId)
+            reloadDayOverrides()
+        }
+    }
+
+    /**
+     * M18.60: Accumulation des Tages auf den effektiven Wert (Override
+     * oder Standard) bringen — damit Statistik/Insights sofort stimmen,
+     * nicht erst nach dem nächsten Midnight-Lauf.
+     */
+    private suspend fun syncAccumulationForDay(date: String, allowanceId: String) {
+        try {
+            val allowance = dailyAllowanceRepository.getById(allowanceId) ?: return
+            val override = dailyAllowanceRepository.getOverride(date, allowanceId)
+            val effective = override?.minutes ?: allowance.minutesPerDay
+            dailyAllowanceRepository.insertAccumulation(
+                com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay(
+                    date = date,
+                    timezoneId = zoneId.id,
+                    allowanceId = allowance.id,
+                    activityTypeId = allowance.activityTypeId,
+                    minutes = effective
+                )
+            )
+        } catch (e: Exception) {
+            Log.e("DashboardViewModel", "syncAccumulationForDay failed", e)
+        }
+    }
 
     // M16: Diese Properties MÜSSEN vor dem init-Block deklariert werden.
     // Kotlin führt init-Blöcke und Property-Initializer in Deklarations-
@@ -334,7 +426,9 @@ class DashboardViewModel @Inject constructor(
         // nicht als erledigt.
         todoRepository.getAllCompletions(),
         // M18.42: Minuetlicher Tick fuer Live-Updates.
-        minuteTick
+        minuteTick,
+        // M18.60: Overrides des gewählten Tages (Pauschalen pro Tag).
+        _dayOverrides
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
@@ -348,6 +442,7 @@ class DashboardViewModel @Inject constructor(
         val allTodos = values[8] as List<com.d_drostes_apps.aevum.data.model.Todo>
         val allCompletions = values[9] as List<com.d_drostes_apps.aevum.data.model.TodoCompletion>
         // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
+        val dayOverrides = values[11] as List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride>
         // M18.43: Auf das AKTUELLE Datum filtern (frischer Getter).
         val todayCompletions = allCompletions.filter { it.date == today.toString() }
         // values[10] = minuteTick — nur Trigger, kein Inhalt noetig.
@@ -381,7 +476,10 @@ class DashboardViewModel @Inject constructor(
             allowances = allowances,
             // M18.37: Todos fuer die Dashboard-Karte
             todos = allTodos,
-            todayCompletions = todayCompletions
+            todayCompletions = todayCompletions,
+            // M18.60: Overrides des gewählten Tages + Datum fuer die UI
+            dayOverrides = dayOverrides,
+            displayedDate = today
         )
     }
         // M12.0.2: Defensive Programmierung — keine Exception darf bis zur UI
@@ -486,7 +584,10 @@ class DashboardViewModel @Inject constructor(
         allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance> = emptyList(),
         // M18.37: Todos fuer die Dashboard-Karte
         todos: List<com.d_drostes_apps.aevum.data.model.Todo> = emptyList(),
-        todayCompletions: List<com.d_drostes_apps.aevum.data.model.TodoCompletion> = emptyList()
+        todayCompletions: List<com.d_drostes_apps.aevum.data.model.TodoCompletion> = emptyList(),
+        // M18.60: Overrides des gewählten Tages + angezeigtes Datum
+        dayOverrides: List<com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyList(),
+        displayedDate: LocalDate = LocalDate.now()
     ): DashboardUiState {
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
@@ -528,11 +629,21 @@ class DashboardViewModel @Inject constructor(
         // M18.37: Pauschalen-Summary fuer die Dashboard-Zeile — jede
         // enabled Pauschale wird explizit sichtbar (Name + Minuten),
         // nicht nur in der Gesamtsumme versteckt.
+        // M18.60: Overrides gewinnen — hat der User die Pauschale fuer
+        // den GEWAEHLTEN Tag angepasst, zaehlt der Tageswert statt der
+        // Standard-Minuten. Die Pauschale selbst bleibt unveraendert.
+        val overrideByAllowance = dayOverrides.associateBy { it.allowanceId }
         val allowanceSummary = allowances
             .filter { it.enabled }
-            .map { it.name to it.minutesPerDay }
-        // M18.33: Pauschalen-Minuten addieren (nur enabled)
-        val allowanceMs = allowances.filter { it.enabled }.sumOf { it.minutesPerDay * 60_000L }
+            .map { allowance ->
+                val override = overrideByAllowance[allowance.id]
+                val effectiveMinutes = override?.minutes ?: allowance.minutesPerDay
+                Triple(allowance.id, allowance.name, effectiveMinutes) to (override != null)
+            }
+        // M18.33: Pauschalen-Minuten addieren (nur enabled, mit Overrides)
+        val allowanceMs = allowances.filter { it.enabled }.sumOf {
+            (overrideByAllowance[it.id]?.minutes ?: it.minutesPerDay) * 60_000L
+        }
         val totalMsWithAllowances = totalMs + allowanceMs
         val openMs = (DAY_MS - totalMsWithAllowances).coerceAtLeast(0L)
         val distribution = clippedSessions
@@ -681,7 +792,10 @@ class DashboardViewModel @Inject constructor(
             todoOpenCount = todoOpenCount,
             todoTotalCount = activeTodos.size,
             // M18.37: Pauschalen explizit sichtbar
-            allowanceSummary = allowanceSummary
+            allowanceSummary = allowanceSummary,
+            // M18.60: angezeigtes Datum + Tages-Overrides fuer die UI
+            displayedDate = displayedDate,
+            allowanceOverrides = overrideByAllowance
         )
     }
 
@@ -931,7 +1045,12 @@ data class DashboardUiState(
     val todoOpenCount: Int = 0,
     val todoTotalCount: Int = 0,
     // M18.37: Pauschalen explizit sichtbar (Titel, Minuten/Tag).
-    val allowanceSummary: List<Pair<String, Int>> = emptyList()
+    // M18.60: (id, name, effektive Minuten) + Override-Flag.
+    val allowanceSummary: List<Pair<Triple<String, String, Int>, Boolean>> = emptyList(),
+    // M18.60: Tages-Overrides (allowanceId → Override) fuer Popup-Anzeige.
+    val allowanceOverrides: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
+    // M18.60: Angezeigtes Datum (Tages-Navigation).
+    val displayedDate: LocalDate = LocalDate.now()
 )
 
 data class QualitySlice(

@@ -23,11 +23,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -143,7 +146,12 @@ fun DashboardScreen(
         // M18.12: Neue Aktivität anlegen + starten
         onCreateActivity = viewModel::createAndStartActivity,
         // M18.23: Aktivität wechseln
-        onSwitchLive = viewModel::switchActivity
+        onSwitchLive = viewModel::switchActivity,
+        // M18.60: Tages-Navigation + Pauschal-Overrides
+        onNavigateDay = viewModel::navigateDay,
+        onResetToToday = viewModel::resetToToday,
+        onSetAllowanceOverride = viewModel::setAllowanceOverride,
+        onClearAllowanceOverride = viewModel::clearAllowanceOverride
     )
 }
 
@@ -176,13 +184,20 @@ private fun DashboardContent(
     // M18.12: Neue Aktivität anlegen + starten
     onCreateActivity: (String) -> Unit = {},
     // M18.23: Aktivität wechseln
-    onSwitchLive: (String, String?) -> Unit = { _, _ -> }
+    onSwitchLive: (String, String?) -> Unit = { _, _ -> },
+    // M18.60: Tages-Navigation + Pauschal-Overrides
+    onNavigateDay: (Int) -> Unit = {},
+    onResetToToday: () -> Unit = {},
+    onSetAllowanceOverride: (String, Int) -> Unit = { _, _ -> },
+    onClearAllowanceOverride: (String) -> Unit = {}
 ) {
     val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
     val slideIn = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
     val slideOut = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
     // M18.58: Das +-Popup (fancy Bottom-Sheet mit allen Start-Optionen).
     var showStartPicker by remember { mutableStateOf(false) }
+    // M18.60: Pauschal-Popup — welche Pauschale wurde angeklickt?
+    var allowancePopup by remember { mutableStateOf<AllowancePopupTarget?>(null) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -210,6 +225,19 @@ private fun DashboardContent(
 
             // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
             item { PulsHero(state = state) }
+
+            // M18.60: Dezente Tages-Navigation — das Dashboard ist das
+            // Herzstück, also bewusst unaufdringlich: eine schlanke
+            // Pill-Zeile mit ‹ Datum ›. Nur sichtbar, wenn man von
+            // "heute" weg navigiert hat, erscheint zusätzlich "Heute".
+            item {
+                DayNavigationPill(
+                    displayedDate = state.displayedDate,
+                    onPrevious = { onNavigateDay(-1) },
+                    onNext = { onNavigateDay(1) },
+                    onReset = onResetToToday
+                )
+            }
 
             // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik (User-Wunsch:
             // "Statistik über den Güte Verlauf der letzten Tage, wobei man
@@ -259,8 +287,23 @@ private fun DashboardContent(
 
             // M18.37: Pauschalen-Zeile — jede enabled Pauschale explizit
             // sichtbar (Name + Minuten/Tag), nicht nur in der Summe versteckt.
+            // M18.60: Klick auf eine Pauschale oeffnet ein Popup mit
+            // "Bearbeiten" + "Loeschen" — die Aenderung gilt NUR fuer den
+            // angezeigten Tag (User: "an einem Tag mal mehr/weniger Zeit").
             if (state.allowanceSummary.isNotEmpty()) {
-                item { DashboardAllowancesRow(summary = state.allowanceSummary) }
+                item {
+                    DashboardAllowancesRow(
+                        summary = state.allowanceSummary,
+                        onAllowanceClick = { id, name, minutes ->
+                            allowancePopup = AllowancePopupTarget(
+                                allowanceId = id,
+                                name = name,
+                                currentMinutes = minutes,
+                                hasOverride = state.allowanceOverrides.containsKey(id)
+                            )
+                        }
+                    )
+                }
             }
 
             // 6) Review-Hinweis — nur wenn Vorschläge warten
@@ -307,7 +350,35 @@ private fun DashboardContent(
             onDismiss = { showStartPicker = false }
         )
     }
+
+    // M18.60: Pauschal-Popup — Bearbeiten/Loeschen der Pauschale NUR fuer
+    // den angezeigten Tag. Loeschen mit Bestaetigungsdialog, Bearbeiten
+    // mit fancy Minuten-Picker (Slider + Schnell-Buttons + Live-Anzeige).
+    val popupTarget = allowancePopup
+    if (popupTarget != null) {
+        AllowanceDayPopup(
+            target = popupTarget,
+            displayedDate = state.displayedDate,
+            onDismiss = { allowancePopup = null },
+            onEdit = { allowanceId, minutes ->
+                onSetAllowanceOverride(allowanceId, minutes)
+                allowancePopup = null
+            },
+            onDelete = { allowanceId ->
+                onClearAllowanceOverride(allowanceId)
+                allowancePopup = null
+            }
+        )
+    }
 }
+
+/** M18.60: Klick-Ziel des Pauschal-Popups. */
+private data class AllowancePopupTarget(
+    val allowanceId: String,
+    val name: String,
+    val currentMinutes: Int,
+    val hasOverride: Boolean
+)
 
 /**
  * M18.58: Der schwebende +-Button. Modern futuristisch: Gradient,
@@ -1012,9 +1083,16 @@ private fun DashboardTodosCard(
  * vorher gingen sie nur in der Gesamtsumme auf und der User sah
  * "Fertig machen 30m" nie. Bewusst schlank: eine Zeile pro Pauschale,
  * Chip-Optik, kein Scroll, kein Detail.
+ *
+ * M18.60: Jede Pauschale ist antippbar → Popup mit "Bearbeiten" +
+ * "Löschen" für den angezeigten Tag. Overrides (abweichender Tageswert)
+ * werden mit ✎-Marker + abweichender Minuten-Anzeige hervorgehoben.
  */
 @Composable
-private fun DashboardAllowancesRow(summary: List<Pair<String, Int>>) {
+private fun DashboardAllowancesRow(
+    summary: List<Pair<Triple<String, String, Int>, Boolean>>,
+    onAllowanceClick: (allowanceId: String, name: String, effectiveMinutes: Int) -> Unit
+) {
     AevumCard(
         variant = CardVariant.Gradient,
         contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm)
@@ -1027,9 +1105,19 @@ private fun DashboardAllowancesRow(summary: List<Pair<String, Int>>) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
             )
-            summary.forEach { (name, minutes) ->
+            Text(
+                "Tippen zum Anpassen für diesen Tag",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            summary.forEach { (entry, hasOverride) ->
+                val (id, name, minutes) = entry
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AevumRadius.sm))
+                        .clickable { onAllowanceClick(id, name, minutes) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
@@ -1037,7 +1125,10 @@ private fun DashboardAllowancesRow(summary: List<Pair<String, Int>>) {
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.tertiary)
+                            .background(
+                                if (hasOverride) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.tertiary
+                            )
                     )
                     Text(
                         name,
@@ -1047,15 +1138,254 @@ private fun DashboardAllowancesRow(summary: List<Pair<String, Int>>) {
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    if (hasOverride) {
+                        Text(
+                            "✎",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Text(
-                        "$minutes min/Tag",
+                        "$minutes min",
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (hasOverride) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             }
         }
+    }
+}
+
+/**
+ * M18.60: Dezente Tages-Navigation fürs Dashboard (Herzstück — bewusst
+ * unaufdringlich). Eine schlanke Pill-Zeile: ‹  Datum  ›. Wochentag +
+ * "Heute"/"Gestern" statt des vollen Datums. Bei Vergangenheits-Ansicht
+ * erscheint rechts ein "Heute"-Chip zum Zurückspringen.
+ */
+@Composable
+private fun DayNavigationPill(
+    displayedDate: java.time.LocalDate,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onReset: () -> Unit
+) {
+    val today = java.time.LocalDate.now()
+    val isToday = displayedDate == today
+    val label = when {
+        isToday -> "Heute"
+        displayedDate == today.minusDays(1) -> "Gestern"
+        else -> displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd.MM."))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AevumRadius.lg))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .padding(horizontal = AevumSpacing.sm, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(
+            "‹",
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onPrevious)
+                .padding(horizontal = 10.dp, vertical = 2.dp)
+        )
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        if (!isToday) {
+            Text(
+                "Heute",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AevumRadius.sm))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .clickable(onClick = onReset)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+        Text(
+            "›",
+            fontSize = 18.sp,
+            color = if (isToday) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(enabled = !isToday, onClick = onNext)
+                .padding(horizontal = 10.dp, vertical = 2.dp)
+        )
+    }
+}
+
+/**
+ * M18.60: Popup für eine Tagespauschale am angezeigten Tag.
+ *  - "Bearbeiten" → fancy Minuten-Picker (Slider + Schnell-Buttons),
+ *    speichert einen Override NUR für diesen Tag.
+ *  - "Löschen" → Bestätigungsdialog, entfernt den Override (bei
+ *    Override) bzw. blendet die Pauschale für den Tag aus (bei
+ *    Standard-Pauschale ohne Override).
+ */
+@Composable
+private fun AllowanceDayPopup(
+    target: AllowancePopupTarget,
+    displayedDate: java.time.LocalDate,
+    onDismiss: () -> Unit,
+    onEdit: (allowanceId: String, minutes: Int) -> Unit,
+    onDelete: (allowanceId: String) -> Unit
+) {
+    var showEditor by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    val dateLabel = if (displayedDate == java.time.LocalDate.now()) "heute" else
+        displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM."))
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Pauschalzeit löschen?") },
+            text = {
+                Text(
+                    if (target.hasOverride) {
+                        "Bist du sicher, dass du die angepasste Pauschalzeit für $dateLabel löschen willst? Es gilt wieder der Standardwert (${target.currentMinutes} min)."
+                    } else {
+                        "Bist du sicher, dass du die Pauschalzeit für $dateLabel löschen willst? Die Pauschale selbst bleibt erhalten — nur für diesen Tag wird sie ausgeblendet."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onDelete(target.allowanceId) }) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") }
+            }
+        )
+    } else if (showEditor) {
+        // Fancy Minuten-Picker: großer Live-Wert, Slider, Schnell-Buttons
+        var minutes by remember { mutableStateOf(target.currentMinutes) }
+        AlertDialog(
+            onDismissRequest = { showEditor = false },
+            title = { Text("Zeit anpassen") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    Text(
+                        "${target.name} — $dateLabel",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "$minutes min",
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                    Slider(
+                        value = minutes.toFloat(),
+                        onValueChange = { minutes = it.toInt().coerceIn(0, 720) },
+                        valueRange = 0f..720f,
+                        steps = 143 // 5-Minuten-Schritte
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        listOf(-30, -15, -5, 5, 15, 30).forEach { delta ->
+                            Text(
+                                if (delta > 0) "+$delta" else "$delta",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AevumRadius.sm))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                    .clickable { minutes = (minutes + delta).coerceIn(0, 720) }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(15, 30, 45, 60, 90, 120).forEach { preset ->
+                            Text(
+                                "$preset",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (minutes == preset) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(AevumRadius.sm))
+                                    .background(
+                                        if (minutes == preset) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                    .clickable { minutes = preset }
+                                    .padding(vertical = 6.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    if (target.hasOverride) {
+                        Text(
+                            "✎ Bereits angepasst — Speichern überschreibt den Tageswert.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onEdit(target.allowanceId, minutes) }) { Text("Speichern") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditor = false }) { Text("Abbrechen") }
+            }
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(target.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    Text(
+                        "Pauschalzeit für $dateLabel: ${target.currentMinutes} min",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        "Änderungen gelten nur für diesen Tag — die Pauschale selbst bleibt unverändert.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showEditor = true }) { Text("✎ Bearbeiten") }
+            },
+            dismissButton = {
+                TextButton(onClick = { onDelete(target.allowanceId) }) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
     }
 }

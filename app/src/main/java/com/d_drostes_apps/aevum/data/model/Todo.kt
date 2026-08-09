@@ -58,6 +58,11 @@ data class Todo(
     /** Nur fuer ONCE: optionales Faelligkeitsdatum (ISO) — ohne Datum taeglich relevant bis erledigt */
     @ColumnInfo(name = "due_date") val dueDate: String? = null,
     val active: Boolean = true,
+    // M18.60: Streak-only-Todo ("heute kein Alkohol") — KEIN Abhaken
+    // im klassischen Sinn: Der Eintrag ist ein Check-in, der nur den
+    // Streak erhöht. Die Karte erscheint dezent, die Interaktion ist
+    // "War heute dabei" statt "erledigt".
+    @ColumnInfo(name = "check_in_only") val checkInOnly: Boolean = false,
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis()
 ) : Serializable

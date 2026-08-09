@@ -246,20 +246,46 @@ private fun TodoCard(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                // Checkbox (custom, fancy)
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (item.done) accentColor
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                // M18.60: Check-in-only-Todo ("heute kein Alkohol") — KEINE
+                // Checkbox, sondern ein dezenter "War heute dabei"-Button.
+                // Der Klick erhöht nur den Streak (Completion), es gibt kein
+                // "fertig"-Konzept. Ist der Check-in heute schon erfolgt,
+                // erscheint ein dezent gefüllter Zustand.
+                if (todo.checkInOnly) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (item.done) accentColor.copy(alpha = 0.22f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                            )
+                            .clickable(onClick = onToggle)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (item.done) "✓ Heute dabei" else "+ Heute dabei",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (item.done) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        .clickable(onClick = onToggle),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (item.done) {
-                        Text("✓", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                } else {
+                    // Checkbox (custom, fancy)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (item.done) accentColor
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                            )
+                            .clickable(onClick = onToggle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (item.done) {
+                            Text("✓", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
@@ -267,8 +293,10 @@ private fun TodoCard(
                         todo.title,
                         fontSize = 16.sp,
                         fontWeight = if (item.done) FontWeight.Normal else FontWeight.SemiBold,
-                        textDecoration = if (item.done) TextDecoration.LineThrough else null,
-                        color = if (item.done) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        // M18.60: Check-in-Todos werden NICHT durchgestrichen —
+                        // "Heute dabei" ist kein Erledigt-Konzept.
+                        textDecoration = if (item.done && !todo.checkInOnly) TextDecoration.LineThrough else null,
+                        color = if (item.done && !todo.checkInOnly) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         else MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -292,6 +320,23 @@ private fun TodoCard(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // M18.60: Streak-Badge — ersichtlich auf jeder Karte.
+                        // Wöchentliche Todos zeigen "🔥 3 Wochen", tägliche "🔥 12".
+                        if (item.streak > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    item.streakLabel,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 }
                 // Aktionen

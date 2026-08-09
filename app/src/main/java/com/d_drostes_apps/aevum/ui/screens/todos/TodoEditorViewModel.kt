@@ -64,7 +64,8 @@ class TodoEditorViewModel @Inject constructor(
                     ?: setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
                 intervalDays = recurrence?.optInt(RecurrenceEngine.KEY_INTERVAL_DAYS, 2) ?: 2,
                 countPerPeriod = recurrence?.optInt(RecurrenceEngine.KEY_COUNT_PER_PERIOD, 3) ?: 3,
-                dueInDays = 0
+                dueInDays = 0,
+                checkInOnly = todo.checkInOnly
             )
         }
     }
@@ -107,6 +108,15 @@ class TodoEditorViewModel @Inject constructor(
         formState.value = formState.value.copy(dueInDays = days)
     }
 
+    // M18.60: Check-in-only-Todo ("heute kein Alkohol") — nur Streak,
+    // kein Abhaken. Schaltet die Dauer-Logik automatisch aus.
+    fun setCheckInOnly(checkInOnly: Boolean) {
+        formState.value = formState.value.copy(
+            checkInOnly = checkInOnly,
+            isDuration = if (checkInOnly) false else formState.value.isDuration
+        )
+    }
+
     fun save() {
         val s = formState.value
         if (s.title.isBlank()) return
@@ -141,6 +151,7 @@ class TodoEditorViewModel @Inject constructor(
                             recurrenceType = s.recurrenceType,
                             recurrenceJson = recurrenceJson,
                             dueDate = dueDate,
+                            checkInOnly = s.checkInOnly,
                             updatedAt = now
                         )
                     )
@@ -159,6 +170,7 @@ class TodoEditorViewModel @Inject constructor(
                     startDate = today.toString(),
                     dueDate = dueDate,
                     active = true,
+                    checkInOnly = s.checkInOnly,
                     createdAt = now,
                     updatedAt = now
                 )
@@ -177,5 +189,7 @@ data class TodoEditorUiState(
     val intervalDays: Int = 2,
     val countPerPeriod: Int = 3,
     val dueInDays: Int = 0,
+    // M18.60: Streak-only-Todo ("heute kein Alkohol") — nur Streak erhöhen.
+    val checkInOnly: Boolean = false,
     val activityTypes: List<ActivityType> = emptyList()
 )
