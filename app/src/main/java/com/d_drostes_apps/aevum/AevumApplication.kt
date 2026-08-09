@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import dagger.hilt.android.HiltAndroidApp
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRefreshScheduler
+import com.d_drostes_apps.aevum.automation.geofence.GeofenceRefreshWorker
 import com.d_drostes_apps.aevum.automation.midnight.MidnightAllowanceScheduler
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionMorningScheduler
 import com.d_drostes_apps.aevum.automation.unknownplace.UnknownPlaceDetectorScheduler
@@ -134,6 +135,27 @@ class AevumApplication : Application() {
             geofenceRefreshScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "GeofenceRefreshScheduler failed — continuing", e)
+        }
+        // M18.61c-HOTFIX: Sofortige Geofence-Registrierung beim App-Start.
+        // Der Periodik-Worker feuert erst nach 6h, der BootReceiver nur
+        // nach Reboot. Wenn die App frisch installiert/upgedatet wurde
+        // (oder die DB gerade repariert wurde), müssen die Geofences aber
+        // SOFORT registriert sein — sonst läuft kein Geofence-Trigger,
+        // bis der 6h-Worker oder ein Reboot kommt. REPLACE-Policy: bei
+        // jedem App-Start neu enqueued (idempotent, Registrierung ist
+        // eh ein Refresh).
+        try {
+            val immediateRefresh = androidx.work.OneTimeWorkRequestBuilder<GeofenceRefreshWorker>()
+                .setInitialDelay(15, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            androidx.work.WorkManager.getInstance(this)
+                .enqueueUniqueWork(
+                    "aevum.geofence_refresh_immediate",
+                    androidx.work.ExistingWorkPolicy.REPLACE,
+                    immediateRefresh
+                )
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Geofence-Refresh (immediate) failed — continuing", e)
         }
         // M18.58: Garmin Connect Sync — alle 30 min (Schritte/Kalorien/
         // Distanz-Kacheln + Aktivitäts-Import). Schlaf-Import läuft über
