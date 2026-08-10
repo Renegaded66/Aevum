@@ -1,5 +1,15 @@
 package com.d_drostes_apps.aevum.ui.screens.digitalbalance
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +54,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,11 +64,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -67,9 +82,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.d_drostes_apps.aevum.data.model.AppLimit
 import com.d_drostes_apps.aevum.data.model.BalanceProfile
 import com.d_drostes_apps.aevum.ui.components.AevumCard
+import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -224,8 +241,12 @@ private fun BalancePage(
                 }
             }
         }
-        items(state.apps, key = { it.packageName }) { app ->
-            AppLimitCard(
+        // M18.62: App-Karten mit kaskadenartiger Einblend-Animation
+        // (Fade + Slide von unten) und animierter Platzierung beim
+        // Sortieren/Neuanordnen.
+        itemsIndexed(state.apps, key = { _, app -> app.packageName }) { index, app ->
+            AnimatedAppCard(
+                index = index,
                 app = app,
                 dayTotalMs = state.selectedDayTotalMs,
                 onLimitChange = { minutes, enabled ->
@@ -238,6 +259,55 @@ private fun BalancePage(
             )
         }
         item { Spacer(Modifier.height(AevumSpacing.lg)) }
+    }
+}
+
+/**
+ * M18.62: App-Karte mit Einblend-Animation. Beim ersten Erscheinen
+ * gleitet sie mit Fade von unten ein (kaskadenartig, 60ms × Index),
+ * beim Sortieren/Neuanordnen animiert die Platzierung.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AnimatedAppCard(
+    index: Int,
+    app: DigitalAppUi,
+    dayTotalMs: Long,
+    onLimitChange: (Int, Boolean) -> Unit,
+    onException: (String, Int, Int) -> Unit,
+    onRemove: () -> Unit
+) {
+    var appeared by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay((index * 60).toLong())
+        appeared = true
+    }
+    val alpha by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0f,
+        animationSpec = tween(400),
+        label = "appCardAlpha"
+    )
+    val offsetY by animateDpAsState(
+        targetValue = if (appeared) 0.dp else 24.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "appCardOffset"
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(alpha)
+            .graphicsLayer { translationY = offsetY.toPx() }
+    ) {
+        AppLimitCard(
+            app = app,
+            dayTotalMs = dayTotalMs,
+            onLimitChange = onLimitChange,
+            onException = onException,
+            onRemove = onRemove
+        )
     }
 }
 
@@ -296,6 +366,8 @@ private fun TodayHeroCard(
 
             // M18.61: Ring-Diagramm (Google-Digital-Wellbeing-Muster) —
             // Füllung = verbrauchte Zeit vs. Tagesziel (5h), Mitte = Zeit.
+            // M18.62: Sweep-Angle animiert (Spring bouncy) + zentrale Zeit
+            // zählt animiert hoch.
             val goalMs = state.dailyGoalMs
             val progress = (state.todayTotalMs.toFloat() / goalMs).coerceIn(0f, 1f)
             val ringColor = when {
@@ -306,6 +378,27 @@ private fun TodayHeroCard(
             // Farben vor dem Canvas-DrawScope extrahieren (Compose-Regel:
             // @Composable-Zugriffe nur im Composable-Kontext)
             val trackColor = MaterialTheme.colorScheme.surfaceVariant
+            // M18.62: Ring füllt sich animiert (Spring, leicht bouncy)
+            val animatedProgress by animateFloatAsState(
+                targetValue = progress,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                ),
+                label = "ringProgress"
+            )
+            // M18.62: Zentrale Zeit zählt von 0 auf den Zielwert (600ms)
+            var shownMs by remember { mutableFloatStateOf(0f) }
+            LaunchedEffect(state.todayTotalMs) {
+                val start = shownMs
+                val diff = state.todayTotalMs - start
+                val steps = 30
+                for (i in 1..steps) {
+                    shownMs = start + diff * (i / steps.toFloat())
+                    delay(20)
+                }
+                shownMs = state.todayTotalMs.toFloat()
+            }
             Box(
                 modifier = Modifier
                     .size(150.dp)
@@ -327,7 +420,7 @@ private fun TodayHeroCard(
                     drawArc(
                         color = ringColor,
                         startAngle = -90f,
-                        sweepAngle = 360f * progress,
+                        sweepAngle = 360f * animatedProgress,
                         useCenter = false,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
                         topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
@@ -336,7 +429,7 @@ private fun TodayHeroCard(
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        DigitalBalanceViewModel.formatDuration(state.todayTotalMs),
+                        DigitalBalanceViewModel.formatDuration(shownMs.toLong()),
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Light,
                         fontFamily = FontFamily.Monospace
@@ -361,6 +454,8 @@ private fun TodayHeroCard(
 
             // M18.61: 24-Stunden-Breakdown (Google-Muster: "ablenkend
             // zwischen 14–16 Uhr" erkennen)
+            // M18.62: Balken wachsen kaskadenartig (40ms × Stunde) mit
+            // Spring-Animation und Gradient-Füllung.
             val maxHour = (state.hourlyMs.maxOrNull() ?: 0L).coerceAtLeast(1L)
             Row(
                 modifier = Modifier
@@ -371,15 +466,42 @@ private fun TodayHeroCard(
             ) {
                 state.hourlyMs.forEachIndexed { hour, ms ->
                     val frac = ms.toFloat() / maxHour
+                    // Kaskaden-Delay: jede Stunde startet 40ms später
+                    var hourVisible by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        delay((hour * 40).toLong())
+                        hourVisible = true
+                    }
+                    val animatedFrac by animateFloatAsState(
+                        targetValue = if (hourVisible) frac else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "hourBar$hour"
+                    )
+                    val barHeight = (animatedFrac * 40f).coerceAtLeast(if (ms > 0) 3f else 1.5f)
+                    val barBrush = if (ms > 0) {
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            )
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height((frac * 40f).coerceAtLeast(if (ms > 0) 3f else 1.5f).dp)
+                            .height(barHeight.dp)
                             .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-                            .background(
-                                if (ms > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            )
+                            .background(barBrush)
                     )
                 }
             }
@@ -435,6 +557,8 @@ private fun RangeStatsCard(
             // M18.62: Balken-Diagramm — jeder Balken ist ein Tag und
             // antippbar. Die App-Liste darunter zeigt dann die Werte
             // des angeklickten Tages. Der gewählte Balken wird hervorgehoben.
+            // M18.62: Balken wachsen kaskadenartig (50ms × Tag) mit
+            // Spring-Animation; der gewählte Tag pulsiert dezent.
             val totals = state.dailyTotals
             val maxMs = (totals.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
             val today = LocalDate.now()
@@ -447,7 +571,7 @@ private fun RangeStatsCard(
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
-                totals.forEach { (date, ms) ->
+                totals.forEachIndexed { index, (date, ms) ->
                     val fraction = ms.toFloat() / maxMs
                     val isToday = date == today
                     val isSelected = date == selected
@@ -456,12 +580,38 @@ private fun RangeStatsCard(
                         isToday -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
                     }
+                    // Kaskaden-Delay: jeder Tag startet 50ms später
+                    var barVisible by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        delay((index * 50).toLong())
+                        barVisible = true
+                    }
+                    val animatedFrac by animateFloatAsState(
+                        targetValue = if (barVisible) fraction else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "dayBar$index"
+                    )
+                    val barHeight = (animatedFrac * 72f).coerceAtLeast(if (ms > 0) 4f else 2f)
+                    // M18.62: Gewählter Tag pulsiert (Alpha-Welle)
+                    val infiniteTransition = rememberInfiniteTransition(label = "selectedPulse")
+                    val pulseAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.6f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+                        label = "pulseAlpha"
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height((fraction * 72f).coerceAtLeast(if (ms > 0) 4f else 2f).dp)
+                            .height(barHeight.dp)
                             .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                            .background(barColor)
+                            .background(
+                                if (isSelected) barColor.copy(alpha = pulseAlpha)
+                                else barColor
+                            )
                             .clickable { onDayClick(date) }
                     )
                 }
@@ -599,38 +749,34 @@ private fun AppLimitCard(
 
             // M18.62: Farbiger Anteils-Balken — wie im Dashboard. Zeigt,
             // wie viel von der gesamten Bildschirmzeit des Tages auf diese
-            // App zurückgeht. Animiert beim Anzeigen (fillMaxWidth-Fraktion).
+            // App zurückgeht. Animiert beim Anzeigen (Spring bouncy +
+            // Glanz-Layer via AnimatedGradientBar).
             val share = if (dayTotalMs > 0) (app.dayMs.toFloat() / dayTotalMs).coerceIn(0f, 1f) else 0f
             val barColor = when {
                 app.isBlocked -> MaterialTheme.colorScheme.error
                 share >= 0.5f -> MaterialTheme.colorScheme.tertiary
                 else -> MaterialTheme.colorScheme.primary
             }
-            // Animation: Balken wächst von 0 auf den Anteil (M17-Muster)
-            val animatedShare by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = share,
-                animationSpec = androidx.compose.animation.core.tween(600),
-                label = "shareBar"
+            AnimatedGradientBar(
+                progress = share,
+                color = barColor,
+                modifier = Modifier.fillMaxWidth(),
+                height = 8.dp,
+                cornerRadius = AevumRadius.full,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(AevumRadius.full))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(animatedShare)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(AevumRadius.full))
-                        .background(barColor)
-                )
-            }
 
             if (hasLimit) {
-                // Fortschrittsbalken zum Limit
+                // Fortschrittsbalken zum Limit — animiert (Spring)
                 val progress = app.progress
+                val animatedLimitProgress by animateFloatAsState(
+                    targetValue = progress,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "limitProgress"
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -640,7 +786,7 @@ private fun AppLimitCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(progress)
+                            .fillMaxWidth(animatedLimitProgress)
                             .height(6.dp)
                             .clip(RoundedCornerShape(AevumRadius.full))
                             .background(
