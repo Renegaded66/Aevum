@@ -1026,64 +1026,82 @@ private fun LiveActivityBanner(
                 )
                 .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.md)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
-            ) {
-                // Status-Punkt
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(accent)
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        if (isPaused) "Pausiert" else "Aufnahme läuft",
-                        fontSize = 10.sp,
-                        letterSpacing = 1.0.sp,
-                        color = accent,
-                        fontWeight = FontWeight.SemiBold
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                // Zeile 1: Status + Titel + Timer — die Buttons sind in
+                // eine eigene Zeile gewandert (M18.62-FIX: vorher quetschte
+                // die eine Row mit 3 Buttons die Titel-Column auf ~2 Zeichen
+                // Breite, der Text brach um und die Karte wurde extrem tief).
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    // Status-Punkt
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(accent)
                     )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (isPaused) "Pausiert" else "Aufnahme läuft",
+                            fontSize = 10.sp,
+                            letterSpacing = 1.0.sp,
+                            color = accent,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    // Timer (Monospace) — M18.60: kompakt, damit die Zeile mit
+                    // Pause/Wechsel/Stop nicht überdimensioniert wirkt.
                     Text(
-                        title,
+                        timerText,
                         fontSize = 15.sp,
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = accent
                     )
                 }
-                // Timer (Monospace) — M18.60: kompakt, damit die Zeile mit
-                // Pause/Wechsel/Stop nicht überdimensioniert wirkt.
-                Text(
-                    timerText,
-                    fontSize = 15.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = accent
-                )
-                // Pause/Fortsetzen
-                Button(
-                    onClick = if (isPaused) onResume else onPause,
-                    modifier = Modifier.height(36.dp)
+                // Zeile 2: Aktionen — volle Breite, nichts wird gequetscht
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
-                    Text(if (isPaused) "▶" else "⏸", fontSize = 14.sp)
-                }
-                // M18.60: Wechsel-Button — wie in der Benachrichtigung.
-                // Oeffnet das Switch-Sheet (alle Aktivitaeten).
-                OutlinedButton(
-                    onClick = { showSwitchSheet = true },
-                    modifier = Modifier.height(36.dp)
-                ) {
-                    Text("⇄", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-                // Stoppen
-                OutlinedButton(
-                    onClick = onStop,
-                    modifier = Modifier.height(36.dp)
-                ) {
-                    Text("■", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                    // Pause/Fortsetzen
+                    Button(
+                        onClick = if (isPaused) onResume else onPause,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        Text(if (isPaused) "▶" else "⏸", fontSize = 14.sp)
+                    }
+                    // M18.60: Wechsel-Button — wie in der Benachrichtigung.
+                    // Oeffnet das Switch-Sheet (alle Aktivitaeten).
+                    OutlinedButton(
+                        onClick = { showSwitchSheet = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        Text("⇄", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    // Stoppen
+                    OutlinedButton(
+                        onClick = onStop,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        Text("■", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
