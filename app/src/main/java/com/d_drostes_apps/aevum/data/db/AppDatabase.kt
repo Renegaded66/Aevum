@@ -60,7 +60,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // kaputte v24 (allowance_day_override ohne FK).
     // M18.61: v26 — app_limit Tabelle (Digital Balance).
     // M18.61f: v28 — balance_profile + balance_profile_app.
-    version = 29,
+    version = 30,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1228,23 +1228,54 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
+        // M18.61g-CRASH-FIX (2. Versuch): Die Entity hat KEINE @ColumnInfo-
+        // Annotationen — Room generiert die Spaltennamen exakt aus den
+        // Feldnamen (camelCase: ipAddress, activityTypeId, createdAt).
+        // Die erste Version erstellte snake_case-Spalten (ip_address, ...)
+        // -> Schema-Validierung schlug fehl -> Crash beim App-Start.
+        // Lektion (M18.61c + M18.61g): Migration IMMER gegen das generierte
+        // Schema-JSON (app/schemas/.../N.json) abgleichen, nicht raten!
         val MIGRATION_28_29 = object : Migration(28, 29) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "CREATE TABLE IF NOT EXISTS `ping_trigger` (" +
                         "`id` TEXT NOT NULL, " +
                         "`name` TEXT NOT NULL, " +
-                        "`ip_address` TEXT NOT NULL, " +
-                        "`activity_type_id` TEXT NOT NULL, " +
+                        "`ipAddress` TEXT NOT NULL, " +
+                        "`activityTypeId` TEXT NOT NULL, " +
                         "`enabled` INTEGER NOT NULL, " +
-                        "`created_at` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`id`))"
                 )
-                // M18.61g-CRASH-FIX: Index-Name MUSS exakt dem Room-Schema
-                // entsprechen (`index_ping_trigger_ipAddress`, camelCase) —
-                // sonst schlägt die Schema-Validierung nach der Migration
-                // fehl (gleicher Bug wie M18.61c: v26 app_limit-Index).
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_ping_trigger_ipAddress` ON `ping_trigger` (`ip_address`)")
+                // Index-Name MUSS exakt dem Room-Schema entsprechen
+                // (`index_ping_trigger_ipAddress`, camelCase) — sonst
+                // schlägt die Schema-Validierung nach der Migration fehl.
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_ping_trigger_ipAddress` ON `ping_trigger` (`ipAddress`)")
+            }
+        }
+
+        // M18.61g-CRASH-REPARATUR (v30): Der User hat die App bereits mit
+        // der kaputten v29-Migration installiert (snake_case-Spalten
+        // ip_address/activity_type_id/created_at). Migrationen laufen nur
+        // EINMAL — eine korrigierte MIGRATION_28_29 würde bei ihm nie
+        // wieder ausgeführt. Deshalb: v30 droppt die kaputte Tabelle und
+        // erstellt sie exakt nach Room-Schema neu (camelCase-Spalten).
+        // Die Tabelle ist brandneu (M18.61g) — es gibt keine Nutzdaten,
+        // die verloren gehen könnten.
+        val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS `ping_trigger`")
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ping_trigger` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`ipAddress` TEXT NOT NULL, " +
+                        "`activityTypeId` TEXT NOT NULL, " +
+                        "`enabled` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_ping_trigger_ipAddress` ON `ping_trigger` (`ipAddress`)")
             }
         }
     }
