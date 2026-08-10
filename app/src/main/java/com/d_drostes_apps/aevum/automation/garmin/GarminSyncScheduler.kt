@@ -49,6 +49,11 @@ class GarminSyncScheduler @Inject constructor(
     /** Manueller Sync (aus den Einstellungen) — sofort, einmalig. */
     fun syncNow() {
         val request = OneTimeWorkRequestBuilder<GarminSyncWorker>()
+            .setInputData(
+                androidx.work.Data.Builder()
+                    .putBoolean("manual", true)
+                    .build()
+            )
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)

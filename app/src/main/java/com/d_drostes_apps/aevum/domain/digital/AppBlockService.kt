@@ -141,7 +141,30 @@ class AppBlockService : Service() {
         return try {
             val mgr = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
-            val events = mgr.queryEvents(now - 60_000, now) ?: return null
+            // M18.61g-FIX (User: "Apps werden nicht geblockt"): queryEvents
+            // liefert EVENTS, keinen STATE. Bei einem 60s-Fenster fehlt das
+            // MOVE_TO_FOREGROUND-Event, sobald der User länger als 60s in
+            // derselben App sitzt → null → keine Sperre.
+            //
+            // Robustes Muster (Digital-Wellbeing-Ansatz, per Recherche
+            // bestätigt): queryUsageStats liefert lastTimeUsed als STATE.
+            // Die App mit dem höchsten lastTimeUsed IST die aktuelle —
+            // aber nur, wenn lastTimeUsed nahe an "jetzt" liegt (sonst
+            // ist der Screen aus / Home-Screen aktiv).
+            val stats = mgr.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                now - 24L * 60 * 60 * 1000,
+                now
+            ) ?: emptyList()
+            val current = stats
+                .filter { it.lastTimeUsed > 0L }
+                .maxByOrNull { it.lastTimeUsed }
+            if (current != null && now - current.lastTimeUsed < 30_000L) {
+                return current.packageName
+            }
+            // Fallback: letztes MOVE_TO_FOREGROUND-Event der letzten 24h
+            // (falls queryUsageStats nichts liefert).
+            val events = mgr.queryEvents(now - 24L * 60 * 60 * 1000, now) ?: return null
             var lastPkg: String? = null
             val event = UsageEvents.Event()
             while (events.hasNextEvent()) {
