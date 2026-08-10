@@ -153,6 +153,24 @@ private fun BalancePage(
         contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
     ) {
+        // M18.62: Oben eine dezente Möglichkeit, den Nutzungszugriff zu
+        // widerrufen (Akku sparen, wenn Digital Balance nicht benötigt wird).
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Nutzungszugriff aktiv",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = viewModel::revokeUsageAccess) {
+                    Text("Widerrufen", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
         item { TodayHeroCard(state, onRefresh = viewModel::refresh) }
         item { RangeStatsCard(state, onRangeChange = viewModel::setRangeDays) }
         // M18.61f: Profile-Karte (Lern-Profil sperrt Social Media)
@@ -463,12 +481,16 @@ private fun AppLimitCard(
     onRemove: () -> Unit
 ) {
     var showEditor by remember { mutableStateOf(false) }
+    // M18.62: Detail-Ansicht mit Tages-Nutzung (klickbares Balken-Diagramm)
+    var showDetail by remember { mutableStateOf(false) }
     val limit = app.limit
     val hasLimit = limit != null && limit.enabled
 
     AevumCard(
         variant = if (app.isBlocked) CardVariant.Filled else CardVariant.Elevated,
-        contentPadding = PaddingValues(AevumSpacing.md)
+        contentPadding = PaddingValues(AevumSpacing.md),
+        // M18.62: Karte klickbar -> Detail-Ansicht mit Nutzung der letzten Tage
+        onClick = { showDetail = true }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Row(
@@ -627,6 +649,126 @@ private fun AppLimitCard(
             onDismiss = { showEditor = false }
         )
     }
+
+    // M18.62: Detail-Ansicht — Nutzung der letzten Tage als farbige Balken.
+    // User: "beim Balken-Diagramm auf die einzelnen Balken klicken und die
+    // Auflistung der Nutzung der letzten Tage sehen".
+    if (showDetail) {
+        AppUsageDetailDialog(
+            app = app,
+            onDismiss = { showDetail = false }
+        )
+    }
+}
+
+/**
+ * M18.62: Detail-Dialog einer App — zeigt die Nutzung der letzten Tage
+ * als farbige Balken (statt nur Text). Jeder Balken = ein Tag, Höhe =
+ * Nutzungsdauer, Farbe = Intensität (grün → gelb → rot je nach Anteil
+ * am Tagesziel). Darunter die Auflistung als Text.
+ */
+@Composable
+private fun AppUsageDetailDialog(
+    app: DigitalAppUi,
+    onDismiss: () -> Unit
+) {
+    val daily = app.dailyUsage
+    val maxMs = (daily.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+    val goalMs = 5 * 60 * 60 * 1000L // Tagesziel 5h (wie TodayHeroCard)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(app.appLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                Text(
+                    "Nutzung der letzten Tage",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (daily.isEmpty()) {
+                    Text(
+                        "Keine Nutzungsdaten für diesen Zeitraum.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    // Farbige Balken pro Tag
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(72.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        daily.forEach { (date, ms) ->
+                            val fraction = ms.toFloat() / maxMs
+                            val goalFrac = ms.toFloat() / goalMs
+                            // Farbe nach Intensität: grün (wenig) → gelb → rot (viel)
+                            val barColor = when {
+                                goalFrac >= 1f -> MaterialTheme.colorScheme.error
+                                goalFrac >= 0.8f -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.primary
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                        .background(
+                                            if (ms > 0) barColor.copy(alpha = 0.55f + 0.45f * fraction)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                )
+                                Text(
+                                    date.dayOfMonth.toString(),
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Auflistung als Text
+                    daily.forEach { (date, ms) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                DigitalBalanceViewModel.formatDay(date),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                DigitalBalanceViewModel.formatDuration(ms),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Schließen", modifier = Modifier.padding(horizontal = 8.dp))
+            }
+        },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+    )
 }
 
 @Composable

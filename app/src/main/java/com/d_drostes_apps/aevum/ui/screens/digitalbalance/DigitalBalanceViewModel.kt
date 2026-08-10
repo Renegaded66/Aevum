@@ -36,7 +36,10 @@ data class DigitalAppUi(
     val remainingMs: Long?,
     // M18.61f: Echte App-Icons (Bitmap aus dem PackageManager) statt
     // Buchstaben-Kreis. Wird im ViewModel geladen (IO-Dispatcher).
-    val icon: android.graphics.drawable.Drawable? = null
+    val icon: android.graphics.drawable.Drawable? = null,
+    // M18.62: Nutzung pro Tag (Datum, ms) für die letzten rangeDays —
+    // für das klickbare Balken-Diagramm in der App-Detail-Ansicht.
+    val dailyUsage: List<Pair<LocalDate, Long>> = emptyList()
 )
 
 data class DigitalBalanceUiState(
@@ -99,6 +102,8 @@ class DigitalBalanceViewModel @Inject constructor(
         val rangeUsage = aggregator.rangeUsageByApp(days)
         val daily = aggregator.dailyTotals(days).map { it.date to it.totalMs }
         val detail = aggregator.todayDetail()
+        // M18.62: Nutzung pro App pro Tag (für das klickbare Balken-Diagramm)
+        val dailyByApp = aggregator.dailyUsageByApp(days)
         val now = System.currentTimeMillis()
 
         val limitMap = limits.associateBy { it.packageName }
@@ -120,7 +125,9 @@ class DigitalBalanceViewModel @Inject constructor(
                 // Compose kann Drawables direkt via rememberDrawablePainter).
                 icon = try {
                     getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
-                } catch (_: Exception) { null }
+                } catch (_: Exception) { null },
+                // M18.62: Tages-Nutzung dieser App für das Balken-Diagramm
+                dailyUsage = dailyByApp[usage.packageName] ?: emptyList()
             )
         }.let { list ->
             // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder
@@ -355,6 +362,21 @@ class DigitalBalanceViewModel @Inject constructor(
 
     fun openUsageAccessSettings() {
         com.d_drostes_apps.aevum.domain.digital.UsageStatsPermission.openSettings(getApplication())
+    }
+
+    /**
+     * M18.62: Nutzungszugriff widerrufen (Akku sparen, wenn Digital
+     * Balance nicht benötigt wird). Öffnet die System-Settings, wo der
+     * User den Schalter ausschalten kann. Zusätzlich wird der Sperr-
+     * Service gestoppt, damit er nicht weiter im Hintergrund läuft.
+     */
+    fun revokeUsageAccess() {
+        viewModelScope.launch {
+            // Sperr-Service stoppen (kein aktives Limit mehr relevant,
+            // da die Nutzungsdaten nicht mehr verfügbar sind)
+            com.d_drostes_apps.aevum.domain.digital.AppBlockService.stop(getApplication())
+            com.d_drostes_apps.aevum.domain.digital.UsageStatsPermission.openSettings(getApplication())
+        }
     }
 
     companion object {

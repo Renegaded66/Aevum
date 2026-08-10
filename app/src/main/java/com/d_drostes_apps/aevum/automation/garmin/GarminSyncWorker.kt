@@ -185,48 +185,94 @@ class GarminSyncWorker(
      * bei minusDays(1) — damit fehlte die NACHT ZUM HEUTE (die letzte
      * Nacht!) und die Screen-Heuristik-Session blieb stehen. Jetzt:
      * 0..6 (heute + 6 zurück) — die letzte Nacht wird mitimportiert.
+     *
+     * M18.62-FIX (User: "3x 8h Schlaf übereinander = 24h heute, obwohl
+     * erst 11 Uhr"): Garmin ändert die Schlafzeit NACH dem Sync noch
+     * nachträglich (8h -> 9h). Der alte Code machte bei JEDER Änderung
+     * softDelete + Insert mit NEUER UUID. Wenn die neue Zeit die alte
+     * nicht mehr überlappt (z.B. leicht verschoben), wurde die alte
+     * Session nicht gefunden -> Duplikat. Jetzt wird die Nacht über den
+     * AUFWACH-TAG identifiziert (date=X = Schlaf der Nacht zum Morgen
+     * von X) und die bestehende GARMIN_SLEEP_AUTO-Session der Nacht
+     * UPDATET (gleiche ID) statt neu angelegt. Bestands-Duplikate
+     * derselben Nacht werden bereinigt.
      */
     private suspend fun importSleep(
         api: GarminApiClient,
         repo: com.d_drostes_apps.aevum.data.repository.ActivityRepository,
         today: LocalDate
     ) {
+        val zone = ZoneId.systemDefault()
         for (i in 0..6) {
             val day = today.minusDays(i.toLong())
             val sleep = api.getSleep(day.toString()) ?: continue
 
             val now = System.currentTimeMillis()
-            val existingSleep = repo.getOverlappingRange(
-                sleep.startGmtMs - 30L * 60 * 1000,
-                sleep.endGmtMs + 30L * 60 * 1000
-            ).first().filter { it.activityTypeId == "sleep" && it.deletedAt == null }
 
-            // M18.59: Bestehende Schlaf-Session der Nacht ersetzen
-            // (Garmin ist die Wahrheit, wenn die Quelle auf Garmin steht).
-            for (old in existingSleep) {
+            // M18.62: Die Nacht wird über den AUFWACH-Tag identifiziert.
+            // date=X = Schlaf der Nacht zum Morgen von X. Die Session der
+            // Nacht endet am Morgen von X (Fenster 00:00–14:00). Das ist
+            // robust gegen Garmins nachträgliche Zeitänderungen, weil es
+            // nur vom Aufwach-Tag abhängt, nicht von der exakten Schlafzeit.
+            val wakeStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+            val wakeEnd = day.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
+            val nightSessions = repo.getOverlappingRange(wakeStart, wakeEnd)
+                .first()
+                .filter {
+                    it.deletedAt == null &&
+                        it.activityTypeId == "sleep" &&
+                        it.endAt != null &&
+                        it.endAt in wakeStart..wakeEnd
+                }
+            val garminSessions = nightSessions.filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
+            val otherSleep = nightSessions.filter { it.sourceType != "GARMIN_SLEEP_AUTO" }
+
+            // Heuristik-Sessions der Nacht löschen (Garmin gewinnt)
+            for (old in otherSleep) {
                 repo.softDelete(old.id, now)
-                android.util.Log.i(TAG, "Garmin-Schlaf ersetzt alte Session ${old.id}")
+                android.util.Log.i(TAG, "Garmin-Schlaf ersetzt Heuristik-Session ${old.id}")
             }
 
-            val session = com.d_drostes_apps.aevum.data.model.ActivitySession(
-                id = UUID.randomUUID().toString(),
-                title = "Schlaf",
-                categoryId = null,
-                activityTypeId = "sleep",
-                startAt = sleep.startGmtMs,
-                endAt = sleep.endGmtMs,
-                sourceType = "GARMIN_SLEEP_AUTO",
-                createdBy = "GARMIN_IMPORT",
-                updatedBy = null,
-                sourceCandidateId = null,
-                confidence = 1.0f,
-                isUserEdited = false,
-                createdAt = now,
-                updatedAt = now,
-                revision = 1
-            )
-            repo.insert(session)
-            android.util.Log.i(TAG, "Garmin-Schlaf ${day} importiert (${sleep.sleepTimeSeconds}s)")
+            if (garminSessions.isNotEmpty()) {
+                // M18.62: Bestehende Garmin-Session der Nacht UPDATEN
+                // (gleiche ID) statt neu anlegen -> kein Duplikat.
+                val primary = garminSessions.first()
+                // Bestands-Duplikate derselben Nacht bereinigen
+                for (dup in garminSessions.drop(1)) {
+                    repo.softDelete(dup.id, now)
+                    android.util.Log.i(TAG, "Garmin-Schlaf-Duplikat bereinigt ${dup.id}")
+                }
+                repo.update(
+                    primary.copy(
+                        startAt = sleep.startGmtMs,
+                        endAt = sleep.endGmtMs,
+                        updatedAt = now,
+                        revision = primary.revision + 1
+                    )
+                )
+                android.util.Log.i(TAG, "Garmin-Schlaf ${day} aktualisiert (${sleep.sleepTimeSeconds}s)")
+            } else {
+                // Keine Garmin-Session der Nacht -> neu anlegen
+                val session = com.d_drostes_apps.aevum.data.model.ActivitySession(
+                    id = UUID.randomUUID().toString(),
+                    title = "Schlaf",
+                    categoryId = null,
+                    activityTypeId = "sleep",
+                    startAt = sleep.startGmtMs,
+                    endAt = sleep.endGmtMs,
+                    sourceType = "GARMIN_SLEEP_AUTO",
+                    createdBy = "GARMIN_IMPORT",
+                    updatedBy = null,
+                    sourceCandidateId = null,
+                    confidence = 1.0f,
+                    isUserEdited = false,
+                    createdAt = now,
+                    updatedAt = now,
+                    revision = 1
+                )
+                repo.insert(session)
+                android.util.Log.i(TAG, "Garmin-Schlaf ${day} importiert (${sleep.sleepTimeSeconds}s)")
+            }
         }
     }
 
