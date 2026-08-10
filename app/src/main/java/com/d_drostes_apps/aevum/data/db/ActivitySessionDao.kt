@@ -44,6 +44,13 @@ interface ActivitySessionDao {
     @Query("UPDATE activity_session SET session_status = :status, current_pause_started_at = :pauseStartedAt, updated_at = :now WHERE id = :id")
     suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?, now: Long)
 
+    // M18.62-FIX: Pause = Session-Split. Die Aufzeichnung wird beendet
+    // (end_at gesetzt), die Session bleibt aber als PAUSED markiert, damit
+    // Banner + Notification sichtbar bleiben. Beim Fortsetzen startet eine
+    // NEUE Session (Timer bei 0).
+    @Query("UPDATE activity_session SET session_status = 'PAUSED', end_at = :endAt, current_pause_started_at = NULL, updated_at = :now WHERE id = :id")
+    suspend fun pauseSession(id: String, endAt: Long, now: Long)
+
     // M9: Finish session with pause data
     @Query("UPDATE activity_session SET session_status = 'FINISHED', end_at = :endAt, total_paused_ms = :totalPausedMs, current_pause_started_at = NULL, pause_segments_json = :pauseSegmentsJson, updated_at = :now WHERE id = :id")
     suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?, now: Long)

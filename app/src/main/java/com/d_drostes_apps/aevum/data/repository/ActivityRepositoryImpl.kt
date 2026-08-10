@@ -37,6 +37,8 @@ class ActivityRepositoryImpl(
     override fun getLiveSession(): Flow<ActivitySession?> = activityDao.getLiveSession()
     override suspend fun updateStatus(id: String, status: String) = activityDao.updateStatus(id, status, System.currentTimeMillis())
     override suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?) = activityDao.updatePauseState(id, status, pauseStartedAt, System.currentTimeMillis())
+    // M18.62-FIX: Pause = Session-Split
+    override suspend fun pauseSession(id: String, endAt: Long) = activityDao.pauseSession(id, endAt, System.currentTimeMillis())
     override suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?) = activityDao.finishSession(id, endAt, totalPausedMs, pauseSegmentsJson, System.currentTimeMillis())
     override suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?) = activityDao.updatePauseData(id, totalPausedMs, pauseSegmentsJson, System.currentTimeMillis())
     override fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?> = activityDao.getBySourceCandidateId(candidateId)

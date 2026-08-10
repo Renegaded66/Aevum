@@ -188,8 +188,14 @@ class LiveActivityService : Service() {
         }
         val isPaused = session.isPaused
         val now = System.currentTimeMillis()
-        val totalMs = (now - session.startAt).coerceAtLeast(0)
-        val activeMs = (totalMs - session.effectivePausedMs(now)).coerceAtLeast(0)
+        // M18.62-FIX: Bei PAUSED ist die Aufzeichnung beendet (endAt =
+        // Pause-Zeitpunkt) — die Zeit friert ein. Bei RUNNING läuft sie.
+        val totalMs = if (isPaused) {
+            (session.endAt ?: now) - session.startAt
+        } else {
+            now - session.startAt
+        }.coerceAtLeast(0)
+        val activeMs = (totalMs - session.totalPausedMs).coerceAtLeast(0)
 
         val title = session.title
         val timeStr = formatDuration(activeMs)

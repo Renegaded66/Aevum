@@ -183,6 +183,8 @@ class M12RegressionTest {
         override fun getLiveSession(): Flow<ActivitySession?> = flowOf(null)
         override suspend fun updateStatus(id: String, status: String) {}
         override suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?) {}
+        // M18.62-FIX: Pause = Session-Split
+        override suspend fun pauseSession(id: String, endAt: Long) {}
         override suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?) {}
         override suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?) {}
         override fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?> = flowOf(null)

@@ -25,6 +25,8 @@ interface ActivityRepository {
     fun getLiveSession(): Flow<ActivitySession?>
     suspend fun updateStatus(id: String, status: String)
     suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?)
+    // M18.62-FIX: Pause = Session-Split (end_at setzen, Status PAUSED)
+    suspend fun pauseSession(id: String, endAt: Long)
     suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?)
     suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?)
     fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?>
