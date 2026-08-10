@@ -14,12 +14,17 @@ import javax.inject.Singleton
 /**
  * M18.61: Digital Balance — Nutzungs-Aggregation pro App.
  *
- * Zwei Quellen:
- *  - HEUTE: Event-API (MOVE_TO_FOREGROUND / ACTIVITY_RESUMED) — präzise,
- *    weil `totalTimeInForeground` auf vielen Geräten über mehrere Tage
- *    kumuliert (OEM-Bug) und Screen-off-Zeit mitzählt.
- *  - ZEITRAUM (7/30 Tage): queryUsageStats(INTERVAL_DAILY) — pro Tag
- *    aggregiert, für Trends/Durchschnitte ausreichend genau.
+ * EINE Quelle für ALLE Zeiträume: die Event-API (MOVE_TO_FOREGROUND /
+ * ACTIVITY_RESUMED → MOVE_TO_BACKGROUND / ACTIVITY_PAUSED / ACTIVITY_STOPPED).
+ *
+ * M18.62-FIX (User: "heute stimmt, aber die letzten Tage zeigt Aevum
+ * 7h+ während Digital Wellbeing 2,5h sagt; Balkenhöhen passen nicht"):
+ * `totalTimeInForeground` aus queryUsageStats kumuliert auf vielen
+ * Geräten über MEHRERE Tage (OEM-Bug) — die Vergangenheits-Werte waren
+ * dadurch massiv zu hoch und die Balken inkonsistent. Die Event-API
+ * liefert echte Phasen mit Timestamps; pro Tag wird an der
+ * Mitternachts-Grenze geclippt. Das ist die Quelle, die auch Google
+ * Digital Wellbeing nutzt.
  */
 @Singleton
 class AppUsageAggregator @Inject constructor(
@@ -45,6 +50,48 @@ class AppUsageAggregator @Inject constructor(
         val unlockCount: Int,
         val hourlyMs: List<Long> // 24 Einträge, ms pro Stunde
     )
+
+    /** Eine Vordergrund-Phase einer App: [start, end) in epochMillis. */
+    private data class ForegroundPhase(
+        val packageName: String,
+        val start: Long,
+        val end: Long
+    )
+
+    /**
+     * M18.62: Alle Vordergrund-Phasen im Zeitraum [start, end] via
+     * Event-API. Offene Phasen (App noch im Vordergrund) werden bis
+     * [end] gezählt. Gemeinsame Basis für Heute, Tages- und
+     * Zeitraum-Aggregation — ersetzt die kumulativen
+     * totalTimeInForeground-Werte (OEM-Bug).
+     */
+    private fun foregroundPhases(start: Long, end: Long): List<ForegroundPhase> {
+        val events = usageStats.queryEvents(start, end) ?: return emptyList()
+        val foregroundSince = HashMap<String, Long>()
+        val phases = mutableListOf<ForegroundPhase>()
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (event.eventType) {
+                UsageEvents.Event.MOVE_TO_FOREGROUND,
+                UsageEvents.Event.ACTIVITY_RESUMED -> {
+                    foregroundSince[event.packageName] = event.timeStamp
+                }
+                UsageEvents.Event.MOVE_TO_BACKGROUND,
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                UsageEvents.Event.ACTIVITY_STOPPED -> {
+                    foregroundSince.remove(event.packageName)?.let { s ->
+                        phases += ForegroundPhase(event.packageName, s, event.timeStamp)
+                    }
+                }
+            }
+        }
+        // Noch im Vordergrund → bis zum Ende des Zeitraums zählen
+        foregroundSince.forEach { (pkg, s) ->
+            phases += ForegroundPhase(pkg, s, end)
+        }
+        return phases
+    }
 
     /**
      * M18.61: Detaillierte Heute-Statistik: Gesamtzeit, Unlocks
@@ -151,7 +198,7 @@ class AppUsageAggregator @Inject constructor(
 
     /**
      * Nutzung pro App über die letzten [days] Tage (inkl. heute).
-     * Aggregiert queryUsageStats(INTERVAL_DAILY) pro Package.
+     * M18.62: Event-API statt totalTimeInForeground (OEM-Kumulierung).
      */
     suspend fun rangeUsageByApp(days: Int): List<AppUsage> = withContext(Dispatchers.IO) {
         try {
@@ -159,14 +206,11 @@ class AppUsageAggregator @Inject constructor(
             val start = LocalDate.now(zone).minusDays((days - 1).toLong())
                 .atStartOfDay(zone).toInstant().toEpochMilli()
             val now = System.currentTimeMillis()
-            val stats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, now)
-                ?: return@withContext emptyList()
 
             val totals = HashMap<String, Long>()
-            stats.forEach { stat ->
-                if (stat.totalTimeInForeground > 0) {
-                    totals[stat.packageName] = (totals[stat.packageName] ?: 0L) + stat.totalTimeInForeground
-                }
+            foregroundPhases(start, now).forEach { phase ->
+                val dur = (phase.end - phase.start).coerceAtLeast(0L)
+                totals[phase.packageName] = (totals[phase.packageName] ?: 0L) + dur
             }
 
             totals
@@ -180,7 +224,12 @@ class AppUsageAggregator @Inject constructor(
 
     /**
      * Gesamt-Bildschirmzeit pro Tag für die letzten [days] Tage
-     * (für die 30-Tage-Balken-Statistik).
+     * (für die 7/30-Tage-Balken-Statistik).
+     *
+     * M18.62-FIX: Event-API mit Mitternachts-Clipping. Eine Phase, die
+     * über Mitternacht läuft (z.B. 23:50–00:20), wird auf beide Tage
+     * aufgeteilt. Vorher: totalTimeInForeground kumulierte über mehrere
+     * Tage (OEM-Bug) → Werte viel zu hoch, Balkenhöhen inkonsistent.
      */
     suspend fun dailyTotals(days: Int): List<DailyTotal> = withContext(Dispatchers.IO) {
         try {
@@ -189,18 +238,17 @@ class AppUsageAggregator @Inject constructor(
             val start = today.minusDays((days - 1).toLong())
                 .atStartOfDay(zone).toInstant().toEpochMilli()
             val now = System.currentTimeMillis()
-            val stats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, now)
-                ?: return@withContext emptyList()
 
-            // queryUsageStats liefert pro Tag+App einen Eintrag — wir
-            // gruppieren nach Tag (firstTimeStamp = Beginn des Tages-Intervalls)
-            // und summieren.
             val byDay = HashMap<LocalDate, Long>()
-            stats.forEach { stat ->
-                if (stat.totalTimeInForeground > 0) {
-                    val day = java.time.Instant.ofEpochMilli(stat.firstTimeStamp)
-                        .atZone(zone).toLocalDate()
-                    byDay[day] = (byDay[day] ?: 0L) + stat.totalTimeInForeground
+            foregroundPhases(start, now).forEach { phase ->
+                // Phase auf Tagesgrenzen clippen
+                var cursor = phase.start
+                while (cursor < phase.end) {
+                    val day = java.time.Instant.ofEpochMilli(cursor).atZone(zone).toLocalDate()
+                    val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                    val segEnd = minOf(phase.end, dayEnd)
+                    byDay[day] = (byDay[day] ?: 0L) + (segEnd - cursor).coerceAtLeast(0L)
+                    cursor = segEnd
                 }
             }
 
@@ -228,22 +276,19 @@ class AppUsageAggregator @Inject constructor(
      * die einzelnen Balken klicken und dann in der Liste die Werte der
      * einzelnen Apps für den angeklickten Tag sehen").
      *
-     * Nutzt queryUsageStats(INTERVAL_DAILY) für den Tag — für HEUTE wird
-     * weiterhin die präzisere Event-API (todayUsageByApp) verwendet.
+     * M18.62-FIX: Event-API mit Mitternachts-Clipping statt
+     * totalTimeInForeground (OEM-Kumulierung über mehrere Tage).
      */
     suspend fun usageByAppForDay(date: LocalDate): List<AppUsage> = withContext(Dispatchers.IO) {
         try {
             val zone = ZoneId.systemDefault()
             val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
             val end = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            val stats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
-                ?: return@withContext emptyList()
 
             val totals = HashMap<String, Long>()
-            stats.forEach { stat ->
-                if (stat.totalTimeInForeground > 0) {
-                    totals[stat.packageName] = (totals[stat.packageName] ?: 0L) + stat.totalTimeInForeground
-                }
+            foregroundPhases(start, end).forEach { phase ->
+                val dur = (phase.end - phase.start).coerceAtLeast(0L)
+                totals[phase.packageName] = (totals[phase.packageName] ?: 0L) + dur
             }
 
             totals
