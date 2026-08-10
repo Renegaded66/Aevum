@@ -102,7 +102,11 @@ class GarminApiClient @Inject constructor(
         val json = get("/api/status") ?: return@withContext GarminStatus(connected = false, error = "Keine Antwort")
         GarminStatus(
             connected = json.optBoolean("connected", false),
-            error = json.optString("error", null).takeIf { it.isNotBlank() }
+            // M18.61g-FIX 3 (User: "App stürzt in Garmin-Einstellungen ab"):
+            // optString("error", null) gibt bei fehlendem Feld NULL zurück
+            // (org.json-Plattform-Typ) -> NPE in takeIf. Ohne Default liefert
+            // optString("error") immer "" -> kein Crash.
+            error = json.optString("error").takeIf { it.isNotBlank() }
         )
     }
 

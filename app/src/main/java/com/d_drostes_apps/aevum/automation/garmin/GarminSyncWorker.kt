@@ -59,6 +59,10 @@ class GarminSyncWorker(
         val status = api.getStatus()
         if (!status.connected) {
             android.util.Log.w(TAG, "Garmin-Bridge nicht verbunden: ${status.error}")
+            // M18.61g-FIX 3: Tote gespeicherte Tunnel-URL (Cloudflare
+            // rotiert) -> Override verwerfen, beim nächsten Sync die
+            // aktuelle BuildConfig-URL nutzen.
+            api.resetBaseUrlIfStale()
             return Result.retry()
         }
 

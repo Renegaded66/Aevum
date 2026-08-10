@@ -861,19 +861,23 @@ private fun ProfileCreateDialog(
                 }
                 Text("Apps sperren", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 installedApps.forEach { app ->
+                    // M18.61g-FIX 3: Triple(packageName, label, icon) —
+                    // Paketname wird gespeichert, Label nur angezeigt.
+                    val pkg = app.first
+                    val label = app.second
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(AevumRadius.md))
                             .clickable {
-                                if (selected.contains(app.first)) selected.remove(app.first)
-                                else selected.add(app.first)
+                                if (selected.contains(pkg)) selected.remove(pkg)
+                                else selected.add(pkg)
                             }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        val appDrawable = app.second
+                        val appDrawable = app.third
                         if (appDrawable != null) {
                             androidx.compose.foundation.Image(
                                 painter = BitmapPainter(drawableToBitmap(appDrawable)),
@@ -884,10 +888,10 @@ private fun ProfileCreateDialog(
                             Box(
                                 modifier = Modifier.size(24.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center
-                            ) { Text(app.first.take(1).uppercase(), fontSize = 12.sp) }
+                            ) { Text(label.take(1).uppercase(), fontSize = 12.sp) }
                         }
-                        Text(app.first, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        if (selected.contains(app.first)) {
+                        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        if (selected.contains(pkg)) {
                             Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -909,13 +913,17 @@ private fun ProfileCreateDialog(
     )
 }
 
-private fun loadInstalledApps(context: android.content.Context): List<Pair<String, android.graphics.drawable.Drawable?>> {
+private fun loadInstalledApps(context: android.content.Context): List<Triple<String, String, android.graphics.drawable.Drawable?>> {
     return try {
         val pm = context.packageManager
         val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER)
         pm.queryIntentActivities(intent, 0)
             .sortedBy { it.loadLabel(pm).toString().lowercase() }
-            .map { it.loadLabel(pm).toString() to it.loadIcon(pm) }
+            // M18.61g-FIX 3 (User: "Profil sperrt nicht"): Vorher wurde der
+            // App-NAME ("Instagram") als Paket gespeichert — der Service
+            // vergleicht aber Paketnamen (com.instagram.android) -> nie ein
+            // Match -> keine Sperre. Jetzt: Triple(packageName, label, icon).
+            .map { Triple(it.activityInfo.packageName, it.loadLabel(pm).toString(), it.loadIcon(pm)) }
     } catch (_: Exception) { emptyList() }
 }
 

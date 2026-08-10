@@ -142,7 +142,16 @@ class AppBlockService : Service() {
             val activeProfile = balanceProfileRepository.getActiveOnce()
             if (activeProfile != null) {
                 val profileApps = balanceProfileRepository.getAppPackages(activeProfile.id)
-                if (pkg in profileApps) {
+                // M18.61g-FIX 3 (User: "Profil Fokus mit Instagram gesperrt
+                // — trotzdem normal nutzbar"): Der Profil-Dialog speicherte
+                // App-NAMEN ("Instagram") statt Paketnamen. Match deshalb
+                // gegen Paketname UND App-Label — heilt bestehende Profile.
+                val label = try {
+                    packageManager.getApplicationLabel(
+                        packageManager.getApplicationInfo(pkg, 0)
+                    ).toString()
+                } catch (_: Exception) { pkg }
+                if (pkg in profileApps || label in profileApps) {
                     lastForegroundPkg = pkg
                     handler.post { showOverlay(pkg, null, activeProfile.name) }
                     return@launch
