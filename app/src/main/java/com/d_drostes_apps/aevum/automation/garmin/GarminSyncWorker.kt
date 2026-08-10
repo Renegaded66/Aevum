@@ -98,21 +98,14 @@ class GarminSyncWorker(
         }
 
         // 2) Schlaf (letzte 7 Nächte).
-        // M18.61g-FIX (User: "Garmin-Schlaf wurde nicht in die Timeline
-        // eingefügt"): Vorher wurde der Schlaf NUR bei sleepSource ==
-        // "garmin" importiert. Der User hat aber Garmin-Schlaf aufgezeichnet
-        // und MANUELL synchronisiert — und erwartet, dass der Schlaf dann
-        // in der Timeline landet. Jetzt: Manuelle Syncs (Button in den
-        // Fitness-Tracker-Einstellungen) importieren den Schlaf IMMER;
-        // nur der periodische 30-Min-Worker respektiert das sleepSource-Gate.
-        val isManual = inputData.getBoolean("manual", false)
+        // M18.61g-FIX 2 (User: "Der Schlaf von Garmin letzte Nacht soll
+        // eingefügt werden"): Garmin-Schlaf ist eine ECHTE Messung (wie
+        // Garmin-Aktivitäten) und wird IMMER importiert — unabhängig von
+        // der Schlaf-Quelle. Die Schlaf-Quelle steuert nur, ob die
+        // Bildschirmzeit-Heuristik läuft. Der Import ersetzt eine
+        // bestehende Screen-Heuristik-Session der Nacht (Garmin gewinnt).
         try {
-            val settings = settingsDao.get().first()
-            if (isManual || settings?.sleepSource == "garmin") {
-                importSleep(api, activityRepository, today)
-            } else {
-                android.util.Log.d(TAG, "Schlaf-Import übersprungen (sleepSource=${settings?.sleepSource}, manuell=$isManual)")
-            }
+            importSleep(api, activityRepository, today)
         } catch (e: Exception) {
             android.util.Log.w(TAG, "Schlaf-Import fehlgeschlagen: ${e.message}")
         }

@@ -62,12 +62,44 @@ class AppBlockService : Service() {
     private val warnedPkgs = HashSet<String>()
     private var lastForegroundPkg: String? = null
 
+    // M18.61g-FIX 2: Rückkanal von der BlockActivity (Buttons) zum Service.
+    private val blockActionReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val pkg = intent.getStringExtra(EXTRA_PKG) ?: return
+            when (intent.action) {
+                ACTION_EXTEND -> {
+                    extensionGrantedFor = pkg
+                    currentBlockedPkg = null
+                }
+                ACTION_IGNORE_TODAY -> {
+                    ignoredTodayPkg = pkg
+                    currentBlockedPkg = null
+                }
+                ACTION_CLOSE -> {
+                    currentBlockedPkg = null
+                }
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
+        // M18.61g-FIX 2: BlockActivity-Broadcasts empfangen
+        val filter = android.content.IntentFilter().apply {
+            addAction(ACTION_EXTEND)
+            addAction(ACTION_IGNORE_TODAY)
+            addAction(ACTION_CLOSE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(blockActionReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(blockActionReceiver, filter)
+        }
         startWatching()
     }
 
@@ -83,7 +115,7 @@ class AppBlockService : Service() {
     override fun onDestroy() {
         scope.cancel()
         handler.removeCallbacksAndMessages(null)
-        removeOverlay()
+        try { unregisterReceiver(blockActionReceiver) } catch (_: Exception) { /* nie registriert */ }
         super.onDestroy()
     }
 
@@ -179,69 +211,31 @@ class AppBlockService : Service() {
     }
 
     private fun showOverlay(pkg: String, limit: AppLimit?, profileName: String?) {
-        if (overlayView != null) return
+        if (currentBlockedPkg != null) return
         currentBlockedPkg = pkg
 
-        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val inflater = LayoutInflater.from(this)
-        val view = inflater.inflate(R.layout.digital_balance_block_overlay, null)
-
-        val label = try {
-            packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
-        } catch (_: Exception) { pkg }
-        view.findViewById<TextView>(R.id.block_title).text = "$label gesperrt"
-        view.findViewById<TextView>(R.id.block_subtitle).text =
-            if (profileName != null) {
-                "Profil \"$profileName\" ist aktiv — diese App ist gesperrt."
-            } else {
-                "Tägliches Limit von ${limit?.limitMinutes ?: 0} Minuten erreicht."
-            }
-
-        view.findViewById<Button>(R.id.block_extend).setOnClickListener {
-            extensionGrantedFor = pkg
-            removeOverlay()
-        }
-        view.findViewById<Button>(R.id.block_ignore).setOnClickListener {
-            // M18.61: "Heute ignorieren" (Apple-Muster) — App bleibt bis
-            // Mitternacht entsperrt.
-            ignoredTodayPkg = pkg
-            removeOverlay()
-        }
-        view.findViewById<Button>(R.id.block_close).setOnClickListener {
-            removeOverlay()
-        }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        )
-        params.gravity = Gravity.TOP or Gravity.START
-
+        // M18.61g-FIX 2: BlockActivity statt TYPE_APPLICATION_OVERLAY.
+        // Das Overlay brauchte SYSTEM_ALERT_WINDOW — die App hat diese
+        // Berechtigung nie angefragt, wm.addView() warf still und die
+        // Sperre erschien nie. Die Activity braucht keine Berechtigung
+        // und pausiert die gesperrte App garantiert (Instagram läuft
+        // nicht weiter).
         try {
-            wm.addView(view, params)
-            overlayView = view
-        } catch (_: Exception) {
-            // Kein Overlay-Permission → Overlay überspringen (App bleibt nutzbar)
+            BlockActivity.start(
+                this,
+                pkg,
+                limit?.limitMinutes ?: 0,
+                profileName
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("AppBlockService", "BlockActivity-Start fehlgeschlagen", e)
             currentBlockedPkg = null
         }
     }
 
     private fun removeOverlay() {
-        overlayView?.let { view ->
-            try {
-                (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(view)
-            } catch (_: Exception) { /* schon entfernt */ }
-        }
-        overlayView = null
+        // M18.61g-FIX 2: Overlay entfernt — BlockActivity schließt sich
+        // selbst per finish(). Nichts zu tun.
         currentBlockedPkg = null
     }
 
@@ -317,6 +311,11 @@ class AppBlockService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.d_drostes_apps.aevum.digitalbalance.STOP"
+        // M18.61g-FIX 2: BlockActivity-Button-Aktionen (Broadcast-Rückkanal)
+        const val ACTION_EXTEND = "com.d_drostes_apps.aevum.digitalbalance.EXTEND"
+        const val ACTION_IGNORE_TODAY = "com.d_drostes_apps.aevum.digitalbalance.IGNORE_TODAY"
+        const val ACTION_CLOSE = "com.d_drostes_apps.aevum.digitalbalance.CLOSE"
+        const val EXTRA_PKG = "blocked_pkg"
         private const val CHANNEL_ID = "digital_balance_block"
         private const val NOTIFICATION_ID = 9002
         private const val WARNING_NOTIFICATION_ID = 9100

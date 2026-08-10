@@ -46,6 +46,20 @@ class GarminApiClient @Inject constructor(
         get() = prefs.getString(KEY_BASE_URL, null) ?: BuildConfig.GARMIN_BRIDGE_URL
         set(value) = prefs.edit().putString(KEY_BASE_URL, value.trimEnd('/')).apply()
 
+    /**
+     * M18.61g-FIX 2: URL-Self-Healing. Der Cloudflare-Quick-Tunnel rotiert
+     * die URL — eine gespeicherte (tote) URL-Override lässt ALLE
+     * Bridge-Aufrufe still fehlschlagen (Sync "erfolgreich", aber keine
+     * Daten). Bei Verbindungsfehlern wird die gespeicherte URL verworfen
+     * und auf die aktuelle BuildConfig-URL zurückgefallen.
+     */
+    fun resetBaseUrlIfStale() {
+        if (prefs.contains(KEY_BASE_URL)) {
+            prefs.edit().remove(KEY_BASE_URL).apply()
+            android.util.Log.w("GarminApiClient", "Gespeicherte Bridge-URL verworfen — Fallback auf BuildConfig-URL")
+        }
+    }
+
     /** M18.59: Lokale Geräte-ID — identifiziert den Nutzer an der Bridge. */
     val userId: String
         get() {
@@ -88,7 +102,7 @@ class GarminApiClient @Inject constructor(
         val json = get("/api/status") ?: return@withContext GarminStatus(connected = false, error = "Keine Antwort")
         GarminStatus(
             connected = json.optBoolean("connected", false),
-            error = json.optString("error").ifEmpty { null }
+            error = json.optString("error", null).takeIf { it.isNotBlank() }
         )
     }
 

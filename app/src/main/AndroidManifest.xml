@@ -73,6 +73,20 @@
             </intent-filter>
         </activity>
 
+        <!-- M18.61g-FIX 2: Vollbild-Sperr-Popup (Digital Balance). Eigene
+             Activity statt Overlay — braucht KEINE Overlay-Berechtigung
+             und drängt die gesperrte App zuverlässig in den Hintergrund.
+             taskAffinity="" + singleInstance isolieren sie vom Task der
+             gesperrten App; excludeFromRecents hält sie aus der
+             App-Übersicht. -->
+        <activity
+            android:name=".domain.digital.BlockActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Aevum" />
+
         <!-- Hilt requires this meta-data for ViewModel injection -->
         <meta-data
             android:name="dagger.hilt.android.internal.ENTRY_POINT"
