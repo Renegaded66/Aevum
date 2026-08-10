@@ -542,7 +542,8 @@ class DashboardViewModel @Inject constructor(
             var totalWeight = 0L
             var weighted = 0.0
             daySessions.forEach { session ->
-                val duration = (session.endAt ?: System.currentTimeMillis()) - session.startAt
+                // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
+                val duration = session.activeDurationMs()
                 if (duration <= 0L) return@forEach
                 val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
                 totalWeight += duration
@@ -723,7 +724,8 @@ class DashboardViewModel @Inject constructor(
             headline = narrative.headline,
             narrative = narrative.body,
             currentActivity = current?.title ?: "Noch nichts erfasst",
-            currentDuration = current?.let { TimeFormatting.formatDuration(((it.endAt ?: now).coerceAtMost(end) - it.startAt.coerceAtLeast(start)).coerceAtLeast(0)) } ?: "0m",
+            // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
+            currentDuration = current?.let { TimeFormatting.formatDuration(it.activeDurationInWindow(start, end, now)) } ?: "0m",
             balanceScore = estimateBalanceScore(distribution, totalMsWithAllowances, openMs),
             totalTracked = TimeFormatting.formatDuration(totalMsWithAllowances),
             // M18.60: Numerischer Wert fuer die Lade-Animation (Werte
@@ -795,7 +797,8 @@ class DashboardViewModel @Inject constructor(
         var totalWeight = 0L
         var weighted = 0.0
         sessions.forEach { session ->
-            val duration = (session.endAt ?: System.currentTimeMillis()) - session.startAt
+            // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
+            val duration = session.activeDurationMs()
             if (duration <= 0L) return@forEach
             val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
             totalWeight += duration
@@ -822,7 +825,8 @@ class DashboardViewModel @Inject constructor(
             .map { (typeId, typeSessions) ->
                 val type = typeMap[typeId]
                 val score = type?.positivityScore ?: 50
-                val duration = typeSessions.sumOf { (it.endAt ?: now) - it.startAt }
+                // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
+                val duration = typeSessions.sumOf { it.activeDurationMs(now) }
                 QualitySlice(
                     activityTypeId = typeId,
                     label = type?.name ?: typeId,
@@ -891,7 +895,9 @@ class DashboardViewModel @Inject constructor(
             categoryId = categoryId,
             startAt = clippedStart,
             endAt = clippedEnd,
-            durationMs = (clippedEnd - clippedStart).coerceAtLeast(0L),
+            // M18.62-FIX: Pausen abziehen — vorher wurde die volle
+            // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
+            durationMs = activeDurationInWindow(start, end, now),
             isCurrent = endAt == null
         )
     }

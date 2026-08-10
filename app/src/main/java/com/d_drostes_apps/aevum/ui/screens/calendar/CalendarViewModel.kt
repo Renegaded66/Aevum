@@ -128,7 +128,13 @@ class CalendarViewModel @Inject constructor(
                 val clipEnd = minOf(e, dayEnd)
                 if (day in days) {
                     val agg = days[day]!!
-                    val durationMs = (clipEnd - clipStart).coerceAtLeast(0L)
+                    // M18.62-FIX: Pausen abziehen — vorher wurde die volle
+                    // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert
+                    // wurde. Segmente werden über die Session-interne
+                    // Fenster-Berechnung abgezogen.
+                    val durationMs = session.activeDurationInWindow(
+                        TimeFormatting.startOfDayMillis(day, zoneId), dayEnd
+                    )
                     val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
                     days[day] = agg.copy(
                         totalDurationMs = agg.totalDurationMs + durationMs,
@@ -172,7 +178,9 @@ class CalendarViewModel @Inject constructor(
                 positivityScore = type?.positivityScore ?: 50,
                 startMinute = TimeFormatting.minutesOfDay(clipStart, zoneId),
                 endMinute = TimeFormatting.minutesOfDay(clipEnd, zoneId),
-                durationMs = (clipEnd - clipStart).coerceAtLeast(0L),
+                // M18.62-FIX: Pausen abziehen — vorher wurde die volle
+                // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
+                durationMs = session.activeDurationInWindow(selStart, selEnd, nowMs),
                 startAt = clipStart
             )
         }

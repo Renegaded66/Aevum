@@ -113,7 +113,8 @@ class LifeViewViewModel @Inject constructor(
         val sleepSessions = recent.filter { it.activityTypeId == "sleep" || it.categoryId == "sleep" }
         val sleepDaysWithData = sleepSessions.map { it.startAt }.map { java.time.Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }.distinct().size
         val sleepMsPerDay = if (sleepDaysWithData >= 3) {
-            sleepSessions.sumOf { (it.endAt ?: it.startAt) - it.startAt } / sleepDaysWithData
+            // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
+            sleepSessions.sumOf { it.activeDurationMs() } / sleepDaysWithData
         } else {
             // Nicht genug Daten -> Default 8h (realistischer Schätzwert)
             8L * 60 * 60 * 1000
@@ -121,7 +122,8 @@ class LifeViewViewModel @Inject constructor(
 
         // Autofahren/Transport: echter Tagesdurchschnitt (0-Tage zaehlen)
         val drivingSessions = recent.filter { it.activityTypeId == "driving" || it.activityTypeId == "transport" }
-        val drivingMsPerDay = drivingSessions.sumOf { (it.endAt ?: it.startAt) - it.startAt } / days
+        // M18.62-FIX: Pausen abziehen
+        val drivingMsPerDay = drivingSessions.sumOf { it.activeDurationMs() } / days
 
         // Pauschalen: enabled Allowances
         val allowanceMsPerDay = allowances.filter { it.enabled }.sumOf { it.minutesPerDay * 60_000L }
@@ -131,7 +133,7 @@ class LifeViewViewModel @Inject constructor(
             it.activityTypeId != "sleep" && it.categoryId != "sleep" &&
                 it.activityTypeId != "driving" && it.activityTypeId != "transport"
         }
-        val otherMsPerDay = otherSessions.sumOf { (it.endAt ?: it.startAt) - it.startAt } / days
+        val otherMsPerDay = otherSessions.sumOf { it.activeDurationMs() } / days
 
         // --- Hochrechnung auf das verbleibende Leben ---
         fun yearsFor(msPerDay: Long): Double = msPerDay * remainingDays / (365.25 * 24 * 60 * 60 * 1000.0)
@@ -156,7 +158,8 @@ class LifeViewViewModel @Inject constructor(
             .filter { it.endAt != null }
             .groupBy { it.activityTypeId ?: "other" }
             .map { (typeId, list) ->
-                val ms = list.sumOf { (it.endAt ?: it.startAt) - it.startAt }
+                // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
+                val ms = list.sumOf { it.activeDurationMs() }
                 val perDay = ms / days
                 val type = typeMap[typeId]
                 LifeActivityDetail(

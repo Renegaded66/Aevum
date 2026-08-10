@@ -518,7 +518,10 @@ object InsightsAnalytics {
         val sessionEnd = session.endAt ?: minOf(now, end)
         val clippedStart = session.startAt.coerceAtLeast(start)
         val clippedEnd = sessionEnd.coerceAtMost(end)
-        val duration = clippedEnd - clippedStart
+        // M18.62-FIX: Pausen abziehen — vorher wurde die volle Wanduhrzeit
+        // (Ende − Start) gezeigt, obwohl pausiert wurde. Nutzt die zentrale
+        // Fenster-Berechnung inkl. Segment-/Pausen-Abzug.
+        val duration = session.activeDurationInWindow(start, end, now)
         if (duration <= 0) null else ClippedInsightSession(
             id = session.id,
             title = session.title,

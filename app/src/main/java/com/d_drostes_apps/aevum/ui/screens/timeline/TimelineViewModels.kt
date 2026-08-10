@@ -375,7 +375,9 @@ class TimelineViewModel @Inject constructor(
             // Folgetag als 00:00–08:30 erscheint (nicht 23:30–08:30).
             val clippedStartMin = TimeFormatting.minutesOfDay(clip.clippedStartMs, zoneId)
             val clippedEndMin = TimeFormatting.minutesOfDay(clip.clippedEndMs, zoneId)
-            val visibleDurationMs = (clip.clippedEndMs - clip.clippedStartMs).coerceAtLeast(0L)
+            // M18.62-FIX: Pausen abziehen — vorher wurde die volle
+            // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
+            val visibleDurationMs = session.activeDurationInWindow(dayStart, dayEnd, nowMs)
             // M18.23-FIX: Kategorie-Fallback. Wenn die Session keine
             // categoryId hat (z.B. wegen Race Condition beim Live-Start:
             // ActivityType wurde gerade erstellt, defaultCategoryId war
@@ -414,11 +416,12 @@ class TimelineViewModel @Inject constructor(
         // M16.5: totalMs und categoryDurations basieren auf dem sichtbaren
         // Tagesausschnitt. So summiert sich die Tagesstatistik konsistent
         // zur angezeigten Timeline.
-        val totalMs = clippedSessions.sumOf { (it.clippedEndMs - it.clippedStartMs).coerceAtLeast(0L) }
+        // M18.62-FIX: beide mit Pausen-Abzug (activeDurationInWindow).
+        val totalMs = clippedSessions.sumOf { it.session.activeDurationInWindow(dayStart, dayEnd, nowMs) }
         val categoryDurations = clippedSessions
             .groupBy { it.session.categoryId ?: "unknown" }
             .mapValues { entry ->
-                entry.value.sumOf { (it.clippedEndMs - it.clippedStartMs).coerceAtLeast(0L) }
+                entry.value.sumOf { it.session.activeDurationInWindow(dayStart, dayEnd, nowMs) }
             }
         val triggers = dayTriggers.map { trigger ->
             val geofenceName = extractGeofenceName(trigger.metadataJson)
@@ -706,7 +709,9 @@ class ActivityDetailViewModel @Inject constructor(
             category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },
             activityType = types.firstOrNull { it.id == session?.activityTypeId },
             range = session?.let { "${TimeFormatting.formatTime(it.startAt, zoneId)}–${it.endAt?.let { end -> TimeFormatting.formatTime(end, zoneId) } ?: "läuft"}" }.orEmpty(),
-            duration = session?.let { TimeFormatting.formatDuration((it.endAt ?: System.currentTimeMillis()) - it.startAt) }.orEmpty()
+            // M18.62-FIX: Pausen abziehen — vorher wurde die volle
+            // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
+            duration = session?.let { TimeFormatting.formatDuration(it.activeDurationMs()) }.orEmpty()
         )
     }
 

@@ -98,4 +98,74 @@ data class ActivitySession(
     fun activeDurationMs(now: Long = System.currentTimeMillis()): Long {
         return (totalDurationMs(now) - effectivePausedMs(now)).coerceAtLeast(0L)
     }
+
+    /**
+     * M18.62-FIX: Aktive (nicht-pausierte) Dauer innerhalb eines Zeitfensters.
+     *
+     * VORHER wurde in Dashboard/Timeline/Kalender/Insights überall
+     * `(Ende - Start)` gerechnet und die Pause komplett ignoriert — die
+     * Notification war die EINZIGE Stelle mit korrektem `activeMs`. Dadurch
+     * zeigte die Timeline/Dashboard die Gesamt-Wanduhrzeit von Start bis
+     * Ziel statt nur der tatsächlich aufgezeichneten Intervalle.
+     *
+     * Diese Funktion ist die zentrale Berechnung für ALLE Anzeigen:
+     *  - Fenster-Clipping (Mitternachts-Sessions wie gehabt)
+     *  - Abzug der Pausen-Segmente ([pauseSegmentsJson]), die in den
+     *    Fensterausschnitt fallen
+     *  - Laufende Pause (PAUSED + currentPauseStartedAt) zählt bis [now]
+     *  - Fallback ohne Segment-Daten: akkumulierte [totalPausedMs] abziehen
+     *    (exakt für Sessions, die vollständig im Fenster liegen; Näherung
+     *    für Mitternachts-Sessions — dort sind Pausen aber untypisch)
+     */
+    fun activeDurationInWindow(
+        windowStart: Long,
+        windowEnd: Long,
+        now: Long = System.currentTimeMillis()
+    ): Long {
+        val sessionEnd = endAt ?: minOf(now, windowEnd)
+        val clipStart = startAt.coerceAtLeast(windowStart)
+        val clipEnd = sessionEnd.coerceAtMost(windowEnd)
+        val raw = (clipEnd - clipStart).coerceAtLeast(0L)
+        if (raw <= 0L) return 0L
+
+        val segments = parsePauseSegments()
+        val pausedInWindow = if (segments.isNotEmpty()) {
+            var acc = 0L
+            segments.forEach { (segStart, segEnd) ->
+                val overlap = minOf(segEnd, clipEnd) - maxOf(segStart, clipStart)
+                if (overlap > 0L) acc += overlap
+            }
+            // Laufende Pause: Segment noch nicht abgeschlossen
+            if (isPaused && currentPauseStartedAt != null) {
+                val pauseEnd = minOf(now, clipEnd)
+                val overlap = pauseEnd - maxOf(currentPauseStartedAt, clipStart)
+                if (overlap > 0L) acc += overlap
+            }
+            acc
+        } else {
+            // Fallback: Gesamt-Pausenzeit abziehen
+            effectivePausedMs(now)
+        }
+        return (raw - pausedInWindow).coerceAtLeast(0L)
+    }
+
+    /**
+     * M18.62-FIX: Pausen-Segmente aus [pauseSegmentsJson] parsen.
+     * Format: `[{"s": <startMs>, "e": <endMs>}, ...]`.
+     * Robust gegen fehlende/korrupte Daten (→ leere Liste).
+     */
+    fun parsePauseSegments(): List<Pair<Long, Long>> {
+        val json = pauseSegmentsJson ?: return emptyList()
+        return try {
+            val arr = org.json.JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val s = o.optLong("s")
+                val e = o.optLong("e")
+                if (e > s) s to e else null
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
 }

@@ -214,9 +214,32 @@ class LiveActivityManager @Inject constructor(
         val pauseStart = session.currentPauseStartedAt ?: return
         val newTotalPausedMs = session.totalPausedMs + (now - pauseStart)
 
+        // M18.62-FIX: Pausen-Segmente wirklich pflegen (wurde vorher nie
+        // befüllt — alle Anzeigen außer der Notification ignorierten die
+        // Pause, weil pauseSegmentsJson immer null blieb).
+        val newSegmentsJson = appendPauseSegment(session.pauseSegmentsJson, pauseStart, now)
+
         activityRepository.updatePauseState(session.id, "RUNNING", null)
-        activityRepository.updatePauseData(session.id, newTotalPausedMs, session.pauseSegmentsJson)
+        activityRepository.updatePauseData(session.id, newTotalPausedMs, newSegmentsJson)
         _tick.value++
+    }
+
+    /**
+     * M18.62-FIX: Fügt der Segment-Liste ein abgeschlossenes Pausen-Segment
+     * hinzu. Format: `[{"s": <startMs>, "e": <endMs>}, ...]`.
+     */
+    private fun appendPauseSegment(existingJson: String?, segStart: Long, segEnd: Long): String {
+        val arr = try {
+            if (existingJson.isNullOrBlank()) org.json.JSONArray()
+            else org.json.JSONArray(existingJson)
+        } catch (_: Exception) {
+            org.json.JSONArray()
+        }
+        val obj = org.json.JSONObject()
+        obj.put("s", segStart)
+        obj.put("e", segEnd)
+        arr.put(obj)
+        return arr.toString()
     }
 
     suspend fun stop(): ActivitySession? {
@@ -225,20 +248,37 @@ class LiveActivityManager @Inject constructor(
         val finalPauseMs = session.totalPausedMs +
             (if (session.isPaused && session.currentPauseStartedAt != null)
                 (now - session.currentPauseStartedAt) else 0L)
+        // M18.62-FIX: offenes Pausen-Segment beim Stoppen abschließen
+        val finalSegmentsJson = finalizePauseSegments(session, now)
 
-        activityRepository.finishSession(session.id, now, finalPauseMs, session.pauseSegmentsJson)
+        activityRepository.finishSession(session.id, now, finalPauseMs, finalSegmentsJson)
         return session.copy(
             sessionStatus = "FINISHED",
             endAt = now,
             totalPausedMs = finalPauseMs,
-            currentPauseStartedAt = null
+            currentPauseStartedAt = null,
+            pauseSegmentsJson = finalSegmentsJson
         )
+    }
+
+    /**
+     * M18.62-FIX: Schließt eine ggf. laufende Pause als Segment ab
+     * (für stop/forceFinish). Wenn die Session gerade pausiert ist, fehlt
+     * das offene Segment in der Liste — ohne Abschluss würde es bei
+     * segment-basierten Anzeigen nicht abgezogen.
+     */
+    private fun finalizePauseSegments(session: ActivitySession, now: Long): String? {
+        return if (session.isPaused && session.currentPauseStartedAt != null) {
+            appendPauseSegment(session.pauseSegmentsJson, session.currentPauseStartedAt, now)
+        } else {
+            session.pauseSegmentsJson
+        }
     }
 
     private suspend fun forceFinish(session: ActivitySession) {
         val now = System.currentTimeMillis()
         activityRepository.finishSession(
-            session.id, now, session.effectivePausedMs(now), session.pauseSegmentsJson
+            session.id, now, session.effectivePausedMs(now), finalizePauseSegments(session, now)
         )
         // Ein manueller Stop muss auch jeden ausstehenden Auto-Watchdog
         // invalidieren, damit er keine bereits beendete Session mehr anfasst.
@@ -251,7 +291,7 @@ class LiveActivityManager @Inject constructor(
         if (session.sessionStatus in setOf("RUNNING", "PAUSED")) {
             val now = System.currentTimeMillis()
             activityRepository.finishSession(
-                session.id, now, session.effectivePausedMs(now), session.pauseSegmentsJson
+                session.id, now, session.effectivePausedMs(now), finalizePauseSegments(session, now)
             )
         }
     }
@@ -265,7 +305,7 @@ class LiveActivityManager @Inject constructor(
         if (session.sessionStatus !in setOf("RUNNING", "PAUSED")) return false
         val now = System.currentTimeMillis()
         activityRepository.finishSession(
-            session.id, now, session.effectivePausedMs(now), session.pauseSegmentsJson
+            session.id, now, session.effectivePausedMs(now), finalizePauseSegments(session, now)
         )
         activityRepository.softDelete(session.id, now)
         return true
@@ -326,7 +366,7 @@ class LiveActivityManager @Inject constructor(
                     )
                     val now = System.currentTimeMillis()
                     activityRepository.finishSession(
-                        sessionId, now, current.effectivePausedMs(now), current.pauseSegmentsJson
+                        sessionId, now, current.effectivePausedMs(now), finalizePauseSegments(current, now)
                     )
                     activityRepository.softDelete(sessionId, now)
                 } else {
