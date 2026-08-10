@@ -42,9 +42,11 @@ class GarminSyncWorker(
         fun garminApiClient(): GarminApiClient
         fun garminRepository(): GarminRepository
         fun garminImportUseCase(): GarminImportUseCase
-        // M18.58: Schlaf-Import (sleepSource-Gate)
-        fun automationSettingsDao(): com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
+        // M18.58: Schlaf-Import (letzte 7 Nächte)
         fun activityRepository(): com.d_drostes_apps.aevum.data.repository.ActivityRepository
+        // M18.61g-FIX 4: ActivityType "sleep" sicherstellen (FK-Schutz)
+        fun activityTypeDao(): com.d_drostes_apps.aevum.data.db.ActivityTypeDao
+        fun categoryDao(): com.d_drostes_apps.aevum.data.db.CategoryDao
     }
 
     override suspend fun doWork(): Result {
@@ -52,8 +54,42 @@ class GarminSyncWorker(
         val api = deps.garminApiClient()
         val repo = deps.garminRepository()
         val importUseCase = deps.garminImportUseCase()
-        val settingsDao = deps.automationSettingsDao()
         val activityRepository = deps.activityRepository()
+        val activityTypeDao = deps.activityTypeDao()
+        val categoryDao = deps.categoryDao()
+
+        // M18.61g-FIX 4 (User: "Schlaf wird nicht eingefügt"): Der Insert
+        // nutzt activityTypeId = "sleep" — ein Foreign-Key auf activity_type.
+        // Wurde der Typ gelöscht/umbenannt (Lösch-Funktion seit M18.50),
+        // schlägt der Insert still fehl (FK-Verletzung) -> kein Schlaf.
+        // Idempotenter Upsert stellt Typ + Kategorie vor dem Import sicher
+        // (activity_type.default_category_id ist FK auf category).
+        try {
+            categoryDao.insert(
+                com.d_drostes_apps.aevum.data.model.Category(
+                    id = "sleep",
+                    name = "Schlaf",
+                    color = "#334155",
+                    icon = "◒",
+                    isSystem = true,
+                    sortOrder = 20
+                )
+            )
+            activityTypeDao.insert(
+                com.d_drostes_apps.aevum.data.model.ActivityType(
+                    id = "sleep",
+                    name = "Schlaf",
+                    defaultCategoryId = "sleep",
+                    isSystem = true,
+                    propertiesJson = "{\"overlay\": false}",
+                    positivityScore = 70,
+                    icon = "🌙",
+                    color = 0xFF3949AB.toLong()
+                )
+            )
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "ActivityType/Category sleep upsert fehlgeschlagen: ${e.message}")
+        }
 
         // Bridge erreichbar?
         val status = api.getStatus()
