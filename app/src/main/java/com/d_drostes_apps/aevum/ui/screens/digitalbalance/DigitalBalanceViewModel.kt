@@ -28,7 +28,8 @@ import javax.inject.Inject
 data class DigitalAppUi(
     val packageName: String,
     val appLabel: String,
-    val todayMs: Long,
+    // M18.62: Nutzung am GEWÄHLTEN Tag (heute oder angeklickter Balken)
+    val dayMs: Long,
     val rangeMs: Long,
     val limit: AppLimit?,
     val isBlocked: Boolean,
@@ -36,10 +37,7 @@ data class DigitalAppUi(
     val remainingMs: Long?,
     // M18.61f: Echte App-Icons (Bitmap aus dem PackageManager) statt
     // Buchstaben-Kreis. Wird im ViewModel geladen (IO-Dispatcher).
-    val icon: android.graphics.drawable.Drawable? = null,
-    // M18.62: Nutzung pro Tag (Datum, ms) für die letzten rangeDays —
-    // für das klickbare Balken-Diagramm in der App-Detail-Ansicht.
-    val dailyUsage: List<Pair<LocalDate, Long>> = emptyList()
+    val icon: android.graphics.drawable.Drawable? = null
 )
 
 data class DigitalBalanceUiState(
@@ -53,6 +51,11 @@ data class DigitalBalanceUiState(
     val dailyGoalMs: Long = 5 * 60 * 60 * 1000L, // Tagesziel: 5h (Google-Default)
     val rangeDays: Int = 7,
     val dailyTotals: List<Pair<LocalDate, Long>> = emptyList(),
+    // M18.62: Gewählter Tag (Balken-Klick im Diagramm). null = heute.
+    val selectedDay: LocalDate? = null,
+    // M18.62: Gesamt-Bildschirmzeit des gewählten Tages (für die
+    // Anteils-Balken der App-Liste)
+    val selectedDayTotalMs: Long = 0L,
     val apps: List<DigitalAppUi> = emptyList(),
     val blockedCount: Int = 0,
     val loading: Boolean = true,
@@ -72,6 +75,8 @@ class DigitalBalanceViewModel @Inject constructor(
 
     private val rangeDays = MutableStateFlow(7)
     private val refreshTick = MutableStateFlow(0L)
+    // M18.62: Gewählter Tag (Balken-Klick im Diagramm). null = heute.
+    private val selectedDay = MutableStateFlow<LocalDate?>(null)
     // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder "alpha"
     private val sortMode = MutableStateFlow("usage")
 
@@ -83,39 +88,55 @@ class DigitalBalanceViewModel @Inject constructor(
 
     fun appContext(): Application = getApplication()
 
+    /**
+     * M18.62: Pakete eines Profils (für den Edit-Dialog, um die
+     * App-Auswahl vorzubefüllen).
+     */
+    suspend fun getProfilePackages(profileId: String): List<String> {
+        return balanceProfileRepository.getAppPackagesOnce(profileId)
+    }
+
     val uiState: StateFlow<DigitalBalanceUiState> = combine(
         rangeDays,
         refreshTick,
         sortMode,
+        selectedDay,
         appLimitRepository.getAll()
-    ) { days, _, sort, limits ->
+    ) { days, _, sort, selDay, limits ->
         val permission = UsageStatsPermission.isGranted(getApplication())
         if (!permission) {
             DigitalBalanceUiState(hasPermission = false, loading = false)
         } else {
-            buildState(days, limits, sort)
+            buildState(days, limits, sort, selDay)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DigitalBalanceUiState())
 
-    private suspend fun buildState(days: Int, limits: List<AppLimit>, sort: String = "usage"): DigitalBalanceUiState {
-        val todayUsage = aggregator.todayUsageByApp()
+    private suspend fun buildState(days: Int, limits: List<AppLimit>, sort: String = "usage", selDay: LocalDate? = null): DigitalBalanceUiState {
+        val today = LocalDate.now()
+        val effectiveDay = selDay ?: today
+        val isToday = effectiveDay == today
+
+        // Heute: präzise Event-API. Anderer Tag: queryUsageStats für den Tag.
+        val dayUsage = if (isToday) {
+            aggregator.todayUsageByApp()
+        } else {
+            aggregator.usageByAppForDay(effectiveDay)
+        }
         val rangeUsage = aggregator.rangeUsageByApp(days)
         val daily = aggregator.dailyTotals(days).map { it.date to it.totalMs }
         val detail = aggregator.todayDetail()
-        // M18.62: Nutzung pro App pro Tag (für das klickbare Balken-Diagramm)
-        val dailyByApp = aggregator.dailyUsageByApp(days)
         val now = System.currentTimeMillis()
 
         val limitMap = limits.associateBy { it.packageName }
         val rangeMap = rangeUsage.associateBy { it.packageName }
 
-        val apps = todayUsage.map { usage ->
+        val apps = dayUsage.map { usage ->
             val limit = limitMap[usage.packageName]
             val rangeMs = rangeMap[usage.packageName]?.durationMs ?: usage.durationMs
             DigitalAppUi(
                 packageName = usage.packageName,
                 appLabel = usage.appLabel,
-                todayMs = usage.durationMs,
+                dayMs = usage.durationMs,
                 rangeMs = rangeMs,
                 limit = limit,
                 isBlocked = AppLimitChecker.isBlocked(limit, usage.durationMs, now),
@@ -125,31 +146,31 @@ class DigitalBalanceViewModel @Inject constructor(
                 // Compose kann Drawables direkt via rememberDrawablePainter).
                 icon = try {
                     getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
-                } catch (_: Exception) { null },
-                // M18.62: Tages-Nutzung dieser App für das Balken-Diagramm
-                dailyUsage = dailyByApp[usage.packageName] ?: emptyList()
+                } catch (_: Exception) { null }
             )
         }.let { list ->
             // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder
             // "alpha" (alphabetisch nach App-Name, case-insensitive)
             when (sort) {
                 "alpha" -> list.sortedBy { it.appLabel.lowercase(Locale.getDefault()) }
-                else -> list.sortedByDescending { it.todayMs }
+                else -> list.sortedByDescending { it.dayMs }
             }
         }
 
-        val todayTotal = todayUsage.sumOf { it.durationMs }
+        val dayTotal = dayUsage.sumOf { it.durationMs }
 
         return DigitalBalanceUiState(
             hasPermission = true,
-            todayTotalMs = todayTotal,
+            todayTotalMs = dayTotal,
             todayAppCount = apps.size,
             topAppName = apps.firstOrNull()?.appLabel,
-            topAppMs = apps.firstOrNull()?.todayMs ?: 0L,
+            topAppMs = apps.firstOrNull()?.dayMs ?: 0L,
             unlockCount = detail.unlockCount,
             hourlyMs = detail.hourlyMs,
             rangeDays = days,
             dailyTotals = daily,
+            selectedDay = if (isToday) null else effectiveDay,
+            selectedDayTotalMs = dayTotal,
             apps = apps,
             blockedCount = apps.count { it.isBlocked },
             loading = false,
@@ -163,6 +184,14 @@ class DigitalBalanceViewModel @Inject constructor(
 
     fun setRangeDays(days: Int) {
         rangeDays.value = days
+    }
+
+    /**
+     * M18.62: Tag im Balken-Diagramm antippen → App-Liste zeigt die Werte
+     * dieses Tages. Nochmal antippen (oder null) → zurück zu heute.
+     */
+    fun selectDay(date: LocalDate?) {
+        selectedDay.value = date
     }
 
     fun refresh() {
@@ -245,6 +274,17 @@ class DigitalBalanceViewModel @Inject constructor(
         viewModelScope.launch {
             balanceProfileRepository.updateApps(profileId, packageNames)
             refresh()
+        }
+    }
+
+    /**
+     * M18.62: Profil bearbeiten — Name/Icon/Farbe + App-Auswahl ändern.
+     */
+    fun updateProfile(profileId: String, name: String, icon: String, color: String, packageNames: List<String>) {
+        viewModelScope.launch {
+            balanceProfileRepository.update(profileId, name, icon, color, packageNames)
+            refresh()
+            syncBlockService()
         }
     }
 

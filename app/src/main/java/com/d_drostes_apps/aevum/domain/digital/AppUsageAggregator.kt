@@ -221,48 +221,37 @@ class AppUsageAggregator @Inject constructor(
     }
 
     /**
-     * M18.62: Nutzung pro App pro Tag für die letzten [days] Tage.
+     * M18.62: Nutzung pro App an einem BESTIMMTEN Tag.
      *
-     * Liefert für jede App eine Liste von (Datum, NutzungMs)-Paaren —
-     * für das klickbare Balken-Diagramm in Digital Balance (User: "beim
-     * Balken-Diagramm auf die einzelnen Balken klicken und die Auflistung
-     * der Nutzung der letzten Tage sehen").
+     * Für die App-Liste in Digital Balance, wenn im Balken-Diagramm ein
+     * anderer Tag als heute gewählt ist (User: "beim Balken-Diagramm auf
+     * die einzelnen Balken klicken und dann in der Liste die Werte der
+     * einzelnen Apps für den angeklickten Tag sehen").
      *
-     * Nutzt queryUsageStats(INTERVAL_DAILY): pro Tag+App ein Eintrag mit
-     * firstTimeStamp (Beginn des Tages-Intervalls) und totalTimeInForeground.
-     * Gruppiert nach (App, Tag) und summiert.
+     * Nutzt queryUsageStats(INTERVAL_DAILY) für den Tag — für HEUTE wird
+     * weiterhin die präzisere Event-API (todayUsageByApp) verwendet.
      */
-    suspend fun dailyUsageByApp(days: Int): Map<String, List<Pair<LocalDate, Long>>> = withContext(Dispatchers.IO) {
+    suspend fun usageByAppForDay(date: LocalDate): List<AppUsage> = withContext(Dispatchers.IO) {
         try {
             val zone = ZoneId.systemDefault()
-            val today = LocalDate.now(zone)
-            val start = today.minusDays((days - 1).toLong())
-                .atStartOfDay(zone).toInstant().toEpochMilli()
-            val now = System.currentTimeMillis()
-            val stats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, now)
-                ?: return@withContext emptyMap()
+            val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val stats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+                ?: return@withContext emptyList()
 
-            // (App, Tag) -> Summe
-            val byAppDay = HashMap<Pair<String, LocalDate>, Long>()
+            val totals = HashMap<String, Long>()
             stats.forEach { stat ->
                 if (stat.totalTimeInForeground > 0) {
-                    val day = java.time.Instant.ofEpochMilli(stat.firstTimeStamp)
-                        .atZone(zone).toLocalDate()
-                    val key = stat.packageName to day
-                    byAppDay[key] = (byAppDay[key] ?: 0L) + stat.totalTimeInForeground
+                    totals[stat.packageName] = (totals[stat.packageName] ?: 0L) + stat.totalTimeInForeground
                 }
             }
 
-            // Nach App gruppieren, pro App die Tage (chronologisch) auffüllen
-            val result = HashMap<String, MutableList<Pair<LocalDate, Long>>>()
-            byAppDay.forEach { (key, ms) ->
-                result.getOrPut(key.first) { mutableListOf() }.add(key.second to ms)
-            }
-            result.mapValues { (_, list) ->
-                list.sortedBy { it.first }
-            }
+            totals
+                .filter { it.value > 1_000 }
+                .map { (pkg, ms) -> AppUsage(pkg, labelFor(pkg), ms) }
+                .sortedByDescending { it.durationMs }
         } catch (_: Exception) {
-            emptyMap()
+            emptyList()
         }
     }
 

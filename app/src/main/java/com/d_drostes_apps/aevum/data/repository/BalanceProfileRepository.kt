@@ -15,12 +15,14 @@ interface BalanceProfileRepository {
     suspend fun getActiveOnce(): BalanceProfile?
     suspend fun getById(id: String): BalanceProfile?
     suspend fun create(name: String, icon: String, color: String, packageNames: List<String>): BalanceProfile
+    suspend fun update(profileId: String, name: String, icon: String, color: String, packageNames: List<String>)
     suspend fun updateApps(profileId: String, packageNames: List<String>)
     suspend fun setActive(id: String)
     suspend fun deactivate()
     suspend fun delete(id: String)
     suspend fun getAppPackages(profileId: String): List<String>
     fun getAppsFlow(profileId: String): Flow<List<BalanceProfileApp>>
+    suspend fun getAppPackagesOnce(profileId: String): List<String>
 }
 
 @Singleton
@@ -52,6 +54,18 @@ class BalanceProfileRepositoryImpl @Inject constructor(
         return profile
     }
 
+    override suspend fun update(profileId: String, name: String, icon: String, color: String, packageNames: List<String>) {
+        val existing = dao.getById(profileId) ?: return
+        dao.upsert(
+            existing.copy(
+                name = name,
+                icon = icon,
+                color = color
+            )
+        )
+        updateApps(profileId, packageNames)
+    }
+
     override suspend fun updateApps(profileId: String, packageNames: List<String>) {
         dao.deleteApps(profileId)
         packageNames.forEach { pkg ->
@@ -72,6 +86,8 @@ class BalanceProfileRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAppPackages(profileId: String): List<String> = dao.getAppPackages(profileId)
+
+    override suspend fun getAppPackagesOnce(profileId: String): List<String> = dao.getAppPackages(profileId)
 
     override fun getAppsFlow(profileId: String): Flow<List<BalanceProfileApp>> = dao.getAppsFlow(profileId)
 }

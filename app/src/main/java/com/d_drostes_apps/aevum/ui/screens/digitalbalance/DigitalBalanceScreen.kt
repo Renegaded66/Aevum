@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.d_drostes_apps.aevum.data.model.AppLimit
+import com.d_drostes_apps.aevum.data.model.BalanceProfile
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -172,7 +174,13 @@ private fun BalancePage(
             }
         }
         item { TodayHeroCard(state, onRefresh = viewModel::refresh) }
-        item { RangeStatsCard(state, onRangeChange = viewModel::setRangeDays) }
+        item {
+            RangeStatsCard(
+                state = state,
+                onRangeChange = viewModel::setRangeDays,
+                onDayClick = viewModel::selectDay
+            )
+        }
         // M18.61f: Profile-Karte (Lern-Profil sperrt Social Media)
         item { ProfilesCard(viewModel) }
         item {
@@ -219,6 +227,7 @@ private fun BalancePage(
         items(state.apps, key = { it.packageName }) { app ->
             AppLimitCard(
                 app = app,
+                dayTotalMs = state.selectedDayTotalMs,
                 onLimitChange = { minutes, enabled ->
                     viewModel.setLimit(app.packageName, minutes, enabled)
                 },
@@ -401,7 +410,8 @@ private fun HeroMetric(label: String, value: String) {
 @Composable
 private fun RangeStatsCard(
     state: DigitalBalanceUiState,
-    onRangeChange: (Int) -> Unit
+    onRangeChange: (Int) -> Unit,
+    onDayClick: (LocalDate) -> Unit
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
@@ -422,10 +432,13 @@ private fun RangeStatsCard(
                 }
             }
 
-            // Balken-Diagramm: letzte N Tage
+            // M18.62: Balken-Diagramm — jeder Balken ist ein Tag und
+            // antippbar. Die App-Liste darunter zeigt dann die Werte
+            // des angeklickten Tages. Der gewählte Balken wird hervorgehoben.
             val totals = state.dailyTotals
             val maxMs = (totals.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
             val today = LocalDate.now()
+            val selected = state.selectedDay
 
             Row(
                 modifier = Modifier
@@ -437,10 +450,11 @@ private fun RangeStatsCard(
                 totals.forEach { (date, ms) ->
                     val fraction = ms.toFloat() / maxMs
                     val isToday = date == today
-                    val barColor = if (isToday) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    val isSelected = date == selected
+                    val barColor = when {
+                        isSelected -> MaterialTheme.colorScheme.tertiary
+                        isToday -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
                     }
                     Box(
                         modifier = Modifier
@@ -448,7 +462,27 @@ private fun RangeStatsCard(
                             .height((fraction * 72f).coerceAtLeast(if (ms > 0) 4f else 2f).dp)
                             .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                             .background(barColor)
+                            .clickable { onDayClick(date) }
                     )
+                }
+            }
+
+            // M18.62: Hinweis auf den gewählten Tag + Zurücksetzen
+            if (selected != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Zeige ${DigitalBalanceViewModel.formatDay(selected)}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    TextButton(onClick = { onDayClick(today) }) {
+                        Text("Heute", fontSize = 12.sp)
+                    }
                 }
             }
 
@@ -476,21 +510,18 @@ private fun RangeStatsCard(
 @Composable
 private fun AppLimitCard(
     app: DigitalAppUi,
+    dayTotalMs: Long,
     onLimitChange: (Int, Boolean) -> Unit,
     onException: (String, Int, Int) -> Unit,
     onRemove: () -> Unit
 ) {
     var showEditor by remember { mutableStateOf(false) }
-    // M18.62: Detail-Ansicht mit Tages-Nutzung (klickbares Balken-Diagramm)
-    var showDetail by remember { mutableStateOf(false) }
     val limit = app.limit
     val hasLimit = limit != null && limit.enabled
 
     AevumCard(
         variant = if (app.isBlocked) CardVariant.Filled else CardVariant.Elevated,
-        contentPadding = PaddingValues(AevumSpacing.md),
-        // M18.62: Karte klickbar -> Detail-Ansicht mit Nutzung der letzten Tage
-        onClick = { showDetail = true }
+        contentPadding = PaddingValues(AevumSpacing.md)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Row(
@@ -543,8 +574,7 @@ private fun AppLimitCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "Heute ${DigitalBalanceViewModel.formatDuration(app.todayMs)}" +
-                            if (app.rangeMs > app.todayMs) " · ${app.rangeMs / 3_600_000}h im Zeitraum" else "",
+                        DigitalBalanceViewModel.formatDuration(app.dayMs),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -565,6 +595,37 @@ private fun AppLimitCard(
                         }
                     }
                 }
+            }
+
+            // M18.62: Farbiger Anteils-Balken — wie im Dashboard. Zeigt,
+            // wie viel von der gesamten Bildschirmzeit des Tages auf diese
+            // App zurückgeht. Animiert beim Anzeigen (fillMaxWidth-Fraktion).
+            val share = if (dayTotalMs > 0) (app.dayMs.toFloat() / dayTotalMs).coerceIn(0f, 1f) else 0f
+            val barColor = when {
+                app.isBlocked -> MaterialTheme.colorScheme.error
+                share >= 0.5f -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.primary
+            }
+            // Animation: Balken wächst von 0 auf den Anteil (M17-Muster)
+            val animatedShare by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = share,
+                animationSpec = androidx.compose.animation.core.tween(600),
+                label = "shareBar"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(animatedShare)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(AevumRadius.full))
+                        .background(barColor)
+                )
             }
 
             if (hasLimit) {
@@ -649,126 +710,6 @@ private fun AppLimitCard(
             onDismiss = { showEditor = false }
         )
     }
-
-    // M18.62: Detail-Ansicht — Nutzung der letzten Tage als farbige Balken.
-    // User: "beim Balken-Diagramm auf die einzelnen Balken klicken und die
-    // Auflistung der Nutzung der letzten Tage sehen".
-    if (showDetail) {
-        AppUsageDetailDialog(
-            app = app,
-            onDismiss = { showDetail = false }
-        )
-    }
-}
-
-/**
- * M18.62: Detail-Dialog einer App — zeigt die Nutzung der letzten Tage
- * als farbige Balken (statt nur Text). Jeder Balken = ein Tag, Höhe =
- * Nutzungsdauer, Farbe = Intensität (grün → gelb → rot je nach Anteil
- * am Tagesziel). Darunter die Auflistung als Text.
- */
-@Composable
-private fun AppUsageDetailDialog(
-    app: DigitalAppUi,
-    onDismiss: () -> Unit
-) {
-    val daily = app.dailyUsage
-    val maxMs = (daily.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
-    val goalMs = 5 * 60 * 60 * 1000L // Tagesziel 5h (wie TodayHeroCard)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(app.appLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                Text(
-                    "Nutzung der letzten Tage",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (daily.isEmpty()) {
-                    Text(
-                        "Keine Nutzungsdaten für diesen Zeitraum.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    // Farbige Balken pro Tag
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(72.dp),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        daily.forEach { (date, ms) ->
-                            val fraction = ms.toFloat() / maxMs
-                            val goalFrac = ms.toFloat() / goalMs
-                            // Farbe nach Intensität: grün (wenig) → gelb → rot (viel)
-                            val barColor = when {
-                                goalFrac >= 1f -> MaterialTheme.colorScheme.error
-                                goalFrac >= 0.8f -> MaterialTheme.colorScheme.tertiary
-                                else -> MaterialTheme.colorScheme.primary
-                            }
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                        .background(
-                                            if (ms > 0) barColor.copy(alpha = 0.55f + 0.45f * fraction)
-                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                        )
-                                )
-                                Text(
-                                    date.dayOfMonth.toString(),
-                                    fontSize = 9.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    // Auflistung als Text
-                    daily.forEach { (date, ms) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                DigitalBalanceViewModel.formatDay(date),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                DigitalBalanceViewModel.formatDuration(ms),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                Text("Schließen", modifier = Modifier.padding(horizontal = 8.dp))
-            }
-        },
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-    )
 }
 
 @Composable
@@ -894,6 +835,8 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val activeProfile by viewModel.activeProfile.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
+    // M18.62: Profil bearbeiten — welches Profil ist im Edit-Modus?
+    var editProfileId by remember { mutableStateOf<String?>(null) }
 
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -933,6 +876,18 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
                             color = if (activeProfile?.id == profile.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    // M18.62: Stift-Icon zum Bearbeiten des Profils
+                    IconButton(
+                        onClick = { editProfileId = profile.id },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Profil bearbeiten",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Switch(
                         checked = activeProfile?.id == profile.id,
                         onCheckedChange = { checked ->
@@ -946,31 +901,55 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
     }
 
     if (showCreate) {
-        ProfileCreateDialog(
+        ProfileFormDialog(
             viewModel = viewModel,
+            profile = null,
             onDismiss = { showCreate = false }
+        )
+    }
+
+    // M18.62: Edit-Modus — Profil mit vorbefüllten Werten bearbeiten
+    val editingProfile = editProfileId?.let { id -> profiles.firstOrNull { it.id == id } }
+    if (editingProfile != null) {
+        ProfileFormDialog(
+            viewModel = viewModel,
+            profile = editingProfile,
+            onDismiss = { editProfileId = null }
         )
     }
 }
 
 /**
- * Dialog zum Erstellen eines Profils: Name + Icon + App-Auswahl
- * (alle installierten Apps mit Namen + echten Icons).
+ * M18.62: Profil-Formular (Erstellen ODER Bearbeiten).
+ *
+ * profile == null → neues Profil anlegen (leere Felder).
+ * profile != null → bestehendes Profil bearbeiten (Felder vorbefüllt,
+ * App-Auswahl aus der DB geladen). Speichern ruft updateProfile auf.
  */
 @Composable
-private fun ProfileCreateDialog(
+private fun ProfileFormDialog(
     viewModel: DigitalBalanceViewModel,
+    profile: BalanceProfile?,
     onDismiss: () -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var icon by remember { mutableStateOf("📚") }
+    val isEdit = profile != null
+    var name by remember { mutableStateOf(profile?.name ?: "") }
+    var icon by remember { mutableStateOf(profile?.icon ?: "📚") }
     val icons = listOf("📚", "💼", "🧘", "🎮", "🎵", "📱", "🌙", "🏋️")
     val installedApps by remember { mutableStateOf(loadInstalledApps(viewModel.appContext())) }
+    // M18.62: Im Edit-Modus die gespeicherten Pakete des Profils vorauswählen
     val selected = remember { mutableStateListOf<String>() }
+    if (isEdit && profile != null) {
+        androidx.compose.runtime.LaunchedEffect(profile.id) {
+            val pkgs = viewModel.getProfilePackages(profile.id)
+            selected.clear()
+            selected.addAll(pkgs)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Neues Profil", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(if (isEdit) "Profil bearbeiten" else "Neues Profil", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(
                 modifier = Modifier
@@ -1044,12 +1023,16 @@ private fun ProfileCreateDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank() && selected.isNotEmpty()) {
-                        viewModel.createProfile(name.trim(), icon, "#6366F1", selected.toList())
+                        if (isEdit && profile != null) {
+                            viewModel.updateProfile(profile.id, name.trim(), icon, profile.color, selected.toList())
+                        } else {
+                            viewModel.createProfile(name.trim(), icon, "#6366F1", selected.toList())
+                        }
                         onDismiss()
                     }
                 },
                 enabled = name.isNotBlank() && selected.isNotEmpty()
-            ) { Text("Erstellen") }
+            ) { Text(if (isEdit) "Speichern" else "Erstellen") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
