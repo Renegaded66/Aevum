@@ -106,15 +106,4 @@ class GarminSleepDedupTest {
         assertThat(primary?.id).isEqualTo("v0")
         assertThat(dups).hasSize(9)
     }
-
-    @Test
-    fun `isInNightWindow erkennt alte Bug-Sessions mit stark abweichender Zeit`() {
-        // Alte Bug-Duplikate (frühere Versionen) können außerhalb des
-        // Überlappungs-Toleranz liegen, aber noch in der Nacht.
-        val nightStart = sleepStart - 12L * 60 * 60 * 1000
-        val nightEnd = sleepEnd + 6L * 60 * 60 * 1000
-        val stale = session("stale", sleepStart - 5L * 60 * 60 * 1000, sleepStart - 3L * 60 * 60 * 1000)
-
-        assertThat(GarminSleepDedup.isInNightWindow(stale, nightStart, nightEnd)).isTrue()
-    }
 }

@@ -284,20 +284,17 @@ class GarminSyncWorker(
                 )
                 android.util.Log.i(TAG, "Garmin-Schlaf ${day} aktualisiert (${sleep.sleepTimeSeconds}s)")
             } else {
-                // M18.63: Zusätzliche Bestands-Bereinigung — falls eine
-                // alte, NICHT überlappende Garmin-Session derselben Nacht
-                // existiert (z.B. durch frühere Bug-Versionen mit stark
-                // abweichender Zeit), wird sie entfernt statt ein weiteres
-                // Duplikat anzulegen.
-                val staleGarmin = nightSessions.filter {
-                    it.sourceType == "GARMIN_SLEEP_AUTO" &&
-                        it.endAt != null &&
-                        it.endAt!! >= nightStart && it.endAt!! <= nightEnd
-                }
-                for (stale in staleGarmin) {
-                    repo.softDelete(stale.id, now)
-                    android.util.Log.i(TAG, "Alte Garmin-Schlaf-Session derselben Nacht entfernt ${stale.id}")
-                }
+                // M18.63-SELBSTPRÜFUNG: KEIN zusätzliches stale-Cleanup für
+                // nicht-überlappende GARMIN_SLEEP_AUTO-Sessions im weiten
+                // Nachtfenster! Erste Version löschte potenziell echte
+                // Mittagsschlaf-Sessions (endAt im Fenster [X-1 12:00, X
+                // 14:00], aber kein Überlapp mit dem Nachtschlaf) — ein
+                // Datenverlust-Risiko. Die realistischen Bug-Duplikate
+                // (gleicher Nachtschlaf, nur Minuten verschoben) überlappen
+                // sich alle und werden oben über den Overlap-Dedup + drop(1)
+                // auf EINE Session reduziert. Nicht-überlappende Sessions
+                // sind entweder echte andere Schlafereignisse (Mittagsschlaf)
+                // oder extrem seltene Alt-Bestände — im Zweifel NICHT löschen.
                 // Keine Garmin-Session der Nacht -> neu anlegen
                 val session = com.d_drostes_apps.aevum.data.model.ActivitySession(
                     id = UUID.randomUUID().toString(),

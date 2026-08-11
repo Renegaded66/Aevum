@@ -63,22 +63,4 @@ object GarminSleepDedup {
             .filter { it.id != primary.id }
             .sortedBy { it.createdAt ?: Long.MAX_VALUE }
     }
-
-    /**
-     * True, wenn die Session derselben Nacht zugeordnet werden kann, auch
-     * wenn sie das aktuelle Garmin-Intervall nicht überlappt — aber in der
-     * Nacht liegt (Bestands-Bereinigung für alte Bug-Duplikate mit stark
-     * abweichenden Zeiten).
-     *
-     * @param nightStart Fensterbeginn (12h vor Mitternacht des Aufwach-Tags)
-     * @param nightEnd   Fensterende (14h nach Mitternacht des Aufwach-Tags)
-     */
-    fun isInNightWindow(
-        session: ActivitySession,
-        nightStart: Long,
-        nightEnd: Long
-    ): Boolean {
-        val end = session.endAt ?: return false
-        return end >= nightStart && end <= nightEnd
-    }
 }
