@@ -773,8 +773,10 @@ class DashboardViewModel @Inject constructor(
             digitalTopApp = _topApps.value.firstOrNull()?.appLabel ?: "—",
             // M18: Zeitqualität berechnen. Gewichtete Summe:
             // quality = Σ(dauer × score) / Σ(dauer). Pro Aktivität.
-            qualityScore = computeQualityScore(activeSessions, typeMap),
-            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap, allowances),
+            // M18.62-FIX: Pauschalen fließen mit ein (User: "die
+            // Tagespunktzahl soll auch die Pauschalen berücksichtigen").
+            qualityScore = computeQualityScore(activeSessions, typeMap, allowances, overrideByAllowance, now),
+            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap, allowances, overrideByAllowance, now),
             // M18.37: Todos fuer die Dashboard-Karte
             todoDoneCount = todoDoneCount,
             todoOpenCount = todoOpenCount,
@@ -790,9 +792,18 @@ class DashboardViewModel @Inject constructor(
     // M18: Zeitqualitäts-Score 0..100 — gewichtetes Mittel über alle
     // heute erfassten Sessions (nur abgeschlossene + laufende mit Dauer).
     // Score 0 = alles schlecht, 100 = alles gut.
+    // M18.62-FIX (User: "die Tagespunktzahl soll auch die Pauschalen
+    // berücksichtigen"): Pauschalen werden wie Sessions gewichtet mit
+    // einbezogen — gleiche Regel wie im Breakdown (M18.38-User-Logik:
+    // "30 min Pauschale gilt ab 00:30"). Dadurch zeigt der QualityRing
+    // schon am Morgen eine Punktzahl, auch wenn noch nichts erfasst ist.
+    // Overrides (M18.60) bestimmen die effektiven Minuten der Pauschale.
     private fun computeQualityScore(
         sessions: List<ActivitySession>,
-        typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>
+        typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
+        allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance> = emptyList(),
+        overrideByAllowance: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
+        now: Long = System.currentTimeMillis()
     ): Int {
         var totalWeight = 0L
         var weighted = 0.0
@@ -804,6 +815,18 @@ class DashboardViewModel @Inject constructor(
             totalWeight += duration
             weighted += duration * score
         }
+        // M18.62-FIX: Pauschalen einbeziehen (nur wenn die Tageszeit die
+        // Pauschaldauer erreicht hat — identische Logik wie im Breakdown).
+        val currentMinute = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
+        allowances.filter { it.enabled }.forEach { allowance ->
+            val effectiveMinutes = overrideByAllowance[allowance.id]?.minutes ?: allowance.minutesPerDay
+            if (currentMinute >= effectiveMinutes) {
+                val score = typeMap[allowance.activityTypeId]?.positivityScore ?: 50
+                val durationMs = effectiveMinutes * 60_000L
+                totalWeight += durationMs
+                weighted += durationMs * score
+            }
+        }
         if (totalWeight <= 0L) return 0
         return (weighted / totalWeight).toInt().coerceIn(0, 100)
     }
@@ -813,10 +836,13 @@ class DashboardViewModel @Inject constructor(
     // wenn die Tageszeit die Pauschaldauer schon überschritten hat
     // (User-Logik: "30 min Pauschale gilt ab 00:30"). So erscheint
     // "Fertig machen 30m" sofort, wenn der Tag schon weiter ist.
+    // M18.62-FIX: Overrides (M18.60) bestimmen auch hier die effektiven
+    // Minuten — konsistent mit dem QualityRing.
     private fun computeQualityBreakdown(
         sessions: List<ActivitySession>,
         typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
         allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance> = emptyList(),
+        overrideByAllowance: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
         now: Long = System.currentTimeMillis()
     ): List<QualitySlice> {
         val slices = sessions
@@ -838,16 +864,18 @@ class DashboardViewModel @Inject constructor(
             .toMutableList()
         // M18.38: Pauschalen-Balken — nur wenn die Tageszeit die
         // Pauschaldauer erreicht hat (z.B. 30 min ab 00:30).
+        // M18.62-FIX: Overrides bestimmen die effektiven Minuten.
         val currentMinute = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
         allowances.filter { it.enabled }.forEach { allowance ->
-            if (currentMinute >= allowance.minutesPerDay) {
+            val effectiveMinutes = overrideByAllowance[allowance.id]?.minutes ?: allowance.minutesPerDay
+            if (currentMinute >= effectiveMinutes) {
                 val type = typeMap[allowance.activityTypeId]
                 val score = type?.positivityScore ?: 50
                 slices.add(
                     QualitySlice(
                         activityTypeId = "allowance_${allowance.id}",
                         label = allowance.name,
-                        durationMs = allowance.minutesPerDay * 60_000L,
+                        durationMs = effectiveMinutes * 60_000L,
                         score = score,
                         color = com.d_drostes_apps.aevum.ui.components.positivityColor(score)
                     )

@@ -2,11 +2,16 @@ package com.d_drostes_apps.aevum.automation.ping
 
 import android.content.Context
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.d_drostes_apps.aevum.data.repository.PingTriggerRepository
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.InetAddress
@@ -26,56 +31,112 @@ import java.util.concurrent.TimeUnit
  * Geräten Root-Rechte und schlägt fehl. Deshalb: Socket-Verbindung auf
  * typische FireTV-Ports (8008 = FireTV-Webserver, 443, 80) mit kurzem
  * Timeout — zuverlässiger als ICMP.
+ *
+ * M18.62-FIX (Root Cause "Ping-Trigger zeichnet nichts auf"):
+ * - Der Worker nutzte @AssistedInject, aber die App hat KEINE
+ *   HiltWorkerFactory (Configuration.Provider). WorkManager kann einen
+ *   @AssistedInject-Worker nicht instanziieren → der Job schlug IMMER
+ *   fehl. Fix: etabliertes Projektmuster wie SleepImportWorker —
+ *   Dependencies via EntryPointAccessors aus dem SingletonComponent
+ *   holen (kein HiltWorkerFactory nötig).
+ * - Der Scheduler plante PeriodicWorkRequest mit 2 Minuten — unter dem
+ *   WorkManager-Minimum von 15 Minuten → IllegalArgumentException beim
+ *   App-Start (vom try/catch in AevumApplication geschluckt) → der Job
+ *   wurde NIE enqueued. Fix: OneTimeWorkRequest mit Selbst-Erneuerung —
+ *   der Worker plant sich am Ende jedes Laufs selbst neu (2-Minuten-Takt).
  */
-class PingTriggerWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted params: WorkerParameters,
-    private val pingTriggerRepository: PingTriggerRepository,
-    private val liveActivityManager: LiveActivityManager
-) : CoroutineWorker(appContext, params) {
+class PingTriggerWorker(
+    appContext: Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(appContext, workerParams) {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface Deps {
+        fun pingTriggerRepository(): PingTriggerRepository
+        fun liveActivityManager(): LiveActivityManager
+    }
 
     override suspend fun doWork(): Result {
-        return try {
+        val deps = EntryPointAccessors.fromApplication(
+            applicationContext,
+            Deps::class.java
+        )
+        val pingTriggerRepository = deps.pingTriggerRepository()
+        val liveActivityManager = deps.liveActivityManager()
+
+        val result = try {
             val triggers = pingTriggerRepository.getAllEnabled()
-            if (triggers.isEmpty()) return Result.success()
+            if (triggers.isNotEmpty()) {
+                for (trigger in triggers) {
+                    val reachable = isReachable(trigger.ipAddress)
+                    val live = liveActivityManager.liveSession.value
 
-            for (trigger in triggers) {
-                val reachable = isReachable(trigger.ipAddress)
-                val live = liveActivityManager.liveSession.value
-
-                if (reachable) {
-                    // Erreichbar → Session starten (falls nicht schon eine
-                    // passende läuft)
-                    val sameSession = live != null && live.isLive &&
-                        live.sourceTriggerId == trigger.id
-                    if (!sameSession) {
-                        if (live != null && live.isLive) {
-                            // Andere Live-Session beenden, bevor die neue startet
-                            liveActivityManager.forceFinishForAuto()
+                    if (reachable) {
+                        // Erreichbar → Session starten (falls nicht schon eine
+                        // passende läuft)
+                        val sameSession = live != null && live.isLive &&
+                            live.sourceTriggerId == trigger.id
+                        if (!sameSession) {
+                            if (live != null && live.isLive) {
+                                // Andere Live-Session beenden, bevor die neue startet
+                                liveActivityManager.forceFinishForAuto()
+                            }
+                            val session = liveActivityManager.start(
+                                activityTypeId = trigger.activityTypeId,
+                                title = trigger.name,
+                                sourceType = "PING_AUTO",
+                                sourceTriggerId = trigger.id
+                            )
+                            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+                            android.util.Log.d("PingTriggerWorker", "Ping OK (${trigger.ipAddress}) → Session gestartet: ${session.title}")
                         }
-                        val session = liveActivityManager.start(
-                            activityTypeId = trigger.activityTypeId,
-                            title = trigger.name,
-                            sourceType = "PING_AUTO",
-                            sourceTriggerId = trigger.id
-                        )
-                        com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
-                        android.util.Log.d("PingTriggerWorker", "Ping OK (${trigger.ipAddress}) → Session gestartet: ${session.title}")
-                    }
-                } else {
-                    // Nicht erreichbar → Session beenden, wenn sie von
-                    // DIESEM Trigger gestartet wurde
-                    if (live != null && live.isLive && live.sourceTriggerId == trigger.id) {
-                        liveActivityManager.stop()
-                        com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
-                        android.util.Log.d("PingTriggerWorker", "Ping verloren (${trigger.ipAddress}) → Session beendet")
+                    } else {
+                        // Nicht erreichbar → Session beenden, wenn sie von
+                        // DIESEM Trigger gestartet wurde
+                        if (live != null && live.isLive && live.sourceTriggerId == trigger.id) {
+                            liveActivityManager.stop()
+                            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
+                            android.util.Log.d("PingTriggerWorker", "Ping verloren (${trigger.ipAddress}) → Session beendet")
+                        }
                     }
                 }
             }
             Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e  // Cancel (z.B. durch cancel()) darf NICHT neu planen
         } catch (e: Exception) {
             android.util.Log.e("PingTriggerWorker", "Ping-Check fehlgeschlagen", e)
-            Result.retry()
+            // M18.62-FIX: KEIN Result.retry() — der Selbst-Erneuerungs-Takt
+            // (2 min) ist zuverlässiger als WorkManager-Backoff. Fehler werden
+            // geloggt, der nächste Check kommt trotzdem.
+            Result.success()
+        }
+        // M18.62-FIX: Selbst-Erneuerung — der nächste Check wird in jedem
+        // Fall geplant (Erfolg, Fehler, leere Trigger-Liste), aber NICHT
+        // bei Cancellation: ein cancel() des Users muss den Takt wirklich
+        // stoppen. Deshalb KEIN finally — scheduleNext() steht hinter dem
+        // try/catch, der CancellationException-Rethrow verhindert die
+        // Wiederplanung.
+        scheduleNext()
+        return result
+    }
+
+    /**
+     * M18.62-FIX: Plant den nächsten Check als OneTimeWorkRequest mit
+     * INTERVAL_MINUTES Verzögerung. REPLACE: falls ein alter Job aus einer
+     * früheren Version existiert (oder der Scheduler beim App-Start einen
+     * neuen geplant hat), gewinnt der frisch geplante.
+     */
+    private fun scheduleNext() {
+        try {
+            val next = OneTimeWorkRequestBuilder<PingTriggerWorker>()
+                .setInitialDelay(INTERVAL_MINUTES, TimeUnit.MINUTES)
+                .build()
+            WorkManager.getInstance(applicationContext)
+                .enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, next)
+        } catch (e: Exception) {
+            android.util.Log.e("PingTriggerWorker", "Selbst-Neuplanung fehlgeschlagen", e)
         }
     }
 
