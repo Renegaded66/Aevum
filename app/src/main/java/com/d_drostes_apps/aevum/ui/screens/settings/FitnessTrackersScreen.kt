@@ -182,6 +182,34 @@ class FitnessTrackersViewModel @Inject constructor(
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(message = null)
     }
+
+    // M18.62-FIX (User: "Bridge nicht erreichbar"): Der Cloudflare-Quick-
+    // Tunnel rotiert die URL bei jedem Server-Neustart. Die App kann die
+    // Bridge-URL jetzt direkt hier in den Einstellungen anzeigen und
+    // ändern — ohne App-Update. Der Setter existierte bereits in
+    // GarminApiClient, es fehlte nur die UI.
+    fun bridgeUrl(): String = api.baseUrl
+
+    fun setBridgeUrl(url: String) {
+        val trimmed = url.trim().trimEnd('/')
+        if (trimmed.isBlank()) return
+        _uiState.value = _uiState.value.copy(working = true, error = null)
+        viewModelScope.launch {
+            api.baseUrl = trimmed
+            // Sofort prüfen, ob die neue URL die Bridge erreicht.
+            val status = api.getStatus()
+            _uiState.value = _uiState.value.copy(
+                working = false,
+                connected = status.connected,
+                error = status.error,
+                message = if (status.connected) {
+                    "Bridge-URL aktualisiert — Verbindung steht."
+                } else {
+                    "URL gespeichert, aber Bridge nicht erreichbar: ${status.error ?: "Keine Antwort"}"
+                }
+            )
+        }
+    }
 }
 
 data class FitnessTrackersUiState(
@@ -371,6 +399,41 @@ fun FitnessTrackersScreen(
                         color = Color(0xFF34D399),
                         modifier = Modifier.padding(top = AevumSpacing.xs)
                     )
+                }
+            }
+        }
+
+        // ── Bridge-Server (M18.62-FIX) ────────────────────────────────
+        // Cloudflare-Quick-Tunnel rotiert die URL bei jedem Server-
+        // Neustart. Hier kann die aktuelle URL eingesehen und geändert
+        // werden — ohne App-Update.
+        AevumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Text("Bridge-Server", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Adresse der Garmin-Bridge. Wenn \"Keine Antwort\" oder \"Bridge nicht erreichbar\" erscheint, hat sich die Tunnel-URL geändert — aktuelle URL hier eintragen und speichern.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                var bridgeUrl by remember { mutableStateOf(viewModel.bridgeUrl()) }
+                OutlinedTextField(
+                    value = bridgeUrl,
+                    onValueChange = { bridgeUrl = it },
+                    label = { Text("Bridge-URL") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(AevumRadius.md)
+                )
+                Button(
+                    onClick = { viewModel.setBridgeUrl(bridgeUrl) },
+                    enabled = !state.working && bridgeUrl.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (state.working) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Speichern & prüfen")
+                    }
                 }
             }
         }

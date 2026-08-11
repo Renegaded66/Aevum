@@ -21,10 +21,13 @@ android {
         // Aevum-Garmin-Bridge auf dem Server). In der App überschreibbar
         // über die Garmin-Einstellungen (falls der Tunnel neu startet und
         // eine neue URL erhält).
+        // M18.62-FIX: Quick-Tunnel-URL rotiert bei JEDEM Server-Neustart —
+        // 2026-08-10: residence-joe-virtue-enclosure → submitting-portraits-
+        // anderson-solaris. Siehe auch URL-Feld in FitnessTrackersScreen.
         buildConfigField(
             "String",
             "GARMIN_BRIDGE_URL",
-            "\"https://residence-joe-virtue-enclosure.trycloudflare.com\""
+            "\"https://submitting-portraits-anderson-solaris.trycloudflare.com\""
         )
         // M18.59: Bridge-API-Key — kommt aus ~/.gradle/gradle.properties
         // (NICHT im Repo, das Repo ist öffentlich!). Leerer Fallback für
