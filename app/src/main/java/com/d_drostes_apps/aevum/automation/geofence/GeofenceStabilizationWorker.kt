@@ -68,7 +68,20 @@ class GeofenceStabilizationWorker(
                 // und nicht eine echte User-Bewegung. Wir markieren ihn deshalb
                 // mit anchorQuality = "LOW" — die Travel-Rule-Engine filtert
                 // LOW-Anchors bereits (TriggerPairCandidateRuleEngine.evaluate).
-                val isBurst = checkForBurst(
+                //
+                // M18.64-FIX (Root Cause "Geofence startet konfigurierte
+                // Aktivität nicht"): Der Burst-Check lief für ALLE Transitions.
+                // Szenario: User verlässt Zuhause (EXIT-Trigger persistiert),
+                // fährt 2 Minuten zum Gym, betritt es (ENTER). Der ENTER liegt
+                // im 90s-Burst-Fenster des Zuhause-EXITs → wurde als Burst
+                // klassifiziert → anchorQualityOverride="LOW" → der Auto-Start
+                // unten wurde blockiert (anchorQualityOverride != "LOW" ist
+                // Start-Bedingung). Ergebnis: JEDER Geofence-ENTER kurz nach
+                // einem anderen Geofence-EXIT startete die konfigurierte
+                // Aktivität nicht. Burst-Erkennung ist ein EXIT-Phänomen
+                // (GPS-Drift am Rand mehrerer Geofences nachts) — ENTERs sind
+                // echte Bewegungen und dürfen nie als Burst herabgestuft werden.
+                val isBurst = transition == GeofenceTransition.Exit && checkForBurst(
                     entryPoint.triggerEventRepository(),
                     debouncer,
                     geofenceId,

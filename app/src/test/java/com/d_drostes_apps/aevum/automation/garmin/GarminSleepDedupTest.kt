@@ -106,4 +106,96 @@ class GarminSleepDedupTest {
         assertThat(primary?.id).isEqualTo("v0")
         assertThat(dups).hasSize(9)
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.64: Stabile Nacht-Identität (externalId) — Idempotenz über
+    // beliebig viele Syncs, App-Neustarts und Garmin-Zeitkorrekturen.
+    // ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `externalId ist stabil über den Aufwach-Tag — unabhängig von der Schlafzeit`() {
+        // date=2026-08-10 = Nacht zum Morgen des 10.08. — egal ob Garmin
+        // 23:46–08:01 oder 00:10–08:00 liefert, die ID bleibt gleich.
+        assertThat(GarminSleepDedup.externalIdForNight("2026-08-10"))
+            .isEqualTo("garmin_sleep_2026-08-10")
+        assertThat(GarminSleepDedup.externalIdForNight("2026-08-10"))
+            .isEqualTo(GarminSleepDedup.externalIdForNight("2026-08-10"))
+        // Verschiedene Nächte → verschiedene IDs.
+        assertThat(GarminSleepDedup.externalIdForNight("2026-08-10"))
+            .isNotEqualTo(GarminSleepDedup.externalIdForNight("2026-08-11"))
+    }
+
+    @Test
+    fun `primäre Session über externalId ist die älteste — deterministisch`() {
+        val first = session("s1", sleepStart, sleepEnd, createdAt = 100L).copy(externalId = "garmin_sleep_2026-08-10")
+        val second = session("s2", sleepStart + 60_000L, sleepEnd, createdAt = 200L).copy(externalId = "garmin_sleep_2026-08-10")
+
+        val primary = GarminSleepDedup.primaryByExternalId(listOf(second, first))
+
+        assertThat(primary?.id).isEqualTo("s1")
+    }
+
+    @Test
+    fun `Sync 1 bis 50 mit nachträglichen Garmin-Korrekturen erzeugen genau einen Eintrag`() {
+        // Simuliert die M18.64-Import-Logik: Sync 1 legt die Session MIT
+        // externalId an; jeder weitere Sync findet sie über die ID und
+        // UPDATET nur (Zeiten ändern sich, ID bleibt). Ergebnis: genau
+        // eine Session, egal wie oft Garmin die Zeit korrigiert.
+        var primary: ActivitySession? = null
+        for (i in 0 until 50) {
+            // Garmin-Korrektur: Zeiten wandern bei jedem Sync leicht.
+            val startShift = (i % 7) * 60_000L
+            val endShift = (i % 5) * 30_000L
+            val garminStart = sleepStart + startShift
+            val garminEnd = sleepEnd - endShift
+
+            val byExternalId = primary?.let { listOf(it) } ?: emptyList()
+            if (byExternalId.isNotEmpty()) {
+                val p = GarminSleepDedup.primaryByExternalId(byExternalId)!!
+                primary = p.copy(startAt = garminStart, endAt = garminEnd, revision = p.revision + 1)
+            } else {
+                primary = session(
+                    id = "s1",
+                    startAt = garminStart,
+                    endAt = garminEnd,
+                    createdAt = 1L
+                ).copy(externalId = GarminSleepDedup.externalIdForNight("2026-08-10"))
+            }
+        }
+
+        // Genau EIN Eintrag existiert — die ID blieb über alle 50 Syncs stabil.
+        assertThat(primary?.externalId).isEqualTo("garmin_sleep_2026-08-10")
+        assertThat(primary?.revision).isEqualTo(50)
+        // Die letzte Garmin-Korrektur ist übernommen (nicht addiert).
+        assertThat(primary?.startAt).isEqualTo(sleepStart + (49 % 7) * 60_000L)
+        assertThat(primary?.endAt).isEqualTo(sleepEnd - (49 % 5) * 30_000L)
+    }
+
+    @Test
+    fun `Bestands-Duplikate ohne externalId werden auf eine Session reduziert`() {
+        // Alt-Bestand VOR M18.64: 3 GARMIN_SLEEP_AUTO-Sessions derselben
+        // Nacht, alle ohne externalId, leicht verschoben (das reale
+        // Duplikat-Muster aus den Bridge-Caches).
+        val a = session("a", sleepStart, sleepEnd, createdAt = 100L)
+        val b = session("b", sleepStart + 120_000L, sleepEnd - 60_000L, createdAt = 200L)
+        val c = session("c", sleepStart - 60_000L, sleepEnd + 30_000L, createdAt = 300L)
+
+        val cleanup = GarminSleepDedup.duplicatesToCleanup(listOf(a, b, c), sleepStart, sleepEnd)
+
+        // Älteste (a) bleibt, b und c werden bereinigt.
+        assertThat(cleanup.map { it.id }).containsExactly("b", "c")
+    }
+
+    @Test
+    fun `Mittagsschlaf ohne Überlappung wird von der Bestands-Bereinigung verschont`() {
+        // M18.63-Selbstprüfung: Nicht-überlappende Sessions im weiten
+        // Nachtfenster sind echte andere Schlafereignisse (Mittagsschlaf)
+        // und dürfen NIE bereinigt werden.
+        val night = session("n", sleepStart, sleepEnd, createdAt = 100L)
+        val nap = session("nap", 1786384800000L, 1786388400000L, createdAt = 200L) // 14:00–15:00
+
+        val cleanup = GarminSleepDedup.duplicatesToCleanup(listOf(night, nap), sleepStart, sleepEnd)
+
+        assertThat(cleanup).isEmpty()
+    }
 }

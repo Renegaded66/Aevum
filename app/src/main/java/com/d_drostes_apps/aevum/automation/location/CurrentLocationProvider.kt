@@ -38,7 +38,12 @@ class CurrentLocationProvider @Inject constructor(
                     latitude = location.latitude,
                     longitude = location.longitude,
                     accuracyMeters = location.accuracy,
-                    ageMs = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L
+                    ageMs = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L,
+                    // M18.64: Momentane Geschwindigkeit aus dem Fix (m/s).
+                    // FusedLocationProvider liefert speed nur bei Bewegung;
+                    // null = unbekannt (wird von der DriveDetectionEngine
+                    // als neutral gewertet).
+                    speedMps = if (location.hasSpeed()) location.speed else null
                 )
             }
         } catch (security: SecurityException) {
@@ -63,7 +68,10 @@ sealed class CurrentLocationResult {
         val latitude: Double,
         val longitude: Double,
         val accuracyMeters: Float,
-        val ageMs: Long
+        val ageMs: Long,
+        // M18.64: Momentane Geschwindigkeit (m/s) aus dem Location-Fix.
+        // null = Fix lieferte keine Geschwindigkeit (Stillstand/unbekannt).
+        val speedMps: Float? = null
     ) : CurrentLocationResult()
     data object MissingPermission : CurrentLocationResult()
     data class Unavailable(val message: String) : CurrentLocationResult()

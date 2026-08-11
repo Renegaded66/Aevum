@@ -79,9 +79,18 @@ class GeofenceTransitionProcessor @Inject constructor(
         // uebersprungen. Jetzt: Dedup nur innerhalb von 10 Minuten. Ein
         // ENTER nach >10min ist ein echter neuer Besuch.
         //
-        // Logik: Lade den letzten persistierten Trigger fuer diese Geofence.
-        // Wenn der letzte Trigger denselben Typ hatte (ENTER nach ENTER,
-        // EXIT nach EXIT) UND weniger als 10 Minuten alt ist, skippen wir.
+        // M18.64-FIX (Root Cause "Geofence startet konfigurierte Aktivität
+        // nicht"): Der withinDedupWindow-Return blockierte den AUTO-START.
+        // Szenario: User betritt das Gym (ENTER-Trigger, Session startet),
+        // App wird gekillt/neugestartet, User ist noch im Gym. Die
+        // Neuregistrierung (INITIAL_TRIGGER_ENTER) feuert erneut ENTER —
+        // der letzte Trigger war < 10 Min alt → der alte Code returned
+        // Ignored → KEIN Auto-Start, KEIN Discard-Refresh. Die konfigurierte
+        // Aktivität startete nach App-Neustart im Geofence nie wieder.
+        // Jetzt: ENTER-nach-ENTER wird über skipTriggerCreation behandelt
+        // (kein neuer Trigger, aber Auto-Start/Refresh läuft weiter — siehe
+        // unten). Der harte Return bleibt NUR für EXIT-nach-EXIT (dort gibt
+        // es nichts zu refreshen).
         val recentTriggers = triggerRepository.getByGeofenceId(geofence.id).first()
         val lastTrigger = recentTriggers
             .filter { it.geofenceId == geofence.id }
@@ -113,9 +122,12 @@ class GeofenceTransitionProcessor @Inject constructor(
         // unberührt, weil dort `lastWasExit` greift.
         val skipTriggerCreation = currentIsEnter && lastWasEnter
 
-        if (!skipTriggerCreation &&
-            withinDedupWindow && ((currentIsEnter && lastWasEnter) || (currentIsExit && lastWasExit))
-        ) {
+        // M18.64: Harte Dedup-Blockade NUR für EXIT-nach-EXIT im Fenster.
+        // ENTER-nach-ENTER läuft weiter (skipTriggerCreation) — der
+        // Auto-Start/Refresh unten muss bei jedem ENTER/DWELL laufen,
+        // sonst startet die konfigurierte Aktivität nach App-Neustart im
+        // Geofence nie (und der Auto-Discard frisst die Session).
+        if (withinDedupWindow && currentIsExit && lastWasExit) {
             debugLogger.log("PROCESSOR", "  DEDUP: ${transition.name} übersprungen — letzter Trigger war auch ${lastTrigger?.type} @ ${lastTrigger?.occurredAt}")
             return GeofenceProcessingResult.Ignored
         }
@@ -395,7 +407,12 @@ class GeofenceTransitionProcessor @Inject constructor(
         // verworfen. 60s ist kurz genug, um Ghost-Sessions zu vermeiden, und
         // lang genug, dass ein normaler Geofence-Wechsel (Auto fährt durch
         // Tunnel) den Refresh triggert.
-        const val AUTO_DISCARD_MS = 60_000L
+        // M18.64: Auf 90s erhöht — DWELL (LoiteringDelay 45s + 8s
+        // Stabilisierung = ~53s) muss mit WorkManager-Verzögerungen sicher
+        // VOR dem Discard verarbeitet sein. Bei 60s konnte der Discard
+        // feuern, bevor der DWELL-Beweis ankam → Session wurde verworfen,
+        // obwohl der User nachweislich im Geofence war.
+        const val AUTO_DISCARD_MS = 90_000L
     }
 }
 

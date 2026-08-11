@@ -107,6 +107,22 @@ class GeofenceDebouncer @Inject constructor() {
             if (confirmed != null && confirmed.first == transition &&
                 now - confirmed.second < ECHO_WINDOW_MS
             ) {
+                // M18.64-FIX (Root Cause "Geofence startet konfigurierte
+                // Aktivität nicht"): ENTER-Echos werden trotzdem als
+                // pending registriert, damit der StabilizationWorker den
+                // Processor erreicht. Vorher wurde der ENTER hier komplett
+                // verschluckt (kein pending) → der Worker fand nichts
+                // (AlreadyEmitted) → der Processor lief nie → kein
+                // Auto-Start-Refresh. Szenario: App-Neustart im Geofence,
+                // INITIAL_TRIGGER_ENTER (oder Neuregistrierungs-ENTER)
+                // innerhalb des 10-Min-Echo-Fensters → Session startete
+                // nie wieder. Der Processor dedupliziert den Trigger
+                // selbst (skipTriggerCreation) und refresht die Session.
+                // EXIT-Echos bleiben hart unterdrückt (kein pending) —
+                // dort gibt es nichts zu refreshen.
+                if (transition == GeofenceTransition.Enter || transition == GeofenceTransition.Dwell) {
+                    pendingByGeofence[geofenceId] = PendingTransition(transition, now)
+                }
                 return false
             }
             pendingByGeofence[geofenceId] = PendingTransition(transition, now)

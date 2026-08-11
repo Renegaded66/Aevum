@@ -189,6 +189,8 @@ class M12RegressionTest {
         override suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?) {}
         override fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?> = flowOf(null)
         override fun getById(id: String): Flow<ActivitySession?> = flowOf(null)
+        // M18.64: Stabile externe Identität (idempotenter Garmin-Schlaf-Import).
+        override fun getByExternalId(externalId: String): Flow<List<ActivitySession>> = flowOf(emptyList())
         override suspend fun insert(session: ActivitySession) { inserted.add(session) }
         override suspend fun insertWithTags(session: ActivitySession, tags: List<com.d_drostes_apps.aevum.data.model.Tag>) { inserted.add(session) }
         override suspend fun update(session: ActivitySession) {}

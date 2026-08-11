@@ -88,10 +88,25 @@ class ActivityRecognitionWorker(
         val cluster = bridge.drainVehicleCluster()
         val exitAt = bridge.consumeVehicleExited()
 
+        // M18.64-FIX (Stale-Confirmation-Bug): Die Bestätigung wird IMMER
+        // konsumiert — vorher blieb das Flag stehen, wenn kein Cluster da
+        // war (DriveProbeWorker setzt markDriveConfirmed, aber der Cluster
+        // wurde evtl. schon von einem parallelen Lauf gedrained). Ein
+        // stehengebliebenes Flag ließ später einen UNBESTÄTIGTEN Cluster
+        // durch (Sofort-Start ohne GPS-Beweis).
+        val confirmed = bridge.consumeDriveConfirmation()
+
+        // M18.64: Cluster aus GPS-Geschwindigkeits-Probes bauen, wenn kein
+        // AR-Cluster da ist (DriveProbeWorker-Pfad — Fahrt begann ohne
+        // Google-IN_VEHICLE-Event). Start = ältester Probe im Fenster.
+        val effectiveCluster = cluster ?: if (confirmed) {
+            DriveDetectionEngine.toVehicleCluster(bridge.currentDriveProbes())
+        } else null
+
         // M18.45: Bestätigungs-Gate gilt nur für einen Start-Cluster.
         // Bei einem EXIT darf ein leerer/alter Cluster niemals verhindern,
         // dass die laufende Session zuerst beendet wird.
-        if (cluster != null && !bridge.consumeDriveConfirmation() && exitAt == null) {
+        if (effectiveCluster != null && !confirmed && exitAt == null) {
             Log.d(TAG, "Fahrt nicht per GPS bestätigt — Cluster verworfen (kein Sofort-Start)")
             return Result.success()
         }
@@ -120,7 +135,7 @@ class ActivityRecognitionWorker(
             existingLive.sourceType == "ACTIVITY_RECOGNITION_AUTO"
         ) {
             Log.d(TAG, "Auto-Mobilitäts-Session läuft bereits — Cluster nur als Trigger verbucht")
-            if (cluster != null) {
+            if (effectiveCluster != null) {
                 val detId = UUID.randomUUID().toString()
                 detRepo.insert(
                     DetectionEvent(
@@ -128,9 +143,9 @@ class ActivityRecognitionWorker(
                         rawEventId = null,
                         sourceId = "activity_recognition",
                         kind = AutomationConstants.DETECTION_ACTIVITY_RECOGNITION_IN_VEHICLE,
-                        startAt = cluster.startMs,
-                        endAt = cluster.endMs,
-                        confidence = (cluster.peakConfidence / 100f).coerceIn(0f, 1f),
+                        startAt = effectiveCluster.startMs,
+                        endAt = effectiveCluster.endMs,
+                        confidence = (effectiveCluster.peakConfidence / 100f).coerceIn(0f, 1f),
                         metadataJson = "{\"duplicate\":true}"
                     )
                 )
@@ -138,7 +153,7 @@ class ActivityRecognitionWorker(
             return Result.success()
         }
 
-        if (cluster == null) return Result.success()
+        if (effectiveCluster == null) return Result.success()
 
         // M18.42-FIX (Root Cause "Autofahrt wird nicht aufgezeichnet"):
         // Der MIN_CLUSTER_DURATION_MS-Check (90s) verhinderte den Start
@@ -154,19 +169,19 @@ class ActivityRecognitionWorker(
         // oder sehr wahrscheinlichen Schlaf-Fenster liegt, handelt es sich
         // um eine IN_VEHICLE-False-Positive (z.B. Vibration im Bus, Sensor-
         // Spring). Wir verwerfen den Cluster hier komplett.
-        if (sleepShield.shouldSuppress(cluster.startMs)) {
+        if (sleepShield.shouldSuppress(effectiveCluster.startMs)) {
             android.util.Log.d(
                 "ActivityRecognitionWorker",
-                "IN_VEHICLE-Cluster im Schlaf-Fenster → suppressed (start=${cluster.startMs})"
+                "IN_VEHICLE-Cluster im Schlaf-Fenster → suppressed (start=${effectiveCluster.startMs})"
             )
             return Result.success()
         }
 
         val now = System.currentTimeMillis()
-        val confidence: Float = (cluster.peakConfidence / 100f).coerceIn(0f, 1f)
+        val confidence: Float = (effectiveCluster.peakConfidence / 100f).coerceIn(0f, 1f)
 
         // Dedup: wenn schon ein Roh-Event mit dieser Cluster-ID existiert → skip
-        val externalId = "ar_invehicle_${cluster.startMs}_${cluster.endMs}"
+        val externalId = "ar_invehicle_${effectiveCluster.startMs}_${effectiveCluster.endMs}"
         val existing = rawRepo.getBySourceAndExternalId("activity_recognition", externalId).first()
         if (existing != null) return Result.success()
 
@@ -178,10 +193,10 @@ class ActivityRecognitionWorker(
                 externalId = externalId,
                 eventType = "IN_VEHICLE_CLUSTER",
                 observedAt = now,
-                startAt = cluster.startMs,
-                endAt = cluster.endMs,
+                startAt = effectiveCluster.startMs,
+                endAt = effectiveCluster.endMs,
                 timezoneId = java.time.ZoneId.systemDefault().id,
-                payloadJson = "{\"peakConfidence\":$confidence,\"sampleCount\":${cluster.sampleCount}}"
+                payloadJson = "{\"peakConfidence\":$confidence,\"sampleCount\":${effectiveCluster.sampleCount}}"
             )
         )
 
@@ -192,15 +207,15 @@ class ActivityRecognitionWorker(
                 rawEventId = rawId,
                 sourceId = "activity_recognition",
                 kind = AutomationConstants.DETECTION_ACTIVITY_RECOGNITION_IN_VEHICLE,
-                startAt = cluster.startMs,
-                endAt = cluster.endMs,
+                startAt = effectiveCluster.startMs,
+                endAt = effectiveCluster.endMs,
                 confidence = confidence,
-                metadataJson = "{\"peakConfidence\":$confidence,\"sampleCount\":${cluster.sampleCount}}"
+                metadataJson = "{\"peakConfidence\":$confidence,\"sampleCount\":${effectiveCluster.sampleCount}}"
             )
         )
 
-        val hours = cluster.durationMs / 3_600_000
-        val minutes = (cluster.durationMs % 3_600_000) / 60_000
+        val hours = effectiveCluster.durationMs / 3_600_000
+        val minutes = (effectiveCluster.durationMs % 3_600_000) / 60_000
         val durationStr = when {
             hours > 0 -> "${hours}h ${minutes}m"
             minutes > 0 -> "${minutes}m"
@@ -213,12 +228,12 @@ class ActivityRecognitionWorker(
         triggerRepo.insert(
             TriggerEvent(
                 id = UUID.randomUUID().toString(),
-                occurredAt = cluster.startMs,
+                occurredAt = effectiveCluster.startMs,
                 type = "DRIVING_STARTED",
                 source = "activity_recognition",
                 confidence = confidence,
                 detectionEventId = detectionId,
-                metadataJson = "{\"clusterDurationMs\":${cluster.durationMs},\"peakConfidence\":$confidence}",
+                metadataJson = "{\"clusterDurationMs\":${effectiveCluster.durationMs},\"peakConfidence\":$confidence}",
                 anchorQuality = "HIGH"
             )
         )
@@ -227,12 +242,12 @@ class ActivityRecognitionWorker(
         triggerRepo.insert(
             TriggerEvent(
                 id = UUID.randomUUID().toString(),
-                occurredAt = cluster.endMs,
+                occurredAt = effectiveCluster.endMs,
                 type = "DRIVING_ENDED",
                 source = "activity_recognition",
                 confidence = confidence,
                 detectionEventId = detectionId,
-                metadataJson = "{\"clusterDurationMs\":${cluster.durationMs}}",
+                metadataJson = "{\"clusterDurationMs\":${effectiveCluster.durationMs}}",
                 anchorQuality = "HIGH"
             )
         )
@@ -246,8 +261,8 @@ class ActivityRecognitionWorker(
             // zwischen Auto/Bus/Zug, alle sind IN_VEHICLE. Eine ehrliche
             // Kategorie "Mobilität" statt einer Lügen-Kategorie "Autofahren".
             activityTypeId = "transport",
-            startAt = cluster.startMs,
-            endAt = cluster.endMs,
+            startAt = effectiveCluster.startMs,
+            endAt = effectiveCluster.endMs,
             confidence = confidence,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
             reason = "Activity Recognition: $durationStr im Fahrzeug (Konfidenz ${(confidence * 100).toInt()}%)",
@@ -286,9 +301,9 @@ class ActivityRecognitionWorker(
                         sourceType = "ACTIVITY_RECOGNITION_AUTO",
                         // startedAt = Cluster-Start, NICHT now() — der User
                         // war ja schon die ganze Zeit im Fahrzeug.
-                        startedAt = cluster.startMs
+                        startedAt = effectiveCluster.startMs
                     )
-                    Log.d(TAG, "Mobilitäts-Session gestartet: ${session.id} (start=${cluster.startMs})")
+                    Log.d(TAG, "Mobilitäts-Session gestartet: ${session.id} (start=${effectiveCluster.startMs})")
                     // Foreground-Service starten, damit der Timer weiterläuft
                     // wenn der User die App schließt.
                     com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
@@ -353,6 +368,62 @@ class ActivityRecognitionBridge @Inject constructor(
     /** Letzter IN_VEHICLE-Sample — Herzschlag für den Watchdog. */
     @Synchronized
     fun lastVehicleSample(): Long = lastVehicleSampleMs
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.64: GPS-GESCHWINDIGKEITS-PROBES (DriveProbeWorker).
+    //
+    // Unabhängiger Erkennungspfad neben Googles IN_VEHICLE-Transitions:
+    // Der DriveProbeWorker holt alle 2 Minuten einen GPS-Fix und puffert
+    // hier die Geschwindigkeits-Probes. Die DriveDetectionEngine
+    // klassifiziert die Serie (mehrere aufeinanderfolgende Messungen
+    // über AUTO_SPEED_MPS = echte Fahrt). Damit werden Fahrten auch
+    // erkannt, wenn Google kein IN_VEHICLE-Event liefert (App im
+    // Hintergrund, Fahrt begann vor dem App-Start, Sensor-Spring).
+    //
+    // Herzschlag-Kopplung: Eine als Fahrt klassifizierte Probe refresht
+    // lastVehicleSampleMs — der DriveWatchdog (8 Min ohne Signal) lebt
+    // damit auch bei AR-losen Fahrten. Stillstands-Probes refreshen den
+    // Herzschlag NICHT → der Watchdog stoppt die Session am Ziel.
+    // ──────────────────────────────────────────────────────────────
+    private val driveProbes = java.util.Collections.synchronizedList(
+        mutableListOf<com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.DriveProbe>()
+    )
+
+    /** M18.64: GPS-Probe puffern. [refreshHeartbeat] nur bei bestätigter
+     *  Fahrt-Klassifikation true — Stillstand darf den Watchdog nicht
+     *  am Leben halten. Alte Probes (> 15 Min) werden beim Hinzufügen
+     *  entfernt — der Puffer bleibt auf das Erkennungsfenster begrenzt. */
+    @Synchronized
+    fun addDriveProbe(
+        probe: com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.DriveProbe,
+        refreshHeartbeat: Boolean
+    ) {
+        val cutoff = probe.timestampMs - com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.MAX_PROBE_AGE_MS
+        driveProbes.removeAll { it.timestampMs < cutoff }
+        driveProbes.add(probe)
+        if (refreshHeartbeat) lastVehicleSampleMs = probe.timestampMs
+    }
+
+    /** M18.64: Herzschlag der Fahrt direkt refreshen (nach bestätigter
+     *  GPS-Klassifikation). Hält den DriveWatchdog am Leben, wenn Google
+     *  keine IN_VEHICLE-Samples liefert (Normalfall bei GPS-Erkennung). */
+    @Synchronized
+    fun refreshDriveHeartbeat(tsMs: Long) {
+        lastVehicleSampleMs = tsMs
+    }
+
+    /** M18.64: Alle gepufferten Probes entnehmen (atomar). */
+    @Synchronized
+    fun drainDriveProbes(): List<com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.DriveProbe> {
+        val copy = driveProbes.toList()
+        driveProbes.clear()
+        return copy
+    }
+
+    /** M18.64: Aktuelle Probes lesen (ohne zu leeren). */
+    @Synchronized
+    fun currentDriveProbes(): List<com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.DriveProbe> =
+        driveProbes.toList()
 
     // M18.45: Bestätigungs-Flag. Der DriveConfirmWorker setzt es, wenn
     // nach 2 Minuten die GPS-Bewegung ≥ 200 m bestätigt hat. Der

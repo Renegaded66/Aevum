@@ -18,7 +18,12 @@ import java.io.Serializable
         Index(value = ["deleted_at", "start_at"]),
         Index("source_candidate_id"),
         Index("supersedes_session_id"),
-        Index("session_status")
+        Index("session_status"),
+        // M18.64: Stabile externe Identität (z.B. Garmin-Schlaf-Nacht).
+        // Ermöglicht idempotente Imports: gleiche externalId = gleicher
+        // Datensatz → UPDATE statt Insert (kein Duplikat bei wiederholtem
+        // Sync, auch wenn Garmin die Zeiten nachträglich ändert).
+        Index("external_id")
     ],
     foreignKeys = [
         ForeignKey(
@@ -61,6 +66,10 @@ data class ActivitySession(
     @ColumnInfo(name = "updated_by") val updatedBy: String? = null,
     @ColumnInfo(name = "source_candidate_id") val sourceCandidateId: String? = null,
     @ColumnInfo(name = "source_trigger_id") val sourceTriggerId: String? = null,
+    // M18.64: Stabile externe Identität für idempotente Imports.
+    // Garmin-Schlaf: "garmin_sleep_<Aufwach-Tag>" — Garmin ändert die
+    // Schlafzeiten nachträglich, aber die Nacht-Identität bleibt stabil.
+    @ColumnInfo(name = "external_id") val externalId: String? = null,
     @ColumnInfo(name = "supersedes_session_id") val supersedesSessionId: String? = null,
     val confidence: Float = 1.0f,
     @ColumnInfo(name = "is_user_edited") val isUserEdited: Boolean = false,

@@ -31,6 +31,8 @@ interface ActivityRepository {
     suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?)
     fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?>
     fun getById(id: String): Flow<ActivitySession?>
+    // M18.64: Stabile externe Identität (idempotenter Garmin-Schlaf-Import).
+    fun getByExternalId(externalId: String): Flow<List<ActivitySession>>
     suspend fun insert(session: ActivitySession)
     suspend fun insertWithTags(session: ActivitySession, tags: List<Tag>)
     suspend fun update(session: ActivitySession)

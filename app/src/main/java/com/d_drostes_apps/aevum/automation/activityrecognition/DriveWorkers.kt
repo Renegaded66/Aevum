@@ -130,6 +130,33 @@ class DriveConfirmWorker(
         val distance = haversine(first.latitude, first.longitude, second.latitude, second.longitude)
         if (distance >= DRIVE_MIN_DISTANCE_M) {
             Log.d(TAG, "Fahrt bestätigt: ${distance.toInt()}m Bewegung in 60s")
+            // M18.64-REVIEW-FIX: Die zwei GPS-Fixes als Probes puffern.
+            // Der ActivityRecognitionWorker baut seinen Cluster aus dem
+            // AR-Buffer ODER (falls der AR-Cluster schon von einem
+            // parallelen Lauf gedrained wurde) aus den GPS-Probes. Ohne
+            // diese Probes ginge die Bestätigung verloren, wenn kein
+            // AR-Cluster mehr da ist → keine Session trotz bestätigter
+            // Fahrt (der alte Stale-Confirmation-Bug).
+            bridge.addDriveProbe(
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.DriveProbe(
+                    timestampMs = first.time,
+                    speedMps = null,
+                    accuracyMeters = first.accuracy,
+                    latitude = first.latitude,
+                    longitude = first.longitude
+                ),
+                refreshHeartbeat = false
+            )
+            bridge.addDriveProbe(
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionEngine.DriveProbe(
+                    timestampMs = second.time,
+                    speedMps = null,
+                    accuracyMeters = second.accuracy,
+                    latitude = second.latitude,
+                    longitude = second.longitude
+                ),
+                refreshHeartbeat = false
+            )
             bridge.markDriveConfirmed()
             WorkManager.getInstance(applicationContext)
                 .enqueue(OneTimeWorkRequestBuilder<ActivityRecognitionWorker>().build())
@@ -322,4 +349,166 @@ private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): D
         cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
         sin(dLon / 2) * sin(dLon / 2)
     return r * 2 * atan2(sqrt(a), sqrt(1 - a))
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// M18.64: GPS-GESCHWINDIGKEITS-PFAD (DriveProbeWorker)
+//
+// Root-Cause (User: \"Autofahrten werden nicht zuverlässig erkannt\"):
+// Die Erkennung hing KOMPLETT an Googles IN_VEHICLE-Transitions. Wenn
+// Google kein Event liefert (App im Hintergrund, Fahrt begann vor dem
+// App-Start, Sensor-Spring, AR-Permission fehlt), gab es KEINEN
+// unabhängigen Pfad — die Fahrt wurde nie erkannt.
+//
+// Dieser Worker ist der unabhängige Fallback: Er holt alle 2 Minuten
+// einen GPS-Fix (CurrentLocationProvider, geofence-unabhängig) und
+// klassifiziert die Geschwindigkeits-Serie über DriveDetectionEngine
+// (mehrere aufeinanderfolgende Messungen >= 8 m/s über >= 1 Minute —
+// robust gegen Ausreißer, Gehen, Laufen, Fahrrad).
+//
+// Selbst-Erneuerung statt PeriodicWork: WorkManager-Minimum für
+// periodische Jobs ist 15 Minuten (M18.62-Lektion) — der Takt plant
+// sich am Ende jedes Laufs selbst neu (OneTimeWork + REPLACE).
+// ══════════════════════════════════════════════════════════════════════
+
+/** Takt: alle 2 Minuten ein GPS-Fix (Akku: 1 Fix/2 Min, nur bei
+ *  Bewegung relevant — der Fix selbst ist ein einzelner CurrentLocation-
+ *  Call, kein kontinuierlicher Stream). */
+private const val DRIVE_PROBE_INTERVAL_MS = 2L * 60 * 1000
+private const val DRIVE_PROBE_WORK = "aevum.drive_probe"
+
+/**
+ * M18.64: GPS-Geschwindigkeits-Probe für die Fahrterkennung.
+ *
+ * Läuft dauerhaft im Hintergrund (selbst-erneuernd), solange die
+ * Autofahrt-Erkennung aktiv ist. Jeder Lauf:
+ *  1. GPS-Fix holen (Speed + Accuracy + Distanz zum letzten Probe).
+ *  2. Probe puffern (ActivityRecognitionBridge).
+ *  3. Serie klassifizieren (DriveDetectionEngine).
+ *  4. Fahrt bestätigt → markDriveConfirmed + Session-Starter enqueuen
+ *     (Cluster-Start = ältester Probe → deckt \"Fahrt begann vor der
+ *     Erkennung\" ab) + Watchdog starten.
+ *  5. Nächsten Lauf planen (REPLACE).
+ */
+class DriveProbeWorker(
+    appContext: Context,
+    workerParams: WorkerParameters
+) : CoroutineWorker(appContext, workerParams) {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface Deps {
+        fun activityRecognitionBridge(): ActivityRecognitionBridge
+        fun locationProvider(): com.d_drostes_apps.aevum.automation.location.CurrentLocationProvider
+    }
+
+    override suspend fun doWork(): Result {
+        val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
+        val bridge = deps.activityRecognitionBridge()
+
+        // Gate: Autofahrt-Erkennung in den Trigger-Settings aus?
+        // (Cache in der Bridge — kein DB-Zugriff pro Lauf nötig.)
+        if (!bridge.isDrivingEnabled()) {
+            // Takt NICHT weiterplanen — der Scheduler startet ihn neu,
+            // sobald das Gate wieder an ist (App-Start / Settings-Änderung).
+            return Result.success()
+        }
+
+        val provider = deps.locationProvider()
+        val now = System.currentTimeMillis()
+
+        // 1) GPS-Fix holen (geofence-unabhängig).
+        val fix = try {
+            when (val r = provider.getCurrentLocation()) {
+                is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success -> r
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "GPS-Fix fehlgeschlagen: ${e.message}")
+            null
+        }
+
+        if (fix != null) {
+            // 2) Probe puffern. Distanz zum letzten Probe für den
+            //    GPS-Sprung-Ausreißer-Filter.
+            val last = bridge.currentDriveProbes().lastOrNull()
+            val distance = if (last != null && last.latitude != null && last.longitude != null) {
+                haversine(last.latitude!!, last.longitude!!, fix.latitude, fix.longitude)
+            } else null
+            val probe = DriveDetectionEngine.DriveProbe(
+                timestampMs = now,
+                speedMps = fix.speedMps,
+                accuracyMeters = fix.accuracyMeters,
+                distanceFromLastM = distance,
+                latitude = fix.latitude,
+                longitude = fix.longitude
+            )
+            bridge.addDriveProbe(probe, refreshHeartbeat = false)
+            Log.d(TAG, "Probe: speed=${fix.speedMps?.let { "%.1f".format(it) } ?: "?"} m/s, acc=${fix.accuracyMeters.toInt()}m")
+
+            // 3) Serie klassifizieren.
+            when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now)) {
+                is DriveDetectionEngine.Classification.Driving -> {
+                    Log.d(TAG, "Fahrt per GPS-Geschwindigkeit bestätigt (confidence=${result.confidence})")
+                    // 4) Session-Pipeline anstoßen: Cluster in die Bridge
+                    //    legen (Start = ältester Probe), Bestätigung setzen,
+                    //    Session-Starter enqueuen, Watchdog starten.
+                    DriveDetectionEngine.toVehicleCluster(bridge.currentDriveProbes(), now)?.let { cluster ->
+                        bridge.addSample(cluster.startMs, 75)
+                        bridge.addSample(cluster.endMs, 75)
+                    }
+                    bridge.markDriveConfirmed()
+                    // M18.64-REVIEW-FIX: Herzschlag refreshen — sonst stoppt
+                    // der DriveWatchdog (8 Min ohne IN_VEHICLE-Sample) die
+                    // GPS-erkannte Session, obwohl die Fahrt weiterläuft
+                    // (Google liefert bei GPS-Erkennung oft keine Samples).
+                    bridge.refreshDriveHeartbeat(now)
+                    // M18.64-REVIEW-FIX: Puffer leeren — die bestätigte
+                    // Fahrt ist in den Cluster übergegangen. Ohne das
+                    // würde die Engine bei jedem weiteren Lauf erneut
+                    // Driving melden (harmlos dank Duplikat-Schutz, aber
+                    // der Puffer wüchse unbegrenzt).
+                    bridge.drainDriveProbes()
+                    WorkManager.getInstance(applicationContext)
+                        .enqueue(OneTimeWorkRequestBuilder<ActivityRecognitionWorker>().build())
+                    DriveWatchdogWorker.schedule(applicationContext, DriveWatchdogWorker.MODE_NO_SIGNAL)
+                }
+                is DriveDetectionEngine.Classification.NotDriving -> {
+                    Log.d(TAG, "Keine Fahrt (Probes=${bridge.currentDriveProbes().size})")
+                }
+                DriveDetectionEngine.Classification.InsufficientData -> {
+                    Log.d(TAG, "Zu wenige Probes für eine Entscheidung (${bridge.currentDriveProbes().size})")
+                }
+            }
+        } else {
+            Log.d(TAG, "Kein GPS-Fix — Probe übersprungen")
+        }
+
+        // 5) Nächsten Lauf planen (REPLACE = immer genau ein Takt).
+        scheduleNext(applicationContext)
+        return Result.success()
+    }
+
+    companion object {
+        private const val TAG = "DriveProbeWorker"
+
+        /** Takt (neu) starten — REPLACE: genau ein Lauf, jeder Start
+         *  resetet den Timer. */
+        fun schedule(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                DRIVE_PROBE_WORK,
+                ExistingWorkPolicy.REPLACE,
+                OneTimeWorkRequestBuilder<DriveProbeWorker>()
+                    .setInitialDelay(DRIVE_PROBE_INTERVAL_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .build()
+            )
+        }
+
+        /** Takt stoppen (z.B. Gate aus). */
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(DRIVE_PROBE_WORK)
+        }
+
+        private fun scheduleNext(context: Context) = schedule(context)
+    }
 }

@@ -991,6 +991,19 @@ class TriggerSettingsViewModel @Inject constructor(
                 }
             }
         }
+        // M18.64: GPS-Geschwindigkeits-Pfad synchron zum Gate starten/
+        // stoppen. Der DriveProbeWorker ist der unabhängige Fallback zur
+        // AR-Transition-Erkennung — ohne ihn gibt es keine Fahrterkennung,
+        // wenn Google kein IN_VEHICLE-Event liefert.
+        try {
+            if (enabled) {
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.schedule(app)
+            } else {
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.cancel(app)
+            }
+        } catch (e: Exception) {
+            Log.e("TriggerSettings", "DriveProbeWorker sync fehlgeschlagen", e)
+        }
     }
     fun setWalking(enabled: Boolean) = upsert { it.copy(walkingDetectionEnabled = enabled) }
     fun setBicycle(enabled: Boolean) = upsert { it.copy(bicycleDetectionEnabled = enabled) }

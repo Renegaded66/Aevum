@@ -62,6 +62,10 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE source_candidate_id = :candidateId AND deleted_at IS NULL")
     fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?>
 
+    // M18.64: Stabile externe Identität — idempotenter Import (Garmin-Schlaf).
+    @Query("SELECT * FROM activity_session WHERE external_id = :externalId AND deleted_at IS NULL ORDER BY created_at ASC")
+    fun getByExternalId(externalId: String): Flow<List<ActivitySession>>
+
     @Query("SELECT * FROM activity_session WHERE supersedes_session_id = :id AND deleted_at IS NULL")
     fun getSupersededBy(id: String): Flow<ActivitySession?>
 

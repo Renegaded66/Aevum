@@ -43,6 +43,8 @@ class ActivityRepositoryImpl(
     override suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?) = activityDao.updatePauseData(id, totalPausedMs, pauseSegmentsJson, System.currentTimeMillis())
     override fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?> = activityDao.getBySourceCandidateId(candidateId)
     override fun getById(id: String): Flow<ActivitySession?> = activityDao.getById(id)
+    // M18.64: Stabile externe Identität (idempotenter Garmin-Schlaf-Import).
+    override fun getByExternalId(externalId: String): Flow<List<ActivitySession>> = activityDao.getByExternalId(externalId)
     override suspend fun insert(session: ActivitySession) = activityDao.insert(session)
     override suspend fun insertWithTags(session: ActivitySession, tags: List<Tag>) {
         activityDao.insert(session)

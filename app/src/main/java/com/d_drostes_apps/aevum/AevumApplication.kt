@@ -268,6 +268,17 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ActivityRecognitionRegistrar failed — continuing", e)
         }
+        // M18.64: GPS-Geschwindigkeits-Pfad für die Fahrterkennung starten.
+        // Unabhängiger Fallback zu Googles IN_VEHICLE-Transitions: holt
+        // alle 2 Minuten einen GPS-Fix und erkennt Fahrten über die
+        // Geschwindigkeits-Serie (DriveDetectionEngine). Selbst-erneuernd;
+        // der Worker prüft das driving-Gate selbst und stoppt den Takt,
+        // wenn die Erkennung deaktiviert ist.
+        try {
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "DriveProbeWorker schedule failed — continuing", e)
+        }
         // M17.4: Initial-Activity-Snapshot — falls der User gerade im Auto
         // sitzt und die App frisch startet (Cold-Start), soll das ebenfalls
         // erkannt werden. Idempotent dank KEEP-Policy im Scheduler.

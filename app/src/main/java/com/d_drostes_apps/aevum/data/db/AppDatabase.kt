@@ -60,7 +60,9 @@ import com.d_drostes_apps.aevum.data.model.*
     // kaputte v24 (allowance_day_override ohne FK).
     // M18.61: v26 — app_limit Tabelle (Digital Balance).
     // M18.61f: v28 — balance_profile + balance_profile_app.
-    version = 30,
+    // M18.64: v31 — activity_session.external_id (stabile Import-Identität
+    // für idempotenten Garmin-Schlaf-Sync).
+    version = 31,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1276,6 +1278,19 @@ abstract class AppDatabase : RoomDatabase() {
                         "PRIMARY KEY(`id`))"
                 )
                 database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_ping_trigger_ipAddress` ON `ping_trigger` (`ipAddress`)")
+            }
+        }
+
+        // M18.64: v30 → v31 — activity_session.external_id für stabile
+        // Import-Identität (Garmin-Schlaf-Deduplizierung über die Nacht,
+        // nicht über die flüchtige Schlafzeit). Spalte + Index, kein
+        // Datenverlust, keine Unique-Constraint (mehrere Quellen können
+        // dieselbe externalId theoretisch teilen — die App dedupliziert
+        // in der Import-Logik, nicht in der DB).
+        val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `activity_session` ADD COLUMN `external_id` TEXT")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_external_id` ON `activity_session` (`external_id`)")
             }
         }
     }

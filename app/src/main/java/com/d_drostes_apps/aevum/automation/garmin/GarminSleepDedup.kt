@@ -44,6 +44,20 @@ object GarminSleepDedup {
     }
 
     /**
+     * M18.64: Stabile externe Identität einer Garmin-Schlaf-Nacht.
+     *
+     * Garmin liefert KEINE stabile Schlaf-ID über die Bridge (empirisch
+     * belegt: die Bridge-Caches enthalten nur Start/Ende/Dauer). Die
+     * einzig stabile Semantik ist der AUFWACH-TAG: date=X = Schlaf der
+     * Nacht zum Morgen von X. Garmin ändert die Schlafzeiten nachträglich
+     * (z.B. 23:46–08:01 → 00:10–08:00), aber die Nacht-Identität bleibt
+     * gleich. Diese ID wird in activity_session.external_id persistiert
+     * und macht den Import idempotent: Sync 1 legt an, Sync 2..N finden
+     * die ID und UPDATEN nur noch.
+     */
+    fun externalIdForNight(wakeDateIso: String): String = "garmin_sleep_$wakeDateIso"
+
+    /**
      * Primär-Session einer Nacht: die ÄLTESTE (frühestes createdAt).
      * Bei gleichem createdAt die mit der kleinsten ID (deterministisch).
      */
@@ -51,6 +65,37 @@ object GarminSleepDedup {
         sessions.minWithOrNull(
             compareBy({ it.createdAt ?: Long.MAX_VALUE }, { it.id })
         )
+
+    /**
+     * M18.64: Findet die Primär-Session einer Nacht über die stabile
+     * externalId (falls bereits persistiert). Liefert die älteste
+     * (frühestes createdAt) — deterministisch.
+     */
+    fun primaryByExternalId(sessions: List<ActivitySession>): ActivitySession? =
+        primarySession(sessions)
+
+    /**
+     * M18.64: Bestands-Bereinigung — Duplikate derselben Nacht, die VOR
+     * der externalId-Persistierung entstanden sind (Alt-Bestände ohne
+     * externalId). Kriterium: GARMIN_SLEEP_AUTO-Sessions, die das
+     * Garmin-Intervall um mehr als [OVERLAP_THRESHOLD_MS] überlappen.
+     * Die älteste bleibt (Primär), alle anderen werden soft-deleted.
+     *
+     * WICHTIG (M18.63-Selbstprüfung): Es werden NUR überlappende
+     * Sessions bereinigt — nicht-überlappende GARMIN_SLEEP_AUTO-Sessions
+     * im weiten Nachtfenster sind echte andere Schlafereignisse
+     * (Mittagsschlaf) und bleiben unberührt.
+     */
+    fun duplicatesToCleanup(
+        nightSessions: List<ActivitySession>,
+        sleepStart: Long,
+        sleepEnd: Long
+    ): List<ActivitySession> {
+        val overlapping = overlappingSessions(nightSessions, sleepStart, sleepEnd)
+            .filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
+        val primary = primarySession(overlapping) ?: return emptyList()
+        return overlapping.filter { it.id != primary.id }
+    }
 
     /**
      * Duplikate, die bereinigt werden müssen: alle außer der Primär-Session.

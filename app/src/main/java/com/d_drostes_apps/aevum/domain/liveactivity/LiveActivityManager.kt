@@ -532,4 +532,8 @@ sealed class LiveActivityState {
     }
 }
 
-private const val AUTO_DISCARD_DEFAULT_MS = 60_000L
+// M18.64: Konsistent mit GeofenceTransitionProcessor.AUTO_DISCARD_MS (90s).
+// Der Refresh-Timer muss dieselbe Dauer nutzen wie der Start-Timer, sonst
+// verkürzt ein Refresh die Discard-Frist (60s < 90s) und der DWELL-Beweis
+// kommt zu spät.
+private const val AUTO_DISCARD_DEFAULT_MS = 90_000L

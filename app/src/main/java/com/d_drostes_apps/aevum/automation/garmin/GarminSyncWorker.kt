@@ -225,54 +225,34 @@ class GarminSyncWorker(
 
             val now = System.currentTimeMillis()
 
-            // M18.62: Die Nacht wird über den AUFWACH-Tag identifiziert.
-            // date=X = Schlaf der Nacht zum Morgen von X.
+            // M18.64: STABILE NACHT-IDENTITÄT statt Zeit-Überlappung.
             //
-            // M18.63-CRITICAL (Root Cause "Garmin-Schlaf wird ~10x
-            // synchronisiert, überlappend"): Der alte Filter
-            // `endAt in wakeStart..wakeEnd` (endAt zwischen 00:00 und
-            // 14:00) ist FRAGIL gegen Garmins nachträgliche Zeit-
-            // änderungen. Die Bridge-Caches beweisen: Garmin ändert
-            // dieselbe Nacht mehrfach (z.B. 23:46–08:01 → 00:10–08:00).
-            // Sobald die Session durch ein Update einen endAt außerhalb
-            // des 00:00–14:00-Fensters bekommt (oder ein Mittagsschlaf
-            // endet später), fällt sie aus dem Filter → der Import legt
-            // eine NEUE Session an → Überlappungs-Duplikate, die sich
-            // bei jedem Sync weiter aufschaukeln.
-            // JETZT: Überlappungs-basiert — alle Sleep-Sessions der
-            // Nacht finden, unabhängig von der exakten endAt-Lage. Das
-            // Fenster deckt den gesamten möglichen Schlafzeitraum ab
-            // (12h vor Mitternacht bis 14h nach Mitternacht).
-            val nightStart = day.atStartOfDay(zone).minusHours(12).toInstant().toEpochMilli()
-            val nightEnd = day.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
-            val nightSessions = repo.getOverlappingRange(nightStart, nightEnd)
-                .first()
-                .filter {
-                    it.deletedAt == null && it.activityTypeId == "sleep"
-                }
-            // Überlappungs-Dedup (M18.63): pure Logik in GarminSleepDedup —
-            // Unit-getestet, Single Source of Truth für den Worker.
-            val nightSessionsOverlapping = GarminSleepDedup.overlappingSessions(
-                nightSessions, sleep.startGmtMs, sleep.endGmtMs
-            )
-            val garminSessions = nightSessionsOverlapping.filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
-            val otherSleep = nightSessionsOverlapping.filter { it.sourceType != "GARMIN_SLEEP_AUTO" }
+            // Root-Cause (empirisch via Bridge-Caches belegt): Garmin
+            // ändert dieselbe Nacht NACH dem Sync mehrfach nachträglich
+            // (z.B. 23:46–08:01 → 00:10–08:00). Ein Dedup, der an der
+            // exakten Zeit oder einem endAt-Fenster hängt, verfehlt die
+            // Session nach einer solchen Änderung und legt ein Duplikat
+            // an — das sich bei jedem 30-Min-Sync weiter aufschaukelt.
+            //
+            // Die einzig stabile Semantik ist der AUFWACH-TAG (date=X =
+            // Schlaf der Nacht zum Morgen von X). Diese Identität wird
+            // in activity_session.external_id persistiert:
+            //   Sync 1  → Insert mit externalId="garmin_sleep_<date>"
+            //   Sync 2..N → getByExternalId findet die Session → UPDATE
+            //   (Zeiten übernehmen, revision+1) — NIE ein zweiter Insert.
+            // Garmin-Änderungen aktualisieren also denselben Eintrag.
+            val externalId = GarminSleepDedup.externalIdForNight(day.toString())
 
-            // Heuristik-Sessions der Nacht löschen (Garmin gewinnt)
-            for (old in otherSleep) {
-                repo.softDelete(old.id, now)
-                android.util.Log.i(TAG, "Garmin-Schlaf ersetzt Heuristik-Session ${old.id}")
-            }
-
-            if (garminSessions.isNotEmpty()) {
-                // M18.62: Bestehende Garmin-Session der Nacht UPDATEN
-                // (gleiche ID) statt neu anlegen -> kein Duplikat.
-                // M18.63: Primär = älteste Session (deterministisch).
-                val primary = GarminSleepDedup.primarySession(garminSessions)!!
-                // Bestands-Duplikate derselben Nacht bereinigen
-                for (dup in GarminSleepDedup.duplicateSessions(garminSessions)) {
+            // 1) Bereits persistierte Nacht-Identität?
+            val byExternalId = repo.getByExternalId(externalId).first()
+            if (byExternalId.isNotEmpty()) {
+                // Primär = älteste (deterministisch); Rest = Duplikate
+                // (sollte es nicht geben, aber heilt z.B. abgebrochene
+                // Syncs) → bereinigen.
+                val primary = GarminSleepDedup.primaryByExternalId(byExternalId)!!
+                for (dup in byExternalId.filter { it.id != primary.id }) {
                     repo.softDelete(dup.id, now)
-                    android.util.Log.i(TAG, "Garmin-Schlaf-Duplikat bereinigt ${dup.id}")
+                    android.util.Log.i(TAG, "Garmin-Schlaf-Duplikat (externalId) bereinigt ${dup.id}")
                 }
                 repo.update(
                     primary.copy(
@@ -282,20 +262,62 @@ class GarminSyncWorker(
                         revision = primary.revision + 1
                     )
                 )
-                android.util.Log.i(TAG, "Garmin-Schlaf ${day} aktualisiert (${sleep.sleepTimeSeconds}s)")
+                android.util.Log.i(
+                    TAG,
+                    "Garmin-Schlaf $day aktualisiert (externalId=$externalId, ${sleep.sleepTimeSeconds}s)"
+                )
+                continue
+            }
+
+            // 2) Keine persistierte Identität → Alt-Bestand / Heuristik
+            //    im Nachtfenster suchen (Überlappungs-basiert, M18.63).
+            val nightStart = day.atStartOfDay(zone).minusHours(12).toInstant().toEpochMilli()
+            val nightEnd = day.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
+            val nightSessions = repo.getOverlappingRange(nightStart, nightEnd)
+                .first()
+                .filter {
+                    it.deletedAt == null && it.activityTypeId == "sleep"
+                }
+            val nightSessionsOverlapping = GarminSleepDedup.overlappingSessions(
+                nightSessions, sleep.startGmtMs, sleep.endGmtMs
+            )
+            val garminSessions = nightSessionsOverlapping.filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
+            val otherSleep = nightSessionsOverlapping.filter { it.sourceType != "GARMIN_SLEEP_AUTO" }
+
+            // Heuristik-Sessions der Nacht löschen (Garmin gewinnt —
+            // M18.59-Policy: die gewählte Quelle ist die Wahrheit).
+            for (old in otherSleep) {
+                repo.softDelete(old.id, now)
+                android.util.Log.i(TAG, "Garmin-Schlaf ersetzt Heuristik-Session ${old.id}")
+            }
+
+            if (garminSessions.isNotEmpty()) {
+                // Alt-Bestand OHNE externalId (vor M18.64 importiert):
+                // älteste Session als Primär übernehmen, externalId
+                // nachtragen, Zeiten aktualisieren; Duplikate derselben
+                // Nacht bereinigen. Damit werden Bestands-Duplikate
+                // sicher erkannt und zusammengeführt (Akzeptanzkriterium 2).
+                val primary = GarminSleepDedup.primarySession(garminSessions)!!
+                for (dup in GarminSleepDedup.duplicateSessions(garminSessions)) {
+                    repo.softDelete(dup.id, now)
+                    android.util.Log.i(TAG, "Garmin-Schlaf-Duplikat bereinigt ${dup.id}")
+                }
+                repo.update(
+                    primary.copy(
+                        externalId = externalId,
+                        startAt = sleep.startGmtMs,
+                        endAt = sleep.endGmtMs,
+                        updatedAt = now,
+                        revision = primary.revision + 1
+                    )
+                )
+                android.util.Log.i(
+                    TAG,
+                    "Garmin-Schlaf $day übernommen + externalId nachgetragen (${sleep.sleepTimeSeconds}s)"
+                )
             } else {
-                // M18.63-SELBSTPRÜFUNG: KEIN zusätzliches stale-Cleanup für
-                // nicht-überlappende GARMIN_SLEEP_AUTO-Sessions im weiten
-                // Nachtfenster! Erste Version löschte potenziell echte
-                // Mittagsschlaf-Sessions (endAt im Fenster [X-1 12:00, X
-                // 14:00], aber kein Überlapp mit dem Nachtschlaf) — ein
-                // Datenverlust-Risiko. Die realistischen Bug-Duplikate
-                // (gleicher Nachtschlaf, nur Minuten verschoben) überlappen
-                // sich alle und werden oben über den Overlap-Dedup + drop(1)
-                // auf EINE Session reduziert. Nicht-überlappende Sessions
-                // sind entweder echte andere Schlafereignisse (Mittagsschlaf)
-                // oder extrem seltene Alt-Bestände — im Zweifel NICHT löschen.
-                // Keine Garmin-Session der Nacht -> neu anlegen
+                // 3) Wirklich neu → Insert MIT externalId (idempotent für
+                //    alle weiteren Syncs).
                 val session = com.d_drostes_apps.aevum.data.model.ActivitySession(
                     id = UUID.randomUUID().toString(),
                     title = "Schlaf",
@@ -307,6 +329,7 @@ class GarminSyncWorker(
                     createdBy = "GARMIN_IMPORT",
                     updatedBy = null,
                     sourceCandidateId = null,
+                    externalId = externalId,
                     confidence = 1.0f,
                     isUserEdited = false,
                     createdAt = now,
@@ -314,7 +337,7 @@ class GarminSyncWorker(
                     revision = 1
                 )
                 repo.insert(session)
-                android.util.Log.i(TAG, "Garmin-Schlaf ${day} importiert (${sleep.sleepTimeSeconds}s)")
+                android.util.Log.i(TAG, "Garmin-Schlaf $day importiert (externalId=$externalId, ${sleep.sleepTimeSeconds}s)")
             }
         }
     }

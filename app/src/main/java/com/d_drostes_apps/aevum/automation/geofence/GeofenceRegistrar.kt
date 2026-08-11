@@ -70,7 +70,17 @@ class GeofenceRegistrar @Inject constructor(
             client.removeGeofences(pendingIntent()).await()
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
-                    .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+                    // M18.64-FIX (False-Start beim App-Öffnen): KEIN
+                    // INITIAL_TRIGGER_ENTER mehr. Vorher lieferte Google
+                    // bei jeder Neuregistrierung (App-Start, 6h-Refresh,
+                    // Boot) sofort einen ENTER, wenn der User im Geofence
+                    // war — mit dem M18.64-Dedup-Fix (ENTER-nach-ENTER
+                    // startet jetzt wieder) hätte JEDES App-Öffnen eine
+                    // Session gestartet, die DWELL nach 45s bestätigt
+                    // hätte (endlose False-Session "Zuhause").
+                    // Echte Übergänge (Betreten/Verlassen) liefert GMS
+                    // auch ohne Initial-Trigger zuverlässig — auch bei
+                    // geschlossener App und nach Neustart.
                     // ENTER + EXIT + DWELL: Google kann nach Reboot/Refresh
                     // nur DWELL liefern. Der Processor dedupliziert DWELL,
                     // nutzt ihn aber als bestätigten Aufenthalt.
