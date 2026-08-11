@@ -332,6 +332,8 @@ class LiveActivityManager @Inject constructor(
             sourceType = "GEOFENCE_AUTO",
             sourceTriggerId = sourceTriggerId
         )
+        // M18.63: Frischen Auto-Start ohne DWELL-Bestätigung beginnen.
+        resetDwellConfirmation(geofenceId)
         scheduleAutoDiscard(geofenceId, session.id, autoDiscardAfterMs)
         return session
     }
@@ -348,11 +350,21 @@ class LiveActivityManager @Inject constructor(
                 kotlinx.coroutines.delay(afterMs)
                 val current = liveSession.value
                 if (current != null && current.isLive && current.id == sessionId) {
-                    // M17: GPS-Sprung erkannt. Die Session lief autoDiscardAfterMs
-                    // lang, ohne dass der Geofence-Trigger nochmal bestätigt hat.
-                    // Wir verwerfen sie (softDelete) — der User hat den Geofence
-                    // wahrscheinlich nie wirklich betreten, nur ein GPS-Drift
-                    // hat es kurz so aussehen lassen.
+                    // M18.63-CRITICAL (Root Cause "Geofence startet keine
+                    // Aufzeichnung"): Die Session wurde per DWELL bestätigt
+                    // (User ist nachweislich 60s+ im Geofence) → der Discard
+                    // ist ein GPS-Sprung-Fehlalarm und darf NICHT feuern.
+                    // Ohne diesen Check wurde JEDE Auto-Session nach 60s
+                    // verworfen, weil Google ohne LoiteringDelay kein DWELL
+                    // lieferte und der Echo-Schutz wiederholte ENTERs
+                    // unterdrückte — der User sah nie eine Aufzeichnung.
+                    if (isConfirmedByDwell(geofenceId)) {
+                        android.util.Log.d(
+                            "LiveActivityManager",
+                            "Auto-Discard übersprungen: Session $sessionId per DWELL bestätigt (geofence $geofenceId)"
+                        )
+                        return@launch
+                    }
                     android.util.Log.d(
                         "LiveActivityManager",
                         "Auto-Discard nach ${afterMs}ms ohne Refresh: session $sessionId (geofence $geofenceId)"
@@ -375,6 +387,26 @@ class LiveActivityManager @Inject constructor(
             }
         }
         autoDiscardByGeofence[geofenceId] = AutoDiscardEntry(sessionId, job)
+    }
+
+    /**
+     * M18.63: DWELL-bestätigte Geofences merken. Ein DWELL-Transition
+     * (User 60s+ im Geofence) ist der Beweis, dass die Session echt ist —
+     * der Auto-Discard (GPS-Sprung-Schutz) darf sie danach nicht mehr
+     * verwerfen. Wird beim Auto-Start zurückgesetzt.
+     */
+    private val confirmedByDwell = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    fun markDwellConfirmed(geofenceId: String) {
+        confirmedByDwell.add(geofenceId)
+    }
+
+    private fun isConfirmedByDwell(geofenceId: String): Boolean =
+        confirmedByDwell.contains(geofenceId)
+
+    /** M18.63: Beim Auto-Start den DWELL-Bestätigungs-Status zurücksetzen. */
+    private fun resetDwellConfirmation(geofenceId: String) {
+        confirmedByDwell.remove(geofenceId)
     }
 
     /**

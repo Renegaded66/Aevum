@@ -47,6 +47,13 @@ class SleepImportWorker(
         // nächste Import legte eine zweite, identische Session an.
         // Jetzt wird auch gegen bestehende Sessions dedupliziert.
         fun activityRepository(): com.d_drostes_apps.aevum.data.repository.ActivityRepository
+        // M18.63-CRITICAL (Root Cause "Garmin-Schlaf wird ~10x
+        // synchronisiert"): Das sleepSource-Gate — Health-Connect-Schlaf
+        // darf NUR importieren, wenn der User Health Connect als Quelle
+        // gewählt hat. Vorher importierte der Worker IMMER (sobald die
+        // HC-Permission existierte), auch bei Quelle "garmin" — ein
+        // zweiter, unabhängiger Duplikat-Pfad neben dem Garmin-Import.
+        fun automationSettingsDao(): com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
     }
 
     override suspend fun doWork(): Result {
@@ -59,6 +66,20 @@ class SleepImportWorker(
         val reviewCandidateUseCase = deps.reviewCandidateUseCase()
         // M18.45: Repository für den Duplikat-Dedup gegen Sessions.
         val activityRepository = deps.activityRepository()
+
+        // M18.63: sleepSource-Gate. Wenn der User eine andere Schlaf-
+        // Quelle gewählt hat (garmin/screen/none), ist dieser Import
+        // ein No-Op — sonst entstehen Duplikate parallel zum
+        // Garmin-Import (der die gleiche Nacht einträgt).
+        val sleepSource = try {
+            deps.automationSettingsDao().getSettingsSync()?.sleepSource
+        } catch (e: Exception) {
+            null
+        }
+        if (sleepSource != "health_connect") {
+            android.util.Log.d(TAG, "sleepSource = ${sleepSource ?: "?"} — Health-Connect-Import ist No-Op")
+            return Result.success()
+        }
 
         if (!healthConnectManager.isAvailable()) {
             return Result.success()

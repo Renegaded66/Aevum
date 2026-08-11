@@ -18,6 +18,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * M18.58: Garmin Connect Sync-Worker.
@@ -50,6 +52,20 @@ class GarminSyncWorker(
     }
 
     override suspend fun doWork(): Result {
+        // M18.63-CRITICAL (Root Cause "Garmin-Schlaf wird mehrfach
+        // synchronisiert"): Serialisierung aller Sync-Läufe (periodisch
+        // 30min, manuell, Sleep-Import-on-arrival). Zwei parallele Läufe
+        // lesen dieselben Nacht-Sessions und legen ohne Mutex beide ein
+        // Duplikat an, BEVOR der Dedup des jeweils anderen den Insert
+        // sieht. Der Mutex macht den Sync prozessintern strikt sequentiell.
+        // (Über Prozessgrenzen hinweg schützt zusätzlich die uniqueWork-
+        // Vergabe + der intervall-basierte Dedup in importSleep.)
+        syncMutex.withLock {
+            return doWorkLocked()
+        }
+    }
+
+    private suspend fun doWorkLocked(): Result {
         val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
         val api = deps.garminApiClient()
         val repo = deps.garminRepository()
@@ -210,22 +226,37 @@ class GarminSyncWorker(
             val now = System.currentTimeMillis()
 
             // M18.62: Die Nacht wird über den AUFWACH-Tag identifiziert.
-            // date=X = Schlaf der Nacht zum Morgen von X. Die Session der
-            // Nacht endet am Morgen von X (Fenster 00:00–14:00). Das ist
-            // robust gegen Garmins nachträgliche Zeitänderungen, weil es
-            // nur vom Aufwach-Tag abhängt, nicht von der exakten Schlafzeit.
-            val wakeStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
-            val wakeEnd = day.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
-            val nightSessions = repo.getOverlappingRange(wakeStart, wakeEnd)
+            // date=X = Schlaf der Nacht zum Morgen von X.
+            //
+            // M18.63-CRITICAL (Root Cause "Garmin-Schlaf wird ~10x
+            // synchronisiert, überlappend"): Der alte Filter
+            // `endAt in wakeStart..wakeEnd` (endAt zwischen 00:00 und
+            // 14:00) ist FRAGIL gegen Garmins nachträgliche Zeit-
+            // änderungen. Die Bridge-Caches beweisen: Garmin ändert
+            // dieselbe Nacht mehrfach (z.B. 23:46–08:01 → 00:10–08:00).
+            // Sobald die Session durch ein Update einen endAt außerhalb
+            // des 00:00–14:00-Fensters bekommt (oder ein Mittagsschlaf
+            // endet später), fällt sie aus dem Filter → der Import legt
+            // eine NEUE Session an → Überlappungs-Duplikate, die sich
+            // bei jedem Sync weiter aufschaukeln.
+            // JETZT: Überlappungs-basiert — alle Sleep-Sessions der
+            // Nacht finden, unabhängig von der exakten endAt-Lage. Das
+            // Fenster deckt den gesamten möglichen Schlafzeitraum ab
+            // (12h vor Mitternacht bis 14h nach Mitternacht).
+            val nightStart = day.atStartOfDay(zone).minusHours(12).toInstant().toEpochMilli()
+            val nightEnd = day.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
+            val nightSessions = repo.getOverlappingRange(nightStart, nightEnd)
                 .first()
                 .filter {
-                    it.deletedAt == null &&
-                        it.activityTypeId == "sleep" &&
-                        it.endAt != null &&
-                        it.endAt in wakeStart..wakeEnd
+                    it.deletedAt == null && it.activityTypeId == "sleep"
                 }
-            val garminSessions = nightSessions.filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
-            val otherSleep = nightSessions.filter { it.sourceType != "GARMIN_SLEEP_AUTO" }
+            // Überlappungs-Dedup (M18.63): pure Logik in GarminSleepDedup —
+            // Unit-getestet, Single Source of Truth für den Worker.
+            val nightSessionsOverlapping = GarminSleepDedup.overlappingSessions(
+                nightSessions, sleep.startGmtMs, sleep.endGmtMs
+            )
+            val garminSessions = nightSessionsOverlapping.filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
+            val otherSleep = nightSessionsOverlapping.filter { it.sourceType != "GARMIN_SLEEP_AUTO" }
 
             // Heuristik-Sessions der Nacht löschen (Garmin gewinnt)
             for (old in otherSleep) {
@@ -236,9 +267,10 @@ class GarminSyncWorker(
             if (garminSessions.isNotEmpty()) {
                 // M18.62: Bestehende Garmin-Session der Nacht UPDATEN
                 // (gleiche ID) statt neu anlegen -> kein Duplikat.
-                val primary = garminSessions.first()
+                // M18.63: Primär = älteste Session (deterministisch).
+                val primary = GarminSleepDedup.primarySession(garminSessions)!!
                 // Bestands-Duplikate derselben Nacht bereinigen
-                for (dup in garminSessions.drop(1)) {
+                for (dup in GarminSleepDedup.duplicateSessions(garminSessions)) {
                     repo.softDelete(dup.id, now)
                     android.util.Log.i(TAG, "Garmin-Schlaf-Duplikat bereinigt ${dup.id}")
                 }
@@ -252,6 +284,20 @@ class GarminSyncWorker(
                 )
                 android.util.Log.i(TAG, "Garmin-Schlaf ${day} aktualisiert (${sleep.sleepTimeSeconds}s)")
             } else {
+                // M18.63: Zusätzliche Bestands-Bereinigung — falls eine
+                // alte, NICHT überlappende Garmin-Session derselben Nacht
+                // existiert (z.B. durch frühere Bug-Versionen mit stark
+                // abweichender Zeit), wird sie entfernt statt ein weiteres
+                // Duplikat anzulegen.
+                val staleGarmin = nightSessions.filter {
+                    it.sourceType == "GARMIN_SLEEP_AUTO" &&
+                        it.endAt != null &&
+                        it.endAt!! >= nightStart && it.endAt!! <= nightEnd
+                }
+                for (stale in staleGarmin) {
+                    repo.softDelete(stale.id, now)
+                    android.util.Log.i(TAG, "Alte Garmin-Schlaf-Session derselben Nacht entfernt ${stale.id}")
+                }
                 // Keine Garmin-Session der Nacht -> neu anlegen
                 val session = com.d_drostes_apps.aevum.data.model.ActivitySession(
                     id = UUID.randomUUID().toString(),
@@ -296,6 +342,9 @@ class GarminSyncWorker(
 
     companion object {
         private const val TAG = "GarminSyncWorker"
+
+        // M18.63: Prozessinterner Mutex — serialisiert alle Sync-Läufe.
+        private val syncMutex = kotlinx.coroutines.sync.Mutex()
 
         /**
          * Parst Garmin-Zeitstempel "2026-08-08 15:57:49" (GMT) in epochMillis.

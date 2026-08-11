@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.automation.garmin
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -46,7 +47,17 @@ class GarminSyncScheduler @Inject constructor(
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
     }
 
-    /** Manueller Sync (aus den Einstellungen) — sofort, einmalig. */
+    /** Manueller Sync (aus den Einstellungen) — sofort, einmalig.
+     *
+     * M18.63-CRITICAL (Root Cause "Garmin-Schlaf wird mehrfach
+     * synchronisiert"): Vorher enqueue(request) — JEDER manuelle Klick
+     * erzeugte einen eigenen Job, der PARALLEL zum periodischen 30-Min-
+     * Worker laufen konnte. Zwei parallele Syncs lesen die Nacht-Sessions
+     * gleichzeitig, beide sehen "keine Session" und legen jeweils ein
+     * Duplikat an. Jetzt: eigener Unique-Work-Name mit KEEP (kein
+     * Doppel-Job), und der Worker selbst serialisiert alle Läufe per
+     * Mutex (periodisch + manuell gemeinsam).
+     */
     fun syncNow() {
         val request = OneTimeWorkRequestBuilder<GarminSyncWorker>()
             .setInputData(
@@ -60,10 +71,15 @@ class GarminSyncScheduler @Inject constructor(
                     .build()
             )
             .build()
-        WorkManager.getInstance(context).enqueue(request)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME_MANUAL,
+            ExistingWorkPolicy.KEEP,
+            request
+        )
     }
 
     companion object {
         private const val WORK_NAME = "aevum.garmin_sync"
+        private const val WORK_NAME_MANUAL = "aevum.garmin_sync_manual"
     }
 }

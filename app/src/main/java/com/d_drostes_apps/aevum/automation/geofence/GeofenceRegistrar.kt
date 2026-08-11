@@ -88,6 +88,20 @@ class GeofenceRegistrar @Inject constructor(
                             // Schneller für direktes Auto-Tracking. Die 8s-
                             // Stabilisierung im Debouncer fängt Echos ab.
                             .setNotificationResponsiveness(RESPONSIVENESS_MS)
+                            // M18.63-CRITICAL (Root Cause "Geofence startet
+                            // keine Aufzeichnung"): Ohne LoiteringDelay feuert
+                            // Google NIE ein DWELL-Event — DWELL ist nur als
+                            // Transition registriert, aber ohne die Loiter-
+                            // Schwelle wird es nicht ausgelöst. Der Auto-
+                            // Discard-Refresh (M17: Session nach 60s
+                            // verwerfen, wenn kein zweiter Enter-Trigger
+                            // kommt) hing genau an DWELL/ENTER-Echos, die
+                            // der Debouncer als Echo unterdrückt. Ergebnis:
+                            // JEDE Auto-Session wurde nach 60s verworfen —
+                            // der User sah nie eine Aufzeichnung.
+                            // LoiteringDelay 60s: DWELL feuert nach 60s
+                            // Aufenthalt und bestätigt die Session.
+                            .setLoiteringDelay(LOITERING_DELAY_MS)
                             .build()
                     })
                     .build()
@@ -152,6 +166,15 @@ class GeofenceRegistrar @Inject constructor(
         // den Receiver für direktes Auto-Tracking. Stabilisierung im
         // Debouncer fängt GPS-Sprünge ab.
         private const val RESPONSIVENESS_MS = 20 * 1000
+        // M18.63-CRITICAL: LoiteringDelay für DWELL-Transitions. Ohne
+        // diesen Wert liefert Google Play Services NIE ein DWELL-Event
+        // (DWELL ist ohne Loiter-Schwelle funktionslos).
+        // TIMING (bewusst): 45s Loitering + 8s Stabilisierung = DWELL-
+        // Verarbeitung bei ~53s — VOR dem 60s-Auto-Discard. Ein DWELL
+        // bei 60s+ würde erst bei ~68s verarbeitet, NACH dem Discard
+        // (Session wäre schon verworfen). 45s stellt sicher, dass der
+        // Discard-Timer den DWELL-Beweis noch sieht.
+        private const val LOITERING_DELAY_MS = 45_000
     }
 }
 

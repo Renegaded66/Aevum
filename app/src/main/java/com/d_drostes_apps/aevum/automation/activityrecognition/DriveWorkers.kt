@@ -73,16 +73,34 @@ class DriveConfirmWorker(
     interface Deps {
         fun activityRecognitionBridge(): ActivityRecognitionBridge
         fun locationChecker(): EventDrivenLocationChecker
+        // M18.63-CRITICAL (Root Cause "Autofahrten werden nicht
+        // erkannt"): EventDrivenLocationChecker liefert NUR einen
+        // GPS-Fix, wenn mindestens EIN Geofence gespeichert ist
+        // (early return "Keine Geofences gespeichert"). Wer keine
+        // Geofences nutzt (nur Autofahren aktiviert), bekam IMMER
+        // null → die Fahrt wurde NIE per GPS bestätigt → keine
+        // Aufzeichnung. CurrentLocationProvider ist geofence-
+        // unabhängig und wird jetzt als primäre Quelle genutzt.
+        fun locationProvider(): com.d_drostes_apps.aevum.automation.location.CurrentLocationProvider
     }
 
     override suspend fun doWork(): Result {
         val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
         val bridge = deps.activityRecognitionBridge()
-        val checker = deps.locationChecker()
+        val provider = deps.locationProvider()
 
         // 1) Erster GPS-Fix (nach den 2 Minuten Wartezeit).
+        // M18.63: Geofence-unabhängiger Fix (CurrentLocationProvider),
+        // Fallback auf den alten Geofence-Check.
         val first = try {
-            checker.checkCurrentLocationAgainstGeofences().location
+            when (val r = provider.getCurrentLocation()) {
+                is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success ->
+                    android.location.Location("fused").apply {
+                        latitude = r.latitude
+                        longitude = r.longitude
+                    }
+                else -> deps.locationChecker().checkCurrentLocationAgainstGeofences().location
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Erster GPS-Fix fehlgeschlagen: ${e.message}")
             null
@@ -91,7 +109,14 @@ class DriveConfirmWorker(
         // 2) Zweiter Fix 60s später.
         delay(DRIVE_CONFIRM_SAMPLE_GAP_MS)
         val second = try {
-            checker.checkCurrentLocationAgainstGeofences().location
+            when (val r = provider.getCurrentLocation()) {
+                is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success ->
+                    android.location.Location("fused").apply {
+                        latitude = r.latitude
+                        longitude = r.longitude
+                    }
+                else -> deps.locationChecker().checkCurrentLocationAgainstGeofences().location
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Zweiter GPS-Fix fehlgeschlagen: ${e.message}")
             null
@@ -159,6 +184,10 @@ class DriveWatchdogWorker(
         fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
         fun triggerEventRepository(): com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
         fun locationChecker(): EventDrivenLocationChecker
+        // M18.63: Geofence-unabhängiger GPS-Provider (siehe
+        // DriveConfirmWorker — EventDrivenLocationChecker liefert ohne
+        // gespeicherte Geofences keinen Fix).
+        fun locationProvider(): com.d_drostes_apps.aevum.automation.location.CurrentLocationProvider
     }
 
     override suspend fun doWork(): Result {
@@ -167,6 +196,7 @@ class DriveWatchdogWorker(
         val live = deps.liveActivityManager()
         val triggerRepo = deps.triggerEventRepository()
         val checker = deps.locationChecker()
+        val provider = deps.locationProvider()
         val mode = inputData.getString(KEY_MODE) ?: MODE_NO_SIGNAL
         val now = System.currentTimeMillis()
 
@@ -180,50 +210,60 @@ class DriveWatchdogWorker(
             return Result.success()
         }
 
-        if (mode == MODE_NO_SIGNAL) {
-            val last = bridge.lastVehicleSample()
-            if (last > 0 && now - last < DRIVE_WATCHDOG_NO_SIGNAL_MS) {
-                // Fahrt lebt noch (Sample kam innerhalb der 8 Minuten).
-                // Timer neu aufsetzen — ein Race zwischen REPLACE-Enqueue
-                // und diesem Lauf ist hier unkritisch (Session-Check oben).
-                Log.d(TAG, "Fahrt lebt noch (letztes Sample vor ${(now - last) / 1000}s) -> Watchdog verlängert")
-                schedule(applicationContext, MODE_NO_SIGNAL)
-                return Result.success()
-            }
-            // M18.45 (Reflexion): Google liefert bei langen Fahrten oft KEINE
-            // weiteren Transition-Events. Statt sofort zu stoppen, prüfen wir
-            // per GPS-Bewegung: bewegt sich der Standort noch (>= 200m in
-            // 60s), läuft die Fahrt -> Watchdog verlängern. Nur wenn der
-            // Standort steht, ist die Fahrt wirklich vorbei.
-            Log.d(TAG, "8 Minuten ohne IN_VEHICLE-Signal -> GPS-Bewegungs-Check")
-            val first = try {
-                checker.checkCurrentLocationAgainstGeofences().location
-            } catch (e: Exception) { null }
-            delay(DRIVE_CONFIRM_SAMPLE_GAP_MS)
-            val second = try {
-                checker.checkCurrentLocationAgainstGeofences().location
-            } catch (e: Exception) { null }
-            if (first != null && second != null) {
-                val distance = haversine(first.latitude, first.longitude, second.latitude, second.longitude)
-                if (distance >= DRIVE_MIN_DISTANCE_M) {
-                    Log.d(TAG, "Standort bewegt sich (${distance.toInt()}m/60s) -> Fahrt läuft weiter, Watchdog verlängert")
-                    schedule(applicationContext, MODE_NO_SIGNAL)
-                    return Result.success()
-                }
-                Log.d(TAG, "Standort steht (${distance.toInt()}m/60s) -> Fahrt beenden")
-            } else {
-                // Kein GPS verfügbar: konservativ stoppen (besser als eine
-                // endlos laufende Session — der User kann manuell weiterlaufen lassen).
-                Log.d(TAG, "Kein GPS-Fix -> Fahrt konservativ beenden")
-            }
+        // M18.63: Zwei Modi — NO_SIGNAL (8 Min ohne Sample) und
+        // TRANSITION (90s nach Aktivitätswechsel). In beiden Fällen gilt:
+        // 1) Frisches IN_VEHICLE-Sample → Fahrt lebt → verlängern.
+        // 2) Sonst GPS-Bewegungs-Check (geofence-unabhängig) → bewegt
+        //    sich der Standort ≥200m in 60s, läuft die Fahrt weiter.
+        // 3) Sonst Fahrt beenden.
+        val last = bridge.lastVehicleSample()
+        val thresholdMs = if (mode == MODE_NO_SIGNAL) {
+            DRIVE_WATCHDOG_NO_SIGNAL_MS
         } else {
-            val last = bridge.lastVehicleSample()
-            if (last > 0 && now - last < DRIVE_WATCHDOG_TRANSITION_MS) {
-                Log.d(TAG, "IN_VEHICLE-Signal innerhalb 90s -> Fahrt läuft weiter")
+            DRIVE_WATCHDOG_TRANSITION_MS
+        }
+        if (last > 0 && now - last < thresholdMs) {
+            Log.d(TAG, "Fahrt lebt noch (letztes Sample vor ${(now - last) / 1000}s) -> Watchdog verlängert")
+            schedule(applicationContext, MODE_NO_SIGNAL)
+            return Result.success()
+        }
+        // Kein frisches IN_VEHICLE-Signal mehr → GPS-Bewegungs-Check.
+        // M18.63: Der geofence-unabhängige Provider liefert auch ohne
+        // gespeicherte Geofences einen Fix.
+        Log.d(TAG, "Kein frisches Fahrt-Signal -> GPS-Bewegungs-Check (mode=$mode)")
+        val first = try {
+            when (val r = provider.getCurrentLocation()) {
+                is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success ->
+                    android.location.Location("fused").apply {
+                        latitude = r.latitude
+                        longitude = r.longitude
+                    }
+                else -> checker.checkCurrentLocationAgainstGeofences().location
+            }
+        } catch (e: Exception) { null }
+        delay(DRIVE_CONFIRM_SAMPLE_GAP_MS)
+        val second = try {
+            when (val r = provider.getCurrentLocation()) {
+                is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success ->
+                    android.location.Location("fused").apply {
+                        latitude = r.latitude
+                        longitude = r.longitude
+                    }
+                else -> checker.checkCurrentLocationAgainstGeofences().location
+            }
+        } catch (e: Exception) { null }
+        if (first != null && second != null) {
+            val distance = haversine(first.latitude, first.longitude, second.latitude, second.longitude)
+            if (distance >= DRIVE_MIN_DISTANCE_M) {
+                Log.d(TAG, "Standort bewegt sich (${distance.toInt()}m/60s) -> Fahrt läuft weiter, Watchdog verlängert")
                 schedule(applicationContext, MODE_NO_SIGNAL)
                 return Result.success()
             }
-            Log.d(TAG, "90s nach Aktivitätswechsel kein Fahrt-Signal -> Fahrt stoppen")
+            Log.d(TAG, "Standort steht (${distance.toInt()}m/60s) -> Fahrt beenden")
+        } else {
+            // Kein GPS verfügbar: konservativ stoppen (besser als eine
+            // endlos laufende Session — der User kann manuell weiterlaufen lassen).
+            Log.d(TAG, "Kein GPS-Fix -> Fahrt konservativ beenden")
         }
 
         // Fahrt beenden: Session stoppen + Trigger für die Timeline.

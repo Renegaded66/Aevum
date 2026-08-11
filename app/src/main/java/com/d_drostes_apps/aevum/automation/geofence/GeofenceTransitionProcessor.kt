@@ -280,6 +280,15 @@ class GeofenceTransitionProcessor @Inject constructor(
                     liveActivityManager.refreshAutoDiscard(geofence.id)
                     debugLogger.log("PROCESSOR", "  M17 Auto-Start refresh: ${geofence.autoStartActivityTypeId} läuft bereits, discard-Timer reset")
                 }
+                // M18.63-CRITICAL (Root Cause "Geofence startet keine
+                // Aufzeichnung"): DWELL (User 60s+ im Geofence, dank
+                // LoiteringDelay jetzt wirklich ausgelöst) ist der harte
+                // Beweis, dass der User da ist — der Auto-Discard darf die
+                // Session danach nie mehr verwerfen.
+                if (transition == GeofenceTransition.Dwell) {
+                    liveActivityManager.markDwellConfirmed(geofence.id)
+                    debugLogger.log("PROCESSOR", "  M18.63 DWELL bestätigt: Session für ${geofence.name} ist vor Auto-Discard geschützt")
+                }
             } else {
                 debugLogger.log("PROCESSOR", "  Kein autoStartActivityTypeId konfiguriert → kein Auto-Start")
             }
