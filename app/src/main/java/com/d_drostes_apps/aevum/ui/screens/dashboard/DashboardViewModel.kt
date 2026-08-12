@@ -634,12 +634,18 @@ class DashboardViewModel @Inject constructor(
         }
         val totalMsWithAllowances = totalMs + allowanceMs
         val openMs = (DAY_MS - totalMsWithAllowances).coerceAtLeast(0L)
+        // M18.65-FIX 2 (User: "nicht die Kategorie Schlaf angezeigt
+        // bekommen, sondern die Activity Zeit Schlaf"): Die Verteilung
+        // gruppiert nach ACTIVITY TYPE (wie die Balken in
+        // computeQualityBreakdown) — vorher nach Kategorie, dadurch
+        // erschien z.B. Schlaf als "Kategorie Schlaf" (bzw. "Sonstiges"
+        // bei fehlender categoryId) statt als Activity "Schlaf".
         val distribution = clippedSessions
-            .groupBy { it.categoryId ?: "unknown" }
-            .map { (categoryId, values) ->
+            .groupBy { it.activityTypeId ?: "unknown" }
+            .map { (typeId, values) ->
                 DashboardCategorySlice(
-                    categoryId = categoryId,
-                    label = categoryMap[categoryId]?.name ?: "Sonstiges",
+                    categoryId = typeId,
+                    label = typeMap[typeId]?.name ?: "Sonstiges",
                     durationMs = values.sumOf { it.durationMs }
                 )
             }
@@ -921,6 +927,7 @@ class DashboardViewModel @Inject constructor(
             id = id,
             title = title,
             categoryId = categoryId,
+            activityTypeId = activityTypeId,
             startAt = clippedStart,
             endAt = clippedEnd,
             // M18.62-FIX: Pausen abziehen — vorher wurde die volle
@@ -1010,6 +1017,9 @@ private data class ClippedSession(
     val id: String,
     val title: String,
     val categoryId: String?,
+    // M18.65-FIX 2 (User: "nicht die Kategorie, sondern die Activity-Zeit
+    // anzeigen"): Die Dashboard-Verteilung gruppiert nach ActivityType.
+    val activityTypeId: String?,
     val startAt: Long,
     val endAt: Long,
     val durationMs: Long,

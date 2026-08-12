@@ -277,12 +277,15 @@ class GarminSyncWorker(
 
                 // M18.65 (User: "jetzt wird es nicht mehr neu beschrieben"
                 // — Kern der Sync-Semantik): Steht der Schlaf schon mit
-                // GENAU diesen Zeiten in der Timeline, ist der Sync ein
-                // No-Op — kein Update, kein revision-Bump, keine
-                // DB-Schreiblast bei jedem 30-Min-Lauf. Erst wenn Garmin
-                // die Zeiten geändert hat (nachträgliche Korrektur),
-                // wird dieselbe Session aktualisiert.
-                if (GarminSleepDedup.matchesExactly(primary, sleep.startGmtMs, sleep.endGmtMs)) {
+                // GENAU diesen Zeiten in der Timeline UND hat die
+                // Kategorie, ist der Sync ein No-Op — kein Update, kein
+                // revision-Bump, keine DB-Schreiblast bei jedem 30-Min-
+                // Lauf. Erst wenn Garmin die Zeiten geändert hat
+                // (nachträgliche Korrektur) ODER die Kategorie noch fehlt
+                // (Bestand vor M18.65: null → "Sonstiges"), wird
+                // dieselbe Session aktualisiert.
+                val needsCategory = primary.categoryId == null
+                if (!needsCategory && GarminSleepDedup.matchesExactly(primary, sleep.startGmtMs, sleep.endGmtMs)) {
                     android.util.Log.i(TAG, "Garmin-Schlaf $day unverändert (exakte Zeit, kein Update)")
                     continue
                 }
@@ -290,6 +293,12 @@ class GarminSyncWorker(
                     primary.copy(
                         startAt = sleep.startGmtMs,
                         endAt = sleep.endGmtMs,
+                        // M18.65-FIX 2 (User: "der von Garmin gesyncte
+                        // Schlaf soll die Kategorie Schlaf haben"): Auch
+                        // im externalId-Update-Pfad die Kategorie setzen
+                        // — Bestands-Sessions aus M18.64 haben sie noch
+                        // nicht (null → "Sonstiges" im Dashboard).
+                        categoryId = "sleep",
                         updatedAt = now,
                         revision = primary.revision + 1
                     )
@@ -324,6 +333,9 @@ class GarminSyncWorker(
                     repo.update(
                         exactMatch.copy(
                             externalId = externalId,
+                            // M18.65-FIX 2: Alt-Bestand trägt die
+                            // Kategorie ebenfalls nach (sonst "Sonstiges").
+                            categoryId = if (exactMatch.categoryId == null) "sleep" else exactMatch.categoryId,
                             updatedAt = now,
                             revision = exactMatch.revision + 1
                         )
