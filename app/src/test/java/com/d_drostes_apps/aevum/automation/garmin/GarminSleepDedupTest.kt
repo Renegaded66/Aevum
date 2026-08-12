@@ -25,11 +25,12 @@ class GarminSleepDedupTest {
         startAt: Long,
         endAt: Long,
         sourceType: String = "GARMIN_SLEEP_AUTO",
-        createdAt: Long = startAt
+        createdAt: Long = startAt,
+        activityTypeId: String = "sleep"
     ) = ActivitySession(
         id = id,
         title = "Schlaf",
-        activityTypeId = "sleep",
+        activityTypeId = activityTypeId,
         startAt = startAt,
         endAt = endAt,
         sourceType = sourceType,
@@ -197,5 +198,115 @@ class GarminSleepDedupTest {
         val cleanup = GarminSleepDedup.duplicatesToCleanup(listOf(night, nap), sleepStart, sleepEnd)
 
         assertThat(cleanup).isEmpty()
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.65: "Exakte Zeit = No-Op; sonst ersetzen und Schlaf schreiben"
+    // ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `matchesExactly erkennt identische Zeiten innerhalb 1 Minute`() {
+        val s = session("s1", sleepStart, sleepEnd)
+
+        // Exakt gleich → No-Op.
+        assertThat(GarminSleepDedup.matchesExactly(s, sleepStart, sleepEnd)).isTrue()
+        // Sub-Minuten-Drift (Garmin-Rundung) → No-Op.
+        assertThat(GarminSleepDedup.matchesExactly(s, sleepStart + 30_000L, sleepEnd - 45_000L)).isTrue()
+        // Echte Zeitkorrektur (> 1 Min) → muss aktualisiert werden.
+        assertThat(GarminSleepDedup.matchesExactly(s, sleepStart + 2 * 60_000L, sleepEnd)).isFalse()
+        assertThat(GarminSleepDedup.matchesExactly(s, sleepStart, sleepEnd - 3 * 60_000L)).isFalse()
+    }
+
+    @Test
+    fun `matchesExactly ist false bei offener Session`() {
+        val s = ActivitySession(
+            id = "s1",
+            title = "Schlaf",
+            activityTypeId = "sleep",
+            startAt = sleepStart,
+            endAt = null
+        )
+        assertThat(GarminSleepDedup.matchesExactly(s, sleepStart, sleepEnd)).isFalse()
+    }
+
+    @Test
+    fun `Garmin-Schlaf derselben Nacht ist ersetzbar — auch ohne Zeit-Überlappung`() {
+        // M18.62/64-Muster: Garmin korrigiert nachträglich 23:46–08:01 →
+        // 00:10–08:00. Die alte Session (23:46–08:01) überlappt die neue
+        // (00:10–08:00) noch; die Gegenrichtung (neu 23:46–08:01, alt
+        // 00:10–08:00) überlappt zwar auch noch, aber der Extremfall ist
+        // die komplett verschobene Nacht — die muss über sameSleepNight
+        // erkannt werden.
+        val old = session("old", 1786311960000L, 1786341660000L, createdAt = 1L) // 23:46–08:01
+        val newStart = 1786313400000L // 00:10
+        val newEnd = 1786341600000L   // 08:00
+
+        // Überlappt → ersetzbar.
+        assertThat(GarminSleepDedup.isReplaceableBySleep(old, newStart, newEnd)).isTrue()
+    }
+
+    @Test
+    fun `Garmin-Schlaf mit Zeitkorrektur ohne Überlappung ist trotzdem ersetzbar`() {
+        // Extremfall: Garmin verschiebt die Nacht so stark, dass keine
+        // Überlappung mehr besteht (alte Session 22:00–00:00, neue
+        // 01:00–09:00). Die alte Session liegt aber in DERSELBEN Nacht →
+        // ersetzen.
+        val old = session("old", 1786305600000L, 1786316400000L, createdAt = 1L) // 22:00–00:00
+        val newStart = 1786323600000L // 01:00
+        val newEnd = 1786345200000L   // 09:00
+
+        assertThat(
+            GarminSleepDedup.overlappingSessions(listOf(old), newStart, newEnd)
+        ).isEmpty()
+        assertThat(GarminSleepDedup.isReplaceableBySleep(old, newStart, newEnd)).isTrue()
+    }
+
+    @Test
+    fun `manuell eingetragener Schlaf wird NIE ersetzt`() {
+        val manual = session("m", sleepStart, sleepEnd, sourceType = "MANUAL", createdAt = 1L)
+
+        assertThat(GarminSleepDedup.isReplaceableBySleep(manual, sleepStart, sleepEnd)).isFalse()
+        // Auch bei kompletter Überlappung nicht — User-Eingriff gewinnt.
+        assertThat(GarminSleepDedup.isReplaceableBySleep(manual, sleepStart - 60_000L, sleepEnd + 60_000L)).isFalse()
+    }
+
+    @Test
+    fun `Nicht-Schlaf-Activities werden nie durch Schlaf ersetzt`() {
+        val gym = session("g", sleepStart, sleepEnd, sourceType = "MANUAL", createdAt = 1L, activityTypeId = "fitness")
+        val autoGym = session("g2", sleepStart, sleepEnd, sourceType = "GARMIN_AUTO", createdAt = 2L, activityTypeId = "fitness")
+
+        assertThat(GarminSleepDedup.isReplaceableBySleep(gym, sleepStart, sleepEnd)).isFalse()
+        assertThat(GarminSleepDedup.isReplaceableBySleep(autoGym, sleepStart, sleepEnd)).isFalse()
+    }
+
+    @Test
+    fun `Heuristik-Schlaf mit Überlappung wird ersetzt, Mittagsschlaf nicht`() {
+        val heuristicNight = session("h", sleepStart, sleepEnd, sourceType = "SCREEN_HEURISTIC", createdAt = 1L)
+        val nap = session("nap", 1786384800000L, 1786388400000L, sourceType = "SCREEN_HEURISTIC", createdAt = 2L)
+
+        assertThat(GarminSleepDedup.isReplaceableBySleep(heuristicNight, sleepStart, sleepEnd)).isTrue()
+        // Heuristik-Mittagsschlaf (14:00–15:00) liegt außerhalb der Nacht.
+        assertThat(GarminSleepDedup.isReplaceableBySleep(nap, sleepStart, sleepEnd)).isFalse()
+    }
+
+    @Test
+    fun `sameSleepNight erkennt die gleiche Nacht über den Aufwach-Tag`() {
+        // Nacht zum 10.08.: Session 22:00–06:00, Garmin liefert 01:00–09:00.
+        val old = session("old", 1786305600000L, 1786327200000L, createdAt = 1L)
+        val newStart = 1786323600000L
+        val newEnd = 1786345200000L
+
+        assertThat(GarminSleepDedup.sameSleepNight(old, newStart, newEnd)).isTrue()
+    }
+
+    @Test
+    fun `sameSleepNight ist false für Mittagsschlaf`() {
+        // Garmin-Nacht endet morgens (08:01); ein Mittagsschlaf um 16:00
+        // (bewusst spät gewählt, damit der Test in JEDER Zeitzone außerhalb
+        // des 12h-vor-/14h-nach-Mitternacht-Fensters liegt) gehört nicht
+        // zur Nacht.
+        val nap = session("nap", 1786392000000L, 1786395600000L, createdAt = 1L) // 16:00–17:00 Berlin
+
+        assertThat(GarminSleepDedup.sameSleepNight(nap, sleepStart, sleepEnd)).isFalse()
     }
 }

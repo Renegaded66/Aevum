@@ -122,8 +122,15 @@ class GarminApiClient @Inject constructor(
         )
     }
 
-    suspend fun getSleep(dateIso: String): GarminSleepData? = withContext(Dispatchers.IO) {
-        val json = get("/api/sleep?date=$dateIso") ?: return@withContext null
+    /**
+     * M18.65: [fresh]=true umgeht den Server-Cache (fragt Garmin direkt).
+     * Der manuelle Sync nutzt das, damit die letzte Nacht nach dem
+     * Aufwachen sofort mit den finalen Garmin-Daten aktualisiert wird
+     * (Garmin korrigiert Schlafzeiten nachträglich; der Server-Cache
+     * für "heute" ist nur 10 Min frisch).
+     */
+    suspend fun getSleep(dateIso: String, fresh: Boolean = false): GarminSleepData? = withContext(Dispatchers.IO) {
+        val json = get("/api/sleep?date=$dateIso" + if (fresh) "&fresh=1" else "") ?: return@withContext null
         if (json.has("error")) return@withContext null
         val start = json.optLong("sleep_start_gmt", 0L)
         val end = json.optLong("sleep_end_gmt", 0L)

@@ -108,4 +108,90 @@ object GarminSleepDedup {
             .filter { it.id != primary.id }
             .sortedBy { it.createdAt ?: Long.MAX_VALUE }
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.65: "Schlaf steht schon exakt mit diesen Zeiten in der
+    // Timeline? → nichts tun. Sonst: vorhandene Activities im Zeitraum
+    // löschen und den Schlaf (Activity + Kategorie Schlaf) schreiben."
+    // ──────────────────────────────────────────────────────────────
+
+    /** Toleranz: 1 Minute — ein Sync sollte nie mehr als das ändern. */
+    const val EXACT_MATCH_TOLERANCE_MS = 60L * 1000
+
+    /**
+     * True, wenn die Session exakt den Garmin-Schlafzeiten entspricht
+     * (innerhalb [EXACT_MATCH_TOLERANCE_MS]). Ein Sync-Vorgang, der
+     * dieselben Daten nochmal liefert, darf dann nichts tun.
+     */
+    fun matchesExactly(
+        session: ActivitySession,
+        sleepStart: Long,
+        sleepEnd: Long
+    ): Boolean {
+        val end = session.endAt ?: return false
+        return kotlin.math.abs(session.startAt - sleepStart) <= EXACT_MATCH_TOLERANCE_MS &&
+            kotlin.math.abs(end - sleepEnd) <= EXACT_MATCH_TOLERANCE_MS
+    }
+
+    /**
+     * True, wenn eine Session durch eine Garmin-Schlaf-Session ERSETZT
+     * werden darf. Garmin-Schlaf ist die Wahrheit (M18.59-Policy: die
+     * gewählte Quelle gewinnt) — ersetzt werden:
+     *  - bestehende GARMIN_SLEEP_AUTO-Sessions derselben Nacht
+     *    (Zeitkorrektur ohne Zeit-Überlappung — Garmin ändert Zeiten
+     *    nachträglich und verschiebt sie dabei; M18.62/64-Lektion)
+     *  - Screen-Heuristik-Sessions (Bildschirmzeit-Schlaf, andere Quelle)
+     * NICHT ersetzt werden: MANUAL-Sessions (User-Eingriff hat Vorrang,
+     * M18.51-Policy "Schlaf ist geschützt") und alle Nicht-Schlaf-
+     * Aktivitäten (der Sync fasst fremde Activities nie an).
+     *
+     * @param session       Bestehende Session im Nachtfenster
+     * @param sleepStart    Garmin-Schlafbeginn
+     * @param sleepEnd      Garmin-Schlafende
+     */
+    fun isReplaceableBySleep(
+        session: ActivitySession,
+        sleepStart: Long,
+        sleepEnd: Long
+    ): Boolean {
+        val end = session.endAt ?: return false
+        if (session.deletedAt != null) return false
+        // Nur Schlaf-Sessions kommen als Ersatzkandidaten in Frage.
+        if (session.activityTypeId != "sleep") return false
+        // Manuell eingetragener Schlaf wird NIE überschrieben.
+        if (session.sourceType == "MANUAL") return false
+        // Garmin-Schlaf derselben Nacht: Zeit-Überlappung ODER gleiche
+        // Nacht (Zeitkorrektur, die nicht mehr überlappt).
+        if (session.sourceType == "GARMIN_SLEEP_AUTO") {
+            return overlappingSessions(listOf(session), sleepStart, sleepEnd).isNotEmpty() ||
+                sameSleepNight(session, sleepStart, sleepEnd)
+        }
+        // Andere Quellen (Screen-Heuristik, Health Connect): nur bei
+        // echter Überlappung ersetzen — ein Mittagsschlaf der Heuristik
+        // weit weg von der Nacht bleibt stehen.
+        return overlappingSessions(listOf(session), sleepStart, sleepEnd).isNotEmpty()
+    }
+
+    /**
+     * True, wenn die Session in DERSELBEN Nacht liegt wie der
+     * Garmin-Schlaf — unabhängig von der Überlappung. Garmin verschiebt
+     * Schlafzeiten nachträglich (z.B. 23:46–08:01 → 00:10–08:00); eine
+     * GARMIN_SLEEP_AUTO-Session, deren Zeitbereich komplett im
+     * 12h-zu-14h-Nachtfenster des Aufwach-Tags liegt, ist dieselbe
+     * Nacht. (Mittagsschlaf liegt nicht in diesem Fenster.)
+     */
+    fun sameSleepNight(
+        session: ActivitySession,
+        sleepStart: Long,
+        sleepEnd: Long
+    ): Boolean {
+        val zone = java.time.ZoneId.systemDefault()
+        // Aufwach-Tag aus dem Garmin-Ende ableiten (date=X = Nacht zum
+        // Morgen von X; Ende liegt morgens zwischen 00:00 und 14:00).
+        val wakeDay = java.time.Instant.ofEpochMilli(sleepEnd).atZone(zone).toLocalDate()
+        val nightStart = wakeDay.atStartOfDay(zone).minusHours(12).toInstant().toEpochMilli()
+        val nightEnd = wakeDay.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
+        val end = session.endAt ?: return false
+        return session.startAt >= nightStart && end <= nightEnd
+    }
 }
