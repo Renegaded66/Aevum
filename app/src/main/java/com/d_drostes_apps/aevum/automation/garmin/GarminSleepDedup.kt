@@ -157,7 +157,9 @@ object GarminSleepDedup {
         val end = session.endAt ?: return false
         if (session.deletedAt != null) return false
         // Nur Schlaf-Sessions kommen als Ersatzkandidaten in Frage.
-        if (session.activityTypeId != "sleep") return false
+        // M18.65-FIX 3: Auch Sessions mit NULL-Type aber categoryId="sleep"
+        // (durch REPLACE-Seed-Kaskade auf NULL gesetzt) sind Schlaf.
+        if (session.activityTypeId != "sleep" && session.categoryId != "sleep") return false
         // Manuell eingetragener Schlaf wird NIE überschrieben.
         if (session.sourceType == "MANUAL") return false
         // Garmin-Schlaf derselben Nacht: Zeit-Überlappung ODER gleiche

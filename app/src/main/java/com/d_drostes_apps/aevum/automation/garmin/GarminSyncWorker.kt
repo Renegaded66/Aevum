@@ -84,33 +84,46 @@ class GarminSyncWorker(
         // nutzt activityTypeId = "sleep" — ein Foreign-Key auf activity_type.
         // Wurde der Typ gelöscht/umbenannt (Lösch-Funktion seit M18.50),
         // schlägt der Insert still fehl (FK-Verletzung) -> kein Schlaf.
-        // Idempotenter Upsert stellt Typ + Kategorie vor dem Import sicher
-        // (activity_type.default_category_id ist FK auf category).
+        //
+        // M18.65-FIX 3 (Root Cause "Schlaf fehlt in 'Wo deine Zeit
+        // hingeht'"): Seed NUR bei fehlendem Typ/Kategorie — NIEMALS mit
+        // REPLACE auf existierende Rows! REPLACE = DELETE + INSERT; wegen
+        // ON DELETE SET NULL auf activity_session.activity_type_id und
+        // category_id wurden bei JEDEM 30-Min-Sync ALLE Schlaf-Sessions
+        // auf NULL gesetzt. Das Dashboard filtert in den Balken auf
+        // activityTypeId != null -> Schlaf verschwand aus der Verteilung
+        // (Hero-Metrik fand ihn nur noch über categoryId).
         try {
-            categoryDao.insert(
-                com.d_drostes_apps.aevum.data.model.Category(
-                    id = "sleep",
-                    name = "Schlaf",
-                    color = "#334155",
-                    icon = "◒",
-                    isSystem = true,
-                    sortOrder = 20
+            val existingCategory = categoryDao.getById("sleep").first()
+            if (existingCategory == null) {
+                categoryDao.insert(
+                    com.d_drostes_apps.aevum.data.model.Category(
+                        id = "sleep",
+                        name = "Schlaf",
+                        color = "#334155",
+                        icon = "◒",
+                        isSystem = true,
+                        sortOrder = 20
+                    )
                 )
-            )
-            activityTypeDao.insert(
-                com.d_drostes_apps.aevum.data.model.ActivityType(
-                    id = "sleep",
-                    name = "Schlaf",
-                    defaultCategoryId = "sleep",
-                    isSystem = true,
-                    propertiesJson = "{\"overlay\": false}",
-                    positivityScore = 70,
-                    icon = "🌙",
-                    color = 0xFF3949AB.toLong()
+            }
+            val existingType = activityTypeDao.getById("sleep").first()
+            if (existingType == null) {
+                activityTypeDao.insert(
+                    com.d_drostes_apps.aevum.data.model.ActivityType(
+                        id = "sleep",
+                        name = "Schlaf",
+                        defaultCategoryId = "sleep",
+                        isSystem = true,
+                        propertiesJson = "{\"overlay\": false}",
+                        positivityScore = 70,
+                        icon = "🌙",
+                        color = 0xFF3949AB.toLong()
+                    )
                 )
-            )
+            }
         } catch (e: Exception) {
-            android.util.Log.w(TAG, "ActivityType/Category sleep upsert fehlgeschlagen: ${e.message}")
+            android.util.Log.w(TAG, "ActivityType/Category sleep Upsert fehlgeschlagen: ${e.message}")
         }
 
         // Bridge erreichbar?
@@ -277,15 +290,15 @@ class GarminSyncWorker(
 
                 // M18.65 (User: "jetzt wird es nicht mehr neu beschrieben"
                 // — Kern der Sync-Semantik): Steht der Schlaf schon mit
-                // GENAU diesen Zeiten in der Timeline UND hat die
-                // Kategorie, ist der Sync ein No-Op — kein Update, kein
+                // GENAU diesen Zeiten in der Timeline UND hat Kategorie +
+                // ActivityType, ist der Sync ein No-Op — kein Update, kein
                 // revision-Bump, keine DB-Schreiblast bei jedem 30-Min-
                 // Lauf. Erst wenn Garmin die Zeiten geändert hat
-                // (nachträgliche Korrektur) ODER die Kategorie noch fehlt
-                // (Bestand vor M18.65: null → "Sonstiges"), wird
-                // dieselbe Session aktualisiert.
-                val needsCategory = primary.categoryId == null
-                if (!needsCategory && GarminSleepDedup.matchesExactly(primary, sleep.startGmtMs, sleep.endGmtMs)) {
+                // (nachträgliche Korrektur) ODER Kategorie/Type fehlen
+                // (M18.65-FIX 3: REPLACE-Seed-Kaskade hat sie auf NULL
+                // gesetzt), wird dieselbe Session repariert/aktualisiert.
+                val needsRepair = primary.categoryId == null || primary.activityTypeId == null
+                if (!needsRepair && GarminSleepDedup.matchesExactly(primary, sleep.startGmtMs, sleep.endGmtMs)) {
                     android.util.Log.i(TAG, "Garmin-Schlaf $day unverändert (exakte Zeit, kein Update)")
                     continue
                 }
@@ -293,12 +306,14 @@ class GarminSyncWorker(
                     primary.copy(
                         startAt = sleep.startGmtMs,
                         endAt = sleep.endGmtMs,
-                        // M18.65-FIX 2 (User: "der von Garmin gesyncte
+                        // M18.65-FIX 2/3 (User: "der von Garmin gesyncte
                         // Schlaf soll die Kategorie Schlaf haben"): Auch
-                        // im externalId-Update-Pfad die Kategorie setzen
-                        // — Bestands-Sessions aus M18.64 haben sie noch
-                        // nicht (null → "Sonstiges" im Dashboard).
+                        // im externalId-Update-Pfad Kategorie UND Type
+                        // setzen — Bestand hat beides evtl. nicht
+                        // (null → "Sonstiges" im Dashboard; Type-NULL
+                        // lässt Schlaf aus den Balken verschwinden).
                         categoryId = "sleep",
+                        activityTypeId = "sleep",
                         updatedAt = now,
                         revision = primary.revision + 1
                     )
@@ -314,11 +329,17 @@ class GarminSyncWorker(
             //    prüfen, ob die Nacht schon (anderweitig) in der
             //    Timeline steht. Das Fenster 12h-vor- bis 14h-nach
             //    Mitternacht deckt die ganze Nacht ab (M18.63).
+            //    M18.65-FIX 3: Auch NULL-Type-Sessions mit categoryId
+            //    "sleep" laden (REPLACE-Seed-Kaskade hat activityTypeId
+            //    auf NULL gesetzt — sonst würden sie nie repariert).
             val nightStart = day.atStartOfDay(zone).minusHours(12).toInstant().toEpochMilli()
             val nightEnd = day.atStartOfDay(zone).plusHours(14).toInstant().toEpochMilli()
             val nightSessions = repo.getOverlappingRange(nightStart, nightEnd)
                 .first()
-                .filter { it.deletedAt == null && it.activityTypeId == "sleep" }
+                .filter {
+                    it.deletedAt == null &&
+                        (it.activityTypeId == "sleep" || it.categoryId == "sleep")
+                }
 
             // M18.65 (User-Spezifikation Schritt 1): Schlaf mit GENAU
             // diesen Zeiten schon da? → nichts tun (idempotenter Sync).
@@ -333,9 +354,12 @@ class GarminSyncWorker(
                     repo.update(
                         exactMatch.copy(
                             externalId = externalId,
-                            // M18.65-FIX 2: Alt-Bestand trägt die
-                            // Kategorie ebenfalls nach (sonst "Sonstiges").
+                            // M18.65-FIX 2/3: Alt-Bestand trägt Kategorie
+                            // UND ActivityType nach (REPLACE-Seed-Kaskade
+                            // setzt beides auf NULL → "Sonstiges" bzw.
+                            // fehlender Balken).
                             categoryId = if (exactMatch.categoryId == null) "sleep" else exactMatch.categoryId,
+                            activityTypeId = if (exactMatch.activityTypeId == null) "sleep" else exactMatch.activityTypeId,
                             updatedAt = now,
                             revision = exactMatch.revision + 1
                         )
@@ -380,10 +404,12 @@ class GarminSyncWorker(
                         endAt = sleep.endGmtMs,
                         // M18.65 (User: "wichtig Activity Schlaf und
                         // Kategorie Schlaf"): Die Session bekommt jetzt
-                        // IMMER die Kategorie "sleep" — vorher war sie
-                        // null und die Timeline zeigte den Schlaf ohne
-                        // Kategorie-Zuordnung.
+                        // IMMER Kategorie UND ActivityType "sleep" —
+                        // vorher waren beide evtl. null (Alt-Bestand /
+                        // REPLACE-Seed-Kaskade) und die Timeline zeigte
+                        // den Schlaf ohne Zuordnung.
                         categoryId = "sleep",
+                        activityTypeId = "sleep",
                         updatedAt = now,
                         revision = garminPrimary.revision + 1
                     )
