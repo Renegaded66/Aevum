@@ -30,8 +30,13 @@ object DriveDetectionEngine {
     const val WALK_RUN_MAX_MPS = 5.5f
     /** GPS-Ausreißer: > 144 km/h ist kein reales Fahrzeug-Tempo. */
     const val OUTLIER_SPEED_MPS = 40.0f
-    /** Ungenaue Fixes verwerfen (schlechte GPS-Lage). */
-    const val MAX_ACCURACY_M = 120f
+    /** Ungenaue Fixes verwerfen (schlechte GPS-Lage).
+     *  M18.66-FIX2: 120m -> 30m. Indoor-GPS hat oft 50-100m Genauigkeit
+     *  und springt um 10-20m — das erzeugte False-Positive-Fahrten,
+     *  weil die Distanz den Heartbeat refreshte obwohl der User still
+     *  sitzt. 30m ist streng genug, um Indoor-Fixes zu verwerfen, aber
+     *  großzügig genug für echtes Auto-GPS (meist < 10m). */
+    const val MAX_ACCURACY_M = 30f
     /** Probes älter als 15 Minuten gehören zu einer früheren Fahrt. */
     const val MAX_PROBE_AGE_MS = 15L * 60 * 1000
     /** Mindestanzahl gültiger Probes für eine Entscheidung. */

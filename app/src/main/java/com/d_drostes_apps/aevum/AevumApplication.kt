@@ -181,6 +181,15 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "Geofence-Refresh (immediate) failed — continuing", e)
         }
+        // M18.66-FIX2: Proaktiver Geofence-Check — alle 2 Minuten wird der
+        // GPS-Standort gegen alle Geofences geprüft. Das ist der Fallback,
+        // wenn GMS-Geofences nicht feuern (Hintergrund, Mock-Location,
+        // lange Laufzeit). Ruft die bestehende Pipeline auf (Processor).
+        try {
+            com.d_drostes_apps.aevum.automation.geofence.ProactiveGeofenceCheckWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "ProactiveGeofenceCheck start failed — continuing", e)
+        }
         // M18.61e-SELBSTHEILUNG: Wenn Geofences existieren, aber das
         // Geofencing-Gate (noch) aus ist, wird es aktiviert. Root Cause
         // "kein einziger Trigger": Der Geofence-Editor setzte das Gate

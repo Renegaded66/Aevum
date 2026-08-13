@@ -79,10 +79,14 @@ class EventDrivenLocationChecker @Inject constructor(
             return LocationCheckResult(null, null, emptyList())
         }
 
-        // Einmaliger GPS-Fix mit mittlerer Genauigkeit (akkusparend)
+        // M18.66-FIX2: PRIORITY_HIGH_ACCURACY statt BALANCED — der
+        // proaktive Geofence-Check braucht einen zuverlässigen Fix,
+        // damit ENTER/EXIT korrekt erkannt werden. BALANCED liefert
+        // oft ungenaue Indoor-Fixes (100m+), die falsche Geofence-
+        // Treffer produzieren.
         val location = try {
             client.getCurrentLocation(
-                Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+                Priority.PRIORITY_HIGH_ACCURACY,
                 null
             ).await()
         } catch (e: Exception) {

@@ -180,15 +180,19 @@ class DriveDetectionService : Service() {
             longitude = loc.longitude
         )
 
-        // Speed >= 1.0 m/s (3,6 km/h) -> Fahrt lebt, Heartbeat refreshen.
-        // Vorher war die Schwelle bei 5.5 m/s (20 km/h) — im Stadtverkehr
-        // und Stau wird der Herzschlag nicht mehr refresht → Watchdog
-        // stoppt die Session nach 5 Min obwohl man noch fährt.
-        val isMoving = speed != null && speed >= 1.0f
+        // M18.66-FIX2: Heartbeat NUR refreshen, wenn BEIDE Bedingungen erfüllt:
+        //  1. GPS-Genauigkeit <= 30m (Indoor-GPS hat oft 50-100m und springt
+        //     um 10-20m — das darf NICHT als "Fahrt lebt" zählen, sonst
+        //     stoppt der Watchdog nie, wenn der User im Büro sitzt).
+        //  2. Speed >= 1.0 m/s ODER Distanz >= 10m seit letztem Fix.
+        // Vorher reichte Distanz >= 10m allein — Indoor-GPS-Drift hielt
+        // die Session endlos am Leben (User-Report: "Autofahrt läuft
+        // seit 15 Min, ich sitze still im Büro").
+        val isReliableFix = accuracy <= 30f
+        val isMoving = isReliableFix && (speed != null && speed >= 1.0f)
         bridge.addDriveProbe(probe, refreshHeartbeat = isMoving)
 
-        // Bewegung >= 10m seit letztem Fix (5s) -> Fahrt lebt, Heartbeat refreshen.
-        if (distance != null && distance >= MIN_PROBE_MOVEMENT_M) {
+        if (isReliableFix && distance != null && distance >= MIN_PROBE_MOVEMENT_M) {
             bridge.refreshDriveHeartbeat(now)
         }
 
