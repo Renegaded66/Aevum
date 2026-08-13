@@ -32,7 +32,10 @@ private const val TAG = "CurrentZoneProvider"
 @Singleton
 class CurrentZoneProvider @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val geofenceRepository: PlaceGeofenceRepository
+    private val geofenceRepository: PlaceGeofenceRepository,
+    // M18.66-FIX4: Processor wird direkt aufgerufen, wenn die Zone wechselt
+    private val processor: GeofenceTransitionProcessor,
+    private val debugLogger: GeofenceDebugLogger
 ) {
     private val client by lazy { LocationServices.getFusedLocationProviderClient(context) }
 
@@ -100,8 +103,51 @@ class CurrentZoneProvider @Inject constructor(
             null
         }
 
+        // M18.66-FIX4: Zonenwechsel → Pipeline triggern!
+        // Vorher: checkNow() aktualisierte nur den Banner, aber startete
+        // nie die Activity. Der Banner zeigte "Arbeit", aber die Pipeline
+        // wurde nie aufgerufen → kein Auto-Start.
+        // Jetzt: Wenn sich die Zone ändert (drinnen→draußen oder
+        // draußen→drinnen), rufen wir processTransition direkt auf.
+        val previousZoneId = _currentZone.value?.geofence?.id
+        val newZoneId = result?.geofence?.id
+        val zoneChanged = previousZoneId != newZoneId
+
         _currentZone.value = result
-        Log.d(TAG, "Zone: ${result?.geofence?.name ?: "Abwesend"} (acc=${location.accuracy}m)")
+        Log.d(TAG, "Zone: ${result?.geofence?.name ?: "Abwesend"} (acc=${location.accuracy}m, changed=$zoneChanged)")
+
+        if (zoneChanged) {
+            if (newZoneId != null) {
+                // ENTER: Betreten einer Zone
+                debugLogger.log("ZONE_PROVIDER", "ENTER: ${result?.geofence?.name} (checkNow)")
+                try {
+                    processor.processTransition(
+                        geofenceId = newZoneId,
+                        transition = GeofenceTransition.Enter,
+                        occurredAt = System.currentTimeMillis(),
+                        latitude = location.latitude,
+                        longitude = location.longitude
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "ENTER processTransition failed: ${e.message}", e)
+                }
+            } else if (previousZoneId != null) {
+                // EXIT: Verlassen einer Zone
+                debugLogger.log("ZONE_PROVIDER", "EXIT: $previousZoneId (checkNow)")
+                try {
+                    processor.processTransition(
+                        geofenceId = previousZoneId,
+                        transition = GeofenceTransition.Exit,
+                        occurredAt = System.currentTimeMillis(),
+                        latitude = location.latitude,
+                        longitude = location.longitude
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "EXIT processTransition failed: ${e.message}", e)
+                }
+            }
+        }
+
         return result
     }
 
