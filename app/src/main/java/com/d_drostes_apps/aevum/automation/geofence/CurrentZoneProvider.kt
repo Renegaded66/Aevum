@@ -48,6 +48,19 @@ class CurrentZoneProvider @Inject constructor(
     private val _currentZone = MutableStateFlow<ZoneInfo?>(null)
     val currentZone: StateFlow<ZoneInfo?> = _currentZone
 
+    // M18.66-FIX5: Persistenter previousZoneId — überlebt App-Neustart.
+    // Vorher: @Singleton _currentZone behielt "Arbeit" vom letzten Mal →
+    // beim erneuten App-Öffnen war zoneChanged=false → kein Trigger.
+    private val prefs by lazy {
+        context.getSharedPreferences("aevum_zone_state", Context.MODE_PRIVATE)
+    }
+    private fun loadPreviousZoneId(): String? = prefs.getString("prev_zone_id", null)
+    private fun savePreviousZoneId(id: String?) {
+        prefs.edit().apply {
+            if (id != null) putString("prev_zone_id", id) else remove("prev_zone_id")
+        }.apply()
+    }
+
     /**
      * Prüft sofort den GPS-Standort gegen alle Geofences und
      * aktualisiert den StateFlow. Wird aufgerufen:
@@ -103,20 +116,20 @@ class CurrentZoneProvider @Inject constructor(
             null
         }
 
-        // M18.66-FIX4: Zonenwechsel → Pipeline triggern!
-        // Vorher: checkNow() aktualisierte nur den Banner, aber startete
-        // nie die Activity. Der Banner zeigte "Arbeit", aber die Pipeline
-        // wurde nie aufgerufen → kein Auto-Start.
-        // Jetzt: Wenn sich die Zone ändert (drinnen→draußen oder
-        // draußen→drinnen), rufen wir processTransition direkt auf.
-        val previousZoneId = _currentZone.value?.geofence?.id
+        // M18.66-FIX4/FIX5: Zonenwechsel → Pipeline triggern!
+        // FIX5: previousZoneId wird aus SharedPreferences geladen, nicht
+        // aus dem @Singleton _currentZone (der überlebt App-Neustart →
+        // zoneChanged=false → kein Trigger). Jetzt: SharedPreferences
+        // speichert den letzten Zustand dauerhaft.
+        val previousZoneId = loadPreviousZoneId()
         val newZoneId = result?.geofence?.id
         val zoneChanged = previousZoneId != newZoneId
 
         _currentZone.value = result
-        Log.d(TAG, "Zone: ${result?.geofence?.name ?: "Abwesend"} (acc=${location.accuracy}m, changed=$zoneChanged)")
+        Log.d(TAG, "Zone: ${result?.geofence?.name ?: "Abwesend"} (acc=${location.accuracy}m, prev=$previousZoneId, new=$newZoneId, changed=$zoneChanged)")
 
         if (zoneChanged) {
+            savePreviousZoneId(newZoneId)
             if (newZoneId != null) {
                 // ENTER: Betreten einer Zone
                 debugLogger.log("ZONE_PROVIDER", "ENTER: ${result?.geofence?.name} (checkNow)")

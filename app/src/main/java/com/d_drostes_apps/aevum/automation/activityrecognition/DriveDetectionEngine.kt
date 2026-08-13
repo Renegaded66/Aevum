@@ -41,8 +41,11 @@ object DriveDetectionEngine {
     const val MAX_PROBE_AGE_MS = 15L * 60 * 1000
     /** Mindestanzahl gültiger Probes für eine Entscheidung. */
     const val MIN_VALID_PROBES = 3
-    /** Mindestens N aufeinanderfolgende Probes über der Auto-Schwelle. */
-    const val MIN_CONSECUTIVE_FAST = 2
+    /** Mindestens N aufeinanderfolgende Probes über der Auto-Schwelle.
+     *  M18.66-FIX5: 2 -> 3. Zwei Probes reichen bei GPS-Sprüngen als
+     *  False-Positive. Drei aufeinanderfolgende schnelle Probes über
+     *  mindestens 1+ Minute sind robust gegen Sprünge. */
+    const val MIN_CONSECUTIVE_FAST = 3
     /** Probes müssen über mindestens 1 Minute verteilt sein (kein
      *  Einzel-Sample-Burst). */
     const val MIN_SPREAD_MS = 60_000L
@@ -134,8 +137,12 @@ object DriveDetectionEngine {
         }
         val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
 
+        // M18.66-FIX5: Durchschnitts-Threshold 10 -> 7 m/s (25 km/h).
+        // User-Vorschlag: "Durchschnittsgeschwindigkeit innerhalb von 2 Min
+        // über 25 km/h". 7 m/s = 25.2 km/h. Das filtert Gehen/Laufen/
+        // Fahrrad zuverlässig heraus.
         val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST ||
-            (avgSpeed >= AUTO_SPEED_MPS + 2f && fastCount >= 2)
+            (avgSpeed >= 7.0f && fastCount >= 2)
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau

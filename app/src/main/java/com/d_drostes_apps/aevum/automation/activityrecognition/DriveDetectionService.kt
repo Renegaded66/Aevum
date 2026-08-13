@@ -180,21 +180,22 @@ class DriveDetectionService : Service() {
             longitude = loc.longitude
         )
 
-        // M18.66-FIX2: Heartbeat NUR refreshen, wenn BEIDE Bedingungen erfüllt:
+        // M18.66-FIX2/FIX5: Heartbeat NUR refreshen, wenn BEIDE Bedingungen:
         //  1. GPS-Genauigkeit <= 30m (Indoor-GPS hat oft 50-100m und springt
-        //     um 10-20m — das darf NICHT als "Fahrt lebt" zählen, sonst
-        //     stoppt der Watchdog nie, wenn der User im Büro sitzt).
-        //  2. Speed >= 1.0 m/s ODER Distanz >= 10m seit letztem Fix.
-        // Vorher reichte Distanz >= 10m allein — Indoor-GPS-Drift hielt
-        // die Session endlos am Leben (User-Report: "Autofahrt läuft
-        // seit 15 Min, ich sitze still im Büro").
+        //     um 10-20m — das darf NICHT als "Fahrt lebt" zählen).
+        //  2. Speed >= 3.0 m/s (10.8 km/h) — zuverlässiges Auto-Tempo.
+        // FIX5: Vorher war die Schwelle 1.0 m/s (3.6 km/h) — Indoor-GPS
+        // liefert oft hasSpeed=true mit speed >= 1.0 (GPS-Sprung) →
+        // Heartbeat refresht → Watchdog läuft nie ab → Session endlos.
+        // 3.0 m/s ist sicher über Geh-Tempo (1.4 m/s) und unter Auto-Tempo.
         val isReliableFix = accuracy <= 30f
-        val isMoving = isReliableFix && (speed != null && speed >= 1.0f)
+        val isMoving = isReliableFix && (speed != null && speed >= 3.0f)
         bridge.addDriveProbe(probe, refreshHeartbeat = isMoving)
 
-        if (isReliableFix && distance != null && distance >= MIN_PROBE_MOVEMENT_M) {
-            bridge.refreshDriveHeartbeat(now)
-        }
+        // M18.66-FIX5: distance-basierten Heartbeat-Refresh ENTFERNT.
+        // Indoor-GPS-Drift erzeugt 10-20m Springer trotz still sitzendem
+        // User — das refreshte den Heartbeat fälschlich → Watchdog
+        // lief nie ab. Nur Speed >= 3.0 m/s darf den Heartbeat refreshen.
 
         lastLat = loc.latitude
         lastLon = loc.longitude
