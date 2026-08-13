@@ -62,7 +62,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // M18.61f: v28 — balance_profile + balance_profile_app.
     // M18.64: v31 — activity_session.external_id (stabile Import-Identität
     // für idempotenten Garmin-Schlaf-Sync).
-    version = 31,
+    version = 32,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1291,6 +1291,24 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE `activity_session` ADD COLUMN `external_id` TEXT")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_session_external_id` ON `activity_session` (`external_id`)")
+            }
+        }
+
+        // M18.66-FIX6: Backfill auto_start_activity_type_id für alle
+        // Bestands-Geofences. MIGRATION_10_11 fügte die Spalte als NULL
+        // hinzu — ohne Backfill war autoStartActivityTypeId für alte
+        // Geofences immer null → der Auto-Start-Block im Processor
+        // wurde übersprungen → keine Activity startete, egal wie oft
+        // der User den Geofence betrat. Jetzt: Wenn activity_type_id
+        // gesetzt ist, wird auto_start_activity_type_id darauf gesetzt.
+        val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """UPDATE place_geofence 
+                       SET auto_start_activity_type_id = activity_type_id 
+                       WHERE auto_start_activity_type_id IS NULL 
+                       AND activity_type_id IS NOT NULL"""
+                )
             }
         }
     }

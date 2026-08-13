@@ -131,12 +131,16 @@ class CurrentZoneProvider @Inject constructor(
         if (zoneChanged) {
             savePreviousZoneId(newZoneId)
             if (newZoneId != null) {
-                // ENTER: Betreten einer Zone
-                debugLogger.log("ZONE_PROVIDER", "ENTER: ${result?.geofence?.name} (checkNow)")
+                // M18.66-FIX6: DWELL statt ENTER! Der Auto-Discard (60s)
+                // killt ENTER-getriggerte Sessions, weil checkNow() nur
+                // einmal feuert und nie ein DWELL nachkommt. DWELL wird
+                // vom Processor als bestätigter ENTER behandelt und ruft
+                // markDwellConfirmed() auf → Auto-Discard ist blockiert.
+                debugLogger.log("ZONE_PROVIDER", "DWELL(ENTER): ${result?.geofence?.name} (checkNow)")
                 try {
                     processor.processTransition(
                         geofenceId = newZoneId,
-                        transition = GeofenceTransition.Enter,
+                        transition = GeofenceTransition.Dwell,
                         occurredAt = System.currentTimeMillis(),
                         latitude = location.latitude,
                         longitude = location.longitude

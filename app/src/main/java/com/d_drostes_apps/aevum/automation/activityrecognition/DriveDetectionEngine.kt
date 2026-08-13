@@ -46,9 +46,11 @@ object DriveDetectionEngine {
      *  False-Positive. Drei aufeinanderfolgende schnelle Probes über
      *  mindestens 1+ Minute sind robust gegen Sprünge. */
     const val MIN_CONSECUTIVE_FAST = 3
-    /** Probes müssen über mindestens 1 Minute verteilt sein (kein
-     *  Einzel-Sample-Burst). */
-    const val MIN_SPREAD_MS = 60_000L
+    /** Probes müssen über mindestens 2 Minuten verteilt sein.
+     *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
+     *  geschwindigkeit innerhalb von 2 Minuten über 25 km/h". Das
+     *  filtert kurze GPS-Bursts zuverlässig heraus. */
+    const val MIN_SPREAD_MS = 120_000L
     /** GPS-Sprung > 2 km zwischen zwei Probes (< 60s auseinander) ist
      *  ein Ausreißer (Tunnel-Sprung, Sensorfehler). */
     const val JUMP_OUTLIER_M = 2000.0

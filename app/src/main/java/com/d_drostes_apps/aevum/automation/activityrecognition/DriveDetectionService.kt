@@ -180,17 +180,15 @@ class DriveDetectionService : Service() {
             longitude = loc.longitude
         )
 
-        // M18.66-FIX2/FIX5: Heartbeat NUR refreshen, wenn BEIDE Bedingungen:
-        //  1. GPS-Genauigkeit <= 30m (Indoor-GPS hat oft 50-100m und springt
-        //     um 10-20m — das darf NICHT als "Fahrt lebt" zählen).
-        //  2. Speed >= 3.0 m/s (10.8 km/h) — zuverlässiges Auto-Tempo.
-        // FIX5: Vorher war die Schwelle 1.0 m/s (3.6 km/h) — Indoor-GPS
-        // liefert oft hasSpeed=true mit speed >= 1.0 (GPS-Sprung) →
-        // Heartbeat refresht → Watchdog läuft nie ab → Session endlos.
-        // 3.0 m/s ist sicher über Geh-Tempo (1.4 m/s) und unter Auto-Tempo.
+        // M18.66-FIX6: Heartbeat wird NUR bei bestätigter Fahrt refresht.
+        // Vorher: addDriveProbe(refreshHeartbeat=isMoving) refreshte den
+        // Heartbeat bei speed >= 3.0 m/s — aber GPS-Noise kann das
+        // fälschlich liefern → Watchdog läuft nie ab → Session endlos.
+        // Jetzt: Probes werden OHNE Heartbeat gepuffert. Die Klassifikation
+        // entscheidet: classify==Driving → Heartbeat refresht + Watchdog.
+        // classify!=Driving → kein Heartbeat → Watchdog läuft nach 5 Min ab.
         val isReliableFix = accuracy <= 30f
-        val isMoving = isReliableFix && (speed != null && speed >= 3.0f)
-        bridge.addDriveProbe(probe, refreshHeartbeat = isMoving)
+        bridge.addDriveProbe(probe, refreshHeartbeat = false)
 
         // M18.66-FIX5: distance-basierten Heartbeat-Refresh ENTFERNT.
         // Indoor-GPS-Drift erzeugt 10-20m Springer trotz still sitzendem
@@ -205,12 +203,18 @@ class DriveDetectionService : Service() {
         when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now)) {
             is DriveDetectionEngine.Classification.Driving -> {
                 Log.d(TAG, "Fahrt erkannt (GPS-Stream, conf=${result.confidence}) -> Start")
+                // M18.66-FIX6: Heartbeat NUR bei bestätigter Fahrt refresht.
+                // Das verhindert, dass GPS-Noise (speed >= 3 m/s) den Watchdog
+                // endlos am Leben hält — nur die Klassifikation als Driving
+                // (3+ konsekutive Probes >= 8 m/s über 1 Min) bestätigt die Fahrt.
+                bridge.refreshDriveHeartbeat(now)
                 bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
                 DriveStartWorker.schedule(this)
                 DriveWatchdogWorker.schedule(this)
             }
             else -> {
                 // Noch nicht genug / keine Fahrt — weiter sammeln.
+                // KEIN Heartbeat-Refresh → Watchdog läuft nach 5 Min ab.
             }
         }
     }
