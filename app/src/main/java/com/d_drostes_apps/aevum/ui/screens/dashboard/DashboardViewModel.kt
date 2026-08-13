@@ -499,6 +499,9 @@ class DashboardViewModel @Inject constructor(
     val currentZone: StateFlow<com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider.ZoneInfo?> =
         currentZoneProvider.currentZone
 
+    // M18.66-FIX7: Debug-Info für den Zone-Banner (temporär).
+    val zoneDebugInfo: StateFlow<String> = currentZoneProvider.debugInfo
+
     init {
         // M18.66-FIX3: Sofort beim ViewModel-Init den Standort checken,
         // damit der Banner sofort beim App-Öffnen die richtige Zone zeigt.

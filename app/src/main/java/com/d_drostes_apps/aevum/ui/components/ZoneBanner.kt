@@ -48,7 +48,10 @@ import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 @Composable
 fun ZoneBanner(
     zone: CurrentZoneProvider.ZoneInfo?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // M18.66-FIX7: Debug-Info — temporär fürs Debugging. Zeigt an,
+    // was checkNow() gemacht hat (ENTER/EXIT, autoStart, Fehler).
+    debugInfo: String = ""
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -137,6 +140,16 @@ fun ZoneBanner(
                             color = colors.onSurfaceVariant.copy(alpha = 0.72f),
                             maxLines = 1
                         )
+                        // M18.66-FIX7: Debug-Info — temporär fürs Debugging.
+                        if (debugInfo.isNotBlank()) {
+                            Text(
+                                text = debugInfo,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = colors.onSurfaceVariant.copy(alpha = 0.6f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

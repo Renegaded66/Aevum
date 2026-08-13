@@ -5,7 +5,11 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import com.d_drostes_apps.aevum.data.model.PlaceGeofence
+import com.d_drostes_apps.aevum.data.model.TriggerEvent
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
+import com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
+import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -13,18 +17,26 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 // ══════════════════════════════════════════════════════════════════════
-// M18.66-FIX3: CURRENT-ZONE PROVIDER
+// M18.66-FIX7: CURRENT-ZONE PROVIDER — DIREKTER AUTO-START
 //
-// Liefert die Geofence-Zone, in der sich der User gerade befindet
-// (oder null = "Abwesend"). Wird vom Dashboard-Zone-Banner konsumiert.
+// Vorher (FIX4-6): checkNow() rief processor.processTransition() auf.
+// Der Processor hat 7 Schichten (Dedup, SleepShield, Trigger-Erzeugung,
+// Auto-Discard, DWELL-Bestätigung...) — jede kann den Start silently
+// blockieren. Resultat: Kein Trigger, kein Auto-Start, trotz korrekter
+// Zonenerkennung.
 //
-// Der Provider hält einen StateFlow, den die UI beobachten kann.
-// Aktualisierung: on-demand via checkNow() oder periodisch via
-// ProactiveGeofenceCheckWorker (der den Status setzt).
+// Jetzt: checkNow() ruft LiveActivityManager.start() DIREKT auf — kein
+// Processor, kein Dedup, kein SleepShield. Wenn der User eine Zone
+// betritt und autoStartActivityTypeId gesetzt ist → Activity startet.
+// Punkt. Wenn er sie verlässt → Activity stoppt. Punkt.
+//
+// Der Processor wird weiterhin für GMS-Geofence-Events aufgerufen
+// (Receiver-Pipeline), aber checkNow() ist der direkte Pfad.
 // ══════════════════════════════════════════════════════════════════════
 
 private const val TAG = "CurrentZoneProvider"
@@ -33,9 +45,8 @@ private const val TAG = "CurrentZoneProvider"
 class CurrentZoneProvider @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geofenceRepository: PlaceGeofenceRepository,
-    // M18.66-FIX4: Processor wird direkt aufgerufen, wenn die Zone wechselt
-    private val processor: GeofenceTransitionProcessor,
-    private val debugLogger: GeofenceDebugLogger
+    private val triggerRepository: TriggerEventRepository,
+    private val liveActivityManager: LiveActivityManager
 ) {
     private val client by lazy { LocationServices.getFusedLocationProviderClient(context) }
 
@@ -48,9 +59,11 @@ class CurrentZoneProvider @Inject constructor(
     private val _currentZone = MutableStateFlow<ZoneInfo?>(null)
     val currentZone: StateFlow<ZoneInfo?> = _currentZone
 
-    // M18.66-FIX5: Persistenter previousZoneId — überlebt App-Neustart.
-    // Vorher: @Singleton _currentZone behielt "Arbeit" vom letzten Mal →
-    // beim erneuten App-Öffnen war zoneChanged=false → kein Trigger.
+    // M18.66-FIX7: Debug-Info für den Banner — der User kann sehen,
+    // was passiert, und mir die Werte geben.
+    private val _debugInfo = MutableStateFlow("")
+    val debugInfo: StateFlow<String> = _debugInfo
+
     private val prefs by lazy {
         context.getSharedPreferences("aevum_zone_state", Context.MODE_PRIVATE)
     }
@@ -61,15 +74,10 @@ class CurrentZoneProvider @Inject constructor(
         }.apply()
     }
 
-    /**
-     * Prüft sofort den GPS-Standort gegen alle Geofences und
-     * aktualisiert den StateFlow. Wird aufgerufen:
-     * - Beim App-Start (sofortige Anzeige im Dashboard)
-     * - Durch ProactiveGeofenceCheckWorker (alle 2 Min)
-     */
     @SuppressLint("MissingPermission")
     suspend fun checkNow(): ZoneInfo? {
         if (!hasLocationPermission()) {
+            _debugInfo.value = "❌ Keine Standort-Berechtigung"
             Log.w(TAG, "Keine Standortberechtigung — Zone nicht ermittelbar")
             return null
         }
@@ -77,11 +85,13 @@ class CurrentZoneProvider @Inject constructor(
         val geofences = try {
             geofenceRepository.getAllEnabled().first().filter { it.deletedAt == null }
         } catch (e: Exception) {
+            _debugInfo.value = "❌ Geofences laden fehlgeschlagen: ${e.message}"
             Log.e(TAG, "Geofences laden fehlgeschlagen: ${e.message}")
             return _currentZone.value
         }
 
         if (geofences.isEmpty()) {
+            _debugInfo.value = "❌ Keine Geofences in DB"
             _currentZone.value = null
             return null
         }
@@ -92,11 +102,13 @@ class CurrentZoneProvider @Inject constructor(
                 null
             ).await()
         } catch (e: Exception) {
+            _debugInfo.value = "❌ GPS-Fix fehlgeschlagen: ${e.message}"
             Log.w(TAG, "GPS-Fix fehlgeschlagen: ${e.message}")
             null
         }
 
         if (location == null) {
+            _debugInfo.value = "❌ Kein GPS-Fix"
             Log.w(TAG, "Kein GPS-Fix — Zone bleibt unverändert")
             return _currentZone.value
         }
@@ -116,52 +128,122 @@ class CurrentZoneProvider @Inject constructor(
             null
         }
 
-        // M18.66-FIX4/FIX5: Zonenwechsel → Pipeline triggern!
-        // FIX5: previousZoneId wird aus SharedPreferences geladen, nicht
-        // aus dem @Singleton _currentZone (der überlebt App-Neustart →
-        // zoneChanged=false → kein Trigger). Jetzt: SharedPreferences
-        // speichert den letzten Zustand dauerhaft.
         val previousZoneId = loadPreviousZoneId()
         val newZoneId = result?.geofence?.id
         val zoneChanged = previousZoneId != newZoneId
 
         _currentZone.value = result
-        Log.d(TAG, "Zone: ${result?.geofence?.name ?: "Abwesend"} (acc=${location.accuracy}m, prev=$previousZoneId, new=$newZoneId, changed=$zoneChanged)")
 
+        // M18.66-FIX7: DIREKTER AUTO-START — kein Processor, kein Dedup.
+        // Wenn der User eine Zone betritt und autoStartActivityTypeId
+        // gesetzt ist → Activity starten. Wenn er sie verlässt → stoppen.
         if (zoneChanged) {
             savePreviousZoneId(newZoneId)
-            if (newZoneId != null) {
-                // M18.66-FIX6: DWELL statt ENTER! Der Auto-Discard (60s)
-                // killt ENTER-getriggerte Sessions, weil checkNow() nur
-                // einmal feuert und nie ein DWELL nachkommt. DWELL wird
-                // vom Processor als bestätigter ENTER behandelt und ruft
-                // markDwellConfirmed() auf → Auto-Discard ist blockiert.
-                debugLogger.log("ZONE_PROVIDER", "DWELL(ENTER): ${result?.geofence?.name} (checkNow)")
-                try {
-                    processor.processTransition(
-                        geofenceId = newZoneId,
-                        transition = GeofenceTransition.Dwell,
-                        occurredAt = System.currentTimeMillis(),
-                        latitude = location.latitude,
-                        longitude = location.longitude
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "ENTER processTransition failed: ${e.message}", e)
+            val now = System.currentTimeMillis()
+
+            if (newZoneId != null && result != null) {
+                // ═══ ENTER: Zone betreten ═══
+                val gf = result.geofence
+                val autoType = gf.autoStartActivityTypeId
+                _debugInfo.value = "ENTER: ${gf.name} | autoStart=$autoType | prev=$previousZoneId"
+
+                if (autoType != null) {
+                    try {
+                        val existing = liveActivityManager.liveSession.value
+                        val isSameActivity = existing != null &&
+                            existing.isLive &&
+                            existing.activityTypeId == autoType
+
+                        if (!isSameActivity) {
+                            // Andere Session beenden, neue starten.
+                            if (existing != null && existing.isLive) {
+                                liveActivityManager.forceFinishForAuto()
+                            }
+                            // M18.66-FIX7: DIREKTER start() — kein Auto-Discard,
+                            // kein Processor. Die Session startet und bleibt.
+                            val session = liveActivityManager.start(
+                                activityTypeId = autoType,
+                                title = gf.name,
+                                sourceType = "GEOFENCE_AUTO",
+                                sourceTriggerId = null
+                            )
+                            LiveActivityService.start(context)
+                            Log.d(TAG, "✅ Auto-Start: ${gf.name} → ${session.id} (type=$autoType)")
+
+                            // Trigger direkt schreiben — kein Processor-Umweg.
+                            triggerRepository.insert(
+                                TriggerEvent(
+                                    id = UUID.randomUUID().toString(),
+                                    occurredAt = now,
+                                    type = "GEOFENCE_ENTER",
+                                    source = "geofence_auto",
+                                    confidence = 1.0f,
+                                    geofenceId = gf.id,
+                                    detectionEventId = null,
+                                    metadataJson = """{"geofenceName":"${gf.name}","activityTypeId":"$autoType","reason":"direct_auto_start"}""",
+                                    anchorQuality = "HIGH"
+                                )
+                            )
+                            _debugInfo.value = "✅ Auto-Start: ${gf.name} → $autoType (Session ${session.id.take(8)})"
+                        } else {
+                            Log.d(TAG, "Auto-Start: ${gf.name} läuft bereits ($autoType)")
+                            _debugInfo.value = "ℹ️ ${gf.name} läuft bereits ($autoType)"
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Auto-Start fehlgeschlagen: ${e.message}", e)
+                        _debugInfo.value = "❌ Auto-Start fehlgeschlagen: ${e.message}"
+                    }
+                } else {
+                    Log.d(TAG, "ENTER: ${gf.name} — kein autoStartActivityTypeId")
+                    _debugInfo.value = "ENTER: ${gf.name} | autoStart=NULL (kein Auto-Start konfiguriert)"
                 }
             } else if (previousZoneId != null) {
-                // EXIT: Verlassen einer Zone
-                debugLogger.log("ZONE_PROVIDER", "EXIT: $previousZoneId (checkNow)")
-                try {
-                    processor.processTransition(
-                        geofenceId = previousZoneId,
-                        transition = GeofenceTransition.Exit,
-                        occurredAt = System.currentTimeMillis(),
-                        latitude = location.latitude,
-                        longitude = location.longitude
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "EXIT processTransition failed: ${e.message}", e)
+                // ═══ EXIT: Zone verlassen ═══
+                val prevGf = geofences.find { it.id == previousZoneId }
+                val autoType = prevGf?.autoStartActivityTypeId
+                _debugInfo.value = "EXIT: ${prevGf?.name ?: previousZoneId} | autoStop=$autoType"
+
+                if (autoType != null) {
+                    try {
+                        val existing = liveActivityManager.liveSession.value
+                        if (existing != null && existing.isLive &&
+                            existing.activityTypeId == autoType &&
+                            existing.sourceType == "GEOFENCE_AUTO"
+                        ) {
+                            liveActivityManager.stop()
+                            Log.d(TAG, "✅ Auto-Stop: ${prevGf?.name} → Session beendet")
+
+                            triggerRepository.insert(
+                                TriggerEvent(
+                                    id = UUID.randomUUID().toString(),
+                                    occurredAt = now,
+                                    type = "GEOFENCE_EXIT",
+                                    source = "geofence_auto",
+                                    confidence = 1.0f,
+                                    geofenceId = previousZoneId,
+                                    detectionEventId = null,
+                                    metadataJson = """{"geofenceName":"${prevGf?.name}","activityTypeId":"$autoType","reason":"direct_auto_stop"}""",
+                                    anchorQuality = "HIGH"
+                                )
+                            )
+                            _debugInfo.value = "✅ Auto-Stop: ${prevGf?.name} → Session beendet"
+                        } else {
+                            Log.d(TAG, "Auto-Stop: Keine passende Live-Session (existing=$existing)")
+                            _debugInfo.value = "EXIT: ${prevGf?.name} | keine passende Session"
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Auto-Stop fehlgeschlagen: ${e.message}", e)
+                        _debugInfo.value = "❌ Auto-Stop fehlgeschlagen: ${e.message}"
+                    }
                 }
+            }
+        } else {
+            // Kein Zonenwechsel — Debug-Info aktualisieren.
+            val gf = result?.geofence
+            _debugInfo.value = if (gf != null) {
+                "Zone: ${gf.name} | autoStart=${gf.autoStartActivityTypeId ?: "NULL"} | unchanged"
+            } else {
+                "Abwesend | unchanged"
             }
         }
 
@@ -202,7 +284,7 @@ class CurrentZoneProvider @Inject constructor(
     }
 
     private fun haversineDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val r = 6371000.0 // Erdradius in Metern
+        val r = 6371000.0
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
         val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +

@@ -124,6 +124,7 @@ fun DashboardScreen(
     val garminActivities by viewModel.garminActivities.collectAsState()
     // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner
     val currentZone by viewModel.currentZone.collectAsState()
+    val zoneDebugInfo by viewModel.zoneDebugInfo.collectAsState()
     DashboardContent(
         modifier = modifier,
         state = state,
@@ -135,6 +136,7 @@ fun DashboardScreen(
         garminSummary = garminSummary,
         garminActivities = garminActivities,
         currentZone = currentZone,
+        zoneDebugInfo = zoneDebugInfo,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
         onOpenSleepStatus = onOpenSleepStatus,
@@ -173,6 +175,7 @@ private fun DashboardContent(
     garminActivities: List<com.d_drostes_apps.aevum.data.model.GarminActivity> = emptyList(),
     // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner
     currentZone: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider.ZoneInfo? = null,
+    zoneDebugInfo: String = "",
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenSleepStatus: () -> Unit = {},
@@ -264,7 +267,7 @@ private fun DashboardContent(
             // (oder "Abwesend"), damit der User sieht, ob die App ihn korrekt
             // lokalisiert. Dezent, aber klar sichtbar.
             item {
-                ZoneBanner(zone = currentZone)
+                ZoneBanner(zone = currentZone, debugInfo = zoneDebugInfo)
             }
 
             // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
