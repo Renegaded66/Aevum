@@ -144,6 +144,15 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- M18.66: Autofahrt-Erkennung über kontinuierlichen GPS-Stream.
+             ForegroundService vom Typ "location" (Pflicht ab Android 14+,
+             damit requestLocationUpdates im Hintergrund zuverlässig läuft).
+             Wird gestartet, solange die Autofahrt-Erkennung aktiv ist. -->
+        <service
+            android:name=".automation.activityrecognition.DriveDetectionService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- M9: Live Activity foreground service -->
         <service
             android:name=".domain.liveactivity.LiveActivityService"

@@ -116,7 +116,7 @@ class ActivityRecognitionWorker(
             try {
                 val liveSession = liveActivityManager.liveSession.value
                 if (liveSession != null && liveSession.isLive &&
-                    liveSession.activityTypeId == "transport" &&
+                    liveSession.activityTypeId == "driving" &&
                     liveSession.sourceType == "ACTIVITY_RECOGNITION_AUTO"
                 ) {
                     liveActivityManager.stop()
@@ -131,7 +131,7 @@ class ActivityRecognitionWorker(
         // EXIT eine laufende Auto-Session zuverlässig beenden.
         val existingLive = liveActivityManager.liveSession.value
         if (existingLive != null && existingLive.isLive &&
-            existingLive.activityTypeId == "transport" &&
+            existingLive.activityTypeId == "driving" &&
             existingLive.sourceType == "ACTIVITY_RECOGNITION_AUTO"
         ) {
             Log.d(TAG, "Auto-Mobilitäts-Session läuft bereits — Cluster nur als Trigger verbucht")
@@ -288,16 +288,19 @@ class ActivityRecognitionWorker(
             // M18.3: Genug Fahrsamples — Mobilitäts-Session starten.
             try {
                 val existing = liveActivityManager.liveSession.value
-                val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "transport"
+                val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "driving"
                 if (!isDuplicate) {
                     // Aktuelle andere Live-Session beenden (z. B. manuelles
                     // Workout) bevor die Fahrt startet — wie bei Geofence.
                     if (existing != null && existing.isLive) {
                         liveActivityManager.forceFinishForAuto()
                     }
+                    // M18.66: Activity "Autofahren" (driving) — nicht mehr
+                    // "Mobilität" (transport). Der User will die Activity
+                    // Autofahren, keine generische Mobilität.
                     val session = liveActivityManager.start(
-                        activityTypeId = "transport",
-                        title = "Mobilität",
+                        activityTypeId = "driving",
+                        title = "Autofahren",
                         sourceType = "ACTIVITY_RECOGNITION_AUTO",
                         // startedAt = Cluster-Start, NICHT now() — der User
                         // war ja schon die ganze Zeit im Fahrzeug.
@@ -843,31 +846,29 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                         // Vorher wurde jedes IN_VEHICLE-Event als Sample
                         // gepuffert, der Worker startete UND stoppte die
                         // Session im selben Lauf (sofort wieder beendet).
+                        // M18.66: ENTER startet SOFORT (kein 2-Min-Confirm
+                        // mehr) — die Google-Transition ist die Erkennung.
                         val transitionType = getTransitionInt(event)
                         if (transitionType ==
                             com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT
                         ) {
                             bridge.markVehicleExited(now)
-                            // M18.45: EXIT = Fahrt (vermutlich) vorbei.
-                            // Geplante Bestätigung abbrechen, Cluster leeren
-                            // (alte Fahrt soll nicht in neue ragen), und den
-                            // 90s-Watchdog starten (Ampel-Toleranz: kommt in
-                            // 90s wieder IN_VEHICLE, läuft die Fahrt weiter).
-                            DriveConfirmWorker.cancel(context)
-                            bridge.drainVehicleCluster()
-                            DriveWatchdogWorker.schedule(context, DriveWatchdogWorker.MODE_TRANSITION)
+                            // M18.66: EXIT = Google meldet "nicht mehr im
+                            // Fahrzeug" -> SOFORT stoppen (kein 5-Minuten-
+                            // Warten, kein GPS-Check). Der Watchdog wäre
+                            // mit 5 Min Delay zu langsam für einen
+                            // bestätigten EXIT.
+                            DriveStopWorker.schedule(context)
                         } else {
                             bridge.addSample(now, 75)
-                            // M18.45: Kein Sofort-Start mehr! Der
-                            // DriveConfirmWorker wartet 2 Minuten und prüft
-                            // dann per GPS-Bewegung (≥200m), ob es eine
-                            // echte Fahrt ist. REPLACE: jeder weitere ENTER
-                            // resetet den Timer.
-                            DriveConfirmWorker.schedule(context)
-                            // Watchdog vorsorglich starten: Feuert nach 8
-                            // Minuten — wenn dann keine Session läuft
-                            // (Fahrt nie bestätigt), ist er ein No-Op.
-                            DriveWatchdogWorker.schedule(context, DriveWatchdogWorker.MODE_NO_SIGNAL)
+                            // M18.66: SOFORT starten — die Transition IST
+                            // die Bestätigung (User-Spezifikation: "Sobald
+                            // die Autofahrt erkannt wird, soll die
+                            // Activity Autofahren gestartet werden").
+                            DriveStartWorker.schedule(context)
+                            // Watchdog vorsorglich starten: stoppt die
+                            // Session nach 5 Minuten ohne weiteres Signal.
+                            DriveWatchdogWorker.schedule(context)
                         }
                         hasChange = true
                     }

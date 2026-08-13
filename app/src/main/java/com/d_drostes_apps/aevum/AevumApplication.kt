@@ -268,16 +268,18 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ActivityRecognitionRegistrar failed — continuing", e)
         }
-        // M18.64: GPS-Geschwindigkeits-Pfad für die Fahrterkennung starten.
-        // Unabhängiger Fallback zu Googles IN_VEHICLE-Transitions: holt
-        // alle 2 Minuten einen GPS-Fix und erkennt Fahrten über die
-        // Geschwindigkeits-Serie (DriveDetectionEngine). Selbst-erneuernd;
-        // der Worker prüft das driving-Gate selbst und stoppt den Takt,
-        // wenn die Erkennung deaktiviert ist.
+        // M18.66: Autofahrt-Erkennung über KONTINUIERLICHEN GPS-Stream.
+        // Recherche-Befund (Google Maps / Life360 / Android-Doku): Ein
+        // einmaliger getCurrentLocation()-Fix liefert fast nie hasSpeed() —
+        // zuverlässige Fahrterkennung braucht einen dauerhaften
+        // Location-Stream (DriveDetectionService, ForegroundService vom
+        // Typ "location"). Der alte DriveProbeWorker (alle 2 Min ein
+        // einmaliger Fix) war der Grund, warum die Erkennung nie zuverlässig
+        // funktionierte: speedMps war fast immer null.
         try {
-            com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.schedule(this)
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(this)
         } catch (e: Exception) {
-            Log.e("AevumApplication", "DriveProbeWorker schedule failed — continuing", e)
+            Log.e("AevumApplication", "DriveDetectionService start failed — continuing", e)
         }
         // M17.4: Initial-Activity-Snapshot — falls der User gerade im Auto
         // sitzt und die App frisch startet (Cold-Start), soll das ebenfalls
