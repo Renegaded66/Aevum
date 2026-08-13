@@ -89,10 +89,24 @@ class GeofenceForegroundService : Service() {
     companion object {
         fun start(context: Context) {
             val intent = Intent(context, GeofenceForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                // M18.66-FIX: ForegroundServiceStartNotAllowedException
+                // (Android 12+) wenn die App im Hintergrund startet, oder
+                // SecurityException. Der FGS-Start darf NIE crashen — die
+                // Geofence-Registrierung (client.addGeofences) funktioniert
+                // auch ohne FGS, nur weniger zuverlässig im Hintergrund.
+                try {
+                    context.startService(intent)
+                } catch (_: Exception) {
+                    // Auch der Fallback schlägt fehl — Geofences laufen
+                    // dann nur im Vordergrund. Nicht blockierend.
+                }
             }
         }
 

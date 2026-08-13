@@ -147,6 +147,19 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "GeofenceRefreshScheduler failed — continuing", e)
         }
+        // M18.66-FIX (Root Cause "Geofence startet keine Session"): Der
+        // GeofenceForegroundService (Typ "location") ist auf Android 14+
+        // PFLICHT, damit Geofence-Transitions im Hintergrund zuverlässig
+        // feuern. Vorher wurde er nur indirekt über den GeofenceRefreshWorker
+        // (15s Delay) gestartet — wenn der Worker fehlschlug oder die App
+        // im Hintergrund startete, lief kein FGS und Geofences feuerten
+        // nicht. Jetzt: FGS direkt beim App-Start starten (idempotent,
+        // der Service prüft selbst, ob er schon läuft).
+        try {
+            com.d_drostes_apps.aevum.automation.geofence.GeofenceForegroundService.start(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "GeofenceForegroundService start failed — continuing", e)
+        }
         // M18.61c-HOTFIX: Sofortige Geofence-Registrierung beim App-Start.
         // Der Periodik-Worker feuert erst nach 6h, der BootReceiver nur
         // nach Reboot. Wenn die App frisch installiert/upgedatet wurde

@@ -255,9 +255,13 @@ class GeofenceTransitionProcessor @Inject constructor(
             // nur die normale activityTypeId gesetzt ist, reicht das nicht —
             // der User muss in den Geofence-Settings "Auto-Start" explizit
             // aktivieren.
-            if (geofence.autoStartActivityTypeId != null &&
-                anchorQualityOverride != "LOW" &&
-                anchorQuality != SleepShield.AnchorQuality.LOW
+            // M18.66-FIX: SleepShield darf den Auto-Start NICHT blockieren,
+            // wenn der User explizit autoStartActivityTypeId konfiguriert hat.
+            // Vorher: Wenn der SleepShield den Trigger auf LOW setzte (nachts),
+            // startete die konfigurierte Activity nicht — der User stand im Gym
+            // und nichts passierte. SleepShield ist nur für Travel-Rule-Engine
+            // (Phantom-Fahrten), nicht für direkte Auto-Starts.
+            if (geofence.autoStartActivityTypeId != null
             ) {
                 // M18.43: Bei DWELL-Dedup (skipTriggerCreation) ist `trigger`
                 // null — die Session wurde schon beim ENTER gestartet. Als
@@ -305,8 +309,15 @@ class GeofenceTransitionProcessor @Inject constructor(
                 debugLogger.log("PROCESSOR", "  Kein autoStartActivityTypeId konfiguriert → kein Auto-Start")
             }
         } else if (transition == GeofenceTransition.Exit) {
-            // M17: Auto-Stop, wenn der Geofence Auto-Stop aktiviert hat.
-            if (geofence.autoStopEnabled) {
+            // M18.66-FIX: Auto-Stop implizit aktiv, wenn autoStartActivityTypeId
+            // konfiguriert ist. Vorher: Auto-Stop lief nur, wenn der User
+            // autoStopEnabled EXPLIZIT aktiviert hatte — aber der User erwartet,
+            // dass die Activity beim Verlassen des Geofences automatisch stoppt.
+            // Wenn autoStartActivityTypeId gesetzt ist, ist autoStopEnabled
+            // implizit true. Explizites autoStopEnabled bleibt für den Fall,
+            // dass nur Auto-Stop (ohne Auto-Start) gewünscht ist.
+            val shouldAutoStop = geofence.autoStopEnabled || geofence.autoStartActivityTypeId != null
+            if (shouldAutoStop) {
                 val existing = liveActivityManager.liveSession.value
                 if (existing != null && existing.isLive) {
                     // M18.42-FIX (Root Cause "Auto-Stop feuert NIE"):
@@ -325,8 +336,16 @@ class GeofenceTransitionProcessor @Inject constructor(
                                 it.type.contains("ENTER", ignoreCase = true)) }
                         .map { it.id }
                         .toSet()
-                    val matchesGeofence = existing.sourceTriggerId != null &&
-                        existing.sourceTriggerId in enterTriggerIds
+                    val matchesGeofence = (existing.sourceTriggerId != null &&
+                        existing.sourceTriggerId in enterTriggerIds) ||
+                        // M18.66-FIX: Wenn die Session keine sourceTriggerId hat
+                        // (Edge-Case bei DWELL-Start ohne Trigger), aber die
+                        // ActivityTypeId mit der konfigurierten Auto-Start-Activity
+                        // übereinstimmt, ist es sehr wahrscheinlich diese Geofence-
+                        // Session — stoppe sie.
+                        (existing.sourceTriggerId == null &&
+                            geofence.autoStartActivityTypeId != null &&
+                            existing.activityTypeId == geofence.autoStartActivityTypeId)
                     if (matchesGeofence) {
                         val isAutoSession = existing.sourceType == "GEOFENCE_AUTO"
                         if (isAutoSession) {

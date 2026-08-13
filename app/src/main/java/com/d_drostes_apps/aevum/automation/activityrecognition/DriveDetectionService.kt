@@ -180,8 +180,11 @@ class DriveDetectionService : Service() {
             longitude = loc.longitude
         )
 
-        // Speed vorhanden + >= Auto-Schwelle? -> Fahrt-Signal, Heartbeat refreshen.
-        val isMoving = speed != null && speed >= DriveDetectionEngine.WALK_RUN_MAX_MPS
+        // Speed >= 1.0 m/s (3,6 km/h) -> Fahrt lebt, Heartbeat refreshen.
+        // Vorher war die Schwelle bei 5.5 m/s (20 km/h) — im Stadtverkehr
+        // und Stau wird der Herzschlag nicht mehr refresht → Watchdog
+        // stoppt die Session nach 5 Min obwohl man noch fährt.
+        val isMoving = speed != null && speed >= 1.0f
         bridge.addDriveProbe(probe, refreshHeartbeat = isMoving)
 
         // Bewegung >= 10m seit letztem Fix (5s) -> Fahrt lebt, Heartbeat refreshen.

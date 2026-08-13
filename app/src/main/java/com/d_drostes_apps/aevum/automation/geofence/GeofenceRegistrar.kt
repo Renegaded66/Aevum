@@ -66,7 +66,22 @@ class GeofenceRegistrar @Inject constructor(
         debugLogger.log("REGISTRAR", "Registriere ${geofences.size} Geofences")
 
         return try {
-            GeofenceForegroundService.start(context)
+            // M18.66-FIX (Root Cause "Geofence startet keine Session"):
+            // Der Foreground-Service-Start war VORHER im try-Block und
+            // konnte die GESAMTE Registrierung blockieren. Wenn
+            // GeofenceForegroundService.start() eine Exception wirft
+            // (ForegroundServiceStartNotAllowedException auf Android 12+
+            // bei Hintergrund-Start, SecurityException auf Android 14+
+            // ohne Background-Permission), wurde der try-Block abgebrochen
+            // und client.addGeofences() NIE ausgeführt → der Geofence war
+            // nie bei GMS registriert → kein ENTER-Event → keine Session.
+            // Jetzt: FGS-Start isoliert — ein FGS-Fehler darf die
+            // Geofence-Registrierung NIE verhindern.
+            try {
+                GeofenceForegroundService.start(context)
+            } catch (fgsError: Exception) {
+                debugLogger.log("REGISTRAR", "FGS-Start fehlgeschlagen (nicht blockierend): ${fgsError.message}")
+            }
             client.removeGeofences(pendingIntent()).await()
             if (geofences.isNotEmpty()) {
                 val request = GeofencingRequest.Builder()
