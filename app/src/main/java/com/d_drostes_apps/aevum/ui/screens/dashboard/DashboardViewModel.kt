@@ -59,7 +59,10 @@ class DashboardViewModel @Inject constructor(
     private val usageWakeDetector: com.d_drostes_apps.aevum.automation.sleep.UsageWakeDetector,
     // M18.58: Garmin Connect — Kachel-Daten (Schritte/Distanz/Kalorien)
     // + importierte Aktivitäten.
-    private val garminRepository: com.d_drostes_apps.aevum.data.repository.GarminRepository
+    private val garminRepository: com.d_drostes_apps.aevum.data.repository.GarminRepository,
+    // M18.66-FIX3: CurrentZoneProvider — liefert die aktuelle Geofence-Zone
+    // für den Zone-Banner im Dashboard.
+    private val currentZoneProvider: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
@@ -490,6 +493,23 @@ class DashboardViewModel @Inject constructor(
 
     private val _garminActivities = MutableStateFlow<List<com.d_drostes_apps.aevum.data.model.GarminActivity>>(emptyList())
     val garminActivities: StateFlow<List<com.d_drostes_apps.aevum.data.model.GarminActivity>> = _garminActivities.asStateFlow()
+
+    // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner.
+    // Beim init sofort prüfen, danach über ProactiveGeofenceCheckWorker (2-Min).
+    val currentZone: StateFlow<com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider.ZoneInfo?> =
+        currentZoneProvider.currentZone
+
+    init {
+        // M18.66-FIX3: Sofort beim ViewModel-Init den Standort checken,
+        // damit der Banner sofort beim App-Öffnen die richtige Zone zeigt.
+        viewModelScope.launch {
+            try {
+                currentZoneProvider.checkNow()
+            } catch (e: Exception) {
+                Log.e("DashboardViewModel", "Zone-Check beim Init fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
 
     // M18.58: Güte-Verlauf — Quality-Score pro Tag für die letzten 365 Tage.
     // Wird on-the-fly aus allen Sessions berechnet (keine neue Aggregations-

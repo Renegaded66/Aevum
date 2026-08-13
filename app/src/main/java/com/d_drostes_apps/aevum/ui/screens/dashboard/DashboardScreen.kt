@@ -60,6 +60,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.data.model.AppUsageSample
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
+import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.QualityRing
 import com.d_drostes_apps.aevum.ui.components.positivityColor
@@ -121,6 +122,8 @@ fun DashboardScreen(
     // M18.58: Garmin-Kachel-Daten
     val garminSummary by viewModel.garminSummary.collectAsState()
     val garminActivities by viewModel.garminActivities.collectAsState()
+    // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner
+    val currentZone by viewModel.currentZone.collectAsState()
     DashboardContent(
         modifier = modifier,
         state = state,
@@ -131,6 +134,7 @@ fun DashboardScreen(
         qualityTrend = qualityTrend,
         garminSummary = garminSummary,
         garminActivities = garminActivities,
+        currentZone = currentZone,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
         onOpenSleepStatus = onOpenSleepStatus,
@@ -167,6 +171,8 @@ private fun DashboardContent(
     // M18.58: Garmin-Kachel-Daten
     garminSummary: com.d_drostes_apps.aevum.data.model.GarminDailySummary? = null,
     garminActivities: List<com.d_drostes_apps.aevum.data.model.GarminActivity> = emptyList(),
+    // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner
+    currentZone: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider.ZoneInfo? = null,
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenSleepStatus: () -> Unit = {},
@@ -252,6 +258,13 @@ private fun DashboardContent(
                         activityTypes = state.activityTypes
                     )
                 }
+            }
+
+            // M18.66-FIX3: Zone-Banner — zeigt die aktuelle Geofence-Zone
+            // (oder "Abwesend"), damit der User sieht, ob die App ihn korrekt
+            // lokalisiert. Dezent, aber klar sichtbar.
+            item {
+                ZoneBanner(zone = currentZone)
             }
 
             // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"

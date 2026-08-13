@@ -52,6 +52,7 @@ class ProactiveGeofenceCheckWorker(
         fun processor(): GeofenceTransitionProcessor
         fun debugLogger(): GeofenceDebugLogger
         fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+        fun currentZoneProvider(): CurrentZoneProvider
     }
 
     override suspend fun doWork(): Result {
@@ -60,6 +61,7 @@ class ProactiveGeofenceCheckWorker(
         val processor = deps.processor()
         val debugLogger = deps.debugLogger()
         val settingsRepo = deps.settingsRepository()
+        val zoneProvider = deps.currentZoneProvider()
 
         // Gate: Geofencing in den Trigger-Settings deaktiviert?
         try {
@@ -108,7 +110,8 @@ class ProactiveGeofenceCheckWorker(
                     )
                     prefs.edit().putString("last_inside_geofence", matched.id).apply()
                 }
-                // Sonst: immer noch drinnen — nichts tun.
+                // M18.66-FIX3: Zone-Banner aktualisieren
+                zoneProvider.setZone(matched)
             } else {
                 // User ist in keiner Geofence.
                 if (lastInsideId != null) {
@@ -123,7 +126,8 @@ class ProactiveGeofenceCheckWorker(
                     )
                     prefs.edit().remove("last_inside_geofence").apply()
                 }
-                // Sonst: immer noch draußen — nichts tun.
+                // M18.66-FIX3: Zone-Banner aktualisieren ("Abwesend")
+                zoneProvider.setZone(null)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Proaktiver Geofence-Check fehlgeschlagen: ${e.message}", e)
