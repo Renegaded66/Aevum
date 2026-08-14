@@ -6,6 +6,7 @@ import com.d_drostes_apps.aevum.data.model.Tag
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivitySessionChangeRepository
+import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import kotlinx.coroutines.flow.first
 import java.util.UUID
 import javax.inject.Inject
@@ -13,7 +14,13 @@ import javax.inject.Inject
 class SaveManualActivityUseCase @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val candidateRepository: ActivityCandidateRepository,
-    private val changeRepository: ActivitySessionChangeRepository
+    private val changeRepository: ActivitySessionChangeRepository,
+    // M18.66-FIX21 (User: "Neue Activity Aufzeichnungen sollten immer alte
+    // stoppen"): Der manuelle Editor-Pfad muss die laufende Live-Session
+    // beenden, damit keine Überlappungen entstehen (z.B. Geofence-Session
+    // läuft, User speichert manuell eine Autofahrt → Geofence-Session
+    // endet jetzt, Autofahrt startet).
+    private val liveActivityManager: LiveActivityManager
 ) {
     suspend operator fun invoke(request: ManualActivityRequest): SaveManualActivityResult {
         val validation = SessionTimeValidator.validate(
@@ -33,6 +40,18 @@ class SaveManualActivityUseCase @Inject constructor(
 
         val now = System.currentTimeMillis()
         val existing = request.id?.let { activityRepository.getById(it).first() }
+
+        // M18.66-FIX21 (User: "Neue Activity Aufzeichnungen sollten immer alte
+        // stoppen"): Beim ANLEGEN einer neuen manuellen Session wird die
+        // laufende Live-Session beendet (endAt = jetzt). So entstehen keine
+        // Überlappungen — egal ob die laufende Session per Geofence,
+        // Fahrterkennung oder manuell gestartet wurde. Beim EDITIEREN einer
+        // bestehenden Session passiert das NICHT (der User bearbeitet ja
+        // genau diese Session).
+        if (existing == null) {
+            liveActivityManager.stop()
+        }
+
         val sessionId = request.id ?: UUID.randomUUID().toString()
         val session = if (existing == null) {
             ActivitySession(

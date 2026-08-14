@@ -257,6 +257,11 @@ class LiveActivityManager @Inject constructor(
         // (Pause-Zeitpunkt) — nicht überschreiben. Bei RUNNING endet jetzt.
         val endAt = if (session.isPaused) session.endAt ?: now else now
         activityRepository.finishSession(session.id, endAt, session.totalPausedMs, session.pauseSegmentsJson)
+        // M18.66-FIX21: Auch der Auto-Discard-Watchdog muss invalidiert
+        // werden — sonst würde er die beendete Geofence-Session nach dem
+        // Timeout soft-deleten (z.B. wenn der User manuell eine neue
+        // Session speichert, während eine Geofence-Auto-Session lief).
+        cancelAutoDiscardForSession(session.id)
         return session.copy(
             sessionStatus = "FINISHED",
             endAt = endAt,

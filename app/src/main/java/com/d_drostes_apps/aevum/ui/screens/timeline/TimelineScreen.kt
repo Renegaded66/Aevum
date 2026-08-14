@@ -1875,9 +1875,13 @@ private fun ZoomableDayTimeline(
 
     // M18.26: Voller Viewport statt fixe 560dp. Die Tag-Ansicht ist der
     // EINZIGE Scroll-Container des Screens — kein Nested-Scroll mehr.
+    // M18.66-FIX21: Container-Breite für die horizontale Lane-Versetzung
+    // der Labels (Google-Calendar-Prinzip).
+    var containerWidthPx by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onSizeChanged { containerWidthPx = it.width }
             .clip(RoundedCornerShape(AevumRadius.md))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f))
     ) {
@@ -1930,14 +1934,17 @@ private fun ZoomableDayTimeline(
                                 val top = (startMin / 60f) * pxHour
                                 val bottom = (endMin / 60f) * pxHour
                                 val totalH = (bottom - top).coerceAtLeast(18.dp.toPx())
-                                val laneH = (if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH)
-                                    .coerceAtLeast(18.dp.toPx())
-                                val laneY = top + 2f + lane * laneH
-                                val laneHeight = (laneH - 2f).coerceAtLeast(2f)
+                                // M18.66-FIX21: Hit-Test mit IDENTISCHER Geometrie
+                                // wie die Zeichnung — volle Blockhöhe, horizontale
+                                // Lane-Versetzung (Google-Calendar-Prinzip).
+                                val blockWidthPx = size.width - blockX.toPx() - blockRightPadding.toPx()
+                                val laneWidth = blockWidthPx / laneCount.coerceAtLeast(1)
+                                val blockXOffset = blockX.toPx() + lane * laneWidth
                                 // Nur der Block-Bereich (rechts der Uhr-Achse)
                                 // ist Trefferfläche — ein Tap auf der Achse
                                 // oder daneben erzeugt eine neue Aktivität.
-                                offset.x >= blockX.toPx() && offset.y >= laneY - 2f && offset.y <= laneY + laneHeight + 2f
+                                offset.x >= blockXOffset && offset.x <= blockXOffset + laneWidth &&
+                                    offset.y >= top - 2f && offset.y <= top + totalH + 2f
                             }
                             if (hit != null) onOpen(hit.id) else onCreateAt(minute)
                         }
@@ -2022,16 +2029,19 @@ private fun ZoomableDayTimeline(
                         val topY = (startMin / 60f) * pxHour
                         val bottomY = (endMin / 60f) * pxHour
                         val totalH = (bottomY - topY).coerceAtLeast(20f)
-                        // M18.21: Mindesthöhe für kurze Aktivitäten (z.B. 5 min).
-                        // Ohne Minimum wäre ein 5-min-Block bei 60px/h nur ~5px
-                        // hoch — Farbe und Icon unsichtbar. Jetzt: mindestens
-                        // 18dp, damit JEDER Block sichtbar farbig + mit Icon
-                        // bleibt (Google-Calendar-Prinzip: kurze Termine werden
-                        // auf Mindesthöhe gezeichnet).
-                        val laneH = (if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH)
-                            .coerceAtLeast(18.dp.toPx())
-                        val laneY = topY + 2f + lane * laneH
-                        val laneHeight = (laneH - 2f).coerceAtLeast(2f)
+                        // M18.66-FIX21 (User: "soziales 18:00–21:03 + Autofahrt
+                        // 21:00–21:30 → soziales endet optisch bei ~19:30"):
+                        // ROOT CAUSE — die alte Lane-Logik TEILTE die Blockhöhe
+                        // durch die Lane-Anzahl (laneH = (totalH-4f)/laneCount).
+                        // Bei 2 Lanes wurde ein 3h-Block nur 1.5h hoch gezeichnet.
+                        // Fix: Google-Calendar-Prinzip — JEDER Block behält seine
+                        // volle Höhe, überlappende Blöcke werden HORIZONTAL in
+                        // Spalten versetzt (Lane 0 = volle Breite, Lane 1 = rechte
+                        // Hälfte, Lane 2 = rechtes Drittel, ...).
+                        val blockWidthPx = blockWidth.coerceAtLeast(0f)
+                        val laneWidth = blockWidthPx / laneCount.coerceAtLeast(1)
+                        val blockXOffset = blockXLocal + lane * laneWidth
+                        val laneHeight = totalH
                         // M18.15: Custom-Farbe der Aktivität bevorzugen,
                         // sonst Kategorie-Farbe.
                         val color = if (session.activityColor != 0L) Color(session.activityColor) else categoryColor(session.categoryName)
@@ -2042,8 +2052,8 @@ private fun ZoomableDayTimeline(
                         val fillAlpha = if (session.isOverlapping) 0.80f else 0.62f
                         drawRoundRect(
                             color = color.copy(alpha = fillAlpha),
-                            topLeft = Offset(blockXLocal, laneY),
-                            size = Size(blockWidth.coerceAtLeast(0f), laneHeight),
+                            topLeft = Offset(blockXOffset, topY),
+                            size = Size(laneWidth, laneHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
                         )
                         // M18.60-FIX (User: "der Strich ragt zur Hälfte über
@@ -2056,14 +2066,14 @@ private fun ZoomableDayTimeline(
                         // exakt der Blockhöhe, bündig an der Oberkante.
                         drawRoundRect(
                             color = color.copy(alpha = 0.95f),
-                            topLeft = Offset(blockXLocal, laneY),
+                            topLeft = Offset(blockXOffset, topY),
                             size = Size(4.dp.toPx(), laneHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
                         )
                         drawLine(
                             color = color.copy(alpha = 0.85f),
-                            start = Offset(blockXLocal, laneY),
-                            end = Offset(blockXLocal + blockWidth, laneY),
+                            start = Offset(blockXOffset, topY),
+                            end = Offset(blockXOffset + laneWidth, topY),
                             strokeWidth = 1.5f
                         )
                         // M18.15: Icon (Emoji) der Aktivität im Block zeichnen.
@@ -2079,8 +2089,8 @@ private fun ZoomableDayTimeline(
                             val iconSize = 14.dp.toPx()
                             val pillW = 24.dp.toPx()
                             val pillH = (iconSize + 4.dp.toPx())
-                            val iconX = blockXLocal + 6.dp.toPx()
-                            val iconY = laneY + (laneHeight - pillH) / 2f
+                            val iconX = blockXOffset + 6.dp.toPx()
+                            val iconY = topY + (laneHeight - pillH) / 2f
                             drawRoundRect(
                                 color = Color.White.copy(alpha = 0.28f),
                                 topLeft = Offset(iconX, iconY),
@@ -2139,9 +2149,13 @@ private fun ZoomableDayTimeline(
                     val lane = lanes[session.id] ?: 0
                     val topY = (startMin / 60f) * pixelsPerHour
                     val totalH = (endMin / 60f - startMin / 60f) * pixelsPerHour
-                    val laneH = if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH
-                    val laneY = topY + 2f + lane * laneH
-                    val laneHeightPx = (laneH - 2f).coerceAtLeast(2f)
+                    // M18.66-FIX21: Labels mit IDENTISCHER Geometrie wie die
+                    // Zeichnung — volle Blockhöhe, horizontale Lane-Versetzung.
+                    val blockWidthPx = (containerWidthPx - with(LocalDensity.current) { blockX.toPx() } - with(LocalDensity.current) { blockRightPadding.toPx() })
+                        .coerceAtLeast(0f)
+                    val laneWidthPx = blockWidthPx / laneCount.coerceAtLeast(1)
+                    val laneX = with(LocalDensity.current) { blockX.toPx() } + lane * laneWidthPx
+                    val laneHeightPx = totalH.coerceAtLeast(with(LocalDensity.current) { 18.dp.toPx() })
 
                     // M18.66-FIX12: Label nur anzeigen, wenn genug Platz.
                     // Bedingung: Block-Höhe >= 22dp (Label-Höhe + Padding).
@@ -2154,7 +2168,7 @@ private fun ZoomableDayTimeline(
                     if (laneHeightPx >= minLabelHeightPx) {
                         Box(
                             modifier = Modifier
-                                .padding(start = blockX + 6.dp, top = laneY.dp)
+                                .padding(start = laneX.dp, top = topY.dp)
                                 .pointerInput(session.id) {
                                     detectTapGestures(
                                         onTap = { onOpen(session.id) },
