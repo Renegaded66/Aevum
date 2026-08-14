@@ -754,8 +754,21 @@ class ActivityEditorViewModel @Inject constructor(
                 date = TimeFormatting.millisToLocalDate(candidate.startAt, zoneId)
             )
         } else {
-            val date = dateArg?.let { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() } ?: LocalDate.now()
-            val start = TimeFormatting.parseHourMinuteToMillis(date, java.time.LocalTime.now().hour.coerceAtMost(22), 0, zoneId)
+            // M18.66-FIX18 (User: "Klick auf Timeline → Editor mit
+            // Startzeit = geklickte Zeit, Endzeit = +1h"): Der dateArg
+            // ist jetzt die Klick-Zeit in Millis. Der Plus-Button übergibt
+            // weiterhin Mitternacht (startOfDayMillis) — dann gilt wie
+            // bisher "jetzt" als Startzeit.
+            val startMillis = dateArg ?: System.currentTimeMillis()
+            val date = TimeFormatting.millisToLocalDate(startMillis, zoneId)
+            val isMidnight = startMillis == TimeFormatting.startOfDayMillis(date, zoneId)
+            val start = if (isMidnight) {
+                TimeFormatting.parseHourMinuteToMillis(
+                    date, java.time.LocalTime.now().hour.coerceAtMost(22), 0, zoneId
+                )
+            } else {
+                startMillis
+            }
             form.value = ActivityEditorForm(startAt = start, endAt = start + ONE_HOUR, date = date)
         }
     }

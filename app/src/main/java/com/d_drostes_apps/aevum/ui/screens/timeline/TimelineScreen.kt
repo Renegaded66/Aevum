@@ -122,8 +122,6 @@ fun TimelineScreen(
     val state by viewModel.uiState.collectAsState()
     // M18.66-FIX14: Wochenansicht-Modus aus dem ViewModel
     val weekView by viewModel.weekView.collectAsState()
-    // M18.44: Quick-Create aus der Tagesansicht — getippte Minute des Tages
-    var quickCreateMinute by remember { mutableStateOf<Int?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0.dp),
@@ -230,7 +228,20 @@ fun TimelineScreen(
                         onEdit = onEditActivity,
                         onDeleteTrigger = viewModel::deleteTrigger,
                         onDeleteSession = viewModel::deleteSession,
-                        onCreateAt = { minute -> quickCreateMinute = minute },
+                        // M18.66-FIX18 (User: "wenn man auf die Timeline klickt,
+                        // öffnet sich ein Popup — das sollte nicht sein.
+                        // Stattdessen dieselbe Seite wie beim Plus-Button, mit
+                        // Startzeit = geklickte Zeit, Endzeit = +1h"): Kein
+                        // QuickCreateDialog mehr — direkte Navigation zum
+                        // ActivityEditor mit der geklickten Minute als
+                        // Startzeit (Endzeit = Start + 1h im Editor-Default).
+                        onCreateAt = { minute ->
+                            val date = state.selectedDate
+                            val startMillis = TimeFormatting.parseHourMinuteToMillis(
+                                date, minute / 60, minute % 60
+                            )
+                            onCreateActivity(startMillis)
+                        },
                         weekView = weekView,
                         weekSessions = state.weekSessions,
                         onSetWeekView = viewModel::setWeekView,
@@ -248,24 +259,9 @@ fun TimelineScreen(
             // kein Padding.
         }
     }
-    // M18.44: Quick-Create-Dialog (Google-Calendar-Prinzip). Erscheint
-    // nach Tap auf eine leere Zeitstelle der Tagesansicht.
-    // M18.45: Start- UND Endzeit editierbar, plus "Weiter aufzeichnen"-Modus.
-    quickCreateMinute?.let { minute ->
-        QuickCreateDialog(
-            minuteOfDay = minute,
-            types = state.activityTypes,
-            onDismiss = { quickCreateMinute = null },
-            onCreate = { typeId, startMinute, endMinute ->
-                viewModel.createQuickSession(startMinute, typeId, endMinute)
-                quickCreateMinute = null
-            },
-            onStartNow = { typeId, startMinute ->
-                viewModel.startQuickSession(startMinute, typeId)
-                quickCreateMinute = null
-            }
-        )
-    }
+    // M18.66-FIX18: QuickCreateDialog entfernt — Tap auf leere Zeitstelle
+    // navigiert jetzt direkt zum ActivityEditor (Startzeit = Klick-Zeit,
+    // Endzeit = +1h). Das Popup war der User-Beschwerdepunkt.
 }
 
 @Composable
