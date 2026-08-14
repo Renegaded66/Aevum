@@ -177,7 +177,7 @@ object InsightsAnalytics {
         // M18.37: allowanceMs muss VOR distributionWithAllowances stehen
         // (wird dort als Nenner fuer die Prozentwerte genutzt).
         val allowanceMs = allowanceAccumulations.sumOf { it.minutes } * 60_000L
-        val distribution = buildDistribution(current, categoryMap)
+        val distribution = buildDistribution(current, categoryMap, typeMap)
         // M18.37: Pauschalen auch ins Kreisdiagramm mischen — als eigene
         // Slices pro Kategorie (id "allowance_<catId>"), damit sie dort
         // sichtbar sind und nicht nur in der Gesamtsumme aufgehen.
@@ -354,9 +354,25 @@ object InsightsAnalytics {
         }.sortedByDescending { it.durationMs }
     }
 
-    private fun buildDistribution(sessions: List<ClippedInsightSession>, categoryMap: Map<String, Category>): List<TimeDistributionSlice> {
+    private fun buildDistribution(
+        sessions: List<ClippedInsightSession>,
+        categoryMap: Map<String, Category>,
+        typeMap: Map<String, ActivityType>
+    ): List<TimeDistributionSlice> {
         val total = sessions.sumOf { it.durationMs }.coerceAtLeast(1L)
-        return sessions.groupBy { it.categoryId ?: "unknown" }
+        return sessions.groupBy { session ->
+            // M18.66-FIX19 (User: "Fitness mit Kategorie Gesundheit wird
+            // nicht gelistet, stattdessen zwei Mal Sonstiges"): Zwei Bugs:
+            // 1) Sessions mit categoryId=null (z.B. Garmin-Import, bevor
+            //    der User dem Typ eine Kategorie zuwies) fielen auf
+            //    "unknown" → "Sonstiges", obwohl der ActivityType inzwischen
+            //    eine Kategorie hat. Jetzt: Fallback auf den Typ.
+            // 2) Jede unbekannte ID erzeugte ein EIGENES "Sonstiges" —
+            //    alle unbekannten IDs werden auf "unknown" normalisiert,
+            //    damit nie zwei "Sonstiges"-Balken entstehen.
+            val raw = session.categoryId ?: typeMap[session.activityTypeId]?.defaultCategoryId
+            if (raw != null && categoryMap.containsKey(raw)) raw else "unknown"
+        }
             .map { (id, values) ->
                 val category = categoryMap[id]
                 val duration = values.sumOf { it.durationMs }
