@@ -887,7 +887,9 @@ class DashboardViewModel @Inject constructor(
                     label = type?.name ?: typeId,
                     durationMs = duration,
                     score = score,
-                    color = com.d_drostes_apps.aevum.ui.components.positivityColor(score)
+                    color = com.d_drostes_apps.aevum.ui.components.positivityColor(score),
+                    // M18.66-FIX16: Icon der Aktivität (wie Insights)
+                    icon = type?.icon ?: "•"
                 )
             }
             .toMutableList()
@@ -906,14 +908,19 @@ class DashboardViewModel @Inject constructor(
                         label = allowance.name,
                         durationMs = effectiveMinutes * 60_000L,
                         score = score,
-                        color = com.d_drostes_apps.aevum.ui.components.positivityColor(score)
+                        color = com.d_drostes_apps.aevum.ui.components.positivityColor(score),
+                        icon = type?.icon ?: "⏱"
                     )
                 )
             }
         }
+        // M18.66-FIX16: Prozent-Anteil berechnen (wie Insights) —
+        // relativ zur Summe aller Slices, Top-5 statt Top-4.
+        val totalMs = slices.sumOf { it.durationMs }.coerceAtLeast(1L)
         return slices
+            .map { it.copy(percent = ((it.durationMs * 100) / totalMs).toInt()) }
             .sortedByDescending { it.durationMs }
-            .take(6) // M18.38: 6 statt 5, damit die Pauschale nicht verdrängt wird
+            .take(5) // M18.66-FIX16: 5 wie Insights "Top Aktivitäten"
     }
 
     private fun currentMinute(now: Long) = TimeFormatting.minutesOfDay(now, zoneId).coerceIn(0, 1440)
@@ -1113,7 +1120,11 @@ data class QualitySlice(
     val label: String,
     val durationMs: Long,
     val score: Int,
-    val color: androidx.compose.ui.graphics.Color
+    val color: androidx.compose.ui.graphics.Color,
+    // M18.66-FIX16: Icon der Aktivität (wie Insights "Top Aktivitäten")
+    val icon: String = "•",
+    // M18.66-FIX16: Prozent-Anteil an der Gesamtzeit (wie Insights)
+    val percent: Int = 0
 )
 
 data class DashboardCategorySlice(

@@ -679,8 +679,8 @@ private fun AppLimitCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                // M18.61f: ECHTES App-Icon (Drawable aus dem PackageManager)
-                // statt Buchstaben-Kreis. Fallback: erster Buchstabe.
+                // M18.66-FIX16: Fertige ImageBitmap aus dem ViewModel-Cache
+                // — kein drawableToBitmap() mehr bei jeder Recomposition.
                 val appIcon = app.icon
                 if (appIcon != null) {
                     Box(
@@ -691,7 +691,7 @@ private fun AppLimitCard(
                         contentAlignment = Alignment.Center
                     ) {
                         androidx.compose.foundation.Image(
-                            painter = BitmapPainter(drawableToBitmap(appIcon)),
+                            bitmap = appIcon,
                             contentDescription = app.appLabel,
                             modifier = Modifier.size(30.dp)
                         )
@@ -1292,10 +1292,18 @@ private fun ProfileFormDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // M18.66-FIX16: Icon-Bitmaps EINMAL pro Dialog-Öffnung
+                        // konvertieren und cachen. Vorher: drawableToBitmap()
+                        // bei jeder Recomposition (jeder Toggle-Klick in der
+                        // App-Liste konvertierte ALLE installierten App-Icons
+                        // neu → das Ruckeln im Profil-Dialog).
                         val appDrawable = app.third
-                        if (appDrawable != null) {
+                        val iconBitmap = remember(app.third) {
+                            appDrawable?.let { drawableToBitmap(it) }
+                        }
+                        if (iconBitmap != null) {
                             androidx.compose.foundation.Image(
-                                painter = BitmapPainter(drawableToBitmap(appDrawable)),
+                                bitmap = iconBitmap,
                                 contentDescription = null,
                                 modifier = Modifier.size(24.dp)
                             )

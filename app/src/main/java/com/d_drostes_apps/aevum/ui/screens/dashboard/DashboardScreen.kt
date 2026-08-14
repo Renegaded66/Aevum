@@ -311,7 +311,8 @@ private fun DashboardContent(
 
             // 4) Wo deine Zeit hingeht — Top-4 mit Score-Farbe
             if (state.qualityBreakdown.isNotEmpty()) {
-                item { QualityBreakdownBars(slices = state.qualityBreakdown.take(4)) }
+                // M18.66-FIX16: Top-5 (wie Insights "Top Aktivitäten")
+                item { QualityBreakdownBars(slices = state.qualityBreakdown.take(5)) }
             }
 
             // 5) Insights — max 2, nur wenn relevant
@@ -908,6 +909,9 @@ private fun DashboardScreenPreview() {
  * M18.7: "Wo deine Zeit hingeht" — horizontale Balken pro Aktivität.
  * Balkenbreite = Dauer-Anteil, Balkenfarbe = Score (rot→gelb→grün).
  * Max 4 Einträge — die Top 4 des Tages. Kaskaden-Animation (80ms).
+ *
+ * M18.66-FIX16: Gleiche Optik wie Insights → Heute → "Top Aktivitäten":
+ * Icon im farbigen Kreis, Prozent-Anteil, Dauer, animierte Bar. Top 5.
  */
 @Composable
 private fun QualityBreakdownBars(slices: List<QualitySlice>) {
@@ -927,15 +931,18 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
+                    // M18.66-FIX16: Icon im farbigen Kreis (wie Insights)
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
-                            .background(slice.color)
-                    )
-                    // M18.38: Pauschalen-Balken mit ⏱-Marker kennzeichnen
-                    if (slice.activityTypeId.startsWith("allowance_")) {
-                        Text("⏱", fontSize = 11.sp)
+                            .background(slice.color.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (slice.icon.isBlank()) "•" else slice.icon,
+                            fontSize = 13.sp
+                        )
                     }
                     Text(
                         slice.label,
@@ -944,19 +951,17 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    // M18.66-FIX16: Prozent-Anteil (wie Insights)
+                    Text(
+                        "${slice.percent}%",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
                     Text(
                         formatHours(slice.durationMs),
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        slice.score.toString(),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = slice.color,
-                        modifier = Modifier.width(24.dp),
-                        textAlign = TextAlign.End
                     )
                 }
                 AnimatedGradientBar(

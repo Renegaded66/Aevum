@@ -24,6 +24,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.inject.Inject
+import androidx.compose.ui.graphics.asImageBitmap
 
 data class DigitalAppUi(
     val packageName: String,
@@ -35,9 +36,11 @@ data class DigitalAppUi(
     val isBlocked: Boolean,
     val progress: Float,
     val remainingMs: Long?,
-    // M18.61f: Echte App-Icons (Bitmap aus dem PackageManager) statt
-    // Buchstaben-Kreis. Wird im ViewModel geladen (IO-Dispatcher).
-    val icon: android.graphics.drawable.Drawable? = null
+    // M18.66-FIX16: Fertige ImageBitmap statt Drawable — wird EINMAL im
+    // ViewModel konvertiert und gecacht. Vorher wurde drawableToBitmap()
+    // bei JEDER Recomposition aufgerufen (Scrollen, Animationen) — das
+    // war die Hauptursache für das Ruckeln der Digital-Balance-Seite.
+    val icon: androidx.compose.ui.graphics.ImageBitmap? = null
 )
 
 data class DigitalBalanceUiState(
@@ -80,6 +83,13 @@ class DigitalBalanceViewModel @Inject constructor(
     // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder "alpha"
     private val sortMode = MutableStateFlow("usage")
 
+    // M18.66-FIX16: Icon-Cache (packageName → ImageBitmap). Das Laden +
+    // Konvertieren von App-Icons ist teuer. Vorher wurde bei jedem
+    // State-Refresh getApplicationIcon() und bei jeder Recomposition
+    // drawableToBitmap() aufgerufen — die Hauptursache für das Ruckeln.
+    // Jetzt: einmal konvertieren, dauerhaft wiederverwenden.
+    private val iconCache = java.util.concurrent.ConcurrentHashMap<String, androidx.compose.ui.graphics.ImageBitmap>()
+
     // M18.61f: Profile-Flows für die Profile-Karte
     val profiles: StateFlow<List<BalanceProfile>> = balanceProfileRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -87,6 +97,22 @@ class DigitalBalanceViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun appContext(): Application = getApplication()
+
+    /** M18.66-FIX16: Drawable → ImageBitmap (einmalig, gecacht). */
+    private fun drawableToImageBitmap(drawable: android.graphics.drawable.Drawable): androidx.compose.ui.graphics.ImageBitmap {
+        return try {
+            val width = drawable.intrinsicWidth.coerceAtLeast(1)
+            val height = drawable.intrinsicHeight.coerceAtLeast(1)
+            val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bitmap.asImageBitmap()
+        } catch (_: Exception) {
+            // Fallback: 1x1 transparentes Bitmap
+            android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+        }
+    }
 
     /**
      * M18.62: Pakete eines Profils (für den Edit-Dialog, um die
@@ -142,11 +168,15 @@ class DigitalBalanceViewModel @Inject constructor(
                 isBlocked = AppLimitChecker.isBlocked(limit, usage.durationMs, now),
                 progress = AppLimitChecker.progress(limit, usage.durationMs),
                 remainingMs = AppLimitChecker.remainingMs(limit, usage.durationMs),
-                // M18.61f: Echte App-Icons laden (Drawable, kein Bitmap —
-                // Compose kann Drawables direkt via rememberDrawablePainter).
-                icon = try {
-                    getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
-                } catch (_: Exception) { null }
+                // M18.66-FIX16: Icon aus dem Cache (einmalige Konvertierung).
+                // Vorher: getApplicationIcon() bei jedem Refresh + Konvertierung
+                // bei jeder Recomposition → Ruckeln.
+                icon = iconCache.getOrPut(usage.packageName) {
+                    try {
+                        val drawable = getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
+                        drawableToImageBitmap(drawable)
+                    } catch (_: Exception) { null }
+                }
             )
         }.let { list ->
             // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder
