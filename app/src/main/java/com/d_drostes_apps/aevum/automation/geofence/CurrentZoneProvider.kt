@@ -159,11 +159,18 @@ class CurrentZoneProvider @Inject constructor(
                             if (existing != null && existing.isLive) {
                                 liveActivityManager.forceFinishForAuto()
                             }
-                            // M18.66-FIX7: DIREKTER start() — kein Auto-Discard,
-                            // kein Processor. Die Session startet und bleibt.
+                            // M18.66-FIX9: Titel = ActivityType-Name, NICHT
+                            // Geofence-Name. Der User hat in der Geofence-
+                            // Automatisierung "Fitness" als Activity ausgewählt
+                            // → die gestartete Activity soll "Fitness" heißen
+                            // und die Kategorie des ActivityTypes haben.
+                            // Vorher: title = gf.name ("Gym") → Activity hieß
+                            // "Gym" ohne Kategorie. Jetzt: title = "Fitness"
+                            // mit der Kategorie, die dem ActivityType
+                            // zugewiesen ist.
                             val session = liveActivityManager.start(
                                 activityTypeId = autoType,
-                                title = gf.name,
+                                title = null,
                                 sourceType = "GEOFENCE_AUTO",
                                 sourceTriggerId = null
                             )
