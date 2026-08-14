@@ -1345,14 +1345,16 @@ private fun DayCalendarTimeline(
                     }
                     IconButton(
                         onClick = { isListMode = false; onSetWeekView(true) },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.DateRange,
                             contentDescription = "Wochenansicht",
                             tint = if (weekView) MaterialTheme.colorScheme.primary
                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
+                            // M18.66-FIX15: Icon vergrößert (18→24dp) — das
+                            // 7-Tage-Icon war zu klein neben den Tag-Toggles.
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -2312,6 +2314,16 @@ private fun WeekColumn(
     modifier: Modifier = Modifier
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
+    // M18.66-FIX15: Activity-Icons in der Wochenansicht — wie in der
+    // Tagesansicht zoom-abhängig: Icon nur wenn der Block hoch genug
+    // ist (>= 18dp). Bei weit herausgezoomten kurzen Activities
+    // verschwinden die Icons; beim Reinzoomen erscheinen sie wieder.
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val minIconHeightPx = with(density) { 18.dp.toPx() }
+    val iconSize = with(density) { 12.dp.toPx() }      // etwas kleiner als Tagesansicht (schmale Spalten)
+    val pillW = with(density) { 20.dp.toPx() }
+    val pillH = iconSize + with(density) { 4.dp.toPx() }
     Canvas(
         modifier = modifier
             .fillMaxHeight()
@@ -2370,6 +2382,34 @@ private fun WeekColumn(
                 size = Size(3.dp.toPx().coerceAtMost(blockW), blockH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
             )
+            // M18.66-FIX15: Activity-Icon im Block (zoom-abhängig).
+            // Gleiche Logik wie Tagesansicht: Icon nur wenn Block-Höhe
+            // >= 18dp. Eine 5-min-Activity bei pixelsPerHour=18 (weit
+            // raus) = 1.5dp → kein Icon. Bei pixelsPerHour=180 (rein)
+            // = 15dp → immer noch unter 18dp — erst ab ~7min Dauer
+            // erscheint das Icon. Das verhindert Überlappung bei kurzen
+            // Activities, genau wie der User es beschrieben hat.
+            if (blockH >= minIconHeightPx &&
+                session.activityIcon.isNotBlank() && session.activityIcon != "•"
+            ) {
+                val iconX = 5.dp.toPx()
+                val iconY = topY + (blockH - pillH) / 2f
+                // Pill-Hintergrund nur wenn er in die Spaltenbreite passt
+                if (pillW <= w - 4.dp.toPx()) {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.28f),
+                        topLeft = Offset(iconX, iconY),
+                        size = Size(pillW, pillH),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(pillH / 2f, pillH / 2f)
+                    )
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = session.activityIcon,
+                        topLeft = Offset(iconX + 2.dp.toPx(), iconY + (pillH - iconSize) / 2f),
+                        style = TextStyle(fontSize = 12.sp)
+                    )
+                }
+            }
         }
 
         // Jetzt-Linie (nur für "heute")

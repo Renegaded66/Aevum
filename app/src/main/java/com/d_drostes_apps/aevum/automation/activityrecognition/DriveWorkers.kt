@@ -80,6 +80,33 @@ class DriveStartWorker(
         val live = deps.liveActivityManager()
         val triggerRepo = deps.triggerEventRepository()
 
+        // M18.66-FIX15: AR-START-GATE gegen False-Positives.
+        // Root-Cause (User: "zeichnet ständig zuhause auf"): Der
+        // ActivityTransitionReceiver rief bei jedem IN_VEHICLE-ENTER
+        // DriveStartWorker.schedule() SOFORT auf — ohne Warmup, ohne
+        // Netto-Displacement, ohne Speed-Prüfung. Googles Activity
+        // Recognition liefert bei Sensorrauschen (Vibration, Zug/Bus
+        // vor dem Fenster, GPS-Kaltstart nach Update) regelmäßig
+        // IN_VEHICLE-False-Positives.
+        // Jetzt: Ein Start ist NUR erlaubt, wenn
+        //   a) GPS-bestätigt (markDriveConfirmed von DriveProbeWorker/
+        //      InitialActivitySnapshotWorker), ODER
+        //   b) die aktuellen GPS-Probes des DriveDetectionService
+        //      klassifizieren als Driving (alle FIX13-Gates: Warmup,
+        //      Netto-Displacement ≥ 200m, 5 konsekutive ≥ 10 m/s,
+        //      avgSpeed ≥ 9 m/s).
+        // Beides zusammen deckt ab: echte Fahrten starten über den
+        // GPS-Stream (der die Gates hat), AR-False-Positives starten
+        // nichts mehr.
+        val now = System.currentTimeMillis()
+        val confirmed = bridge.consumeDriveConfirmation()
+        val gpsOk = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now) is
+            DriveDetectionEngine.Classification.Driving
+        if (!confirmed && !gpsOk) {
+            Log.d(TAG, "Start-Gate: keine GPS-Bestätigung und keine Driving-Klassifikation — AR-Cluster verworfen (False-Positive-Schutz)")
+            return Result.success()
+        }
+
         // M18.66: Die Erkennung (ENTER-Event ODER Speed-Serie) ist die
         // Bestätigung — die Session startet JETZT, nicht erst nach
         // Minuten. Cluster-Start = ältestes Signal (deckt "Fahrt begann
@@ -93,7 +120,6 @@ class DriveStartWorker(
             return Result.success()
         }
 
-        val now = System.currentTimeMillis()
         val liveSession = live.liveSession.value
 
         // Duplikat-Schutz: Läuft schon eine Auto-Fahr-Session → nichts tun
@@ -517,6 +543,9 @@ class DriveProbeWorker(
                         bridge.addSample(cluster.endMs, 75)
                     }
                     bridge.refreshDriveHeartbeat(now)
+                    // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die
+                    // Probes gedrained werden (siehe DriveDetectionService).
+                    bridge.markDriveConfirmed()
                     bridge.drainDriveProbes()
                     DriveStartWorker.schedule(applicationContext)
                     DriveWatchdogWorker.schedule(applicationContext)

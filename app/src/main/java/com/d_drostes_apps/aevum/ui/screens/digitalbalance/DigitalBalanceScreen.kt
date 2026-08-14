@@ -1084,6 +1084,7 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
  * profile != null → bestehendes Profil bearbeiten (Felder vorbefüllt,
  * App-Auswahl aus der DB geladen). Speichern ruft updateProfile auf.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileFormDialog(
     viewModel: DigitalBalanceViewModel,
@@ -1167,7 +1168,12 @@ private fun ProfileFormDialog(
                 }
                 if (scheduleEnabled) {
                     Text("Wochentage", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // M18.66-FIX15: FlowRow statt Row — 7 Chips in einer
+                    // Zeile wurden auf schmalen Screens deformiert.
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         dayLabels.forEachIndexed { idx, label ->
                             val bit = 1 shl idx
                             val isSelected = (scheduleDays and bit) != 0
@@ -1180,7 +1186,7 @@ private fun ProfileFormDialog(
                                     .clip(RoundedCornerShape(AevumRadius.sm))
                                     .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable { scheduleDays = scheduleDays xor bit }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
                             )
                         }
                     }
@@ -1189,36 +1195,68 @@ private fun ProfileFormDialog(
                         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // M18.66-FIX15: Echte Material3-TimePicker statt
+                        // "Tap erhöht Stunde"-Hack.
+                        var showStartPicker by remember { mutableStateOf(false) }
+                        var showEndPicker by remember { mutableStateOf(false) }
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Von", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                "%02d:%02d".format(startHour, startMinute),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(AevumRadius.md))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                    .clickable {
-                                        // Einfache +/- Logik via Dialog wäre idealer,
-                                        // aber hier kompakt: Tap erhöht Stunde
-                                        startHour = (startHour + 1) % 24
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
+                            OutlinedButton(
+                                onClick = { showStartPicker = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("%02d:%02d".format(startHour, startMinute), fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                            }
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Bis", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                "%02d:%02d".format(endHour, endMinute),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(AevumRadius.md))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                    .clickable {
-                                        endHour = (endHour + 1) % 24
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            OutlinedButton(
+                                onClick = { showEndPicker = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("%02d:%02d".format(endHour, endMinute), fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                        if (showStartPicker) {
+                            val timeState = androidx.compose.material3.rememberTimePickerState(
+                                initialHour = startHour,
+                                initialMinute = startMinute,
+                                is24Hour = true
+                            )
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { showStartPicker = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        startHour = timeState.hour
+                                        startMinute = timeState.minute
+                                        showStartPicker = false
+                                    }) { Text("OK") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showStartPicker = false }) { Text("Abbrechen") }
+                                },
+                                text = { androidx.compose.material3.TimePicker(state = timeState) }
+                            )
+                        }
+                        if (showEndPicker) {
+                            val timeState = androidx.compose.material3.rememberTimePickerState(
+                                initialHour = endHour,
+                                initialMinute = endMinute,
+                                is24Hour = true
+                            )
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { showEndPicker = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        endHour = timeState.hour
+                                        endMinute = timeState.minute
+                                        showEndPicker = false
+                                    }) { Text("OK") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showEndPicker = false }) { Text("Abbrechen") }
+                                },
+                                text = { androidx.compose.material3.TimePicker(state = timeState) }
                             )
                         }
                     }

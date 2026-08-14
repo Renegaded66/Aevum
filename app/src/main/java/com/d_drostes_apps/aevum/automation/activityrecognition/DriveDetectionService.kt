@@ -233,6 +233,11 @@ class DriveDetectionService : Service() {
                 // endlos am Leben hält — nur die Klassifikation als Driving
                 // (3+ konsekutive Probes >= 8 m/s über 1 Min) bestätigt die Fahrt.
                 bridge.refreshDriveHeartbeat(now)
+                // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die Probes
+                // gedrained werden. Der DriveStartWorker prüft sonst leere
+                // Probes (classify=InsufficientData) und würde den Start
+                // trotz bestätigter Fahrt ablehnen.
+                bridge.markDriveConfirmed()
                 bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
                 DriveStartWorker.schedule(this)
                 DriveWatchdogWorker.schedule(this)
