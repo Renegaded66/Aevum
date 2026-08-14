@@ -67,6 +67,15 @@ class DriveDetectionService : Service() {
     private var lastLat: Double? = null
     private var lastLon: Double? = null
     private var lastTsMs: Long = 0L
+    /** M18.66-FIX13: Timestamp des Service-Starts. Die ersten 90 Sekunden
+     *  werden ignoriert (GPS-Kaltstart-Phase). In dieser Zeit liefert
+     *  loc.speed oft Müllwerte (10-30 m/s trotz Stillstand) bei scheinbar
+     *  akzeptabler Genauigkeit (< 30m) — der GPS-Empfänger sucht noch
+     *  Satelliten und springt. Das ist exakt das "5 Minuten nach Update"-
+     *  Muster: Service startet nach App-Update neu → Kaltstart → falsche
+     *  Speed-Werte → False-Positive. 90s deckt den typischen Kaltstart
+     *  ab (Assisted GPS: 20-60s, Cold GPS: 60-120s). */
+    private var serviceStartMs: Long = 0L
 
     companion object {
         private const val TAG = "DriveDetectionSvc"
@@ -108,6 +117,7 @@ class DriveDetectionService : Service() {
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        serviceStartMs = System.currentTimeMillis()
         if (!hasLocationPermission()) {
             Log.w(TAG, "Keine Standort-Berechtigung — Autofahrt-Erkennung pausiert")
             stopSelf()
@@ -165,6 +175,21 @@ class DriveDetectionService : Service() {
 
     private fun handleFix(loc: Location) {
         val now = System.currentTimeMillis()
+
+        // M18.66-FIX13: GPS-KALTSTART-WARMUP.
+        // Die ersten 90 Sekunden nach Service-Start werden ignoriert.
+        // In dieser Phase liefert FusedLocationProvider oft falsche
+        // Speed-Werte (10-30 m/s trotz Stillstand) — der Empfänger
+        // sucht Satelliten, position springt, speed wird aus der
+        // Sprungdistanz geschätzt. Das ist exakt das "5 Minuten nach
+        // Update"-Muster: App-Update → Service-Neustart → Kaltstart.
+        // Probes werden in dieser Zeit NICHT gepuffert → Engine kann
+        // sie nicht fälschlich auswerten.
+        if (serviceStartMs == 0L || now - serviceStartMs < 90_000L) {
+            Log.d(TAG, "GPS-Warmup (Kaltstart) — Probe ignoriert (${(now - serviceStartMs) / 1000}s)")
+            return
+        }
+
         val speed = if (loc.hasSpeed()) loc.speed else null
         val accuracy = loc.accuracy
         val distance = if (lastLat != null && lastLon != null) {

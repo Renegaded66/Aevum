@@ -60,6 +60,19 @@ object DriveDetectionEngine {
     /** GPS-Sprung > 2 km zwischen zwei Probes (< 60s auseinander) ist
      *  ein Ausreißer (Tunnel-Sprung, Sensorfehler). */
     const val JUMP_OUTLIER_M = 2000.0
+    /** M18.66-FIX13: Mindest-Netto-Displacement (geradlinige Distanz vom
+     *  ersten zum letzten Probe). Indoor-GPS-Drift erzeugt Speed-Werte
+     *  von 10-30 m/s (Kaltstart, Multipath) — aber die Position springt
+     *  nur 10-50m um den selben Punkt. Die Netto-Distanz bleibt klein.
+     *  Bei einer echten Fahrt (36 km/h über 2 Min) = 1200m. 200m ist
+     *  extrem konservativ (17% der erwarteten Distanz) — selbst enge
+     *  Kurvenfahrt übersteigt das. Das ist der wichtigste Filter gegen
+     *  False-Positives beim Stillstand, inspiriert von DriveQuant:
+     *  "GPS is deliberately not activated while the driver is not moving
+     *  or before a trip is confirmed" — wir nutzen die Netto-Displacement
+     *  als Bestätigung, dass sich der User BEWEGT HAT, nicht nur dass
+     *  GPS Speed meldet. */
+    const val MIN_NET_DISPLACEMENT_M = 200.0
 
     /** Ein einzelner Geschwindigkeits-Probe. */
     data class DriveProbe(
@@ -123,6 +136,32 @@ object DriveDetectionEngine {
         }
         if (filtered.size < MIN_VALID_PROBES) return Classification.InsufficientData
 
+        // M18.66-FIX13: NETTO-DISPLACEMENT-GATE.
+        // Die wichtigste Defense gegen False-Positives beim Stillstand.
+        // GPS-Kaltstart / Multipath / Indoor-Drift kann speed=10-30 m/s
+        // liefern — aber die Position springt nur 10-50m um den selben
+        // Punkt. Die geradlinige Distanz vom ersten zum letzten Probe
+        // bleibt klein. Bei einer echten Fahrt (36 km/h über 2 Min) =
+        // 1200m. Wenn die Netto-Distanz < 200m ist, ist es KEINE Fahrt
+        // — egal was speed sagt. DriveQuant: "GPS is not activated while
+        // the driver is not moving or before a trip is confirmed."
+        val firstProbe = filtered.first()
+        val lastProbe = filtered.last()
+        val netDisplacement = if (firstProbe.latitude != null && firstProbe.longitude != null &&
+            lastProbe.latitude != null && lastProbe.longitude != null) {
+            haversineMeters(
+                firstProbe.latitude!!, firstProbe.longitude!!,
+                lastProbe.latitude!!, lastProbe.longitude!!
+            )
+        } else {
+            // Keine Koordinaten → kann nicht validieren → nicht fahren.
+            // Besser False-Negative als False-Positive bei Stillstand.
+            0.0
+        }
+        if (netDisplacement < MIN_NET_DISPLACEMENT_M) {
+            return Classification.NotDriving
+        }
+
         // 4) Aufeinanderfolgende schnelle Probes + Durchschnitt
         var consecutive = 0
         var maxConsecutive = 0
@@ -161,6 +200,17 @@ object DriveDetectionEngine {
         val speedLevel = (avgSpeed / 30f).coerceIn(0f, 1f)
         val confidence = (0.5f * speedRatio + 0.5f * speedLevel).coerceIn(0.6f, 0.95f)
         return Classification.Driving(confidence)
+    }
+
+    /** M18.66-FIX13: Haversine-Distanz in Metern (für Netto-Displacement-Gate). */
+    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     }
 
     /**
