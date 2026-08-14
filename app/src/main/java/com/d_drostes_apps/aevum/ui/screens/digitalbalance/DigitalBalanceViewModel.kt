@@ -171,11 +171,20 @@ class DigitalBalanceViewModel @Inject constructor(
                 // M18.66-FIX16: Icon aus dem Cache (einmalige Konvertierung).
                 // Vorher: getApplicationIcon() bei jedem Refresh + Konvertierung
                 // bei jeder Recomposition → Ruckeln.
-                icon = iconCache.getOrPut(usage.packageName) {
-                    try {
+                // M18.66-FIX22 (Crash "sobald Digital Balance geöffnet wird"):
+                // ConcurrentHashMap VERBIETET null-Werte — getOrPut mit einer
+                // Lambda, die null liefert (Icon nicht ladbar, z.B. deinstallierte
+                // App in den UsageStats), crashte mit NullPointerException.
+                // Jetzt: explizites get + put mit Null-Guard (kein put(null)).
+                icon = iconCache[usage.packageName] ?: run {
+                    val bitmap = try {
                         val drawable = getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
                         drawableToImageBitmap(drawable)
                     } catch (_: Exception) { null }
+                    if (bitmap != null) {
+                        iconCache[usage.packageName] = bitmap
+                    }
+                    bitmap
                 }
             )
         }.let { list ->

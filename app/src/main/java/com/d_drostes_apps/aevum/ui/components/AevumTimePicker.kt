@@ -447,12 +447,12 @@ private fun centerPx(size: androidx.compose.ui.unit.IntSize): Pair<Float, Float>
 private fun hourToDeg24(hour: Int): Float = (hour / 24f) * 360f
 private fun minuteToDeg(minute: Int): Float = (minute / 60f) * 360f
 private fun snapMinute(raw: Int): Int {
-    val snapped = (raw / 5) * 5
-    return when {
-        snapped < 0 -> 55
-        snapped >= 60 -> 0
-        else -> snapped
-    }
+    // M18.66-FIX22 (User: "man sollte die Minuten schon genau setzen
+    // können"): KEIN 5-Minuten-Raster mehr — der Winkel des Fingers
+    // liefert bereits eine exakte Minute (0-59). Vorher wurde auf 5er
+    // gerundet ((raw / 5) * 5) → Minuten wie :03 oder :47 waren nicht
+    // erreichbar. Jetzt nur noch Bereichs-Normalisierung.
+    return ((raw % 60) + 60) % 60
 }
 private fun snapHour(raw: Int): Int {
     val snapped = raw % 24
