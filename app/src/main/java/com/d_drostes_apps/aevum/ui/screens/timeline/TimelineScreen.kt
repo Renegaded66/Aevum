@@ -2051,6 +2051,14 @@ private fun ZoomableDayTimeline(
                 }
 
                 // Session labels with click + edit (positioned by lane)
+                // M18.66-FIX12: Labels zoom-abhängig ein-/ausblenden.
+                // Bei weit herausgezoomten Blöcken (wenige Pixel pro Minute)
+                // werden kurze Activities zu winzigen Balken — die Labels
+                // überlappen dann. Jetzt: Label nur anzeigen, wenn die
+                // Block-Höhe in Pixeln groß genug ist (>= 22dp). Das ist
+                // abhängig vom Zoom (pixelsPerHour) und der Activity-Dauer.
+                // Bei Reinzoomen erscheinen die Labels automatisch wieder.
+                val minLabelHeightPx = with(LocalDensity.current) { 22.dp.toPx() }
                 sessions.forEach { session ->
                     // M16.5: Mitternacht-sicheres Clipping (siehe oben).
                     val startMin = session.startMinuteOfDay.coerceIn(0, 1440)
@@ -2066,24 +2074,36 @@ private fun ZoomableDayTimeline(
                     val totalH = (endMin / 60f - startMin / 60f) * pixelsPerHour
                     val laneH = if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH
                     val laneY = topY + 2f + lane * laneH
-                    Box(
-                        modifier = Modifier
-                            .padding(start = blockX + 6.dp, top = laneY.dp)
-                            .pointerInput(session.id) {
-                                detectTapGestures(
-                                    onTap = { onOpen(session.id) },
-                                    onLongPress = { onEdit(session.id) }
-                                )
-                            }
-                    ) {
-                        Text(
-                            text = "${session.title} · ${session.duration}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    val laneHeightPx = (laneH - 2f).coerceAtLeast(2f)
+
+                    // M18.66-FIX12: Label nur anzeigen, wenn genug Platz.
+                    // Bedingung: Block-Höhe >= 22dp (Label-Höhe + Padding).
+                    // Bei pixelsPerHour=30 (sehr weit raus) = 0.5dp/min.
+                    // Eine 5-min-Activity = 2.5dp → kein Label.
+                    // Eine 60-min-Activity = 30dp → Label sichtbar.
+                    // Bei pixelsPerHour=120 (rein) = 2dp/min.
+                    // Eine 5-min-Activity = 10dp → kein Label.
+                    // Eine 15-min-Activity = 30dp → Label sichtbar.
+                    if (laneHeightPx >= minLabelHeightPx) {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = blockX + 6.dp, top = laneY.dp)
+                                .pointerInput(session.id) {
+                                    detectTapGestures(
+                                        onTap = { onOpen(session.id) },
+                                        onLongPress = { onEdit(session.id) }
+                                    )
+                                }
+                        ) {
+                            Text(
+                                text = "${session.title} · ${session.duration}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

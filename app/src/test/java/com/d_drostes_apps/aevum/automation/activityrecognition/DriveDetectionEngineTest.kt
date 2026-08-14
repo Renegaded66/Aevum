@@ -37,47 +37,48 @@ class DriveDetectionEngineTest {
 
     @Test
     fun `Walking dann Auto — Geschwindigkeit steigt über die Schwelle`() {
-        // 3 Probes Gehen (~1,5 m/s), dann 4 Probes Auto (~25 m/s = 90 km/h).
-        // M18.66-FIX10: 4 konsekutive schnelle Probes nötig (war 3).
+        // 3 Probes Gehen (~1,5 m/s), dann 5 Probes Auto (>= 12 m/s = 43 km/h).
+        // M18.66-FIX12: 5 konsekutive schnelle Probes >= 10 m/s nötig.
         val probes = listOf(
             probe(0, 1.5f), probe(1, 1.4f), probe(2, 1.6f),
-            probe(3, 9.0f), probe(4, 24.0f), probe(5, 25.0f), probe(6, 23.0f)
+            probe(3, 12.0f), probe(4, 24.0f), probe(5, 25.0f), probe(6, 23.0f), probe(7, 22.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 7 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 8 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 
     @Test
     fun `Stillstand dann Auto — Fahrt wird erkannt`() {
-        // M18.66-FIX10: 4 konsekutive schnelle Probes nötig (war 3).
+        // M18.66-FIX12: 5 konsekutive schnelle Probes >= 10 m/s nötig.
         val probes = listOf(
             probe(0, 0f), probe(1, 0f), probe(2, 0.2f),
-            probe(3, 8.5f), probe(4, 12.0f), probe(5, 15.0f), probe(6, 14.0f)
+            probe(3, 12.0f), probe(4, 14.0f), probe(5, 15.0f), probe(6, 14.0f), probe(7, 13.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 7 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 8 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 
     @Test
     fun `andere Aktivität dann Auto — Fahrt wird erkannt`() {
         // Unbekannte/fehlende Geschwindigkeit (null), dann Auto.
-        // M18.66-FIX10: 4 konsekutive schnelle Probes nötig (war 3).
+        // M18.66-FIX12: 5 konsekutive schnelle Probes >= 10 m/s nötig.
         val probes = listOf(
             probe(0, null), probe(1, null), probe(2, 1.0f),
-            probe(3, 10.0f), probe(4, 18.0f), probe(5, 22.0f), probe(6, 20.0f)
+            probe(3, 12.0f), probe(4, 18.0f), probe(5, 22.0f), probe(6, 20.0f), probe(7, 21.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 7 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 8 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 
     @Test
     fun `Auto ohne vorher erkanntes Walking — Fahrt wird erkannt`() {
         // Die Erkennung startet mitten in der Fahrt: alle Probes schnell.
+        // M18.66-FIX12: 5 konsekutive schnelle Probes >= 10 m/s nötig.
         val probes = listOf(
             probe(0, 20.0f), probe(1, 22.0f), probe(2, 19.0f),
-            probe(3, 24.0f), probe(4, 25.0f)
+            probe(3, 24.0f), probe(4, 25.0f), probe(5, 21.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 5 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 
@@ -121,7 +122,9 @@ class DriveDetectionEngineTest {
 
     @Test
     fun `Fahrradfahrt wird NICHT als Auto erkannt`() {
-        // Rennrad: ~7 m/s (25 km/h) — unter der Auto-Schwelle von 8 m/s.
+        // Rennrad: ~7 m/s (25 km/h) — unter der Auto-Schwelle von 10 m/s.
+        // M18.66-FIX12: Schwelle 8→10 m/s, auch schnelles Radfahren
+        // (8-9 m/s = 29-32 km/h) wird jetzt korrekt als NICHT Auto erkannt.
         val probes = listOf(
             probe(0, 6.5f), probe(1, 7.0f), probe(2, 6.8f),
             probe(3, 7.2f), probe(4, 6.9f), probe(5, 7.1f)
@@ -182,6 +185,8 @@ class DriveDetectionEngineTest {
     fun `GPS-Sprung-Ausreißer wird verworfen`() {
         // Probe 2 springt 5 km in 30s (Tunnel-Sprung) — der Sprung wird
         // entfernt; die restlichen schnellen Probes bestätigen die Fahrt.
+        // M18.66-FIX12: 5 konsekutive schnelle Probes nötig (nach Entfernung
+        // des Ausreißers bleiben 4 + der neue 5.).
         val probes = listOf(
             probe(0, 20.0f, distanceFromLastM = null),
             probe(1, 22.0f, distanceFromLastM = 300.0),
@@ -192,9 +197,10 @@ class DriveDetectionEngineTest {
                 distanceFromLastM = 5_000.0
             ),
             probe(3, 24.0f, distanceFromLastM = 400.0),
-            probe(4, 23.0f, distanceFromLastM = 350.0)
+            probe(4, 23.0f, distanceFromLastM = 350.0),
+            probe(5, 21.0f, distanceFromLastM = 380.0)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 5 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 

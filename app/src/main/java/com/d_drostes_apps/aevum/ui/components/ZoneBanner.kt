@@ -51,6 +51,7 @@ fun ZoneBanner(
     modifier: Modifier = Modifier,
     // M18.66-FIX7: Debug-Info — temporär fürs Debugging. Zeigt an,
     // was checkNow() gemacht hat (ENTER/EXIT, autoStart, Fehler).
+    // M18.66-FIX12: Debug-Info + Distanz-Text entfernt — nur Zonen-Name.
     debugInfo: String = ""
 ) {
     val colors = MaterialTheme.colorScheme
@@ -128,28 +129,8 @@ fun ZoneBanner(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = if (zone != null) {
-                                val dist = zone.distanceMeters.toInt()
-                                if (dist > 50) "${dist}m vom Zentrum"
-                                else "In der Zone"
-                            } else {
-                                "In keiner Zone"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onSurfaceVariant.copy(alpha = 0.72f),
-                            maxLines = 1
-                        )
-                        // M18.66-FIX7: Debug-Info — temporär fürs Debugging.
-                        if (debugInfo.isNotBlank()) {
-                            Text(
-                                text = debugInfo,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = colors.onSurfaceVariant.copy(alpha = 0.6f),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        // M18.66-FIX12: Distanz-Text + Debug-Info entfernt.
+                        // Nur der Zonen-Name wird angezeigt.
                     }
                 }
             }

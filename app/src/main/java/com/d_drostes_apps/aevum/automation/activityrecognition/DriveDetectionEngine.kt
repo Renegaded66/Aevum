@@ -23,9 +23,12 @@ package com.d_drostes_apps.aevum.automation.activityrecognition
 object DriveDetectionEngine {
 
     // ── Schwellen (in m/s) ──────────────────────────────────────────
-    /** Auto-Schwelle: ~29 km/h. Deutlich über Lauf- (~5 m/s) und
-     *  Fahrrad-Tempo (~7 m/s). */
-    const val AUTO_SPEED_MPS = 8.0f
+    /** Auto-Schwelle: ~36 km/h. M18.66-FIX12: 8→10 m/s. Deutlich über
+     *  Lauf- (~5 m/s) und Fahrrad-Tempo (~7 m/s). 10 m/s eliminiert
+     *  False-Positives durch schnelles Radfahren oder GPS-Sprünge
+     *  die 29 km/h erreichten. Echte Autofahrten sind immer >= 36 km/h
+     *  auf gerader Strecke (Stadtverkehr 30-50 km/h, Landstraße 70+). */
+    const val AUTO_SPEED_MPS = 10.0f
     /** Unter dieser Geschwindigkeit ist es nie eine Fahrt (Gehen/Laufen). */
     const val WALK_RUN_MAX_MPS = 5.5f
     /** GPS-Ausreißer: > 144 km/h ist kein reales Fahrzeug-Tempo. */
@@ -42,13 +45,13 @@ object DriveDetectionEngine {
     /** Mindestanzahl gültiger Probes für eine Entscheidung. */
     const val MIN_VALID_PROBES = 3
     /** Mindestens N aufeinanderfolgende Probes über der Auto-Schwelle.
-     *  M18.66-FIX10: 3 -> 4. Drei reichte noch für gelegentliche
-     *  False-Positives bei GPS-Sprüngen (3 Probes mit speed >= 8 m/s
-     *  über 2 Min). Vier aufeinanderfolgende schnelle Probes sind
-     *  robust — bei 5s-Intervall sind das 20s kontinuierlich > 29 km/h.
-     *  False-Negative-Risiko minimal: eine echte Autofahrt hat immer
-     *  4+ aufeinanderfolgende schnelle Probes. */
-    const val MIN_CONSECUTIVE_FAST = 4
+     *  M18.66-FIX12: 4 -> 5. Vier reichte noch für gelegentliche
+     *  False-Positives. Fünf aufeinanderfolgende schnelle Probes bei
+     *  5s-Intervall = 25s kontinuierlich >= 36 km/h. Das ist robust
+     *  gegen GPS-Bursts und schnelles Radfahren. False-Negative-Risiko
+     *  minimal: eine echte Autofahrt hat immer 5+ aufeinanderfolgende
+     *  Probes >= 10 m/s. */
+    const val MIN_CONSECUTIVE_FAST = 5
     /** Probes müssen über mindestens 2 Minuten verteilt sein.
      *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
      *  geschwindigkeit innerhalb von 2 Minuten über 25 km/h". Das
@@ -142,16 +145,15 @@ object DriveDetectionEngine {
         }
         val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
 
-        // M18.66-FIX10: Beide Bedingungen MÜSSEN erfüllt sein (AND, nicht OR).
-        // Vorher: maxConsecutive >= 3 OR (avgSpeed >= 7 && fastCount >= 2)
-        // → die OR-Bedingung reichte für False-Positives bei GPS-Sprüngen
-        // (2 schnelle Probes mit hohem Durchschnitt). Jetzt: 4 konsekutive
-        // schnelle Probes UND Durchschnitt >= 7 m/s. Das eliminiert
-        // False-Positives, ohne False-Negatives zu riskieren — eine echte
-        // Autofahrt hat immer 4+ konsekutive Probes >= 8 m/s UND einen
-        // Durchschnitt >= 7 m/s.
+        // M18.66-FIX12: avgSpeed-Threshold 7→9 m/s (32,4 km/h).
+        // Beide Bedingungen MÜSSEN erfüllt sein (AND, nicht OR).
+        // 5 konsekutive Probes >= 10 m/s (36 km/h) UND Durchschnitt
+        // >= 9 m/s. Das eliminiert False-Positives durch Radfahren
+        // oder GPS-Sprünge, ohne False-Negatives — eine echte Autofahrt
+        // hat immer 5+ konsekutive Probes >= 10 m/s UND Durchschnitt
+        // >= 9 m/s.
         val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST &&
-            avgSpeed >= 7.0f && fastCount >= MIN_CONSECUTIVE_FAST
+            avgSpeed >= 9.0f && fastCount >= MIN_CONSECUTIVE_FAST
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau

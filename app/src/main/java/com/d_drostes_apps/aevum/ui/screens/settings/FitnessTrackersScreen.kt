@@ -403,40 +403,9 @@ fun FitnessTrackersScreen(
             }
         }
 
-        // ── Bridge-Server (M18.62-FIX) ────────────────────────────────
-        // Cloudflare-Quick-Tunnel rotiert die URL bei jedem Server-
-        // Neustart. Hier kann die aktuelle URL eingesehen und geändert
-        // werden — ohne App-Update.
-        AevumCard {
-            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Text("Bridge-Server", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Adresse der Garmin-Bridge. Wenn \"Keine Antwort\" oder \"Bridge nicht erreichbar\" erscheint, hat sich die Tunnel-URL geändert — aktuelle URL hier eintragen und speichern.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                var bridgeUrl by remember { mutableStateOf(viewModel.bridgeUrl()) }
-                OutlinedTextField(
-                    value = bridgeUrl,
-                    onValueChange = { bridgeUrl = it },
-                    label = { Text("Bridge-URL") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(AevumRadius.md)
-                )
-                Button(
-                    onClick = { viewModel.setBridgeUrl(bridgeUrl) },
-                    enabled = !state.working && bridgeUrl.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (state.working) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Speichern & prüfen")
-                    }
-                }
-            }
-        }
+        // M18.66-FIX12: Bridge-Server-Karte entfernt.
+        // Die App spricht jetzt direkt mit Garmin Connect (DirectGarminClient) —
+        // kein Bridge-Server, kein Tunnel, keine URL-Eingabe mehr nötig.
 
         // ── Weitere Anbieter (Platzhalter, M18.59) ────────────────────
         AevumCard {
