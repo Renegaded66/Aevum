@@ -378,37 +378,22 @@ fun GeofenceEditorScreen(
                             Switch(state.form.autoEnabled, viewModel::setAutoEnabled)
                         }
                         if (state.form.autoEnabled) {
-                            // P3: Drei typische Presets, die das UX vereinfachen.
-                            // "Kein Timer" = gar nicht erst starten (Zuhause use-case).
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
-                            ) {
-                                FilterChip(
-                                    selected = state.form.autoStartActivityTypeId == null,
-                                    onClick = { viewModel.setAutoStartActivityTypeId(null) },
-                                    label = { Text("Nichts starten") }
-                                )
-                                // M18.60 (User: "Bei der Automatisierung eines
-                                // geofences sollten aber alle activitys
-                                // aufgelistet werden, bei mir ist das nicht
-                                // so"): Vorher take(6) — nur die ersten 6
-                                // Typen waren wählbar. Jetzt ALLE.
-                                state.activityTypes.forEach { type ->
-                                    FilterChip(
-                                        selected = state.form.autoStartActivityTypeId == type.id,
-                                        onClick = { viewModel.setAutoStartActivityTypeId(type.id) },
-                                        label = { Text(type.name) }
-                                    )
-                                }
-                            }
+                            // M18.66-FIX20 (User: "Ein geofence braucht nicht
+                            // für die Automatisierung separat einen Activity
+                            // Type. Es reicht, pro Geofence einmal einen
+                            // Activity Type anzugeben, und wenn Automatisierung
+                            // aktiviert wird, wird dieser Activity Type
+                            // verwendet."): KEIN separater Auto-Start-Picker
+                            // mehr. Die Automatisierung nutzt den oben
+                            // gewählten Aktivitätstyp (activityTypeId).
+                            val autoTypeName = state.activityTypes
+                                .firstOrNull { it.id == (state.form.activityTypeId ?: state.form.autoStartActivityTypeId) }
+                                ?.name
                             Text(
-                                if (state.form.autoStartActivityTypeId == null)
-                                    "Beim Betreten passiert nichts — kein Timer läuft."
+                                if (autoTypeName != null)
+                                    "Beim Betreten wird \"$autoTypeName\" automatisch gestartet."
                                 else
-                                    "Beim Betreten wird \"${state.activityTypes.firstOrNull { it.id == state.form.autoStartActivityTypeId }?.name ?: "gewählte Aktivität"}\" als Vorschlag gestartet.",
+                                    "Wähle oben einen Aktivitätstyp — er wird beim Betreten automatisch gestartet.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -749,14 +734,49 @@ fun GeofenceListScreen(
     viewModel: GeofenceListViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.66-FIX20: Bestätigungsdialog vor dem Löschen
+    var pendingDelete by remember { mutableStateOf<PlaceGeofence?>(null) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             item { Header("Geofences", "Orte, die Trigger und Vorschläge erzeugen", onBack, "Neu", onCreate) }
-            if (state.geofences.isEmpty()) item {
-                EmptyState(title = "Noch keine Orte", message = "Lege Zuhause, Arbeit oder Fitnessstudio an.", actionLabel = "Geofence anlegen", onActionClick = onCreate)
+            // M18.66-FIX20: Suchleiste mit Live-Suche
+            item {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = viewModel::setQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Geofence suchen…") },
+                    leadingIcon = { Text("🔍", fontSize = 16.sp) },
+                    singleLine = true
+                )
             }
-            state.geofences.forEach { gf -> item { GeofenceRow(gf, onEdit, viewModel::setEnabled, viewModel::delete) } }
+            if (state.geofences.isEmpty()) item {
+                EmptyState(
+                    title = if (state.query.isBlank()) "Noch keine Orte" else "Keine Treffer",
+                    message = if (state.query.isBlank()) "Lege Zuhause, Arbeit oder Fitnessstudio an." else "Kein Geofence passt zu \"${state.query}\".",
+                    actionLabel = if (state.query.isBlank()) "Geofence anlegen" else null,
+                    onActionClick = onCreate
+                )
+            }
+            state.geofences.forEach { gf -> item { GeofenceRow(gf, onEdit, viewModel::setEnabled, { pendingDelete = gf }) } }
         }
+    }
+    // M18.66-FIX20: Lösch-Bestätigung
+    pendingDelete?.let { gf ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Geofence löschen?") },
+            text = { Text("„${gf.name}“ wird gelöscht. Automatisierungen für diesen Ort werden deaktiviert.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.delete(gf.id)
+                    pendingDelete = null
+                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Abbrechen") }
+            }
+        )
     }
 }
 

@@ -154,9 +154,26 @@ class GeofenceListViewModel @Inject constructor(
     private val geofenceRepository: PlaceGeofenceRepository,
     private val geofenceRegistrar: GeofenceRegistrar
 ) : ViewModel() {
+    // M18.66-FIX20: Live-Suche — Query wird mit dem Repository-Flow
+    // kombiniert; die Liste wird gefiltert (Name/Icon) und alphabetisch
+    // sortiert.
+    private val searchQuery = MutableStateFlow("")
+
     val uiState: StateFlow<GeofenceListUiState> = geofenceRepository.getAll()
-        .combine(MutableStateFlow(Unit)) { geofences, _ -> GeofenceListUiState(geofences) }
+        .combine(searchQuery) { geofences, query ->
+            val q = query.trim().lowercase()
+            val filtered = if (q.isEmpty()) geofences
+            else geofences.filter {
+                it.name.lowercase().contains(q) || it.icon.lowercase().contains(q)
+            }
+            GeofenceListUiState(
+                geofences = filtered.sortedBy { it.name.lowercase() },
+                query = query
+            )
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GeofenceListUiState())
+
+    fun setQuery(q: String) { searchQuery.value = q }
 
     fun setEnabled(geofence: PlaceGeofence, enabled: Boolean) {
         viewModelScope.launch {
@@ -173,7 +190,10 @@ class GeofenceListViewModel @Inject constructor(
     }
 }
 
-data class GeofenceListUiState(val geofences: List<PlaceGeofence> = emptyList())
+data class GeofenceListUiState(
+    val geofences: List<PlaceGeofence> = emptyList(),
+    val query: String = ""
+)
 
 // ═══════════════════════════════════════════════
 // GeofenceEditorViewModel (M8.1: quickKind support)
@@ -207,7 +227,14 @@ class GeofenceEditorViewModel @Inject constructor(
                         latitude = geofence.latitude.toString(), longitude = geofence.longitude.toString(),
                         radius = geofence.radiusMeters.toInt().toString(), icon = geofence.icon,
                         color = geofence.color, enabled = geofence.enabled,
-                        activityTypeId = geofence.activityTypeId, categoryId = geofence.categoryId,
+                        // M18.66-FIX20: Migration im Editor — wenn ein alter
+                        // Geofence nur autoStartActivityTypeId hatte (separater
+                        // Picker aus M11), aber keinen normalen activityTypeId,
+                        // wird der Auto-Start-Typ als normaler Typ übernommen.
+                        // So geht beim Speichern (autoStartActivityTypeId =
+                        // activityTypeId) keine Automatisierung verloren.
+                        activityTypeId = geofence.activityTypeId ?: geofence.autoStartActivityTypeId,
+                        categoryId = geofence.categoryId,
                         // M11+: separate autoStart activity type (may differ from default).
                         // Falls back to default if null.
                         autoEnabled = geofence.autoStartActivityTypeId != null,
@@ -301,10 +328,18 @@ class GeofenceEditorViewModel @Inject constructor(
                     icon = c.icon.ifBlank { "📍" }, color = c.color.ifBlank { "#6366F1" },
                     enabled = c.enabled, activityTypeId = c.activityTypeId, categoryId = c.categoryId,
                     createdAt = existing?.createdAt ?: now, updatedAt = now, deletedAt = existing?.deletedAt,
-                    // M11+: separate autoStart activity type (may differ from default).
-                    // When null, no auto-start happens. When set, the system starts
-                    // a session of that type whenever the geofence is entered.
-                    autoStartActivityTypeId = if (c.autoEnabled) c.autoStartActivityTypeId ?: c.activityTypeId else null,
+                    // M18.66-FIX20 (User: "Ein geofence braucht nicht für die
+                    // Automatisierung separat einen Activity Type. Es reicht,
+                    // pro Geofence einmal einen Activity Type anzugeben, und
+                    // wenn Automatisierung aktiviert wird, wird dieser
+                    // Activity Type verwendet."): autoStartActivityTypeId wird
+                    // NICHT mehr separat konfiguriert — bei aktivierter
+                    // Automatisierung wird der normale activityTypeId
+                    // verwendet. Die Runtime-Pfade (TransitionProcessor,
+                    // CurrentZoneProvider, ActivityRecognitionWorker) lesen
+                    // weiterhin autoStartActivityTypeId und funktionieren
+                    // damit unverändert.
+                    autoStartActivityTypeId = if (c.autoEnabled) c.activityTypeId else null,
                     autoStopEnabled = c.autoStopEnabled
                 )
                 geofenceRepository.insert(gf)
