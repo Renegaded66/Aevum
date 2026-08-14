@@ -36,7 +36,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class GarminApiClient @Inject constructor(
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
+    private val directClient: DirectGarminClient
 ) {
     private val prefs by lazy {
         context.getSharedPreferences("aevum_garmin", Context.MODE_PRIVATE)
@@ -75,51 +76,30 @@ class GarminApiClient @Inject constructor(
         set(value) = prefs.edit().putLong(KEY_LAST_SYNC, value).apply()
 
     /**
-     * M18.59: Garmin-Login über die Bridge. Das Passwort wird nur an die
-     * Bridge geschickt (dort nach Login verworfen) und NIE lokal gespeichert.
-     *
+     * M18.66-FIX11: Direkter Garmin-Login — kein Bridge-Server.
+     * App spricht direkt mit sso.garmin.com → diauth.garmin.com.
      * @return null bei Erfolg, sonst Fehlermeldung (deutsch, anzeigbar).
      */
     suspend fun connect(email: String, password: String): String? = withContext(Dispatchers.IO) {
-        val body = JSONObject()
-            .put("email", email.trim())
-            .put("password", password)
-        val json = post("/api/connect", body) ?: return@withContext "Bridge nicht erreichbar"
-        if (json.optBoolean("connected", false)) {
-            null
-        } else {
-            json.optString("error", "Verbindung fehlgeschlagen")
+        when (val result = directClient.login(email, password)) {
+            is DirectGarminClient.LoginResult.Success -> null
+            is DirectGarminClient.LoginResult.NeedsMfa -> "MFA/2FA wird nicht unterstützt — bitte 2FA in Garmin Connect deaktivieren"
+            is DirectGarminClient.LoginResult.Error -> result.message
         }
     }
 
-    /** M18.59: Garmin-Tokens auf der Bridge löschen. */
+    /** M18.66-FIX11: Direkter Disconnect — löscht lokale Token. */
     suspend fun disconnect(): Boolean = withContext(Dispatchers.IO) {
-        val json = post("/api/disconnect", JSONObject()) ?: return@withContext false
-        json.optBoolean("connected", false).not()
+        directClient.disconnect()
+        true
     }
 
     suspend fun getStatus(): GarminStatus = withContext(Dispatchers.IO) {
-        val json = get("/api/status") ?: return@withContext GarminStatus(connected = false, error = "Keine Antwort")
-        GarminStatus(
-            connected = json.optBoolean("connected", false),
-            // M18.61g-FIX 3 (User: "App stürzt in Garmin-Einstellungen ab"):
-            // optString("error", null) gibt bei fehlendem Feld NULL zurück
-            // (org.json-Plattform-Typ) -> NPE in takeIf. Ohne Default liefert
-            // optString("error") immer "" -> kein Crash.
-            error = json.optString("error").takeIf { it.isNotBlank() }
-        )
+        directClient.getStatus()
     }
 
     suspend fun getToday(dateIso: String): GarminDayData? = withContext(Dispatchers.IO) {
-        val json = get("/api/today?date=$dateIso") ?: return@withContext null
-        if (json.has("error")) return@withContext null
-        GarminDayData(
-            date = json.optString("date", dateIso),
-            steps = json.optInt("steps", 0),
-            distanceMeters = json.optDouble("distance_m", 0.0),
-            activeCalories = json.optInt("active_calories", 0),
-            totalCalories = json.optInt("total_calories", 0)
-        )
+        directClient.getToday(dateIso)
     }
 
     /**
@@ -130,39 +110,11 @@ class GarminApiClient @Inject constructor(
      * für "heute" ist nur 10 Min frisch).
      */
     suspend fun getSleep(dateIso: String, fresh: Boolean = false): GarminSleepData? = withContext(Dispatchers.IO) {
-        val json = get("/api/sleep?date=$dateIso" + if (fresh) "&fresh=1" else "") ?: return@withContext null
-        if (json.has("error")) return@withContext null
-        val start = json.optLong("sleep_start_gmt", 0L)
-        val end = json.optLong("sleep_end_gmt", 0L)
-        if (start <= 0L || end <= start) return@withContext null
-        GarminSleepData(
-            date = json.optString("date", dateIso),
-            startGmtMs = start,
-            endGmtMs = end,
-            sleepTimeSeconds = json.optLong("sleep_time_seconds", 0L),
-            deepSeconds = json.optLong("deep_seconds", 0L),
-            remSeconds = json.optLong("rem_seconds", 0L)
-        )
+        directClient.getSleep(dateIso)
     }
 
     suspend fun getActivities(limit: Int = 20): List<GarminRemoteActivity> = withContext(Dispatchers.IO) {
-        val json = get("/api/activities?limit=$limit") ?: return@withContext emptyList()
-        if (json.has("error")) return@withContext emptyList()
-        val arr = json.optJSONArray("activities") ?: JSONArray()
-        val result = mutableListOf<GarminRemoteActivity>()
-        for (i in 0 until arr.length()) {
-            val a = arr.optJSONObject(i) ?: continue
-            result += GarminRemoteActivity(
-                activityId = a.optString("activity_id"),
-                name = a.optString("name", "Aktivität"),
-                type = a.optString("type", "other"),
-                startGmt = a.optString("start_gmt"),
-                distanceMeters = a.optDouble("distance_m", 0.0),
-                durationSeconds = a.optDouble("duration_s", 0.0),
-                calories = a.optInt("calories", 0)
-            )
-        }
-        result
+        directClient.getActivities(limit)
     }
 
     private fun get(path: String): JSONObject? {
