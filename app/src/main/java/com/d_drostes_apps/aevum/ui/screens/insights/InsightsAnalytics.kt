@@ -216,7 +216,13 @@ object InsightsAnalytics {
         // Jetzt: echte Slices + Pauschalen-Slices mergen, sortieren, top 5.
         val baseBreakdown = when (breakdownMode) {
             BreakdownMode.Activity -> topActivities
-            BreakdownMode.Category -> distribution.take(5).map { slice ->
+            // M18.66-FIX17 (User: "heute Autofahrt aufgezeichnet (Transport),
+            // aber unter Insights-Kategorie gibt es keinen Balken"): Die
+            // Kategorie-Ansicht zeigte nur die Top-5 — kurze Kategorien
+            // wie Transport wurden von 5+ größeren Kategorien verdrängt.
+            // Jetzt: ALLE Kategorien des Zeitraums als Balken, nicht nur
+            // die Top-5. (Die Aktivitäten-Ansicht bleibt bei Top-5.)
+            BreakdownMode.Category -> distribution.map { slice ->
                 TopActivitySlice(
                     id = slice.id,
                     label = slice.label,
@@ -228,6 +234,9 @@ object InsightsAnalytics {
                 )
             }
         }
+        // M18.66-FIX17: take(5) nur in der Aktivitäten-Ansicht —
+        // die Kategorie-Ansicht zeigt ALLE Kategorien (sonst fehlt z.B.
+        // Transport bei >5 Kategorien am Tag).
         val topBreakdown = (baseBreakdown + allowanceTopBreakdown)
             .groupBy { it.id }
             .map { (id, slices) ->
@@ -237,7 +246,7 @@ object InsightsAnalytics {
                 merged.copy(percent = percent(merged.durationMs, (baseBreakdown.sumOf { it.durationMs } + allowanceMs).coerceAtLeast(1L)))
             }
             .sortedByDescending { it.durationMs }
-            .take(5)
+            .let { list -> if (breakdownMode == BreakdownMode.Activity) list.take(5) else list }
         return InsightsUiState(
             selectedPeriod = selectedPeriod,
             periodLabel = window.label,

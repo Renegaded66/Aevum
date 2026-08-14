@@ -662,6 +662,16 @@ class ActivityEditorViewModel @Inject constructor(
     fun setStartMinute(value: Int) = updateStart(minute = value)
     fun setEndHour(value: Int) = updateEnd(hour = value)
     fun setEndMinute(value: Int) = updateEnd(minute = value)
+    // M18.66-FIX17: "Ende offen"-Modus — endAt = null → Session läuft
+    // ab Startzeit weiter, bis der User sie manuell beendet. Der
+    // UseCase/Validator unterstützt null bereits; nur die UI fehlte.
+    fun setOpenEnded(open: Boolean) = form.update { current ->
+        if (open) {
+            current.copy(endAt = null)
+        } else {
+            current.copy(endAt = (current.endAt ?: current.startAt + ONE_HOUR))
+        }
+    }
     fun setStartMinuteOfDay(value: Int) = form.update { current ->
         val newStart = TimeFormatting.millisAtMinuteOfDay(current.date, value, zoneId)
         val oldDuration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)

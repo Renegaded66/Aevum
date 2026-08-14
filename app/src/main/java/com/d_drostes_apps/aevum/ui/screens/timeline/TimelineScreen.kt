@@ -296,7 +296,9 @@ fun ActivityEditorScreen(
                     onEndHour = viewModel::setEndHour,
                     onEndQuarter = viewModel::setEndMinute,
                     onSnapStart = viewModel::snapStartTo,
-                    onSnapEnd = viewModel::snapEndTo
+                    onSnapEnd = viewModel::snapEndTo,
+                    openEnded = state.form.endAt == null,
+                    onOpenEndedChange = viewModel::setOpenEnded
                 )
             }
             item { ValidationCard(state.validation, state.form.errorMessage) }
@@ -1903,7 +1905,7 @@ private fun ZoomableDayTimeline(
                     // Block-Fläche). Die Position kommt relativ zum Canvas
                     // (der Scroll-Versatz wird von Compose automatisch
                     // zurückgerechnet), daher kein scrollState nötig.
-                    .pointerInput(sessions, pixelsPerHour) {
+                    .pointerInput(sessions, pixelsPerHour, lanes, laneCount) {
                         detectTapGestures { offset ->
                             val pxHour = pixelsPerHour.dp.toPx()
                             // Canvas-Höhe = 24 * pxHour. Eine Stunde entspricht
@@ -1920,12 +1922,26 @@ private fun ZoomableDayTimeline(
                                     rawEnd > 1440 -> 1440
                                     else -> rawEnd
                                 }
+                                // M18.66-FIX17: Hit-Test mit IDENTISCHER Geometrie
+                                // wie die Zeichnung (Lane-Verschiebung + 18dp
+                                // Mindesthöhe). Vorher prüfte der Hit-Test nur
+                                // die reale Blockhöhe OHNE Lane und OHNE
+                                // Mindesthöhe — bei kurzen Activities (gezeichnet
+                                // mit 18dp Minimum) war nur der obere Teil
+                                // klickbar. Jetzt ist der GESAMTE sichtbare
+                                // Block Trefferfläche.
+                                val lane = lanes[s.id] ?: 0
                                 val top = (startMin / 60f) * pxHour
                                 val bottom = (endMin / 60f) * pxHour
+                                val totalH = (bottom - top).coerceAtLeast(18.dp.toPx())
+                                val laneH = (if (totalH > 8f) (totalH - 4f) / (laneCount.coerceAtLeast(1)).toFloat() else totalH)
+                                    .coerceAtLeast(18.dp.toPx())
+                                val laneY = top + 2f + lane * laneH
+                                val laneHeight = (laneH - 2f).coerceAtLeast(2f)
                                 // Nur der Block-Bereich (rechts der Uhr-Achse)
                                 // ist Trefferfläche — ein Tap auf der Achse
                                 // oder daneben erzeugt eine neue Aktivität.
-                                offset.x >= blockX.toPx() && offset.y >= top - 4f && offset.y <= bottom + 4f
+                                offset.x >= blockX.toPx() && offset.y >= laneY - 2f && offset.y <= laneY + laneHeight + 2f
                             }
                             if (hit != null) onOpen(hit.id) else onCreateAt(minute)
                         }
@@ -2463,7 +2479,12 @@ private fun VisualTimeEditorCard(
     onEndHour: (Int) -> Unit,
     onEndQuarter: (Int) -> Unit,
     onSnapStart: (TriggerEventMarker) -> Unit,
-    onSnapEnd: (TriggerEventMarker) -> Unit
+    onSnapEnd: (TriggerEventMarker) -> Unit,
+    // M18.66-FIX17: "Ende offen"-Modus — endAt = null → Session läuft
+    // ab Startzeit weiter. Schalter zwischen "Endzeit" und "Ende offen";
+    // bei "Ende offen" wird der Endzeit-Picker ausgeblendet.
+    openEnded: Boolean,
+    onOpenEndedChange: (Boolean) -> Unit
 ) {
     val zone = ZoneId.systemDefault()
     val start = Instant.ofEpochMilli(state.form.startAt).atZone(zone).toLocalTime()
@@ -2479,7 +2500,33 @@ private fun VisualTimeEditorCard(
                     Text("Zeitfenster", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text("Uhr antippen & drehen · Snap 5 min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(state.duration, color = MaterialTheme.colorScheme.secondary, fontFamily = FontFamily.Monospace, fontSize = 18.sp)
+                Text(
+                    if (openEnded) "läuft weiter…" else state.duration,
+                    color = if (openEnded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 18.sp
+                )
+            }
+            // M18.66-FIX17: Schalter "Endzeit" / "Ende offen" (Segment-UI,
+            // konsistent mit dem Quick-Create-Dialog).
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                SegmentButton(
+                    label = "Mit Endzeit",
+                    selected = !openEnded,
+                    modifier = Modifier.weight(1f)
+                ) { onOpenEndedChange(false) }
+                SegmentButton(
+                    label = "● Ende offen",
+                    selected = openEnded,
+                    modifier = Modifier.weight(1f)
+                ) { onOpenEndedChange(true) }
             }
             // M18.44-REDESIGN (User: "statt +15/−60 Buttons einfach Uhrzeit-
             // Picker, richtig fancy"): Die 380dp-Drag-Rail mit den Bump-
@@ -2506,19 +2553,29 @@ private fun VisualTimeEditorCard(
                         showDigitalDisplay = true
                     )
                 }
-                Box(modifier = Modifier.weight(1f)) {
-                    AevumTimePicker(
-                        initialHour = end.hour,
-                        initialMinute = end.minute,
-                        accent = MaterialTheme.colorScheme.primary,
-                        onTimeChange = { h, m ->
-                            onEndHour(h)
-                            onEndQuarter(m)
-                        },
-                        label = "ENDE",
-                        showDigitalDisplay = true
-                    )
+                // M18.66-FIX17: Endzeit-Picker nur bei "Mit Endzeit".
+                if (!openEnded) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        AevumTimePicker(
+                            initialHour = end.hour,
+                            initialMinute = end.minute,
+                            accent = MaterialTheme.colorScheme.primary,
+                            onTimeChange = { h, m ->
+                                onEndHour(h)
+                                onEndQuarter(m)
+                            },
+                            label = "ENDE",
+                            showDigitalDisplay = true
+                        )
+                    }
                 }
+            }
+            if (openEnded) {
+                Text(
+                    "Die Aufzeichnung startet ab ${TimeFormatting.formatTime(state.form.startAt)} und läuft weiter, bis du sie manuell beendest.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             // M18.44: Trigger-Snap bleibt als dezente Quick-Action erhalten —
             // ein Tap setzt Start/Ende exakt auf den Trigger-Zeitpunkt.

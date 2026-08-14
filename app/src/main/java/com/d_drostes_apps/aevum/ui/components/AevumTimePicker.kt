@@ -85,11 +85,29 @@ fun AevumTimePicker(
     // remember-Key ist neu → Stunde/Minute springen zurück und der Drag bricht
     // ab. Jetzt wird nur beim ersten Compose initialisiert; Drags bleiben
     // stabil und jede Nutzeränderung feuert exakt einen onTimeChange.
+    //
+    // M18.66-FIX17: Externe Werte NACHziehen (Prefill beim Editieren).
+    // Das Formular lädt die Session asynchron (initialiseForm) — der Picker
+    // wurde beim ersten Compose mit den DEFAULT-Werten (jetzt + 1h) erstellt
+    // und ignorierte die später geladenen Session-Zeiten. Jetzt: sobald sich
+    // initialHour/initialMinute ändern UND der User noch nicht selbst
+    // interagiert hat (hasUserInteracted), werden die externen Werte
+    // übernommen. Sobald der User dreht, gewinnt der User-Zustand.
+    var hasUserInteracted by remember { mutableStateOf(false) }
     var hour by remember { mutableStateOf(initialHour.coerceIn(0, 23)) }
     var minute by remember { mutableStateOf(initialMinute.coerceIn(0, 59)) }
     var isMinuteMode by remember { mutableStateOf(false) }
     val rotationHour = remember { Animatable(hourToDeg24(initialHour.coerceIn(0, 23))) }
     val rotationMinute = remember { Animatable(minuteToDeg(initialMinute.coerceIn(0, 59))) }
+
+    // M18.66-FIX17: Prefill-Sync — externe Werte übernehmen, solange der
+    // User nicht selbst gedreht hat.
+    LaunchedEffect(initialHour, initialMinute) {
+        if (!hasUserInteracted) {
+            hour = initialHour.coerceIn(0, 23)
+            minute = initialMinute.coerceIn(0, 59)
+        }
+    }
 
     // Animation und Änderungsausgabe sind bewusst getrennt: genau ein Callback
     // pro sichtbarem HH:MM-Zustand, statt je ein Callback für Stunde und Minute.
@@ -177,6 +195,7 @@ fun AevumTimePicker(
                     // wählen, dann Minute).
                     detectDragGestures(
                         onDragStart = { pos ->
+                            hasUserInteracted = true
                             val (cx, cy) = centerPx(size)
                             val dx = pos.x - cx
                             val dy = pos.y - cy
@@ -190,6 +209,7 @@ fun AevumTimePicker(
                             }
                         },
                         onDrag = { change, _ ->
+                            hasUserInteracted = true
                             val (cx, cy) = centerPx(size)
                             val dx = change.position.x - cx
                             val dy = change.position.y - cy
@@ -216,6 +236,7 @@ fun AevumTimePicker(
                     // an der angetippten Position und wechselt danach in den
                     // Minuten-Modus — der Zeiger muss nie getroffen werden.
                     detectTapGestures { pos ->
+                        hasUserInteracted = true
                         val (cx, cy) = centerPx(size)
                         val dx = pos.x - cx
                         val dy = pos.y - cy
@@ -250,10 +271,10 @@ fun AevumTimePicker(
             horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BumpButton("−1h") { hour = ((hour + 23) % 24) }
-            BumpButton("−5") { minute = ((minute + 55) % 60) }
-            BumpButton("+5") { minute = ((minute + 5) % 60) }
-            BumpButton("+1h") { hour = ((hour + 1) % 24) }
+            BumpButton("−1h") { hasUserInteracted = true; hour = ((hour + 23) % 24) }
+            BumpButton("−5") { hasUserInteracted = true; minute = ((minute + 55) % 60) }
+            BumpButton("+5") { hasUserInteracted = true; minute = ((minute + 5) % 60) }
+            BumpButton("+1h") { hasUserInteracted = true; hour = ((hour + 1) % 24) }
         }
     }
 }

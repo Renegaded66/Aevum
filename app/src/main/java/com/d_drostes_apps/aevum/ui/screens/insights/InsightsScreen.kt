@@ -116,7 +116,9 @@ fun InsightsScreen(
                             Text(
                                 text = when (uiState.breakdownMode) {
                                     BreakdownMode.Activity -> "Top Aktivitäten"
-                                    BreakdownMode.Category -> "Top Kategorien"
+                                    // M18.66-FIX17: keine Top-Begrenzung mehr —
+                                    // ALLE Kategorien werden angezeigt.
+                                    BreakdownMode.Category -> "Kategorien"
                                 },
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold

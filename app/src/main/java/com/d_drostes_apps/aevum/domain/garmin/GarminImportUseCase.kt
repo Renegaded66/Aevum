@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum.domain.garmin
 
 import com.d_drostes_apps.aevum.data.model.ActivitySession
+import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.GarminActivity
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
@@ -64,8 +65,11 @@ class GarminImportUseCase @Inject constructor(
     ): Int {
         if (activities.isEmpty()) return 0
         // Einmal laden: alle existierenden ActivityTypes (FK-Sicherheit).
-        val typeIds = activityTypeRepository.getAll().first().map { it.id }.toSet()
-        val typeIdResolver: (String) -> String? = { garminTypeToAevumTypeId(it, typeIds) }
+        // M18.66-FIX17: MutableSet — Auto-erstellte Typen werden während
+        // der Import-Runde hinzugefügt, damit mehrere Activities desselben
+        // Garmin-Typs denselben (neuen) Typ nutzen.
+        val typeIds = activityTypeRepository.getAll().first().map { it.id }.toMutableSet()
+        val typeIdResolver: suspend (String) -> String? = { resolveOrCreateTypeId(it, typeIds) }
 
         var imported = 0
         for (activity in activities) {
@@ -240,6 +244,86 @@ class GarminImportUseCase @Inject constructor(
      * M18.58: Garmin-Typ → Aevum-ActivityType-ID — dynamisch gegen die
      * wirklich existierenden Typen aufgelöst (FK-Sicherheit, s. Klassen-
      * Doku). [typeIds] = IDs aller Typen in der DB.
+     *
+     * M18.66-FIX17 (User: "es gibt aktuell gar keine Activity Krafttraining.
+     * Wenn eine Activity gesynct wird und es gibt noch nicht diese Activity,
+     * soll eine automatisch erstellt werden"): Bekannte Typen werden wie
+     * bisher auf bestehende Aevum-Typen gemappt. UNBEKANNTE Garmin-Typen
+     * (z.B. strength_training, yoga, pilates) erzeugen jetzt automatisch
+     * einen neuen ActivityType in der DB (isSystem=false, keine Kategorie —
+     * der User weist sie selbst zu). Danach wird jede weitere Session
+     * desselben Garmin-Typs dem erstellten Typ zugeordnet.
+     */
+    private suspend fun resolveOrCreateTypeId(garminType: String, typeIds: MutableSet<String>): String? {
+        val lower = garminType.lowercase()
+        val known = when (lower) {
+            "running" -> listOf("joggen", "fitness", "other")
+            "cycling" -> listOf("radfahren", "fitness", "other")
+            "walking", "hiking" -> listOf("spazieren", "leisure", "other")
+            "swimming" -> listOf("fitness", "sport", "other")
+            "other" -> listOf("other")
+            else -> emptyList()
+        }
+        known.firstOrNull { it in typeIds }?.let { return it }
+
+        // M18.66-FIX17: Kein bekannter Mapping-Treffer → Auto-Erstellung.
+        // Der Garmin-Slug dient als stabile ID (gleicher Typ → gleiche ID
+        // bei jedem Sync), der Anzeigename wird humanisiert.
+        val id = lower
+        if (id in typeIds) return id
+        val displayName = when (lower) {
+            "strength_training" -> "Krafttraining"
+            "yoga" -> "Yoga"
+            "elliptical" -> "Ellipsentraining"
+            "cardio" -> "Cardio"
+            "rowing" -> "Rudern"
+            "pilates" -> "Pilates"
+            "stair_climbing" -> "Treppensteigen"
+            "indoor_cycling" -> "Indoor-Radfahren"
+            "hiit" -> "HIIT"
+            "dance" -> "Tanzen"
+            "walking" -> "Spazieren"
+            else -> lower.split('_', '-').joinToString(" ") { w ->
+                w.replaceFirstChar { it.uppercase() }
+            }
+        }
+        // Keine Default-Kategorie — der User weist sie im Activity-Editor
+        // selbst zu (User-Wunsch: "Dann kann man selber ... die Kategorie
+        // Sport zuweisen"). icon: passendes Emoji als Platzhalter.
+        val icon = when (lower) {
+            "strength_training" -> "🏋️"
+            "yoga", "pilates" -> "🧘"
+            "elliptical", "indoor_cycling" -> "🚴"
+            "rowing" -> "🚣"
+            "cardio", "hiit" -> "❤️🔥"
+            "dance" -> "💃"
+            "stair_climbing" -> "🪜"
+            else -> "🏃"
+        }
+        try {
+            activityTypeRepository.insert(
+                ActivityType(
+                    id = id,
+                    name = displayName,
+                    defaultCategoryId = null,
+                    isSystem = false,
+                    propertiesJson = "{\"overlay\": false}",
+                    positivityScore = 70,
+                    icon = icon,
+                    color = 0L
+                )
+            )
+            typeIds.add(id)
+        } catch (e: Exception) {
+            // Konkurrenz: Typ wurde parallel schon erstellt — ID erneut prüfen.
+            if (id !in typeIds) return "other"
+        }
+        return id
+    }
+
+    /**
+     * M18.58: Alte, rein auflösende Variante — nur noch für die Tests
+     * relevant. Die Produktion nutzt [resolveOrCreateTypeId].
      */
     private fun garminTypeToAevumTypeId(garminType: String, typeIds: Set<String>): String? {
         val preferred = when (garminType.lowercase()) {
