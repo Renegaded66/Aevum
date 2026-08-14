@@ -15,25 +15,22 @@ import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 // ══════════════════════════════════════════════════════════════════════
-// M18.66-FIX2: PROAKTIVER GEOFENCE-CHECK
+// M18.66-FIX8: PROAKTIVER GEOFENCE-CHECK — DIREKTER PFAD
 //
-// Root-Cause (User-Report: "Geofence betreten, Automatisierung aktiviert,
-// Activity startet nicht"):
-//   1. GMS-Geofences feuern unzuverlässig — besonders bei Mock-Location-
-//      Tests (Fake-GPS), aber auch im Hintergrund nach langer Laufzeit.
-//   2. Der EventDrivenLocationChecker prüft den Standort NUR bei AR-Events
-//      (IN_VEHICLE etc.) — wenn Google kein AR-Event liefert, wird kein
-//      Geofence-Check gemacht.
-//   3. Ergebnis: Der User betritt eine Geofence, aber die App bemerkt es
-//      nicht → kein Auto-Start.
+// FIX7 nutzte CurrentZoneProvider.checkNow() als direkten Pfad (kein
+// Processor). Aber dieser Worker hatte noch den ALTEN Pfad
+// (processor.processTransition) + separate SharedPreferences
+// ("aevum_geofence_state" / "last_inside_geofence").
 //
-// LÖSUNG: Dieser Worker prüft alle 2 Minuten proaktiv den GPS-Standort
-// gegen alle aktiven Geofences. Bei ENTER/EXIT ruft er die BESTEHENDE
-// Pipeline auf (GeofenceTransitionProcessor.processTransition) — mit
-// Debouncer-Schutz gegen Flattern.
+// Das führte zu zwei konkurrierenden Pfaden:
+//  - checkNow() → direkt start() → schreibt "prev_zone_id"
+//  - Worker → processor.processTransition() → schreibt "last_inside_geofence"
+//  - Worker ruft zoneProvider.setZone() OHNE checkNow() → überschreibt
+//    die Zone ohne Trigger/Activity → beim nächsten App-Öffnen ist
+//    prev_zone_id schon gesetzt → zoneChanged=false → kein Auto-Start.
 //
-// Das ist der gleiche Ansatz wie Life360: Statt sich auf GMS-Geofencing
-// allein zu verlassen, wird der Standort regelmäßig geprüft.
+// FIX8: Der Worker nutzt jetzt checkNow() als EINZIGEN Pfad. Kein
+// processor, keine separaten SharedPreferences, keine setZone().
 // ══════════════════════════════════════════════════════════════════════
 
 private const val TAG = "ProactiveGeofenceCheck"
@@ -48,20 +45,14 @@ class ProactiveGeofenceCheckWorker(
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface Deps {
-        fun eventDrivenLocationChecker(): EventDrivenLocationChecker
-        fun processor(): GeofenceTransitionProcessor
-        fun debugLogger(): GeofenceDebugLogger
-        fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
         fun currentZoneProvider(): CurrentZoneProvider
+        fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
     }
 
     override suspend fun doWork(): Result {
         val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
-        val checker = deps.eventDrivenLocationChecker()
-        val processor = deps.processor()
-        val debugLogger = deps.debugLogger()
-        val settingsRepo = deps.settingsRepository()
         val zoneProvider = deps.currentZoneProvider()
+        val settingsRepo = deps.settingsRepository()
 
         // Gate: Geofencing in den Trigger-Settings deaktiviert?
         try {
@@ -75,60 +66,12 @@ class ProactiveGeofenceCheckWorker(
             Log.w(TAG, "Settings-Check fehlgeschlagen: ${e.message} — führe Check konservativ aus")
         }
 
-        // Standort gegen alle Geofences prüfen.
+        // M18.66-FIX8: Einziger Pfad ist checkNow() — er übernimmt
+        // Zonenerkennung, Zonenwechsel-Erkennung, direkten Auto-Start,
+        // Trigger-Erzeugung und Auto-Stop. Kein processor, keine separaten
+        // SharedPreferences mehr.
         try {
-            val result = checker.checkCurrentLocationAgainstGeofences()
-            val matched = result.matchedGeofence
-            val location = result.location
-
-            if (location == null) {
-                debugLogger.log(TAG, "Kein GPS-Fix — Check übersprungen")
-                scheduleNext(applicationContext)
-                return Result.success()
-            }
-
-            // Status-Tracking: Welcher Geofence war beim letzten Check aktiv?
-            // Wenn sich der Status ändert (drinnen→draußen oder draußen→drinnen),
-            // rufen wir processTransition auf — die bestehende Pipeline
-            // (Debouncer → StabilizationWorker → Processor) übernimmt.
-            val prefs = applicationContext.getSharedPreferences(
-                "aevum_geofence_state", Context.MODE_PRIVATE
-            )
-            val lastInsideId = prefs.getString("last_inside_geofence", null)
-
-            if (matched != null) {
-                // User ist in einer Geofence.
-                if (matched.id != lastInsideId) {
-                    // Status geändert: jetzt drinnen (oder andere Geofence).
-                    debugLogger.log(TAG, "ENTER erkannt: ${matched.name} (proaktiv)")
-                    processor.processTransition(
-                        geofenceId = matched.id,
-                        transition = GeofenceTransition.Enter,
-                        occurredAt = System.currentTimeMillis(),
-                        latitude = location.latitude,
-                        longitude = location.longitude
-                    )
-                    prefs.edit().putString("last_inside_geofence", matched.id).apply()
-                }
-                // M18.66-FIX3: Zone-Banner aktualisieren
-                zoneProvider.setZone(matched)
-            } else {
-                // User ist in keiner Geofence.
-                if (lastInsideId != null) {
-                    // Status geändert: war drinnen, jetzt draußen.
-                    debugLogger.log(TAG, "EXIT erkannt: $lastInsideId (proaktiv)")
-                    processor.processTransition(
-                        geofenceId = lastInsideId,
-                        transition = GeofenceTransition.Exit,
-                        occurredAt = System.currentTimeMillis(),
-                        latitude = location.latitude,
-                        longitude = location.longitude
-                    )
-                    prefs.edit().remove("last_inside_geofence").apply()
-                }
-                // M18.66-FIX3: Zone-Banner aktualisieren ("Abwesend")
-                zoneProvider.setZone(null)
-            }
+            zoneProvider.checkNow()
         } catch (e: Exception) {
             Log.e(TAG, "Proaktiver Geofence-Check fehlgeschlagen: ${e.message}", e)
         }
@@ -138,7 +81,6 @@ class ProactiveGeofenceCheckWorker(
     }
 
     companion object {
-        /** Startet den periodischen Check (REPLACE = immer genau ein Lauf). */
         fun schedule(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 CHECK_WORK,

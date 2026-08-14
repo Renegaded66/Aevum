@@ -166,7 +166,21 @@ class GarminApiClient @Inject constructor(
     }
 
     private fun get(path: String): JSONObject? {
-        val url = URL("${baseUrl.trimEnd('/')}$path")
+        val result = getWithUrl(path, baseUrl)
+        // M18.66-FIX8: Self-Healing — wenn die gespeicherte URL nicht
+        // erreichbar ist (Cloudflare-Tunnel hat rotiert), verwerfe sie
+        // und retry mit der BuildConfig-URL. Vorher stand die App
+        // jeden Tag auf "Keine Antwort", weil die alte URL tot war.
+        if (result == null && prefs.contains(KEY_BASE_URL)) {
+            android.util.Log.w(TAG, "Bridge mit gespeicherter URL fehlgeschlagen — retry mit BuildConfig-URL")
+            resetBaseUrlIfStale()
+            return getWithUrl(path, BuildConfig.GARMIN_BRIDGE_URL)
+        }
+        return result
+    }
+
+    private fun getWithUrl(path: String, urlBase: String): JSONObject? {
+        val url = URL("${urlBase.trimEnd('/')}$path")
         val conn = url.openConnection() as HttpURLConnection
         return try {
             conn.requestMethod = "GET"
