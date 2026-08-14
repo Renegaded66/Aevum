@@ -37,33 +37,36 @@ class DriveDetectionEngineTest {
 
     @Test
     fun `Walking dann Auto — Geschwindigkeit steigt über die Schwelle`() {
-        // 3 Probes Gehen (~1,5 m/s), dann 3 Probes Auto (~25 m/s = 90 km/h).
+        // 3 Probes Gehen (~1,5 m/s), dann 4 Probes Auto (~25 m/s = 90 km/h).
+        // M18.66-FIX10: 4 konsekutive schnelle Probes nötig (war 3).
         val probes = listOf(
             probe(0, 1.5f), probe(1, 1.4f), probe(2, 1.6f),
-            probe(3, 9.0f), probe(4, 24.0f), probe(5, 25.0f)
+            probe(3, 9.0f), probe(4, 24.0f), probe(5, 25.0f), probe(6, 23.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 7 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 
     @Test
     fun `Stillstand dann Auto — Fahrt wird erkannt`() {
+        // M18.66-FIX10: 4 konsekutive schnelle Probes nötig (war 3).
         val probes = listOf(
             probe(0, 0f), probe(1, 0f), probe(2, 0.2f),
-            probe(3, 8.5f), probe(4, 12.0f), probe(5, 15.0f)
+            probe(3, 8.5f), probe(4, 12.0f), probe(5, 15.0f), probe(6, 14.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 7 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 
     @Test
     fun `andere Aktivität dann Auto — Fahrt wird erkannt`() {
         // Unbekannte/fehlende Geschwindigkeit (null), dann Auto.
+        // M18.66-FIX10: 4 konsekutive schnelle Probes nötig (war 3).
         val probes = listOf(
             probe(0, null), probe(1, null), probe(2, 1.0f),
-            probe(3, 10.0f), probe(4, 18.0f), probe(5, 22.0f)
+            probe(3, 10.0f), probe(4, 18.0f), probe(5, 22.0f), probe(6, 20.0f)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 7 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
 

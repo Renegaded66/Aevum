@@ -42,10 +42,13 @@ object DriveDetectionEngine {
     /** Mindestanzahl gültiger Probes für eine Entscheidung. */
     const val MIN_VALID_PROBES = 3
     /** Mindestens N aufeinanderfolgende Probes über der Auto-Schwelle.
-     *  M18.66-FIX5: 2 -> 3. Zwei Probes reichen bei GPS-Sprüngen als
-     *  False-Positive. Drei aufeinanderfolgende schnelle Probes über
-     *  mindestens 1+ Minute sind robust gegen Sprünge. */
-    const val MIN_CONSECUTIVE_FAST = 3
+     *  M18.66-FIX10: 3 -> 4. Drei reichte noch für gelegentliche
+     *  False-Positives bei GPS-Sprüngen (3 Probes mit speed >= 8 m/s
+     *  über 2 Min). Vier aufeinanderfolgende schnelle Probes sind
+     *  robust — bei 5s-Intervall sind das 20s kontinuierlich > 29 km/h.
+     *  False-Negative-Risiko minimal: eine echte Autofahrt hat immer
+     *  4+ aufeinanderfolgende schnelle Probes. */
+    const val MIN_CONSECUTIVE_FAST = 4
     /** Probes müssen über mindestens 2 Minuten verteilt sein.
      *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
      *  geschwindigkeit innerhalb von 2 Minuten über 25 km/h". Das
@@ -139,12 +142,16 @@ object DriveDetectionEngine {
         }
         val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
 
-        // M18.66-FIX5: Durchschnitts-Threshold 10 -> 7 m/s (25 km/h).
-        // User-Vorschlag: "Durchschnittsgeschwindigkeit innerhalb von 2 Min
-        // über 25 km/h". 7 m/s = 25.2 km/h. Das filtert Gehen/Laufen/
-        // Fahrrad zuverlässig heraus.
-        val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST ||
-            (avgSpeed >= 7.0f && fastCount >= 2)
+        // M18.66-FIX10: Beide Bedingungen MÜSSEN erfüllt sein (AND, nicht OR).
+        // Vorher: maxConsecutive >= 3 OR (avgSpeed >= 7 && fastCount >= 2)
+        // → die OR-Bedingung reichte für False-Positives bei GPS-Sprüngen
+        // (2 schnelle Probes mit hohem Durchschnitt). Jetzt: 4 konsekutive
+        // schnelle Probes UND Durchschnitt >= 7 m/s. Das eliminiert
+        // False-Positives, ohne False-Negatives zu riskieren — eine echte
+        // Autofahrt hat immer 4+ konsekutive Probes >= 8 m/s UND einen
+        // Durchschnitt >= 7 m/s.
+        val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST &&
+            avgSpeed >= 7.0f && fastCount >= MIN_CONSECUTIVE_FAST
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau
