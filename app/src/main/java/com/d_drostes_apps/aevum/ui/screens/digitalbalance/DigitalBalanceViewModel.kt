@@ -270,6 +270,21 @@ class DigitalBalanceViewModel @Inject constructor(
         }
     }
 
+    // M18.66-FIX14: Profil mit Zeitplan erstellen
+    fun createProfileWithSchedule(
+        name: String, icon: String, color: String, packageNames: List<String>,
+        scheduleEnabled: Boolean, scheduleDays: Int, scheduleStartMin: Int, scheduleEndMin: Int
+    ) {
+        viewModelScope.launch {
+            balanceProfileRepository.createWithSchedule(
+                name, icon, color, packageNames,
+                scheduleEnabled, scheduleDays, scheduleStartMin, scheduleEndMin
+            )
+            refresh()
+            syncBlockService()
+        }
+    }
+
     fun updateProfileApps(profileId: String, packageNames: List<String>) {
         viewModelScope.launch {
             balanceProfileRepository.updateApps(profileId, packageNames)
@@ -283,6 +298,21 @@ class DigitalBalanceViewModel @Inject constructor(
     fun updateProfile(profileId: String, name: String, icon: String, color: String, packageNames: List<String>) {
         viewModelScope.launch {
             balanceProfileRepository.update(profileId, name, icon, color, packageNames)
+            refresh()
+            syncBlockService()
+        }
+    }
+
+    // M18.66-FIX14: Profil mit Zeitplan bearbeiten
+    fun updateProfileWithSchedule(
+        profileId: String, name: String, icon: String, color: String, packageNames: List<String>,
+        scheduleEnabled: Boolean, scheduleDays: Int, scheduleStartMin: Int, scheduleEndMin: Int
+    ) {
+        viewModelScope.launch {
+            balanceProfileRepository.updateWithSchedule(
+                profileId, name, icon, color, packageNames,
+                scheduleEnabled, scheduleDays, scheduleStartMin, scheduleEndMin
+            )
             refresh()
             syncBlockService()
         }

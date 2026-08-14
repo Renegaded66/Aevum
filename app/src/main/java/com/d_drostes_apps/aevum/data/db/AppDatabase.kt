@@ -62,7 +62,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // M18.61f: v28 — balance_profile + balance_profile_app.
     // M18.64: v31 — activity_session.external_id (stabile Import-Identität
     // für idempotenten Garmin-Schlaf-Sync).
-    version = 32,
+    version = 33,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1309,6 +1309,18 @@ abstract class AppDatabase : RoomDatabase() {
                        WHERE auto_start_activity_type_id IS NULL 
                        AND activity_type_id IS NOT NULL"""
                 )
+            }
+        }
+
+        // M18.66-FIX14: v33 — balance_profile Zeitplan-Felder.
+        // schedule_enabled, schedule_days, schedule_start_minute,
+        // schedule_end_minute für automatische Profil-Aktivierung.
+        val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_enabled INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_days INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_start_minute INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_end_minute INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

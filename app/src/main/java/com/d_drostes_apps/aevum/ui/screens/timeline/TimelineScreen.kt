@@ -34,6 +34,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarViewDay
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -42,6 +45,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -100,6 +104,7 @@ import com.d_drostes_apps.aevum.ui.components.categoryColor
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.roundToInt
 
@@ -115,6 +120,8 @@ fun TimelineScreen(
     viewModel: TimelineViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.66-FIX14: Wochenansicht-Modus aus dem ViewModel
+    val weekView by viewModel.weekView.collectAsState()
     // M18.44: Quick-Create aus der Tagesansicht — getippte Minute des Tages
     var quickCreateMinute by remember { mutableStateOf<Int?>(null) }
     Scaffold(
@@ -224,6 +231,10 @@ fun TimelineScreen(
                         onDeleteTrigger = viewModel::deleteTrigger,
                         onDeleteSession = viewModel::deleteSession,
                         onCreateAt = { minute -> quickCreateMinute = minute },
+                        weekView = weekView,
+                        weekSessions = state.weekSessions,
+                        onSetWeekView = viewModel::setWeekView,
+                        onSelectDay = viewModel::selectDate,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = AevumSpacing.md)
@@ -1271,6 +1282,11 @@ private fun DayCalendarTimeline(
     onDeleteSession: (String) -> Unit,
     // M18.44: Quick-Create aus der Tagesansicht (leere Stelle antippen)
     onCreateAt: (Int) -> Unit,
+    // M18.66-FIX14: Wochenansicht
+    weekView: Boolean,
+    weekSessions: Map<LocalDate, List<TimelineSessionUi>>,
+    onSetWeekView: (Boolean) -> Unit,
+    onSelectDay: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isListMode by remember { mutableStateOf(false) }
@@ -1311,11 +1327,37 @@ private fun DayCalendarTimeline(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                    ModeToggleButton("Liste", isListMode) { isListMode = true }
-                    ModeToggleButton("Tag", !isListMode) { isListMode = false }
+                    ModeToggleButton("Liste", isListMode) { isListMode = true; onSetWeekView(false) }
+                    ModeToggleButton("Tag", !isListMode && !weekView) { isListMode = false; onSetWeekView(false) }
+                    // M18.66-FIX14: Tag/Woche-Icons rechts neben den Liste/Tag-Toggles.
+                    // CalendarViewDay = Tagesansicht, DateRange = Wochenansicht.
+                    IconButton(
+                        onClick = { isListMode = false; onSetWeekView(false) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarViewDay,
+                            contentDescription = "Tagesansicht",
+                            tint = if (!isListMode && !weekView) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { isListMode = false; onSetWeekView(true) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Wochenansicht",
+                            tint = if (weekView) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
-            // Zoom slider (only in day mode)
+            // Zoom slider (in Tag- und Wochenansicht, nicht in Listenansicht)
             if (!isListMode) {
                 Row(
                     modifier = Modifier
@@ -1426,16 +1468,27 @@ private fun DayCalendarTimeline(
                         }
                     }
                 } else {
-                    ZoomableDayTimeline(
-                        sessions = sessions,
-                        triggers = triggers,
-                        lanes = lanes,
-                        pixelsPerHour = pixelsPerHour,
-                        onPixelsPerHourChange = { pixelsPerHour = it },
-                        onOpen = onOpen,
-                        onEdit = onEdit,
-                        onCreateAt = onCreateAt
-                    )
+                    if (weekView) {
+                        WeekTimeline(
+                            weekSessions = weekSessions,
+                            pixelsPerHour = pixelsPerHour,
+                            onColumnTap = { day ->
+                                onSetWeekView(false)
+                                onSelectDay(day)
+                            }
+                        )
+                    } else {
+                        ZoomableDayTimeline(
+                            sessions = sessions,
+                            triggers = triggers,
+                            lanes = lanes,
+                            pixelsPerHour = pixelsPerHour,
+                            onPixelsPerHourChange = { pixelsPerHour = it },
+                            onOpen = onOpen,
+                            onEdit = onEdit,
+                            onCreateAt = onCreateAt
+                        )
+                    }
                 }
             }
         }
@@ -2122,6 +2175,212 @@ private fun ZoomableDayTimeline(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+    }
+}
+
+/**
+ * M18.66-FIX14: Wochenansicht — 7 Tage (Mo–So) nebeneinander.
+ * Jede Spalte ist 1/7 der Breite und zeigt einen vertikalen Zeitstrahl
+ * mit farbigen Activity-Blöcken (wie die Tagesansicht, aber schmaler
+ * und ohne Labels — nur die farbigen Blöcke).
+ *
+ * Tap auf eine Spalte schaltet zurück in die Tagesansicht des getappten Tages.
+ * Der Zoom (pixelsPerHour) ist derselbe wie in der Tagesansicht.
+ * Vertikales Scrollen für 24h wie in der Tagesansicht.
+ */
+@Composable
+private fun WeekTimeline(
+    weekSessions: Map<LocalDate, List<TimelineSessionUi>>,
+    pixelsPerHour: Float,
+    onColumnTap: (LocalDate) -> Unit
+) {
+    val totalHeight = (24 * pixelsPerHour).dp
+    val scrollState = androidx.compose.foundation.rememberScrollState()
+    val zone = ZoneId.systemDefault()
+    val now = System.currentTimeMillis()
+    val nowMinute = TimeFormatting.minutesOfDay(now, zone).coerceIn(0, 1440)
+    val today = LocalDate.now()
+
+    // M18.66-FIX14: Wochentage deutsch kurz (Mo, Di, Mi, Do, Fr, Sa, So)
+    val dayLabels = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+    // Sortiere die Map nach Datum (Mo zuerst)
+    val sortedDays = weekSessions.entries.sortedBy { it.key }
+    // Falls die Map leer ist (sollte nicht passieren), berechne die Tage
+    // aus dem heutigen Datum als Fallback.
+    val days = if (sortedDays.size == 7) {
+        sortedDays.map { it.key to it.value }
+    } else {
+        val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        (0..6).map { offset ->
+            val day = monday.plusDays(offset.toLong())
+            day to (weekSessions[day] ?: emptyList())
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(AevumRadius.md))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f))
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header: 7 Wochentage + Datum nebeneinander
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                days.forEachIndexed { index, (day, _) ->
+                    val isToday = day == today
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(AevumRadius.sm))
+                            .background(
+                                if (isToday) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                else Color.Transparent
+                            )
+                            .padding(vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                dayLabels[index],
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "%d.".format(day.dayOfMonth),
+                                fontSize = 9.sp,
+                                color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+            // Scrollbarer Bereich mit 7 Spalten
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(totalHeight),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    days.forEachIndexed { _, (day, daySessions) ->
+                        val isToday = day == today
+                        WeekColumn(
+                            daySessions = daySessions,
+                            pixelsPerHour = pixelsPerHour,
+                            isToday = isToday,
+                            nowMinute = if (isToday) nowMinute else -1,
+                            modifier = Modifier
+                                .weight(1f)
+                                .pointerInput(day) {
+                                    detectTapGestures { onColumnTap(day) }
+                                }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * M18.66-FIX14: Eine einzelne Wochenspalte — vertikaler Zeitstrahl
+ * mit farbigen Session-Blöcken. Ohne Labels, ohne Trigger-Marker.
+ * Nur die farbigen Blöcke, wie in der Tagesansicht aber schmaler.
+ */
+@Composable
+private fun WeekColumn(
+    daySessions: List<TimelineSessionUi>,
+    pixelsPerHour: Float,
+    isToday: Boolean,
+    nowMinute: Int,
+    modifier: Modifier = Modifier
+) {
+    val totalHeight = (24 * pixelsPerHour).dp
+    Canvas(
+        modifier = modifier
+            .fillMaxHeight()
+            .height(totalHeight)
+    ) {
+        val pxHour = pixelsPerHour.dp.toPx()
+        val w = size.width
+        val h = size.height
+
+        // Sanfter Hintergrund für "heute"
+        if (isToday) {
+            drawRect(
+                color = Color.White.copy(alpha = 0.04f),
+                size = Size(w, h)
+            )
+        }
+
+        // Stundengitter (alle 3 Stunden etwas heller)
+        for (hour in 0..24) {
+            val y = hour * pxHour
+            val isMajor = hour % 3 == 0
+            drawLine(
+                color = Color.White.copy(alpha = if (isMajor) 0.14f else 0.05f),
+                start = Offset(0f, y),
+                end = Offset(w, y),
+                strokeWidth = if (isMajor) 1f else 0.5f
+            )
+        }
+
+        // Session-Blöcke — nur farbige Blöcke, keine Labels
+        daySessions.forEach { session ->
+            val startMin = session.startMinuteOfDay.coerceIn(0, 1440)
+            val rawEnd = session.endMinuteOfDay
+            val endMin = when {
+                rawEnd <= 0 -> startMin + 1
+                rawEnd < startMin + 1 -> startMin + 1
+                rawEnd > 1440 -> 1440
+                else -> rawEnd
+            }
+            val topY = (startMin / 60f) * pxHour
+            val bottomY = (endMin / 60f) * pxHour
+            val blockH = (bottomY - topY).coerceAtLeast(3f)
+            val blockW = (w - 2f).coerceAtLeast(0f)
+            val color = if (session.activityColor != 0L) Color(session.activityColor) else categoryColor(session.categoryName)
+            val fillAlpha = if (session.isOverlapping) 0.80f else 0.62f
+            drawRoundRect(
+                color = color.copy(alpha = fillAlpha),
+                topLeft = Offset(1f, topY),
+                size = Size(blockW, blockH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
+            )
+            // Akzentbalken links (wie Tagesansicht)
+            drawRoundRect(
+                color = color.copy(alpha = 0.95f),
+                topLeft = Offset(1f, topY),
+                size = Size(3.dp.toPx().coerceAtMost(blockW), blockH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
+            )
+        }
+
+        // Jetzt-Linie (nur für "heute")
+        if (isToday && nowMinute in 0..1440) {
+            val nowY = (nowMinute / 60f) * pxHour
+            drawLine(
+                color = Color(0xFFEC4899),
+                start = Offset(0f, nowY),
+                end = Offset(w, nowY),
+                strokeWidth = 1.5f
+            )
         }
     }
 }

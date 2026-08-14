@@ -1017,7 +1017,19 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(profile.name, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Text(
-                            if (activeProfile?.id == profile.id) "Aktiv — Apps gesperrt" else "Inaktiv",
+                            when {
+                                activeProfile?.id == profile.id && profile.scheduleEnabled ->
+                                    "Aktiv (Zeitplan) — Apps gesperrt"
+                                activeProfile?.id == profile.id ->
+                                    "Aktiv — Apps gesperrt"
+                                profile.scheduleEnabled -> {
+                                    val days = listOf("Mo","Di","Mi","Do","Fr","Sa","So")
+                                        .filterIndexed { idx, _ -> (profile.scheduleDays and (1 shl idx)) != 0 }
+                                        .joinToString(",")
+                                    "Zeitplan: $days ${"%02d:%02d".format(profile.scheduleStartMinute/60, profile.scheduleStartMinute%60)}-${"%02d:%02d".format(profile.scheduleEndMinute/60, profile.scheduleEndMinute%60)}"
+                                }
+                                else -> "Inaktiv"
+                            },
                             fontSize = 11.sp,
                             color = if (activeProfile?.id == profile.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1083,8 +1095,17 @@ private fun ProfileFormDialog(
     var icon by remember { mutableStateOf(profile?.icon ?: "📚") }
     val icons = listOf("📚", "💼", "🧘", "🎮", "🎵", "📱", "🌙", "🏋️")
     val installedApps by remember { mutableStateOf(loadInstalledApps(viewModel.appContext())) }
-    // M18.62: Im Edit-Modus die gespeicherten Pakete des Profils vorauswählen
     val selected = remember { mutableStateListOf<String>() }
+    // M18.66-FIX14: Zeitplan-State
+    var scheduleEnabled by remember { mutableStateOf(profile?.scheduleEnabled ?: false) }
+    // Bitmaske: Bit 0=Mo, 1=Di, ... 6=So. Default Mo-Fr = 0b11111 = 31
+    var scheduleDays by remember { mutableStateOf(profile?.scheduleDays ?: 31) }
+    var startHour by remember { mutableStateOf((profile?.scheduleStartMinute ?: 420) / 60) }
+    var startMinute by remember { mutableStateOf((profile?.scheduleStartMinute ?: 420) % 60) }
+    var endHour by remember { mutableStateOf((profile?.scheduleEndMinute ?: 960) / 60) }
+    var endMinute by remember { mutableStateOf((profile?.scheduleEndMinute ?: 960) % 60) }
+    val dayLabels = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+
     if (isEdit && profile != null) {
         androidx.compose.runtime.LaunchedEffect(profile.id) {
             val pkgs = viewModel.getProfilePackages(profile.id)
@@ -1100,7 +1121,7 @@ private fun ProfileFormDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
@@ -1126,6 +1147,95 @@ private fun ProfileFormDialog(
                         )
                     }
                 }
+
+                // M18.66-FIX14: Zeitplan-Sektion
+                androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = AevumSpacing.xs))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Zeitplan", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "Profil automatisch nach Zeit aktivieren",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = scheduleEnabled, onCheckedChange = { scheduleEnabled = it })
+                }
+                if (scheduleEnabled) {
+                    Text("Wochentage", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        dayLabels.forEachIndexed { idx, label ->
+                            val bit = 1 shl idx
+                            val isSelected = (scheduleDays and bit) != 0
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AevumRadius.sm))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { scheduleDays = scheduleDays xor bit }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Von", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "%02d:%02d".format(startHour, startMinute),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AevumRadius.md))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable {
+                                        // Einfache +/- Logik via Dialog wäre idealer,
+                                        // aber hier kompakt: Tap erhöht Stunde
+                                        startHour = (startHour + 1) % 24
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Bis", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "%02d:%02d".format(endHour, endMinute),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AevumRadius.md))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable {
+                                        endHour = (endHour + 1) % 24
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        "Das Profil ist ${
+                            dayLabels.filterIndexed { idx, _ -> (scheduleDays and (1 shl idx)) != 0 }
+                                .joinToString(", ").ifEmpty { "nie" }
+                        } von %02d:%02d bis %02d:%02d aktiv.".format(
+                            startHour, startMinute, endHour, endMinute
+                        ),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // M18.66-FIX14: HorizontalDivider vor App-Auswahl
+                androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = AevumSpacing.xs))
                 Text("Apps sperren", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 installedApps.forEach { app ->
                     // M18.61g-FIX 3: Triple(packageName, label, icon) —
@@ -1169,10 +1279,31 @@ private fun ProfileFormDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank() && selected.isNotEmpty()) {
+                        val startMin = startHour * 60 + startMinute
+                        val endMin = endHour * 60 + endMinute
                         if (isEdit && profile != null) {
-                            viewModel.updateProfile(profile.id, name.trim(), icon, profile.color, selected.toList())
+                            // M18.66-FIX14: updateProfileWithSchedule wenn Zeitplan aktiv,
+                            // sonst normales updateProfile
+                            if (scheduleEnabled) {
+                                viewModel.updateProfileWithSchedule(
+                                    profile.id, name.trim(), icon, profile.color, selected.toList(),
+                                    scheduleEnabled, scheduleDays, startMin, endMin
+                                )
+                            } else {
+                                viewModel.updateProfileWithSchedule(
+                                    profile.id, name.trim(), icon, profile.color, selected.toList(),
+                                    false, 0, 0, 0
+                                )
+                            }
                         } else {
-                            viewModel.createProfile(name.trim(), icon, "#6366F1", selected.toList())
+                            if (scheduleEnabled) {
+                                viewModel.createProfileWithSchedule(
+                                    name.trim(), icon, "#6366F1", selected.toList(),
+                                    scheduleEnabled, scheduleDays, startMin, endMin
+                                )
+                            } else {
+                                viewModel.createProfile(name.trim(), icon, "#6366F1", selected.toList())
+                            }
                         }
                         onDismiss()
                     }

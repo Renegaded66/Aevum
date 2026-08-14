@@ -15,7 +15,14 @@ interface BalanceProfileRepository {
     suspend fun getActiveOnce(): BalanceProfile?
     suspend fun getById(id: String): BalanceProfile?
     suspend fun create(name: String, icon: String, color: String, packageNames: List<String>): BalanceProfile
+    // M18.66-FIX14: Profil mit Zeitplan erstellen/bearbeiten
+    suspend fun createWithSchedule(name: String, icon: String, color: String, packageNames: List<String>,
+        scheduleEnabled: Boolean, scheduleDays: Int, scheduleStartMin: Int, scheduleEndMin: Int): BalanceProfile
     suspend fun update(profileId: String, name: String, icon: String, color: String, packageNames: List<String>)
+    suspend fun updateWithSchedule(profileId: String, name: String, icon: String, color: String, packageNames: List<String>,
+        scheduleEnabled: Boolean, scheduleDays: Int, scheduleStartMin: Int, scheduleEndMin: Int)
+    suspend fun updateSchedule(profileId: String, enabled: Boolean, days: Int, startMin: Int, endMin: Int)
+    suspend fun getScheduledProfiles(): List<BalanceProfile>
     suspend fun updateApps(profileId: String, packageNames: List<String>)
     suspend fun setActive(id: String)
     suspend fun deactivate()
@@ -54,6 +61,30 @@ class BalanceProfileRepositoryImpl @Inject constructor(
         return profile
     }
 
+    // M18.66-FIX14: Profil mit Zeitplan erstellen
+    override suspend fun createWithSchedule(
+        name: String, icon: String, color: String, packageNames: List<String>,
+        scheduleEnabled: Boolean, scheduleDays: Int, scheduleStartMin: Int, scheduleEndMin: Int
+    ): BalanceProfile {
+        val profile = BalanceProfile(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            icon = icon,
+            color = color,
+            isActive = false,
+            createdAt = System.currentTimeMillis(),
+            scheduleEnabled = scheduleEnabled,
+            scheduleDays = scheduleDays,
+            scheduleStartMinute = scheduleStartMin,
+            scheduleEndMinute = scheduleEndMin
+        )
+        dao.upsert(profile)
+        packageNames.forEach { pkg ->
+            dao.insertApp(BalanceProfileApp(UUID.randomUUID().toString(), profile.id, pkg))
+        }
+        return profile
+    }
+
     override suspend fun update(profileId: String, name: String, icon: String, color: String, packageNames: List<String>) {
         val existing = dao.getById(profileId) ?: return
         dao.upsert(
@@ -65,6 +96,32 @@ class BalanceProfileRepositoryImpl @Inject constructor(
         )
         updateApps(profileId, packageNames)
     }
+
+    // M18.66-FIX14: Profil mit Zeitplan bearbeiten
+    override suspend fun updateWithSchedule(
+        profileId: String, name: String, icon: String, color: String, packageNames: List<String>,
+        scheduleEnabled: Boolean, scheduleDays: Int, scheduleStartMin: Int, scheduleEndMin: Int
+    ) {
+        val existing = dao.getById(profileId) ?: return
+        dao.upsert(
+            existing.copy(
+                name = name,
+                icon = icon,
+                color = color,
+                scheduleEnabled = scheduleEnabled,
+                scheduleDays = scheduleDays,
+                scheduleStartMinute = scheduleStartMin,
+                scheduleEndMinute = scheduleEndMin
+            )
+        )
+        updateApps(profileId, packageNames)
+    }
+
+    override suspend fun updateSchedule(profileId: String, enabled: Boolean, days: Int, startMin: Int, endMin: Int) {
+        dao.updateSchedule(profileId, enabled, days, startMin, endMin)
+    }
+
+    override suspend fun getScheduledProfiles(): List<BalanceProfile> = dao.getScheduledProfiles()
 
     override suspend fun updateApps(profileId: String, packageNames: List<String>) {
         dao.deleteApps(profileId)

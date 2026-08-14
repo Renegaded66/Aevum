@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.app.Application
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -45,6 +46,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TimelineViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val application: Application,
     private val activityRepository: ActivityRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val triggerEventRepository: TriggerEventRepository,
@@ -87,17 +89,37 @@ class TimelineViewModel @Inject constructor(
     // M12.2: Stufenloser Pinch-to-Zoom — pixelsPerHour ist die einzige Quelle
     // der Wahrheit für die Timeline-Höhe. Statt eines enum-basierten
     // 3-Stufen-Modells wird ein Float gespeichert, der via detectTransformGestures
-    // zwischen MIN_PIXELS_PER_HOUR (18) und MAX_PIXELS_PER_HOUR (120) skaliert wird.
-    private val pixelsPerHour = MutableStateFlow(TimelineUiState.DEFAULT_PIXELS_PER_HOUR)
+    // zwischen MIN_PIXELS_PER_HOUR (18) und MAX_PIXELS_PER_HOUR (180) skaliert wird.
+    // M18.66-FIX14: Zoom-Level wird in SharedPreferences persistiert —
+    // beim erneuten Öffnen der Timeline ist der letzte Zoom wiederhergestellt.
+    // M18.66-FIX14: Max-Zoom von 120 → 180 (+50%), wie vom User gewünscht.
+    // M18.66-FIX14: SharedPreferences Keys für Zoom + Wochenansicht
+    private val KEY_ZOOM = "pixels_per_hour"
+    private val KEY_WEEK_VIEW = "week_view"
+    private val timelinePrefs = application.getSharedPreferences("aevum_timeline", android.content.Context.MODE_PRIVATE)
+    private val pixelsPerHour = MutableStateFlow(
+        timelinePrefs.getFloat(KEY_ZOOM, TimelineUiState.DEFAULT_PIXELS_PER_HOUR)
+    )
+    // M18.66-FIX14: Wochenansicht (7 Tage nebeneinander, Mo-So).
+    // Wird ebenfalls persistiert — beim erneuten Öffnen ist der letzte
+    // Modus (Tag oder Woche) wiederhergestellt.
+    private val _weekView = MutableStateFlow(timelinePrefs.getBoolean(KEY_WEEK_VIEW, false))
+    val weekView: StateFlow<Boolean> = _weekView
 
     val uiState: StateFlow<TimelineUiState> = combine(
         timelineBase,
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
-        pixelsPerHour
-    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, pph: Float ->
+        pixelsPerHour,
+        _weekView
+    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, pph: Float, weekView: Boolean ->
+        val weekSessions = if (weekView) {
+            buildWeekSessions(base.date, base.sessions, categories, types)
+        } else {
+            emptyMap()
+        }
         buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types)
-            .copy(pixelsPerHour = pph)
+            .copy(pixelsPerHour = pph, weekSessions = weekSessions)
     }
         .catch { e ->
             Log.e("TimelineViewModel", "uiState combine() failed — emitting default state", e)
@@ -108,6 +130,8 @@ class TimelineViewModel @Inject constructor(
     fun previousDay() = selectedDate.update { it.minusDays(1) }
     fun nextDay() = selectedDate.update { it.plusDays(1) }
     fun today() = selectedDate.update { LocalDate.now() }
+    /** M18.66-FIX14: Wähle einen konkreten Tag (aus Wochenansicht-Spalte). */
+    fun selectDate(date: LocalDate) { selectedDate.value = date }
 
     /**
      * M12.2: Stufenloser Zoom.
@@ -116,19 +140,26 @@ class TimelineViewModel @Inject constructor(
      * auf den erlaubten Bereich begrenzt.
      */
     fun setPixelsPerHour(pph: Float) {
-        pixelsPerHour.value = pph.coerceIn(
+        val coerced = pph.coerceIn(
             TimelineUiState.MIN_PIXELS_PER_HOUR,
             TimelineUiState.MAX_PIXELS_PER_HOUR
         )
+        pixelsPerHour.value = coerced
+        // M18.66-FIX14: Zoom persistieren
+        timelinePrefs.edit().putFloat(KEY_ZOOM, coerced).apply()
     }
 
     /**
      * M12.2: Multiplikativer Zoom-Update für den Pinch-Handler.
-     * Übergibt einen Skalierungsfaktor > 0 (z. B. 1.1f für "auseinander",
-     * 0.9f für "zusammen"). Intern auf MIN/MAX begrenzt.
      */
     fun zoomBy(factor: Float) {
         setPixelsPerHour(pixelsPerHour.value * factor)
+    }
+
+    /** M18.66-FIX14: Wochenansicht umschalten + persistieren. */
+    fun setWeekView(enabled: Boolean) {
+        _weekView.value = enabled
+        timelinePrefs.edit().putBoolean(KEY_WEEK_VIEW, enabled).apply()
     }
     fun acceptCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.accept(candidateId) } }
     fun dismissCandidate(candidateId: String) { viewModelScope.launch { reviewCandidateUseCase.dismiss(candidateId) } }
@@ -475,6 +506,64 @@ class TimelineViewModel @Inject constructor(
     }
 
     /**
+     * M18.66-FIX14: Baut die Sessions für alle 7 Tage der Woche (Mo–So),
+     * die das gegebene Datum enthält. Jeder Tag erhält seine eigenen
+     * geclippten TimelineSessionUi-Objekte (wie buildTimelineState für einen
+     * Tag, aber für 7 Tage auf einmal). Genutzt von der Wochenansicht.
+     */
+    private fun buildWeekSessions(
+        anyDateInWeek: LocalDate,
+        allSessions: List<ActivitySession>,
+        categories: List<Category>,
+        types: List<ActivityType>
+    ): Map<LocalDate, List<TimelineSessionUi>> {
+        // M18.66-FIX14: Woche = Montag bis Sonntag.
+        // java.time: MONDAY=1 ... SUNDAY=7.
+        val monday = anyDateInWeek.minusDays((anyDateInWeek.dayOfWeek.value - 1).toLong())
+        val nowMs = System.currentTimeMillis()
+        val categoryMap = categories.associateBy { it.id }
+        val typeMap = types.associateBy { it.id }
+        val result = mutableMapOf<LocalDate, List<TimelineSessionUi>>()
+        for (offset in 0..6) {
+            val day = monday.plusDays(offset.toLong())
+            val dayStart = TimeFormatting.startOfDayMillis(day, zoneId)
+            val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
+            val daySessions = allSessions
+                .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+                .sortedBy { it.startAt }
+            val rows = daySessions.map { session ->
+                val clippedStart = maxOf(session.startAt, dayStart)
+                val clippedEnd = minOf(session.endAt ?: nowMs, dayEnd)
+                val clippedStartMin = TimeFormatting.minutesOfDay(clippedStart, zoneId)
+                val clippedEndMin = TimeFormatting.minutesOfDay(clippedEnd, zoneId)
+                val effectiveCategoryId = session.categoryId
+                    ?: typeMap[session.activityTypeId]?.defaultCategoryId
+                TimelineSessionUi(
+                    id = session.id,
+                    title = session.title,
+                    categoryId = effectiveCategoryId,
+                    categoryName = categoryMap[effectiveCategoryId]?.name ?: "Sonstiges",
+                    activityTypeName = typeMap[session.activityTypeId]?.name ?: "Freie Aktivität",
+                    time = TimeFormatting.formatTime(clippedStart, zoneId),
+                    range = "${TimeFormatting.formatTime(clippedStart, zoneId)}–${TimeFormatting.formatTime(clippedEnd, zoneId)}",
+                    duration = TimeFormatting.formatDuration(session.activeDurationInWindow(dayStart, dayEnd, nowMs)),
+                    source = session.sourceType,
+                    isAuto = session.sourceType in AUTO_SOURCES,
+                    startMinuteOfDay = clippedStartMin,
+                    endMinuteOfDay = clippedEndMin,
+                    isRunning = session.endAt == null,
+                    isOverlapping = daySessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) },
+                    positivityScore = typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                    activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
+                    activityColor = typeMap[session.activityTypeId]?.color ?: 0L
+                )
+            }
+            result[day] = rows
+        }
+        return result
+    }
+
+    /**
      * M12.2: Hilfsfunktion für den Auto-Dedup der Trigger.
      * Drei identische Trigger im selben Minuten-Fenster werden zusammengefasst.
      */
@@ -753,6 +842,9 @@ data class TimelineUiState(
     val triggerEvents: List<TriggerEventUi> = emptyList(),
     val candidates: List<CandidateReviewUi> = emptyList(),
     val hasOverlaps: Boolean = false,
+    // M18.66-FIX14: Wochenansicht — 7 Tage (Mo–So) nebeneinander.
+    // Jeder Tag enthält die auf diesen Tag geclippten Sessions.
+    val weekSessions: Map<LocalDate, List<TimelineSessionUi>> = emptyMap(),
     // M12.2: Stufenloser Pinch-to-Zoom.
     // pixelsPerHour ist die einzige Quelle der Wahrheit für die Timeline-Höhe.
     // Statt eines enum-basierten 3-Stufen-Modells wird ein Float gespeichert,
@@ -762,7 +854,9 @@ data class TimelineUiState(
     companion object {
         const val DEFAULT_PIXELS_PER_HOUR: Float = 40f
         const val MIN_PIXELS_PER_HOUR: Float = 18f   // 24h × 18 = 432dp — kompakter Tagesüberblick
-        const val MAX_PIXELS_PER_HOUR: Float = 120f  // 24h × 120 = 2880dp — feine Minutenansicht
+        // M18.66-FIX14: Max-Zoom 120 → 180 (+50%). 24h × 180 = 4320dp —
+        // sehr feine Minutenansicht, wie vom User gewünscht.
+        const val MAX_PIXELS_PER_HOUR: Float = 180f
     }
 }
 

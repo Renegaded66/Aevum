@@ -13,6 +13,16 @@ import androidx.room.PrimaryKey
  * Profils gesperrt — unabhängig von individuellen Limits.
  *
  * Die App-Zuordnung liegt in [BalanceProfileApp] (1:n).
+ *
+ * M18.66-FIX14: Zeitplan-Felder für automatische Aktivierung.
+ * - scheduleEnabled: wenn true, wird das Profil automatisch nach
+ *   Zeitplan aktiviert/deaktiviert (statt manueller Switch-Bedienung).
+ * - scheduleDays: Bitmaske der Wochentage (1=Mo ... 7=So).
+ *   0b1111100 = Mo-Fr, 0b1111111 = jeden Tag.
+ * - scheduleStartMinute / scheduleEndMinute: Minuten seit Mitternacht.
+ *   z.B. 420 = 07:00, 960 = 16:00.
+ *   Wenn die aktuelle Zeit innerhalb des Fensters liegt UND der
+ *   Wochentag in scheduleDays gesetzt ist → Profil aktiv.
  */
 @Entity(
     tableName = "balance_profile",
@@ -24,7 +34,12 @@ data class BalanceProfile(
     @ColumnInfo(name = "icon") val icon: String,          // Emoji, z.B. "📚"
     @ColumnInfo(name = "color") val color: String,        // Hex, z.B. "#6366F1"
     @ColumnInfo(name = "is_active") val isActive: Boolean,
-    @ColumnInfo(name = "created_at") val createdAt: Long
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    // M18.66-FIX14: Zeitplan für automatische Aktivierung
+    @ColumnInfo(name = "schedule_enabled") val scheduleEnabled: Boolean = false,
+    @ColumnInfo(name = "schedule_days") val scheduleDays: Int = 0,  // Bitmaske 1=Mo..7=So
+    @ColumnInfo(name = "schedule_start_minute") val scheduleStartMinute: Int = 0,  // Minuten seit 00:00
+    @ColumnInfo(name = "schedule_end_minute") val scheduleEndMinute: Int = 0       // Minuten seit 00:00
 )
 
 /**

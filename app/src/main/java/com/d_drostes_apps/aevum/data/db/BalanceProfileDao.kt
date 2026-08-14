@@ -46,4 +46,17 @@ interface BalanceProfileDao {
 
     @Query("DELETE FROM balance_profile_app WHERE profile_id = :profileId AND package_name = :packageName")
     suspend fun removeApp(profileId: String, packageName: String)
+
+    // M18.66-FIX14: Zeitplan-Felder updaten
+    @Query("""UPDATE balance_profile SET 
+        schedule_enabled = :enabled, 
+        schedule_days = :days, 
+        schedule_start_minute = :startMin, 
+        schedule_end_minute = :endMin 
+        WHERE id = :id""")
+    suspend fun updateSchedule(id: String, enabled: Boolean, days: Int, startMin: Int, endMin: Int)
+
+    // M18.66-FIX14: Alle Profile mit aktiviertem Zeitplan laden (für Worker)
+    @Query("SELECT * FROM balance_profile WHERE schedule_enabled = 1")
+    suspend fun getScheduledProfiles(): List<BalanceProfile>
 }

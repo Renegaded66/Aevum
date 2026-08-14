@@ -250,6 +250,13 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "GarminSyncScheduler failed — continuing", e)
         }
+        // M18.66-FIX14: ProfileScheduleWorker — prüft alle 15 Min ob ein
+        // Digital-Balance-Profil nach Zeitplan aktiviert/deaktiviert werden muss.
+        try {
+            com.d_drostes_apps.aevum.automation.digitalbalance.ProfileScheduleWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "ProfileScheduleWorker schedule failed — continuing", e)
+        }
         // M17.2: Unknown Place Detector — alle 5 min, prüft ob User
         // an einem nicht-Geofence-Ort sesshaft ist (Restaurant,
         // Arzttermin, etc.) und erzeugt einen UnknownPlace-Eintrag.
