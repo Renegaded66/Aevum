@@ -153,6 +153,15 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- M18.67: App-Aufzeichnung — erkennt getrackte Apps über die
+             UsageStats-Event-API und startet/stoppt automatisch die
+             zugeordnete Activity. ForegroundService vom Typ "specialUse"
+             (kein GPS, kein Standort — nur App-Nutzungs-Events). -->
+        <service
+            android:name=".automation.apptracking.AppTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
         <!-- M9: Live Activity foreground service -->
         <service
             android:name=".domain.liveactivity.LiveActivityService"

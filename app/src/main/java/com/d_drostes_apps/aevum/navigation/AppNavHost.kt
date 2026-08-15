@@ -293,6 +293,15 @@ fun AppNavHost(
         // M18.61: Digital Balance — ersetzt den Kalender-Tab
         composable(AppDestination.DigitalBalance.route) {
             com.d_drostes_apps.aevum.ui.screens.digitalbalance.DigitalBalanceScreen(
+                viewModel = hiltViewModel(),
+                onOpenAppTracking = { navController.navigate(AppDestination.AppTracking.route) }
+            )
+        }
+        // M18.67: App-Aufzeichnung — Apps auswählen, die automatisch als
+        // Activity aufgezeichnet werden (2-Spalten-UI, Suche, Zuordnung)
+        composable(AppDestination.AppTracking.route) {
+            com.d_drostes_apps.aevum.ui.screens.apptracking.AppTrackingScreen(
+                onBack = { navController.popBackStack() },
                 viewModel = hiltViewModel()
             )
         }

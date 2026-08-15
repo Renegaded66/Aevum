@@ -54,7 +54,9 @@ import com.d_drostes_apps.aevum.data.model.*
         BalanceProfile::class,
         BalanceProfileApp::class,
         // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
-        PingTrigger::class
+        PingTrigger::class,
+        // M18.67: App-Aufzeichnung (App → Activity automatisch)
+        AppTrackingEntry::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
@@ -62,7 +64,8 @@ import com.d_drostes_apps.aevum.data.model.*
     // M18.61f: v28 — balance_profile + balance_profile_app.
     // M18.64: v31 — activity_session.external_id (stabile Import-Identität
     // für idempotenten Garmin-Schlaf-Sync).
-    version = 33,
+    // M18.67: v34 — app_tracking_entry (App-Aufzeichnung).
+    version = 34,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -78,6 +81,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun detectionEventDao(): DetectionEventDao
     abstract fun dataSourceDao(): DataSourceDao
     abstract fun placeGeofenceDao(): PlaceGeofenceDao
+    abstract fun appTrackingEntryDao(): AppTrackingEntryDao
     abstract fun triggerEventDao(): TriggerEventDao
     abstract fun automationSettingsDao(): AutomationSettingsDao
     abstract fun goalDao(): GoalDao
@@ -1321,6 +1325,26 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_days INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_start_minute INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("ALTER TABLE balance_profile ADD COLUMN schedule_end_minute INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // M18.67: v34 — app_tracking_entry (App-Aufzeichnung).
+        // Neue Tabelle: package_name (PK), activity_type_id, enabled,
+        // updated_at. Kein FK auf activity_type — der Typ kann gelöscht
+        // werden; der Service fällt dann auf "other" zurück (M18.51-Muster).
+        val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS app_tracking_entry (
+                        package_name TEXT NOT NULL PRIMARY KEY,
+                        activity_type_id TEXT NOT NULL,
+                        enabled INTEGER NOT NULL DEFAULT 1,
+                        updated_at INTEGER NOT NULL DEFAULT 0
+                    )"""
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_app_tracking_entry_package_name ON app_tracking_entry(package_name)"
+                )
             }
         }
     }

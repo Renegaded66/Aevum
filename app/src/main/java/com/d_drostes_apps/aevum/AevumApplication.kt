@@ -310,6 +310,15 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "DriveDetectionService start failed — continuing", e)
         }
+        // M18.67: App-Aufzeichnung — ForegroundService starten. Der Service
+        // beendet sich selbst, wenn keine App getrackt ist (Gate in
+        // onStartCommand). Startet die Aufzeichnung nach App-Neustart
+        // automatisch wieder, solange mindestens eine App getrackt ist.
+        try {
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.start(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "AppTrackingService start failed — continuing", e)
+        }
         // M17.4: Initial-Activity-Snapshot — falls der User gerade im Auto
         // sitzt und die App frisch startet (Cold-Start), soll das ebenfalls
         // erkannt werden. Idempotent dank KEEP-Policy im Scheduler.

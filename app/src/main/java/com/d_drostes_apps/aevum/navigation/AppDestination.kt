@@ -43,6 +43,8 @@ enum class AppDestination(val route: String, val title: String) {
     Calendar("calendar", "Kalender"),
     // M18.61: Digital Balance — ersetzt den Kalender-Tab
     DigitalBalance("digital_balance", "Digital Balance"),
+    // M18.67: App-Aufzeichnung (Apps → Activity automatisch)
+    AppTracking("app_tracking", "App-Aufzeichnung"),
     // M18.30: Todos
     Todos("todos", "Todos"),
     TodoCreate("todo/new", "Neues Todo"),

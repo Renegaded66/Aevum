@@ -100,7 +100,9 @@ import java.time.LocalDate
  */
 @Composable
 fun DigitalBalanceScreen(
-    viewModel: DigitalBalanceViewModel
+    viewModel: DigitalBalanceViewModel,
+    // M18.67: Navigation zur App-Aufzeichnung (Button oben)
+    onOpenAppTracking: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -154,7 +156,7 @@ fun DigitalBalanceScreen(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             if (page == 0) {
-                BalancePage(state, viewModel)
+                BalancePage(state, viewModel, onOpenAppTracking)
             } else {
                 PomodoroPage(viewModel)
             }
@@ -165,7 +167,9 @@ fun DigitalBalanceScreen(
 @Composable
 private fun BalancePage(
     state: DigitalBalanceUiState,
-    viewModel: DigitalBalanceViewModel
+    viewModel: DigitalBalanceViewModel,
+    // M18.67: App-Aufzeichnung-Button
+    onOpenAppTracking: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -185,8 +189,15 @@ private fun BalancePage(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = viewModel::revokeUsageAccess) {
-                    Text("Widerrufen", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // M18.67: App-Aufzeichnung — Button oben (User: "Einfach
+                    // oben einen Button hinzufügen")
+                    TextButton(onClick = onOpenAppTracking) {
+                        Text("App-Aufzeichnung", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                    }
+                    TextButton(onClick = viewModel::revokeUsageAccess) {
+                        Text("Widerrufen", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
