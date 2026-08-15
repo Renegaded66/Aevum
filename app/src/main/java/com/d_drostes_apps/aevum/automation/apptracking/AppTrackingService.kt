@@ -65,6 +65,16 @@ class AppTrackingService : Service() {
     /** Session-ID, die dieser Service gestartet hat (nur die darf er stoppen). */
     private var trackedSessionId: String? = null
 
+    // M18.67-FIX2: Foreground-Status wird im Service getrackt, nicht
+    // jedes Mal neu aus einem kurzen Event-Fenster abgeleitet. Die alte
+    // Methode fragte Events aus den letzten 15s ab — wenn der User aber
+    // 5 Min still auf Instagram schaute, gab es nach 15s keine Events mehr
+    // → Methode lieferte null → Service stoppte die Session nach ~15s.
+    // Jetzt: Events dienen nur für Übergänge (FOREGROUND/BACKGROUND).
+    // Keine Events = App noch im Vordergrund = Status bleibt.
+    private var lastKnownForeground: String? = null
+    private var isFirstPoll = true
+
     companion object {
         private const val TAG = "AppTrackingSvc"
         private const val CHANNEL_ID = "aevum_app_tracking"
@@ -153,35 +163,43 @@ class AppTrackingService : Service() {
     }
 
     /**
-     * Ermittelt die aktuell im Vordergrund befindliche App über die
-     * UsageStats-Event-API (gleiche Quelle wie Digital Balance).
-     * Liefert null, wenn der letzte Event ein MOVE_TO_BACKGROUND war
-     * (Homescreen / andere App ohne Tracking-Relevanz).
+     * M18.67-FIX2: Verarbeitet UsageStats-Events seit dem letzten Poll.
+     * Aktualisiert [lastKnownForeground] nur bei FOREGROUND/BACKGROUND-
+     * Events. Keine Events = App noch im Vordergrund = Status bleibt.
+     *
+     * Beim allerersten Poll wird ein größeres Fenster (24h) abgefragt,
+     * um den aktuellen Foreground-Status zu initialisieren (falls die
+     * App schon vor Service-Start geöffnet war).
      */
-    private fun currentForegroundApp(): String? {
+    private fun processForegroundEvents() {
         val usageStats = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return null
+            ?: return
         val now = System.currentTimeMillis()
-        val events = usageStats.queryEvents(now - 15_000L, now) ?: return null
-        var foreground: String? = null
+        val lookback = if (isFirstPoll) now - 24 * 60 * 60 * 1000L else now - POLL_INTERVAL_MS - 2_000L
+        val events = usageStats.queryEvents(lookback, now) ?: return
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND,
-                UsageEvents.Event.ACTIVITY_RESUMED -> foreground = event.packageName
+                UsageEvents.Event.ACTIVITY_RESUMED -> {
+                    lastKnownForeground = event.packageName
+                }
                 UsageEvents.Event.MOVE_TO_BACKGROUND,
                 UsageEvents.Event.ACTIVITY_PAUSED,
                 UsageEvents.Event.ACTIVITY_STOPPED -> {
-                    if (event.packageName == foreground) foreground = null
+                    if (event.packageName == lastKnownForeground) {
+                        lastKnownForeground = null
+                    }
                 }
             }
         }
-        return foreground
+        isFirstPoll = false
     }
 
     private suspend fun pollForegroundApp() {
-        val foreground = currentForegroundApp() ?: run {
+        processForegroundEvents()
+        val foreground = lastKnownForeground ?: run {
             // Keine App im Vordergrund (Homescreen/Sperrbildschirm) →
             // eigene Session stoppen, falls eine läuft.
             stopOwnSessionIfRunning()
