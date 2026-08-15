@@ -2,7 +2,6 @@ package com.d_drostes_apps.aevum.data.model
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -19,11 +18,14 @@ import androidx.room.PrimaryKey
  *  - App schließen → Auto-Stopp der gestarteten Session
  *  - App öffnen, während eine ANDERE Aufzeichnung läuft → nichts
  *    passiert, die laufende Aufzeichnung läuft normal weiter
+ *
+ * M18.67-FIX1: Kein @Index auf package_name — der PRIMARY KEY
+ * erzeugt bereits einen impliziten unique Index. Ein zusätzliches
+ * @Index(unique=true) führte zu einem Schema-Mismatch-Crash, weil
+ * die Migration einen non-unique Index erzeugte (Room-Validierung
+ * schlägt fehl → IllegalStateException → App-Crash beim Start).
  */
-@Entity(
-    tableName = "app_tracking_entry",
-    indices = [Index(value = ["package_name"], unique = true)]
-)
+@Entity(tableName = "app_tracking_entry")
 data class AppTrackingEntry(
     @PrimaryKey @ColumnInfo(name = "package_name") val packageName: String,
     @ColumnInfo(name = "activity_type_id") val activityTypeId: String,

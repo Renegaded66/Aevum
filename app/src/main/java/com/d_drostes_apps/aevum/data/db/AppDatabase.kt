@@ -64,8 +64,13 @@ import com.d_drostes_apps.aevum.data.model.*
     // M18.61f: v28 — balance_profile + balance_profile_app.
     // M18.64: v31 — activity_session.external_id (stabile Import-Identität
     // für idempotenten Garmin-Schlaf-Sync).
-    // M18.67: v34 — app_tracking_entry (App-Aufzeichnung).
-    version = 34,
+    // M18.67-FIX1: v35 — app_tracking_entry Index korrigiert.
+    // v34 erzeugte fälschlich einen non-unique Index; das Entity hat
+    // @Index(unique=true) entfernt (PK = impliziter unique Index).
+    // v34→v35 dropped die alte Tabelle und erstellt sie sauber neu,
+    // damit User mit bereits migrierter buggy v34-DB nicht über
+    // fallbackToDestructiveMigration alle Daten verlieren.
+    version = 35,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1332,6 +1337,11 @@ abstract class AppDatabase : RoomDatabase() {
         // Neue Tabelle: package_name (PK), activity_type_id, enabled,
         // updated_at. Kein FK auf activity_type — der Typ kann gelöscht
         // werden; der Service fällt dann auf "other" zurück (M18.51-Muster).
+        // M18.67-FIX1: Kein zusätzlicher CREATE INDEX — der PRIMARY KEY
+        // (package_name) erzeugt bereits einen impliziten unique Index.
+        // Ein zusätzliches @Index(unique=true) im Entity führte zu einem
+        // Schema-Mismatch (Migration erzeugte non-unique Index → Room-
+        // Validierung crashte → App-Absturz beim Start).
         val MIGRATION_33_34 = object : Migration(33, 34) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
@@ -1342,8 +1352,26 @@ abstract class AppDatabase : RoomDatabase() {
                         updated_at INTEGER NOT NULL DEFAULT 0
                     )"""
                 )
+            }
+        }
+
+        // M18.67-FIX1: v34→v35 — korrigiert die buggy v34-Tabelle.
+        // Die v34-Migration erzeugte zusätzlich zum PK einen non-unique
+        // Index, den Room mit @Index(unique=true) nicht akzeptierte.
+        // Falls die DB bereits auf v34 migriert wurde (mit dem Index),
+        // dropped diese Migration die Tabelle und erstellt sie sauber.
+        // Die app_tracking_entry-Tabelle hatte noch keine User-Daten
+        // (Feature gerade erst eingeführt), ein DROP ist sicher.
+        val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS app_tracking_entry")
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS index_app_tracking_entry_package_name ON app_tracking_entry(package_name)"
+                    """CREATE TABLE IF NOT EXISTS app_tracking_entry (
+                        package_name TEXT NOT NULL PRIMARY KEY,
+                        activity_type_id TEXT NOT NULL,
+                        enabled INTEGER NOT NULL DEFAULT 1,
+                        updated_at INTEGER NOT NULL DEFAULT 0
+                    )"""
                 )
             }
         }
