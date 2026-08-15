@@ -383,6 +383,10 @@ class DriveWatchdogWorker(
         now: Long
     ) {
         try {
+            // M18.67-FIX3: driveActive zurücksetzen, damit der
+            // DriveDetectionService eine neue Fahrt erkennen kann.
+            val bridge = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java).activityRecognitionBridge()
+            bridge.clearDriveActive()
             live.stop()
             triggerRepo.insert(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(

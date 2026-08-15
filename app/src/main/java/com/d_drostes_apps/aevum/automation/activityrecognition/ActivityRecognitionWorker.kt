@@ -433,9 +433,35 @@ class ActivityRecognitionBridge @Inject constructor(
     // ActivityRecognitionWorker drainet den Cluster nur dann.
     @Volatile private var driveConfirmed = false
 
+    // M18.67-FIX3: "Fahrt läuft"-Flag — unabhängig vom Start-Flag.
+    // driveConfirmed wird vom DriveStartWorker konsumiert (consume),
+    // aber der DriveDetectionService muss wissen, ob eine Fahrt
+    // aktiv ist, um den Heartbeat kontinuierlich zu refreshen.
+    // Wird bei Start gesetzt, bei Stop (Watchdog/EXIT) zurückgesetzt.
+    @Volatile private var driveActive = false
+
     @Synchronized
     fun markDriveConfirmed() {
         driveConfirmed = true
+        driveActive = true
+    }
+
+    /** M18.67-FIX3: Peek ohne consume — der DriveDetectionService muss
+     *  wissen, ob eine Fahrt bereits bestätigt ist, ohne das Flag zu
+     *  löschen (consume würde den DriveStartWorker verwirren). */
+    @Synchronized
+    fun isDriveConfirmed(): Boolean = driveConfirmed
+
+    /** M18.67-FIX3: Ist eine Fahrt aktiv? (unabhängig vom Start-Flag).
+     *  Wird vom DriveDetectionService genutzt, um nach bestätigter
+     *  Fahrt den Heartbeat kontinuierlich zu refreshen. */
+    @Synchronized
+    fun isDriveActive(): Boolean = driveActive
+
+    /** M18.67-FIX3: Fahrt als beendet markieren (Watchdog/EXIT). */
+    @Synchronized
+    fun clearDriveActive() {
+        driveActive = false
     }
 
     @Synchronized

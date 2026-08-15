@@ -212,8 +212,24 @@ class DriveDetectionService : Service() {
         // Jetzt: Probes werden OHNE Heartbeat gepuffert. Die Klassifikation
         // entscheidet: classify==Driving → Heartbeat refresht + Watchdog.
         // classify!=Driving → kein Heartbeat → Watchdog läuft nach 5 Min ab.
+        //
+        // M18.67-FIX3: NACH bestätigter Fahrt wird der Heartbeat JEDEN
+        // Poll refresht, solange speed > 1 m/s ist — egal ob classify
+        // gerade Driving sagt. Die classify()-Re-Evaluation nach
+        // drainDriveProbes() braucht 2 Min Spread (MIN_SPREAD_MS) → in
+        // dieser Zeit würde der Heartbeat nicht refreshed → Watchdog
+        // stoppt die Fahrt nach 5 Min (User: "hört oft nach 5 Minuten auf").
+        // Jetzt: Einmal Driving → kontinuierlich am Leben, bis speed
+        // wirklich < 1 m/s ist (Ampel/Stop-and-Go zählt nicht als Stop).
         val isReliableFix = accuracy <= 30f
         bridge.addDriveProbe(probe, refreshHeartbeat = false)
+
+        if (bridge.isDriveActive() && speed != null && speed >= 1.0f) {
+            // Fahrt läuft bereits → Heartbeat kontinuierlich refreshen,
+            // solald Bewegung > 1 m/s (Ampel/Stau/Stop-and-Go = weiter Fahrt).
+            bridge.refreshDriveHeartbeat(now)
+            DriveWatchdogWorker.schedule(this)
+        }
 
         // M18.66-FIX5: distance-basierten Heartbeat-Refresh ENTFERNT.
         // Indoor-GPS-Drift erzeugt 10-20m Springer trotz still sitzendem
@@ -224,27 +240,26 @@ class DriveDetectionService : Service() {
         lastLon = loc.longitude
         lastTsMs = now
 
-        // Serie klassifizieren.
-        when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now)) {
-            is DriveDetectionEngine.Classification.Driving -> {
-                Log.d(TAG, "Fahrt erkannt (GPS-Stream, conf=${result.confidence}) -> Start")
-                // M18.66-FIX6: Heartbeat NUR bei bestätigter Fahrt refresht.
-                // Das verhindert, dass GPS-Noise (speed >= 3 m/s) den Watchdog
-                // endlos am Leben hält — nur die Klassifikation als Driving
-                // (3+ konsekutive Probes >= 8 m/s über 1 Min) bestätigt die Fahrt.
-                bridge.refreshDriveHeartbeat(now)
-                // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die Probes
-                // gedrained werden. Der DriveStartWorker prüft sonst leere
-                // Probes (classify=InsufficientData) und würde den Start
-                // trotz bestätigter Fahrt ablehnen.
-                bridge.markDriveConfirmed()
-                bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
-                DriveStartWorker.schedule(this)
-                DriveWatchdogWorker.schedule(this)
-            }
-            else -> {
-                // Noch nicht genug / keine Fahrt — weiter sammeln.
-                // KEIN Heartbeat-Refresh → Watchdog läuft nach 5 Min ab.
+        // Serie klassifizieren — NUR wenn noch keine Fahrt bestätigt ist.
+        // Nach bestätigter Fahrt wird die Fahrt über speed > 1 m/s am
+        // Leben gehalten (siehe oben), nicht über Re-Klassifikation.
+        if (!bridge.isDriveActive()) {
+            when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now)) {
+                is DriveDetectionEngine.Classification.Driving -> {
+                    Log.d(TAG, "Fahrt erkannt (GPS-Stream, conf=${result.confidence}) -> Start")
+                    // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die Probes
+                    // gedrained werden. Der DriveStartWorker prüft sonst leere
+                    // Probes (classify=InsufficientData) und würde den Start
+                    // trotz bestätigter Fahrt ablehnen.
+                    bridge.markDriveConfirmed()
+                    bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
+                    DriveStartWorker.schedule(this)
+                    DriveWatchdogWorker.schedule(this)
+                }
+                else -> {
+                    // Noch nicht genug / keine Fahrt — weiter sammeln.
+                    // KEIN Heartbeat-Refresh → Watchdog läuft nach 5 Min ab.
+                }
             }
         }
     }
