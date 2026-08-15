@@ -41,9 +41,11 @@ import kotlin.math.sqrt
 
 /** 5 Minuten ohne Fahrt-Signal = Fahrt vorbei (User-Spezifikation). */
 private const val DRIVE_WATCHDOG_NO_SIGNAL_MS = 5L * 60 * 1000
-/** Mindest-Bewegung zwischen zwei Probes (2 Min Abstand), die als
- *  "Fahrt lebt" zählt (~3 km/h — deckt Stau/Stadtverkehr/30er-Zonen). */
-private const val DRIVE_MIN_PROBE_MOVEMENT_M = 100.0
+/** M18.67-FIX4: Mindest-Bewegung zwischen zwei Probes (2 Min Abstand),
+ *  die als "Fahrt lebt" zählt. 360 m / 2 Min = 3 m/s = 10,8 km/h —
+ *  schließt Gehen (1,2-1,5 m/s = 144-180 m) aus, erfasst aber
+ *  Stadtverkehr (5-15 m/s = 600-1800 m). */
+private const val DRIVE_MIN_PROBE_MOVEMENT_M = 360.0
 /** Work-Name (UniqueWork für REPLACE-Semantik). */
 private const val DRIVE_WATCHDOG_WORK = "aevum.drive_watchdog"
 
@@ -211,12 +213,16 @@ class DriveStopWorker(
     interface Deps {
         fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
         fun triggerEventRepository(): com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+        // M18.67-FIX4: driveActive zurücksetzen, sonst refresht der
+        // DriveDetectionService weiter den Heartbeat.
+        fun activityRecognitionBridge(): ActivityRecognitionBridge
     }
 
     override suspend fun doWork(): Result {
         val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
         val live = deps.liveActivityManager()
         val triggerRepo = deps.triggerEventRepository()
+        val bridge = deps.activityRecognitionBridge()
 
         val session = live.liveSession.value
         val isDrivingSession = session != null && session.isLive &&
@@ -228,6 +234,10 @@ class DriveStopWorker(
         }
 
         try {
+            // M18.67-FIX4: driveActive zurücksetzen, sonst refresht der
+            // DriveDetectionService weiter den Heartbeat (speed >= 3 m/s
+            // beim Gehen/Velo/Bus) und der Watchdog läuft nie ab.
+            bridge.clearDriveActive()
             live.stop()
             triggerRepo.insert(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(

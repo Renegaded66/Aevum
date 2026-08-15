@@ -224,9 +224,12 @@ class DriveDetectionService : Service() {
         val isReliableFix = accuracy <= 30f
         bridge.addDriveProbe(probe, refreshHeartbeat = false)
 
-        if (bridge.isDriveActive() && speed != null && speed >= 1.0f) {
-            // Fahrt läuft bereits → Heartbeat kontinuierlich refreshen,
-            // solald Bewegung > 1 m/s (Ampel/Stau/Stop-and-Go = weiter Fahrt).
+        if (bridge.isDriveActive() && speed != null && speed >= 3.0f) {
+            // M18.67-FIX4: Schwelle von 1.0 → 3.0 m/s (10,8 km/h).
+            // Vorher: Gehen (1,0-1,5 m/s) refreshte den Heartbeat →
+            // 3 h zu Fuß = 4 h Autofahrt (User-Bug). 3 m/s schließt
+            // Gehen aus, erfasst aber Stadtverkehr (5-15 m/s).
+            // Ampel-Phasen (speed=0 für <5 Min) deckt der Watchdog.
             bridge.refreshDriveHeartbeat(now)
             DriveWatchdogWorker.schedule(this)
         }
