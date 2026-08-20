@@ -23,12 +23,15 @@ package com.d_drostes_apps.aevum.automation.activityrecognition
 object DriveDetectionEngine {
 
     // ── Schwellen (in m/s) ──────────────────────────────────────────
-    /** Auto-Schwelle: ~36 km/h. M18.66-FIX12: 8→10 m/s. Deutlich über
-     *  Lauf- (~5 m/s) und Fahrrad-Tempo (~7 m/s). 10 m/s eliminiert
-     *  False-Positives durch schnelles Radfahren oder GPS-Sprünge
-     *  die 29 km/h erreichten. Echte Autofahrten sind immer >= 36 km/h
-     *  auf gerader Strecke (Stadtverkehr 30-50 km/h, Landstraße 70+). */
-    const val AUTO_SPEED_MPS = 10.0f
+    /** Auto-Schwelle: ~32 km/h. M18.66-FIX12 hatte 8→10 m/s gesetzt
+     *  (36 km/h), M18.68 senkt auf 9 m/s (32,4 km/h): 36 km/h ist für
+     *  städtische Fahrten zu streng (45er-Zonen = 11,1 m/s, 50er mit
+     *  Ampel-Phasen). 9 m/s bleibt ÜBER dem schnellen Radfahr-Bereich
+     *  (8–9 m/s = 29–32 km/h, den FIX12 bewusst ausschloss — der darf
+     *  nicht zurückkommen) und über Lauf-Tempo (~5 m/s). GPS-Drift-
+     *  False-Positives fängt weiterhin das Netto-Displacement-Gate
+     *  (≥ 200 m) ab, einzelne Sprünge die 5er-Konsekutiv-Kette. */
+    const val AUTO_SPEED_MPS = 9.0f
     /** Unter dieser Geschwindigkeit ist es nie eine Fahrt (Gehen/Laufen). */
     const val WALK_RUN_MAX_MPS = 5.5f
     /** GPS-Ausreißer: > 144 km/h ist kein reales Fahrzeug-Tempo. */
@@ -47,10 +50,10 @@ object DriveDetectionEngine {
     /** Mindestens N aufeinanderfolgende Probes über der Auto-Schwelle.
      *  M18.66-FIX12: 4 -> 5. Vier reichte noch für gelegentliche
      *  False-Positives. Fünf aufeinanderfolgende schnelle Probes bei
-     *  5s-Intervall = 25s kontinuierlich >= 36 km/h. Das ist robust
+     *  5s-Intervall = 25s kontinuierlich >= 32 km/h. Das ist robust
      *  gegen GPS-Bursts und schnelles Radfahren. False-Negative-Risiko
      *  minimal: eine echte Autofahrt hat immer 5+ aufeinanderfolgende
-     *  Probes >= 10 m/s. */
+     *  Probes >= 9 m/s. */
     const val MIN_CONSECUTIVE_FAST = 5
     /** Probes müssen über mindestens 2 Minuten verteilt sein.
      *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
@@ -184,15 +187,26 @@ object DriveDetectionEngine {
         }
         val avgSpeed = if (speedCount > 0) speedSum / speedCount else 0f
 
-        // M18.66-FIX12: avgSpeed-Threshold 7→9 m/s (32,4 km/h).
-        // Beide Bedingungen MÜSSEN erfüllt sein (AND, nicht OR).
-        // 5 konsekutive Probes >= 10 m/s (36 km/h) UND Durchschnitt
-        // >= 9 m/s. Das eliminiert False-Positives durch Radfahren
-        // oder GPS-Sprünge, ohne False-Negatives — eine echte Autofahrt
-        // hat immer 5+ konsekutive Probes >= 10 m/s UND Durchschnitt
-        // >= 9 m/s.
+        // M18.68-FIX (False-Negative-Root-Cause): avgSpeed 9 → 6 m/s.
+        // M18.66-FIX12 (8→10 m/s + avg 9 m/s = 32,4 km/h) eliminierte
+        // False-Positives, machte die Erkennung aber ZU streng: Eine
+        // städtische Fahrt (30er-Zone = 8,3 m/s) oder 50 km/h mit nur
+        // einer 60s-Ampel-Phase (Durchschnitt ~8,3 m/s) bleibt UNTER
+        // dem 9-m/s-Durchschnitt — die Fahrt wird nie bestätigt, obwohl
+        // sie Minuten lang mit realer Geschwindigkeit läuft.
+        // 6 m/s = 21,6 km/h ist der Mittelwert über eine 2-Minuten-
+        // Fahrt, die mindestens 5 schnelle Probes (>= 8 m/s) enthält
+        // (5×8 = 40 m/s über 5 Probes; selbst mit 5 langsamen Probes
+        // à 1 m/s im selben Fenster ergibt der Schnitt (40+5)/10 = 4,5
+        // → 6 m/s fordert also real gefahrene Strecke). Gehen/Laufen
+        // (<= 5,5 m/s) und Radfahren (<= 7,5 m/s Durchschnitt über
+        // 2 Min — Spitzen > 8 m/s halten Radfahrer nicht 25s) erreichen
+        // die Kombination aus 5×8-m/s-Kette + avg 6 m/s + Netto-
+        // Displacement ≥ 200 m nicht. Der False-Positive-Schutz bleibt
+        // damit intakt (Netto-Displacement-Gate ist der eigentliche
+        // Stillstands-Filter), die False-Negatives sind behoben.
         val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST &&
-            avgSpeed >= 9.0f && fastCount >= MIN_CONSECUTIVE_FAST
+            avgSpeed >= 6.0f && fastCount >= MIN_CONSECUTIVE_FAST
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau

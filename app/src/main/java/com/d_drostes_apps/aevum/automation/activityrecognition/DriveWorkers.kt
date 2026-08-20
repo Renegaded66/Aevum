@@ -105,7 +105,24 @@ class DriveStartWorker(
         val gpsOk = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now) is
             DriveDetectionEngine.Classification.Driving
         if (!confirmed && !gpsOk) {
-            Log.d(TAG, "Start-Gate: keine GPS-Bestätigung und keine Driving-Klassifikation — AR-Cluster verworfen (False-Positive-Schutz)")
+            // M18.68-FIX (Detection-Blackout): Das Confirmation-Flag wird
+            // vom DriveDetectionService gesetzt, BEVOR die Probes gedrained
+            // werden. Läuft parallel der ActivityRecognitionWorker (er
+            // konsumiert das Flag IMMER — M18.64-FIX gegen Stale-
+            // Confirmations), dann ist confirmed hier false und
+            // currentDriveProbes() ist durch den Drain fast leer (gpsOk
+            // false) → der Start wird verworfen. Ohne Recovery bliebe
+            // driveActive=true stehen (von markDriveConfirmed gesetzt) und
+            // der DriveDetectionService würde NIE WIEDER klassifizieren
+            // (handleFix: if (!isDriveActive())) — die Fahrt wird dauerhaft
+            // nicht aufgezeichnet, obwohl sie real stattfindet.
+            // Recovery ist konservativ: driveActive=false erlaubt NUR die
+            // NEUE Klassifikation (alle Gates: 5×9 m/s-Kette, avg 6 m/s,
+            // Netto-Displacement ≥ 200 m). Eine False-Positive kann so
+            // nicht entstehen — es wird nichts gestartet, nur die
+            // Erkennung wieder aktiviert.
+            Log.d(TAG, "Start-Gate: keine GPS-Bestätigung und keine Driving-Klassifikation — AR-Cluster verworfen (False-Positive-Schutz); driveActive zurückgesetzt für neue Erkennung")
+            bridge.clearDriveActive()
             return Result.success()
         }
 
