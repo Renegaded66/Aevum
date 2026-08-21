@@ -68,8 +68,15 @@ class GarminImportUseCase @Inject constructor(
         // M18.66-FIX17: MutableSet — Auto-erstellte Typen werden während
         // der Import-Runde hinzugefügt, damit mehrere Activities desselben
         // Garmin-Typs denselben (neuen) Typ nutzen.
-        val typeIds = activityTypeRepository.getAll().first().map { it.id }.toMutableSet()
-        val typeIdResolver: suspend (String) -> String? = { resolveOrCreateTypeId(it, typeIds) }
+        val allTypes = activityTypeRepository.getAll().first()
+        val typeIds = allTypes.map { it.id }.toMutableSet()
+        // M18.67: Name → ID (case-insensitive) für das name-basierte
+        // Matching — existierende Typen behalten ihre (vom User angepasste)
+        // Güte, weil sie nie neu erstellt werden.
+        val nameToId = allTypes.associate { it.name.lowercase() to it.id }.toMutableMap()
+        val typeIdResolver: suspend (String, String) -> String? = { garminType, displayName ->
+            resolveOrCreateTypeId(garminType, displayName, nameToId, typeIds)
+        }
 
         var imported = 0
         for (activity in activities) {
@@ -77,12 +84,18 @@ class GarminImportUseCase @Inject constructor(
             val existing = garminRepository.getActivityByExternalId(activity.externalId)
             if (existing != null) continue
 
+            // M18.67: Garmin-Namen sind oft "<Ortsname> <Typ>" (z.B.
+            // "Dortmund Laufen", "Dortmund Yoga"). Der Ortsname ist für
+            // Aevum irrelevant — der Typ-Name wird aus dem Namen extrahiert
+            // und der Titel auf den reinen Typ-Namen gekürzt.
+            val cleanTitle = cleanActivityTitle(activity.title)
+
             // M18.61f-FUSION: Garmin-Typ früh auflösen, um manuelle
             // Sessions desselben Typs zu erkennen (User: "manuell
             // Krafttraining + Fitnesstracker synchronisiert -> doppelte
             // Aktivität. Es sollte nur eine sein, frühester Start +
             // spätester Endpunkt").
-            val typeId = typeIdResolver(activity.activityType)
+            val typeId = typeIdResolver(activity.activityType, cleanTitle)
 
             // 2) Überlappende Sessions kürzen/löschen
             val overlapping = activityRepository.getOverlappingRange(
@@ -211,7 +224,7 @@ class GarminImportUseCase @Inject constructor(
             // 3) Neue Garmin-Session eintragen (FK-sicher aufgelöst)
             val session = ActivitySession(
                 id = UUID.randomUUID().toString(),
-                title = activity.title,
+                title = cleanTitle,
                 categoryId = null, // Kategorie leitet die Timeline aus dem Typ ab
                 activityTypeId = typeId,
                 startAt = activity.startAt,
@@ -253,8 +266,29 @@ class GarminImportUseCase @Inject constructor(
      * einen neuen ActivityType in der DB (isSystem=false, keine Kategorie —
      * der User weist sie selbst zu). Danach wird jede weitere Session
      * desselben Garmin-Typs dem erstellten Typ zugeordnet.
+     *
+     * M18.67 (User: "Garmin liefert '<Ortsname> Laufen' statt 'Laufen'"):
+     * 1. NAME-basiertes Matching zuerst: "Dortmund Yoga" → "Yoga". Existiert
+     *    bereits ein ActivityType mit diesem Namen (case-insensitive), wird
+     *    GENAU dieser Typ genutzt — die vom User angepasste Güte bleibt
+     *    erhalten (User: "weil die Güte vom Nutzer vielleicht schon
+     *    angepasst wurde und natürlich bestehen bleiben soll").
+     * 2. Fallback: typeKey-Mapping auf bekannte Seeds (bestehendes
+     *    Verhalten für z.B. "Abendrunde" → running → joggen).
+     * 3. Kein Treffer → Auto-Erstellung mit dem extrahierten Namen und
+     *    Güte 50 (neutral, User: "erstelle erst einen Activity Type Yoga
+     *    mit Güte 50").
      */
-    private suspend fun resolveOrCreateTypeId(garminType: String, typeIds: MutableSet<String>): String? {
+    private suspend fun resolveOrCreateTypeId(
+        garminType: String,
+        displayName: String,
+        nameToId: MutableMap<String, String>,
+        typeIds: MutableSet<String>
+    ): String? {
+        // 1) Name-basiertes Matching (M18.67)
+        nameToId[displayName.lowercase()]?.let { return it }
+
+        // 2) Fallback: typeKey-Mapping auf bekannte Seeds
         val lower = garminType.lowercase()
         val known = when (lower) {
             "running" -> listOf("joggen", "fitness", "other")
@@ -266,30 +300,12 @@ class GarminImportUseCase @Inject constructor(
         }
         known.firstOrNull { it in typeIds }?.let { return it }
 
-        // M18.66-FIX17: Kein bekannter Mapping-Treffer → Auto-Erstellung.
-        // Der Garmin-Slug dient als stabile ID (gleicher Typ → gleiche ID
-        // bei jedem Sync), der Anzeigename wird humanisiert.
+        // 3) Auto-Erstellung (M18.66-FIX17 + M18.67): Der Garmin-Slug dient
+        // als stabile ID (gleicher Typ → gleiche ID bei jedem Sync), der
+        // Anzeigename ist der saubere, aus dem Garmin-Namen extrahierte
+        // Typ-Name (z.B. "Yoga" statt "Dortmund Yoga").
         val id = lower
         if (id in typeIds) return id
-        val displayName = when (lower) {
-            "strength_training" -> "Krafttraining"
-            "yoga" -> "Yoga"
-            "elliptical" -> "Ellipsentraining"
-            "cardio" -> "Cardio"
-            "rowing" -> "Rudern"
-            "pilates" -> "Pilates"
-            "stair_climbing" -> "Treppensteigen"
-            "indoor_cycling" -> "Indoor-Radfahren"
-            "hiit" -> "HIIT"
-            "dance" -> "Tanzen"
-            "walking" -> "Spazieren"
-            else -> lower.split('_', '-').joinToString(" ") { w ->
-                w.replaceFirstChar { it.uppercase() }
-            }
-        }
-        // Keine Default-Kategorie — der User weist sie im Activity-Editor
-        // selbst zu (User-Wunsch: "Dann kann man selber ... die Kategorie
-        // Sport zuweisen"). icon: passendes Emoji als Platzhalter.
         val icon = when (lower) {
             "strength_training" -> "🏋️"
             "yoga", "pilates" -> "🧘"
@@ -301,24 +317,36 @@ class GarminImportUseCase @Inject constructor(
             else -> "🏃"
         }
         try {
-            activityTypeRepository.insert(
-                ActivityType(
-                    id = id,
-                    name = displayName,
-                    defaultCategoryId = null,
-                    isSystem = false,
-                    propertiesJson = "{\"overlay\": false}",
-                    positivityScore = 70,
-                    icon = icon,
-                    color = 0L
-                )
+            val newType = ActivityType(
+                id = id,
+                name = displayName,
+                defaultCategoryId = null,
+                isSystem = false,
+                propertiesJson = "{\"overlay\": false}",
+                positivityScore = 50,
+                icon = icon,
+                color = 0L
             )
+            activityTypeRepository.insert(newType)
             typeIds.add(id)
+            nameToId[displayName.lowercase()] = id
         } catch (e: Exception) {
             // Konkurrenz: Typ wurde parallel schon erstellt — ID erneut prüfen.
             if (id !in typeIds) return "other"
         }
         return id
+    }
+
+    /**
+     * M18.67: Garmin-Namen sind oft "<Ortsname> <Typ>" (z.B. "Dortmund
+     * Laufen", "Dortmund Yoga"). Der Ortsname ist für Aevum irrelevant —
+     * der reine Typ-Name (letztes Wort) wird als Titel + Typ-Name genutzt.
+     */
+    private fun cleanActivityTitle(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return "Aktivität"
+        val words = trimmed.split(Regex("\\s+"))
+        return if (words.size >= 2) words.last() else trimmed
     }
 
     /**
