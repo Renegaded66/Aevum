@@ -44,6 +44,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -398,6 +400,16 @@ fun TriggerSettingsScreen(
                 SleepSourceCard(
                     currentSource = state.settings.sleepSource,
                     onSelectSource = viewModel::setSleepSource
+                )
+            }
+
+            // ── M18.70: Bildschirm-Aufzeichnung ──────────────────────
+            // User-Spec: Handy ≥ x Min. an + nichts anderes zeichnet auf
+            // → „Digital" mit x Min. Vorlauf. Slider 0..10 (rechts = Aus).
+            item {
+                ScreenRecordingCard(
+                    dbMinutes = state.settings.screenRecordingMinutes,
+                    onChange = viewModel::setScreenRecordingMinutes
                 )
             }
 
@@ -776,6 +788,93 @@ private data class SleepSourceOption(
     val label: String
 )
 
+/**
+ * M18.70: Bildschirm-Aufzeichnung — fancy Slider-Karte.
+ *
+ * User-Spec: „Jedes Mal, wenn das Handy mindestens x Minuten am Stück an
+ * ist UND gerade nichts anderes aufzeichnet → Digital mit x Minuten
+ * Vorlaufzeit aufzeichnen. X in den Einstellungen. Standard 5. Bei 0:
+ * sofort bei Screen-ON. Screen-OFF stoppt immer. Slider: ganz links 0,
+ * ganz rechts deaktiviert."
+ *
+ * Slider 0..10: 0 = sofort, 1..9 = Vorlauf in Minuten, 10 = deaktiviert.
+ * Der Wert wird live in die DB geschrieben (onValueChangeFinished), die
+ * Anzeige aktualisiert sich sofort (onValueChange).
+ */
+@Composable
+private fun ScreenRecordingCard(
+    dbMinutes: Int,
+    onChange: (Int) -> Unit
+) {
+    val sliderValue = com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.dbToSlider(dbMinutes)
+    var dragValue by remember { mutableStateOf(sliderValue) }
+    val displayValue = if (dragValue != sliderValue) dragValue else sliderValue
+    val isDeactivated = displayValue >= com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.SLIDER_MAX
+
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                "Bildschirm-Aufzeichnung",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Wenn der Bildschirm mindestens x Minuten an ist und nichts anderes läuft, zeichnet Aevum „Digital“ mit x Minuten Vorlauf auf. Bildschirm aus = Stopp.",
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Status-Zeile: aktueller Wert als fancy Chip
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (isDeactivated) "🚫 Deaktiviert"
+                    else if (displayValue == 0) "⚡ Sofort bei Screen-ON"
+                    else "⏱️ Vorlauf: $displayValue min",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    color = if (isDeactivated) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    if (isDeactivated) "—" else "startet nach ${displayValue} min",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Slider(
+                value = displayValue.toFloat(),
+                onValueChange = { dragValue = it.roundToInt() },
+                onValueChangeFinished = { onChange(dragValue) },
+                valueRange = 0f..com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.SLIDER_MAX.toFloat(),
+                steps = com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.SLIDER_MAX - 1,
+                colors = SliderDefaults.colors(
+                    thumbColor = if (isDeactivated) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary,
+                    activeTrackColor = if (isDeactivated) MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                    else MaterialTheme.colorScheme.primary
+                )
+            )
+
+            // Skalen-Beschriftung: links 0, rechts „Aus“
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("0 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Aus", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
 /** M18.57: Weitere Automatisierung (aus der alten Automation-Seite übernommen). */
 @Composable
 private fun AdditionalAutomationCard(
@@ -1081,6 +1180,16 @@ class TriggerSettingsViewModel @Inject constructor(
     }
 
     fun setDigitalBalance(enabled: Boolean) = upsert { it.copy(digitalBalanceEnabled = enabled) }
+
+    // M18.70: Bildschirm-Aufzeichnung — Vorlauf in Minuten.
+    // Slider 0..10, ganz rechts (10) = deaktiviert (-1 in der DB).
+    fun setScreenRecordingMinutes(sliderValue: Int) {
+        upsert {
+            it.copy(
+                screenRecordingMinutes = com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.sliderToDb(sliderValue)
+            )
+        }
+    }
 
     // ── M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen) ──
 

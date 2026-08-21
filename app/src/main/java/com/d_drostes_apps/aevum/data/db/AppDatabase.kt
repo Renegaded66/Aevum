@@ -70,7 +70,9 @@ import com.d_drostes_apps.aevum.data.model.*
     // v34→v35 dropped die alte Tabelle und erstellt sie sauber neu,
     // damit User mit bereits migrierter buggy v34-DB nicht über
     // fallbackToDestructiveMigration alle Daten verlieren.
-    version = 35,
+    // M18.70: v36 — automation_settings.screen_recording_minutes
+    // (Bildschirm-Aufzeichnung: 0..10 = Vorlauf in Minuten, -1 = deaktiviert).
+    version = 36,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1372,6 +1374,18 @@ abstract class AppDatabase : RoomDatabase() {
                         enabled INTEGER NOT NULL DEFAULT 1,
                         updated_at INTEGER NOT NULL DEFAULT 0
                     )"""
+                )
+            }
+        }
+
+        // M18.70: v35→v36 — Bildschirm-Aufzeichnung.
+        // Neues Feld in automation_settings: screen_recording_minutes.
+        // 0..10 = Vorlauf in Minuten (0 = sofort bei Screen-ON),
+        // -1 = deaktiviert (Slider ganz rechts). Default 5.
+        val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE automation_settings ADD COLUMN screen_recording_minutes INTEGER NOT NULL DEFAULT 5"
                 )
             }
         }

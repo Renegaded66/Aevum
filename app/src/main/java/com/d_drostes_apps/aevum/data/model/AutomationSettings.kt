@@ -30,5 +30,8 @@ data class AutomationSettings(
     // Quelle — die alten Einzel-Toggles (healthSleepEnabled,
     // sleepFusionEnabled) sind damit obsolet, bleiben aber für
     // Bestands-Daten in der DB.
-    @ColumnInfo(name = "sleep_source", defaultValue = "screen") val sleepSource: String = "screen"
+    @ColumnInfo(name = "sleep_source", defaultValue = "screen") val sleepSource: String = "screen",
+    // M18.70: Bildschirm-Aufzeichnung — Vorlauf in Minuten.
+    // 0 = sofort bei Screen-ON, 1..10 = Vorlauf, -1 = deaktiviert (Slider rechts).
+    @ColumnInfo(name = "screen_recording_minutes", defaultValue = "5") val screenRecordingMinutes: Int = 5
 ) : Serializable

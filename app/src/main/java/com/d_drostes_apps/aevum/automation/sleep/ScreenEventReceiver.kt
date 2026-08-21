@@ -10,6 +10,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -44,6 +45,8 @@ class ScreenEventReceiver : BroadcastReceiver() {
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
         fun sleepHeuristicEngine(): SleepHeuristicEngine
+        fun liveActivityManager(): LiveActivityManager
+        fun automationSettingsDao(): com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -92,6 +95,43 @@ class ScreenEventReceiver : BroadcastReceiver() {
                     } catch (e: Exception) {
                         Log.w(TAG, "SleepFusionWorker enqueue failed for $type", e)
                     }
+                }
+
+                // M18.70: Bildschirm-Aufzeichnung („Digital").
+                // ON  → Worker mit Delay = x Minuten enqueuen (x = Vorlauf).
+                //       Bei x = 0 feuert er sofort. Der Worker prüft beim
+                //       Feuern erneut: Screen noch an? nichts anderes live?
+                // OFF → Worker canceln (Aufzeichnung startet nie) UND eine
+                //       laufende SCREEN_AUTO-Session stoppen. Manuelle
+                //       Sessions (LIVE) bleiben unangetastet.
+                try {
+                    val settings = deps.automationSettingsDao().getSettingsSync()
+                    val minutes = settings?.screenRecordingMinutes ?: 5
+                    if (type == "ON" || type == "UNLOCK") {
+                        if (minutes != com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.DEACTIVATED) {
+                            val delay = minutes.coerceAtLeast(0).toLong()
+                            val request = androidx.work.OneTimeWorkRequestBuilder<com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker>()
+                                .setInitialDelay(delay, java.util.concurrent.TimeUnit.MINUTES)
+                                .build()
+                            androidx.work.WorkManager.getInstance(appContext)
+                                .enqueueUniqueWork(
+                                    com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker.WORK_NAME,
+                                    androidx.work.ExistingWorkPolicy.REPLACE,
+                                    request
+                                )
+                            Log.d(TAG, "Screen-Aufzeichnung geplant (Vorlauf=${minutes}min)")
+                        }
+                    } else if (type == "OFF") {
+                        androidx.work.WorkManager.getInstance(appContext)
+                            .cancelUniqueWork(com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker.WORK_NAME)
+                        val live = deps.liveActivityManager().liveSession.value
+                        if (live != null && live.isLive && live.sourceType == "SCREEN_AUTO") {
+                            deps.liveActivityManager().stop()
+                            Log.d(TAG, "Screen-Aufzeichnung gestoppt (Screen OFF)")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Screen-Aufzeichnung handling failed for $type", e)
                 }
             } catch (e: Exception) {
                 // M12.1.1: nicht mehr still verschlucken — loggen, damit
