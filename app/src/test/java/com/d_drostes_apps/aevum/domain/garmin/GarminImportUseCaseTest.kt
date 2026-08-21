@@ -179,7 +179,7 @@ class GarminImportUseCaseTest {
         assertThat(typeRepo.types.value.first { it.id == "yoga" }.positivityScore).isEqualTo(80)
     }
 
-    // ─── Fall 3: "Dortmund Laufen" → typeKey running → Seed "joggen" ───
+    // ─── Fall 3: 1-Wort-Name ohne Ortsnamen → typeKey running → Seed "joggen" ───
     @Test
     fun `bekannter typeKey faellt auf Seed-Mapping zurueck`() = runTest {
         val activityRepo = FakeActivityRepository()
@@ -188,14 +188,14 @@ class GarminImportUseCaseTest {
 
         val useCase = GarminImportUseCase(activityRepo, garminRepo, typeRepo)
         val imported = useCase.importActivities(
-            listOf(garminActivity("g1", "Dortmund Laufen", "running"))
+            listOf(garminActivity("g1", "Abendrunde", "running"))
         )
 
         assertThat(imported).isEqualTo(1)
         assertThat(typeRepo.inserted).isEmpty()
         assertThat(activityRepo.inserted).hasSize(1)
-        // Titel ohne Ortsname, Typ = bestehender Seed "joggen"
-        assertThat(activityRepo.inserted[0].title).isEqualTo("Laufen")
+        // Titel bleibt (kein Ortsname), Typ = bestehender Seed "joggen"
+        assertThat(activityRepo.inserted[0].title).isEqualTo("Abendrunde")
         assertThat(activityRepo.inserted[0].activityTypeId).isEqualTo("joggen")
     }
 
@@ -217,5 +217,75 @@ class GarminImportUseCaseTest {
         assertThat(imported).isEqualTo(0)
         assertThat(activityRepo.inserted).isEmpty()
         assertThat(typeRepo.inserted).isEmpty()
+    }
+
+    // ─── Fall 5: Zero-Width-Space (live verifiziert M18.67) ───
+    @Test
+    fun `zeroWidthSpace im Garmin-Namen wird entfernt und matcht existierenden Typ`() = runTest {
+        // Garmin liefert "Krafttrai\u200bning" (unsichtbares ZWS) — der
+        // Cleaner muss es entfernen, sonst schlägt der Name-Match gegen
+        // "Krafttraining" fehl und es würde fälschlich ein neuer Typ erstellt.
+        val activityRepo = FakeActivityRepository()
+        val typeRepo = FakeTypeRepository(listOf(type("kraft", "Krafttraining", score = 80)))
+        val garminRepo = FakeGarminRepository()
+
+        val useCase = GarminImportUseCase(activityRepo, garminRepo, typeRepo)
+        val imported = useCase.importActivities(
+            listOf(garminActivity("g-zws-1", "Krafttrai\u200bning", "strength_training"))
+        )
+
+        assertThat(imported).isEqualTo(1)
+        assertThat(typeRepo.inserted).isEmpty() // kein neuer Typ
+        assertThat(activityRepo.inserted).hasSize(1)
+        assertThat(activityRepo.inserted[0].title).isEqualTo("Krafttraining")
+        assertThat(activityRepo.inserted[0].activityTypeId).isEqualTo("kraft")
+    }
+
+    // ─── Fall 6: Syddjurs Laufen (live verifiziert M18.67) ───
+    @Test
+    fun `Syddjurs Laufen wird zu Laufen und erstellt neuen Typ mit Guete 50`() = runTest {
+        // Garmin liefert "Syddjurs Laufen" (Ortsname + Typ) — nur "Laufen"
+        // soll in die Timeline. Da "Laufen" als Typ noch nicht existiert,
+        // wird er NEU erstellt (Güte 50) — NICHT auf Seed "joggen" gemappt
+        // (User: "falls Laufen noch nicht als Activity Type existiert dann
+        // soll es erstellt werden").
+        val activityRepo = FakeActivityRepository()
+        val typeRepo = FakeTypeRepository(listOf(type("joggen", "Joggen", score = 60)))
+        val garminRepo = FakeGarminRepository()
+
+        val useCase = GarminImportUseCase(activityRepo, garminRepo, typeRepo)
+        val imported = useCase.importActivities(
+            listOf(garminActivity("g-syddjurs-1", "Syddjurs Laufen", "running"))
+        )
+
+        assertThat(imported).isEqualTo(1)
+        assertThat(activityRepo.inserted).hasSize(1)
+        assertThat(activityRepo.inserted[0].title).isEqualTo("Laufen")
+        // Neuer Typ "Laufen" wurde erstellt (Güte 50), nicht Seed "joggen"
+        assertThat(activityRepo.inserted[0].activityTypeId).isEqualTo("running")
+        assertThat(typeRepo.inserted).hasSize(1)
+        assertThat(typeRepo.inserted[0].name).isEqualTo("Laufen")
+        assertThat(typeRepo.inserted[0].positivityScore).isEqualTo(50)
+    }
+
+    // ─── Fall 7: 1-Wort-Name ohne Ortsnamen → Seed-Fallback ───
+    @Test
+    fun `einwortiger Name ohne Ortsnamen faellt auf Seed-Mapping zurueck`() = runTest {
+        // "Abendrunde" hat keinen Ortsnamen-Präfix → typeKey-Mapping auf
+        // Seed "joggen" (bestehendes Verhalten bleibt erhalten).
+        val activityRepo = FakeActivityRepository()
+        val typeRepo = FakeTypeRepository(listOf(type("joggen", "Joggen", score = 60)))
+        val garminRepo = FakeGarminRepository()
+
+        val useCase = GarminImportUseCase(activityRepo, garminRepo, typeRepo)
+        val imported = useCase.importActivities(
+            listOf(garminActivity("g-abend-1", "Abendrunde", "running"))
+        )
+
+        assertThat(imported).isEqualTo(1)
+        assertThat(typeRepo.inserted).isEmpty() // kein neuer Typ
+        assertThat(activityRepo.inserted).hasSize(1)
+        assertThat(activityRepo.inserted[0].title).isEqualTo("Abendrunde")
+        assertThat(activityRepo.inserted[0].activityTypeId).isEqualTo("joggen")
     }
 }

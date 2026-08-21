@@ -74,8 +74,8 @@ class GarminImportUseCase @Inject constructor(
         // Matching — existierende Typen behalten ihre (vom User angepasste)
         // Güte, weil sie nie neu erstellt werden.
         val nameToId = allTypes.associate { it.name.lowercase() to it.id }.toMutableMap()
-        val typeIdResolver: suspend (String, String) -> String? = { garminType, displayName ->
-            resolveOrCreateTypeId(garminType, displayName, nameToId, typeIds)
+        val typeIdResolver: suspend (String, String, Boolean) -> String? = { garminType, displayName, hasPrefix ->
+            resolveOrCreateTypeId(garminType, displayName, nameToId, typeIds, hasPrefix)
         }
 
         var imported = 0
@@ -89,13 +89,17 @@ class GarminImportUseCase @Inject constructor(
             // Aevum irrelevant — der Typ-Name wird aus dem Namen extrahiert
             // und der Titel auf den reinen Typ-Namen gekürzt.
             val cleanTitle = cleanActivityTitle(activity.title)
+            // M18.67-FIX: Hat der Garmin-Name einen Ortsnamen-Präfix
+            // (2+ Wörter, z.B. "Syddjurs Laufen")? Dann ist das letzte Wort
+            // der Typ-Name und wird als eigener Typ erstellt (Güte 50).
+            val hasLocationPrefix = activity.title.trim().split(Regex("\\s+")).size >= 2
 
             // M18.61f-FUSION: Garmin-Typ früh auflösen, um manuelle
             // Sessions desselben Typs zu erkennen (User: "manuell
             // Krafttraining + Fitnesstracker synchronisiert -> doppelte
             // Aktivität. Es sollte nur eine sein, frühester Start +
             // spätester Endpunkt").
-            val typeId = typeIdResolver(activity.activityType, cleanTitle)
+            val typeId = typeIdResolver(activity.activityType, cleanTitle, hasLocationPrefix)
 
             // 2) Überlappende Sessions kürzen/löschen
             val overlapping = activityRepository.getOverlappingRange(
@@ -283,12 +287,22 @@ class GarminImportUseCase @Inject constructor(
         garminType: String,
         displayName: String,
         nameToId: MutableMap<String, String>,
-        typeIds: MutableSet<String>
+        typeIds: MutableSet<String>,
+        hasLocationPrefix: Boolean
     ): String? {
         // 1) Name-basiertes Matching (M18.67)
         nameToId[displayName.lowercase()]?.let { return it }
 
-        // 2) Fallback: typeKey-Mapping auf bekannte Seeds
+        // 2) M18.67-FIX (User: "Syddjurs Laufen" → Typ "Laufen" ERSTELLEN):
+        //    Hat der Garmin-Name einen Ortsnamen-Präfix (2+ Wörter), ist das
+        //    letzte Wort der Typ-Name — der wird IMMER als eigener Typ
+        //    angelegt (Güte 50), NICHT auf einen Seed gemappt. Nur bei
+        //    1-Wort-Namen (z.B. "Abendrunde") greift der Seed-Fallback.
+        if (hasLocationPrefix) {
+            return createType(garminType, displayName, nameToId, typeIds)
+        }
+
+        // 3) Fallback: typeKey-Mapping auf bekannte Seeds
         val lower = garminType.lowercase()
         val known = when (lower) {
             "running" -> listOf("joggen", "fitness", "other")
@@ -300,10 +314,18 @@ class GarminImportUseCase @Inject constructor(
         }
         known.firstOrNull { it in typeIds }?.let { return it }
 
-        // 3) Auto-Erstellung (M18.66-FIX17 + M18.67): Der Garmin-Slug dient
-        // als stabile ID (gleicher Typ → gleiche ID bei jedem Sync), der
-        // Anzeigename ist der saubere, aus dem Garmin-Namen extrahierte
-        // Typ-Name (z.B. "Yoga" statt "Dortmund Yoga").
+        // 4) Auto-Erstellung (M18.66-FIX17 + M18.67)
+        return createType(garminType, displayName, nameToId, typeIds)
+    }
+
+    /** Erstellt einen neuen ActivityType (Güte 50) mit stabilem Slug als ID. */
+    private suspend fun createType(
+        garminType: String,
+        displayName: String,
+        nameToId: MutableMap<String, String>,
+        typeIds: MutableSet<String>
+    ): String? {
+        val lower = garminType.lowercase()
         val id = lower
         if (id in typeIds) return id
         val icon = when (lower) {
@@ -343,7 +365,11 @@ class GarminImportUseCase @Inject constructor(
      * der reine Typ-Name (letztes Wort) wird als Titel + Typ-Name genutzt.
      */
     private fun cleanActivityTitle(raw: String): String {
-        val trimmed = raw.trim()
+        // M18.67-FIX (live verifiziert): Garmin fügt bei manchen Typen ein
+        // unsichtbares Zero-Width-Space ein (z.B. "Krafttrai\u200bning") —
+        // vor dem Split entfernen, sonst schlägt der Name-Match fehl.
+        val noInvisible = raw.replace(Regex("[\\u200B\\u200C\\u200D\\uFEFF]"), "")
+        val trimmed = noInvisible.trim()
         if (trimmed.isBlank()) return "Aktivität"
         val words = trimmed.split(Regex("\\s+"))
         return if (words.size >= 2) words.last() else trimmed
