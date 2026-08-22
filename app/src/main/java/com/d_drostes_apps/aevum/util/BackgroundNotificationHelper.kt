@@ -12,19 +12,25 @@ import com.d_drostes_apps.aevum.MainActivity
 /**
  * M19: Konsolidierte Hintergrund-Benachrichtigung.
  *
- * Vorher hatten GeofenceForegroundService, DriveDetectionService und
- * AppBlockService jeweils EIGENE Notification-Channels mit verschiedenen
- * Texten ("Ortserkennung aktiv", "Autofahrt-Erkennung aktiv", "Digital
- * Balance aktiv"). Der Nutzer sah 3 Benachrichtigungen, die alle sagten,
- * dass Aevum im Hintergrund läuft — unnötig und verwirrend.
+ * Vorher hatten GeofenceForegroundService, DriveDetectionService,
+ * AppBlockService und AppTrackingService jeweils EIGENE Notification-
+ * Channels mit verschiedenen Texten ("Ortserkennung aktiv",
+ * "Autofahrt-Erkennung aktiv", "Digital Balance aktiv",
+ * "App-Aufzeichnung aktiv"). Der Nutzer sah bis zu 4 Benachrichtigungen,
+ * die alle sagten, dass Aevum im Hintergrund läuft — unnötig.
  *
- * Jetzt nutzen alle drei Services denselben Channel ("aevum_background")
- * und dieselbe Notification-ID (6200) mit setGroup. Android fasst sie
- * im Benachrichtigungsfeld zu EINER zusammengeklappten Benachrichtigung
- * zusammen: "Aevum läuft im Hintergrund".
+ * Jetzt nutzen alle 4 Services denselben Channel ("aevum_background")
+ * und dieselbe Notification-ID (6200). Android zeigt dadurch nur EINE
+ * Benachrichtigung an.
  *
- * Die LiveActivityService-Notification (aktive Session mit Timer) bleibt
- * separat — sie hat Actions und ist IMPORTANCE_HIGH.
+ * M19-v2 (User-Feedback): Die Hintergrund-Benachrichtigung soll NUR
+ * angezeigt werden, wenn KEINE Aufzeichnung läuft. Wenn eine Live-
+ * Activity aktiv ist, übernimmt die LiveActivityService-Notification
+ * (mit Timer + Actions) — dann ist die Hintergrund-Notification
+ * überflüssig und wird vom LiveActivityService beim Start cancelled.
+ *
+ * Die LiveActivityService-Notification (aktive Session mit Timer) hat
+ * eine eigene ID (9001) und bleibt separat — sie hat Priorität.
  */
 object BackgroundNotificationHelper {
 
@@ -76,5 +82,15 @@ object BackgroundNotificationHelper {
             .setOnlyAlertOnce(true)
             .setGroup(GROUP_KEY)
             .build()
+    }
+
+    /**
+     * M19-v2: Cancelled die Hintergrund-Benachrichtigung, wenn eine
+     * Live-Aufzeichnung läuft. Wird von LiveActivityService.onStartCommand
+     * aufgerufen — die Live-Notification (ID 9001) hat Priorität.
+     */
+    fun cancelIfLiveRecording(context: Context) {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        nm.cancel(NOTIFICATION_ID)
     }
 }

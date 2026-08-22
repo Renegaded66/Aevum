@@ -93,6 +93,11 @@ class LiveActivityService : Service() {
             ACTION_SWITCH -> openSwitchActivity()
         }
 
+        // M19-v2: Wenn eine Live-Aufzeichnung läuft, hat die Live-Notification
+        // Priorität — die Hintergrund-Benachrichtigung wird gecancelt, damit
+        // zu jedem Zeitpunkt maximal eine Aevum-Notification sichtbar ist.
+        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.cancelIfLiveRecording(this)
+
         // Start periodic notification updates
         if (updateJob == null || updateJob?.isActive != true) {
             updateJob = scope.launch {
@@ -134,6 +139,17 @@ class LiveActivityService : Service() {
 
     override fun onDestroy() {
         updateJob?.cancel()
+        // M19-v2: Wenn die Live-Aufzeichnung endet, die Hintergrund-
+        // Benachrichtigung wiederherstellen — die Hintergrund-Services
+        // laufen weiter und brauchen ihre Notification zurück.
+        try {
+            val nm = getSystemService(NotificationManager::class.java)
+            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+            nm.notify(
+                com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
+            )
+        } catch (_: Exception) { }
         super.onDestroy()
     }
 

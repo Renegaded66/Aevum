@@ -132,15 +132,18 @@ class AppTrackingService : Service() {
     }
 
     private fun startForegroundCompat() {
+        // M19-v2: Konsolidierte Hintergrund-Benachrichtigung statt eigener.
+        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+        val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
-                    NOTIFICATION_ID,
-                    buildNotification(),
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                    notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                 )
             } else {
-                startForeground(NOTIFICATION_ID, buildNotification())
+                startForeground(com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
             Log.e(TAG, "startForeground fehlgeschlagen", e)
