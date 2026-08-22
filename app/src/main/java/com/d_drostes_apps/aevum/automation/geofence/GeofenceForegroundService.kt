@@ -28,34 +28,11 @@ class GeofenceForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val channelId = "aevum_geofence_service"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Ortserkennung",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Ruhige Hintergrundbenachrichtigung für Geofence-Ortserkennung"
-                setShowBadge(false)
-            }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Ortserkennung aktiv")
-            .setContentText("Aevum erkennt Orte im Hintergrund – leise und batterie sparend.")
-            .setSmallIcon(android.R.drawable.ic_dialog_map)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+        // M19: Konsolidierte Hintergrund-Benachrichtigung — alle Hintergrund-
+        // Services nutzen denselben Channel + dieselbe ID → nur eine Notification
+        // im Benachrichtigungsfeld statt drei.
+        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+        val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -64,7 +41,7 @@ class GeofenceForegroundService : Service() {
                 // wirklich erteilt sind. Wenn nicht, stürzt die App ab.
                 try {
                     startForeground(
-                        6202,
+                        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
                         notification,
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
                     )
@@ -72,10 +49,10 @@ class GeofenceForegroundService : Service() {
                     // Fallback: Wenn Location-FGS verweigert wird (z.B. im Hintergrund ohne Background-Permission),
                     // versuchen wir es als "normalen" Service ohne speziellen Typ (0).
                     // WICHTIG: 0 übergeben, damit das System nicht den manifest-default (location) nimmt.
-                    startForeground(6202, notification, 0)
+                    startForeground(com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID, notification, 0)
                 }
             } else {
-                startForeground(6202, notification)
+                startForeground(com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
             // Wenn alles fehlschlägt (z.B. Background-Start-Restriction ohne Exemption),

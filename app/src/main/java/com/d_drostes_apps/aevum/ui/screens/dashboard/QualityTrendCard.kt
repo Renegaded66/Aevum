@@ -5,6 +5,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,11 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,10 +53,14 @@ import java.time.LocalDate
  * wobei man INNERHALB der Statistik einstellen können soll, ob in den
  * letzten 7, 30, 365 Tagen. Eine richtig moderne fancy Statistik."
  *
+ * M19: Finger-Scrubber — man kann mit dem Finger über den Graph ziehen,
+ * dann folgt ein Strich dem Finger und zeigt den Wert an der Stelle.
+ *
  * Design:
  *  - Animierter Segmented-Umschalter 7T / 30T / 365T (Rahmen gleitet)
  *  - Area-Chart (Canvas): gewichteter Positivitäts-Score pro Tag,
  *    Verlaufs-Linie + Gradient-Fläche + Punkte, "heute"-Marker
+ *  - Finger-Scrubber: vertikaler Strich + Tooltip mit Datum + Score
  *  - Kopfzeile: Ø-Score im gewählten Fenster + Trend-Pfeil (vs. Vorperiode)
  *  - Score-Farbe (rot→grün) via positivityColor
  */
@@ -108,12 +117,12 @@ fun QualityTrendCard(
                 val delta = if (prevData.isNotEmpty()) avgScore - prevAvg.toInt() else 0
                 TrendHeader(avgScore = avgScore, delta = delta)
 
-                // Area-Chart
+                // Area-Chart mit Finger-Scrubber
                 QualityAreaChart(
                     points = windowData,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(110.dp)
+                        .height(120.dp)
                 )
             }
         }
@@ -128,7 +137,6 @@ fun QualityTrendCard(
 @Composable
 private fun WindowToggle(windowDays: Int, onSelect: (Int) -> Unit) {
     val options = listOf(7 to "7T", 30 to "30T", 365 to "365T")
-    val activeIndex = options.indexOfFirst { it.first == windowDays }.coerceAtLeast(0)
 
     Row(
         modifier = Modifier
@@ -197,9 +205,14 @@ private fun TrendHeader(avgScore: Int, delta: Int) {
 }
 
 /**
- * M18.58: Area-Chart (Canvas). Zeichnet den Score-Verlauf mit
- * Gradient-Fläche, Linie und Datenpunkten. Animation: Die Fläche
- * "wächst" von unten ein (animateFloatAsState auf den Füllgrad).
+ * M18.58 + M19: Area-Chart (Canvas) mit Finger-Scrubber.
+ *
+ * Zeichnet den Score-Verlauf mit Gradient-Fläche, Linie und Datenpunkten.
+ * Animation: Die Fläche "wächst" von unten ein (animateFloatAsState).
+ *
+ * M19: Finger-Scrubber — man kann mit dem Finger über den Graph ziehen,
+ * dann folgt ein vertikaler Strich dem Finger und ein Tooltip zeigt
+ * das Datum und den Score an der berührten Stelle.
  */
 @Composable
 private fun QualityAreaChart(
@@ -217,78 +230,210 @@ private fun QualityAreaChart(
         lineColor.copy(alpha = 0.03f)
     )
 
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val padY = 8f
-        val usableH = h - padY * 2
+    // M19: Scrubber-Status
+    var scrubX by remember { mutableStateOf<Float?>(null) }
+    var scrubIndex by remember { mutableStateOf(-1) }
+    val density = LocalDensity.current
+    val scrubberColor = MaterialTheme.colorScheme.primary
+    val tooltipBgColor = MaterialTheme.colorScheme.surface
+    val tooltipTextColor = MaterialTheme.colorScheme.onSurface
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
 
-        val maxScore = 100f
-        val minScore = 0f
-        fun xFor(index: Int): Float =
-            if (points.size == 1) w / 2f
-            else w * index / (points.size - 1).toFloat()
-        fun yFor(score: Int): Float =
-            padY + usableH * (1f - (score - minScore) / (maxScore - minScore))
+    Box(modifier = modifier) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .pointerInput(points) {
+                    // M19: Finger-Scrubber — Drag und Tap erkennen
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            scrubX = offset.x
+                            scrubIndex = findNearestIndex(offset.x, size.width, points.size)
+                        },
+                        onDrag = { change, _ ->
+                            scrubX = change.position.x.coerceIn(0f, size.width.toFloat())
+                            scrubIndex = findNearestIndex(scrubX!!, size.width, points.size)
+                        },
+                        onDragEnd = { scrubX = null; scrubIndex = -1 },
+                        onDragCancel = { scrubX = null; scrubIndex = -1 }
+                    )
+                }
+                .pointerInput(points) {
+                    // Tap: einmaliges Antippen zeigt auch den Wert
+                    detectTapGestures(
+                        onTap = { offset ->
+                            scrubX = offset.x
+                            scrubIndex = findNearestIndex(offset.x, size.width, points.size)
+                        }
+                    )
+                }
+        ) {
+            val w = size.width
+            val h = size.height
+            val padY = 8f
+            val usableH = h - padY * 2
 
-        // Füllfläche (animiert von unten)
-        val path = Path()
-        if (points.isNotEmpty()) {
-            val fillHeight = usableH * fillProgress
-            path.moveTo(xFor(0), h - padY)
-            points.forEachIndexed { index, point ->
-                path.lineTo(xFor(index), yFor(point.score))
-            }
-            path.lineTo(xFor(points.size - 1), h - padY)
-            path.close()
-            drawPath(
-                path = path,
-                brush = Brush.verticalGradient(
-                    colors = gradientColors,
-                    startY = padY,
-                    endY = h - padY
-                )
-            )
+            val maxScore = 100f
+            val minScore = 0f
+            fun xFor(index: Int): Float =
+                if (points.size == 1) w / 2f
+                else w * index / (points.size - 1).toFloat()
+            fun yFor(score: Int): Float =
+                padY + usableH * (1f - (score - minScore) / (maxScore - minScore))
 
-            // Linie
-            val linePath = Path()
-            points.forEachIndexed { index, point ->
-                val x = xFor(index)
-                val y = yFor(point.score)
-                if (index == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
-            }
-            drawPath(
-                path = linePath,
-                color = lineColor,
-                style = Stroke(width = 2.5f, cap = StrokeCap.Round)
-            )
-
-            // Datenpunkte (nur bei ≤ 30 Tagen, sonst Rauschen)
-            if (points.size <= 31) {
+            // Füllfläche (animiert von unten)
+            val path = Path()
+            if (points.isNotEmpty()) {
+                val fillHeight = usableH * fillProgress
+                path.moveTo(xFor(0), h - padY)
                 points.forEachIndexed { index, point ->
+                    path.lineTo(xFor(index), yFor(point.score))
+                }
+                path.lineTo(xFor(points.size - 1), h - padY)
+                path.close()
+                drawPath(
+                    path = path,
+                    brush = Brush.verticalGradient(
+                        colors = gradientColors,
+                        startY = padY,
+                        endY = h - padY
+                    )
+                )
+
+                // Linie
+                val linePath = Path()
+                points.forEachIndexed { index, point ->
+                    val x = xFor(index)
+                    val y = yFor(point.score)
+                    if (index == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
+                }
+                drawPath(
+                    path = linePath,
+                    color = lineColor,
+                    style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+                )
+
+                // Datenpunkte (nur bei ≤ 30 Tagen, sonst Rauschen)
+                if (points.size <= 31) {
+                    points.forEachIndexed { index, point ->
+                        drawCircle(
+                            color = lineColor,
+                            radius = 3f,
+                            center = Offset(xFor(index), yFor(point.score))
+                        )
+                    }
+                }
+
+                // Heute-Marker (letzter Punkt)
+                if (points.size > 1) {
+                    val lastX = xFor(points.size - 1)
+                    val lastY = yFor(points.last().score)
                     drawCircle(
                         color = lineColor,
+                        radius = 5.5f,
+                        center = Offset(lastX, lastY)
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.9f),
+                        radius = 2f,
+                        center = Offset(lastX, lastY)
+                    )
+                }
+
+                // M19: Scrubber — vertikaler Strich + hervorgehobener Punkt
+                if (scrubX != null && scrubIndex in points.indices) {
+                    val sx = xFor(scrubIndex)
+                    val sy = yFor(points[scrubIndex].score)
+                    // Vertikale Linie folgt dem Finger
+                    drawLine(
+                        color = scrubberColor.copy(alpha = 0.6f),
+                        start = Offset(sx, 0f),
+                        end = Offset(sx, h),
+                        strokeWidth = 2f,
+                        cap = StrokeCap.Round
+                    )
+                    // Highlight-Kreis am Schnittpunkt
+                    drawCircle(
+                        color = scrubberColor,
+                        radius = 6f,
+                        center = Offset(sx, sy)
+                    )
+                    drawCircle(
+                        color = Color.White,
                         radius = 3f,
-                        center = Offset(xFor(index), yFor(point.score))
+                        center = Offset(sx, sy)
                     )
                 }
             }
+        }
 
-            // Heute-Marker (letzter Punkt)
-            if (points.size > 1) {
-                val lastX = xFor(points.size - 1)
-                val lastY = yFor(points.last().score)
-                drawCircle(
-                    color = lineColor,
-                    radius = 5.5f,
-                    center = Offset(lastX, lastY)
-                )
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.9f),
-                    radius = 2f,
-                    center = Offset(lastX, lastY)
-                )
+        // M19: Tooltip-Text über dem Canvas (Compose-Overlay)
+        if (scrubIndex in points.indices) {
+            val point = points[scrubIndex]
+            val scoreColor = positivityColor(point.score)
+            val dateLabel = try {
+                val date = LocalDate.parse(point.date)
+                val day = date.dayOfMonth
+                val month = date.monthValue
+                "${day}.${month}."
+            } catch (_: Exception) { point.date }
+            val durationLabel = formatDurationShort(point.durationMs)
+
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(tooltipBgColor.copy(alpha = 0.95f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        dateLabel,
+                        fontSize = 10.sp,
+                        color = tooltipTextColor.copy(alpha = 0.7f),
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        "${point.score}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = scoreColor,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    if (durationLabel.isNotBlank()) {
+                        Text(
+                            durationLabel,
+                            fontSize = 9.sp,
+                            color = tooltipTextColor.copy(alpha = 0.5f)
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+/** Findet den Index des nächsten Datenpunkts zur X-Position. */
+private fun findNearestIndex(x: Float, canvasWidth: Int, pointCount: Int): Int {
+    if (pointCount == 0) return -1
+    if (pointCount == 1) return 0
+    val fraction = (x / canvasWidth).coerceIn(0f, 1f)
+    return (fraction * (pointCount - 1)).roundToInt()
+}
+
+private fun Float.roundToInt(): Int = kotlin.math.round(this).toInt()
+
+private fun formatDurationShort(ms: Long): String {
+    if (ms <= 0) return ""
+    val hours = ms / 3_600_000
+    val minutes = (ms % 3_600_000) / 60_000
+    return when {
+        hours > 0 && minutes > 0 -> "${hours}h${minutes}m"
+        hours > 0 -> "${hours}h"
+        else -> "${minutes}m"
     }
 }

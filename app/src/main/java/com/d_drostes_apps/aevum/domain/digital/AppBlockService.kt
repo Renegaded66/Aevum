@@ -86,8 +86,12 @@ class AppBlockService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // M19: Konsolidierte Hintergrund-Benachrichtigung statt eigener.
+        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+        startForeground(
+            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
+        )
         // M18.61g-FIX 2: BlockActivity-Broadcasts empfangen
         val filter = android.content.IntentFilter().apply {
             addAction(ACTION_EXTEND)

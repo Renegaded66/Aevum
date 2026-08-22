@@ -168,10 +168,13 @@ class DriveDetectionService : Service() {
             return START_NOT_STICKY
         }
         // Foreground starten (location-Typ). Fehler -> sauber stoppen.
+        // M19: Konsolidierte Hintergrund-Benachrichtigung statt eigener.
+        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+        val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
         try {
             startForeground(
-                NOTIFICATION_ID,
-                buildNotification(),
+                com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             )
         } catch (e: SecurityException) {
