@@ -335,6 +335,21 @@ class TimelineViewModel @Inject constructor(
         }
     }
 
+    /**
+     * AEVUM-3: Güte (Positivity-Score) EINER Aufzeichnung manuell anpassen.
+     * Schreibt nur den Override auf DIESE Session (manual_quality_override) —
+     * die ActivityType-Einstellung bleibt unverändert. score = null entfernt
+     * den Override (automatische Berechnung gilt wieder). Am nächsten Tag
+     * existieren neue Sessions ohne Override → ursprüngliche Güte.
+     */
+    fun setSessionQualityOverride(sessionId: String, score: Int?) {
+        viewModelScope.launch {
+            try {
+                activityRepository.setManualQualityOverride(sessionId, score?.coerceIn(0, 100))
+            } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
+
     private fun buildTimelineState(
         date: LocalDate,
         allSessions: List<ActivitySession>,
@@ -438,7 +453,10 @@ class TimelineViewModel @Inject constructor(
                 isOverlapping = filteredSessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) },
                 // M18.5: Positivitäts-Score für die Farbcodierung der
                 // Timeline-Zeilen (grün = gut, rot = schlecht).
-                positivityScore = typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                // AEVUM-3: Manueller Override (Lang-Druck) gewinnt.
+                positivityScore = session.manualQualityOverride
+                    ?: typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                hasQualityOverride = session.manualQualityOverride != null,
                 // M18.13: Icon + custom Farbe der Aktivität für die Timeline.
                 activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
                 activityColor = typeMap[session.activityTypeId]?.color ?: 0L
@@ -553,7 +571,10 @@ class TimelineViewModel @Inject constructor(
                     endMinuteOfDay = clippedEndMin,
                     isRunning = session.endAt == null,
                     isOverlapping = daySessions.any { other -> other.id != session.id && SessionTimeValidator.rangesOverlap(session.startAt, session.endAt, other.startAt, other.endAt) },
-                    positivityScore = typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                    // AEVUM-3: Manueller Override (Lang-Druck) gewinnt.
+                    positivityScore = session.manualQualityOverride
+                        ?: typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                    hasQualityOverride = session.manualQualityOverride != null,
                     activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
                     activityColor = typeMap[session.activityTypeId]?.color ?: 0L
                 )
@@ -959,6 +980,9 @@ data class TimelineSessionUi(
     val isAuto: Boolean = false,
     // M18.5: Positivitäts-Score (0-100) — für Farbcodierung in der Timeline.
     val positivityScore: Int = 50,
+    // AEVUM-3: true, wenn der User die Güte dieser Aufzeichnung manuell
+    // angepasst hat (Lang-Druck → Slider). Zeigt den Override-Hinweis an.
+    val hasQualityOverride: Boolean = false,
     // M18.13: Icon + custom Farbe der Aktivität.
     val activityIcon: String = "•",
     val activityColor: Long = 0L

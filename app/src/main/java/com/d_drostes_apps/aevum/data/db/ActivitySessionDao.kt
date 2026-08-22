@@ -17,6 +17,18 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL ORDER BY start_at DESC")
     fun getAll(): Flow<List<ActivitySession>>
 
+    // AEVUM-1: Dedup-Cleanup — einmaliger Lookup aller nicht-gelöschten
+    // Sessions (ohne Flow), damit der Cleanup beim App-Start die
+    // Duplikat-Erkennung in reinem Kotlin rechnen kann.
+    @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL")
+    suspend fun getAllNonDeletedOnce(): List<ActivitySession>
+
+    // AEVUM-1: Dedup-Cleanup — Duplikate hart löschen. Verknüpfte Zeilen
+    // (activity_session_tag, session_evidence, activity_session_change)
+    // räumen sich per ON DELETE CASCADE selbst ab.
+    @Query("DELETE FROM activity_session WHERE id IN (:ids)")
+    suspend fun hardDeleteByIds(ids: List<String>)
+
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND start_at >= :start AND start_at < :end ORDER BY start_at")
     fun getByDateRange(start: Long, end: Long): Flow<List<ActivitySession>>
 
@@ -114,4 +126,17 @@ interface ActivitySessionDao {
 
     @Query("DELETE FROM activity_session_tag WHERE session_id = :sessionId")
     suspend fun deleteTagMappings(sessionId: String)
+
+    // AEVUM-3: Manuelle Güte-Anpassung pro Aufzeichnung. Setzt/löscht den
+    // Override (0..100) des Positivity-Scores für EINE Session. null = Override
+    // entfernen → automatische Berechnung gilt wieder.
+    @Query("UPDATE activity_session SET manual_quality_override = :score, updated_at = :now WHERE id = :id")
+    suspend fun setManualQualityOverride(id: String, score: Int?, now: Long)
+
+    // AEVUM-3: Tages-Güte — setzt/löscht den Override für ALLE Sessions,
+    // die den Zeitraum überlappen (wie getOverlappingRange). Die Overrides
+    // hängen an den konkreten Sessions: Am nächsten Tag existieren diese
+    // Sessions nicht mehr → die automatische Berechnung gilt wieder.
+    @Query("UPDATE activity_session SET manual_quality_override = :score, updated_at = :now WHERE deleted_at IS NULL AND start_at < :end AND (end_at IS NULL OR end_at > :start)")
+    suspend fun setManualQualityOverrideForRange(start: Long, end: Long, score: Int?, now: Long)
 }

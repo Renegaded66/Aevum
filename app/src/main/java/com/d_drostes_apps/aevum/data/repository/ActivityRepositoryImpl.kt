@@ -66,6 +66,12 @@ class ActivityRepositoryImpl(
     override suspend fun reassignSessionsToType(typeId: String, fallbackTypeId: String, now: Long) =
         activityDao.reassignSessionsToType(typeId, fallbackTypeId, now)
     override suspend fun hardDeleteSessionsByType(typeId: String) = activityDao.hardDeleteSessionsByType(typeId)
+
+    // AEVUM-3: Manuelle Güte-Anpassung (Session-Override + Tages-Override).
+    override suspend fun setManualQualityOverride(sessionId: String, score: Int?) =
+        activityDao.setManualQualityOverride(sessionId, score, System.currentTimeMillis())
+    override suspend fun setManualQualityOverrideForRange(start: Long, end: Long, score: Int?) =
+        activityDao.setManualQualityOverrideForRange(start, end, score, System.currentTimeMillis())
 }
 
 class ActivityCandidateRepositoryImpl(

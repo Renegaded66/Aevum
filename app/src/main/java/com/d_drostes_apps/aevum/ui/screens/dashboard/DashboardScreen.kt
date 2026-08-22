@@ -62,6 +62,7 @@ import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
 import com.d_drostes_apps.aevum.ui.components.QualityRing
 import com.d_drostes_apps.aevum.ui.components.positivityColor
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
@@ -156,7 +157,9 @@ fun DashboardScreen(
         onNavigateDay = viewModel::navigateDay,
         onResetToToday = viewModel::resetToToday,
         onSetAllowanceOverride = viewModel::setAllowanceOverride,
-        onClearAllowanceOverride = viewModel::clearAllowanceOverride
+        onClearAllowanceOverride = viewModel::clearAllowanceOverride,
+        // AEVUM-3: Tages-Güte manuell anpassen (Tipp auf die Güte-Zahl).
+        onSetDayQuality = viewModel::setDayQualityOverride
     )
 }
 
@@ -196,7 +199,10 @@ private fun DashboardContent(
     onNavigateDay: (Int) -> Unit = {},
     onResetToToday: () -> Unit = {},
     onSetAllowanceOverride: (String, Int) -> Unit = { _, _ -> },
-    onClearAllowanceOverride: (String) -> Unit = {}
+    onClearAllowanceOverride: (String) -> Unit = {},
+    // AEVUM-3: Tages-Güte manuell anpassen (Tipp auf die Güte-Zahl im Hero).
+    // score = null entfernt die Overrides des Tages (automatische Berechnung).
+    onSetDayQuality: (Int?) -> Unit = {}
 ) {
     val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
     val slideIn = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
@@ -205,6 +211,10 @@ private fun DashboardContent(
     var showStartPicker by remember { mutableStateOf(false) }
     // M18.60: Pauschal-Popup — welche Pauschale wurde angeklickt?
     var allowancePopup by remember { mutableStateOf<AllowancePopupTarget?>(null) }
+    // AEVUM-3: Tages-Güte-Popup — Tipp auf die Güte-Zahl (QualityRing)
+    // im Hero öffnet den Slider für den GEWÄHLTEN Tag. Der Override wird
+    // auf die Sessions des Tages geschrieben, nie auf die Einstellung.
+    var showQualityDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -271,7 +281,13 @@ private fun DashboardContent(
             }
 
             // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
-            item { PulsHero(state = state) }
+            item {
+                PulsHero(
+                    state = state,
+                    // AEVUM-3: Tipp auf die Güte-Zahl öffnet den Tages-Slider.
+                    onQualityClick = { showQualityDialog = true }
+                )
+            }
 
             // M18.60: Dezente Tages-Navigation — das Dashboard ist das
             // Herzstück, also bewusst unaufdringlich: eine schlanke
@@ -423,6 +439,24 @@ private fun DashboardContent(
             }
         )
     }
+
+    // AEVUM-3: Tages-Güte-Dialog — Tipp auf die Güte-Zahl im Hero.
+    // Der Slider passt die Güte des GEWÄHLTEN Tages an (Override auf die
+    // Sessions des Tages). Die Einstellung bleibt unverändert; am nächsten
+    // Tag gilt wieder die automatische Berechnung.
+    if (showQualityDialog) {
+        QualityOverrideDialog(
+            title = "Tages-Güte anpassen",
+            message = "Wie wertvoll war der ${state.displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM"))}? Die Aktivitäts-Einstellungen bleiben unverändert.",
+            initialScore = state.qualityScore,
+            hasOverride = state.hasDayQualityOverride,
+            onDismiss = { showQualityDialog = false },
+            onSave = { score ->
+                onSetDayQuality(score)
+                showQualityDialog = false
+            }
+        )
+    }
 }
 
 /** M18.60: Klick-Ziel des Pauschal-Popups. */
@@ -509,7 +543,11 @@ private fun DashboardAtmosphere() {
  * Keine Interpretationen (Fokus/Balance/Top-Kat) — nur Fakten.
  */
 @Composable
-private fun PulsHero(state: DashboardUiState) {
+private fun PulsHero(
+    state: DashboardUiState,
+    // AEVUM-3: Tipp auf die Güte-Zahl (QualityRing) → Tages-Güte anpassen.
+    onQualityClick: () -> Unit = {}
+) {
     val heroBg = Brush.verticalGradient(
         listOf(
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.30f),
@@ -538,7 +576,12 @@ private fun PulsHero(state: DashboardUiState) {
                         qualityScore = state.qualityScore,
                         ringSize = 108.dp,
                         strokeWidth = 11.dp,
-                        label = "QUALITÄT"
+                        label = "QUALITÄT",
+                        // AEVUM-3: Tipp auf die Güte-Zahl → Tages-Güte anpassen.
+                        onClick = onQualityClick,
+                        // AEVUM-3: dezenter Hinweis, dass der Tag manuell
+                        // angepasst wurde („✎" hinter der Zahl).
+                        overrideBadge = if (state.hasDayQualityOverride) "✎" else null
                     )
                     Spacer(Modifier.width(AevumSpacing.lg))
                     Column(

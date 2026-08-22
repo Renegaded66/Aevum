@@ -135,7 +135,9 @@ class CalendarViewModel @Inject constructor(
                     val durationMs = session.activeDurationInWindow(
                         TimeFormatting.startOfDayMillis(day, zoneId), dayEnd
                     )
-                    val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
+                    // AEVUM-3: Manueller Override (Lang-Druck in Timeline)
+                    // gewinnt vor dem ActivityType-Score.
+                    val score = session.manualQualityOverride ?: typeMap[session.activityTypeId]?.positivityScore ?: 50
                     days[day] = agg.copy(
                         totalDurationMs = agg.totalDurationMs + durationMs,
                         weightedScoreSum = agg.weightedScoreSum + durationMs * (score - 50),
@@ -169,13 +171,16 @@ class CalendarViewModel @Inject constructor(
             val clipStart = maxOf(session.startAt, selStart)
             val clipEnd = minOf(session.endAt ?: System.currentTimeMillis(), selEnd)
             val type = typeMap[session.activityTypeId]
+            // AEVUM-3: Manueller Override (Lang-Druck in Timeline)
+            // gewinnt vor dem ActivityType-Score.
+            val score = session.manualQualityOverride ?: type?.positivityScore ?: 50
             CalendarDaySessionUi(
                 sessionId = session.id,
                 title = session.title ?: "Aktivität",
                 activityTypeId = session.activityTypeId ?: "other",
                 icon = type?.icon?.takeIf { it.isNotBlank() } ?: "•",
                 color = type?.color?.takeIf { it != 0L } ?: 0L,
-                positivityScore = type?.positivityScore ?: 50,
+                positivityScore = score,
                 startMinute = TimeFormatting.minutesOfDay(clipStart, zoneId),
                 endMinute = TimeFormatting.minutesOfDay(clipEnd, zoneId),
                 // M18.62-FIX: Pausen abziehen — vorher wurde die volle

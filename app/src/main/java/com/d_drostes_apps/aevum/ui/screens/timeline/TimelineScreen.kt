@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -99,6 +100,7 @@ import com.d_drostes_apps.aevum.ui.components.AevumTimePicker
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.CategoryChip
 import com.d_drostes_apps.aevum.ui.components.EmptyState
+import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
 import com.d_drostes_apps.aevum.ui.components.positivityColor
 import com.d_drostes_apps.aevum.ui.components.categoryColor
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -122,6 +124,11 @@ fun TimelineScreen(
     val state by viewModel.uiState.collectAsState()
     // M18.66-FIX14: Wochenansicht-Modus aus dem ViewModel
     val weekView by viewModel.weekView.collectAsState()
+    // AEVUM-3: Lang-Druck auf eine Session → Güte-Slider für diese Aufzeichnung.
+    // Der Override wird NUR auf diese Session geschrieben — die Einstellung
+    // des ActivityTypes bleibt unverändert, am nächsten Tag gilt wieder die
+    // automatische Berechnung.
+    var qualityTarget by remember { mutableStateOf<TimelineSessionUi?>(null) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0.dp),
@@ -228,6 +235,8 @@ fun TimelineScreen(
                         onEdit = onEditActivity,
                         onDeleteTrigger = viewModel::deleteTrigger,
                         onDeleteSession = viewModel::deleteSession,
+                        // AEVUM-3: Lang-Druck auf eine Session → Güte anpassen.
+                        onAdjustQuality = { qualityTarget = it },
                         // M18.66-FIX18 (User: "wenn man auf die Timeline klickt,
                         // öffnet sich ein Popup — das sollte nicht sein.
                         // Stattdessen dieselbe Seite wie beim Plus-Button, mit
@@ -258,6 +267,20 @@ fun TimelineScreen(
             // Padding dort), die Tag-Ansicht scrollt intern und braucht
             // kein Padding.
         }
+    }
+    // AEVUM-3: Güte-Dialog beim Lang-Druck auf eine Session.
+    qualityTarget?.let { target ->
+        QualityOverrideDialog(
+            title = "Güte anpassen",
+            message = "„${target.title}“ (${target.time}–${target.range.substringAfter("–")}) — wie wertvoll war diese Aufzeichnung?",
+            initialScore = target.positivityScore,
+            hasOverride = target.hasQualityOverride,
+            onDismiss = { qualityTarget = null },
+            onSave = { score ->
+                viewModel.setSessionQualityOverride(target.id, score)
+                qualityTarget = null
+            }
+        )
     }
     // M18.66-FIX18: QuickCreateDialog entfernt — Tap auf leere Zeitstelle
     // navigiert jetzt direkt zum ActivityEditor (Startzeit = Klick-Zeit,
@@ -1278,6 +1301,8 @@ private fun DayCalendarTimeline(
     onDeleteTrigger: (String) -> Unit,
     // M18.48: Löschen einer Session aus der Liste (mit Bestätigungsdialog).
     onDeleteSession: (String) -> Unit,
+    // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
+    onAdjustQuality: (TimelineSessionUi) -> Unit,
     // M18.44: Quick-Create aus der Tagesansicht (leere Stelle antippen)
     onCreateAt: (Int) -> Unit,
     // M18.66-FIX14: Wochenansicht
@@ -1441,7 +1466,8 @@ private fun DayCalendarTimeline(
                                 onOpen = onOpen,
                                 onEdit = onEdit,
                                 onDeleteTrigger = onDeleteTrigger,
-                                onDeleteSession = onDeleteSession
+                                onDeleteSession = onDeleteSession,
+                                onAdjustQuality = onAdjustQuality
                             )
                         }
                         // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
@@ -1486,6 +1512,7 @@ private fun DayCalendarTimeline(
                             onPixelsPerHourChange = { pixelsPerHour = it },
                             onOpen = onOpen,
                             onEdit = onEdit,
+                            onAdjustQuality = onAdjustQuality,
                             onCreateAt = onCreateAt
                         )
                     }
@@ -1539,7 +1566,9 @@ private fun EventListTimeline(
     onEdit: (String) -> Unit,
     onDeleteTrigger: (String) -> Unit = {},
     // M18.48: Löschen einer Session aus der Liste (mit Bestätigungsdialog).
-    onDeleteSession: (String) -> Unit = {}
+    onDeleteSession: (String) -> Unit = {},
+    // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
+    onAdjustQuality: (TimelineSessionUi) -> Unit = {}
 ) {
     val merged = remember(sessions, triggers) {
         (sessions.map { TimelineEntry.Session(it) } + triggers.map { TimelineEntry.Trigger(it) })
@@ -1591,9 +1620,13 @@ private fun EventListTimeline(
                             icon = entry.session.activityIcon,
                             kind = if (entry.session.isAuto) "Auto" else "Erfasst",
                             isLive = entry.session.isRunning,
+                            // AEVUM-3: Override-Hinweis („Güte ✎") bei manuell
+                            // angepasster Aufzeichnung.
+                            qualityBadge = if (entry.session.hasQualityOverride) "${entry.session.positivityScore} ✎" else null,
                             onClick = { onOpen(entry.session.id) },
                             onEdit = { onEdit(entry.session.id) },
-                            onDelete = { pendingDeleteId = entry.session.id }
+                            onDelete = { pendingDeleteId = entry.session.id },
+                            onLongPress = { onAdjustQuality(entry.session) }
                         )
                     }
                     is TimelineEntry.Trigger -> {
@@ -1677,6 +1710,7 @@ private sealed class TimelineEntry {
     data class Trigger(val trigger: TriggerEventUi) : TimelineEntry()
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun EventListRow(
     time: String,
@@ -1691,7 +1725,11 @@ private fun EventListRow(
     // M18.13: Icon (Emoji) der Aktivität
     icon: String = "•",
     // Loeschen-Callback. Wenn gesetzt, wird ein Trash-Button angezeigt.
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    // AEVUM-3: Lang-Druck → Güte der Aufzeichnung anpassen (Quality-Slider).
+    onLongPress: (() -> Unit)? = null,
+    // AEVUM-3: Override-Badge („<Score> ✎"), wenn die Güte manuell angepasst wurde.
+    qualityBadge: String? = null
 ) {
     // M18.20: Farbige Karte — Akzentbalken links, farbiger Hintergrund,
     // Icon-Kreis, farbiger Zeit-Chip. Jede Zeile ist jetzt ein buntes
@@ -1712,7 +1750,13 @@ private fun EventListRow(
                     )
                 )
             )
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                // AEVUM-3: Lang-Druck öffnet den Güte-Slider für diese
+                // Aufzeichnung (Override statt Dauer-Einstellung).
+                onLongClick = onLongPress ?: {},
+                onLongClickLabel = "Güte anpassen"
+            )
             .padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
@@ -1822,6 +1866,22 @@ private fun EventListRow(
                 )
             }
         }
+        // AEVUM-3: Override-Badge — zeigt die manuell angepasste Güte an.
+        qualityBadge?.let { badge ->
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
+                    .background(positivityColor(badge.substringBefore(" ").toIntOrNull() ?: 50).copy(alpha = 0.16f))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    badge,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = positivityColor(badge.substringBefore(" ").toIntOrNull() ?: 50)
+                )
+            }
+        }
         // Trash-Button fuer loeschbare Eintraege (z.B. Trigger)
         if (onDelete != null) {
             Box(
@@ -1857,6 +1917,8 @@ private fun ZoomableDayTimeline(
     onPixelsPerHourChange: (Float) -> Unit,
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
+    // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
+    onAdjustQuality: (TimelineSessionUi) -> Unit,
     onCreateAt: (Int) -> Unit
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
@@ -2172,7 +2234,9 @@ private fun ZoomableDayTimeline(
                                 .pointerInput(session.id) {
                                     detectTapGestures(
                                         onTap = { onOpen(session.id) },
-                                        onLongPress = { onEdit(session.id) }
+                                        // AEVUM-3: Lang-Druck → Güte der
+                                        // Aufzeichnung anpassen (Override).
+                                        onLongPress = { onAdjustQuality(session) }
                                     )
                                 }
                         ) {

@@ -3,8 +3,11 @@ package com.d_drostes_apps.aevum.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,7 +47,11 @@ fun QualityRing(
     modifier: Modifier = Modifier,
     ringSize: Dp = 120.dp,
     strokeWidth: Dp = 14.dp,
-    label: String = "Zeitqualität"
+    label: String = "Zeitqualität",
+    // AEVUM-3: Tipp auf den Ring (Güte-Zahl) → Tages-Güte anpassen.
+    onClick: (() -> Unit)? = null,
+    // AEVUM-3: dezenter Hinweis („✎"), wenn die Güte manuell angepasst wurde.
+    overrideBadge: String? = null
 ) {
     val animatedProgress by animateFloatAsState(
         targetValue = (qualityScore / 100f).coerceIn(0f, 1f),
@@ -52,7 +59,12 @@ fun QualityRing(
         label = "qualityRing"
     )
 
-    Box(modifier = modifier.size(ringSize), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .size(ringSize)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
         Canvas(modifier = Modifier.size(ringSize)) {
             val stroke = strokeWidth.toPx()
             val arcSize = Size(ringSize.toPx() - stroke, ringSize.toPx() - stroke)
@@ -102,12 +114,24 @@ fun QualityRing(
 
         // Innen: Score + Label
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                qualityScore.toString(),
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                color = positivityColor(qualityScore)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    qualityScore.toString(),
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = positivityColor(qualityScore)
+                )
+                // AEVUM-3: „✎" bei manuell angepasster Tages-Güte.
+                if (overrideBadge != null) {
+                    Text(
+                        overrideBadge,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
+            }
             Text(
                 label,
                 fontSize = 10.sp,

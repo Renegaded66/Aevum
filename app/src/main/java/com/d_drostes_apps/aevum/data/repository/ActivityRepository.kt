@@ -47,6 +47,11 @@ interface ActivityRepository {
     suspend fun countLiveSessionsByType(typeId: String): Int
     suspend fun reassignSessionsToType(typeId: String, fallbackTypeId: String, now: Long)
     suspend fun hardDeleteSessionsByType(typeId: String)
+
+    // AEVUM-3: Manuelle Güte-Anpassung. score = null entfernt den Override
+    // (automatische Berechnung gilt wieder).
+    suspend fun setManualQualityOverride(sessionId: String, score: Int?)
+    suspend fun setManualQualityOverrideForRange(start: Long, end: Long, score: Int?)
 }
 
 interface ActivityCandidateRepository {

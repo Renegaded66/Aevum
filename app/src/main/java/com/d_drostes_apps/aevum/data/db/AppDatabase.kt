@@ -72,7 +72,9 @@ import com.d_drostes_apps.aevum.data.model.*
     // fallbackToDestructiveMigration alle Daten verlieren.
     // M18.70: v36 — automation_settings.screen_recording_minutes
     // (Bildschirm-Aufzeichnung: 0..10 = Vorlauf in Minuten, -1 = deaktiviert).
-    version = 36,
+    // AEVUM-3: v37 — activity_session.manual_quality_override (manuelle
+    // Güte-Anpassung pro Aufzeichnung, nullable 0..100; null = automatisch).
+    version = 37,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1386,6 +1388,19 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "ALTER TABLE automation_settings ADD COLUMN screen_recording_minutes INTEGER NOT NULL DEFAULT 5"
+                )
+            }
+        }
+
+        // AEVUM-3: v36→v37 — manuelle Güte-Anpassung pro Aufzeichnung.
+        // Einfacher ADD COLUMN (nullable, kein Default, kein Index nötig).
+        // NULL = keine manuelle Anpassung → automatische Berechnung.
+        // Overrides hängen an den konkreten Sessions: Am nächsten Tag
+        // existieren neue Sessions ohne Override → ursprüngliche Güte.
+        val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `activity_session` ADD COLUMN `manual_quality_override` INTEGER"
                 )
             }
         }

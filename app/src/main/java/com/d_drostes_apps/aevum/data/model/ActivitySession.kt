@@ -83,7 +83,12 @@ data class ActivitySession(
     @ColumnInfo(name = "total_paused_ms", defaultValue = "0") val totalPausedMs: Long = 0L,
     @ColumnInfo(name = "current_pause_started_at") val currentPauseStartedAt: Long? = null,
     @ColumnInfo(name = "pause_segments_json") val pauseSegmentsJson: String? = null,
-    @ColumnInfo(name = "note") val note: String? = null
+    @ColumnInfo(name = "note") val note: String? = null,
+    // AEVUM-3: Manuelle Güte-Anpassung pro Aufzeichnung. Override (0..100)
+    // für den Positivity-Score DIESER Session — gilt nur, solange die
+    // Session existiert (am nächsten Tag starten neue Sessions ohne
+    // Override → die automatische Berechnung gilt wieder).
+    @ColumnInfo(name = "manual_quality_override") val manualQualityOverride: Int? = null
 ) : Serializable {
     /** Is this session currently running or paused (i.e. not finished)? */
     val isLive: Boolean get() = sessionStatus == "RUNNING" || sessionStatus == "PAUSED"

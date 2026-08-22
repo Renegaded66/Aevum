@@ -55,6 +55,10 @@ class AevumApplication : Application() {
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
         fun ensureDefaultData(): EnsureDefaultDataUseCase
+        // AEVUM-1: Einmaliger Daten-Aufräumlauf beim App-Start — löscht
+        // Duplikate (gleiche externalId oder gleicher Typ + zeitliche
+        // Überlappung; z.B. der mehrfach gesyncte Garmin-Schlaf).
+        fun cleanupDuplicateSessions(): com.d_drostes_apps.aevum.data.cleanup.CleanupDuplicateSessionsUseCase
         // M18.21: LiveActivityManager für den Notification-Restore beim
         // App-Start (falls bereits eine Session läuft, z.B. nach
         // Ultra-Energie-Sparmodus, muss die Notification wieder erscheinen).
@@ -133,6 +137,29 @@ class AevumApplication : Application() {
             }
         } catch (e: Exception) {
             Log.e("AevumApplication", "ensureDefaultData EntryPoint init failed — continuing", e)
+        }
+
+        // AEVUM-1: Daten-Aufräumlauf — einmalig beim App-Start Duplikate
+        // entfernen (gleiche externalId ODER gleicher Typ + zeitliche
+        // Überlappung). Der Garmin-Schlaf wurde anfangs mehrfach gesynct →
+        // in manchen Nächten standen ~100h Schlaf in der Timeline. Der
+        // Cleanup behält die NEUESTE Session jeder Duplikat-Gruppe, löscht
+        // die älteren (MANUAL/user-edited/live bleiben immer geschützt).
+        // Idempotent: Nach dem ersten Lauf ist er ein No-Op.
+        try {
+            val deps = EntryPointAccessors.fromApplication(this, Deps::class.java)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val removed = deps.cleanupDuplicateSessions().invoke()
+                    if (removed > 0) {
+                        Log.d("AevumApplication", "Dedup-Cleanup: $removed Duplikate entfernt")
+                    }
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "Dedup-Cleanup failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Dedup-Cleanup EntryPoint init failed — continuing", e)
         }
 
         // M9.2: ensure Health Connect sleep import runs in the background

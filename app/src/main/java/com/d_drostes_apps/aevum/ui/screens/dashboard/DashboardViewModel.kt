@@ -39,7 +39,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val application: Application,
-    activityRepository: ActivityRepository,
+    private val activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
     candidateRepository: ActivityCandidateRepository,
     private val activityTypeRepository: ActivityTypeRepository,
@@ -141,6 +141,24 @@ class DashboardViewModel @Inject constructor(
             dailyAllowanceRepository.deleteOverride(date, allowanceId)
             syncAccumulationForDay(date, allowanceId)
             reloadDayOverrides()
+        }
+    }
+
+    /**
+     * AEVUM-3: Güte (Positivity-Score) für den GEWÄHLTEN Tag manuell
+     * anpassen. Der Override wird auf ALLE Sessions des Tages geschrieben
+     * (Spalte manual_quality_override) — die ActivityType-Einstellung bleibt
+     * unverändert. Am nächsten Tag existieren neue Sessions ohne Override →
+     * die automatische Berechnung gilt wieder. score = null entfernt die
+     * Overrides des Tages.
+     */
+    fun setDayQualityOverride(score: Int?) {
+        viewModelScope.launch {
+            try {
+                activityRepository.setManualQualityOverrideForRange(start, end, score?.coerceIn(0, 100))
+            } catch (e: Exception) {
+                Log.e("DashboardViewModel", "setDayQualityOverride failed", e)
+            }
         }
     }
 
@@ -524,11 +542,38 @@ class DashboardViewModel @Inject constructor(
     init {
         // M18.58: Alle Sessions beobachten (deletedAt==null via DAO-Filter)
         // und pro Tag den gewichteten Positivitäts-Score berechnen.
+        // AEVUM-2-FIX: Pauschalen + Overrides fließen jetzt auch in den
+        // Verlauf ein (gleiche Datenquelle wie die Headline) — vorher
+        // zählte der Trend NUR Sessions, die Headline Sessions + Pauschalen
+        // (daher z.B. 27 im Trend vs 75 in der Headline für heute).
+        // minuteTick hält den heutigen Punkt frisch (Pauschalen-Regel
+        // "gilt ab Uhrzeit" + Mitternachts-Wechsel).
         viewModelScope.launch {
-            activityRepository.getAll().collect { sessions ->
-                val types = activityTypeRepository.getAll().firstOrNull() ?: emptyList()
-                val typeMap = types.associateBy { it.id }
-                _qualityTrend.value = computeDailyQuality(sessions, typeMap, zoneId)
+            // flatMapLatest: Bei jeder Emissionsrunde (Sessions/Typen/
+            // Pauschalen/min) wird das Datum frisch bestimmt und der
+            // Override-Flow für HEUTE neu abonniert — Override-Änderungen
+            // (M18.60) aktualisieren den Verlauf sofort, genau wie die
+            // Headline im uiState-combine.
+            combine(
+                activityRepository.getAll(),
+                activityTypeRepository.getAll(),
+                dailyAllowanceRepository.getAll(),
+                minuteTick
+            ) { sessions, types, allowances, _ ->
+                Triple(sessions, types, allowances)
+            }.flatMapLatest { (sessions, types, allowances) ->
+                val todayStr = LocalDate.now(zoneId).toString()
+                dailyAllowanceRepository.getOverridesForDateFlow(todayStr).map { overrides ->
+                    computeDailyQuality(
+                        sessions = sessions,
+                        typeMap = types.associateBy { it.id },
+                        allowances = allowances,
+                        overrideByAllowance = overrides.associateBy { it.allowanceId },
+                        zoneId = zoneId
+                    )
+                }
+            }.collect { trend ->
+                _qualityTrend.value = trend
             }
         }
         // M18.58: Garmin-Tageszusammenfassung + Aktivitäten für heute beobachten.
@@ -549,18 +594,33 @@ class DashboardViewModel @Inject constructor(
      * (gleiche Formel wie computeQualityScore, nur tagesweise):
      * score = Σ(dauer × positivität) / Σ(dauer). Tage ohne Sessions
      * werden weggelassen — die UI zeichnet nur vorhandene Tage.
+     *
+     * AEVUM-2-FIX: Pauschalen + Tages-Overrides werden mit einbezogen —
+     * identische Logik wie computeQualityScore (M18.62/M18.38-Regel:
+     * "30 min Pauschale gilt ab 00:30"). Für HEUTE gilt die Regel mit der
+     * aktuellen Uhrzeit, für VERGANGENE Tage zählt die Pauschale immer
+     * (der Tag ist vorbei — sie war voll wirksam). Dadurch liefert der
+     * Trend-Punkt für heute exakt denselben Wert wie die Headline.
+     * Heute wird IMMER als Punkt ausgegeben (notfalls Score 0), damit
+     * Headline und Verlauf auch bei reinen Pauschalen-Tagen übereinstimmen.
      */
     private fun computeDailyQuality(
         sessions: List<ActivitySession>,
         typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
+        allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance> = emptyList(),
+        overrideByAllowance: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
         zoneId: ZoneId
     ): List<DailyQualityPoint> {
-        val dayStartMs = 24L * 60 * 60 * 1000
+        val todayStr = LocalDate.now(zoneId).toString()
+        val currentMinute = TimeFormatting.minutesOfDay(System.currentTimeMillis(), zoneId).coerceIn(0, 1440)
         val byDay = mutableMapOf<String, MutableList<ActivitySession>>()
         sessions.forEach { session ->
             val day = java.time.Instant.ofEpochMilli(session.startAt).atZone(zoneId).toLocalDate().toString()
             byDay.getOrPut(day) { mutableListOf() }.add(session)
         }
+        // AEVUM-2-FIX: Heute immer berechnen (auch ohne Sessions), damit
+        // der Trend-Punkt denselben Wert wie die Headline zeigt.
+        if (todayStr !in byDay) byDay[todayStr] = mutableListOf()
         return byDay.map { (day, daySessions) ->
             var totalWeight = 0L
             var weighted = 0.0
@@ -568,9 +628,23 @@ class DashboardViewModel @Inject constructor(
                 // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
                 val duration = session.activeDurationMs()
                 if (duration <= 0L) return@forEach
-                val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
+                val score = session.manualQualityOverride ?: typeMap[session.activityTypeId]?.positivityScore ?: 50
                 totalWeight += duration
                 weighted += duration * score
+            }
+            // AEVUM-2-FIX: Pauschalen wie in computeQualityScore gewichten.
+            // Heute: nur wenn die Tageszeit die Pauschaldauer erreicht hat
+            // (M18.38-User-Logik "30 min Pauschale gilt ab 00:30").
+            // Vergangene Tage: immer — der Tag ist vorbei.
+            val allowanceMinuteThreshold = if (day == todayStr) currentMinute else 1440
+            allowances.filter { it.enabled }.forEach { allowance ->
+                val effectiveMinutes = overrideByAllowance[allowance.id]?.minutes ?: allowance.minutesPerDay
+                if (allowanceMinuteThreshold >= effectiveMinutes) {
+                    val score = typeMap[allowance.activityTypeId]?.positivityScore ?: 50
+                    val durationMs = effectiveMinutes * 60_000L
+                    totalWeight += durationMs
+                    weighted += durationMs * score
+                }
             }
             val score = if (totalWeight <= 0L) 0 else (weighted / totalWeight).toInt().coerceIn(0, 100)
             DailyQualityPoint(
@@ -814,7 +888,9 @@ class DashboardViewModel @Inject constructor(
             allowanceSummary = allowanceSummary,
             // M18.60: angezeigtes Datum + Tages-Overrides fuer die UI
             displayedDate = displayedDate,
-            allowanceOverrides = overrideByAllowance
+            allowanceOverrides = overrideByAllowance,
+            // AEVUM-3: Manuelle Güte-Anpassung des Tages aktiv?
+            hasDayQualityOverride = activeSessions.any { it.manualQualityOverride != null }
         )
     }
 
@@ -840,7 +916,7 @@ class DashboardViewModel @Inject constructor(
             // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
             val duration = session.activeDurationMs()
             if (duration <= 0L) return@forEach
-            val score = typeMap[session.activityTypeId]?.positivityScore ?: 50
+            val score = session.manualQualityOverride ?: typeMap[session.activityTypeId]?.positivityScore ?: 50
             totalWeight += duration
             weighted += duration * score
         }
@@ -879,7 +955,16 @@ class DashboardViewModel @Inject constructor(
             .groupBy { it.activityTypeId!! }
             .map { (typeId, typeSessions) ->
                 val type = typeMap[typeId]
-                val score = type?.positivityScore ?: 50
+                // AEVUM-3: Pro-Session-Override gewinnt. Sessions einer
+                // Gruppe können unterschiedliche Overrides haben — für den
+                // Balken nehmen wir den dauer-gewichteten Mittelwert.
+                val totalDur = typeSessions.sumOf { it.activeDurationMs(now) }
+                val weightedScore = typeSessions.sumOf { session ->
+                    val s = session.manualQualityOverride ?: type?.positivityScore ?: 50
+                    session.activeDurationMs(now).toDouble() * s
+                }
+                val score = if (totalDur > 0L) (weightedScore / totalDur).toInt().coerceIn(0, 100)
+                            else type?.positivityScore ?: 50
                 // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
                 val duration = typeSessions.sumOf { it.activeDurationMs(now) }
                 QualitySlice(
@@ -1112,7 +1197,10 @@ data class DashboardUiState(
     // M18.60: Tages-Overrides (allowanceId → Override) fuer Popup-Anzeige.
     val allowanceOverrides: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
     // M18.60: Angezeigtes Datum (Tages-Navigation).
-    val displayedDate: LocalDate = LocalDate.now()
+    val displayedDate: LocalDate = LocalDate.now(),
+    // AEVUM-3: true, wenn mindestens eine Session des angezeigten Tages
+    // eine manuelle Güte-Anpassung (Override) hat.
+    val hasDayQualityOverride: Boolean = false
 )
 
 data class QualitySlice(
