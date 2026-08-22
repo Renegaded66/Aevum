@@ -471,6 +471,63 @@ class ActivityRecognitionBridge @Inject constructor(
         return c
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // M18.72: WALKING-SIGNALE (Wanderungen automatisch aufzeichnen).
+    //
+    // walkingSinceMs: Beginn der aktuellen ununterbrochenen Walking-
+    //   Phase. Wird vom ActivityTransitionReceiver bei WALKING/RUNNING-
+    //   ENTER gesetzt und bei EXIT zurückgesetzt. Die WalkingDetection-
+    //   Engine startet die Session erst nach 5 Minuten am Stück.
+    // lastWalkingSignalMs: Herzschlag der laufenden Wanderung — der
+    //   WalkingWatchdog stoppt nach 5 Minuten ohne Signal.
+    // walkingActive: „Wanderung läuft"-Flag (Pendant zu driveActive) —
+    //   verhindert Doppel-Starts und erlaubt den Heartbeat-Refresh.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var walkingSinceMs: Long = 0L
+    @Volatile private var lastWalkingSignalMs: Long = 0L
+    @Volatile private var walkingActive = false
+
+    /** WALKING/RUNNING-ENTER: Walking-Phase (neu) starten oder verlängern.
+     *  EXIT ruft stattdessen [clearWalkingSignal] auf. */
+    @Synchronized
+    fun markWalkingSignal(epochMs: Long) {
+        if (walkingSinceMs <= 0L) walkingSinceMs = epochMs
+        lastWalkingSignalMs = epochMs
+    }
+
+    /** WALKING/RUNNING-EXIT: Die durchgehende Walking-Phase endet hier —
+     *  der 5-Minuten-Zähler startet bei einem neuen ENTER neu. */
+    @Synchronized
+    fun clearWalkingSignal() {
+        walkingSinceMs = 0L
+        lastWalkingSignalMs = 0L
+    }
+
+    /** Beginn der aktuellen Walking-Phase (0 = keine). */
+    @Synchronized
+    fun walkingSince(): Long = walkingSinceMs
+
+    /** Letztes Walking-Signal (Herzschlag für den Watchdog). */
+    @Synchronized
+    fun lastWalkingSignal(): Long = lastWalkingSignalMs
+
+    /** Läuft bereits eine Wanderung? (Doppel-Start-Schutz + Heartbeat). */
+    @Synchronized
+    fun isWalkingActive(): Boolean = walkingActive
+
+    /** Wanderung gestartet. */
+    @Synchronized
+    fun markWalkingActive() {
+        walkingActive = true
+    }
+
+    /** Wanderung beendet (Watchdog/EXIT) — neue Phase beginnt bei 0. */
+    @Synchronized
+    fun clearWalkingActive() {
+        walkingActive = false
+        clearWalkingSignal()
+    }
+
     @Synchronized
     fun addSample(epochMs: Long, confidence: Int) {
         // M18.45: Herzschlag für den DriveWatchdog — jedes IN_VEHICLE-
@@ -824,12 +881,6 @@ class ActivityRecognitionTriggerWorker(
     }
 }
 
-// M18.43: Konstanten für den Walking/Running-5-Minuten-Timer — im
-// Receiver (ActivityTransitionReceiver) und im TriggerWorker nutzbar.
-private const val WALKING_TRIGGER_DELAY_MS = 5L * 60 * 1000
-private const val WALKING_TRIGGER_WORK_NAME = "aevum.walking_trigger_delay"
-private const val RUNNING_TRIGGER_WORK_NAME = "aevum.running_trigger_delay"
-
 /**
  * M12.2: BroadcastReceiver für Activity Transition Updates.
  *
@@ -920,47 +971,33 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             hasChange = false
                             continue
                         }
-                        // M18.43-FIX (User-Wunsch "Walking begonnen soll nur
-                        // angemerkt werden, wenn man es mindestens 5 Minuten
-                        // am Stück tut"): WALKING/RUNNING-ENTER starten einen
-                        // 5-Minuten-Timer (UniqueWork + REPLACE). Wenn der
-                        // User durchgehend läuft, feuert der Timer nach 5 Min
-                        // und erzeugt den Trigger. Ein EXIT dazwischen
-                        // cancelt den Timer -> kein False-Trigger bei
-                        // kurzen Wegen (Wohnzimmer->Küche, 30s zum Auto).
-                        // ON_BICYCLE bleibt sofort (klares Signal).
+                        // M18.72: WALKING/RUNNING starten die Wanderungs-
+                        // Aufzeichnung automatisch (5-Minuten-Schwelle +
+                        // Vorlauf regeln Engine/Worker — Muster M18.70).
+                        // ON_BICYCLE bleibt beim Trigger-Marker (M15:
+                        // zu unzuverlässig für Auto-Start).
                         val transitionType = getTransitionInt(event)
                         if (event.activityType == DetectedActivity.ON_BICYCLE) {
                             enqueueTriggerWorker(context, event.activityType, transitionType)
                         } else {
                             val isEnter = transitionType ==
                                 com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER
-                            val workName = if (event.activityType == DetectedActivity.WALKING) {
-                                WALKING_TRIGGER_WORK_NAME
-                            } else {
-                                RUNNING_TRIGGER_WORK_NAME
-                            }
                             if (isEnter) {
-                                // Timer (neu) starten — REPLACE refresht bei
-                                // jedem weiteren ENTER-Sample.
-                                val data = androidx.work.Data.Builder()
-                                    .putString(ActivityRecognitionTriggerWorker.KEY_ACTIVITY_TYPE,
-                                        if (event.activityType == DetectedActivity.WALKING) "WALKING" else "RUNNING")
-                                    .putString(ActivityRecognitionTriggerWorker.KEY_TRANSITION, "ENTER")
-                                    .putFloat(ActivityRecognitionTriggerWorker.KEY_CONFIDENCE, 0.65f)
-                                    .build()
-                                androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
-                                    workName,
-                                    androidx.work.ExistingWorkPolicy.REPLACE,
-                                    androidx.work.OneTimeWorkRequestBuilder<ActivityRecognitionTriggerWorker>()
-                                        .setInputData(data)
-                                        .setInitialDelay(WALKING_TRIGGER_DELAY_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
-                                        .build()
+                                // Walking-Phase (neu) starten oder verlängern —
+                                // die Engine entscheidet nach 5 Minuten am Stück.
+                                // RUNNING-Events landen auf dem Joggen-Typ.
+                                bridge.markWalkingSignal(now)
+                                WalkingStartWorker.schedule(
+                                    context,
+                                    if (event.activityType == DetectedActivity.RUNNING) "joggen" else "spazieren"
                                 )
                             } else {
-                                // EXIT: Timer canceln — der User hat NICHT
-                                // 5 Minuten am Stück gelaufen.
-                                androidx.work.WorkManager.getInstance(context).cancelUniqueWork(workName)
+                                // EXIT: Phase beenden — der 5-Minuten-Zähler
+                                // startet bei einem neuen ENTER neu. Läuft
+                                // gerade eine Walking-Session, wird sie sofort
+                                // gestoppt (Google bestätigt das Ende).
+                                bridge.clearWalkingSignal()
+                                WalkingStopWorker.schedule(context)
                             }
                         }
                         hasChange = true

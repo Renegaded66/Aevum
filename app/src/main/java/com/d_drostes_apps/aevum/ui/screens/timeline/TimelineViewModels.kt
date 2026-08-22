@@ -894,7 +894,10 @@ data class TimelineUiState(
 val AUTO_SOURCES: Set<String> = setOf(
     "GEOFENCE_AUTO",
     "HEALTH_SLEEP_AUTO",
-    "ACTIVITY_RECOGNITION_AUTO"
+    "ACTIVITY_RECOGNITION_AUTO",
+    // M18.72: Wanderungen automatisch aufgezeichnet (5-Minuten-Schwelle +
+    // Vorlauf) — gleiche Auto-Markierung wie die anderen Auto-Quellen.
+    "WALKING_AUTO"
 )
 
 data class TriggerEventUi(

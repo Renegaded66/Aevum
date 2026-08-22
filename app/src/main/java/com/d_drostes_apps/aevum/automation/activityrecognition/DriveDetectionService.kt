@@ -81,6 +81,27 @@ class DriveDetectionService : Service() {
      *  Displacement-Gate (≥ 150 m) in der Engine. */
     private var serviceStartMs: Long = 0L
 
+    // ──────────────────────────────────────────────────────────────
+    // M18.72: WALKING-PHASE (GPS-Pfad für die Wanderungs-Erkennung).
+    //
+    // Wenn Googles Activity-Recognition-Transitions keine WALKING-
+    // ENTERs liefert (App im Hintergrund, Sensor-Spring), erkennt der
+    // GPS-Stream die Wanderung über Netto-Displacement: Der User muss
+    // sich ab [walkingPhaseStartMs] mindestens
+    // [WALKING_MIN_GPS_DISTANCE_M] (300 m) geradlinig vom Phasenstart
+    // entfernen — frühestens nach 5 Minuten (Engine-Schwelle). Steht
+    // die Bewegung länger als [WALKING_PHASE_RESET_MS] still, wird die
+    // Phase verworfen (kein akkumuliertes Gedächtnis über Pausen).
+    // Netto-Displacement statt kumulierter Distanz: Indoor-GPS-Drift
+    // springt 10-20 m pro Fix und würde die Summe fälschlich aufblähen
+    // (gleiche Lektion wie DriveDetectionEngine M18.66-FIX13).
+    // ──────────────────────────────────────────────────────────────
+    private var walkingPhaseStartMs: Long = 0L
+    private var walkPhaseStartLat: Double? = null
+    private var walkPhaseStartLon: Double? = null
+    private var walkLastLat: Double? = null
+    private var walkLastLon: Double? = null
+
     companion object {
         private const val TAG = "DriveDetectionSvc"
         private const val CHANNEL_ID = "aevum_drive_detection"
@@ -94,6 +115,13 @@ class DriveDetectionService : Service() {
         private const val MIN_PROBE_MOVEMENT_M = 10.0
         /** M18.71: GPS-Kaltstart-Warmup verkürzt (90s -> 60s). */
         private const val GPS_WARMUP_MS = 60_000L
+        /** M18.72: Mindest-Netto-Displacement für eine Wanderung (~300 m
+         *  geradlinig). Eine echte Wanderung legt in 5 Minuten 300-500 m
+         *  zurück; Indoor-Drift (10-50 m) und Gehen im Raum scheitern klar. */
+        private const val WALKING_MIN_GPS_DISTANCE_M = 300.0
+        /** M18.72: Steht der Standort länger still, wird die Walking-Phase
+         *  verworfen — der 5-Minuten-Zähler startet bei neuer Bewegung neu. */
+        private const val WALKING_PHASE_RESET_MS = 2L * 60 * 1000
 
         fun start(context: Context) {
             val intent = Intent(context, DriveDetectionService::class.java)
@@ -132,8 +160,10 @@ class DriveDetectionService : Service() {
         // M18.66: Gate — Autofahrt-Erkennung in den Trigger-Settings aus?
         // Dann keinen GPS-Stream halten (Akku), sauber beenden. Der Service
         // wird vom Gate beim Aktivieren wieder gestartet.
-        if (!bridge.isDrivingEnabled()) {
-            Log.d(TAG, "Autofahrt-Erkennung deaktiviert — Service beendet sich")
+        // M18.72: Der Service trägt auch die Wanderungs-Erkennung (GPS-
+        // Displacement) — er läuft, solange Autofahrt ODER Walking an ist.
+        if (!bridge.isDrivingEnabled() && !bridge.isWalkingEnabled()) {
+            Log.d(TAG, "Autofahrt- und Walking-Erkennung deaktiviert — Service beendet sich")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -275,6 +305,90 @@ class DriveDetectionService : Service() {
                 }
             }
         }
+
+        // M18.72: WANDERUNGS-ERKENNUNG (GPS-Pfad).
+        // Unabhängig von der Autofahrt-Erkennung: Der User kann gehen,
+        // während keine Fahrt aktiv ist. Nur wenn gerade keine andere
+        // Auto-Aufzeichnung läuft (nicht-überlappend, User-Spec).
+        if (!bridge.isWalkingActive() && !bridge.isDriveActive()) {
+            updateWalkingPhase(loc, now)
+        }
+    }
+
+    /**
+     * M18.72: Walking-Phase über Netto-Displacement verfolgen.
+     *
+     * Start: erster Fix mit ausreichender Genauigkeit (≤ 50 m). Bei jedem
+     * Fix wird die geradlinige Distanz zum Phasenstart gemessen. Sind
+     * ≥ 300 m erreicht UND die Engine-Schwelle (5 Minuten) erfüllt, wird
+     * die Wanderung gestartet (WalkingStartWorker prüft zusätzlich, dass
+     * nichts anderes aufzeichnet). Steht die Bewegung länger als
+     * 2 Minuten still, wird die Phase verworfen — der 5-Minuten-Zähler
+     * startet bei neuer Bewegung neu.
+     */
+    private fun updateWalkingPhase(loc: Location, now: Long) {
+        // Nur brauchbare Fixes zählen (gleiche Genauigkeits-Regel wie
+        // DriveDetectionEngine.MAX_ACCURACY_M).
+        if (loc.accuracy > 50f) return
+
+        if (walkingPhaseStartMs == 0L) {
+            walkingPhaseStartMs = now
+            walkPhaseStartLat = loc.latitude
+            walkPhaseStartLon = loc.longitude
+            walkLastLat = loc.latitude
+            walkLastLon = loc.longitude
+            return
+        }
+
+        val movedSinceLast = haversineMeters(
+            walkLastLat ?: loc.latitude, walkLastLon ?: loc.longitude,
+            loc.latitude, loc.longitude
+        )
+
+        // Lange Stillstand: Phase verwerfen (Bewegung war nur ein
+        // Raumwechsel / kurzer Weg).
+        if (now - walkingPhaseStartMs > WalkingDetectionEngine.WALKING_THRESHOLD_MS &&
+            movedSinceLast < 1.0
+        ) {
+            Log.d(TAG, "Walking-Phase verworfen (Stillstand > 5min)")
+            walkingPhaseStartMs = 0L
+            walkPhaseStartLat = null
+            walkPhaseStartLon = null
+            walkLastLat = null
+            walkLastLon = null
+            return
+        }
+        walkLastLat = loc.latitude
+        walkLastLon = loc.longitude
+
+        // Netto-Displacement vom Phasenstart.
+        val startLat = walkPhaseStartLat ?: return
+        val startLon = walkPhaseStartLon ?: return
+        val net = haversineMeters(startLat, startLon, loc.latitude, loc.longitude)
+        val duration = now - walkingPhaseStartMs
+
+        // Erst nach 5 Minuten prüfen (Engine-Schwelle) — aber die Phase
+        // läuft währenddessen weiter (Netto-Displacement wächst).
+        if (duration < WalkingDetectionEngine.WALKING_THRESHOLD_MS) return
+
+        if (net < WALKING_MIN_GPS_DISTANCE_M) {
+            // Noch nicht weit genug vom Start weg — z. B. Gehen im Park
+            // um den Block. Kein Start, aber Phase läuft weiter.
+            return
+        }
+
+        Log.d(TAG, "Wanderung erkannt (GPS-Displacement ${net.toInt()}m in ${duration / 1000}s) -> Start")
+        // Signal in die Bridge: Der WalkingStartWorker prüft die
+        // 5-Minuten-Schwelle und startet mit Vorlaufzeit.
+        bridge.markWalkingSignal(walkingPhaseStartMs)
+        // Walking-Phase zurücksetzen, damit ein späterer erneuter Start
+        // (nach dem Stopp) frisch beginnt.
+        walkingPhaseStartMs = 0L
+        walkPhaseStartLat = null
+        walkPhaseStartLon = null
+        walkLastLat = null
+        walkLastLon = null
+        WalkingStartWorker.schedule(this)
     }
 
     private fun hasLocationPermission(): Boolean =

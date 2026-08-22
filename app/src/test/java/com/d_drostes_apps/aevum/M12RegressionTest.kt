@@ -33,7 +33,9 @@ class M12RegressionTest {
         assertThat(com.d_drostes_apps.aevum.ui.screens.timeline.AUTO_SOURCES).containsExactly(
             "GEOFENCE_AUTO",
             "HEALTH_SLEEP_AUTO",
-            "ACTIVITY_RECOGNITION_AUTO"
+            "ACTIVITY_RECOGNITION_AUTO",
+            // M18.72: Wanderungen automatisch aufgezeichnet
+            "WALKING_AUTO"
         )
     }
 
