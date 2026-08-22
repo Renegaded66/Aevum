@@ -165,7 +165,17 @@ class LiveActivityManager @Inject constructor(
         // M12.1: optional trigger reference for auto-start traceability
         sourceTriggerId: String? = null
     ): ActivitySession {
-        liveSession.value?.let { existing -> forceFinish(existing) }
+        // M18.71: Überlappende Aktivitäten — die bestehende Live-Session
+        // wird NICHT mehr pauschal mit endAt=jetzt beendet (forceFinish),
+        // sondern nur im überlappenden Zeitraum überschrieben (Regeln a/b/c:
+        // kürzen, splitten, nie löschen). Das ist relevant, wenn die neue
+        // Aufzeichnung eine rückwirkende Startzeit hat (z. B. Screen-
+        // Aufzeichnung mit Vorlaufzeit M18.70): Die alte Session endet dann
+        // exakt am Start der neuen statt erst „jetzt".
+        val existingLive = liveSession.value
+        if (existingLive != null && existingLive.isLive) {
+            trimOverlappingForNewSession(existingLive, startedAt.coerceAtMost(System.currentTimeMillis()), System.currentTimeMillis())
+        }
 
         // M18.51 (User: "alles andere [als Schlaf] darf einen Lösch-Button
         // haben"): Wenn der User einen Auto-Typ (z. B. "Mobilität" oder einen
@@ -272,6 +282,55 @@ class LiveActivityManager @Inject constructor(
     /** M18.62-FIX: endAt für Finish-Pfade — bei PAUSED bleibt der Pause-Zeitpunkt. */
     private fun finishEndAt(session: ActivitySession, now: Long): Long =
         if (session.isPaused) session.endAt ?: now else now
+
+    /**
+     * M18.71: Überlappende Aktivitäten — nur die Überlappungszeit
+     * überschreiben (Regeln a/b/c: kürzen, splitten, nie löschen).
+     *
+     * Wird beim Start einer neuen Aufzeichnung auf die bisherige
+     * Live-Session angewendet. Die alte Session endet damit exakt am Start
+     * der neuen — bei rückwirkenden Startzeiten (z. B. Screen-Vorlauf
+     * M18.70) wird sie also bis zum neuen Start zurückgeschnitten statt
+     * bis „jetzt" laufen zu bleiben.
+     *
+     * Laufende Sessions werden zusätzlich auf FINISHED gesetzt (die neue
+     * Session ist ab sofort die einzige Live-Session); abgeschlossene
+     * (PAUSED) bleiben unverändert im Status.
+     */
+    private suspend fun trimOverlappingForNewSession(
+        existing: ActivitySession,
+        newStart: Long,
+        now: Long
+    ) {
+        val resolution = LiveActivityOverlapResolver.resolve(
+            existing = existing,
+            newStart = newStart,
+            newEnd = null, // neue Session läuft → Ende = now
+            now = now
+        )
+        // Keine Zeit-Überlappung (z. B. neue Session startet nach dem
+        // Pause-Ende einer PAUSED-Session)? Dann trotzdem die alte
+        // Live-Session beenden (wie vor M18.71 via forceFinish) — sonst
+        // gäbe es zwei Live-Sessions in der DB.
+        if (resolution.overwritten.isEmpty() && resolution.inserted.isEmpty()) {
+            forceFinish(existing)
+            return
+        }
+        resolution.overwritten.forEach { session ->
+            activityRepository.finishSession(
+                session.id,
+                session.endAt ?: now,
+                session.totalPausedMs,
+                session.pauseSegmentsJson
+            )
+        }
+        resolution.inserted.forEach { session ->
+            activityRepository.insert(session)
+        }
+        // Die alte Live-Session ist beendet — ein ausstehender Auto-Discard-
+        // Watchdog (Geofence) darf sie nicht mehr verwerfen.
+        cancelAutoDiscardForSession(existing.id)
+    }
 
     private suspend fun forceFinish(session: ActivitySession) {
         val now = System.currentTimeMillis()
