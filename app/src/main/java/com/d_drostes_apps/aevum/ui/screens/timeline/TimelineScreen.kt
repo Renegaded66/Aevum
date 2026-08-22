@@ -317,7 +317,11 @@ fun ActivityEditorScreen(
                     onSnapStart = viewModel::snapStartTo,
                     onSnapEnd = viewModel::snapEndTo,
                     openEnded = state.form.endAt == null,
-                    onOpenEndedChange = viewModel::setOpenEnded
+                    onOpenEndedChange = viewModel::setOpenEnded,
+                    durationOnly = state.form.durationOnlyMinutes != null,
+                    durationOnlyMinutes = state.form.durationOnlyMinutes,
+                    onDurationOnlyModeChange = viewModel::setDurationOnlyMode,
+                    onDurationOnlyMinutesChange = viewModel::setDurationOnly
                 )
             }
             item { ValidationCard(state.validation, state.form.errorMessage) }
@@ -336,6 +340,8 @@ fun ActivityDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var confirmDelete by remember { mutableStateOf(false) }
+    // R20-v2: Güte-Anpassungs-Dialog
+    var showQualityDialog by remember { mutableStateOf(false) }
     LaunchedEffect(state.deleted) { if (state.deleted) onBack() }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         val session = state.session
@@ -392,9 +398,15 @@ fun ActivityDetailScreen(
                     }
                 }
 
-                // Bearbeiten / Loeschen Buttons am Ende
+                // Bearbeiten / Güte / Loeschen Buttons am Ende
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        // R20-v2: Güte anpassen — sichtbarer Button statt nur Lang-Druck
+                        OutlinedButton(
+                            onClick = { showQualityDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = AevumSpacing.md)
+                        ) { Text("Güte anpassen ${if (session.manualQualityOverride != null) "✎" else ""}", fontSize = 16.sp) }
                         Button(
                             onClick = { onEdit(session.id) },
                             modifier = Modifier.fillMaxWidth(),
@@ -425,6 +437,23 @@ fun ActivityDetailScreen(
             confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.delete() }) { Text("Loeschen") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } }
         )
+    }
+    // R20-v2: Güte-Anpassungs-Dialog im Detail-Screen
+    if (showQualityDialog) {
+        val session = state.session
+        if (session != null) {
+            QualityOverrideDialog(
+                title = "Güte anpassen",
+                message = "„${session.title}“ — wie wertvoll war diese Aufzeichnung?",
+                initialScore = session.manualQualityOverride ?: state.activityType?.positivityScore ?: 50,
+                hasOverride = session.manualQualityOverride != null,
+                onDismiss = { showQualityDialog = false },
+                onSave = { score ->
+                    viewModel.setQualityOverride(score)
+                    showQualityDialog = false
+                }
+            )
+        }
     }
 }
 
@@ -2554,11 +2583,12 @@ private fun VisualTimeEditorCard(
     onEndQuarter: (Int) -> Unit,
     onSnapStart: (TriggerEventMarker) -> Unit,
     onSnapEnd: (TriggerEventMarker) -> Unit,
-    // M18.66-FIX17: "Ende offen"-Modus — endAt = null → Session läuft
-    // ab Startzeit weiter. Schalter zwischen "Endzeit" und "Ende offen";
-    // bei "Ende offen" wird der Endzeit-Picker ausgeblendet.
     openEnded: Boolean,
-    onOpenEndedChange: (Boolean) -> Unit
+    onOpenEndedChange: (Boolean) -> Unit,
+    durationOnly: Boolean = false,
+    durationOnlyMinutes: Int? = null,
+    onDurationOnlyModeChange: (Boolean) -> Unit = {},
+    onDurationOnlyMinutesChange: (Int) -> Unit = {}
 ) {
     val zone = ZoneId.systemDefault()
     val start = Instant.ofEpochMilli(state.form.startAt).atZone(zone).toLocalTime()
@@ -2575,14 +2605,21 @@ private fun VisualTimeEditorCard(
                     Text("Uhr antippen & drehen · Snap 5 min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(
-                    if (openEnded) "läuft weiter…" else state.duration,
-                    color = if (openEnded) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                    when {
+                        durationOnly -> "${durationOnlyMinutes ?: 60} min"
+                        openEnded -> "läuft weiter…"
+                        else -> state.duration
+                    },
+                    color = when {
+                        durationOnly -> MaterialTheme.colorScheme.tertiary
+                        openEnded -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.secondary
+                    },
                     fontFamily = FontFamily.Monospace,
                     fontSize = 18.sp
                 )
             }
-            // M18.66-FIX17: Schalter "Endzeit" / "Ende offen" (Segment-UI,
-            // konsistent mit dem Quick-Create-Dialog).
+            // R20-v2: Drei-Wege-Schalter
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2593,67 +2630,108 @@ private fun VisualTimeEditorCard(
             ) {
                 SegmentButton(
                     label = "Mit Endzeit",
-                    selected = !openEnded,
+                    selected = !openEnded && !durationOnly,
                     modifier = Modifier.weight(1f)
-                ) { onOpenEndedChange(false) }
+                ) { onOpenEndedChange(false); onDurationOnlyModeChange(false) }
                 SegmentButton(
                     label = "● Ende offen",
-                    selected = openEnded,
+                    selected = openEnded && !durationOnly,
                     modifier = Modifier.weight(1f)
-                ) { onOpenEndedChange(true) }
+                ) { onOpenEndedChange(true); onDurationOnlyModeChange(false) }
+                SegmentButton(
+                    label = "⏱ Nur Dauer",
+                    selected = durationOnly,
+                    modifier = Modifier.weight(1f)
+                ) { onDurationOnlyModeChange(true); onOpenEndedChange(false) }
             }
-            // M18.44-REDESIGN (User: "statt +15/−60 Buttons einfach Uhrzeit-
-            // Picker, richtig fancy"): Die 380dp-Drag-Rail mit den Bump-
-            // Chips (−h/+h/−15/+15) ist ersetzt durch ZWEI analoge
-            // AevumTimePicker-Uhren (Start = Sonnengold, Ende = Primary).
-            // Die Uhren haben einen 5-Minuten-Snap, eine digitale
-            // Anzeige zum Antippen (Stunde/Minute direkt waehlen) und
-            // +/− Tasten fuer Feintuning — alles ohne Standard-Library.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
-                verticalAlignment = Alignment.Top
-            ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    AevumTimePicker(
-                        initialHour = start.hour,
-                        initialMinute = start.minute,
-                        accent = Color(0xFFF5A623),
-                        onTimeChange = { h, m ->
-                            onStartHour(h)
-                            onStartQuarter(m)
-                        },
-                        label = "START",
-                        showDigitalDisplay = true
+            if (durationOnly) {
+                // R20-v2: "Nur Dauer"-Eingabe
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                    Text(
+                        "Nur Dauer erfassen — erscheint in der Tagesstatistik, nicht in der Timeline.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val mins = durationOnlyMinutes ?: 60
+                    val hours = mins / 60
+                    val minutes = mins % 60
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Stunden", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { onDurationOnlyMinutesChange(((hours - 1).coerceAtLeast(0)) * 60 + minutes) }) { Text("−") }
+                                Text("$hours", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                OutlinedButton(onClick = { onDurationOnlyMinutesChange(((hours + 1).coerceAtMost(23)) * 60 + minutes) }) { Text("+") }
+                            }
+                        }
+                        Text(":", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Minuten", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val step = 5
+                                OutlinedButton(onClick = { onDurationOnlyMinutesChange(hours * 60 + ((minutes - step).coerceAtLeast(0) / step * step)) }) { Text("−") }
+                                Text("${minutes.toString().padStart(2, '0')}", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                OutlinedButton(onClick = { onDurationOnlyMinutesChange(hours * 60 + ((minutes + step).coerceAtMost(59) / step * step)) }) { Text("+") }
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(15, 30, 60, 90, 120).forEach { quick ->
+                            AssistChip(
+                                onClick = { onDurationOnlyMinutesChange(quick) },
+                                label = { Text(if (quick >= 60) "${quick / 60}h${if (quick % 60 > 0) " ${quick % 60}m" else ""}" else "${quick}m") }
+                            )
+                        }
+                    }
                 }
-                // M18.66-FIX17: Endzeit-Picker nur bei "Mit Endzeit".
-                if (!openEnded) {
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+                    verticalAlignment = Alignment.Top
+                ) {
                     Box(modifier = Modifier.weight(1f)) {
                         AevumTimePicker(
-                            initialHour = end.hour,
-                            initialMinute = end.minute,
-                            accent = MaterialTheme.colorScheme.primary,
+                            initialHour = start.hour,
+                            initialMinute = start.minute,
+                            accent = Color(0xFFF5A623),
                             onTimeChange = { h, m ->
-                                onEndHour(h)
-                                onEndQuarter(m)
+                                onStartHour(h)
+                                onStartQuarter(m)
                             },
-                            label = "ENDE",
+                            label = "START",
                             showDigitalDisplay = true
                         )
                     }
+                    if (!openEnded) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            AevumTimePicker(
+                                initialHour = end.hour,
+                                initialMinute = end.minute,
+                                accent = MaterialTheme.colorScheme.primary,
+                                onTimeChange = { h, m ->
+                                    onEndHour(h)
+                                    onEndQuarter(m)
+                                },
+                                label = "ENDE",
+                                showDigitalDisplay = true
+                            )
+                        }
+                    }
+                }
+                if (openEnded) {
+                    Text(
+                        "Die Aufzeichnung startet ab ${TimeFormatting.formatTime(state.form.startAt)} und läuft weiter, bis du sie manuell beendest.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-            if (openEnded) {
-                Text(
-                    "Die Aufzeichnung startet ab ${TimeFormatting.formatTime(state.form.startAt)} und läuft weiter, bis du sie manuell beendest.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            // M18.44: Trigger-Snap bleibt als dezente Quick-Action erhalten —
-            // ein Tap setzt Start/Ende exakt auf den Trigger-Zeitpunkt.
-            if (state.triggerMarkers.isNotEmpty()) {
+            if (state.triggerMarkers.isNotEmpty() && !durationOnly) {
                 TriggerSnapRow(state.triggerMarkers, onSnapStart, onSnapEnd)
             }
         }

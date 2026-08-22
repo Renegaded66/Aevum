@@ -74,7 +74,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // (Bildschirm-Aufzeichnung: 0..10 = Vorlauf in Minuten, -1 = deaktiviert).
     // AEVUM-3: v37 — activity_session.manual_quality_override (manuelle
     // Güte-Anpassung pro Aufzeichnung, nullable 0..100; null = automatisch).
-    version = 37,
+    version = 38,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1401,6 +1401,16 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "ALTER TABLE `activity_session` ADD COLUMN `manual_quality_override` INTEGER"
+                )
+            }
+        }
+
+        // R20-v2: "Nur Dauer"-Modus — Session wird in der Statistik berücksichtigt
+        // aber nicht in der Timeline angezeigt.
+        val MIGRATION_37_38 = object : Migration(37, 38) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `activity_session` ADD COLUMN `exclude_from_timeline` INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

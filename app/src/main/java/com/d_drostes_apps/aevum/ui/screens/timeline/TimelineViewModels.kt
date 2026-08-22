@@ -385,7 +385,7 @@ class TimelineViewModel @Inject constructor(
         // bei "jetzt" — sie darf nur an Tagen ≤ heute erscheinen.
         val nowMs = System.currentTimeMillis()
         val filteredSessions = allSessions
-            .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+            .filter { it.deletedAt == null && !it.excludeFromTimeline && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
             .sortedBy { it.startAt }
 
         // M16.5: Pro Session den sichtbaren Tagesausschnitt berechnen.
@@ -547,7 +547,7 @@ class TimelineViewModel @Inject constructor(
             val dayStart = TimeFormatting.startOfDayMillis(day, zoneId)
             val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
             val daySessions = allSessions
-                .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+                .filter { it.deletedAt == null && !it.excludeFromTimeline && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
                 .sortedBy { it.startAt }
             val rows = daySessions.map { session ->
                 val clippedStart = maxOf(session.startAt, dayStart)
@@ -688,9 +688,35 @@ class ActivityEditorViewModel @Inject constructor(
     // UseCase/Validator unterstützt null bereits; nur die UI fehlte.
     fun setOpenEnded(open: Boolean) = form.update { current ->
         if (open) {
-            current.copy(endAt = null)
+            current.copy(endAt = null, durationOnlyMinutes = null, excludeFromTimeline = false)
         } else {
-            current.copy(endAt = (current.endAt ?: current.startAt + ONE_HOUR))
+            current.copy(endAt = (current.endAt ?: current.startAt + ONE_HOUR), durationOnlyMinutes = null, excludeFromTimeline = false)
+        }
+    }
+    // R20-v2: "Nur Dauer"-Modus — keine Uhrzeit, nur eine Dauer.
+    // Die Session wird mit startAt=Tagesbeginn gespeichert und in der
+    // Statistik berücksichtigt, aber nicht in der Timeline angezeigt.
+    fun setDurationOnly(minutes: Int) = form.update { current ->
+        current.copy(
+            durationOnlyMinutes = minutes.coerceAtLeast(1),
+            excludeFromTimeline = true,
+            // startAt = Tagesbeginn des gewählten Datums, endAt = startAt + dauer
+            startAt = TimeFormatting.startOfDayMillis(current.date, zoneId),
+            endAt = TimeFormatting.startOfDayMillis(current.date, zoneId) + minutes * 60_000L
+        )
+    }
+    fun setDurationOnlyMode(enabled: Boolean) = form.update { current ->
+        if (enabled) {
+            current.copy(
+                durationOnlyMinutes = current.durationOnlyMinutes ?: 60,
+                excludeFromTimeline = true
+            )
+        } else {
+            current.copy(
+                durationOnlyMinutes = null,
+                excludeFromTimeline = false,
+                endAt = current.startAt + ONE_HOUR
+            )
         }
     }
     fun setStartMinuteOfDay(value: Int) = form.update { current ->
@@ -735,7 +761,8 @@ class ActivityEditorViewModel @Inject constructor(
                         startAt = state.form.startAt,
                         endAt = state.form.endAt,
                         timezoneId = zoneId.id,
-                        description = state.form.description
+                        description = state.form.description,
+                        excludeFromTimeline = state.form.excludeFromTimeline
                     )
                 )) {
                     is SaveManualActivityResult.Success -> savedId.value = result.sessionId
@@ -856,6 +883,13 @@ class ActivityDetailViewModel @Inject constructor(
         viewModelScope.launch {
             activityRepository.softDelete(sessionId, System.currentTimeMillis())
             deleted.value = true
+        }
+    }
+
+    // R20-v2: Güte-Override für diese Session setzen/entfernen
+    fun setQualityOverride(score: Int?) {
+        viewModelScope.launch {
+            activityRepository.setManualQualityOverride(sessionId, score?.coerceIn(0, 100))
         }
     }
 }
@@ -996,7 +1030,12 @@ data class ActivityEditorForm(
     val startAt: Long = System.currentTimeMillis(),
     val endAt: Long? = System.currentTimeMillis() + 60 * 60 * 1000,
     val date: LocalDate = LocalDate.now(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // R20-v2: "Nur Dauer"-Modus — statt Start/Ende nur eine Dauer eingeben.
+    // Die Session wird mit startAt=Tagesbeginn, endAt=startAt+dauer gespeichert
+    // und excludeFromTimeline=true → erscheint in der Statistik, nicht in der Timeline.
+    val durationOnlyMinutes: Int? = null,
+    val excludeFromTimeline: Boolean = false
 )
 
 data class ActivityEditorUiState(

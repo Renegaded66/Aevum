@@ -71,7 +71,8 @@ class SaveManualActivityUseCase @Inject constructor(
                 isUserEdited = false,
                 createdAt = now,
                 updatedAt = now,
-                revision = 1
+                revision = 1,
+                excludeFromTimeline = request.excludeFromTimeline
             )
         } else {
             existing.copy(
@@ -122,7 +123,8 @@ data class ManualActivityRequest(
     val startAt: Long,
     val endAt: Long?,
     val timezoneId: String,
-    val description: String
+    val description: String,
+    val excludeFromTimeline: Boolean = false
 )
 
 sealed class SaveManualActivityResult {
