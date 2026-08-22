@@ -23,15 +23,18 @@ package com.d_drostes_apps.aevum.automation.activityrecognition
 object DriveDetectionEngine {
 
     // ── Schwellen (in m/s) ──────────────────────────────────────────
-    /** Auto-Schwelle: ~32 km/h. M18.66-FIX12 hatte 8→10 m/s gesetzt
-     *  (36 km/h), M18.68 senkt auf 9 m/s (32,4 km/h): 36 km/h ist für
-     *  städtische Fahrten zu streng (45er-Zonen = 11,1 m/s, 50er mit
-     *  Ampel-Phasen). 9 m/s bleibt ÜBER dem schnellen Radfahr-Bereich
-     *  (8–9 m/s = 29–32 km/h, den FIX12 bewusst ausschloss — der darf
-     *  nicht zurückkommen) und über Lauf-Tempo (~5 m/s). GPS-Drift-
-     *  False-Positives fängt weiterhin das Netto-Displacement-Gate
-     *  (≥ 200 m) ab, einzelne Sprünge die 5er-Konsekutiv-Kette. */
-    const val AUTO_SPEED_MPS = 9.0f
+    /** Auto-Schwelle: ~28,8 km/h. M18.66-FIX12 hatte 8→10 m/s gesetzt
+     *  (36 km/h), M18.68 senkt auf 9 m/s (32,4 km/h), M18.71 senkt auf
+     *  8 m/s: 30er-Zonen (8,3 m/s = 30 km/h) sind in Deutschland die
+     *  häufigste Stadt-Geschwindigkeit — mit 9 m/s wurde dort NIE eine
+     *  Fahrt erkannt (User: „keine Autofahrten mehr aufgezeichnet").
+     *  8 m/s bleibt ÜBER dem normalen Radfahr-Bereich (15-25 km/h =
+     *  4-7 m/s; nur Rennrad-Sprints erreichen 8+ m/s, und die scheitern
+     *  an der Konsekutiv-Kette + Netto-Displacement-Gate) und weit über
+     *  Lauf-Tempo (~5 m/s). GPS-Drift-False-Positives fängt weiterhin
+     *  das Netto-Displacement-Gate (≥ 150 m) ab, einzelne Sprünge die
+     *  Konsekutiv-Kette. */
+    const val AUTO_SPEED_MPS = 8.0f
     /** Unter dieser Geschwindigkeit ist es nie eine Fahrt (Gehen/Laufen). */
     const val WALK_RUN_MAX_MPS = 5.5f
     /** GPS-Ausreißer: > 144 km/h ist kein reales Fahrzeug-Tempo. */
@@ -41,8 +44,13 @@ object DriveDetectionEngine {
      *  und springt um 10-20m — das erzeugte False-Positive-Fahrten,
      *  weil die Distanz den Heartbeat refreshte obwohl der User still
      *  sitzt. 30m ist streng genug, um Indoor-Fixes zu verwerfen, aber
-     *  großzügig genug für echtes Auto-GPS (meist < 10m). */
-    const val MAX_ACCURACY_M = 30f
+     *  großzügig genug für echtes Auto-GPS (meist < 10m).
+     *  M18.71: 30m -> 50m. In Stadt-Canyons (Häuserschluchten) und bei
+     *  bewölktem Himmel liefert GPS oft 30-50m Genauigkeit — mit 30m
+     *  wurden dort fast alle Probes verworfen und die Fahrt nie erkannt.
+     *  50m verwirft weiterhin Indoor-GPS (50-100m), erfasst aber echte
+     *  Stadtfahrten. */
+    const val MAX_ACCURACY_M = 50f
     /** Probes älter als 15 Minuten gehören zu einer früheren Fahrt. */
     const val MAX_PROBE_AGE_MS = 15L * 60 * 1000
     /** Mindestanzahl gültiger Probes für eine Entscheidung. */
@@ -53,13 +61,21 @@ object DriveDetectionEngine {
      *  5s-Intervall = 25s kontinuierlich >= 32 km/h. Das ist robust
      *  gegen GPS-Bursts und schnelles Radfahren. False-Negative-Risiko
      *  minimal: eine echte Autofahrt hat immer 5+ aufeinanderfolgende
-     *  Probes >= 9 m/s. */
-    const val MIN_CONSECUTIVE_FAST = 5
-    /** Probes müssen über mindestens 2 Minuten verteilt sein.
+     *  Probes >= 9 m/s.
+     *  M18.71: 5 -> 4. Nach einer Ampel-Phase (30-60s Stillstand) muss
+     *  die Kette neu aufgebaut werden — 5 schnelle Probes = 25s
+     *  Beschleunigung in der Stadt sind oft nicht drin (kurze Grün-
+     *  Phasen, Stop&Go). 4 Probes = 20s kontinuierlich >= 28,8 km/h
+     *  bleibt robust gegen einzelne GPS-Bursts. */
+    const val MIN_CONSECUTIVE_FAST = 4
+    /** Probes müssen über mindestens 90 Sekunden verteilt sein.
      *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
      *  geschwindigkeit innerhalb von 2 Minuten über 25 km/h". Das
-     *  filtert kurze GPS-Bursts zuverlässig heraus. */
-    const val MIN_SPREAD_MS = 120_000L
+     *  filtert kurze GPS-Bursts zuverlässig heraus.
+     *  M18.71: 2 Min -> 90s. Die Erkennung soll schneller ansprechen
+     *  (sensibler); 90s Verteilung filtert Bursts weiterhin zuverlässig
+     *  (18 Probes bei 5s-Intervall). */
+    const val MIN_SPREAD_MS = 90_000L
     /** GPS-Sprung > 2 km zwischen zwei Probes (< 60s auseinander) ist
      *  ein Ausreißer (Tunnel-Sprung, Sensorfehler). */
     const val JUMP_OUTLIER_M = 2000.0
@@ -74,8 +90,12 @@ object DriveDetectionEngine {
      *  "GPS is deliberately not activated while the driver is not moving
      *  or before a trip is confirmed" — wir nutzen die Netto-Displacement
      *  als Bestätigung, dass sich der User BEWEGT HAT, nicht nur dass
-     *  GPS Speed meldet. */
-    const val MIN_NET_DISPLACEMENT_M = 200.0
+     *  GPS Speed meldet.
+     *  M18.71: 200m -> 150m. Kurze Stadtfahrten (Supermarkt, Kita,
+     *  Stop&Go mit viel Wartezeit) legen in 90s Fenster oft nur
+     *  150-250m Netto-Distanz zurück. 150m bleibt weit über der
+     *  Indoor-Drift (10-50m) und filtert Stillstand weiterhin ab. */
+    const val MIN_NET_DISPLACEMENT_M = 150.0
 
     /** Ein einzelner Geschwindigkeits-Probe. */
     data class DriveProbe(
@@ -105,7 +125,7 @@ object DriveDetectionEngine {
      * Klassifiziert eine Probe-Serie.
      *
      * Ablauf:
-     *  1. Alte Probes (> 15 Min) und ungenaue Fixes (> 120 m) verwerfen.
+     *  1. Alte Probes (> 15 Min) und ungenaue Fixes (> 50 m) verwerfen.
      *  2. Einzelne Geschwindigkeits-Ausreißer (> 40 m/s) verwerfen.
      *  3. GPS-Sprung-Ausreißer (> 2 km in < 60 s) verwerfen.
      *  4. Fahrt = mindestens [MIN_CONSECUTIVE_FAST] aufeinanderfolgende
@@ -205,8 +225,16 @@ object DriveDetectionEngine {
         // Displacement ≥ 200 m nicht. Der False-Positive-Schutz bleibt
         // damit intakt (Netto-Displacement-Gate ist der eigentliche
         // Stillstands-Filter), die False-Negatives sind behoben.
+        //
+        // M18.71 (sensibler): avgSpeed 6 → 5 m/s (18 km/h). Mit der
+        // 4er-Kette (>= 8 m/s) und dem 90s-Fenster ist der Durchschnitt
+        // einer echten Stadtfahrt mit Ampel-Phasen oft nur 5-6 m/s.
+        // 5 m/s bleibt über Geh-Tempo (1,5 m/s) und über dem Schnitt
+        // einer Radfahrt mit 4 schnellen Spikes (4×8 + 4×2 = 40/8 = 5 —
+        // die scheitert aber an der Konsekutiv-Kette, weil Radfahrer
+        // 8 m/s nicht 20s am Stück halten) und am Netto-Displacement.
         val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST &&
-            avgSpeed >= 6.0f && fastCount >= MIN_CONSECUTIVE_FAST
+            avgSpeed >= 5.0f && fastCount >= MIN_CONSECUTIVE_FAST
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau

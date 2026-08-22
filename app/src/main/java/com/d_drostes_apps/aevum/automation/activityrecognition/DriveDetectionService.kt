@@ -74,7 +74,11 @@ class DriveDetectionService : Service() {
      *  Satelliten und springt. Das ist exakt das "5 Minuten nach Update"-
      *  Muster: Service startet nach App-Update neu → Kaltstart → falsche
      *  Speed-Werte → False-Positive. 90s deckt den typischen Kaltstart
-     *  ab (Assisted GPS: 20-60s, Cold GPS: 60-120s). */
+     *  ab (Assisted GPS: 20-60s, Cold GPS: 60-120s).
+     *  M18.71: 90s -> 60s. Die Erkennung soll sensibler/schneller
+     *  ansprechen; Assisted GPS liefert nach 20-60s brauchbare Fixes.
+     *  Die False-Positive-Abwehr übernimmt weiterhin das Netto-
+     *  Displacement-Gate (≥ 150 m) in der Engine. */
     private var serviceStartMs: Long = 0L
 
     companion object {
@@ -88,6 +92,8 @@ class DriveDetectionService : Service() {
         /** Mindest-Bewegung zwischen zwei Probes (5s Abstand), die als
          *  "Fahrt lebt" zählt (~7 km/h — deckt Stadtverkehr/Stau ab). */
         private const val MIN_PROBE_MOVEMENT_M = 10.0
+        /** M18.71: GPS-Kaltstart-Warmup verkürzt (90s -> 60s). */
+        private const val GPS_WARMUP_MS = 60_000L
 
         fun start(context: Context) {
             val intent = Intent(context, DriveDetectionService::class.java)
@@ -177,7 +183,7 @@ class DriveDetectionService : Service() {
         val now = System.currentTimeMillis()
 
         // M18.66-FIX13: GPS-KALTSTART-WARMUP.
-        // Die ersten 90 Sekunden nach Service-Start werden ignoriert.
+        // Die ersten 60 Sekunden nach Service-Start werden ignoriert.
         // In dieser Phase liefert FusedLocationProvider oft falsche
         // Speed-Werte (10-30 m/s trotz Stillstand) — der Empfänger
         // sucht Satelliten, position springt, speed wird aus der
@@ -185,7 +191,7 @@ class DriveDetectionService : Service() {
         // Update"-Muster: App-Update → Service-Neustart → Kaltstart.
         // Probes werden in dieser Zeit NICHT gepuffert → Engine kann
         // sie nicht fälschlich auswerten.
-        if (serviceStartMs == 0L || now - serviceStartMs < 90_000L) {
+        if (serviceStartMs == 0L || now - serviceStartMs < GPS_WARMUP_MS) {
             Log.d(TAG, "GPS-Warmup (Kaltstart) — Probe ignoriert (${(now - serviceStartMs) / 1000}s)")
             return
         }
@@ -221,15 +227,19 @@ class DriveDetectionService : Service() {
         // stoppt die Fahrt nach 5 Min (User: "hört oft nach 5 Minuten auf").
         // Jetzt: Einmal Driving → kontinuierlich am Leben, bis speed
         // wirklich < 1 m/s ist (Ampel/Stop-and-Go zählt nicht als Stop).
-        val isReliableFix = accuracy <= 30f
+        val isReliableFix = accuracy <= 50f
         bridge.addDriveProbe(probe, refreshHeartbeat = false)
 
-        if (bridge.isDriveActive() && speed != null && speed >= 3.0f) {
+        if (bridge.isDriveActive() && speed != null && speed >= 2.0f) {
             // M18.67-FIX4: Schwelle von 1.0 → 3.0 m/s (10,8 km/h).
             // Vorher: Gehen (1,0-1,5 m/s) refreshte den Heartbeat →
             // 3 h zu Fuß = 4 h Autofahrt (User-Bug). 3 m/s schließt
             // Gehen aus, erfasst aber Stadtverkehr (5-15 m/s).
             // Ampel-Phasen (speed=0 für <5 Min) deckt der Watchdog.
+            // M18.71: 3.0 -> 2.0 m/s (7,2 km/h). Stop&Go-Stadtverkehr
+            // (Kriech-Tempo 5-10 km/h) fällt sonst unter die Schwelle
+            // und der Watchdog stoppt die Fahrt nach 5 Min, obwohl sie
+            // weiterläuft. 2 m/s bleibt über Geh-Tempo (1,0-1,5 m/s).
             bridge.refreshDriveHeartbeat(now)
             DriveWatchdogWorker.schedule(this)
         }

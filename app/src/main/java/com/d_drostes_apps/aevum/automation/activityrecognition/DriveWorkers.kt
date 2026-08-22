@@ -94,9 +94,9 @@ class DriveStartWorker(
         //   a) GPS-bestätigt (markDriveConfirmed von DriveProbeWorker/
         //      InitialActivitySnapshotWorker), ODER
         //   b) die aktuellen GPS-Probes des DriveDetectionService
-        //      klassifizieren als Driving (alle FIX13-Gates: Warmup,
-        //      Netto-Displacement ≥ 200m, 5 konsekutive ≥ 10 m/s,
-        //      avgSpeed ≥ 9 m/s).
+        //      klassifizieren als Driving (alle Gates: Warmup,
+        //      Netto-Displacement ≥ 150m, 4 konsekutive ≥ 8 m/s,
+        //      avgSpeed ≥ 5 m/s — M18.71 sensibler).
         // Beides zusammen deckt ab: echte Fahrten starten über den
         // GPS-Stream (der die Gates hat), AR-False-Positives starten
         // nichts mehr.

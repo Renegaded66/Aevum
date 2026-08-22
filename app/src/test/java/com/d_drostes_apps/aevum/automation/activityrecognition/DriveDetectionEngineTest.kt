@@ -292,4 +292,55 @@ class DriveDetectionEngineTest {
         val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
+
+    // ── M18.71: Sensiblere Schwellen ──────────────────────────────
+
+    @Test
+    fun `30er-Zone Stadtfahrt wird erkannt — 8 ms Schwelle`() {
+        // 30 km/h = 8,3 m/s: Die häufigste Stadt-Geschwindigkeit. Mit der
+        // alten 9-m/s-Schwelle wurde diese Fahrt NIE erkannt (User-Bug).
+        val probes = listOf(
+            probe(0, 8.3f), probe(1, 8.5f), probe(2, 8.2f), probe(3, 8.4f)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 4 * 120_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `vier konsekutive schnelle Probes reichen — 4er-Kette`() {
+        // M18.71: MIN_CONSECUTIVE_FAST 5 -> 4. Nach einer Ampel-Phase
+        // (30-60s Stillstand) muss die Kette neu aufgebaut werden.
+        val probes = listOf(
+            probe(0, 9.0f), probe(1, 9.5f), probe(2, 9.2f), probe(3, 9.4f)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 4 * 120_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Genauigkeit bis 50m wird akzeptiert — Stadt-Canyon`() {
+        // M18.71: MAX_ACCURACY_M 30 -> 50m. In Häuserschluchten liefert
+        // GPS oft 30-50m Genauigkeit — vorher wurden alle Probes verworfen.
+        val probes = listOf(
+            probe(0, 12.0f, accuracy = 45f),
+            probe(1, 13.0f, accuracy = 48f),
+            probe(2, 12.5f, accuracy = 42f),
+            probe(3, 13.5f, accuracy = 47f)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 4 * 120_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Radfahrer mit kurzen Spikes wird NICHT als Auto erkannt`() {
+        // 8,5 m/s-Spikes, aber nie konsekutiv (dazwischen 5 m/s) —
+        // die 4er-Kette bricht. Netto-Displacement wäre erfüllt, aber
+        // die Kette ist das harte Gate.
+        val probes = listOf(
+            probe(0, 8.5f), probe(1, 5.0f), probe(2, 8.5f),
+            probe(3, 5.0f), probe(4, 8.5f), probe(5, 5.0f)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
 }

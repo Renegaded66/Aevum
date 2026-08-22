@@ -9,7 +9,11 @@ package com.d_drostes_apps.aevum.automation.screen
  *    mit x Minuten Vorlaufzeit (startedAt = now − x min).
  *  - x = 0 → sofort bei Screen-ON starten (ohne Vorlauf).
  *  - x = -1 (DEACTIVATED) → nie automatisch starten.
- *  - Screen-OFF → Aufzeichnung IMMER stoppen (unabhängig von x).
+ *  - Screen-OFF → Aufzeichnung erst stoppen, wenn der Screen
+ *    [SCREEN_OFF_STOP_DELAY_MS] (30 s) am Stück aus war — nicht sofort.
+ *    (M18.71: Der User schaltet den Screen oft nur kurz aus, z. B. um
+ *    das Handy in die Tasche zu stecken oder einen Anruf anzunehmen —
+ *    die Digital-Aufzeichnung soll dann weiterlaufen.)
  *
  * Bewusst als pure Funktionen — unit-testbar ohne Android.
  */
@@ -17,6 +21,11 @@ object ScreenRecordingEngine {
 
     /** Slider-Endwert: ganz rechts = deaktiviert. */
     const val DEACTIVATED = -1
+
+    /** M18.71: Screen-OFF muss 30 s am Stück dauern, bevor die
+     *  Digital-Aufzeichnung gestoppt wird. Kurzes Ausschalten
+     *  (Tasche, Anruf) unterbricht die Aufzeichnung nicht. */
+    const val SCREEN_OFF_STOP_DELAY_MS = 30_000L
 
     /** Slider-Maximum (Minuten). Werte 0..MAX, MAX = deaktiviert. */
     const val SLIDER_MAX = 10
@@ -61,6 +70,19 @@ object ScreenRecordingEngine {
         return now - minutes * 60_000L
     }
 
-    /** Screen-OFF stoppt die Aufzeichnung IMMER (unabhängig von x). */
-    fun shouldStopOnScreenOff(): Boolean = true
+    /**
+     * M18.71: Soll die Screen-Aufzeichnung wegen Screen-OFF gestoppt werden?
+     *
+     * Der Screen muss [SCREEN_OFF_STOP_DELAY_MS] (30 s) am Stück aus sein,
+     * bevor die Digital-Aufzeichnung beendet wird. Kurzes Ausschalten
+     * (Tasche, Anruf, Display-Taste) unterbricht die Aufzeichnung nicht.
+     *
+     * @param screenOffSinceMs Zeitpunkt des letzten Screen-OFF
+     *        (System.currentTimeMillis), 0 wenn der Screen noch an ist
+     * @param now aktuelle Zeit
+     */
+    fun shouldStopOnScreenOff(screenOffSinceMs: Long, now: Long): Boolean {
+        if (screenOffSinceMs <= 0L) return false
+        return now - screenOffSinceMs >= SCREEN_OFF_STOP_DELAY_MS
+    }
 }
