@@ -61,6 +61,9 @@ class TimelineViewModel @Inject constructor(
 ) : ViewModel() {
     // M18.44: Als Property gehalten, damit Quick-Create die Aktivität laden kann.
     private val activityTypeRepository: ActivityTypeRepository = activityTypeRepository
+    // M18.74: Als Property gehalten, damit der New-Recording-Dialog die
+    // Aktivitäten nach Kategorien gruppieren kann.
+    private val categoryRepository: CategoryRepository = categoryRepository
     private val zoneId = ZoneId.systemDefault()
     private val selectedDate = MutableStateFlow(
         savedStateHandle.get<Long>("date")
@@ -120,7 +123,13 @@ class TimelineViewModel @Inject constructor(
             emptyMap()
         }
         buildTimelineState(base.date, base.sessions, base.candidates, base.triggers, categories, types)
-            .copy(pixelsPerHour = pph, weekSessions = weekSessions)
+            .copy(
+                pixelsPerHour = pph,
+                weekSessions = weekSessions,
+                // M18.74: Aktivitäten nach Kategorie gruppiert, für den
+                // New-Recording-Dialog (Plus-Button).
+                activityGroups = groupedActivities(categories, types)
+            )
     }
         .catch { e ->
             Log.e("TimelineViewModel", "uiState combine() failed — emitting default state", e)
@@ -300,10 +309,19 @@ class TimelineViewModel @Inject constructor(
         _newRecordingForm.update { it.copy(endMinute = minute.coerceIn(0, 59)) }
     fun setNewRecordingDurationMinutes(minutes: Int) =
         _newRecordingForm.update { it.copy(durationMinutes = minutes.coerceIn(1, 24 * 60)) }
-    fun setNewRecordingTitle(value: String) =
-        _newRecordingForm.update { it.copy(title = value) }
     fun setNewRecordingActivityType(type: ActivityType) =
-        _newRecordingForm.update { it.copy(activityTypeId = type.id, title = it.title.ifBlank { type.name }) }
+        _newRecordingForm.update { it.copy(activityTypeId = type.id) }
+
+    /**
+     * M18.74: Aktivitäten nach Kategorie gruppiert, für den New-Recording-Dialog.
+     * Reine Funktion — bewusst ohne ViewModel-Zustand, damit sie im Unit-Test
+     * prüfbar bleibt. Sortierung: Kategorien nach [Category.sortOrder], Aktivitäten
+     * alphabetisch. Aktivitäten ohne Kategorie landen in der Gruppe "Ohne Kategorie".
+     */
+    fun groupedActivities(
+        categories: List<Category>,
+        types: List<ActivityType>
+    ): List<CategoryGroup> = groupActivitiesByCategory(categories, types)
 
     /**
      * M18.73: Speichert die neue Aufzeichnung je nach gewähltem Modus:
@@ -333,19 +351,33 @@ class TimelineViewModel @Inject constructor(
                     }
                 }
                 val flatRate = form.mode == NewRecordingMode.FLAT_RATE
-                val type = form.activityTypeId?.let { activityTypeRepository.getById(it).first() }
+                // M18.74: Aktivitäts-Auswahl ist Pflicht — ohne Auswahl wird
+                // nicht gespeichert (der Save-Button ist deaktiviert; Guard
+                // gegen direkte Aufrufe).
+                val typeId = form.activityTypeId
+                    ?: run {
+                        _newRecordingError.value = "Bitte wähle eine Aktivität aus."
+                        return@launch
+                    }
+                val type = activityTypeRepository.getById(typeId).first()
+                    ?: run {
+                        _newRecordingError.value = "Aktivität nicht gefunden."
+                        return@launch
+                    }
                 _newRecordingSaving.value = true
                 val result = saveManualActivityUseCase(
                     ManualActivityRequest(
                         id = null,
                         sourceCandidateId = null,
-                        title = type?.name ?: form.title.ifBlank { "Freie Aktivität" },
-                        categoryId = type?.defaultCategoryId,
-                        activityTypeId = type?.id,
+                        // M18.74: Kein Freitext-Titel mehr — der Name der
+                        // gewählten Aktivität ist der Titel.
+                        title = type.name,
+                        categoryId = type.defaultCategoryId,
+                        activityTypeId = type.id,
                         startAt = if (flatRate) dayStart else startAt,
                         endAt = endAt,
                         timezoneId = zone.id,
-                        description = form.description.ifBlank { null } ?: "",
+                        description = "",
                         excludeFromTimeline = flatRate
                     )
                 )
@@ -1055,6 +1087,8 @@ data class TimelineUiState(
     val sessionCount: Int = 0,
     val categories: List<Category> = emptyList(),
     val activityTypes: List<ActivityType> = emptyList(),
+    // M18.74: Aktivitäten nach Kategorie gruppiert (New-Recording-Dialog).
+    val activityGroups: List<CategoryGroup> = emptyList(),
     val categoryDurations: Map<String, Long> = emptyMap(),
     val triggerEvents: List<TriggerEventUi> = emptyList(),
     val candidates: List<CandidateReviewUi> = emptyList(),
@@ -1220,8 +1254,6 @@ enum class NewRecordingMode {
 data class NewRecordingForm(
     val mode: NewRecordingMode = NewRecordingMode.FIXED,
     val date: LocalDate = LocalDate.now(),
-    val title: String = "",
-    val description: String = "",
     val activityTypeId: String? = null,
     val startHour: Int = 9,
     val startMinute: Int = 0,
@@ -1229,3 +1261,55 @@ data class NewRecordingForm(
     val endMinute: Int = 0,
     val durationMinutes: Int = 60
 )
+
+/**
+ * M18.74: Eine Kategorie-Gruppe im New-Recording-Dialog.
+ * [categoryId] ist null für Aktivitäten ohne Kategorie ("Ohne Kategorie").
+ */
+data class CategoryGroup(
+    val categoryId: String?,
+    val categoryName: String,
+    val categoryIcon: String,
+    val categoryColor: String,
+    val activities: List<ActivityType>
+)
+
+/**
+ * M18.74: Gruppiert Aktivitäten nach ihrer Kategorie (reine Funktion,
+ * unit-testbar). Sortierung: Kategorien nach [Category.sortOrder],
+ * Aktivitäten alphabetisch. Aktivitäten ohne Kategorie landen in der
+ * Gruppe "Ohne Kategorie".
+ */
+internal fun groupActivitiesByCategory(
+    categories: List<Category>,
+    types: List<ActivityType>
+): List<CategoryGroup> {
+    val sortedCategories = categories.sortedBy { it.sortOrder }
+    val categorized = types.filter { it.defaultCategoryId != null }
+    val uncategorized = types.filter { it.defaultCategoryId == null }
+    val groups = mutableListOf<CategoryGroup>()
+    sortedCategories.forEach { cat ->
+        val members = categorized
+            .filter { it.defaultCategoryId == cat.id }
+            .sortedBy { it.name.lowercase() }
+        if (members.isNotEmpty()) {
+            groups += CategoryGroup(
+                categoryId = cat.id,
+                categoryName = cat.name,
+                categoryIcon = cat.icon,
+                categoryColor = cat.color,
+                activities = members
+            )
+        }
+    }
+    if (uncategorized.isNotEmpty()) {
+        groups += CategoryGroup(
+            categoryId = null,
+            categoryName = "Ohne Kategorie",
+            categoryIcon = "◇",
+            categoryColor = "#94A3B8",
+            activities = uncategorized.sortedBy { it.name.lowercase() }
+        )
+    }
+    return groups
+}

@@ -38,6 +38,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarViewDay
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -311,7 +313,7 @@ fun TimelineScreen(
     if (showNewRecording) {
         NewRecordingDialog(
             form = newForm,
-            activityTypes = state.activityTypes,
+            activityGroups = state.activityGroups,
             errorMessage = newError,
             saving = newSaving,
             onModeChange = viewModel::setNewRecordingMode,
@@ -321,7 +323,6 @@ fun TimelineScreen(
             onEndHourChange = viewModel::setNewRecordingEndHour,
             onEndMinuteChange = viewModel::setNewRecordingEndMinute,
             onDurationChange = viewModel::setNewRecordingDurationMinutes,
-            onTitleChange = { viewModel.setNewRecordingTitle(it) },
             onActivityTypeChange = viewModel::setNewRecordingActivityType,
             onSave = viewModel::saveNewRecording,
             onDismiss = viewModel::closeNewRecording
@@ -330,17 +331,22 @@ fun TimelineScreen(
 }
 
 /**
- * M18.73: New-Recording-Dialog vom Timeline-Plus-Button.
+ * M18.73 + M18.74: New-Recording-Dialog vom Timeline-Plus-Button.
  * Drei Modi (Segment-UI, "Start & End Time" ist beim Öffnen vorausgewählt):
  *  - FIXED:     Datum + Start- & Endzeit → fester Eintrag auf der Timeline
  *  - OPEN_END:  Datum + Startzeit → laufender Eintrag (endAt = null)
  *  - FLAT_RATE: Datum + Dauer → nur Tagesstatistik, keine Timeline-Zeile
+ *
+ * M18.74: Die Aktivitäts-Auswahl ist Pflicht — der Speichern-Button bleibt
+ * deaktiviert, bis genau eine Aktivität gewählt ist. Es gibt kein Freitext-
+ * Titel-/Beschreibungsfeld mehr; persistiert wird ausschließlich die gewählte
+ * Aktivität (Titel = Aktivitätsname).
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun NewRecordingDialog(
     form: NewRecordingForm,
-    activityTypes: List<ActivityType>,
+    activityGroups: List<CategoryGroup>,
     errorMessage: String?,
     saving: Boolean,
     onModeChange: (NewRecordingMode) -> Unit,
@@ -350,15 +356,19 @@ private fun NewRecordingDialog(
     onEndHourChange: (Int) -> Unit,
     onEndMinuteChange: (Int) -> Unit,
     onDurationChange: (Int) -> Unit,
-    onTitleChange: (String) -> Unit,
     onActivityTypeChange: (ActivityType) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    // M18.74: Expandierte Kategorie-Gruppen (alle offen, bis der User
+    // kollabiert — so sieht man die Auswahl beim Öffnen sofort).
+    var expandedCategories by remember { mutableStateOf<Set<String?>>(emptySet()) }
     val duration = form.durationMinutes
     val durHours = duration / 60
     val durMinutes = duration % 60
+    // M18.74: Pflicht-Auswahl — Save erst mit genau einer Aktivität.
+    val canSave = form.activityTypeId != null && !saving
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -371,7 +381,7 @@ private fun NewRecordingDialog(
         ) {
             Text("Neue Aufzeichnung", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Wähle den Modus — der Eintrag wird direkt auf dem ausgewählten Tag gespeichert.",
+                "Wähle den Modus und eine Aktivität — der Eintrag wird direkt auf dem ausgewählten Tag gespeichert.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -394,18 +404,6 @@ private fun NewRecordingDialog(
                 Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(TimeFormatting.formatDate(form.date))
-            }
-
-            // Aktivität (optional, Schnellwahl per Chip)
-            Text("Aktivität (optional)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs), verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                activityTypes.forEach { type ->
-                    FilterChip(
-                        selected = type.id == form.activityTypeId,
-                        onClick = { onActivityTypeChange(type) },
-                        label = { Text(type.name) }
-                    )
-                }
             }
 
             when (form.mode) {
@@ -500,14 +498,20 @@ private fun NewRecordingDialog(
                 }
             }
 
-            // Titel (frei, wenn keine Aktivität gewählt wurde)
-            OutlinedTextField(
-                value = form.title,
-                onValueChange = onTitleChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Was hast du gemacht?") },
-                placeholder = { Text("z. B. Deep Work, Motorradfahrt, Sport") },
-                singleLine = true
+            // M18.74: Strukturierte Aktivitäts-Auswahl — kollabierbare
+            // Kategorie-Gruppen, keine Freitext-Eingabe mehr.
+            ActivityPickerSection(
+                groups = activityGroups,
+                selectedActivityId = form.activityTypeId,
+                expandedCategories = expandedCategories,
+                onToggleCategory = { id ->
+                    expandedCategories = if (id in expandedCategories) {
+                        expandedCategories - id
+                    } else {
+                        expandedCategories + id
+                    }
+                },
+                onSelectActivity = onActivityTypeChange
             )
 
             errorMessage?.let {
@@ -516,14 +520,20 @@ private fun NewRecordingDialog(
 
             Button(
                 onClick = onSave,
-                enabled = !saving,
+                enabled = canSave,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (saving) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (saving) "Speichern…" else "Aufzeichnung speichern")
+                Text(
+                    when {
+                        saving -> "Speichern…"
+                        form.activityTypeId == null -> "Aktivität auswählen"
+                        else -> "Aufzeichnung speichern"
+                    }
+                )
             }
         }
     }
@@ -546,6 +556,157 @@ private fun NewRecordingDialog(
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Abbrechen") } }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+}
+
+/**
+ * M18.74: Kollabierbare Kategorie-Gruppen mit den Aktivitäten.
+ * - Gruppen-Header: Icon, Name, Aktivitätsanzahl, Expand/Collapse-Pfeil.
+ * - Aktivität-Zeilen: Icon, Name, Auswahl-Radio; Tap wählt die Aktivität.
+ * - Header-Tap togglet die Gruppe (Pfeil + Inhalt folgen).
+ */
+@Composable
+private fun ActivityPickerSection(
+    groups: List<CategoryGroup>,
+    selectedActivityId: String?,
+    expandedCategories: Set<String?>,
+    onToggleCategory: (String?) -> Unit,
+    onSelectActivity: (ActivityType) -> Unit
+) {
+    Text(
+        "Aktivität (Pflicht)",
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (groups.isEmpty()) {
+        Text(
+            "Noch keine Aktivitäten vorhanden.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+        groups.forEach { group ->
+            val expanded = group.categoryId in expandedCategories
+            val accent = runCatching { Color(android.graphics.Color.parseColor(group.categoryColor)) }
+                .getOrDefault(Color(0xFF94A3B8))
+            // Header (tap = expand/collapse)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    .clickable { onToggleCategory(group.categoryId) }
+                    .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(AevumRadius.sm))
+                        .background(accent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (group.categoryIcon.isBlank()) "•" else group.categoryIcon,
+                        fontSize = 13.sp,
+                        color = accent
+                    )
+                }
+                Spacer(Modifier.width(AevumSpacing.sm))
+                Text(
+                    group.categoryName,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "${group.activities.size}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                )
+                Spacer(Modifier.width(AevumSpacing.sm))
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Einklappen" else "Ausklappen",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            // Inhalt (nur wenn expandiert)
+            if (expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = AevumSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    group.activities.forEach { type ->
+                        val selected = type.id == selectedActivityId
+                        val typeAccent = runCatching { Color(type.color.toInt()) }
+                            .getOrDefault(MaterialTheme.colorScheme.primary)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AevumRadius.md))
+                                .background(
+                                    if (selected) accent.copy(alpha = 0.14f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+                                )
+                                .clickable { onSelectActivity(type) }
+                                .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(typeAccent.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    if (type.icon.isBlank()) "•" else type.icon,
+                                    fontSize = 12.sp,
+                                    color = typeAccent
+                                )
+                            }
+                            Spacer(Modifier.width(AevumSpacing.sm))
+                            Text(
+                                type.name,
+                                fontSize = 14.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) accent else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            // Auswahl-Indikator (Radio-artig)
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (selected) accent
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (selected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
