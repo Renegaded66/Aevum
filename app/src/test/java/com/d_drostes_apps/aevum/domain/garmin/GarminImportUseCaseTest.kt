@@ -86,6 +86,8 @@ class GarminImportUseCaseTest {
         override suspend fun update(session: ActivitySession) { updated.add(session) }
         override suspend fun softDelete(id: String, now: Long) { deleted.add(id) }
         override suspend fun delete(id: String) {}
+        override suspend fun setManualQualityOverride(sessionId: String, score: Int?) {}
+        override suspend fun setManualQualityOverrideForRange(start: Long, end: Long, score: Int?) {}
         override suspend fun insertTagMapping(mapping: com.d_drostes_apps.aevum.data.model.ActivitySessionTag) {}
         override fun getTagIdsForSession(sessionId: String): Flow<List<String>> = flowOf(emptyList())
         override suspend fun deleteTagMappings(sessionId: String) {}

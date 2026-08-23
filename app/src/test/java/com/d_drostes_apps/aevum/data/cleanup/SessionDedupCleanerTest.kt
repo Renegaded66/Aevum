@@ -21,7 +21,7 @@ class SessionDedupCleanerTest {
         id: String,
         startAt: Long,
         endAt: Long,
-        activityTypeId: String = "sleep",
+        activityTypeId: String? = "sleep",
         sourceType: String = "GARMIN_SLEEP_AUTO",
         createdAt: Long = startAt,
         externalId: String? = null,

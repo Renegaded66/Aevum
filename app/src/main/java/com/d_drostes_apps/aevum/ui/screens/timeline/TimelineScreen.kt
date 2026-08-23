@@ -41,6 +41,9 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ElevatedAssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -57,6 +60,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -129,12 +133,27 @@ fun TimelineScreen(
     // des ActivityTypes bleibt unverändert, am nächsten Tag gilt wieder die
     // automatische Berechnung.
     var qualityTarget by remember { mutableStateOf<TimelineSessionUi?>(null) }
+    // M18.73: New-Recording-Dialog-Zustände aus dem ViewModel
+    val showNewRecording by viewModel.newRecordingOpen.collectAsState()
+    val newForm by viewModel.newRecordingForm.collectAsState()
+    val newError by viewModel.newRecordingError.collectAsState()
+    val newSaving by viewModel.newRecordingSaving.collectAsState()
+    val savedNewId by viewModel.newRecordingSavedId.collectAsState()
+    // M18.73: Nach erfolgreichem Speichern im New-Recording-Dialog zum Detail-Screen.
+    LaunchedEffect(savedNewId) {
+        savedNewId?.let { id ->
+            viewModel.consumeNewRecordingSavedId()
+            onOpenActivity(id)
+        }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0.dp),
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { onCreateActivity(TimeFormatting.startOfDayMillis(state.selectedDate)) },
+                // M18.73: Plus-Button öffnet den New-Recording-Dialog mit
+                // drei Modi (Start & Ende / Offenes Ende / Nur Dauer).
+                onClick = viewModel::openNewRecording,
                 text = { Text("Aktivität") },
                 icon = { Text("+") }
             )
@@ -285,6 +304,250 @@ fun TimelineScreen(
     // M18.66-FIX18: QuickCreateDialog entfernt — Tap auf leere Zeitstelle
     // navigiert jetzt direkt zum ActivityEditor (Startzeit = Klick-Zeit,
     // Endzeit = +1h). Das Popup war der User-Beschwerdepunkt.
+
+    // M18.73: New-Recording-Dialog mit drei Modi (Plus-Button auf der
+    // Timeline): Start & End Time (Standard), Start Time/Open End und
+    // Flat-rate Time (nur Tagesstatistik, keine Timeline-Zeile).
+    if (showNewRecording) {
+        NewRecordingDialog(
+            form = newForm,
+            activityTypes = state.activityTypes,
+            errorMessage = newError,
+            saving = newSaving,
+            onModeChange = viewModel::setNewRecordingMode,
+            onDateChange = viewModel::setNewRecordingDate,
+            onStartHourChange = viewModel::setNewRecordingStartHour,
+            onStartMinuteChange = viewModel::setNewRecordingStartMinute,
+            onEndHourChange = viewModel::setNewRecordingEndHour,
+            onEndMinuteChange = viewModel::setNewRecordingEndMinute,
+            onDurationChange = viewModel::setNewRecordingDurationMinutes,
+            onTitleChange = { viewModel.setNewRecordingTitle(it) },
+            onActivityTypeChange = viewModel::setNewRecordingActivityType,
+            onSave = viewModel::saveNewRecording,
+            onDismiss = viewModel::closeNewRecording
+        )
+    }
+}
+
+/**
+ * M18.73: New-Recording-Dialog vom Timeline-Plus-Button.
+ * Drei Modi (Segment-UI, "Start & End Time" ist beim Öffnen vorausgewählt):
+ *  - FIXED:     Datum + Start- & Endzeit → fester Eintrag auf der Timeline
+ *  - OPEN_END:  Datum + Startzeit → laufender Eintrag (endAt = null)
+ *  - FLAT_RATE: Datum + Dauer → nur Tagesstatistik, keine Timeline-Zeile
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun NewRecordingDialog(
+    form: NewRecordingForm,
+    activityTypes: List<ActivityType>,
+    errorMessage: String?,
+    saving: Boolean,
+    onModeChange: (NewRecordingMode) -> Unit,
+    onDateChange: (LocalDate) -> Unit,
+    onStartHourChange: (Int) -> Unit,
+    onStartMinuteChange: (Int) -> Unit,
+    onEndHourChange: (Int) -> Unit,
+    onEndMinuteChange: (Int) -> Unit,
+    onDurationChange: (Int) -> Unit,
+    onTitleChange: (String) -> Unit,
+    onActivityTypeChange: (ActivityType) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    val duration = form.durationMinutes
+    val durHours = duration / 60
+    val durMinutes = duration % 60
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 640.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = AevumSpacing.lg)
+                .padding(bottom = AevumSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+        ) {
+            Text("Neue Aufzeichnung", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Wähle den Modus — der Eintrag wird direkt auf dem ausgewählten Tag gespeichert.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Modus-Auswahl (Start & End Time ist standardmäßig vorausgewählt)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SegmentButton("Start & End", form.mode == NewRecordingMode.FIXED, Modifier.weight(1f)) { onModeChange(NewRecordingMode.FIXED) }
+                SegmentButton("Offenes Ende", form.mode == NewRecordingMode.OPEN_END, Modifier.weight(1f)) { onModeChange(NewRecordingMode.OPEN_END) }
+                SegmentButton("Nur Dauer", form.mode == NewRecordingMode.FLAT_RATE, Modifier.weight(1f)) { onModeChange(NewRecordingMode.FLAT_RATE) }
+            }
+
+            // Datum (alle Modi)
+            OutlinedButton(
+                onClick = { showDatePicker = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(TimeFormatting.formatDate(form.date))
+            }
+
+            // Aktivität (optional, Schnellwahl per Chip)
+            Text("Aktivität (optional)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs), verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+                activityTypes.forEach { type ->
+                    FilterChip(
+                        selected = type.id == form.activityTypeId,
+                        onClick = { onActivityTypeChange(type) },
+                        label = { Text(type.name) }
+                    )
+                }
+            }
+
+            when (form.mode) {
+                NewRecordingMode.FIXED -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            AevumTimePicker(
+                                initialHour = form.startHour,
+                                initialMinute = form.startMinute,
+                                accent = Color(0xFFF5A623),
+                                onTimeChange = { h, m -> onStartHourChange(h); onStartMinuteChange(m) },
+                                label = "START",
+                                showDigitalDisplay = true
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            AevumTimePicker(
+                                initialHour = form.endHour,
+                                initialMinute = form.endMinute,
+                                accent = MaterialTheme.colorScheme.primary,
+                                onTimeChange = { h, m -> onEndHourChange(h); onEndMinuteChange(m) },
+                                label = "ENDE",
+                                showDigitalDisplay = true
+                            )
+                        }
+                    }
+                    Text(
+                        "Der Eintrag erscheint mit Start- und Endzeit auf der Timeline.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                NewRecordingMode.OPEN_END -> {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        AevumTimePicker(
+                            initialHour = form.startHour,
+                            initialMinute = form.startMinute,
+                            accent = Color(0xFFF5A623),
+                            onTimeChange = { h, m -> onStartHourChange(h); onStartMinuteChange(m) },
+                            label = "START",
+                            showDigitalDisplay = true
+                        )
+                    }
+                    Text(
+                        "Der Eintrag startet ab der gewählten Zeit und läuft weiter, bis du ihn manuell beendest.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                NewRecordingMode.FLAT_RATE -> {
+                    Text(
+                        "Nur Dauer erfassen — erscheint in der Tagesstatistik, nicht in der Timeline.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Stunden", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { onDurationChange(((durHours - 1).coerceAtLeast(0)) * 60 + durMinutes) }) { Text("−") }
+                                Text("$durHours", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                OutlinedButton(onClick = { onDurationChange(((durHours + 1).coerceAtMost(23)) * 60 + durMinutes) }) { Text("+") }
+                            }
+                        }
+                        Text(":", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Minuten", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val step = 5
+                                OutlinedButton(onClick = { onDurationChange(durHours * 60 + ((durMinutes - step).coerceAtLeast(0) / step * step)) }) { Text("−") }
+                                Text("${durMinutes.toString().padStart(2, '0')}", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                OutlinedButton(onClick = { onDurationChange(durHours * 60 + ((durMinutes + step).coerceAtMost(59) / step * step)) }) { Text("+") }
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(15, 30, 60, 90, 120).forEach { quick ->
+                            AssistChip(
+                                onClick = { onDurationChange(quick) },
+                                label = { Text(if (quick >= 60) "${quick / 60}h${if (quick % 60 > 0) " ${quick % 60}m" else ""}" else "${quick}m") }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Titel (frei, wenn keine Aktivität gewählt wurde)
+            OutlinedTextField(
+                value = form.title,
+                onValueChange = onTitleChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Was hast du gemacht?") },
+                placeholder = { Text("z. B. Deep Work, Motorradfahrt, Sport") },
+                singleLine = true
+            )
+
+            errorMessage?.let {
+                Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+            }
+
+            Button(
+                onClick = onSave,
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (saving) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (saving) "Speichern…" else "Aufzeichnung speichern")
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        val initialMillis = form.date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            onDateChange(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate())
+                        }
+                        showDatePicker = false
+                    }
+                ) { Text("Übernehmen") }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Abbrechen") } }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 @Composable

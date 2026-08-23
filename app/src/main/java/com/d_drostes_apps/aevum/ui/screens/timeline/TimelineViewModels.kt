@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import android.app.Application
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import javax.inject.Inject
 
@@ -224,6 +225,144 @@ class TimelineViewModel @Inject constructor(
                     )
                 )
             } catch (_: Exception) { /* defensive: keine UI-Crash */ }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Neue Aufzeichnung (Timeline-Plus-Button, drei Modi)
+    // ------------------------------------------------------------------
+
+    /** M18.73: Dialog sichtbar/verborgen. */
+    private val _newRecordingOpen = MutableStateFlow(false)
+    val newRecordingOpen: StateFlow<Boolean> = _newRecordingOpen
+
+    /** M18.73: Formular-Zustand des New-Recording-Dialogs. */
+    private val _newRecordingForm = MutableStateFlow(
+        NewRecordingForm(
+            date = LocalDate.now(),
+            startHour = LocalTime.now().hour.coerceAtMost(22),
+            startMinute = (LocalTime.now().minute / 5) * 5,
+            endHour = (LocalTime.now().hour + 1).coerceAtMost(23),
+            endMinute = 0
+        )
+    )
+    val newRecordingForm: StateFlow<NewRecordingForm> = _newRecordingForm
+
+    /** M18.73: Fehlermeldung des Dialogs (z.B. Endzeit vor Startzeit). */
+    private val _newRecordingError = MutableStateFlow<String?>(null)
+    val newRecordingError: StateFlow<String?> = _newRecordingError
+
+    /** M18.73: true, solange das Speichern läuft (Button-Spinner). */
+    private val _newRecordingSaving = MutableStateFlow(false)
+    val newRecordingSaving: StateFlow<Boolean> = _newRecordingSaving
+
+    /**
+     * M18.73: Öffnet den New-Recording-Dialog für den aktuell gewählten
+     * Tag. "Start & End Time" ist vorausgewählt, Startzeit = aktuelle
+     * Uhrzeit (auf 5 min gerundet), Endzeit = Start + 1h.
+     */
+    fun openNewRecording() {
+        val day = selectedDate.value
+        val now = LocalTime.now()
+        _newRecordingForm.value = NewRecordingForm(
+            date = day,
+            startHour = now.hour.coerceAtMost(22),
+            startMinute = (now.minute / 5) * 5,
+            endHour = (now.hour + 1).coerceAtMost(23),
+            endMinute = 0
+        )
+        _newRecordingError.value = null
+        _newRecordingOpen.value = true
+    }
+
+    fun closeNewRecording() {
+        _newRecordingOpen.value = false
+        _newRecordingError.value = null
+    }
+
+    /** M18.73: Speicher-Erfolg → Dialog schließen + zum Detail springen. */
+    private val _newRecordingSavedId = MutableStateFlow<String?>(null)
+    val newRecordingSavedId: StateFlow<String?> = _newRecordingSavedId
+    /** Wird von der UI nach der Navigation konsumiert. */
+    fun consumeNewRecordingSavedId() { _newRecordingSavedId.value = null }
+
+    fun setNewRecordingMode(mode: NewRecordingMode) =
+        _newRecordingForm.update { it.copy(mode = mode) }
+    fun setNewRecordingDate(date: LocalDate) =
+        _newRecordingForm.update { it.copy(date = date) }
+    fun setNewRecordingStartHour(hour: Int) =
+        _newRecordingForm.update { it.copy(startHour = hour.coerceIn(0, 23)) }
+    fun setNewRecordingStartMinute(minute: Int) =
+        _newRecordingForm.update { it.copy(startMinute = minute.coerceIn(0, 59)) }
+    fun setNewRecordingEndHour(hour: Int) =
+        _newRecordingForm.update { it.copy(endHour = hour.coerceIn(0, 23)) }
+    fun setNewRecordingEndMinute(minute: Int) =
+        _newRecordingForm.update { it.copy(endMinute = minute.coerceIn(0, 59)) }
+    fun setNewRecordingDurationMinutes(minutes: Int) =
+        _newRecordingForm.update { it.copy(durationMinutes = minutes.coerceIn(1, 24 * 60)) }
+    fun setNewRecordingTitle(value: String) =
+        _newRecordingForm.update { it.copy(title = value) }
+    fun setNewRecordingActivityType(type: ActivityType) =
+        _newRecordingForm.update { it.copy(activityTypeId = type.id, title = it.title.ifBlank { type.name }) }
+
+    /**
+     * M18.73: Speichert die neue Aufzeichnung je nach gewähltem Modus:
+     * - FIXED:   startAt/endAt aus Datum + Start-/Endzeit (Mitternacht-Überquerung erlaubt)
+     * - OPEN_END: endAt = null → laufende Session in der Timeline
+     * - FLAT_RATE: startAt = Tagesbeginn, endAt = startAt + Dauer,
+     *              excludeFromTimeline = true → nur Tagesstatistik, keine Timeline-Zeile
+     */
+    fun saveNewRecording() {
+        viewModelScope.launch {
+            try {
+                val form = _newRecordingForm.value
+                val zone = zoneId
+                val dayStart = TimeFormatting.startOfDayMillis(form.date, zone)
+                val startAt = dayStart + form.startHour * 60 * 60_000L + form.startMinute * 60_000L
+                var endAt: Long? = null
+                when (form.mode) {
+                    NewRecordingMode.FIXED -> {
+                        var end = dayStart + form.endHour * 60 * 60_000L + form.endMinute * 60_000L
+                        if (end <= startAt) end += 24L * 60 * 60 * 1000 // Mitternacht-Überquerung
+                        endAt = end
+                    }
+                    NewRecordingMode.OPEN_END -> endAt = null
+                    NewRecordingMode.FLAT_RATE -> {
+                        // Tagesbeginn + Dauer — erscheint in der Statistik, nicht in der Timeline
+                        endAt = dayStart + form.durationMinutes * 60_000L
+                    }
+                }
+                val flatRate = form.mode == NewRecordingMode.FLAT_RATE
+                val type = form.activityTypeId?.let { activityTypeRepository.getById(it).first() }
+                _newRecordingSaving.value = true
+                val result = saveManualActivityUseCase(
+                    ManualActivityRequest(
+                        id = null,
+                        sourceCandidateId = null,
+                        title = type?.name ?: form.title.ifBlank { "Freie Aktivität" },
+                        categoryId = type?.defaultCategoryId,
+                        activityTypeId = type?.id,
+                        startAt = if (flatRate) dayStart else startAt,
+                        endAt = endAt,
+                        timezoneId = zone.id,
+                        description = form.description.ifBlank { null } ?: "",
+                        excludeFromTimeline = flatRate
+                    )
+                )
+                _newRecordingSaving.value = false
+                when (result) {
+                    is SaveManualActivityResult.Success -> {
+                        _newRecordingError.value = null
+                        _newRecordingOpen.value = false
+                        _newRecordingSavedId.value = result.sessionId
+                    }
+                    is SaveManualActivityResult.Failure -> _newRecordingError.value = result.message
+                }
+            } catch (e: Exception) {
+                _newRecordingSaving.value = false
+                Log.e("TimelineViewModel", "saveNew() fehlgeschlagen", e)
+                _newRecordingError.value = "Speichern fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}"
+            }
         }
     }
 
@@ -1056,4 +1195,37 @@ data class ActivityDetailUiState(
     val range: String = "",
     val duration: String = "",
     val deleted: Boolean = false
+)
+
+// ----------------------------------------------------------------------
+// M18.73: Neue Aufzeichnung über den Timeline-Plus-Button.
+// Der Dialog bietet drei Modi:
+//  - FIXED:     Start- & Endzeit → fester Eintrag auf der Timeline
+//  - OPEN_END:  nur Startzeit → laufender Eintrag (endAt = null)
+//  - FLAT_RATE: Datum + Dauer → nur Tagesstatistik, NICHT auf der Timeline
+//               (excludeFromTimeline = true, Muster aus R20-v2)
+// ----------------------------------------------------------------------
+
+enum class NewRecordingMode {
+    /** Start & End Time — Standardmodus, beim Öffnen vorausgewählt. */
+    FIXED,
+
+    /** Start Time, Open End — Eintrag läuft bis zum manuellen Stopp. */
+    OPEN_END,
+
+    /** Flat-rate Time — Datum + Dauer, erscheint nicht in der Timeline. */
+    FLAT_RATE
+}
+
+data class NewRecordingForm(
+    val mode: NewRecordingMode = NewRecordingMode.FIXED,
+    val date: LocalDate = LocalDate.now(),
+    val title: String = "",
+    val description: String = "",
+    val activityTypeId: String? = null,
+    val startHour: Int = 9,
+    val startMinute: Int = 0,
+    val endHour: Int = 10,
+    val endMinute: Int = 0,
+    val durationMinutes: Int = 60
 )
