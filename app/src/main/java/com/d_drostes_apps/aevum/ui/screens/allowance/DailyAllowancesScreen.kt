@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.allowance
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,7 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -325,17 +330,144 @@ private fun AddAllowanceDialog(
                     }
                 }
                 Spacer(Modifier.height(AevumSpacing.md))
-                Text(
-                    "Minuten pro Tag: ${minutes.toInt()}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Slider(
-                    value = minutes,
-                    onValueChange = { minutes = it },
-                    valueRange = 5f..240f,
-                    steps = 0
-                )
+                // R20-v3: Fancy Duration-Ring — Canvas Arc mit Gradient +
+                // große Stunden:Minuten-Anzeige in der Mitte
+                val totalMinutes = minutes.toInt()
+                val displayHours = totalMinutes / 60
+                val displayMins = totalMinutes % 60
+                val progress = (minutes - 5f) / (240f - 5f) // 0..1
+                // Farben VOR dem Canvas holen — DrawScope ist kein @Composable
+                val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+                val primaryColor = MaterialTheme.colorScheme.primary
+                val tertiaryColor = MaterialTheme.colorScheme.tertiary
+                val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+                val onSurfaceVarColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                    ) {
+                        // Canvas Ring
+                        Box(
+                            modifier = Modifier.size(160.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val strokeWidth = 16.dp.toPx()
+                                val arcSize = size.minDimension - strokeWidth
+                                val topLeft = androidx.compose.ui.geometry.Offset(
+                                    (size.width - arcSize) / 2f,
+                                    (size.height - arcSize) / 2f
+                                )
+                                // Hintergrund-Ring
+                                drawArc(
+                                    color = trackColor,
+                                    startAngle = 135f,
+                                    sweepAngle = 270f,
+                                    useCenter = false,
+                                    topLeft = topLeft,
+                                    size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
+                                    style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                                )
+                                // Progress-Ring mit Gradient
+                                val sweep = 270f * progress
+                                drawArc(
+                                    brush = Brush.sweepGradient(
+                                        colors = listOf(
+                                            primaryColor.copy(alpha = 0.6f),
+                                            primaryColor,
+                                            tertiaryColor
+                                        )
+                                    ),
+                                    startAngle = 135f,
+                                    sweepAngle = sweep,
+                                    useCenter = false,
+                                    topLeft = topLeft,
+                                    size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
+                                    style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                                )
+                            }
+                            // Zentrale Dauer-Anzeige
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        if (displayHours > 0) "$displayHours" else "$displayMins",
+                                        fontSize = 48.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = onSurfaceColor
+                                    )
+                                    Text(
+                                        if (displayHours > 0) "h" else "m",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = onSurfaceVarColor,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                if (displayHours > 0) {
+                                    Text(
+                                        "${displayMins}m",
+                                        fontSize = 16.sp,
+                                        color = onSurfaceVarColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                Text(
+                                    "pro Tag",
+                                    fontSize = 11.sp,
+                                    color = onSurfaceVarColor.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                        // Slider
+                        Slider(
+                            value = minutes,
+                            onValueChange = { minutes = it },
+                            valueRange = 5f..240f,
+                            steps = 0,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = AevumSpacing.sm)
+                        )
+                        // Quick-Chips
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(15, 30, 60, 90, 120, 180).forEach { quick ->
+                                val quickLabel = when {
+                                    quick >= 60 && quick % 60 == 0 -> "${quick / 60}h"
+                                    quick >= 60 -> "${quick / 60}h${quick % 60}m"
+                                    else -> "${quick}m"
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AevumRadius.md))
+                                        .background(
+                                            if (totalMinutes == quick) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        )
+                                        .clickable { minutes = quick.toFloat() }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        quickLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (totalMinutes == quick) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (totalMinutes == quick) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {

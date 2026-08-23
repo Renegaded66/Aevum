@@ -1,4 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.timeline
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
@@ -2983,14 +2985,218 @@ private fun BasicFields(state: ActivityEditorUiState, onTitle: (String) -> Unit,
 private fun UnifiedActivitySelector(types: List<ActivityType>, selectedId: String?, onSelect: (ActivityType) -> Unit) {
     var showSheet by remember { mutableStateOf(false) }
     val selected = types.firstOrNull { it.id == selectedId }
-    AevumCard { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { Text("Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold); Text("Eine Auswahl reicht — Kategorie wird intern automatisch gesetzt.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Button(onClick = { showSheet = true }, modifier = Modifier.fillMaxWidth()) { Text(selected?.name ?: "Aktivität auswählen") } } }
+    val selectedColor = if (selected?.color != null && selected.color != 0L) Color(selected.color) else MaterialTheme.colorScheme.primary
+
+    // Trigger-Button: fancy gradient card mit Icon
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AevumRadius.lg))
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(
+                        selectedColor.copy(alpha = 0.15f),
+                        selectedColor.copy(alpha = 0.05f),
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                )
+            )
+            .clickable { showSheet = true }
+            .padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.md)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(selectedColor.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    selected?.icon?.takeIf { it.isNotBlank() } ?: "?",
+                    fontSize = 20.sp
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Aktivität",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    selected?.name ?: "Aktivität auswählen",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text("▸", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+
     if (showSheet) {
-        ModalBottomSheet(onDismissRequest = { showSheet = false }) {
-            Column(modifier = Modifier.padding(AevumSpacing.md), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                Text("Aktivität auswählen", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(value = "", onValueChange = {}, modifier = Modifier.fillMaxWidth(), enabled = false, label = { Text("Suche vorbereitet") }, placeholder = { Text("M6+: Aktivität suchen") })
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { types.forEach { type -> FilterChip(selected = type.id == selectedId, onClick = { onSelect(type); showSheet = false }, label = { Text(type.name) }) } }
-                Spacer(Modifier.height(AevumSpacing.lg))
+        FancyActivityPickerSheet(
+            types = types,
+            selectedId = selectedId,
+            onSelect = { type -> onSelect(type); showSheet = false },
+            onDismiss = { showSheet = false }
+        )
+    }
+}
+
+/**
+ * R20-v3: Fancy Activity-Picker mit Live-Suchleiste.
+ * Modernes ModalBottomSheet mit:
+ * - Großer Suchleiste mit Live-Filter (kein Enter nötig)
+ * - Animiert scrollbarer Ergebnisliste
+ * - Icon + Farbe pro Eintrag
+ * - Selected-State mit Checkmark
+ * - Ohne Kategorisierung — flache Liste
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun FancyActivityPickerSheet(
+    types: List<ActivityType>,
+    selectedId: String?,
+    onSelect: (ActivityType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, types) {
+        if (query.isBlank()) types
+        else types.filter { it.name.contains(query, ignoreCase = true) }
+    }
+    // Animation für Listeneinträge
+    val listVisible = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { listVisible.animateTo(1f, animationSpec = tween(300, easing = FastOutSlowInEasing)) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AevumSpacing.lg)
+                .padding(bottom = AevumSpacing.xl)
+        ) {
+            Text(
+                "Aktivität auswählen",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = AevumSpacing.md)
+            )
+            // Live-Suchleiste — fancy mit Clear-Button
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("🔍 Aktivität suchen…") },
+                singleLine = true,
+                shape = RoundedCornerShape(AevumRadius.lg),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+                ),
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Text("✕", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            )
+            Spacer(Modifier.height(AevumSpacing.md))
+            // Ergebnisliste
+            if (filtered.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = AevumSpacing.xl),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("🔍", fontSize = 40.sp)
+                    Spacer(Modifier.height(AevumSpacing.sm))
+                    Text(
+                        "Keine Aktivität für „$query\" gefunden",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Text(
+                    "${filtered.size} ${if (filtered.size == 1) "Aktivität" else "Aktivitäten"}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = AevumSpacing.sm)
+                )
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false).heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filtered, key = { it.id }) { type ->
+                        val isSelected = type.id == selectedId
+                        val typeColor = if (type.color != null && type.color != 0L) Color(type.color)
+                        else MaterialTheme.colorScheme.primary
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isSelected) typeColor.copy(alpha = 0.18f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                )
+                                .clickable { onSelect(type) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(typeColor.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    type.icon?.takeIf { it.isNotBlank() } ?: "•",
+                                    fontSize = 18.sp
+                                )
+                            }
+                            Text(
+                                type.name,
+                                fontSize = 16.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(typeColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("✓", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
