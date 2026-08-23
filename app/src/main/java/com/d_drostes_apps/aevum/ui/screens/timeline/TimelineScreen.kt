@@ -465,54 +465,19 @@ private fun NewRecordingDialog(
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Stunden", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { onDurationChange(((durHours - 1).coerceAtLeast(0)) * 60 + durMinutes) }) { Text("−") }
-                                Text("$durHours", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                                OutlinedButton(onClick = { onDurationChange(((durHours + 1).coerceAtMost(23)) * 60 + durMinutes) }) { Text("+") }
-                            }
-                        }
-                        Text(":", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Minuten", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val step = 5
-                                OutlinedButton(onClick = { onDurationChange(durHours * 60 + ((durMinutes - step).coerceAtLeast(0) / step * step)) }) { Text("−") }
-                                Text("${durMinutes.toString().padStart(2, '0')}", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                                OutlinedButton(onClick = { onDurationChange(durHours * 60 + ((durMinutes + step).coerceAtMost(59) / step * step)) }) { Text("+") }
-                            }
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(15, 30, 60, 90, 120).forEach { quick ->
-                            AssistChip(
-                                onClick = { onDurationChange(quick) },
-                                label = { Text(if (quick >= 60) "${quick / 60}h${if (quick % 60 > 0) " ${quick % 60}m" else ""}" else "${quick}m") }
-                            )
-                        }
-                    }
+                    // R20-v3: Fancy Duration-Ring statt hässlicher ±-Buttons
+                    FancyDurationRing(
+                        minutes = duration,
+                        onMinutesChange = onDurationChange
+                    )
                 }
             }
 
-            // M18.74: Strukturierte Aktivitäts-Auswahl — kollabierbare
-            // Kategorie-Gruppen, keine Freitext-Eingabe mehr.
-            ActivityPickerSection(
+            // R20-v3: Fancy Activity-Picker mit Live-Suchleiste (ersetzt
+            // kollabierbare Kategorie-Gruppen — flach, durchsuchbar, modern).
+            FancyNewRecordingActivityPicker(
                 groups = activityGroups,
                 selectedActivityId = form.activityTypeId,
-                expandedCategories = expandedCategories,
-                onToggleCategory = { id ->
-                    expandedCategories = if (id in expandedCategories) {
-                        expandedCategories - id
-                    } else {
-                        expandedCategories + id
-                    }
-                },
                 onSelectActivity = onActivityTypeChange
             )
 
@@ -558,6 +523,303 @@ private fun NewRecordingDialog(
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Abbrechen") } }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+}
+
+/**
+ * R20-v3: Fancy Activity-Picker mit Live-Suchleiste für den
+ * NewRecordingDialog. Flach, durchsuchbar, ohne Kategorisierung.
+ * - Große Suchleiste filtert live (case-insensitive)
+ * - Ergebnisliste mit Icon + Farbe + Name
+ * - Selected-State mit ✓-Badge
+ * - Empty-State bei keinem Treffer
+ */
+@Composable
+private fun FancyNewRecordingActivityPicker(
+    groups: List<CategoryGroup>,
+    selectedActivityId: String?,
+    onSelectActivity: (ActivityType) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    // Alle Aktivitäten flach aus allen Gruppen extrahieren
+    val allTypes = remember(groups) {
+        groups.flatMap { it.activities }.distinctBy { it.id }
+    }
+    val filtered = remember(query, allTypes) {
+        if (query.isBlank()) allTypes
+        else allTypes.filter { it.name.contains(query, ignoreCase = true) }
+    }
+    val selected = allTypes.firstOrNull { it.id == selectedActivityId }
+
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+        // Ausgewählte Aktivität anzeigen oder "noch nichts gewählt"
+        if (selected != null) {
+            val selColor = runCatching { Color(selected.color.toInt()) }
+                .getOrDefault(MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.lg))
+                    .background(selColor.copy(alpha = 0.12f))
+                    .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(selColor.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(selected.icon?.takeIf { it.isNotBlank() } ?: "•", fontSize = 16.sp)
+                }
+                Text(
+                    selected.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text("✓", fontSize = 16.sp, color = selColor, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Text(
+                "Noch keine Aktivität ausgewählt",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Live-Suchleiste
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("🔍 Aktivität suchen…") },
+            singleLine = true,
+            shape = RoundedCornerShape(AevumRadius.lg),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+            ),
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { query = "" }) {
+                        Text("✕", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        )
+
+        // Ergebnisliste
+        if (filtered.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(vertical = AevumSpacing.md),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("🔍", fontSize = 36.sp)
+                Spacer(Modifier.height(AevumSpacing.xs))
+                Text(
+                    "Keine Aktivität für „$query\" gefunden",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            Text(
+                "${filtered.size} ${if (filtered.size == 1) "Aktivität" else "Aktivitäten"}",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 280.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(filtered, key = { it.id }) { type ->
+                    val isSelected = type.id == selectedActivityId
+                    val typeColor = runCatching { Color(type.color.toInt()) }
+                        .getOrDefault(MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (isSelected) typeColor.copy(alpha = 0.18f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            )
+                            .clickable { onSelectActivity(type) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(typeColor.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(type.icon?.takeIf { it.isNotBlank() } ?: "•", fontSize = 15.sp)
+                        }
+                        Text(
+                            type.name,
+                            fontSize = 15.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(typeColor),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("✓", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * R20-v3: Fancy Duration-Ring für die "Nur Dauer"-Eingabe.
+ * Canvas-Ring mit 270°-Bogen, Sweep-Gradient + große zentrale Anzeige.
+ */
+@Composable
+private fun FancyDurationRing(
+    minutes: Int,
+    onMinutesChange: (Int) -> Unit
+) {
+    val displayHours = minutes / 60
+    val displayMins = minutes % 60
+    val progress = (minutes - 5f).coerceAtLeast(0f) / (240f - 5f)
+    // Farben VOR dem Canvas holen
+    val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVarColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+    ) {
+        Box(
+            modifier = Modifier.size(140.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 14.dp.toPx()
+                val arcSize = size.minDimension - strokeWidth
+                val topLeft = androidx.compose.ui.geometry.Offset(
+                    (size.width - arcSize) / 2f,
+                    (size.height - arcSize) / 2f
+                )
+                drawArc(
+                    color = trackColor,
+                    startAngle = 135f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
+                    style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+                drawArc(
+                    brush = Brush.sweepGradient(
+                        colors = listOf(
+                            primaryColor.copy(alpha = 0.6f),
+                            primaryColor,
+                            tertiaryColor
+                        )
+                    ),
+                    startAngle = 135f,
+                    sweepAngle = 270f * progress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = androidx.compose.ui.geometry.Size(arcSize, arcSize),
+                    style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+            }
+            // Zentrale Dauer-Anzeige
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        if (displayHours > 0) "$displayHours" else "$displayMins",
+                        fontSize = 42.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = onSurfaceColor
+                    )
+                    Text(
+                        if (displayHours > 0) "h" else "m",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = onSurfaceVarColor,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+                if (displayHours > 0) {
+                    Text(
+                        "${displayMins}m",
+                        fontSize = 14.sp,
+                        color = onSurfaceVarColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Text(
+                    "pro Tag",
+                    fontSize = 10.sp,
+                    color = onSurfaceVarColor.copy(alpha = 0.7f)
+                )
+            }
+        }
+        // Slider
+        Slider(
+            value = minutes.toFloat(),
+            onValueChange = { onMinutesChange(it.toInt()) },
+            valueRange = 5f..240f,
+            steps = 0,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AevumSpacing.sm)
+        )
+        // Quick-Chips
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(15, 30, 60, 90, 120, 180).forEach { quick ->
+                val quickLabel = when {
+                    quick >= 60 && quick % 60 == 0 -> "${quick / 60}h"
+                    quick >= 60 -> "${quick / 60}h${quick % 60}m"
+                    else -> "${quick}m"
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AevumRadius.md))
+                        .background(
+                            if (minutes == quick) primaryColor.copy(alpha = 0.15f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                        .clickable { onMinutesChange(quick) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        quickLabel,
+                        fontSize = 12.sp,
+                        fontWeight = if (minutes == quick) FontWeight.Bold else FontWeight.Normal,
+                        color = if (minutes == quick) primaryColor else onSurfaceVarColor
+                    )
+                }
+            }
         }
     }
 }
