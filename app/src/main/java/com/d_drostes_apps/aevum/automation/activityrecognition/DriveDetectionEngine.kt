@@ -19,6 +19,14 @@ package com.d_drostes_apps.aevum.automation.activityrecognition
  *
  * Bewusst Android-frei (JVM-Unit-Tests ohne Robolectric) — die Tests
  * in DriveDetectionEngineTest sind die Regression-Absicherung.
+ *
+ * M18.77: Speed-Fallback — Fahrten auch ohne GPS-Speed-Feld erkennen.
+ * Hintergrund-Fixes (Doze/OEM-Battery-Saver, 30-120s Lücken) liefern
+ * oft KEIN hasSpeed() → speedMps = null — kurze Fahrten (10 Min)
+ * erreichten MIN_FAST_PROBES = 3 nie (User-Bug „10-Minuten-Fahrten
+ * werden nicht erkannt"). Die Distanz distanceFromLastM ist aber immer
+ * da: daraus wird eine Geschwindigkeit abgeleitet (siehe
+ * [MIN_INFERRED_DT_MS]).
  */
 object DriveDetectionEngine {
 
@@ -116,6 +124,32 @@ object DriveDetectionEngine {
      *  Indoor-Drift (10-50m) und filtert Stillstand weiterhin ab. */
     const val MIN_NET_DISPLACEMENT_M = 150.0
 
+    // ── M18.77: Speed-Fallback (Geschwindigkeit aus Distanz) ────────
+    /** Untere/obere Grenze des Zeitabstands (dt) zwischen zwei Probes,
+     *  ab der die Geschwindigkeit aus distanceFromLastM abgeleitet wird.
+     *
+     *  WARUM (User-Bug „10-Minuten-Fahrten werden nicht erkannt"): Real
+     *  liefern Hintergrund-Fixes (Doze/OEM-Battery-Saver, 30-120s
+     *  Lücken) oft KEIN hasSpeed() → speedMps = null. Damit erreichten
+     *  kurze Fahrten (10 Min) MIN_FAST_PROBES = 3 nie. Die Distanz
+     *  (distanceFromLastM) ist aber immer da: Speed = Distanz / Zeit.
+     *
+     *  dt-Grenzen: < 2s = Positions-Jitter (falsche Speed), > 5 Min =
+     *  keine aussagekräftige Momentangeschwindigkeit (Park-Phasen). */
+    const val MIN_INFERRED_DT_MS = 2_000L
+    const val MAX_INFERRED_DT_MS = 300_000L
+    /** Abgeleitete Geschwindigkeiten unter der Geh-/Lauf-Grenze werden
+     *  komplett VERWORFEN (weder schnell noch langsam): Positions-Jitter
+     *  (5-15m Rauschen bei 30-120s dt → ~0,1-0,5 m/s) und Park-Phasen
+     *  (~0 m/s) sind kein Fahrzeug-Tempo. Ein verworfenener Probe
+     *  bricht die Konsekutiv-Kette nicht und drückt den Durchschnitt
+     *  nicht — sonst scheiterte eine 10-Minuten-Fahrt mit 1-2 Jitter-
+     *  Fixes (Muster 8,3 / 0,2 / 8,3 / 0,2 / 8,3) weiterhin an
+     *  MIN_CONSECUTIVE_FAST. Erst ab 5,5 m/s (19,8 km/h) zählt die
+     *  Ableitung als Geschwindigkeit — weit unter AUTO_SPEED_MPS, also
+     *  kein neues False-Positive-Risiko (Drift ~0,5 m/s). */
+    const val MIN_INFERRED_SPEED_MPS = 5.5f
+
     /** Ein einzelner Geschwindigkeits-Probe. */
     data class DriveProbe(
         val timestampMs: Long,
@@ -165,6 +199,44 @@ object DriveDetectionEngine {
             .filter { it.speedMps == null || it.speedMps <= OUTLIER_SPEED_MPS }
         if (valid.size < MIN_VALID_PROBES) return Classification.InsufficientData
 
+        // M18.77: SPEED-FALLBACK — Geschwindigkeit aus Distanz ableiten.
+        // Hintergrund-Fixes (Doze/OEM, 30-120s Lücken) liefern oft KEIN
+        // hasSpeed() → speedMps = null → kurze Fahrten (10 Min) erreichten
+        // MIN_FAST_PROBES = 3 nie (User-Bug). distanceFromLastM ist aber
+        // immer da: Speed = Distanz / Zeit.
+        //   • Nur Probes mit speedMps == null und distanceFromLastM != null.
+        //   • dt zum Vorgänger muss in [MIN_INFERRED_DT_MS, MAX_INFERRED_DT_MS]
+        //     liegen (< 2s = Positions-Jitter → fiktive Speed, > 5 Min =
+        //     Park-Phase / Lücke → kein Fahrzeug-Tempo).
+        //   • Ableitungen unter MIN_INFERRED_SPEED_MPS (5,5 m/s) werden
+        //     VERWORFEN: Jitter (~0,2-0,5 m/s) und Parken (~0 m/s) sind kein
+        //     Tempo. Verworfen = weder schnell noch langsam — die Kette bricht
+        //     nicht, der Durchschnitt wird nicht gedrückt. Das ist der Kern
+        //     des Fixes: Eine 10-Minuten-Fahrt mit 1-2 Jitter-Fixes
+        //     (8,3 / 0,2 / 8,3 / 0,2 / 8,3) erreicht sonst weiterhin nie
+        //     MIN_CONSECUTIVE_FAST.
+        //   - Vorgänger ist der LETZTE GÜLTIGE Probe der Original-Liste
+        //     (nicht der unmittelbare, evtl. ungenaue — dessen Distanz-Feld
+        //     misst gegen einen Fix, der in der Engine gar nicht zählt).
+        val inferredSpeed = mutableMapOf<Long, Float>()
+        var lastValidIndex = -1
+        for (i in probes.indices) {
+            val p = probes[i]
+            if (p in valid) {
+                if (p.speedMps == null && p.distanceFromLastM != null && lastValidIndex >= 0) {
+                    val prev = probes[lastValidIndex]
+                    val dtMs = p.timestampMs - prev.timestampMs
+                    if (dtMs in MIN_INFERRED_DT_MS..MAX_INFERRED_DT_MS) {
+                        val derived = (p.distanceFromLastM / (dtMs / 1000.0)).toFloat()
+                        if (derived >= MIN_INFERRED_SPEED_MPS) {
+                            inferredSpeed[p.timestampMs] = derived
+                        }
+                    }
+                }
+                lastValidIndex = i
+            }
+        }
+
         // 2) Zeitliche Verteilung (mehrere Messungen über einen Zeitraum)
         val spread = valid.maxOf { it.timestampMs } - valid.minOf { it.timestampMs }
         if (spread < MIN_SPREAD_MS) return Classification.InsufficientData
@@ -212,7 +284,7 @@ object DriveDetectionEngine {
         var speedSum = 0f
         var speedCount = 0
         for (p in filtered) {
-            val s = p.speedMps
+            val s = p.speedMps ?: inferredSpeed[p.timestampMs]
             if (s != null) {
                 speedSum += s
                 speedCount++

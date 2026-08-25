@@ -397,4 +397,117 @@ class DriveDetectionEngineTest {
         val result = DriveDetectionEngine.classify(probes, t0 + 20 * 30_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
     }
+
+    // ── M18.77: Speed-Fallback (Geschwindigkeit aus Distanz) ────────
+
+    @Test
+    fun `10-Minuten-Fahrt ohne GPS-Speed-Feld — Geschwindigkeit aus Distanz abgeleitet`() {
+        // User-Bug „10-Minuten-Fahrten werden nicht erkannt": Hintergrund-
+        // Fixes (Doze/OEM, 30-120s Lücken) liefern KEIN hasSpeed() →
+        // speedMps = null. distanceFromLastM = 1000m bei 120s Abstand
+        // ergibt 8,33 m/s (30 km/h) — über der Auto-Schwelle von 8 m/s.
+        // Der Fallback muss MIN_FAST_PROBES = 3 + MIN_CONSECUTIVE_FAST = 2
+        // aus den abgeleiteten Werten erreichen.
+        val probes = (0 until 5).map { i ->
+            DriveDetectionEngine.DriveProbe(
+                timestampMs = t0 + i * 120_000L,
+                speedMps = null,
+                accuracyMeters = 20f,
+                distanceFromLastM = 1000.0, // 1000 m / 120 s = 8,33 m/s
+                latitude = 50.0 + i * 0.0045, // ~500m pro Schritt
+                longitude = 8.0
+            )
+        }
+        val result = DriveDetectionEngine.classify(probes, t0 + 5 * 120_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Kurze Fahrt mit gemischten Fixes — teils Speed, teils abgeleitet`() {
+        // 60s-Fix-Rate (Doze): zwei Fixes mit Speed (22 m/s), zwei ohne
+        // Speed aber mit Distanz 600 m → 600 m / 60 s = 10 m/s abgeleitet.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 22.0f, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 60_000L, null, 20f, distanceFromLastM = 600.0, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, null, 20f, distanceFromLastM = 600.0, latitude = 50.009, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 180_000L, 22.0f, 20f, distanceFromLastM = null, latitude = 50.0135, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 180_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Stillstand ohne Speed — Null-Distanz fühlt nicht als Fahrt`() {
+        // 4 Probes, speedMps = null, distanceFromLastM = 5 m (GPS-Drift),
+        // Koordinaten konstant → Netto-Displacement = 0 < 150 m → das
+        // Netto-Displacement-Gate muss NotDriving liefern, auch wenn die
+        // abgeleitete Geschwindigkeit (5 m / 60 s = 0,08 m/s) völlig
+        // unbedeutend ist.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, null, 20f, distanceFromLastM = 5.0, latitude = 50.0, longitude = 8.0),
+            DriveDetectionEngine.DriveProbe(t0 + 60_000L, null, 20f, distanceFromLastM = 5.0, latitude = 50.0, longitude = 8.0),
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, null, 20f, distanceFromLastM = 5.0, latitude = 50.0, longitude = 8.0),
+            DriveDetectionEngine.DriveProbe(t0 + 180_000L, null, 20f, distanceFromLastM = 5.0, latitude = 50.0, longitude = 8.0)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 240_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
+
+    @Test
+    fun `Inferierte Speed mit zu kleinem dt wird ignoriert — Fallback greift nicht unter 2s`() {
+        // Die ersten beiden Probes liegen 1s auseinander mit 12 m Distanz —
+        // OHNE die dt-Untergrenze (2s) ergäben sie 12 m/s und zählten als
+        // „schnell". Zusammen mit dem dritten Probe (780 m / 93 s = 8,4 m/s,
+        // legitim abgeleitet) käme der Bug auf fastCount = 3 + maxConsecutive
+        // = 3 → fälschlich Driving. Mit MIN_INFERRED_DT_MS = 2000 zählen nur
+        // der letzte Probe → fastCount = 1 → NotDriving.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, null, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 1_000L, null, 20f, distanceFromLastM = 12.0, latitude = 50.0001, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 2_000L, null, 20f, distanceFromLastM = 12.0, latitude = 50.0002, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 95_000L, null, 20f, distanceFromLastM = 780.0, latitude = 50.0045, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 95_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
+
+    @Test
+    fun `Fahrt mit Jitter-Fixes ohne Speed bleibt erkannt — Jitter bricht die Kette nicht`() {
+        // Das reale 10-Minuten-Fahrt-Muster: 3 Fixes mit Speed (8,3 m/s =
+        // 30er-Zone) und 2 Fixes OHNE Speed, deren Distanz nur Positions-
+        // Jitter ist (30 m / 120 s = 0,25 m/s). OHNE den M18.77-Jitter-
+        // Filter würden die 0,25-m/s-Ableitungen als „langsam" zählen und
+        // die Kette jedes Mal auf 0 setzen → maxConsecutive = 1 → die
+        // Fahrt würde NIE erkannt (exakt der gemeldete User-Bug). Mit
+        // MIN_INFERRED_SPEED_MPS werden die Jitter-Ableitungen verworfen:
+        // Kette = 8,3 / (verworfen) / 8,3 / (verworfen) / 8,3 →
+        // fastCount = 3, maxConsecutive = 2, avgSpeed = 8,3 → Driving.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 8.3f, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, null, 20f, distanceFromLastM = 30.0, latitude = 50.0022, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 240_000L, 8.3f, 20f, distanceFromLastM = 900.0, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 360_000L, null, 20f, distanceFromLastM = 30.0, latitude = 50.0067, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 480_000L, 8.3f, 20f, distanceFromLastM = 900.0, latitude = 50.009, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 480_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Inferierte Speed mit zu grossem dt wird ignoriert — Park-Luecke zaehlt nicht`() {
+        // Probe 1 liegt 8 Minuten nach Probe 0 (Park-Phase / Lücke):
+        // 4000 m / 480 s = 8,3 m/s — OHNE die dt-Obergrenze (5 Min) wäre
+        // das ein fiktiver „schneller" Fix, der mit den zwei echten
+        // Speed-Fixes fastCount = 3 + maxConsecutive = 2 ergäbe → falsch
+        // Driving. Mit MAX_INFERRED_DT_MS wird die Ableitung verworfen →
+        // nur 2 echte schnelle Probes → NotDriving.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, null, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 480_000L, null, 20f, distanceFromLastM = 4000.0, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 600_000L, 8.3f, 20f, distanceFromLastM = null, latitude = 50.009, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 720_000L, 8.3f, 20f, distanceFromLastM = null, latitude = 50.0135, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 720_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
 }
