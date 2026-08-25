@@ -31,6 +31,16 @@ class LiveActivityService : Service() {
 
     @Inject lateinit var liveActivityManager: LiveActivityManager
 
+    /** M18.76: EntryPoint für die ActivityRecognitionBridge — der
+     *  „■ Stoppen“-Button der Notification ist ein Stop-Pfad, den M18.75
+     *  nicht abdeckte (driveActive blieb true → Fahrterkennung tot bis
+     *  App-Neustart). */
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface BridgeEntryPoint {
+        fun activityRecognitionBridge(): com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var updateJob: Job? = null
     // M18.41: Zeitpunkt des Service-Starts. Wird fuer die
@@ -86,7 +96,28 @@ class LiveActivityService : Service() {
             ACTION_PAUSE -> scope.launch { liveActivityManager.pause() }
             ACTION_RESUME -> scope.launch { liveActivityManager.resume() }
             ACTION_STOP -> scope.launch {
+                // M18.76-FIX („Fahrterkennung funktioniert nicht mehr“):
+                // Der „■ Stoppen“-Button in der Live-Notification ist ein
+                // eigener Stop-Pfad neben dem Dashboard — M18.75 fixte nur
+                // stopLiveActivity() im ViewModel. Stoppt der User eine
+                // AUTO-Session (Fahrterkennung) hier, blieb driveActive in
+                // der Bridge true → der DriveDetectionService klassifizierte
+                // NIE WIEDER (Blackout bis App-Neustart). Jetzt: Flag
+                // zurücksetzen + Drive-Watchdog canceln (nur bei
+                // ACTIVITY_RECOGNITION_AUTO-Sessions, wie im Dashboard).
+                val sessionBefore = liveActivityManager.liveSession.value
                 liveActivityManager.stop()
+                if (sessionBefore != null && sessionBefore.sourceType == "ACTIVITY_RECOGNITION_AUTO") {
+                    try {
+                        dagger.hilt.android.EntryPointAccessors.fromApplication(
+                            applicationContext,
+                            BridgeEntryPoint::class.java
+                        ).activityRecognitionBridge().clearDriveActive()
+                        com.d_drostes_apps.aevum.automation.activityrecognition.DriveWatchdogWorker.cancel(applicationContext)
+                    } catch (e: Exception) {
+                        android.util.Log.e("LiveActivitySvc", "driveActive-Reset nach Notification-Stop fehlgeschlagen", e)
+                    }
+                }
                 stopSelf()
             }
             // M18.19: Wechsel-Popup öffnen (transparente Activity).

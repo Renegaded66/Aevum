@@ -61,6 +61,7 @@ import javax.inject.Inject
 class DriveDetectionService : Service() {
 
     @Inject lateinit var bridge: ActivityRecognitionBridge
+    @Inject lateinit var liveActivityManager: com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 
     private lateinit var fusedClient: FusedLocationProviderClient
     private var callback: LocationCallback? = null
@@ -214,6 +215,32 @@ class DriveDetectionService : Service() {
 
     private fun handleFix(loc: Location) {
         val now = System.currentTimeMillis()
+
+        // M18.76-BLACKOUT-FIX („Fahrterkennung funktioniert nicht mehr“):
+        // driveActive-Selbstheilung. M18.75 setzte driveActive nur beim
+        // manuellen Dashboard-Stop zurück. Die Session kann aber über
+        // MEHRERE andere Pfade enden, ohne dass das Flag gecleart wird —
+        // dann klassifiziert der Service NIE WIEDER (Blackout bis
+        // App-Neustart):
+        //   • „■ Stoppen“-Button in der Live-Notification
+        //     (LiveActivityService.ACTION_STOP, M18.75 nicht abgedeckt!)
+        //   • manuelles Speichern einer neuen Activity (SaveManualActivityUseCase)
+        //   • Session-Wechsel (DashboardViewModel.switchActivity)
+        //   • forceFinishForAuto (Geofence/Ping/Walking übernehmen die Session)
+        // Der Abgleich mit der realen Live-Session heilt ALLE diese Pfade
+        // inkl. zukünftiger — ohne neue Call-Sites zu vergessen. PAUSED
+        // zählt als live (isLive), damit Pause+Weiter die Erkennung nicht
+        // killt; nur wenn wirklich keine Auto-Session mehr läuft, wird
+        // das Flag zurückgesetzt.
+        if (bridge.isDriveActive()) {
+            val live = liveActivityManager.liveSession.value
+            val autoSessionStillLive = live != null && live.isLive &&
+                live.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+            if (!autoSessionStillLive) {
+                Log.d(TAG, "M18.76-Selbstheilung: driveActive ohne laufende Auto-Session -> zurückgesetzt (Blackout verhindert)")
+                bridge.clearDriveActive()
+            }
+        }
 
         // M18.66-FIX13: GPS-KALTSTART-WARMUP.
         // Die ersten 60 Sekunden nach Service-Start werden ignoriert.
