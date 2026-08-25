@@ -380,6 +380,44 @@ class DriveDetectionEngineTest {
     }
 
     @Test
+    fun `5-Minuten-Fahrt bei max 40 kmh mit 60s-Fixes wird erkannt — Stadtfahrt mit Anfahren, Ampel, Einparken`() {
+        // User-Bug „5-Minuten-Fahrt (max 40 km/h) wird gar nicht aufgezeichnet".
+        // Reale Hintergrund-Fix-Rate (Doze/OEM): 60s statt 5s → eine 5-Minuten-
+        // Fahrt ergibt nur ~5 Fixes. Stadt-Typisch: Anfahren (3 m/s), 30er-Zone
+        // (8,3 m/s), 40er (11,1 m/s), Ampel (0 m/s), Einparken (1,5 m/s).
+        // → fastCount = 2, maxConsecutive = 2 (8,3 + 11,1 direkt aufeinander),
+        // avgSpeed = 4,78 m/s.
+        // Mit MIN_FAST_PROBES = 3 (bisher) und avgSpeed >= 5 wurde diese
+        // Fahrt NIE erkannt — die Schwelle muss auf 2 schnelle Probes und
+        // 4,5 m/s Durchschnitt (M18.78).
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 3.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 60_000L, 8.3f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, 11.1f, 20f, latitude = 50.009, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 180_000L, 0.0f, 20f, latitude = 50.0135, longitude = 8.000), // Ampel
+            DriveDetectionEngine.DriveProbe(t0 + 240_000L, 1.5f, 20f, latitude = 50.018, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 240_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `5-Minuten-Fahrt mit spärlichen 90s-Fixes wird erkannt`() {
+        // Extremere Hintergrund-Drosselung: nur 4 Fixes in 5 Minuten.
+        // 3,0 (Anfahren) / 11,1 (40 km/h) / 8,3 (30er) / 2,0 (Einparken).
+        // → fastCount = 2, maxConsecutive = 2, avg = 6,35, Spread = 270s,
+        // Netto-Displacement ~2000 m. Muss mit MIN_FAST_PROBES = 2 Driving sein.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 3.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 90_000L, 11.1f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 180_000L, 8.3f, 20f, latitude = 50.009, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 270_000L, 2.0f, 20f, latitude = 50.0135, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 270_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
     fun `10-Minuten-Fahrt bei 80 kmh mit 30s-Fixes wird erkannt`() {
         // 20 Probes à 22 m/s (~80 km/h), 30s Abstand = 10 Minuten Fahrt.
         // Mit der alten 4er-Kette wäre die Erkennung erst nach ~2 Min
@@ -495,19 +533,24 @@ class DriveDetectionEngineTest {
 
     @Test
     fun `Inferierte Speed mit zu grossem dt wird ignoriert — Park-Luecke zaehlt nicht`() {
-        // Probe 1 liegt 8 Minuten nach Probe 0 (Park-Phase / Lücke):
+        // M18.77: Probe 1 liegt 8 Minuten nach Probe 0 (Park-Phase / Lücke):
         // 4000 m / 480 s = 8,3 m/s — OHNE die dt-Obergrenze (5 Min) wäre
-        // das ein fiktiver „schneller" Fix, der mit den zwei echten
-        // Speed-Fixes fastCount = 3 + maxConsecutive = 2 ergäbe → falsch
-        // Driving. Mit MAX_INFERRED_DT_MS wird die Ableitung verworfen →
-        // nur 2 echte schnelle Probes → NotDriving.
+        // das ein fiktiver „schneller" Fix.
+        // M18.78: Mit MIN_FAST_PROBES = 2 müssen die zwei echten schnellen
+        // Fixes (p0, p2) allein NICHT reichen — die drei langsamen Fixes
+        // (p3-p5, Einparken/Feierabend) drücken den Schnitt auf 4,04 m/s
+        // (< 4,5). Nur wenn die Park-Ableitung MITZÄHLTE (fastCount = 3,
+        // avg 4,73 >= 4,5) entstünde ein False-Positive → der Test beweist,
+        // dass die dt-Obergrenze weiterhin greift.
         val probes = listOf(
-            DriveDetectionEngine.DriveProbe(t0, null, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0, 8.3f, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
             DriveDetectionEngine.DriveProbe(t0 + 480_000L, null, 20f, distanceFromLastM = 4000.0, latitude = 50.0045, longitude = 8.000),
             DriveDetectionEngine.DriveProbe(t0 + 600_000L, 8.3f, 20f, distanceFromLastM = null, latitude = 50.009, longitude = 8.000),
-            DriveDetectionEngine.DriveProbe(t0 + 720_000L, 8.3f, 20f, distanceFromLastM = null, latitude = 50.0135, longitude = 8.000)
+            DriveDetectionEngine.DriveProbe(t0 + 720_000L, 1.2f, 20f, distanceFromLastM = null, latitude = 50.0135, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 840_000L, 1.2f, 20f, distanceFromLastM = null, latitude = 50.018, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 960_000L, 1.2f, 20f, distanceFromLastM = null, latitude = 50.0225, longitude = 8.000)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 720_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 960_000L)
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
     }
 }

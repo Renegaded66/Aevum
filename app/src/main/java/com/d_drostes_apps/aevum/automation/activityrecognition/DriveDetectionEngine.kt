@@ -69,8 +69,18 @@ object DriveDetectionEngine {
      *  GPS-Drosselung, accuracy > 50m). 3 schnelle Probes insgesamt +
      *  2 konsekutive (siehe [MIN_CONSECUTIVE_FAST]) = robust gegen
      *  einzelne Ausreißer, aber Radfahrer-Spike-Muster
-     *  (8.5, 5.0, 8.5, 5.0, 8.5 → maxConsecutive = 1) scheitern weiterhin. */
-    const val MIN_FAST_PROBES = 3
+     *  (8.5, 5.0, 8.5, 5.0, 8.5 → maxConsecutive = 1) scheitern weiterhin.
+     *  M18.78: 3 -> 2. User-Bug „5-Minuten-Fahrt (max 40 km/h) wird
+     *  gar nicht aufgezeichnet": Bei Hintergrund-Fix-Raten (Doze/OEM,
+     *  60-120s statt 5s) liefert eine 5-Minuten-Stadtfahrt nur ~4-5
+     *  Fixes — real sind davon 1-3 über 8 m/s (Anfahren, Ampel,
+     *  Einparken, 30er-Kurven fressen Fixes). Muster 3,0 / 8,3 / 0
+     *  (Ampel) / 11,1 / 1,5 hat fastCount = 2 — mit 3 wurde die Fahrt
+     *  NIE erkannt. 2 schnelle Probes + 2er-Kette bleiben robust:
+     *  ein einzelner GPS-Burst (1 schneller Fix) scheitert weiterhin,
+     *  Radfahrer-Spikes erreichen nie maxConsecutive = 2, Stillstand
+     *  fängt das Netto-Displacement-Gate (>= 150 m). */
+    const val MIN_FAST_PROBES = 2
     /** Mindestens N direkt aufeinanderfolgende Probes über der Auto-Schwelle.
      *  M18.66-FIX12: 4 -> 5. Vier reichte noch für gelegentliche
      *  False-Positives. Fünf aufeinanderfolgende schnelle Probes bei
@@ -341,9 +351,24 @@ object DriveDetectionEngine {
         // scheitern weiterhin an der Konsekutiv-Bedingung, und das
         // Netto-Displacement-Gate (>= 150m) + Spread (>= 90s) bleiben
         // als False-Positive-Schutz unverändert.
+        //
+        // M18.78 (User-Bug „5-Minuten-Fahrt, max 40 km/h, wird gar
+        // nicht aufgezeichnet"): MIN_FAST_PROBES 3 -> 2 UND avgSpeed
+        // 5,0 -> 4,5 m/s. Eine 5-Minuten-Stadtfahrt (Doze-Fix-Rate
+        // 60-120s) ergibt real nur ~4-5 Fixes, davon 1-3 schnell —
+        // das Stadt-Typ-Muster 3,0 / 8,3 / 0 / 11,1 / 1,5 hat einen
+        // Durchschnitt von 4,7 m/s, obwohl der User 30-40 km/h fährt.
+        // Beide Schwellen gleichzeitig senken, weil sie zusammen die
+        // kurze Fahrt abwürgen: fastCount >= 2 UND avgSpeed >= 4,5.
+        // Schutz bleibt doppelt: 4,5 m/s liegt über Geh-Tempo
+        // (1,5 m/s) und über einem Radfahrer-Schnitt (Spike-Muster
+        // 8.5/5.0 alternierend = 6,75 — scheitert aber an der
+        // 2er-Konsekutiv-Kette, weil 8,5 m/s nie 2 Fixes am Stück
+        // gehalten wird), einzelne GPS-Bursts scheitern an fastCount
+        // >= 2, Stillstand/Drift am Netto-Displacement-Gate (>= 150m).
         val driving = fastCount >= MIN_FAST_PROBES &&
             maxConsecutive >= MIN_CONSECUTIVE_FAST &&
-            avgSpeed >= 5.0f
+            avgSpeed >= 4.5f
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau
