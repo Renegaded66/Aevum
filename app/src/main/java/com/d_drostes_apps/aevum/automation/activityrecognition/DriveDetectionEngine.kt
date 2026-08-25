@@ -55,7 +55,15 @@ object DriveDetectionEngine {
     const val MAX_PROBE_AGE_MS = 15L * 60 * 1000
     /** Mindestanzahl gültiger Probes für eine Entscheidung. */
     const val MIN_VALID_PROBES = 3
-    /** Mindestens N aufeinanderfolgende Probes über der Auto-Schwelle.
+    /** Mindestens N schnelle Probes (>= [AUTO_SPEED_MPS]) im Fenster —
+     *  unabhängig von der Kette. M18.75: Die Erkennung darf nicht an
+     *  EINEM einzelnen kaputten Fix hängen (Ampel, Stop&Go, Tunnel,
+     *  GPS-Drosselung, accuracy > 50m). 3 schnelle Probes insgesamt +
+     *  2 konsekutive (siehe [MIN_CONSECUTIVE_FAST]) = robust gegen
+     *  einzelne Ausreißer, aber Radfahrer-Spike-Muster
+     *  (8.5, 5.0, 8.5, 5.0, 8.5 → maxConsecutive = 1) scheitern weiterhin. */
+    const val MIN_FAST_PROBES = 3
+    /** Mindestens N direkt aufeinanderfolgende Probes über der Auto-Schwelle.
      *  M18.66-FIX12: 4 -> 5. Vier reichte noch für gelegentliche
      *  False-Positives. Fünf aufeinanderfolgende schnelle Probes bei
      *  5s-Intervall = 25s kontinuierlich >= 32 km/h. Das ist robust
@@ -66,8 +74,19 @@ object DriveDetectionEngine {
      *  die Kette neu aufgebaut werden — 5 schnelle Probes = 25s
      *  Beschleunigung in der Stadt sind oft nicht drin (kurze Grün-
      *  Phasen, Stop&Go). 4 Probes = 20s kontinuierlich >= 28,8 km/h
-     *  bleibt robust gegen einzelne GPS-Bursts. */
-    const val MIN_CONSECUTIVE_FAST = 4
+     *  bleibt robust gegen einzelne GPS-Bursts.
+     *  M18.75: 4 -> 2. Hauptursache „kurze Fahrten werden nie erkannt":
+     *  Bei realen Hintergrund-Fix-Raten (30-120s statt 5s wegen Doze/
+     *  OEM-Battery-Saver) brauchte die 4er-Kette 2-8 Minuten UNUNTER-
+     *  BROCHENES Tempo — ein einziger Fix mit accuracy > 50m, speedMps
+     *  == null oder < 8 m/s (Ampel, Stop&Go, Tunnel) setzte die Kette
+     *  auf 0 zurück, die Erkennung dauerte 10-20 Minuten. 2 konsekutive
+     *  Probes = nur 60-240s zusammenhängendes Tempo. Zusammen mit
+     *  [MIN_FAST_PROBES] = 3 und avgSpeed >= 5 m/s bleibt die Erkennung
+     *  robust: Radfahrer-Spikes (8.5, 5.0, 8.5, ...) erreichen nie
+     *  maxConsecutive = 2, einzelne GPS-Bursts scheitern am
+     *  Netto-Displacement-Gate (>= 150m) und am Spread (>= 90s). */
+    const val MIN_CONSECUTIVE_FAST = 2
     /** Probes müssen über mindestens 90 Sekunden verteilt sein.
      *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
      *  geschwindigkeit innerhalb von 2 Minuten über 25 km/h". Das
@@ -128,9 +147,10 @@ object DriveDetectionEngine {
      *  1. Alte Probes (> 15 Min) und ungenaue Fixes (> 50 m) verwerfen.
      *  2. Einzelne Geschwindigkeits-Ausreißer (> 40 m/s) verwerfen.
      *  3. GPS-Sprung-Ausreißer (> 2 km in < 60 s) verwerfen.
-     *  4. Fahrt = mindestens [MIN_CONSECUTIVE_FAST] aufeinanderfolgende
-     *     Probes >= [AUTO_SPEED_MPS] ODER hohe Durchschnittsgeschwindigkeit
-     *     mit mehreren schnellen Probes.
+     *  4. Fahrt = mindestens [MIN_FAST_PROBES] schnelle Probes
+     *     (>= [AUTO_SPEED_MPS]) im Fenster, davon mindestens
+     *     [MIN_CONSECUTIVE_FAST] direkt aufeinanderfolgende, ODER hohe
+     *     Durchschnittsgeschwindigkeit mit mehreren schnellen Probes.
      *  5. Zeitliche Verteilung: Die Probes müssen über [MIN_SPREAD_MS]
      *     verteilt sein — ein einzelner Mess-Burst zählt nicht.
      */
@@ -233,8 +253,25 @@ object DriveDetectionEngine {
         // einer Radfahrt mit 4 schnellen Spikes (4×8 + 4×2 = 40/8 = 5 —
         // die scheitert aber an der Konsekutiv-Kette, weil Radfahrer
         // 8 m/s nicht 20s am Stück halten) und am Netto-Displacement.
-        val driving = maxConsecutive >= MIN_CONSECUTIVE_FAST &&
-            avgSpeed >= 5.0f && fastCount >= MIN_CONSECUTIVE_FAST
+        //
+        // M18.75 (Hauptursache „kurze Fahrten werden nie erkannt"):
+        // Die 4er-Kette war bei realen Hintergrund-Fix-Raten (30-120s
+        // statt 5s wegen Doze/OEM-Battery-Saver) zu streng — ein
+        // einziger Fix mit accuracy > 50m, speedMps == null oder
+        // < 8 m/s (Ampel, Stop&Go, Tunnel, GPS-Drosselung) setzte die
+        // Kette auf 0 zurück, die Erkennung dauerte 10-20 Minuten.
+        // Jetzt: mindestens MIN_FAST_PROBES = 3 schnelle Probes im
+        // Fenster, davon mindestens MIN_CONSECUTIVE_FAST = 2 direkt
+        // aufeinanderfolgende, plus avgSpeed >= 5 m/s. Ein einzelner
+        // kaputter Fix kann die Erkennung nicht mehr stoppen (die
+        // 2er-Kette wird davor/danach neu aufgebaut), Radfahrer-Spike-
+        // Muster (8.5, 5.0, 8.5, 5.0, 8.5 → maxConsecutive = 1)
+        // scheitern weiterhin an der Konsekutiv-Bedingung, und das
+        // Netto-Displacement-Gate (>= 150m) + Spread (>= 90s) bleiben
+        // als False-Positive-Schutz unverändert.
+        val driving = fastCount >= MIN_FAST_PROBES &&
+            maxConsecutive >= MIN_CONSECUTIVE_FAST &&
+            avgSpeed >= 5.0f
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau

@@ -343,4 +343,58 @@ class DriveDetectionEngineTest {
         val result = DriveDetectionEngine.classify(probes, t0 + 6 * 120_000L)
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
     }
+
+    // ── M18.75: Robustheit gegen spärliche/kaputte Fixes ───────────
+
+    @Test
+    fun `Fahrt mit spärlichen Fixes (60s Abstand) und einem ungenauen Fix dazwischen wird erkannt`() {
+        // Hintergrund-Fix-Rate 60s (Doze/Battery-Saver) + ein Fix mit
+        // accuracy 80m (Tunnel/Stadt-Canyon), der gefiltert wird. Die
+        // 4er-Kette wäre hier an dem ungenauen Fix gebrochen — mit
+        // MIN_FAST_PROBES=3 + MIN_CONSECUTIVE_FAST=2 wird die Fahrt
+        // trotzdem erkannt.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 22.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 60_000L, 22.0f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, 22.0f, 80f, latitude = 50.009, longitude = 8.000), // gefiltert
+            DriveDetectionEngine.DriveProbe(t0 + 180_000L, 22.0f, 20f, latitude = 50.0135, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 240_000L, 22.0f, 20f, latitude = 50.018, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 240_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Ampel-Stopp bricht die Erkennung nicht`() {
+        // 22, 22, 0 (Ampel), 22, 22 m/s — die 0 setzt die Kette zurück,
+        // aber fastCount=4 und maxConsecutive=2 reichen für Driving.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 22.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 30_000L, 22.0f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 60_000L, 0.0f, 20f, latitude = 50.009, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 90_000L, 22.0f, 20f, latitude = 50.0135, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, 22.0f, 20f, latitude = 50.018, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 120_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `10-Minuten-Fahrt bei 80 kmh mit 30s-Fixes wird erkannt`() {
+        // 20 Probes à 22 m/s (~80 km/h), 30s Abstand = 10 Minuten Fahrt.
+        // Mit der alten 4er-Kette wäre die Erkennung erst nach ~2 Min
+        // angesprungen; der Test sichert ab, dass die komplette Fahrt
+        // (inkl. aller Probes im 15-Min-Fenster) als Driving klassifiziert.
+        val probes = (0 until 20).map { i ->
+            DriveDetectionEngine.DriveProbe(
+                timestampMs = t0 + i * 30_000L,
+                speedMps = 22.0f,
+                accuracyMeters = 20f,
+                latitude = 50.0 + i * 0.0045, // ~500m pro Schritt
+                longitude = 8.0
+            )
+        }
+        val result = DriveDetectionEngine.classify(probes, t0 + 20 * 30_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
 }

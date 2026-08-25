@@ -62,7 +62,10 @@ class DashboardViewModel @Inject constructor(
     private val garminRepository: com.d_drostes_apps.aevum.data.repository.GarminRepository,
     // M18.66-FIX3: CurrentZoneProvider — liefert die aktuelle Geofence-Zone
     // für den Zone-Banner im Dashboard.
-    private val currentZoneProvider: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider
+    private val currentZoneProvider: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider,
+    // M18.75: ActivityRecognitionBridge — für den Blackout-Fix nach
+    // manuellem Stop einer Auto-Session (driveActive zurücksetzen).
+    private val activityRecognitionBridge: com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
@@ -372,8 +375,20 @@ class DashboardViewModel @Inject constructor(
 
     fun stopLiveActivity() {
         viewModelScope.launch {
-            liveActivityManager.stop()
+            val stopped = liveActivityManager.stop()
             LiveActivityService.stop(application)
+            // M18.75-FIX (Blackout nach manuellem Session-Stop): Wenn der
+            // User eine laufende AUTO-Session (Fahrterkennung) manuell
+            // stoppt, blieb driveActive in der ActivityRecognitionBridge
+            // true — die DriveDetectionService klassifizierte danach NIE
+            // WIEDER (Blackout bis App-Neustart). Jetzt: Flag zurücksetzen
+            // und den Drive-Watchdog canceln, damit die Erkennung für die
+            // nächste Fahrt frisch startet. Manuelle Sessions (sourceType
+            // != ACTIVITY_RECOGNITION_AUTO) werden NICHT angefasst.
+            if (stopped != null && stopped.sourceType == "ACTIVITY_RECOGNITION_AUTO") {
+                activityRecognitionBridge.clearDriveActive()
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveWatchdogWorker.cancel(application)
+            }
         }
     }
 
