@@ -160,6 +160,18 @@ object DriveDetectionEngine {
      *  kein neues False-Positive-Risiko (Drift ~0,5 m/s). */
     const val MIN_INFERRED_SPEED_MPS = 5.5f
 
+    // ── M18.79: Start-in-flight-Fenster (Blackout-/Race-Schutz) ────
+    /** So lange nach [markDriveConfirmed] darf eine Auto-Session noch
+     *  unterwegs sein, ohne dass die Selbstheilung das driveActive-Flag
+     *  zurücknimmt (siehe ActivityRecognitionBridge.healIfOrphaned).
+     *  90 s = WorkManager-Start-Latenz (App im Hintergrund/Doze) + das
+     *  2-Minuten-Intervall des DriveProbeWorker-Takts, falls dessen
+     *  markDriveConfirmed als letztes gewinnt. Wird das Fenster
+     *  überschritten und läuft immer noch keine Session, ist die
+     *  Bestätigung verloren — dann muss die Erkennung neu klassifizieren
+     *  können (Blackout verhindern). */
+    const val DRIVE_CONFIRM_IN_FLIGHT_MS = 90_000L
+
     /** Ein einzelner Geschwindigkeits-Probe. */
     data class DriveProbe(
         val timestampMs: Long,

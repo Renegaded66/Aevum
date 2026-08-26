@@ -440,17 +440,74 @@ class ActivityRecognitionBridge @Inject constructor(
     // Wird bei Start gesetzt, bei Stop (Watchdog/EXIT) zurückgesetzt.
     @Volatile private var driveActive = false
 
+    // M18.79: Zeitstempel der letzten markDriveConfirmed() — Basis für
+    // das Start-in-flight-Fenster der Selbstheilung (healIfOrphaned).
+    @Volatile private var driveConfirmedAtMs: Long = 0L
+
     @Synchronized
     fun markDriveConfirmed() {
         driveConfirmed = true
         driveActive = true
+        driveConfirmedAtMs = System.currentTimeMillis()
+    }
+
+    /**
+     * M18.76: Selbstheilung gegen den driveActive-Blackout.
+     *
+     * Der Service ruft das bei jedem GPS-Fix, wenn [isDriveActive] true
+     * ist, aber keine ACTIVE_RECOGNITION_AUTO-Session mehr läuft. Ohne
+     * Heilung bliebe driveActive=true stehen und die Erkennung wäre tot
+     * bis zum App-Neustart (Blackout über alle Stop-Pfade: Watchdog,
+     * AR-EXIT, manuelle UI-Stops, forceFinishForAuto).
+     *
+     * M18.79 (Race-Fix): [markDriveConfirmed] und der asynchrone
+     * [DriveStartWorker]-Lauf sind NICHT atomar — zwischen beiden ist
+     * keine Session live, und ein parallel laufender [DriveStartWorker]
+     * (AR-ENTER-Pfad, gleicher Unique-Work-Name, REPLACE) kann das
+     * Bestätigungs-Flag per [consumeDriveConfirmation] weggeschnappt
+     * haben, bevor er am Start-Gate scheitert. Die Bestätigung ist dann
+     * verloren, aber der Start ist noch in-flight. Ein sofortiges
+     * Clear würde den Heartbeat-Refresh killen → Watchdog stoppt die
+     * frisch gestartete Fahrt nach 5 Minuten (M18.67-FIX3-Pfad).
+     *
+     * Lösung: Das Flag wird nur zurückgenommen, wenn die Bestätigung
+     * NICHT mehr in-flight ist — d. h. älter als
+     * [DriveDetectionEngine.DRIVE_CONFIRM_IN_FLIGHT_MS]. Danach ist
+     * eine echte verlorene Bestätigung (z. B. Worker nie gelaufen),
+     * und die Erkennung muss neu klassifizieren können.
+     *
+     * @return true, wenn driveActive zurückgenommen wurde (Blackout
+     *   verhindert) — false, wenn die Bestätigung noch in-flight ist
+     *   (nichts getan) oder gar kein Blackout vorlag.
+     */
+    @Synchronized
+    fun healIfOrphaned(nowMs: Long): Boolean {
+        if (!driveActive) return false
+        val confirmedFresh = driveConfirmedAtMs > 0L &&
+            nowMs - driveConfirmedAtMs < DriveDetectionEngine.DRIVE_CONFIRM_IN_FLIGHT_MS
+        if (confirmedFresh) return false
+        driveActive = false
+        // M18.79: Auch das Bestätigungs-Flag zurücknehmen — eine verlorene
+        // Bestätigung darf kein verspäteter Worker-Lauf (Doze-Latenz) als
+        // Startgrund für eine längst vorbei gefahrene Fahrt verwenden.
+        driveConfirmed = false
+        return true
     }
 
     /** M18.67-FIX3: Peek ohne consume — der DriveDetectionService muss
      *  wissen, ob eine Fahrt bereits bestätigt ist, ohne das Flag zu
-     *  löschen (consume würde den DriveStartWorker verwirren). */
+     *  löschen (consume würde den DriveStartWorker verwirren).
+     *  M18.79: Auch der DriveStartWorker peekt zuerst (peek-then-consume),
+     *  damit ein parallel laufender AR-ENTER-Lauf (gleicher Unique-Work,
+     *  REPLACE) das GPS-Flag nicht vor dem Gate-Check wegschnappt. */
     @Synchronized
     fun isDriveConfirmed(): Boolean = driveConfirmed
+
+    /** M18.79: Alter der letzten Bestätigung in ms (Long.MAX_VALUE, wenn
+     *  noch nie bestätigt). Für den Frische-Check im DriveStartWorker. */
+    @Synchronized
+    fun driveConfirmedAgeMs(nowMs: Long): Long =
+        if (driveConfirmedAtMs > 0L) nowMs - driveConfirmedAtMs else Long.MAX_VALUE
 
     /** M18.67-FIX3: Ist eine Fahrt aktiv? (unabhängig vom Start-Flag).
      *  Wird vom DriveDetectionService genutzt, um nach bestätigter

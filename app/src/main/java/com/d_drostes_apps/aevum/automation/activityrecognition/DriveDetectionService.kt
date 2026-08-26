@@ -152,7 +152,15 @@ class DriveDetectionService : Service() {
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        serviceStartMs = System.currentTimeMillis()
+        // M18.79: Der Service wird bei JEDEM App-Start neu gestartet
+        // (AevumApplication.onCreate). Ein hier gesetztes serviceStartMs
+        // würde bei jedem App-Start einen 60s-GPS-Kaltstart-Warmup
+        // erzwingen und den laufenden Location-Stream abreißen — der
+        // User, der die App öffnet und direkt losfährt, bliebe blind.
+        // Der Warmup gilt nur für den ERSTEN Start des Service-Prozesses
+        // (echter GPS-Kaltstart); bei Wiederholungs-Starts läuft der
+        // Stream weiter (Recycling unten).
+        if (serviceStartMs == 0L) serviceStartMs = System.currentTimeMillis()
         if (!hasLocationPermission()) {
             Log.w(TAG, "Keine Standort-Berechtigung — Autofahrt-Erkennung pausiert")
             stopSelf()
@@ -188,27 +196,31 @@ class DriveDetectionService : Service() {
             return START_NOT_STICKY
         }
 
-        // Falls der Service neu gestartet wurde, erst den alten Stream abmelden.
-        callback?.let { old ->
-            try { fusedClient.removeLocationUpdates(old) } catch (_: Exception) {}
-        }
-
-        val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_INTERVAL_MS)
-            .setMinUpdateIntervalMillis(LOCATION_INTERVAL_MS / 2)
-            .setMaxUpdateDelayMillis(LOCATION_INTERVAL_MS * 2)
-            .build()
-        val cb = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { handleFix(it) }
+        // M18.79: Stream-Recycling. Ein bereits aktiver Callback wird
+        // NICHT abgerissen und neu angemeldet — das erzeugt sonst bei
+        // jedem App-Start eine Fix-Lücke (GPS-Neuakquise). Nur wenn
+        // kein Stream läuft (erster Start oder Service wurde vom System
+        // gekillt und neu gestartet), wird einer angelegt.
+        if (callback == null) {
+            val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_INTERVAL_MS)
+                .setMinUpdateIntervalMillis(LOCATION_INTERVAL_MS / 2)
+                .setMaxUpdateDelayMillis(LOCATION_INTERVAL_MS * 2)
+                .build()
+            val cb = object : LocationCallback() {
+                override fun onLocationResult(result: LocationResult) {
+                    result.lastLocation?.let { handleFix(it) }
+                }
             }
-        }
-        callback = cb
-        try {
-            fusedClient.requestLocationUpdates(req, cb, mainLooper)
-            Log.d(TAG, "Kontinuierlicher Location-Stream aktiv (5s)")
-        } catch (e: Exception) {
-            Log.e(TAG, "requestLocationUpdates fehlgeschlagen", e)
-            stopSelf()
+            callback = cb
+            try {
+                fusedClient.requestLocationUpdates(req, cb, mainLooper)
+                Log.d(TAG, "Kontinuierlicher Location-Stream aktiv (5s)")
+            } catch (e: Exception) {
+                Log.e(TAG, "requestLocationUpdates fehlgeschlagen", e)
+                stopSelf()
+            }
+        } else {
+            Log.d(TAG, "Location-Stream läuft bereits — kein Neustart (App-Start-Recycling)")
         }
         return START_STICKY
     }
@@ -237,8 +249,13 @@ class DriveDetectionService : Service() {
             val autoSessionStillLive = live != null && live.isLive &&
                 live.sourceType == "ACTIVITY_RECOGNITION_AUTO"
             if (!autoSessionStillLive) {
-                Log.d(TAG, "M18.76-Selbstheilung: driveActive ohne laufende Auto-Session -> zurückgesetzt (Blackout verhindert)")
-                bridge.clearDriveActive()
+                // M18.79: healIfOrphaned respektiert das Start-in-flight-
+                // Fenster nach markDriveConfirmed — ein Race zwischen
+                // Bestätigung und asynchronem DriveStartWorker-Lauf killt
+                // die Erkennung nicht mehr (siehe Bridge-Kommentar).
+                if (bridge.healIfOrphaned(now)) {
+                    Log.d(TAG, "M18.76-Selbstheilung: driveActive ohne laufende Auto-Session -> zurückgesetzt (Blackout verhindert)")
+                }
             }
         }
 

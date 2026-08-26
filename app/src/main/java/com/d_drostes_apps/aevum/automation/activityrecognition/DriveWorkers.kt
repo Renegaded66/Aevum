@@ -95,16 +95,31 @@ class DriveStartWorker(
         //      InitialActivitySnapshotWorker), ODER
         //   b) die aktuellen GPS-Probes des DriveDetectionService
         //      klassifizieren als Driving (alle Gates: Warmup,
-        //      Netto-Displacement ≥ 150m, 4 konsekutive ≥ 8 m/s,
-        //      avgSpeed ≥ 5 m/s — M18.71 sensibler).
+        //      Netto-Displacement ≥ 150m, konsekutive ≥ 8 m/s,
+        //      avgSpeed ≥ 4,5 m/s).
         // Beides zusammen deckt ab: echte Fahrten starten über den
         // GPS-Stream (der die Gates hat), AR-False-Positives starten
         // nichts mehr.
+        //
+        // M18.79 (Race-Fix): Diesen Worker rufen ZWEI Pfade auf — der
+        // AR-ENTER-Receiver und der GPS-Pfad (DriveDetectionService) —
+        // und beide landen im SELBEN Unique-Work (REPLACE). Der AR-Lauf
+        // konsumierte das Bestätigungs-Flag per consumeDriveConfirmation
+        // BEVOR er am Start-Gate scheiterte → das GPS-Flag war weg, wenn
+        // der eigentliche GPS-Lauf kam → die bestätigte Fahrt wurde
+        // verworfen und die Erkennung blieb bis zur Heilung blockiert.
+        // Jetzt: Zuerst per isDriveConfirmed PEEKEN, das Gate prüfen,
+        // und NUR bei bestandenem Gate konsumieren. Zusätzlich wird die
+        // Bestätigung nur akzeptiert, wenn sie frisch ist (< 15 Min) —
+        // ein verspäteter Worker-Lauf (Doze-Latenz) startet keine
+        // längst vorbei gefahrene Fahrt.
         val now = System.currentTimeMillis()
-        val confirmed = bridge.consumeDriveConfirmation()
+        val confirmed = bridge.isDriveConfirmed()
+        val confirmedFresh = confirmed && bridge.driveConfirmedAgeMs(now) <
+            DriveDetectionEngine.MAX_PROBE_AGE_MS
         val gpsOk = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now) is
             DriveDetectionEngine.Classification.Driving
-        if (!confirmed && !gpsOk) {
+        if (!confirmedFresh && !gpsOk) {
             // M18.68-FIX (Detection-Blackout): Das Confirmation-Flag wird
             // vom DriveDetectionService gesetzt, BEVOR die Probes gedrained
             // werden. Läuft parallel der ActivityRecognitionWorker (er
@@ -117,14 +132,22 @@ class DriveStartWorker(
             // (handleFix: if (!isDriveActive())) — die Fahrt wird dauerhaft
             // nicht aufgezeichnet, obwohl sie real stattfindet.
             // Recovery ist konservativ: driveActive=false erlaubt NUR die
-            // NEUE Klassifikation (alle Gates: 5×9 m/s-Kette, avg 6 m/s,
-            // Netto-Displacement ≥ 200 m). Eine False-Positive kann so
+            // NEUE Klassifikation (alle Gates). Eine False-Positive kann so
             // nicht entstehen — es wird nichts gestartet, nur die
             // Erkennung wieder aktiviert.
-            Log.d(TAG, "Start-Gate: keine GPS-Bestätigung und keine Driving-Klassifikation — AR-Cluster verworfen (False-Positive-Schutz); driveActive zurückgesetzt für neue Erkennung")
-            bridge.clearDriveActive()
+            //
+            // M18.79: Recovery NUR über die Selbstheilung (healIfOrphaned),
+            // damit eine frische Bestätigung (Start-in-flight) nicht
+            // zerschossen wird. Das Flag wurde hier nicht konsumiert.
+            Log.d(TAG, "Start-Gate: keine frische GPS-Bestätigung und keine Driving-Klassifikation — AR-Cluster verworfen (False-Positive-Schutz)")
+            if (!confirmedFresh && !bridge.isDriveActive()) {
+                bridge.clearDriveActive()
+            }
             return Result.success()
         }
+        // M18.79: Gate bestanden — Bestätigung JETZT konsumieren
+        // (peek-then-consume, siehe oben).
+        if (confirmed) bridge.consumeDriveConfirmation()
 
         // M18.66: Die Erkennung (ENTER-Event ODER Speed-Serie) ist die
         // Bestätigung — die Session startet JETZT, nicht erst nach
