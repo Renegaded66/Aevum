@@ -12,7 +12,9 @@ import javax.inject.Inject
  * This reduces noise from split geofence events (e.g. 3 driving fragments
  * → 1 "Arbeitsweg") before displaying candidates in the timeline and review inbox.
  */
-class CandidateMergeEngine @Inject constructor() {
+class CandidateMergeEngine @Inject constructor(
+    private val strings: RuleStrings
+) {
 
     /**
      * Merges adjacent candidates with the same category when gap ≤ threshold.
@@ -67,7 +69,10 @@ class CandidateMergeEngine @Inject constructor() {
             endAt = mergedEnd,
             confidence = avgConfidence,
             status = first.status,
-            reason = "${first.reason ?: ""} | Zusammengeführt mit ${second.reason ?: "weiterem Kandidaten"} (Lücke < 5min).",
+            reason = strings.reasonMerge(
+                first.reason ?: "",
+                second.reason ?: strings.mergeFallback()
+            ),
             createdBy = first.createdBy,
             createdAt = first.createdAt.coerceAtMost(second.createdAt),
             sourceCandidateId = "${first.sourceCandidateId ?: first.id},${second.sourceCandidateId ?: second.id}"

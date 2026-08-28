@@ -44,7 +44,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -112,13 +114,13 @@ private fun CalendarHero(
             ) {
                 Column {
                     Text(
-                        "KALENDER",
+                        stringResource(R.string.calendar_hero_label),
                         fontSize = 11.sp,
                         letterSpacing = 1.1.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Deine Zeitqualität im Monatsüberblick",
+                        stringResource(R.string.calendar_subtitle),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -154,13 +156,13 @@ private fun CalendarHero(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Erfasst: ${TimeFormatting.formatDuration(state.totalTrackedMs)}",
+                    stringResource(R.string.calendar_captured, TimeFormatting.formatDuration(state.totalTrackedMs)),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontFamily = FontFamily.Monospace
                 )
                 Text(
-                    "Heute",
+                    stringResource(R.string.common_today),
                     modifier = Modifier
                         .clip(RoundedCornerShape(AevumRadius.full))
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
@@ -187,7 +189,16 @@ private fun CalendarGrid(
         ) {
             // Wochentags-Header
             Row(modifier = Modifier.fillMaxWidth()) {
-                state.weekDayLabels.forEach { label ->
+                val weekDayLabels = listOf(
+                    stringResource(R.string.common_monday),
+                    stringResource(R.string.common_tuesday),
+                    stringResource(R.string.common_wednesday),
+                    stringResource(R.string.common_thursday),
+                    stringResource(R.string.common_friday),
+                    stringResource(R.string.common_saturday),
+                    stringResource(R.string.common_sunday)
+                )
+                weekDayLabels.forEach { label ->
                     Text(
                         label,
                         modifier = Modifier.weight(1f),
@@ -237,7 +248,7 @@ private fun CalendarGrid(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("weniger", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.calendar_less), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
                 listOf(
                     Color(0xFFE53935), Color(0xFFFDD835), Color(0xFF66BB6A), Color(0xFF2E7D32)
@@ -251,7 +262,7 @@ private fun CalendarGrid(
                     )
                 }
                 Spacer(Modifier.width(6.dp))
-                Text("mehr", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.calendar_more), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -370,7 +381,7 @@ private fun DayDetailPanel(
                 Column {
                     Text(dayLabel.replaceFirstChar { it.titlecase(Locale.getDefault()) }, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Erfasst: ${TimeFormatting.formatDuration(totalMs)} · ${state.daySessions.size} Aktivitäten",
+                        stringResource(R.string.calendar_day_captured, TimeFormatting.formatDuration(totalMs), state.daySessions.size),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace
@@ -395,7 +406,7 @@ private fun DayDetailPanel(
 
             if (state.daySessions.isEmpty()) {
                 Text(
-                    "Keine Aktivitäten an diesem Tag.",
+                    stringResource(R.string.calendar_no_activities),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -485,7 +496,7 @@ private fun SessionRow(session: CalendarDaySessionUi, onClick: () -> Unit) {
             Text(session.icon, fontSize = 16.sp)
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(session.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(session.title.ifBlank { stringResource(R.string.calendar_activity) }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 "${TimeFormatting.formatTime(session.startAt)} · ${TimeFormatting.formatDuration(session.durationMs)}",
                 fontSize = 11.sp,

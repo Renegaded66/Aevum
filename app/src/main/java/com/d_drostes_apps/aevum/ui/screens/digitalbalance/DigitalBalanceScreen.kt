@@ -1,13 +1,11 @@
 package com.d_drostes_apps.aevum.ui.screens.digitalbalance
 
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -78,7 +76,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.AppLimit
 import com.d_drostes_apps.aevum.data.model.BalanceProfile
 import com.d_drostes_apps.aevum.ui.components.AevumCard
@@ -86,8 +86,10 @@ import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 /**
@@ -137,7 +139,10 @@ fun DigitalBalanceScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf("Balance", "Pomodoro").forEachIndexed { index, label ->
+            listOf(
+                stringResource(R.string.balance_tab_balance),
+                stringResource(R.string.balance_tab_pomodoro)
+            ).forEachIndexed { index, label ->
                 val selected = pagerState.currentPage == index
                 Text(
                     label,
@@ -185,7 +190,7 @@ private fun BalancePage(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Nutzungszugriff aktiv",
+                    stringResource(R.string.balance_usage_access_active),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -193,10 +198,10 @@ private fun BalancePage(
                     // M18.67: App-Aufzeichnung — Button oben (User: "Einfach
                     // oben einen Button hinzufügen")
                     TextButton(onClick = onOpenAppTracking) {
-                        Text("App-Aufzeichnung", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.apptracking_title), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                     }
                     TextButton(onClick = viewModel::revokeUsageAccess) {
-                        Text("Widerrufen", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.balance_revoke), fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -217,7 +222,7 @@ private fun BalancePage(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Apps", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.balance_apps_header), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // M18.61g: Dezente Sortier-Buttons (Icons) —
                     // alphabetisch (A-Z) oder absteigend nach Nutzung
@@ -227,7 +232,7 @@ private fun BalancePage(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SortByAlpha,
-                            contentDescription = "Alphabetisch sortieren",
+                            contentDescription = stringResource(R.string.balance_sort_alpha),
                             tint = if (state.sortMode == "alpha") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -237,13 +242,13 @@ private fun BalancePage(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Sort,
-                            contentDescription = "Nach Nutzung sortieren",
+                            contentDescription = stringResource(R.string.balance_sort_usage),
                             tint = if (state.sortMode == "usage") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     if (state.blockedCount > 0) {
                         Text(
-                            "${state.blockedCount} gesperrt",
+                            stringResource(R.string.balance_blocked_count, state.blockedCount),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Medium
@@ -255,9 +260,8 @@ private fun BalancePage(
         // M18.62: App-Karten mit kaskadenartiger Einblend-Animation
         // (Fade + Slide von unten) und animierter Platzierung beim
         // Sortieren/Neuanordnen.
-        itemsIndexed(state.apps, key = { _, app -> app.packageName }) { index, app ->
+        itemsIndexed(state.apps, key = { _, app -> app.packageName }) { _, app ->
             AnimatedAppCard(
-                index = index,
                 app = app,
                 dayTotalMs = state.selectedDayTotalMs,
                 onLimitChange = { minutes, enabled ->
@@ -273,6 +277,16 @@ private fun BalancePage(
     }
 }
 
+@Composable
+private fun formatDay(date: LocalDate): String {
+    val today = LocalDate.now()
+    return when (date) {
+        today -> stringResource(R.string.common_today)
+        today.minusDays(1) -> stringResource(R.string.common_yesterday)
+        else -> date.format(java.time.format.DateTimeFormatter.ofPattern("d.M.", java.util.Locale.getDefault()))
+    }
+}
+
 /**
  * M18.62: App-Karte mit Einblend-Animation. Beim ersten Erscheinen
  * gleitet sie mit Fade von unten ein (kaskadenartig, 60ms × Index),
@@ -281,7 +295,6 @@ private fun BalancePage(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AnimatedAppCard(
-    index: Int,
     app: DigitalAppUi,
     dayTotalMs: Long,
     onLimitChange: (Int, Boolean) -> Unit,
@@ -289,21 +302,20 @@ private fun AnimatedAppCard(
     onRemove: () -> Unit
 ) {
     var appeared by remember { mutableStateOf(false) }
+    // Performance-Fix: Keine Kaskaden-Delays mehr. LazyColumn disposed
+    // Items beim Rausscrollen — mit delay(index*60) startete die Kaskade
+    // bei jedem Re-Enter neu (bei 30 Apps bis zu 1,8s Verzögerung) → Ruckeln.
     LaunchedEffect(Unit) {
-        delay((index * 60).toLong())
         appeared = true
     }
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(400),
+        animationSpec = tween(250),
         label = "appCardAlpha"
     )
     val offsetY by animateDpAsState(
         targetValue = if (appeared) 0.dp else 24.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        animationSpec = tween(250),
         label = "appCardOffset"
     )
     Box(
@@ -338,19 +350,18 @@ private fun PermissionCard(onOpenSettings: () -> Unit) {
             ) {
                 Text("📊", fontSize = 48.sp)
                 Text(
-                    "Digital Balance",
+                    stringResource(R.string.balance_permission_title),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Um deine App-Nutzung zu sehen und Limits zu setzen, " +
-                        "braucht Aevum Zugriff auf die Nutzungsdaten.",
+                    stringResource(R.string.balance_permission_desc),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
-                    Text("Nutzungszugriff erlauben")
+                    Text(stringResource(R.string.balance_permission_grant))
                 }
             }
         }
@@ -369,9 +380,9 @@ private fun TodayHeroCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Heute", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.common_today), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                 IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Aktualisieren", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.balance_refresh), modifier = Modifier.size(16.dp))
                 }
             }
 
@@ -389,13 +400,11 @@ private fun TodayHeroCard(
             // Farben vor dem Canvas-DrawScope extrahieren (Compose-Regel:
             // @Composable-Zugriffe nur im Composable-Kontext)
             val trackColor = MaterialTheme.colorScheme.surfaceVariant
-            // M18.62: Ring füllt sich animiert (Spring, leicht bouncy)
+            // M18.62: Ring füllt sich animiert — tween statt bouncy Spring
+            // (Spring sprang bei jedem Refresh/Recomposition neu → Haken).
             val animatedProgress by animateFloatAsState(
                 targetValue = progress,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
+                animationSpec = tween(400),
                 label = "ringProgress"
             )
             // M18.62: Zentrale Zeit zählt von 0 auf den Zielwert (600ms)
@@ -446,7 +455,7 @@ private fun TodayHeroCard(
                         fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        "von ${DigitalBalanceViewModel.formatDuration(goalMs)} Ziel",
+                        stringResource(R.string.balance_of_goal, DigitalBalanceViewModel.formatDuration(goalMs)),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -458,9 +467,9 @@ private fun TodayHeroCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                HeroMetric("Apps", state.todayAppCount.toString())
-                HeroMetric("Unlocks", state.unlockCount.toString())
-                HeroMetric("Top", state.topAppName?.take(8) ?: "—")
+                HeroMetric(stringResource(R.string.balance_metric_apps), state.todayAppCount.toString())
+                HeroMetric(stringResource(R.string.balance_metric_unlocks), state.unlockCount.toString())
+                HeroMetric(stringResource(R.string.balance_metric_top), state.topAppName?.take(8) ?: "—")
             }
 
             // M18.61: 24-Stunden-Breakdown (Google-Muster: "ablenkend
@@ -477,18 +486,15 @@ private fun TodayHeroCard(
             ) {
                 state.hourlyMs.forEachIndexed { hour, ms ->
                     val frac = ms.toFloat() / maxHour
-                    // Kaskaden-Delay: jede Stunde startet 40ms später
+                    // Performance-Fix: Kein Kaskaden-Delay (startete bei
+                    // jedem Scroll-Re-Enter neu), kein bouncy Spring.
                     var hourVisible by remember { mutableStateOf(false) }
                     LaunchedEffect(Unit) {
-                        delay((hour * 40).toLong())
                         hourVisible = true
                     }
                     val animatedFrac by animateFloatAsState(
                         targetValue = if (hourVisible) frac else 0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        ),
+                        animationSpec = tween(300),
                         label = "hourBar$hour"
                     )
                     val barHeight = (animatedFrac * 40f).coerceAtLeast(if (ms > 0) 3f else 1.5f)
@@ -517,7 +523,7 @@ private fun TodayHeroCard(
                 }
             }
             Text(
-                "Nutzung pro Stunde (0–24 Uhr)",
+                stringResource(R.string.balance_hourly_label),
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -553,13 +559,13 @@ private fun RangeStatsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Verlauf", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.balance_history), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(7, 30).forEach { days ->
                         FilterChip(
                             selected = state.rangeDays == days,
                             onClick = { onRangeChange(days) },
-                            label = { Text("$days Tage", fontSize = 12.sp) }
+                            label = { Text(stringResource(R.string.balance_days, days), fontSize = 12.sp) }
                         )
                     }
                 }
@@ -591,29 +597,32 @@ private fun RangeStatsCard(
                         isToday -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
                     }
-                    // Kaskaden-Delay: jeder Tag startet 50ms später
+                    // Performance-Fix: Kein Kaskaden-Delay (startete bei
+                    // jedem Scroll-Re-Enter neu), kein bouncy Spring.
+                    // Vorher: 30× rememberInfiniteTransition (Puls) liefen
+                    // PERMANENT — auch für nicht-selektierte Balken → Ruckeln.
                     var barVisible by remember { mutableStateOf(false) }
                     LaunchedEffect(Unit) {
-                        delay((index * 50).toLong())
                         barVisible = true
                     }
                     val animatedFrac by animateFloatAsState(
                         targetValue = if (barVisible) fraction else 0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        ),
+                        animationSpec = tween(300),
                         label = "dayBar$index"
                     )
                     val barHeight = (animatedFrac * 72f).coerceAtLeast(if (ms > 0) 4f else 2f)
-                    // M18.62: Gewählter Tag pulsiert (Alpha-Welle)
-                    val infiniteTransition = rememberInfiniteTransition(label = "selectedPulse")
-                    val pulseAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.6f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-                        label = "pulseAlpha"
-                    )
+                    // M18.62: Gewählter Tag pulsiert dezent — NUR der
+                    // selektierte Balken, und nur solange er selektiert ist.
+                    val pulseAlpha = if (isSelected) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "selectedPulse")
+                        val alpha by infiniteTransition.animateFloat(
+                            initialValue = 0.6f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+                            label = "pulseAlpha"
+                        )
+                        alpha
+                    } else 1f
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -636,13 +645,13 @@ private fun RangeStatsCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Zeige ${DigitalBalanceViewModel.formatDay(selected)}",
+                        stringResource(R.string.balance_showing_day, formatDay(selected)),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     TextButton(onClick = { onDayClick(today) }) {
-                        Text("Heute", fontSize = 12.sp)
+                        Text(stringResource(R.string.common_today), fontSize = 12.sp)
                     }
                 }
             }
@@ -654,12 +663,12 @@ private fun RangeStatsCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "Ø ${DigitalBalanceViewModel.formatDuration(avg)}/Tag",
+                    stringResource(R.string.balance_avg_per_day, DigitalBalanceViewModel.formatDuration(avg)),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Σ ${DigitalBalanceViewModel.formatDuration(totals.sumOf { it.second })}",
+                    stringResource(R.string.balance_sum, DigitalBalanceViewModel.formatDuration(totals.sumOf { it.second })),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -752,7 +761,7 @@ private fun AppLimitCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Text("Gesperrt", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.balance_locked), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -778,14 +787,12 @@ private fun AppLimitCard(
             )
 
             if (hasLimit) {
-                // Fortschrittsbalken zum Limit — animiert (Spring)
+                // Fortschrittsbalken zum Limit — tween statt bouncy Spring
+                // (Spring sprang bei jedem Refresh neu → Haken).
                 val progress = app.progress
                 val animatedLimitProgress by animateFloatAsState(
                     targetValue = progress,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
+                    animationSpec = tween(300),
                     label = "limitProgress"
                 )
                 Box(
@@ -812,13 +819,13 @@ private fun AppLimitCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "Limit ${limit?.limitMinutes ?: 0} min",
+                        stringResource(R.string.balance_limit_min, limit?.limitMinutes ?: 0),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     app.remainingMs?.let { rem ->
                         Text(
-                            if (app.isBlocked) "Limit erreicht" else "Noch ${DigitalBalanceViewModel.formatDuration(rem)}",
+                            if (app.isBlocked) stringResource(R.string.balance_limit_reached) else stringResource(R.string.balance_remaining, DigitalBalanceViewModel.formatDuration(rem)),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (app.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
@@ -833,13 +840,13 @@ private fun AppLimitCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    if (hasLimit) "Limit aktiv" else "Kein Limit",
+                    if (hasLimit) stringResource(R.string.balance_limit_active) else stringResource(R.string.balance_no_limit),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { showEditor = true }) {
-                        Text(if (hasLimit) "Bearbeiten" else "Limit setzen", fontSize = 12.sp)
+                        Text(if (hasLimit) stringResource(R.string.common_edit) else stringResource(R.string.balance_set_limit), fontSize = 12.sp)
                     }
                     if (hasLimit) {
                         Switch(
@@ -890,7 +897,7 @@ private fun AppLimitEditorDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                 Text(
-                    "Tägliches Limit: ${minutes} min",
+                    stringResource(R.string.balance_daily_limit, minutes),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -901,33 +908,36 @@ private fun AppLimitEditorDialog(
                     steps = 18
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Limit aktiv", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.balance_limit_active), fontSize = 13.sp, modifier = Modifier.weight(1f))
                     Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
 
-                Text("Ausnahme", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.balance_exception), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
                         selected = exceptionType == AppLimit.EXCEPTION_NONE,
                         onClick = { exceptionType = AppLimit.EXCEPTION_NONE },
-                        label = { Text("Keine", fontSize = 12.sp) }
+                        label = { Text(stringResource(R.string.common_none), fontSize = 12.sp) }
                     )
                     FilterChip(
                         selected = exceptionType == AppLimit.EXCEPTION_ALWAYS_ALLOW,
                         onClick = { exceptionType = AppLimit.EXCEPTION_ALWAYS_ALLOW },
-                        label = { Text("Immer erlauben", fontSize = 12.sp) }
+                        label = { Text(stringResource(R.string.common_always_allow), fontSize = 12.sp) }
                     )
                     FilterChip(
                         selected = exceptionType == AppLimit.EXCEPTION_TIME_WINDOW,
                         onClick = { exceptionType = AppLimit.EXCEPTION_TIME_WINDOW },
-                        label = { Text("Zeitfenster", fontSize = 12.sp) }
+                        label = { Text(stringResource(R.string.balance_time_window), fontSize = 12.sp) }
                     )
                 }
 
                 if (exceptionType == AppLimit.EXCEPTION_TIME_WINDOW) {
                     Text(
-                        "Sperre nur zwischen ${windowStart / 60}:%02d".format(windowStart % 60) +
-                            " und ${windowEnd / 60}:%02d".format(windowEnd % 60),
+                        stringResource(
+                            R.string.balance_block_between,
+                            "%02d:%02d".format(windowStart / 60, windowStart % 60),
+                            "%02d:%02d".format(windowEnd / 60, windowEnd % 60)
+                        ),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -949,7 +959,7 @@ private fun AppLimitEditorDialog(
                 onClick = { onSave(minutes, enabled, exceptionType, windowStart, windowEnd) },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Speichern", modifier = Modifier.padding(horizontal = 8.dp))
+                Text(stringResource(R.string.common_save), modifier = Modifier.padding(horizontal = 8.dp))
             }
         },
         dismissButton = {
@@ -963,14 +973,14 @@ private fun AppLimitEditorDialog(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("Limit entfernen", modifier = Modifier.padding(horizontal = 8.dp))
+                        Text(stringResource(R.string.balance_remove_limit), modifier = Modifier.padding(horizontal = 8.dp))
                     }
                 }
                 TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Abbrechen", modifier = Modifier.padding(horizontal = 8.dp))
+                    Text(stringResource(R.string.common_cancel), modifier = Modifier.padding(horizontal = 8.dp))
                 }
             }
         },
@@ -1002,14 +1012,14 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Profile", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.balance_profiles), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 TextButton(onClick = { showCreate = true }) {
-                    Text("+ Neu", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.activitytypes_add_new), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
             if (profiles.isEmpty()) {
                 Text(
-                    "Erstelle Profile, um mehrere Apps auf einmal zu sperren — z.B. ein Lern-Profil, das alle Social-Media-Apps blockiert.",
+                    stringResource(R.string.balance_profiles_empty),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1030,16 +1040,29 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
                         Text(
                             when {
                                 activeProfile?.id == profile.id && profile.scheduleEnabled ->
-                                    "Aktiv (Zeitplan) — Apps gesperrt"
+                                    stringResource(R.string.balance_profile_active_schedule)
                                 activeProfile?.id == profile.id ->
-                                    "Aktiv — Apps gesperrt"
+                                    stringResource(R.string.balance_profile_active)
                                 profile.scheduleEnabled -> {
-                                    val days = listOf("Mo","Di","Mi","Do","Fr","Sa","So")
+                                    val days = listOf(
+                                        stringResource(R.string.common_monday),
+                                        stringResource(R.string.common_tuesday),
+                                        stringResource(R.string.common_wednesday),
+                                        stringResource(R.string.common_thursday),
+                                        stringResource(R.string.common_friday),
+                                        stringResource(R.string.common_saturday),
+                                        stringResource(R.string.common_sunday)
+                                    )
                                         .filterIndexed { idx, _ -> (profile.scheduleDays and (1 shl idx)) != 0 }
                                         .joinToString(",")
-                                    "Zeitplan: $days ${"%02d:%02d".format(profile.scheduleStartMinute/60, profile.scheduleStartMinute%60)}-${"%02d:%02d".format(profile.scheduleEndMinute/60, profile.scheduleEndMinute%60)}"
+                                    stringResource(
+                                        R.string.balance_profile_schedule,
+                                        days,
+                                        "%02d:%02d".format(profile.scheduleStartMinute/60, profile.scheduleStartMinute%60),
+                                        "%02d:%02d".format(profile.scheduleEndMinute/60, profile.scheduleEndMinute%60)
+                                    )
                                 }
-                                else -> "Inaktiv"
+                                else -> stringResource(R.string.balance_profile_inactive)
                             },
                             fontSize = 11.sp,
                             color = if (activeProfile?.id == profile.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1052,7 +1075,7 @@ private fun ProfilesCard(viewModel: DigitalBalanceViewModel) {
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "Profil bearbeiten",
+                            contentDescription = stringResource(R.string.balance_edit_profile),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1106,7 +1129,14 @@ private fun ProfileFormDialog(
     var name by remember { mutableStateOf(profile?.name ?: "") }
     var icon by remember { mutableStateOf(profile?.icon ?: "📚") }
     val icons = listOf("📚", "💼", "🧘", "🎮", "🎵", "📱", "🌙", "🏋️")
-    val installedApps by remember { mutableStateOf(loadInstalledApps(viewModel.appContext())) }
+    // Performance-Fix: App-Liste + Icons im Hintergrund laden. Vorher
+    // blockierte loadInstalledApps() (queryIntentActivities + loadIcon
+    // für ALLE Apps) den Main-Thread beim Öffnen des Dialogs → hängende
+    // Klicks bei den Profilen.
+    var installedApps by remember { mutableStateOf<List<Triple<String, String, android.graphics.drawable.Drawable?>>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        installedApps = withContext(Dispatchers.IO) { loadInstalledApps(viewModel.appContext()) }
+    }
     val selected = remember { mutableStateListOf<String>() }
     // M18.66-FIX14: Zeitplan-State
     var scheduleEnabled by remember { mutableStateOf(profile?.scheduleEnabled ?: false) }
@@ -1116,7 +1146,15 @@ private fun ProfileFormDialog(
     var startMinute by remember { mutableStateOf((profile?.scheduleStartMinute ?: 420) % 60) }
     var endHour by remember { mutableStateOf((profile?.scheduleEndMinute ?: 960) / 60) }
     var endMinute by remember { mutableStateOf((profile?.scheduleEndMinute ?: 960) % 60) }
-    val dayLabels = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+    val dayLabels = listOf(
+        stringResource(R.string.common_monday),
+        stringResource(R.string.common_tuesday),
+        stringResource(R.string.common_wednesday),
+        stringResource(R.string.common_thursday),
+        stringResource(R.string.common_friday),
+        stringResource(R.string.common_saturday),
+        stringResource(R.string.common_sunday)
+    )
 
     if (isEdit && profile != null) {
         androidx.compose.runtime.LaunchedEffect(profile.id) {
@@ -1128,7 +1166,7 @@ private fun ProfileFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isEdit) "Profil bearbeiten" else "Neues Profil", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(if (isEdit) stringResource(R.string.balance_edit_profile) else stringResource(R.string.balance_new_profile), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(
                 modifier = Modifier
@@ -1137,15 +1175,15 @@ private fun ProfileFormDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                Text("Name", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.common_name), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 androidx.compose.material3.OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("z.B. Lernen") },
+                    placeholder = { Text(stringResource(R.string.balance_name_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("Icon", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.common_icon), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     icons.forEach { i ->
                         Text(
@@ -1168,9 +1206,9 @@ private fun ProfileFormDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Zeitplan", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.balance_schedule), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Text(
-                            "Profil automatisch nach Zeit aktivieren",
+                            stringResource(R.string.balance_schedule_desc),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1178,7 +1216,7 @@ private fun ProfileFormDialog(
                     Switch(checked = scheduleEnabled, onCheckedChange = { scheduleEnabled = it })
                 }
                 if (scheduleEnabled) {
-                    Text("Wochentage", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.balance_weekdays), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     // M18.66-FIX15: FlowRow statt Row — 7 Chips in einer
                     // Zeile wurden auf schmalen Screens deformiert.
                     androidx.compose.foundation.layout.FlowRow(
@@ -1211,7 +1249,7 @@ private fun ProfileFormDialog(
                         var showStartPicker by remember { mutableStateOf(false) }
                         var showEndPicker by remember { mutableStateOf(false) }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Von", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.balance_from), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             OutlinedButton(
                                 onClick = { showStartPicker = true },
                                 modifier = Modifier.fillMaxWidth()
@@ -1220,7 +1258,7 @@ private fun ProfileFormDialog(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Bis", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.balance_until), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             OutlinedButton(
                                 onClick = { showEndPicker = true },
                                 modifier = Modifier.fillMaxWidth()
@@ -1241,10 +1279,10 @@ private fun ProfileFormDialog(
                                         startHour = timeState.hour
                                         startMinute = timeState.minute
                                         showStartPicker = false
-                                    }) { Text("OK") }
+                                    }) { Text(stringResource(R.string.component_ok)) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { showStartPicker = false }) { Text("Abbrechen") }
+                                    TextButton(onClick = { showStartPicker = false }) { Text(stringResource(R.string.common_cancel)) }
                                 },
                                 text = { androidx.compose.material3.TimePicker(state = timeState) }
                             )
@@ -1262,21 +1300,22 @@ private fun ProfileFormDialog(
                                         endHour = timeState.hour
                                         endMinute = timeState.minute
                                         showEndPicker = false
-                                    }) { Text("OK") }
+                                    }) { Text(stringResource(R.string.component_ok)) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { showEndPicker = false }) { Text("Abbrechen") }
+                                    TextButton(onClick = { showEndPicker = false }) { Text(stringResource(R.string.common_cancel)) }
                                 },
                                 text = { androidx.compose.material3.TimePicker(state = timeState) }
                             )
                         }
                     }
                     Text(
-                        "Das Profil ist ${
+                        stringResource(
+                            R.string.balance_schedule_summary,
                             dayLabels.filterIndexed { idx, _ -> (scheduleDays and (1 shl idx)) != 0 }
-                                .joinToString(", ").ifEmpty { "nie" }
-                        } von %02d:%02d bis %02d:%02d aktiv.".format(
-                            startHour, startMinute, endHour, endMinute
+                                .joinToString(", ").ifEmpty { stringResource(R.string.balance_never) },
+                            "%02d:%02d".format(startHour, startMinute),
+                            "%02d:%02d".format(endHour, endMinute)
                         ),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1285,7 +1324,7 @@ private fun ProfileFormDialog(
 
                 // M18.66-FIX14: HorizontalDivider vor App-Auswahl
                 androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = AevumSpacing.xs))
-                Text("Apps sperren", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.balance_block_apps), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 installedApps.forEach { app ->
                     // M18.61g-FIX 3: Triple(packageName, label, icon) —
                     // Paketname wird gespeichert, Label nur angezeigt.
@@ -1366,9 +1405,9 @@ private fun ProfileFormDialog(
                     }
                 },
                 enabled = name.isNotBlank() && selected.isNotEmpty()
-            ) { Text(if (isEdit) "Speichern" else "Erstellen") }
+            ) { Text(if (isEdit) stringResource(R.string.common_save) else stringResource(R.string.common_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -1429,7 +1468,7 @@ private fun PomodoroPage(viewModel: DigitalBalanceViewModel) {
                 FilterChip(
                     selected = selected,
                     onClick = { viewModel.setPomodoroPhase(phase) },
-                    label = { Text(phase.label, fontSize = 12.sp) }
+                    label = { Text(stringResource(phase.labelRes), fontSize = 12.sp) }
                 )
             }
         }
@@ -1437,12 +1476,12 @@ private fun PomodoroPage(viewModel: DigitalBalanceViewModel) {
         // Minuten-Wahl (nur im Fokus)
         if (pomodoro.phase == DigitalBalanceViewModel.PomodoroPhase.FOCUS) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Dauer:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.balance_pomodoro_duration), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 listOf(15, 25, 45, 60).forEach { min ->
                     FilterChip(
                         selected = pomodoro.customMinutes == min,
                         onClick = { viewModel.setPomodoroMinutes(min) },
-                        label = { Text("$min min", fontSize = 12.sp) }
+                        label = { Text(stringResource(R.string.balance_pomodoro_min, min), fontSize = 12.sp) }
                     )
                 }
             }
@@ -1456,7 +1495,7 @@ private fun PomodoroPage(viewModel: DigitalBalanceViewModel) {
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
                 Text(
-                    pomodoro.phase.label,
+                    stringResource(pomodoro.phase.labelRes),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -1488,7 +1527,7 @@ private fun PomodoroPage(viewModel: DigitalBalanceViewModel) {
                     )
                 }
                 Text(
-                    "Abgeschlossene Fokus-Sessions: ${pomodoro.completedFocusSessions}",
+                    stringResource(R.string.balance_pomodoro_completed, pomodoro.completedFocusSessions),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1497,20 +1536,20 @@ private fun PomodoroPage(viewModel: DigitalBalanceViewModel) {
                         onClick = viewModel::togglePomodoro,
                         modifier = Modifier.height(44.dp)
                     ) {
-                        Text(if (pomodoro.running) "⏸ Pause" else "▶ Start", fontSize = 14.sp)
+                        Text(if (pomodoro.running) stringResource(R.string.balance_pomodoro_pause) else stringResource(R.string.balance_pomodoro_start), fontSize = 14.sp)
                     }
                     OutlinedButton(
                         onClick = viewModel::resetPomodoro,
                         modifier = Modifier.height(44.dp)
                     ) {
-                        Text("↺ Reset", fontSize = 14.sp)
+                        Text(stringResource(R.string.balance_pomodoro_reset), fontSize = 14.sp)
                     }
                 }
             }
         }
 
         Text(
-            "Tipp: Nutze den Fokus-Timer zusammen mit einem Profil — während des Lernens bleiben Social-Media-Apps gesperrt.",
+            stringResource(R.string.balance_pomodoro_tip),
             fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center

@@ -34,7 +34,7 @@ class TriggerPairCandidateRuleEngineTest {
 
     @Before
     fun setUp() {
-        engine = TriggerPairCandidateRuleEngine()
+        engine = TriggerPairCandidateRuleEngine(RuleStrings(null))
     }
 
     @Test

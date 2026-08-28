@@ -92,6 +92,24 @@ class AevumApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // App-Sprache beim Kaltstart anwenden (synchron aus dem
+        // SharedPreferences-Spiegel). "system" lässt die Systemsprache
+        // unverändert. Die Activities wenden die Sprache zusätzlich in
+        // onCreate an (LocalizedActivity) — hier geht es um Ressourcen,
+        // die vor der ersten Activity geladen werden (z. B. WorkManager-
+        // Notifications, CrashLogger).
+        try {
+            com.d_drostes_apps.aevum.util.LocaleHelper.applyToApplication(
+                this,
+                com.d_drostes_apps.aevum.data.repository.LanguageRepository.LANGUAGE_SYSTEM.let {
+                    // Synchroner Read ohne Hilt: SharedPreferences direkt.
+                    getSharedPreferences("aevum_language", MODE_PRIVATE)
+                        .getString("app_language", it) ?: it
+                }
+            )
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Locale apply failed — continuing", e)
+        }
         // M17.4: Crash-Logger als ALLERERSTES installieren (vor Hilt-Init
         // wäre noch besser, aber @HiltAndroidApp ruft Hilt-Init in
         // super.onCreate() auf — also ist "so früh wie möglich in unserer

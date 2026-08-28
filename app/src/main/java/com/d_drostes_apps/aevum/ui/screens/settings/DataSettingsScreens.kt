@@ -32,10 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
@@ -122,7 +124,7 @@ private fun DataStatusMessage(
     if (isWorking) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
-            Text("Arbeite …", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.settings_working), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else if (message != null) {
         Text(
@@ -168,17 +170,15 @@ fun PrivacyScreen(
     }
 
     DataScreenScaffold(
-        title = "Datenschutz",
-        subtitle = "Aevum arbeitet komplett lokal. Deine Daten verlassen niemals dein Gerät — es gibt keine Server, keine Konten und keine Analyse durch Dritte."
+        title = stringResource(R.string.settings_privacy_title),
+        subtitle = stringResource(R.string.settings_privacy_subtitle)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             AevumCard {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                    Text("Lokale Datenverarbeitung", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.settings_privacy_local_processing), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "• Alle Aufzeichnungen, Trigger und Einstellungen liegen nur in der App-Datenbank auf deinem Gerät.\n" +
-                            "• Es werden keine Daten an Server übertragen, keine Werbe-IDs verwendet und keine Tracking-SDKs eingebunden.\n" +
-                            "• Standort- und Aktivitätsdaten werden ausschließlich für die automatische Erkennung genutzt.",
+                        stringResource(R.string.settings_privacy_local_processing_body),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 22.sp
                     )
@@ -186,20 +186,18 @@ fun PrivacyScreen(
             }
             AevumCard {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                    Text("Deine Kontrolle", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.settings_privacy_your_control), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "• Automatische Erkennung ist freiwillig — jede Quelle lässt sich in den Einstellungen abschalten.\n" +
-                            "• Du kannst jederzeit ein Backup erstellen, Daten exportieren oder alles löschen.\n" +
-                            "• Berechtigungen (Standort, Aktivität, Benachrichtigungen) kannst du jederzeit in den Systemeinstellungen entziehen.",
+                        stringResource(R.string.settings_privacy_your_control_body),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 22.sp
                     )
                 }
             }
             DataActionCard(
-                title = "Alle Daten löschen",
-                description = "Entfernt dauerhaft alle Aufzeichnungen, Trigger, Ziele und Einstellungen von diesem Gerät. Die App startet danach neu. Dieser Schritt kann nicht rückgängig gemacht werden — erstelle vorher ein Backup.",
-                actionLabel = "Alle Daten löschen",
+                title = stringResource(R.string.settings_privacy_delete_all),
+                description = stringResource(R.string.settings_privacy_delete_all_desc),
+                actionLabel = stringResource(R.string.settings_privacy_delete_all),
                 destructive = true,
                 onAction = { showDeleteDialog = true }
             )
@@ -210,32 +208,32 @@ fun PrivacyScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Wirklich alles löschen?") },
-            text = { Text("Alle deine Aufzeichnungen und Einstellungen werden unwiderruflich gelöscht. Möchtest du fortfahren?") },
+            title = { Text(stringResource(R.string.settings_privacy_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_privacy_delete_confirm_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteDialog = false
                     showFinalDialog = true
-                }) { Text("Weiter") }
+                }) { Text(stringResource(R.string.common_continue)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
     if (showFinalDialog) {
         AlertDialog(
             onDismissRequest = { showFinalDialog = false },
-            title = { Text("Letzte Warnung") },
-            text = { Text("Dies ist endgültig. Es gibt keine Möglichkeit, die Daten wiederherzustellen. Wirklich löschen?") },
+            title = { Text(stringResource(R.string.settings_privacy_final_warning_title)) },
+            text = { Text(stringResource(R.string.settings_privacy_final_warning_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showFinalDialog = false
                     viewModel.deleteAllData()
-                }) { Text("Ja, alles löschen") }
+                }) { Text(stringResource(R.string.settings_privacy_delete_yes)) }
             },
             dismissButton = {
-                TextButton(onClick = { showFinalDialog = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showFinalDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -259,14 +257,14 @@ fun ExportScreen(
     }
 
     DataScreenScaffold(
-        title = "Export",
-        subtitle = "Exportiere alle deine Daten als JSON-Datei. Du kannst sie in jeder App öffnen, die JSON unterstützt — perfekt für die Archivierung oder die Übergabe an andere Tools."
+        title = stringResource(R.string.common_export),
+        subtitle = stringResource(R.string.settings_export_subtitle)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             DataActionCard(
-                title = "Alle Daten als JSON exportieren",
-                description = "Erstellt eine vollständige Kopie aller Tabellen (Aktivitäten, Trigger, Ziele, Gewohnheiten, Todos, …) als eine JSON-Datei. Der Export enthält keine Passwörter oder Zugangsdaten.",
-                actionLabel = "Export starten",
+                title = stringResource(R.string.settings_export_all_json),
+                description = stringResource(R.string.settings_export_all_json_desc),
+                actionLabel = stringResource(R.string.settings_export_start),
                 enabled = !state.isWorking,
                 onAction = {
                     viewModel.clearMessage()
@@ -288,6 +286,23 @@ fun BackupScreen(
     viewModel: DataSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Nach erfolgreichem Restore: App neu starten. Kritisch, weil Room die
+    // ersetzte DB-Datei offen hält und DataStore/ViewModel-Caches veraltet
+    // sind — ohne Neustart würden alte Daten angezeigt bzw. der nächste
+    // DB-Zugriff könnte die wiederhergestellte Datei korrumpieren.
+    LaunchedEffect(state.needsRestart) {
+        if (state.needsRestart) {
+            val pm = context.packageManager
+            val intent = pm.getLaunchIntentForPackage(context.packageName)
+            if (intent != null) {
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Runtime.getRuntime().exit(0)
+            }
+        }
+    }
 
     val backupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
@@ -295,21 +310,26 @@ fun BackupScreen(
         if (uri != null) viewModel.createBackup(uri)
     }
 
+    // M18.73: Bestätigungs-Popup VOR dem Restore. Erst ZIP auswählen,
+    // dann warnen (alle Daten werden unwiderruflich ersetzt), dann erst
+    // einspielen. Verhindert versehentliches Überschreiben.
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) viewModel.restoreBackup(uri)
+        if (uri != null) pendingRestoreUri = uri
     }
 
     DataScreenScaffold(
-        title = "Backup",
-        subtitle = "Sichere deine komplette Datenbank als ZIP-Datei — z. B. auf Google Drive, in deine Cloud oder auf deinen Computer. Mit dem Backup kannst du Aevum jederzeit vollständig wiederherstellen."
+        title = stringResource(R.string.common_backup),
+        subtitle = stringResource(R.string.settings_backup_subtitle)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             DataActionCard(
-                title = "Backup erstellen",
-                description = "Erstellt eine ZIP-Datei mit deiner gesamten Datenbank. Empfohlen: regelmäßig ein Backup anlegen, z. B. vor Updates oder auf Reisen.",
-                actionLabel = "Backup erstellen",
+                title = stringResource(R.string.settings_backup_create),
+                description = stringResource(R.string.settings_backup_create_desc),
+                actionLabel = stringResource(R.string.settings_backup_create),
                 enabled = !state.isWorking,
                 onAction = {
                     viewModel.clearMessage()
@@ -317,9 +337,9 @@ fun BackupScreen(
                 }
             )
             DataActionCard(
-                title = "Backup wiederherstellen",
-                description = "Wählt eine zuvor erstellte ZIP-Datei aus und stellt alle Daten wieder her. Die App startet danach automatisch neu. Die aktuelle Datenbank wird vorher als Sicherung abgelegt.",
-                actionLabel = "Backup auswählen",
+                title = stringResource(R.string.settings_backup_restore),
+                description = stringResource(R.string.settings_backup_restore_desc),
+                actionLabel = stringResource(R.string.settings_backup_choose),
                 enabled = !state.isWorking,
                 onAction = {
                     viewModel.clearMessage()
@@ -328,5 +348,24 @@ fun BackupScreen(
             )
             DataStatusMessage(state.message, state.isError, state.isWorking)
         }
+    }
+
+    // M18.73: Warn-Dialog vor dem Einspielen — alle aktuellen Daten werden
+    // unwiderruflich durch den Backup-Inhalt ersetzt.
+    pendingRestoreUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingRestoreUri = null },
+            title = { Text(stringResource(R.string.settings_backup_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_backup_confirm_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingRestoreUri = null
+                    viewModel.restoreBackup(uri)
+                }) { Text(stringResource(R.string.settings_backup_confirm_restore)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestoreUri = null }) { Text(stringResource(R.string.common_cancel)) }
+            }
+        )
     }
 }

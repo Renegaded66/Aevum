@@ -10,7 +10,11 @@ import com.d_drostes_apps.aevum.data.repository.BalanceProfileRepository
 import com.d_drostes_apps.aevum.domain.digital.AppLimitChecker
 import com.d_drostes_apps.aevum.domain.digital.AppUsageAggregator
 import com.d_drostes_apps.aevum.domain.digital.UsageStatsPermission
+import com.d_drostes_apps.aevum.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +25,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.inject.Inject
 import androidx.compose.ui.graphics.asImageBitmap
@@ -114,6 +117,10 @@ class DigitalBalanceViewModel @Inject constructor(
         }
     }
 
+    /** 1×1 transparentes Bitmap als Cache-Marker für nicht ladbare Icons. */
+    private fun emptyIcon(): androidx.compose.ui.graphics.ImageBitmap =
+        android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+
     /**
      * M18.62: Pakete eines Profils (für den Edit-Dialog, um die
      * App-Auswahl vorzubefüllen).
@@ -142,20 +149,36 @@ class DigitalBalanceViewModel @Inject constructor(
         val effectiveDay = selDay ?: today
         val isToday = effectiveDay == today
 
-        // Heute: präzise Event-API. Anderer Tag: queryUsageStats für den Tag.
-        val dayUsage = if (isToday) {
-            aggregator.todayUsageByApp()
-        } else {
-            aggregator.usageByAppForDay(effectiveDay)
+        // Performance-Fix: Die 4 UsageStats-Queries laufen jetzt PARALLEL
+        // (coroutineScope + async). Vorher sequentiell → jeder Klick/Refresh
+        // wartete 4× die Query-Latenz (100-500ms pro Query) → UI hakte.
+        val results = coroutineScope {
+            val dayUsageDeferred = async {
+                if (isToday) aggregator.todayUsageByApp() else aggregator.usageByAppForDay(effectiveDay)
+            }
+            val rangeUsageDeferred = async { aggregator.rangeUsageByApp(days) }
+            val dailyDeferred = async { aggregator.dailyTotals(days) }
+            val detailDeferred = async { aggregator.todayDetail() }
+            awaitAll(dayUsageDeferred, rangeUsageDeferred, dailyDeferred, detailDeferred)
         }
-        val rangeUsage = aggregator.rangeUsageByApp(days)
-        val daily = aggregator.dailyTotals(days).map { it.date to it.totalMs }
-        val detail = aggregator.todayDetail()
+        @Suppress("UNCHECKED_CAST")
+        val dayUsage = results[0] as List<AppUsageAggregator.AppUsage>
+        @Suppress("UNCHECKED_CAST")
+        val rangeUsage = results[1] as List<AppUsageAggregator.AppUsage>
+        @Suppress("UNCHECKED_CAST")
+        val daily = results[2] as List<AppUsageAggregator.DailyTotal>
+        @Suppress("UNCHECKED_CAST")
+        val detail = results[3] as AppUsageAggregator.TodayDetail
         val now = System.currentTimeMillis()
 
         val limitMap = limits.associateBy { it.packageName }
         val rangeMap = rangeUsage.associateBy { it.packageName }
 
+        // Icon-Ladung: NICHT im UI-Refresh-Pfad blockieren. Die Icons
+        // werden asynchron nachgeladen und in den Cache geschrieben —
+        // der nächste Refresh zeigt sie dann. Vorher blockierte
+        // getApplicationIcon() + Bitmap-Konvertierung den State-Build
+        // (bei vielen Apps mehrere hundert ms) → hängende Klicks.
         val apps = dayUsage.map { usage ->
             val limit = limitMap[usage.packageName]
             val rangeMs = rangeMap[usage.packageName]?.durationMs ?: usage.durationMs
@@ -169,23 +192,7 @@ class DigitalBalanceViewModel @Inject constructor(
                 progress = AppLimitChecker.progress(limit, usage.durationMs),
                 remainingMs = AppLimitChecker.remainingMs(limit, usage.durationMs),
                 // M18.66-FIX16: Icon aus dem Cache (einmalige Konvertierung).
-                // Vorher: getApplicationIcon() bei jedem Refresh + Konvertierung
-                // bei jeder Recomposition → Ruckeln.
-                // M18.66-FIX22 (Crash "sobald Digital Balance geöffnet wird"):
-                // ConcurrentHashMap VERBIETET null-Werte — getOrPut mit einer
-                // Lambda, die null liefert (Icon nicht ladbar, z.B. deinstallierte
-                // App in den UsageStats), crashte mit NullPointerException.
-                // Jetzt: explizites get + put mit Null-Guard (kein put(null)).
-                icon = iconCache[usage.packageName] ?: run {
-                    val bitmap = try {
-                        val drawable = getApplication<Application>().packageManager.getApplicationIcon(usage.packageName)
-                        drawableToImageBitmap(drawable)
-                    } catch (_: Exception) { null }
-                    if (bitmap != null) {
-                        iconCache[usage.packageName] = bitmap
-                    }
-                    bitmap
-                }
+                icon = iconCache[usage.packageName]
             )
         }.let { list ->
             // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder
@@ -193,6 +200,25 @@ class DigitalBalanceViewModel @Inject constructor(
             when (sort) {
                 "alpha" -> list.sortedBy { it.appLabel.lowercase(Locale.getDefault()) }
                 else -> list.sortedByDescending { it.dayMs }
+            }
+        }
+
+        // Icons asynchron nachladen (nicht blockierend für die UI).
+        viewModelScope.launch {
+            val pm = getApplication<Application>().packageManager
+            dayUsage.forEach { usage ->
+                if (!iconCache.containsKey(usage.packageName)) {
+                    try {
+                        val drawable = pm.getApplicationIcon(usage.packageName)
+                        val bitmap = drawableToImageBitmap(drawable)
+                        iconCache[usage.packageName] = bitmap
+                    } catch (_: Exception) {
+                        // Icon nicht ladbar (deinstallierte App o. ä.) —
+                        // Cache-Marker setzen, damit wir nicht bei jedem
+                        // Refresh erneut versuchen.
+                        iconCache[usage.packageName] = emptyIcon()
+                    }
+                }
             }
         }
 
@@ -207,7 +233,7 @@ class DigitalBalanceViewModel @Inject constructor(
             unlockCount = detail.unlockCount,
             hourlyMs = detail.hourlyMs,
             rangeDays = days,
-            dailyTotals = daily,
+            dailyTotals = daily.map { it.date to it.totalMs },
             selectedDay = if (isToday) null else effectiveDay,
             selectedDayTotalMs = dayTotal,
             apps = apps,
@@ -234,8 +260,17 @@ class DigitalBalanceViewModel @Inject constructor(
     }
 
     fun refresh() {
-        refreshTick.value = System.currentTimeMillis()
+        // Performance-Fix: Refresh-Deduplizierung. ON_RESUME feuert bei
+        // jedem Resume (auch nach Permission-Dialogen, App-Switcher) —
+        // ohne Guard würde der komplette State-Build (4 UsageStats-Queries)
+        // mehrfach pro Sekunde laufen → hängende Klicks.
+        val now = System.currentTimeMillis()
+        if (now - lastRefreshMs < 1_000) return
+        lastRefreshMs = now
+        refreshTick.value = now
     }
+
+    private var lastRefreshMs = 0L
 
     fun setLimit(packageName: String, minutes: Int, enabled: Boolean) {
         viewModelScope.launch {
@@ -384,10 +419,10 @@ class DigitalBalanceViewModel @Inject constructor(
     // ===================== M18.61f: POMODORO =====================
 
     /** Pomodoro-Phasen: Fokus / Kurzpause / Lange Pause */
-    enum class PomodoroPhase(val label: String, val defaultMinutes: Int) {
-        FOCUS("Fokus", 25),
-        SHORT_BREAK("Kurzpause", 5),
-        LONG_BREAK("Lange Pause", 15)
+    enum class PomodoroPhase(val labelRes: Int, val defaultMinutes: Int) {
+        FOCUS(R.string.balance_pomodoro_focus, 25),
+        SHORT_BREAK(R.string.balance_pomodoro_short_break, 5),
+        LONG_BREAK(R.string.balance_pomodoro_long_break, 15)
     }
 
     data class PomodoroState(
@@ -499,13 +534,5 @@ class DigitalBalanceViewModel @Inject constructor(
             }
         }
 
-        fun formatDay(date: LocalDate): String {
-            val today = LocalDate.now()
-            return when (date) {
-                today -> "Heute"
-                today.minusDays(1) -> "Gestern"
-                else -> date.format(DateTimeFormatter.ofPattern("d.M.", Locale.GERMAN))
-            }
-        }
     }
 }

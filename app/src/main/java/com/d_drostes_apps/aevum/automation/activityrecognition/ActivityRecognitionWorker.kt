@@ -16,6 +16,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.model.AutomationConstants
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.model.DetectionEvent
@@ -217,9 +218,9 @@ class ActivityRecognitionWorker(
         val hours = effectiveCluster.durationMs / 3_600_000
         val minutes = (effectiveCluster.durationMs % 3_600_000) / 60_000
         val durationStr = when {
-            hours > 0 -> "${hours}h ${minutes}m"
-            minutes > 0 -> "${minutes}m"
-            else -> "<1m"
+            hours > 0 -> applicationContext.getString(R.string.data_duration_h_m, hours, minutes)
+            minutes > 0 -> applicationContext.getString(R.string.data_duration_min, minutes)
+            else -> applicationContext.getString(R.string.data_duration_lt_min)
         }
 
         // M15: TriggerEvent für die Timeline-Trigger-Liste und für
@@ -255,7 +256,7 @@ class ActivityRecognitionWorker(
 
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
-            suggestedTitle = "Mobilität ($durationStr)",
+            suggestedTitle = applicationContext.getString(R.string.data_mobility_title, durationStr),
             suggestedCategoryId = "transport",
             // M18.3: "transport" statt "driving" — Google unterscheidet nicht
             // zwischen Auto/Bus/Zug, alle sind IN_VEHICLE. Eine ehrliche
@@ -265,7 +266,7 @@ class ActivityRecognitionWorker(
             endAt = effectiveCluster.endMs,
             confidence = confidence,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Activity Recognition: $durationStr im Fahrzeug (Konfidenz ${(confidence * 100).toInt()}%)",
+            reason = applicationContext.getString(R.string.data_mobility_reason, durationStr, (confidence * 100).toInt()),
             createdBy = "ACTIVITY_RECOGNITION_V1",
             createdAt = now,
             sourceCandidateId = rawId

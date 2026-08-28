@@ -1,10 +1,11 @@
 package com.d_drostes_apps.aevum.ui.screens.insights
 
+import android.content.Context
 import androidx.compose.ui.graphics.Color
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
-import com.d_drostes_apps.aevum.ui.screens.habits.HabitWithProgress
 import com.d_drostes_apps.aevum.ui.theme.AevumCategoryColors
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -13,10 +14,10 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-enum class InsightPeriod(val label: String) {
-    Today("Heute"),
-    Week("Woche"),
-    Month("Monat");
+enum class InsightPeriod {
+    Today,
+    Week,
+    Month;
 
     companion object {
         /** M18.34: Period aus Storage lesen — Default Today (User-Praeferenz). */
@@ -27,8 +28,8 @@ enum class InsightPeriod(val label: String) {
 
 data class InsightsUiState(
     val selectedPeriod: InsightPeriod = InsightPeriod.Today,
-    val periodLabel: String = "Heute",
-    val summary: String = "Noch nicht genug Daten für klare Muster.",
+    val periodLabel: String = "",
+    val summary: String = "",
     val startDate: LocalDate = LocalDate.now(),
     val timeDistribution: List<TimeDistributionSlice> = emptyList(),
     val changes: List<PeriodChange> = emptyList(),
@@ -38,7 +39,6 @@ data class InsightsUiState(
     val weekHeatmap: WeekHeatmap = WeekHeatmap(),
     val hasData: Boolean = false,
     val selectedHeatmapDate: LocalDate? = null,
-    val habitProgress: List<HabitWithProgress> = emptyList(),
     // M17.4: Toggle-Zustand + neue "Top Breakdown" Liste je nach Modus
     val breakdownMode: BreakdownMode = BreakdownMode.Activity,
     val topBreakdown: List<TopActivitySlice> = emptyList(),
@@ -115,7 +115,7 @@ data class PeriodWindow(
 object InsightsAnalytics {
     private const val HOUR = 60 * 60 * 1000L
 
-    fun window(period: InsightPeriod, anchorDate: LocalDate, zoneId: ZoneId): PeriodWindow {
+    fun window(context: Context? = null, period: InsightPeriod, anchorDate: LocalDate, zoneId: ZoneId): PeriodWindow {
         val startDate = when (period) {
             InsightPeriod.Today -> anchorDate
             InsightPeriod.Week -> anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -143,28 +143,26 @@ object InsightsAnalytics {
             previousEnd = previousEndDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
             startDate = startDate,
             label = when (period) {
-                InsightPeriod.Today -> "Heute"
-                InsightPeriod.Week -> "Diese Woche"
-                InsightPeriod.Month -> "Dieser Monat"
+                InsightPeriod.Today -> str(context, R.string.common_today)
+                InsightPeriod.Week -> str(context, R.string.insights_period_this_week)
+                InsightPeriod.Month -> str(context, R.string.insights_period_this_month)
             }
         )
     }
 
     fun build(
+        context: Context? = null,
         sessions: List<ActivitySession>,
         categories: List<Category>,
         activityTypes: List<ActivityType>,
         selectedPeriod: InsightPeriod,
         anchorDate: LocalDate,
         zoneId: ZoneId,
-        habitProgress: List<HabitWithProgress> = emptyList(),
-        // M17.4: Tagespauschalen-Accumulationals aus DailyAllowanceRepository.
-        // Werden NUR in die Statistik-Aggregation gemischt, niemals in die Timeline.
         allowanceAccumulations: List<com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay> = emptyList(),
         // M17.4: Toggle-Modus für die Top-Liste.
         breakdownMode: BreakdownMode = BreakdownMode.Activity
     ): InsightsUiState {
-        val window = window(selectedPeriod, anchorDate, zoneId)
+        val window = window(context, selectedPeriod, anchorDate, zoneId)
         val categoryMap = categories.associateBy { it.id }
         val typeMap = activityTypes.associateBy { it.id }
         val active = sessions.filter { it.deletedAt == null }
@@ -177,11 +175,12 @@ object InsightsAnalytics {
         // M18.37: allowanceMs muss VOR distributionWithAllowances stehen
         // (wird dort als Nenner fuer die Prozentwerte genutzt).
         val allowanceMs = allowanceAccumulations.sumOf { it.minutes } * 60_000L
-        val distribution = buildDistribution(current, categoryMap, typeMap)
+        val distribution = buildDistribution(context, current, categoryMap, typeMap)
         // M18.37: Pauschalen auch ins Kreisdiagramm mischen — als eigene
         // Slices pro Kategorie (id "allowance_<catId>"), damit sie dort
         // sichtbar sind und nicht nur in der Gesamtsumme aufgehen.
         val allowanceDistribution = buildAllowanceDistribution(
+            context = context,
             accumulations = allowanceAccumulations,
             categories = categories,
             activityTypes = activityTypes
@@ -196,14 +195,15 @@ object InsightsAnalytics {
             }
             .sortedByDescending { it.durationMs }
         val topActivities = buildTopActivities(current, typeMap, categoryMap)
-        val changes = buildChanges(current, previous, categoryMap)
-        val balance = buildBalance(current, categoryMap)
+        val changes = buildChanges(context, current, previous, categoryMap)
+        val balance = buildBalance(context, current, categoryMap)
         val heatmap = buildWeekHeatmap(active, anchorDate, zoneId)
-        val insights = buildInsightCards(selectedPeriod, distributionWithAllowances, changes, topActivities, balance, heatmap, totalMs)
+        val insights = buildInsightCards(context, selectedPeriod, distributionWithAllowances, changes, topActivities, balance, heatmap, totalMs)
         // M17.4: Tagespauschalen → als virtuelle Sessions für die Aggregation.
         // Wichtig: wir nutzen einen separaten Pfad, der NUR in die Top-Liste
         // und in den Hero-Header einfließt, niemals in den Heatmap.
         val allowanceTopBreakdown = buildAllowanceTopBreakdown(
+            context = context,
             accumulations = allowanceAccumulations,
             activityTypes = activityTypes,
             categories = categories,
@@ -250,7 +250,7 @@ object InsightsAnalytics {
         return InsightsUiState(
             selectedPeriod = selectedPeriod,
             periodLabel = window.label,
-            summary = buildSummary(selectedPeriod, totalMs, distribution, changes),
+            summary = buildSummary(context, selectedPeriod, totalMs, distribution, changes),
             startDate = window.startDate,
             timeDistribution = distributionWithAllowances,
             changes = changes,
@@ -259,7 +259,6 @@ object InsightsAnalytics {
             insightCards = insights,
             weekHeatmap = heatmap,
             hasData = totalMs > 0 || allowanceMs > 0,
-            habitProgress = habitProgress,
             breakdownMode = breakdownMode,
             topBreakdown = topBreakdown,
             // M17.4: Total-Minuten für Hero-Header inkl. Pauschalen.
@@ -275,6 +274,7 @@ object InsightsAnalytics {
      * gruppiert nach Aktivität ODER Kategorie je nach [mode].
      */
     private fun buildAllowanceTopBreakdown(
+        context: Context?,
         accumulations: List<com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay>,
         activityTypes: List<ActivityType>,
         categories: List<Category>,
@@ -301,7 +301,7 @@ object InsightsAnalytics {
                     val type = typeMap[key]
                     TopActivitySlice(
                         id = "allowance_$key",
-                        label = "${type?.name ?: "Pauschale"} (Pauschale)",
+                        label = str(context, R.string.insights_allowance_label, type?.name ?: str(context, R.string.common_allowance)),
                         color = categoryColor(type?.defaultCategoryId.orEmpty()),
                         durationMs = ms,
                         percent = percent(ms, totalMsSafe),
@@ -312,7 +312,7 @@ object InsightsAnalytics {
                     val cat = categoryMap[key]
                     TopActivitySlice(
                         id = "allowance_$key",
-                        label = cat?.name ?: "Pauschale",
+                        label = cat?.name ?: str(context, R.string.common_allowance),
                         color = cat?.color?.let { parseColor(it) } ?: categoryColor(key),
                         durationMs = ms,
                         percent = percent(ms, totalMsSafe)
@@ -329,6 +329,7 @@ object InsightsAnalytics {
      * Distribution über die Kategorie zusammengeführt.
      */
     private fun buildAllowanceDistribution(
+        context: Context?,
         accumulations: List<com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay>,
         categories: List<Category>,
         activityTypes: List<ActivityType>
@@ -345,7 +346,7 @@ object InsightsAnalytics {
             val cat = categoryMap[key]
             TimeDistributionSlice(
                 id = "allowance_$key",
-                label = cat?.name ?: "Pauschale",
+                label = cat?.name ?: str(context, R.string.common_allowance),
                 color = cat?.color?.let { parseColor(it) } ?: categoryColor(key),
                 durationMs = ms,
                 percent = percent(ms, total.coerceAtLeast(1L)),
@@ -355,6 +356,7 @@ object InsightsAnalytics {
     }
 
     private fun buildDistribution(
+        context: Context?,
         sessions: List<ClippedInsightSession>,
         categoryMap: Map<String, Category>,
         typeMap: Map<String, ActivityType>
@@ -378,7 +380,7 @@ object InsightsAnalytics {
                 val duration = values.sumOf { it.durationMs }
                 TimeDistributionSlice(
                     id = id,
-                    label = category?.name ?: "Sonstiges",
+                    label = category?.name ?: str(context, R.string.common_other),
                     color = categoryColor(id),
                     durationMs = duration,
                     percent = percent(duration, total),
@@ -414,6 +416,7 @@ object InsightsAnalytics {
     }
 
     private fun buildChanges(
+        context: Context?,
         current: List<ClippedInsightSession>,
         previous: List<ClippedInsightSession>,
         categoryMap: Map<String, Category>
@@ -428,7 +431,7 @@ object InsightsAnalytics {
                 val delta = currentMs - previousMs
                 if (currentMs == 0L && previousMs == 0L) null else PeriodChange(
                     id = id,
-                    label = categoryMap[id]?.name ?: "Sonstiges",
+                    label = categoryMap[id]?.name ?: str(context, R.string.common_other),
                     color = categoryColor(id),
                     currentMs = currentMs,
                     previousMs = previousMs,
@@ -441,34 +444,34 @@ object InsightsAnalytics {
             .take(4)
     }
 
-    private fun buildBalance(sessions: List<ClippedInsightSession>, categoryMap: Map<String, Category>): List<BalanceSlice> {
+    private fun buildBalance(context: Context?, sessions: List<ClippedInsightSession>, categoryMap: Map<String, Category>): List<BalanceSlice> {
         val raw = linkedMapOf(
-            "Arbeit" to 0L,
-            "Erholung" to 0L,
-            "Bewegung" to 0L,
-            "Digital" to 0L,
-            "Soziales" to 0L
+            str(context, R.string.common_work) to 0L,
+            str(context, R.string.common_recovery) to 0L,
+            str(context, R.string.common_movement) to 0L,
+            str(context, R.string.common_digital) to 0L,
+            str(context, R.string.common_social) to 0L
         )
         sessions.forEach { session ->
             val name = categoryMap[session.categoryId]?.name?.lowercase().orEmpty()
             val id = session.categoryId.orEmpty().lowercase()
             val area = when {
-                id.contains("work") || name.contains("arbeit") || name.contains("lernen") -> "Arbeit"
-                id.contains("sleep") || id.contains("leisure") || id.contains("household") || name.contains("schlaf") || name.contains("erholung") || name.contains("freizeit") -> "Erholung"
-                id.contains("sport") || id.contains("fitness") || name.contains("sport") || name.contains("bewegung") -> "Bewegung"
-                id.contains("digital") || id.contains("smartphone") || name.contains("digital") || name.contains("smartphone") -> "Digital"
-                id.contains("social") || id.contains("relationships") || name.contains("sozial") || name.contains("freunde") -> "Soziales"
-                else -> "Erholung"
+                id.contains("work") || name.contains("arbeit") || name.contains("lernen") -> str(context, R.string.common_work)
+                id.contains("sleep") || id.contains("leisure") || id.contains("household") || name.contains("schlaf") || name.contains("erholung") || name.contains("freizeit") -> str(context, R.string.common_recovery)
+                id.contains("sport") || id.contains("fitness") || name.contains("sport") || name.contains("bewegung") -> str(context, R.string.common_movement)
+                id.contains("digital") || id.contains("smartphone") || name.contains("digital") || name.contains("smartphone") -> str(context, R.string.common_digital)
+                id.contains("social") || id.contains("relationships") || name.contains("sozial") || name.contains("freunde") -> str(context, R.string.common_social)
+                else -> str(context, R.string.common_recovery)
             }
             raw[area] = raw.getValue(area) + session.durationMs
         }
         val total = raw.values.sum().coerceAtLeast(1L)
         val colors = mapOf(
-            "Arbeit" to AevumCategoryColors.work,
-            "Erholung" to AevumCategoryColors.leisure,
-            "Bewegung" to AevumCategoryColors.sport,
-            "Digital" to AevumCategoryColors.smartphone,
-            "Soziales" to AevumCategoryColors.relationships
+            str(context, R.string.common_work) to AevumCategoryColors.work,
+            str(context, R.string.common_recovery) to AevumCategoryColors.leisure,
+            str(context, R.string.common_movement) to AevumCategoryColors.sport,
+            str(context, R.string.common_digital) to AevumCategoryColors.smartphone,
+            str(context, R.string.common_social) to AevumCategoryColors.relationships
         )
         return raw.map { (area, duration) -> BalanceSlice(area, colors.getValue(area), duration, percent(duration, total)) }
     }
@@ -496,6 +499,7 @@ object InsightsAnalytics {
     }
 
     private fun buildInsightCards(
+        context: Context?,
         period: InsightPeriod,
         distribution: List<TimeDistributionSlice>,
         changes: List<PeriodChange>,
@@ -507,29 +511,46 @@ object InsightsAnalytics {
         if (totalMs <= 0) return emptyList()
         val cards = mutableListOf<InsightCard>()
         distribution.firstOrNull()?.let { top ->
-            cards += InsightCard("Größter Zeitblock", "${top.label} war ${periodText(period)} dein größter Bereich.", "◷")
+            cards += InsightCard(
+                str(context, R.string.insights_card_largest_block_title),
+                str(
+                    context,
+                    when (period) {
+                        InsightPeriod.Today -> R.string.insights_card_largest_block_today
+                        InsightPeriod.Week -> R.string.insights_card_largest_block_week
+                        InsightPeriod.Month -> R.string.insights_card_largest_block_month
+                    },
+                    top.label
+                ),
+                "◷"
+            )
         }
         changes.firstOrNull { it.deltaMs > 0 }?.let { change ->
-            cards += InsightCard("Mehr sichtbar", "${change.label} ist gegenüber der Vorperiode gestiegen.", "↗")
+            cards += InsightCard(str(context, R.string.insights_card_more_visible_title), str(context, R.string.insights_card_more_visible_message, change.label), "↗")
         }
         changes.firstOrNull { it.deltaMs < 0 && it.id.contains("digital", ignoreCase = true) }?.let {
-            cards += InsightCard("Digitalzeit", "Deine Digitalzeit ist leicht gesunken.", "◇")
+            cards += InsightCard(str(context, R.string.insights_card_digital_time_title), str(context, R.string.insights_card_digital_time_message), "◇")
         }
         val activeDays = heatmap.days.count { it.durationMs > 0 }
         if (activeDays >= 4) {
-            cards += InsightCard("Rhythmus", "Mehrere Tage dieser Woche enthalten bereits erfasste Zeit.", "✦")
+            cards += InsightCard(str(context, R.string.insights_card_rhythm_title), str(context, R.string.insights_card_rhythm_message), "✦")
         }
         if (topActivities.size >= 3 || balance.count { it.durationMs > 0 } >= 3) {
-            cards += InsightCard("Abwechslung", "Deine Zeit verteilt sich auf mehrere Lebensbereiche.", "☷")
+            cards += InsightCard(str(context, R.string.insights_card_variety_title), str(context, R.string.insights_card_variety_message), "☷")
         }
         return cards.distinctBy { it.title }.take(3)
     }
 
-    private fun buildSummary(period: InsightPeriod, totalMs: Long, distribution: List<TimeDistributionSlice>, changes: List<PeriodChange>): String {
-        if (totalMs <= 0) return "Noch nicht genug Daten. Sobald du Zeitblöcke erfasst, entstehen hier ruhige Muster."
-        val top = distribution.firstOrNull()?.label?.lowercase() ?: "mehrere Bereiche"
-        val changeText = changes.firstOrNull()?.let { " Die größte Veränderung liegt bei ${it.label.lowercase()}." }.orEmpty()
-        return "${periodText(period).replaceFirstChar { it.uppercase() }} prägt vor allem $top deine erfasste Zeit.$changeText"
+    private fun buildSummary(context: Context?, period: InsightPeriod, totalMs: Long, distribution: List<TimeDistributionSlice>, changes: List<PeriodChange>): String {
+        if (totalMs <= 0) return str(context, R.string.insights_summary_empty)
+        val top = distribution.firstOrNull()?.label?.lowercase() ?: str(context, R.string.insights_summary_multiple_areas)
+        val changeText = changes.firstOrNull()?.let { str(context, R.string.insights_summary_change, it.label.lowercase()) }.orEmpty()
+        val summaryRes = when (period) {
+            InsightPeriod.Today -> R.string.insights_summary_today
+            InsightPeriod.Week -> R.string.insights_summary_week
+            InsightPeriod.Month -> R.string.insights_summary_month
+        }
+        return str(context, summaryRes, top) + changeText
     }
 
     private fun List<ActivitySession>.clippedTo(start: Long, end: Long): List<ClippedInsightSession> = mapNotNull { session ->
@@ -585,12 +606,8 @@ object InsightsAnalytics {
         AevumCategoryColors.unknown
     }
 
-    private fun periodText(period: InsightPeriod): String = when (period) {
-        InsightPeriod.Today -> "heute"
-        InsightPeriod.Week -> "diese Woche"
-        InsightPeriod.Month -> "diesen Monat"
-    }
 }
+
 
 private data class ClippedInsightSession(
     val id: String,
@@ -601,3 +618,75 @@ private data class ClippedInsightSession(
     val endAt: Long,
     val durationMs: Long
 )
+
+private fun str(context: android.content.Context?, key: Int, vararg args: Any): String =
+    context?.getString(key, *args) ?: String.format(fallback(key), *args)
+
+private fun fallback(key: Int): String = when (key) {
+    R.string.common_today -> "Heute"
+    R.string.common_work -> "Arbeit"
+    R.string.common_recovery -> "Erholung"
+    R.string.common_movement -> "Bewegung"
+    R.string.common_digital -> "Digital"
+    R.string.common_social -> "Soziales"
+    R.string.common_other -> "Sonstiges"
+    R.string.common_allowance -> "Pauschale"
+    R.string.common_monday -> "Mo"
+    R.string.common_tuesday -> "Di"
+    R.string.common_wednesday -> "Mi"
+    R.string.common_thursday -> "Do"
+    R.string.common_friday -> "Fr"
+    R.string.common_saturday -> "Sa"
+    R.string.common_sunday -> "So"
+    R.string.common_still_open -> "Noch offen"
+    R.string.insights_allowance_label -> "%1\$s (Pauschale)"
+    R.string.insights_card_digital_time_message -> "Deine Digitalzeit ist leicht gesunken."
+    R.string.insights_card_digital_time_title -> "Digitalzeit"
+    R.string.insights_card_largest_block_month -> "%1\$s war diesen Monat dein größter Bereich."
+    R.string.insights_card_largest_block_title -> "Größter Zeitblock"
+    R.string.insights_card_largest_block_today -> "%1\$s war heute dein größter Bereich."
+    R.string.insights_card_largest_block_week -> "%1\$s war diese Woche dein größter Bereich."
+    R.string.insights_card_more_visible_message -> "%1\$s ist gegenüber der Vorperiode gestiegen."
+    R.string.insights_card_more_visible_title -> "Mehr sichtbar"
+    R.string.insights_card_rhythm_message -> "Mehrere Tage dieser Woche enthalten bereits erfasste Zeit."
+    R.string.insights_card_rhythm_title -> "Rhythmus"
+    R.string.insights_card_variety_message -> "Deine Zeit verteilt sich auf mehrere Lebensbereiche."
+    R.string.insights_card_variety_title -> "Abwechslung"
+    R.string.insights_period_this_month -> "Dieser Monat"
+    R.string.insights_period_this_week -> "Diese Woche"
+    R.string.insights_summary_change -> " Die größte Veränderung liegt bei %1\$s."
+    R.string.insights_summary_empty -> "Noch nicht genug Daten. Sobald du Zeitblöcke erfasst, entstehen hier ruhige Muster."
+    R.string.insights_summary_month -> "Dieser Monat prägt vor allem %1\$s deine erfasste Zeit."
+    R.string.insights_summary_multiple_areas -> "mehrere Bereiche"
+    R.string.insights_summary_today -> "Heute prägt vor allem %1\$s deine erfasste Zeit."
+    R.string.insights_summary_week -> "Diese Woche prägt vor allem %1\$s deine erfasste Zeit."
+    R.string.weekly_closing_1 -> "Jede Woche erzählt ihre eigene Geschichte."
+    R.string.weekly_closing_2 -> "Auch kleine Veränderungen werden mit der Zeit sichtbar."
+    R.string.weekly_closing_3 -> "Was sichtbar wird, lässt sich bewusster gestalten."
+    R.string.weekly_hero_title -> "Deine Woche"
+    R.string.weekly_highlight_balanced_day -> "Ausgeglichenster Tag"
+    R.string.weekly_highlight_longest_activity -> "Längste Aktivität"
+    R.string.weekly_highlight_longest_leisure -> "Längste Freizeit"
+    R.string.weekly_highlight_longest_work -> "Längster Arbeitsblock"
+    R.string.weekly_highlight_most_active_day -> "Aktivster Tag"
+    R.string.weekly_highlight_most_active_day_value -> "%1\$s · %2\$s sichtbar"
+    R.string.weekly_highlight_value -> "%1\$s · %2\$s"
+    R.string.weekly_narrative_active_days -> "Diese Woche war über mehrere Tage hinweg gut sichtbar und abwechslungsreich."
+    R.string.weekly_narrative_change -> "Diese Woche ist %1\$s stärker sichtbar geworden als in der Vorwoche."
+    R.string.weekly_narrative_empty -> "Sobald du einige Zeitblöcke erfasst hast, entsteht hier ein ruhiger Wochenrückblick."
+    R.string.weekly_narrative_fallback -> "Diese Woche beginnt, ihre eigene Geschichte zu erzählen."
+    R.string.weekly_narrative_top -> "%1\$s war diese Woche der prägende Zeitbereich."
+    R.string.weekly_narrative_top_two -> "Du hast diese Woche viel Zeit in %1\$s investiert und auch %2\$s sichtbar gemacht."
+    R.string.weekly_pattern_change -> "Veränderung"
+    R.string.weekly_pattern_change_less_message -> "%1\$s war gegenüber der Vorwoche sichtbar weniger vertreten."
+    R.string.weekly_pattern_change_more_message -> "%1\$s war gegenüber der Vorwoche sichtbar mehr vertreten."
+    R.string.weekly_pattern_movement -> "Bewegung"
+    R.string.weekly_pattern_movement_message -> "Bewegung war über mehrere Tage der Woche verteilt."
+    R.string.weekly_pattern_strongest_day -> "Stärkster Tag"
+    R.string.weekly_pattern_strongest_day_message -> "%1\$s war der sichtbarste Tag deiner Woche."
+    R.string.weekly_pattern_variety -> "Abwechslung"
+    R.string.weekly_pattern_variety_message -> "Diese Woche verteilt sich auf mehrere Lebensbereiche."
+    R.string.weekly_pattern_weekend -> "Wochenende"
+    R.string.weekly_pattern_weekend_message -> "Am Wochenende war deutlich mehr freie Zeit sichtbar."
+    else -> ""
+}

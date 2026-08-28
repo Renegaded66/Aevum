@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Live activity notification (LiveActivityService) -->
+    <string name="notif_live_channel_name">Running activity</string>
+    <string name="notif_live_channel_desc">Shows the running activity and control actions</string>
+    <string name="notif_live_empty_text">Activity running</string>
+    <string name="notif_live_subtext_paused_auto">Paused · started automatically</string>
+    <string name="notif_live_subtext_paused">Paused</string>
+    <string name="notif_live_subtext_auto">started automatically</string>
+    <string name="notif_live_subtext_active">Active</string>
+    <string name="notif_live_resume">Resume</string>
+    <string name="notif_live_pause">Pause</string>
+    <string name="notif_live_switch">⇄ Switch</string>
+    <string name="notif_live_stop">■ Stop</string>
+    <string name="notif_live_signal_label">AEVUM  •  ACTIVITY SIGNAL</string>
+    <string name="notif_live_summary_paused">%1$s active · %2$s total</string>
+    <string name="notif_live_duration_h_m">%1$d h %2$d min</string>
+    <string name="notif_live_duration_min">%1$d min</string>
+    <string name="notif_live_duration_s">%1$d s</string>
+
+    <!-- Candidate review notification (CandidateReviewNotifier) -->
+    <string name="notif_review_channel_name">Aevum Review</string>
+    <string name="notif_review_channel_desc">Quiet hints for new reviewable activity suggestions</string>
+    <string name="notif_review_title">Review new activity</string>
+    <string name="notif_review_single">Aevum detected “%1$s”. Please take a quick look.</string>
+    <string name="notif_review_multi">Aevum detected %1$d new suggestions. Please take a quick look.</string>
+
+    <!-- Digital balance block (AppBlockService) -->
+    <string name="notif_block_channel_name">Digital Balance block</string>
+    <string name="notif_block_channel_desc">Monitors app limits</string>
+    <string name="notif_block_active_title">Digital Balance active</string>
+    <string name="notif_block_active_text">App limits are being monitored</string>
+    <string name="notif_block_warning_title">Almost at the limit: %1$s</string>
+    <string name="notif_block_warning_text">%1$d minutes left — limit is %2$d min</string>
+
+    <!-- Drive detection (DriveDetectionService) -->
+    <string name="service_drive_channel_name">Drive detection</string>
+    <string name="service_drive_channel_desc">Detects car drives via GPS in the background</string>
+    <string name="service_drive_title">Drive detection active</string>
+    <string name="service_drive_text">Aevum detects drives via GPS in the background</string>
+
+    <!-- App tracking (AppTrackingService) -->
+    <string name="service_apptracking_channel_name">App recording</string>
+    <string name="service_apptracking_channel_desc">Detects tracked apps and records them automatically as activities</string>
+    <string name="service_apptracking_title">App recording active</string>
+    <string name="service_apptracking_text">Tracked apps are automatically recorded as activities</string>
+
+    <!-- Export / backup / privacy (DataManager) -->
+    <string name="export_error_open_target">Could not open target file</string>
+    <string name="export_success">Export created: %1$d tables, %2$d KB</string>
+    <string name="export_error_failed">Export failed: %1$s</string>
+    <string name="backup_success">Backup created: %1$d files, %2$d KB</string>
+    <string name="backup_error_failed">Backup failed: %1$s</string>
+    <string name="backup_error_open">Could not open backup file</string>
+    <string name="backup_error_no_db">No valid database found in backup</string>
+    <string name="backup_error_version">Backup version (%1$d) does not match app version (%2$d). Please update the app first.</string>
+    <string name="backup_error_corrupt">Backup file is corrupted (integrity check failed)</string>
+    <string name="backup_restore_success">Backup restored. The app will restart.</string>
+    <string name="backup_restore_error">Restore failed: %1$s</string>
+    <string name="data_deleted_all">All data has been deleted. The app will restart.</string>
+    <string name="data_delete_error">Delete failed: %1$s</string>
+    <string name="data_unknown_error">unknown error</string>
+
+    <!-- Garmin (GarminApiClient / DirectGarminClient) -->
+    <string name="garmin_error_mfa">MFA/2FA is not supported — please disable 2FA in Garmin Connect</string>
+    <string name="garmin_error_login_failed">Login failed</string>
+    <string name="garmin_error_login_failed_detail">Login failed: %1$s</string>
+    <string name="garmin_error_no_ticket">No service ticket received</string>
+    <string name="garmin_error_token_exchange">Token exchange failed: %1$s</string>
+    <string name="garmin_error_token_exchange_all">DI token exchange failed for all client IDs</string>
+    <string name="garmin_error_too_many_attempts">Too many login attempts — please try again later</string>
+    <string name="garmin_error_invalid_response">Login failed (invalid response, HTTP %1$d)</string>
+    <string name="garmin_error_wrong_credentials">Email or password incorrect</string>
+    <string name="garmin_error_network">Network error: %1$s</string>
+
+    <!-- Health Connect (HealthConnectManager) -->
+    <string name="health_duration_h_m">%1$d h %2$d min</string>
+    <string name="health_duration_h">%1$d h</string>
+    <string name="health_sleep_title">Sleep (%1$s)</string>
+    <string name="health_sleep_reason">Health Connect: %1$s (%2$s). Please review.</string>
+
+    <!-- Sleep detection (SleepHeuristicEngine / SleepFusionEngine) -->
+    <string name="sleep_title_detected">Sleep detected (%1$s)</string>
+    <string name="sleep_title_suggested">Sleep suggested</string>
+    <string name="sleep_reason_no_usage">No usage between %1$s and %2$s (%3$s). Screen off + rest phase detected. Unlocking in the morning ends the sleep phase.</string>
+    <string name="sleep_reason_usage_stats">No phone usage between %1$s and %2$s (%3$s). Detected from usage statistics (screen off + rest phase).</string>
+    <string name="sleep_reason_manual">Manual detection from screen data. Please adjust the times.</string>
+    <string name="sleep_reason_fusion">Fusion of %1$d signals: %2$s. Time window %3$s–%4$s.</string>
+
+    <!-- Gap detection (GapDetectionEngine) -->
+    <string name="gap_title_unknown_time">Unknown time (%1$s)</string>
+    <string name="gap_reason">Gap detected between %1$s and %2$s. What did you do during this time?</string>
+
+    <!-- Activity recognition (ActivityRecognitionWorker) -->
+    <string name="data_mobility_title">Mobility (%1$s)</string>
+    <string name="data_mobility_reason">Activity recognition: %1$s in a vehicle (confidence %2$d%%)</string>
+    <string name="data_duration_h_m">%1$d h %2$d min</string>
+    <string name="data_duration_min">%1$d min</string>
+    <string name="data_duration_lt_min">&lt;1m</string>
+
+    <!-- Session validation (SessionTimeValidator) -->
+    <string name="validator_title_required">Please give your activity a name.</string>
+    <string name="validator_end_after_start">The end time must be after the start time. If the activity spans midnight, choose an end time on the next day.</string>
+    <string name="validator_overlay_only">This activity only overlaps with overlay activities. That is usually fine.</string>
+    <string name="validator_overlaps_one">This activity overlaps with 1 existing activity. You can still save it.</string>
+    <string name="validator_overlaps_many">This activity overlaps with %1$d existing activities. You can still save it.</string>
+
+    <!-- Frequency labels (GoalProgressAnalytics) -->
+    <string name="goal_frequency_daily">Daily</string>
+    <string name="goal_frequency_weekly">%1$d× per week</string>
+    <string name="goal_frequency_monthly">%1$d× per month</string>
+
+    <!-- Time labels (TimeFormatting) -->
+    <string name="time_today">Today</string>
+    <string name="time_yesterday">Yesterday</string>
+    <string name="time_tomorrow">Tomorrow</string>
+    <string name="time_smart_today">Today %1$s</string>
+    <string name="time_smart_yesterday">Yesterday %1$s</string>
+    <string name="time_smart_other">%1$s, %2$s %3$s</string>
+    <string name="time_day_title_other">%1$s, %2$s</string>
+</resources>

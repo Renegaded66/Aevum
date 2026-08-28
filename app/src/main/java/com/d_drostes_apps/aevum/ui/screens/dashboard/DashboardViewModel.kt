@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
+import com.d_drostes_apps.aevum.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -628,10 +629,23 @@ class DashboardViewModel @Inject constructor(
     ): List<DailyQualityPoint> {
         val todayStr = LocalDate.now(zoneId).toString()
         val currentMinute = TimeFormatting.minutesOfDay(System.currentTimeMillis(), zoneId).coerceIn(0, 1440)
+        // M18.74-FIX (User: "Headline 85, Trend-Hover heute 45"): Sessions
+        // werden dem Tag gemäß ÜBERLAPPUNG zugeordnet (nicht nach startAt)
+        // und die Dauer auf den Tag geclippt — identisch zur Headline.
+        // VORHER: Eine Mitternachts-Session (z.B. Schlaf gestern 23:00 bis
+        // heute 07:00) wurde komplett dem STARTTAG zugeordnet → der heutige
+        // Trend-Punkt verlor sie und wich von der Headline ab.
         val byDay = mutableMapOf<String, MutableList<ActivitySession>>()
         sessions.forEach { session ->
-            val day = java.time.Instant.ofEpochMilli(session.startAt).atZone(zoneId).toLocalDate().toString()
-            byDay.getOrPut(day) { mutableListOf() }.add(session)
+            val s = session.startAt
+            val e = session.endAt ?: System.currentTimeMillis()
+            if (e <= s) return@forEach
+            var day = java.time.Instant.ofEpochMilli(s).atZone(zoneId).toLocalDate()
+            val endDay = java.time.Instant.ofEpochMilli(e).atZone(zoneId).toLocalDate()
+            while (!day.isAfter(endDay)) {
+                byDay.getOrPut(day.toString()) { mutableListOf() }.add(session)
+                day = day.plusDays(1)
+            }
         }
         // AEVUM-2-FIX: Heute immer berechnen (auch ohne Sessions), damit
         // der Trend-Punkt denselben Wert wie die Headline zeigt.
@@ -639,9 +653,12 @@ class DashboardViewModel @Inject constructor(
         return byDay.map { (day, daySessions) ->
             var totalWeight = 0L
             var weighted = 0.0
+            val dayStart = LocalDate.parse(day).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val dayEnd = dayStart + 24L * 60 * 60 * 1000
             daySessions.forEach { session ->
-                // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
-                val duration = session.activeDurationMs()
+                // M18.62-FIX: Pausen abziehen + auf den Tag clippen
+                // (identische Logik wie computeQualityScore).
+                val duration = session.activeDurationInWindow(dayStart, dayEnd)
                 if (duration <= 0L) return@forEach
                 val score = session.manualQualityOverride ?: typeMap[session.activityTypeId]?.positivityScore ?: 50
                 totalWeight += duration
@@ -757,7 +774,7 @@ class DashboardViewModel @Inject constructor(
             .map { (typeId, values) ->
                 DashboardCategorySlice(
                     categoryId = typeId,
-                    label = typeMap[typeId]?.name ?: "Sonstiges",
+                    label = typeMap[typeId]?.name ?: application.getString(R.string.common_other),
                     durationMs = values.sumOf { it.durationMs }
                 )
             }
@@ -779,7 +796,7 @@ class DashboardViewModel @Inject constructor(
             DashboardFlowSegment(
                 id = session.id,
                 title = session.title,
-                categoryName = categoryMap[session.categoryId]?.name ?: "Sonstiges",
+                categoryName = categoryMap[session.categoryId]?.name ?: application.getString(R.string.common_other),
                 categoryId = session.categoryId ?: "unknown",
                 startMinute = startMinute,
                 endMinute = endMinute,
@@ -799,7 +816,7 @@ class DashboardViewModel @Inject constructor(
             DashboardFlowSegment(
                 id = c.id,
                 title = c.suggestedTitle,
-                categoryName = categoryMap[c.suggestedCategoryId]?.name ?: "Sonstiges",
+                categoryName = categoryMap[c.suggestedCategoryId]?.name ?: application.getString(R.string.common_other),
                 categoryId = c.suggestedCategoryId ?: "unknown",
                 startMinute = startMin,
                 endMinute = endMin,
@@ -822,9 +839,9 @@ class DashboardViewModel @Inject constructor(
                 categoryName = segment.categoryName,
                 duration = segment.duration,
                 source = when {
-                    segment.isCandidate -> "Vorschlag"
-                    segment.isCurrent -> "Jetzt"
-                    else -> "Erfasst"
+                    segment.isCandidate -> application.getString(R.string.dashboard_source_suggestion)
+                    segment.isCurrent -> application.getString(R.string.dashboard_source_now)
+                    else -> application.getString(R.string.common_captured)
                 },
                 isCurrent = segment.isCurrent,
                 isCandidate = segment.isCandidate
@@ -841,7 +858,7 @@ class DashboardViewModel @Inject constructor(
         return DashboardUiState(
             headline = narrative.headline,
             narrative = narrative.body,
-            currentActivity = current?.title ?: "Noch nichts erfasst",
+            currentActivity = current?.title ?: application.getString(R.string.dashboard_nothing_captured),
             // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
             currentDuration = current?.let { TimeFormatting.formatDuration(it.activeDurationInWindow(start, end, now)) } ?: "0m",
             balanceScore = estimateBalanceScore(distribution, totalMsWithAllowances, openMs),
@@ -859,7 +876,7 @@ class DashboardViewModel @Inject constructor(
             flowGaps = gaps,
             currentMinute = currentMinute(now),
             insights = insights,
-            topCategory = top?.label ?: "Noch offen",
+            topCategory = top?.label ?: application.getString(R.string.common_still_open),
             topCategoryDuration = top?.let { TimeFormatting.formatDuration(it.durationMs) } ?: "0m",
             hasData = activeSessions.isNotEmpty(),
             dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f),
@@ -927,9 +944,15 @@ class DashboardViewModel @Inject constructor(
     ): Int {
         var totalWeight = 0L
         var weighted = 0.0
+        // M18.74-FIX: Dauer auf den heutigen Tag clippen — identisch zum
+        // Trend (computeDailyQuality). VORHER: Mitternachts-Sessions
+        // (z.B. Schlaf 23:00–07:00) wurden mit voller Dauer gewichtet,
+        // obwohl nur der heutige Anteil zählt → Headline wich vom Trend ab.
+        val dayStart = TimeFormatting.startOfDayMillis(LocalDate.now(zoneId), zoneId)
+        val dayEnd = TimeFormatting.endOfDayMillis(LocalDate.now(zoneId), zoneId)
         sessions.forEach { session ->
             // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
-            val duration = session.activeDurationMs()
+            val duration = session.activeDurationInWindow(dayStart, dayEnd, now)
             if (duration <= 0L) return@forEach
             val score = session.manualQualityOverride ?: typeMap[session.activityTypeId]?.positivityScore ?: 50
             totalWeight += duration
@@ -1076,26 +1099,41 @@ class DashboardViewModel @Inject constructor(
     ): DailyNarrative {
         if (totalMs <= 0 && reviewCount == 0) {
             return DailyNarrative(
-                headline = "Dein Tag ist noch eine leere Seite.",
-                body = "Erfasse einen ersten Abschnitt oder prüfe später automatische Vorschläge. Aevum wird mit jedem Eintrag klarer."
+                headline = application.getString(R.string.dashboard_narrative_empty_title),
+                body = application.getString(R.string.dashboard_narrative_empty_body)
             )
         }
         if (totalMs <= 0 && reviewCount > 0) {
             return DailyNarrative(
-                headline = "Aevum hat etwas für dich vorbereitet.",
-                body = "${reviewCount.reviewText()} warten ruhig auf deine Bestätigung. Erst danach zählen sie als Teil deines Tages."
+                headline = application.getString(R.string.dashboard_narrative_prepared_title),
+                body = application.getString(
+                    R.string.dashboard_narrative_prepared_body,
+                    reviewCount.reviewText()
+                )
             )
         }
-        val topText = top?.let { "Vor allem ${it.label.lowercase()} (${TimeFormatting.formatDuration(it.durationMs)})" } ?: "Mehrere kleine Abschnitte"
-        val reviewText = if (reviewCount > 0) " ${reviewCount.reviewText()} sind noch offen." else ""
-        val openText = if (openMs > 90 * 60_000L) " ${TimeFormatting.formatDuration(openMs)} sind noch nicht erzählt." else ""
+        val topText = top?.let {
+            application.getString(
+                R.string.dashboard_narrative_top,
+                it.label.lowercase(),
+                TimeFormatting.formatDuration(it.durationMs)
+            )
+        } ?: application.getString(R.string.dashboard_narrative_many)
+        val reviewText = if (reviewCount > 0) {
+            " " + application.getString(R.string.dashboard_narrative_review_open, reviewCount.reviewText())
+        } else ""
+        val openText = if (openMs > 90 * 60_000L) {
+            " " + application.getString(R.string.dashboard_narrative_open_time, TimeFormatting.formatDuration(openMs))
+        } else ""
         // M12.2: "läuft … (Auto)" statt "läuft …" für automatisch gestartete Sessions.
         val currentAuto = current?.sourceType in com.d_drostes_apps.aevum.ui.screens.timeline.AUTO_SOURCES
-        val currentSuffix = if (currentAuto) " (Auto)" else ""
-        val currentText = current?.let { " Gerade läuft: ${it.title}$currentSuffix." }.orEmpty()
+        val currentSuffix = if (currentAuto) application.getString(R.string.dashboard_auto_suffix) else ""
+        val currentText = current?.let {
+            " " + application.getString(R.string.dashboard_narrative_running, it.title + currentSuffix)
+        }.orEmpty()
         return DailyNarrative(
-            headline = "Das war bisher dein Tag.",
-            body = "$topText prägt deinen Tagesfluss.$currentText$reviewText$openText".trim()
+            headline = application.getString(R.string.dashboard_narrative_day_title),
+            body = "$topText ${application.getString(R.string.dashboard_narrative_flow)}$currentText$reviewText$openText".trim()
         )
     }
 
@@ -1109,19 +1147,39 @@ class DashboardViewModel @Inject constructor(
         val top = distribution.firstOrNull()
         if (top != null) {
             val share = ((top.durationMs.toFloat() / totalMs.coerceAtLeast(1).toFloat()) * 100).toInt()
-            insights += DashboardInsight("Größter Block", "${top.label} macht $share% deiner erfassten Zeit aus.", "◷")
+            insights += DashboardInsight(
+                application.getString(R.string.dashboard_insight_biggest),
+                application.getString(R.string.dashboard_insight_biggest_msg, top.label, share),
+                "◷"
+            )
         }
         if (reviewCount > 0) {
-            insights += DashboardInsight("Kurz prüfen", "${reviewCount.reviewText()} warten auf deine Entscheidung.", "✓")
+            insights += DashboardInsight(
+                application.getString(R.string.dashboard_insight_review),
+                application.getString(R.string.dashboard_insight_review_msg, reviewCount.reviewText()),
+                "✓"
+            )
         }
         if (openMs > 2 * 60 * 60_000L) {
-            insights += DashboardInsight("Offene Zeit", "${TimeFormatting.formatDuration(openMs)} sind noch frei oder nicht erfasst.", "○")
+            insights += DashboardInsight(
+                application.getString(R.string.dashboard_insight_open),
+                application.getString(R.string.dashboard_insight_open_msg, TimeFormatting.formatDuration(openMs)),
+                "○"
+            )
         }
         if (distribution.size >= 3) {
-            insights += DashboardInsight("Vielfalt", "Dein Tag verteilt sich auf ${distribution.size} Bereiche.", "✦")
+            insights += DashboardInsight(
+                application.getString(R.string.dashboard_insight_variety),
+                application.getString(R.string.dashboard_insight_variety_msg, distribution.size),
+                "✦"
+            )
         }
         if (insights.isEmpty()) {
-            insights += DashboardInsight("Ruhiger Start", "Ein erster Eintrag reicht, damit Aevum deinen Tag sichtbar macht.", "✧")
+            insights += DashboardInsight(
+                application.getString(R.string.dashboard_insight_calm),
+                application.getString(R.string.dashboard_insight_calm_msg),
+                "✧"
+            )
         }
         return insights.take(3)
     }
@@ -1136,7 +1194,11 @@ class DashboardViewModel @Inject constructor(
         return (30f + variety + coverage - dominancePenalty - openPenalty).toInt().coerceIn(0, 100)
     }
 
-    private fun Int.reviewText(): String = if (this == 1) "1 Vorschlag" else "$this Vorschläge"
+    private fun Int.reviewText(): String = if (this == 1) {
+        application.getString(R.string.dashboard_suggestion_one)
+    } else {
+        application.getString(R.string.dashboard_suggestion_many, this)
+    }
 
     private companion object {
         const val DAY_MS = 24 * 60 * 60 * 1000L
@@ -1162,9 +1224,9 @@ data class DailyNarrative(
 )
 
 data class DashboardUiState(
-    val headline: String = "Dein Tag ist noch eine leere Seite.",
-    val narrative: String = "Erfasse einen ersten Abschnitt oder prüfe später automatische Vorschläge.",
-    val currentActivity: String = "Noch nichts erfasst",
+    val headline: String = "",
+    val narrative: String = "",
+    val currentActivity: String = "",
     val currentDuration: String = "0m",
     val balanceScore: Int = 0,
     val totalTracked: String = "0m",
@@ -1180,7 +1242,7 @@ data class DashboardUiState(
     val flowGaps: List<FlowGap> = emptyList(),
     val currentMinute: Int = 0,
     val insights: List<DashboardInsight> = emptyList(),
-    val topCategory: String = "Noch offen",
+    val topCategory: String = "",
     val topCategoryDuration: String = "0m",
     val hasData: Boolean = false,
     val dayProgress: Float = 0f,

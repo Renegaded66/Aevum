@@ -1,0 +1,7 @@
+<resources>
+    <!-- Background notification (consolidated, M19) -->
+    <string name="notif_background_channel_name">Background detection</string>
+    <string name="notif_background_channel_desc">Aevum tracks activities in the background — places, drives, app usage</string>
+    <string name="notif_background_title">Aevum is running in the background</string>
+    <string name="notif_background_text">Detects places, drives and app usage</string>
+</resources>

@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceDebugLogger
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrationResult
@@ -111,8 +112,8 @@ class AutomationStatusViewModel @Inject constructor(
     fun refreshAll() {
         viewModelScope.launch {
             actionMessage.value = when (val r = geofenceRegistrar.refreshRegisteredGeofences()) {
-                is GeofenceRegistrationResult.Registered -> "✓ ${r.count} Geofences aktiv"
-                else -> "Prüfung: ${r.javaClass.simpleName}"
+                is GeofenceRegistrationResult.Registered -> app.getString(R.string.automation_geofences_active, r.count)
+                else -> app.getString(R.string.automation_check_result, r.javaClass.simpleName)
             }
         }
     }
@@ -201,6 +202,7 @@ data class GeofenceListUiState(
 
 @HiltViewModel
 class GeofenceEditorViewModel @Inject constructor(
+    private val app: Application,
     private val geofenceRepository: PlaceGeofenceRepository,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
@@ -282,13 +284,13 @@ class GeofenceEditorViewModel @Inject constructor(
 
     fun useCurrentLocation() {
         viewModelScope.launch {
-            locationMessage.value = "Position wird ermittelt…"
+            locationMessage.value = app.getString(R.string.automation_position_locating)
             when (val r = currentLocationProvider.getCurrentLocation()) {
                 is CurrentLocationResult.Success -> {
                     setCoordinates(r.latitude, r.longitude)
-                    locationMessage.value = "Position übernommen · ±${r.accuracyMeters.toInt()}m"
+                    locationMessage.value = app.getString(R.string.automation_position_taken, r.accuracyMeters.toInt())
                 }
-                CurrentLocationResult.MissingPermission -> locationMessage.value = "Standortberechtigung fehlt"
+                CurrentLocationResult.MissingPermission -> locationMessage.value = app.getString(R.string.automation_location_permission_missing)
                 is CurrentLocationResult.Unavailable -> locationMessage.value = r.message
             }
         }
@@ -317,7 +319,7 @@ class GeofenceEditorViewModel @Inject constructor(
                 val lon = c.longitude.replace(',', '.').toDoubleOrNull()
                 val r = c.radius.toFloatOrNull()
                 if (c.name.isBlank() || lat == null || lat !in -90.0..90.0 || lon == null || lon !in -180.0..180.0 || r == null || r < 50f) {
-                    form.update { it.copy(error = "Name, Position und Radius ab 50m prüfen") }
+                    form.update { it.copy(error = app.getString(R.string.automation_validate_fields)) }
                     return@launch
                 }
                 val now = System.currentTimeMillis()
@@ -361,7 +363,7 @@ class GeofenceEditorViewModel @Inject constructor(
                 // "passierte nichts" beim Speichern, weil DB-Exceptions von
                 // viewModelScope.launch verschluckt wurden.
                 Log.e("GeofenceEditor", "save() fehlgeschlagen", e)
-                form.update { it.copy(error = "Speichern fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}") }
+                form.update { it.copy(error = app.getString(R.string.automation_save_failed, e.message ?: app.getString(R.string.automation_unknown_error))) }
             }
         }
     }
@@ -460,7 +462,7 @@ class GeofenceDebugViewModel @Inject constructor(
     fun refreshRegistration() {
         viewModelScope.launch {
             lastAction.value = when (val r = geofenceRegistrar.refreshRegisteredGeofences()) {
-                is GeofenceRegistrationResult.Registered -> "✓ ${r.count} Geofences"
+                is GeofenceRegistrationResult.Registered -> app.getString(R.string.automation_geofences_count, r.count)
                 else -> r.javaClass.simpleName
             }
         }
@@ -469,7 +471,7 @@ class GeofenceDebugViewModel @Inject constructor(
     fun runRulesNow() {
         viewModelScope.launch {
             val r = candidateRuleOrchestrator.evaluateRecentTriggers()
-            lastAction.value = "${r.consideredTriggers} Trigger, ${r.insertedCandidates.size} neue Candidates"
+            lastAction.value = app.getString(R.string.automation_rules_result, r.consideredTriggers, r.insertedCandidates.size)
         }
     }
 

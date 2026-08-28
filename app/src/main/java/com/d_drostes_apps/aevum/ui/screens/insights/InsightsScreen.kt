@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AnimatedNumberCounter
 import com.d_drostes_apps.aevum.ui.components.GlassCard
@@ -115,10 +117,10 @@ fun InsightsScreen(
                         Column {
                             Text(
                                 text = when (uiState.breakdownMode) {
-                                    BreakdownMode.Activity -> "Top Aktivitäten"
+                                    BreakdownMode.Activity -> stringResource(R.string.insights_top_activities)
                                     // M18.66-FIX17: keine Top-Begrenzung mehr —
                                     // ALLE Kategorien werden angezeigt.
-                                    BreakdownMode.Category -> "Kategorien"
+                                    BreakdownMode.Category -> stringResource(R.string.common_categories)
                                 },
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold
@@ -144,7 +146,7 @@ fun InsightsScreen(
                     GlassCard(accentColor = MaterialTheme.colorScheme.primary) {
                         Column {
                             Text(
-                                "Veränderungen zur Vorperiode",
+                                stringResource(R.string.insights_changes_title),
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -202,14 +204,13 @@ fun InsightsScreen(
                     GlassCard(accentColor = MaterialTheme.colorScheme.outline) {
                         Column {
                             Text(
-                                "Noch keine Daten",
+                                stringResource(R.string.insights_empty_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(AevumSpacing.sm))
                             Text(
-                                "Sobald du Aktivitäten startest oder Pauschalen aktivierst, " +
-                                    "tauchen hier deine Muster auf.",
+                                stringResource(R.string.insights_empty_message),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -246,7 +247,7 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "Std",
+                    stringResource(R.string.insights_hours_short),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -259,7 +260,7 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "Min",
+                    stringResource(R.string.insights_minutes_short),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -288,13 +289,13 @@ private fun InsightsHero(uiState: InsightsUiState, onOpenLifeView: () -> Unit) {
                 Text("⏳", fontSize = 18.sp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Lebenszeit",
+                        stringResource(R.string.insights_lifetime_title),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.tertiary
                     )
                     Text(
-                        "Wie viel Zeit bleibt dir wirklich?",
+                        stringResource(R.string.insights_lifetime_subtitle),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -318,7 +319,15 @@ private fun PeriodSelector(
             FilterChip(
                 selected = period == selected,
                 onClick = { onSelect(period) },
-                label = { Text(period.label) },
+                label = {
+                    Text(
+                        when (period) {
+                            InsightPeriod.Today -> stringResource(R.string.common_today)
+                            InsightPeriod.Week -> stringResource(R.string.insights_period_this_week)
+                            InsightPeriod.Month -> stringResource(R.string.insights_period_this_month)
+                        }
+                    )
+                },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                     selectedLabelColor = MaterialTheme.colorScheme.primary
@@ -340,7 +349,7 @@ private fun BreakdownToggle(
         FilterChip(
             selected = mode == BreakdownMode.Activity,
             onClick = { onSelect(BreakdownMode.Activity) },
-            label = { Text("Aktivität") },
+            label = { Text(stringResource(R.string.insights_breakdown_activity)) },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Outlined.GridView,
@@ -352,7 +361,7 @@ private fun BreakdownToggle(
         FilterChip(
             selected = mode == BreakdownMode.Category,
             onClick = { onSelect(BreakdownMode.Category) },
-            label = { Text("Kategorie") },
+            label = { Text(stringResource(R.string.insights_breakdown_category)) },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Outlined.Category,

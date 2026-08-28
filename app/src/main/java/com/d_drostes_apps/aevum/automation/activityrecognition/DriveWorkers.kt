@@ -154,7 +154,27 @@ class DriveStartWorker(
         // Minuten. Cluster-Start = ältestes Signal (deckt "Fahrt begann
         // vor der Erkennung" ab).
         val cluster = bridge.drainVehicleCluster()
-        val startedAt = cluster?.startMs ?: System.currentTimeMillis()
+        var startedAt = cluster?.startMs ?: System.currentTimeMillis()
+
+        // M18.80: NICHT-ÜBERLAPPUNGS-GUARD für rückwirkende Starts.
+        // User-Bug (lange Autofahrt mit Stau): Der Watchdog stoppt die
+        // Fahrt nach 5 Minuten ohne Signal (Stauende 13:00). Die Engine
+        // puffert aber weiter GPS-Probes (15-Minuten-Fenster,
+        // MAX_PROBE_AGE_MS) und erkennt kurz darauf wieder "Driving" —
+        // der Cluster-Start liegt dann bis zu 15 Minuten ZURÜCK (12:55)
+        // und die neue Session überlappt die gerade beendete (12:30–13:00).
+        // trimOverlappingForNewSession greift nur bei NOCH LIVE Sessions;
+        // die alte ist aber schon FINISHED. Lösung: Der rückwirkende
+        // Start wird auf das Ende der letzten beendeten Auto-Session
+        // angehoben. Die Lücke (13:00–13:05) bleibt als Pause sichtbar,
+        // die Timeline zeigt keine Überlappung mehr.
+        val lastFinishedEnd = try {
+            live.lastAutoSessionEndMs()
+        } catch (_: Exception) { null }
+        if (lastFinishedEnd != null && startedAt < lastFinishedEnd) {
+            Log.d(TAG, "M18.80-Überlappungs-Guard: Cluster-Start $startedAt vor letztem Auto-Ende $lastFinishedEnd -> auf Ende angehoben")
+            startedAt = lastFinishedEnd
+        }
 
         // M18.66: Gate — Autofahren in den Trigger-Settings aus?
         if (!bridge.isDrivingEnabled()) {

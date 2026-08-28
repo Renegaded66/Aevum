@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.ui.screens.insights
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.d_drostes_apps.aevum.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
@@ -12,9 +13,6 @@ import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
-import com.d_drostes_apps.aevum.data.repository.HabitRepository
-import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
-import com.d_drostes_apps.aevum.ui.screens.habits.HabitWithProgress
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +26,6 @@ class InsightsViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val habitRepository: HabitRepository,
     // M17.4: Tagespauschalen für die Statistik-Aggregation.
     private val dailyAllowanceRepository: DailyAllowanceRepository
 ) : ViewModel() {
@@ -50,7 +47,6 @@ class InsightsViewModel @Inject constructor(
         activityRepository.getAll(),
         categoryRepository.getAll(),
         activityTypeRepository.getAll(),
-        habitRepository.getActive(),
         // M17.4: Tagespauschalen — wir laden ALLE Accumululations, weil
         // die Period-Filter (Woche/Monat) in InsightsAnalytics.apply()
         // entschieden werden, nicht hier im ViewModel.
@@ -61,15 +57,13 @@ class InsightsViewModel @Inject constructor(
         val categories = values[1] as List<Category>
         val types = values[2] as List<ActivityType>
         @Suppress("UNCHECKED_CAST")
-        val habits = values[3] as List<com.d_drostes_apps.aevum.data.model.Habit>
-        @Suppress("UNCHECKED_CAST")
-        val allowances = values[4] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
+        val allowances = values[3] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
         // M17.4: Hole die Accumulations einmalig (suspend → first())
         // Achtung: getAll() auf Accumulation existiert nicht im
         // Repository, also müssen wir die Accumulation-Reads im
         // Analytics-Build machen. Wir übergeben nur die Allowance-Liste
         // und laden die Accumulations dort on-demand.
-        DataLayer(sessions, categories, types, habits, allowances)
+        DataLayer(sessions, categories, types, allowances)
     }
 
     val uiState: StateFlow<InsightsUiState> = combine(
@@ -79,26 +73,6 @@ class InsightsViewModel @Inject constructor(
         _breakdownMode
     ) { data, period, heatmapDate, breakdownMode ->
         val typeMap = data.types.associateBy { it.id }
-        val habitProgress = data.habits.map { habit ->
-            GoalProgressAnalytics.evaluateHabit(habit, data.sessions, anchorDate, zoneId, typeMap)
-        }.map { result ->
-            HabitWithProgress(
-                habit = result.habit,
-                streak = result.streak,
-                successRate = result.successRate,
-                activeDays = result.activeDays,
-                totalDays = result.totalDays,
-                heatmap = result.heatmap.map { day ->
-                    com.d_drostes_apps.aevum.ui.screens.habits.HeatmapDay(
-                        date = day.date,
-                        completed = day.completed,
-                        intensity = day.intensity
-                    )
-                },
-                frequencyLabel = result.frequencyLabel,
-                activityTypeName = result.activityTypeName
-            )
-        }
         // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
         // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
         // in der Timeline.
@@ -142,18 +116,25 @@ class InsightsViewModel @Inject constructor(
             cursor = cursor.plusDays(1)
         }
         InsightsAnalytics.build(
+            context = application,
             sessions = data.sessions,
             categories = data.categories,
             activityTypes = data.types,
             selectedPeriod = period,
             anchorDate = anchorDate,
             zoneId = zoneId,
-            habitProgress = habitProgress,
             // M17.4: neue Parameter
             allowanceAccumulations = allowanceAccums,
             breakdownMode = breakdownMode
         ).copy(selectedHeatmapDate = heatmapDate)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InsightsUiState())
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        InsightsUiState(
+            periodLabel = application.getString(R.string.common_today),
+            summary = application.getString(R.string.insights_summary_empty)
+        )
+    )
 
     fun selectPeriod(period: InsightPeriod) {
         _selectedPeriod.value = period
@@ -189,7 +170,6 @@ class InsightsViewModel @Inject constructor(
         val sessions: List<ActivitySession>,
         val categories: List<Category>,
         val types: List<ActivityType>,
-        val habits: List<com.d_drostes_apps.aevum.data.model.Habit>,
         val allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
     )
 

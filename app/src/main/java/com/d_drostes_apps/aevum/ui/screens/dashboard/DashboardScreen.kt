@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
+import com.d_drostes_apps.aevum.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -446,8 +448,11 @@ private fun DashboardContent(
     // Tag gilt wieder die automatische Berechnung.
     if (showQualityDialog) {
         QualityOverrideDialog(
-            title = "Tages-Güte anpassen",
-            message = "Wie wertvoll war der ${state.displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM"))}? Die Aktivitäts-Einstellungen bleiben unverändert.",
+            title = stringResource(R.string.dashboard_quality_day_title),
+            message = stringResource(
+                R.string.dashboard_quality_day_message,
+                state.displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM"))
+            ),
             initialScore = state.qualityScore,
             hasOverride = state.hasDayQualityOverride,
             onDismiss = { showQualityDialog = false },
@@ -576,7 +581,7 @@ private fun PulsHero(
                         qualityScore = state.qualityScore,
                         ringSize = 108.dp,
                         strokeWidth = 11.dp,
-                        label = "QUALITÄT",
+                        label = stringResource(R.string.dashboard_quality_label),
                         // AEVUM-3: Tipp auf die Güte-Zahl → Tages-Güte anpassen.
                         onClick = onQualityClick,
                         // AEVUM-3: dezenter Hinweis, dass der Tag manuell
@@ -589,14 +594,14 @@ private fun PulsHero(
                         verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                     ) {
                         Text(
-                            "DEIN TAG",
+                            stringResource(R.string.dashboard_your_day),
                             fontSize = 10.sp,
                             letterSpacing = 1.4.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            state.headline,
+                            state.headline.ifEmpty { stringResource(R.string.dashboard_narrative_empty_title) },
                             fontSize = 19.sp,
                             lineHeight = 23.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -610,17 +615,17 @@ private fun PulsHero(
                         AnimatedHeroMetric(
                             icon = "⏱️",
                             valueMs = state.totalTrackedMs,
-                            label = "Erfasst"
+                            label = stringResource(R.string.common_captured)
                         )
                         HeroMetric(
                             icon = "🌙",
                             value = if (state.lastSleepDurationMs > 0) formatHours(state.lastSleepDurationMs) else "—",
-                            label = "Schlaf"
+                            label = stringResource(R.string.common_sleep)
                         )
                         HeroMetric(
                             icon = "📱",
                             value = state.digitalScreenTimeFormatted,
-                            label = "Bildschirm"
+                            label = stringResource(R.string.dashboard_screen)
                         )
                     }
                 }
@@ -639,7 +644,7 @@ private fun PulsHero(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
-                                "Sobald du erfasst, erscheint hier dein Tagesfluss.",
+                                stringResource(R.string.dashboard_flow_empty),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -751,7 +756,7 @@ private fun DayProgressBar(dayProgress: Float) {
             }
         }
         Text(
-            "Tag $percent%",
+            stringResource(R.string.dashboard_day_progress, percent),
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -864,12 +869,16 @@ private fun ReviewHintCard(reviewCount: Int, sleepCount: Int, onOpenReview: () -
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    if (reviewCount > 0) "$reviewCount Vorschläge warten" else "${sleepCount} Schlaf-Vorschläge",
+                    if (reviewCount > 0) {
+                        stringResource(R.string.dashboard_review_suggestions, reviewCount)
+                    } else {
+                        stringResource(R.string.dashboard_review_sleep_suggestions, sleepCount)
+                    },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Tippe zum Prüfen. Aevum zählt sie erst, wenn du sie annimmst.",
+                    stringResource(R.string.dashboard_review_hint),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -960,7 +969,7 @@ private fun DashboardScreenPreview() {
 private fun QualityBreakdownBars(slices: List<QualitySlice>) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "WO DEINE ZEIT HINGEHT",
+            stringResource(R.string.dashboard_where_time_goes),
             fontSize = 10.sp,
             letterSpacing = 0.8.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1109,7 +1118,8 @@ private fun LiveActivityBanner(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (isPaused) "Pausiert" else "Aufnahme läuft",
+                            if (isPaused) stringResource(R.string.dashboard_paused)
+                            else stringResource(R.string.dashboard_recording),
                             fontSize = 10.sp,
                             letterSpacing = 1.0.sp,
                             color = accent,
@@ -1227,14 +1237,18 @@ private fun DashboardTodosCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Todos",
+                    stringResource(R.string.dashboard_todos),
                     fontSize = 11.sp,
                     letterSpacing = 1.0.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    if (open > 0) "$open offen · $done erledigt" else "Alle erledigt 🎉",
+                    if (open > 0) {
+                        stringResource(R.string.dashboard_todos_progress, open, done)
+                    } else {
+                        stringResource(R.string.dashboard_todos_done)
+                    },
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -1290,14 +1304,14 @@ private fun DashboardAllowancesRow(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "Tagespauschalen",
+                stringResource(R.string.dashboard_allowances),
                 fontSize = 11.sp,
                 letterSpacing = 1.0.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                "Tippen zum Anpassen für diesen Tag",
+                stringResource(R.string.dashboard_allowances_hint),
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -1338,7 +1352,7 @@ private fun DashboardAllowancesRow(
                         )
                     }
                     Text(
-                        "$minutes min",
+                        stringResource(R.string.dashboard_minutes_value, minutes),
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         color = if (hasOverride) MaterialTheme.colorScheme.primary
@@ -1367,8 +1381,8 @@ private fun DayNavigationPill(
     val today = java.time.LocalDate.now()
     val isToday = displayedDate == today
     val label = when {
-        isToday -> "Heute"
-        displayedDate == today.minusDays(1) -> "Gestern"
+        isToday -> stringResource(R.string.common_today)
+        displayedDate == today.minusDays(1) -> stringResource(R.string.common_yesterday)
         else -> displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd.MM."))
     }
     Row(
@@ -1398,7 +1412,7 @@ private fun DayNavigationPill(
         )
         if (!isToday) {
             Text(
-                "Heute",
+                stringResource(R.string.common_today),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -1441,29 +1455,33 @@ private fun AllowanceDayPopup(
     var showEditor by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    val dateLabel = if (displayedDate == java.time.LocalDate.now()) "heute" else
+    val dateLabel = if (displayedDate == java.time.LocalDate.now()) stringResource(R.string.dashboard_today_lower) else
         displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM."))
 
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Pauschalzeit löschen?") },
+            title = { Text(stringResource(R.string.dashboard_allowance_delete_title)) },
             text = {
                 Text(
                     if (target.hasOverride) {
-                        "Bist du sicher, dass du die angepasste Pauschalzeit für $dateLabel löschen willst? Es gilt wieder der Standardwert (${target.currentMinutes} min)."
+                        stringResource(
+                            R.string.dashboard_allowance_delete_override,
+                            dateLabel,
+                            target.currentMinutes
+                        )
                     } else {
-                        "Bist du sicher, dass du die Pauschalzeit für $dateLabel löschen willst? Die Pauschale selbst bleibt erhalten — nur für diesen Tag wird sie ausgeblendet."
+                        stringResource(R.string.dashboard_allowance_delete_standard, dateLabel)
                     }
                 )
             },
             confirmButton = {
                 TextButton(onClick = { onDelete(target.allowanceId) }) {
-                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     } else if (showEditor) {
@@ -1471,16 +1489,16 @@ private fun AllowanceDayPopup(
         var minutes by remember { mutableStateOf(target.currentMinutes) }
         AlertDialog(
             onDismissRequest = { showEditor = false },
-            title = { Text("Zeit anpassen") },
+            title = { Text(stringResource(R.string.dashboard_time_adjust)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                     Text(
-                        "${target.name} — $dateLabel",
+                        stringResource(R.string.dashboard_allowance_date, target.name, dateLabel),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "$minutes min",
+                        stringResource(R.string.dashboard_minutes_value, minutes),
                         fontSize = 34.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
@@ -1537,7 +1555,7 @@ private fun AllowanceDayPopup(
                     }
                     if (target.hasOverride) {
                         Text(
-                            "✎ Bereits angepasst — Speichern überschreibt den Tageswert.",
+                            stringResource(R.string.dashboard_allowance_override_hint),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -1545,10 +1563,10 @@ private fun AllowanceDayPopup(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { onEdit(target.allowanceId, minutes) }) { Text("Speichern") }
+                TextButton(onClick = { onEdit(target.allowanceId, minutes) }) { Text(stringResource(R.string.common_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showEditor = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showEditor = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     } else {
@@ -1558,23 +1576,27 @@ private fun AllowanceDayPopup(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                     Text(
-                        "Pauschalzeit für $dateLabel: ${target.currentMinutes} min",
+                        stringResource(
+                            R.string.dashboard_allowance_summary,
+                            dateLabel,
+                            target.currentMinutes
+                        ),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        "Änderungen gelten nur für diesen Tag — die Pauschale selbst bleibt unverändert.",
+                        stringResource(R.string.dashboard_allowance_day_only),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showEditor = true }) { Text("✎ Bearbeiten") }
+                TextButton(onClick = { showEditor = true }) { Text(stringResource(R.string.dashboard_edit_with_icon)) }
             },
             dismissButton = {
                 TextButton(onClick = { onDelete(target.allowanceId) }) {
-                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
                 }
             }
         )

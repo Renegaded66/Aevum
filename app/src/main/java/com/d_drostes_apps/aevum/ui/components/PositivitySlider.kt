@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 import kotlin.math.roundToInt
 
 /**
@@ -63,6 +65,7 @@ fun PositivitySlider(
     onValueChangeFinished: (() -> Unit)? = null
 ) {
     val scoreFloat = remember(score) { score.toFloat() }
+    val a11yDescription = stringResource(R.string.component_positivity_a11y, score)
     // M18: Sanfte Animation wenn der Score extern geändert wird (z.B. Reset)
     val animatedScore by animateFloatAsState(
         targetValue = scoreFloat,
@@ -78,7 +81,7 @@ fun PositivitySlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Positivität",
+                stringResource(R.string.component_positivity),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -94,7 +97,7 @@ fun PositivitySlider(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
-                .semantics { contentDescription = "Positivität $score von 100" }
+                .semantics { contentDescription = a11yDescription }
                 .pointerInput(Unit) {
                     detectTapGestures { tapOffset ->
                         onScoreChange(tapToScore(tapOffset.x, size.width.toFloat()))
@@ -188,9 +191,9 @@ fun PositivitySlider(
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Schlecht", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Neutral", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Gut", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.component_bad), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.component_neutral), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.component_good), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

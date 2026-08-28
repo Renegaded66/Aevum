@@ -1,11 +1,14 @@
 package com.d_drostes_apps.aevum.automation.gap
 
+import android.content.Context
 import android.util.Log
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.model.AutomationConstants
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.LocalDate
@@ -39,6 +42,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class GapDetectionEngine @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: Context,
     private val activityRepository: ActivityRepository,
     private val triggerRepository: TriggerEventRepository,
     private val candidateRepository: ActivityCandidateRepository
@@ -166,15 +170,14 @@ class GapDetectionEngine @Inject constructor(
 
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
-            suggestedTitle = "Unbekannte Zeit ($durationStr)",
+            suggestedTitle = appContext.getString(R.string.gap_title_unknown_time, durationStr),
             suggestedCategoryId = "unknown",
             activityTypeId = null,
             startAt = gapStart,
             endAt = gapEnd,
             confidence = 0.20f,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Lücke zwischen $startHm und $endHm erkannt. " +
-                    "Was hast du in dieser Zeit gemacht?",
+            reason = appContext.getString(R.string.gap_reason, startHm, endHm),
             createdBy = "GAP_DETECTION_V1",
             createdAt = now,
             sourceCandidateId = externalId

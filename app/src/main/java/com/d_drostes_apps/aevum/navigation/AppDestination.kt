@@ -1,65 +1,61 @@
 package com.d_drostes_apps.aevum.navigation
 
-enum class AppDestination(val route: String, val title: String) {
-    Dashboard("dashboard", "Heute"),
-    Timeline("timeline", "Timeline"),
-    TimelineDay("timeline/{date}", "Timeline"),
-    ActivityCreate("activity/new/{date}", "Neue Aktivität"),
-    ActivityEdit("activity/edit/{sessionId}", "Aktivität bearbeiten"),
-    ActivityFromCandidate("activity/candidate/{candidateId}", "Candidate bearbeiten"),
-    ActivityDetail("activity/{sessionId}", "Aktivität"),
-    Insights("insights", "Insights"),
-    WeeklyReview("weekly_review", "Weekly Review"),
-    Growth("growth", "Wachstum"),
-    Settings("settings", "Einstellungen"),
+import androidx.annotation.StringRes
+import com.d_drostes_apps.aevum.R
+
+enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
+    Dashboard("dashboard", R.string.dashboard_title),
+    Timeline("timeline", R.string.timeline_title),
+    TimelineDay("timeline/{date}", R.string.timeline_title),
+    ActivityCreate("activity/new/{date}", R.string.activity_create_title),
+    ActivityEdit("activity/edit/{sessionId}", R.string.activity_edit_title),
+    ActivityFromCandidate("activity/candidate/{candidateId}", R.string.activity_candidate_title),
+    ActivityDetail("activity/{sessionId}", R.string.activity_detail_title),
+    Insights("insights", R.string.insights_title),
+    WeeklyReview("weekly_review", R.string.weekly_review_title),
+    Growth("growth", R.string.growth_title),
+    Settings("settings", R.string.settings_title),
     // M18.44: Eigene Seite für alle Trigger-Quellen (Geofence/Auto/Walking/Rad/Schlaf)
     // M18.57: Fusioniert mit der alten "Berechtigungen"-Seite (AutomationSettings entfernt).
-    TriggerSettings("trigger_settings", "Trigger & Erkennung"),
-    GeofenceList("geofences", "Geofences"),
-    GeofenceCreate("geofence/new", "Geofence anlegen"),
-    GeofenceCreateHome("geofence/new/home", "Zuhause anlegen"),
-    GeofenceCreateWork("geofence/new/work", "Arbeit anlegen"),
-    GeofenceEdit("geofence/edit/{geofenceId}", "Geofence bearbeiten"),
-    TriggerEvents("trigger_events", "Trigger Events"),
-    GeofenceDebug("geofence_debug", "Geofence Diagnose"),
-    AutomationStatus("automation/status", "Automatisierung Status"),
-    ReviewInbox("review_inbox", "Review Inbox"),
-    Onboarding("onboarding", "Onboarding"),
-    LifeProfileSetup("life_profile_setup", "Lebensprofil"),
-    Habits("habits", "Gewohnheiten"),
-    HabitCreate("habit/new", "Gewohnheit anlegen"),
-    HabitEdit("habit/edit/{habitId}", "Gewohnheit bearbeiten"),
-    PermissionEducation("permission_education", "Berechtigungen"),
-    PlacesSetup("places_setup", "Orte"),
-    DashboardIntro("dashboard_intro", "Dashboard"),
+    TriggerSettings("trigger_settings", R.string.trigger_settings_title),
+    GeofenceList("geofences", R.string.geofence_list_title),
+    GeofenceCreate("geofence/new", R.string.geofence_create_title),
+    GeofenceCreateHome("geofence/new/home", R.string.geofence_create_home_title),
+    GeofenceCreateWork("geofence/new/work", R.string.geofence_create_work_title),
+    GeofenceEdit("geofence/edit/{geofenceId}", R.string.geofence_edit_title),
+    TriggerEvents("trigger_events", R.string.trigger_events_title),
+    GeofenceDebug("geofence_debug", R.string.geofence_debug_title),
+    AutomationStatus("automation/status", R.string.automation_status_title),
+    ReviewInbox("review_inbox", R.string.review_inbox_title),
+    Onboarding("onboarding", R.string.onboarding_title),
+    LifeProfileSetup("life_profile_setup", R.string.life_profile_setup_title),
+    PermissionEducation("permission_education", R.string.permission_education_title),
+    PlacesSetup("places_setup", R.string.places_setup_title),
+    DashboardIntro("dashboard_intro", R.string.dashboard_title),
     // M17.2 + M17.3
-    UnknownPlaces("unknown_places", "Unbekannte Orte"),
-    DailyAllowances("daily_allowances", "Tagespauschalen"),
+    UnknownPlaces("unknown_places", R.string.unknown_places_title),
+    DailyAllowances("daily_allowances", R.string.daily_allowances_title),
     // M18.2: Positivitäts-Scores pro Aktivität
-    ActivityTypes("activity_types", "Aktivitäten & Positivität"),
+    ActivityTypes("activity_types", R.string.activity_types_title),
     // M18.59: Kategorien verwalten (erstellen, Aktivitäten zuordnen, Icon+Farbe)
-    Categories("categories", "Kategorien"),
+    Categories("categories", R.string.categories_title),
     // M18.28: Kalender-Tab (Heatmap der Zeitqualität)
-    Calendar("calendar", "Kalender"),
+    Calendar("calendar", R.string.calendar_title),
     // M18.61: Digital Balance — ersetzt den Kalender-Tab
-    DigitalBalance("digital_balance", "Digital Balance"),
+    DigitalBalance("digital_balance", R.string.digital_balance_title),
     // M18.67: App-Aufzeichnung (Apps → Activity automatisch)
-    AppTracking("app_tracking", "App-Aufzeichnung"),
+    AppTracking("app_tracking", R.string.app_tracking_title),
     // M18.30: Todos
-    Todos("todos", "Todos"),
-    TodoCreate("todo/new", "Neues Todo"),
+    Todos("todos", R.string.todos_title),
+    TodoCreate("todo/new", R.string.todo_create_title),
     // M18.38: Todo bearbeiten
-    TodoEdit("todo/edit/{todoId}", "Todo bearbeiten"),
-    // M18.39: Bucket List
-    BucketList("bucketlist", "Bucket List"),
-    BucketListCreate("bucketlist/new", "Neuer Eintrag"),
-    BucketListEdit("bucketlist/edit/{itemId}", "Eintrag bearbeiten"),
+    TodoEdit("todo/edit/{todoId}", R.string.todo_edit_title),
     // M18.35: Lebenszeit-Ansicht
-    LifeView("lifeview", "Lebenszeit"),
+    LifeView("lifeview", R.string.lifeview_title),
     // M18.55: Datenschutz, Export, Backup
-    Privacy("privacy", "Datenschutz"),
-    Export("export", "Export"),
-    Backup("backup", "Backup"),
+    Privacy("privacy", R.string.privacy_title),
+    Export("export", R.string.export_title),
+    Backup("backup", R.string.backup_title),
     // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
-    FitnessTrackers("fitness_trackers", "Fitness-Tracker")
+    FitnessTrackers("fitness_trackers", R.string.fitness_trackers_title)
 }

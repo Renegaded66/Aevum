@@ -17,12 +17,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 
 data class Trend(
     val percent: Float,
     val isPositive: Boolean,
-    val label: String = "vs. gestern"
+    val label: String? = null
 )
 
 @Composable
@@ -80,7 +82,7 @@ fun StatisticCard(
                 Spacer(modifier = Modifier.height(AevumSpacing.xs))
                 val trendColor = if (trend.isPositive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error
                 Text(
-                    text = "${if (trend.isPositive) "↗" else "↘"} ${"%.1f".format(trend.percent)}% ${trend.label}",
+                    text = "${if (trend.isPositive) "↗" else "↘"} ${"%.1f".format(trend.percent)}% ${trend.label ?: stringResource(R.string.component_trend_vs_yesterday)}",
                     fontSize = 11.sp,
                     color = trendColor,
                     maxLines = 1

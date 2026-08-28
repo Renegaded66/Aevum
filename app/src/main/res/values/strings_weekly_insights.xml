@@ -1,0 +1,99 @@
+<resources>
+    <!-- Weekly Review -->
+    <string name="weekly_hero_title">Deine Woche</string>
+    <string name="weekly_timeline_title">Wochen-Zeitstrahl</string>
+    <string name="weekly_timeline_subtitle">Sieben Tage als ruhiger Überblick</string>
+    <string name="weekly_distribution_title">Zeitverteilung</string>
+    <string name="weekly_distribution_subtitle">Welche Bereiche deine Woche geprägt haben</string>
+    <string name="weekly_changes_title">Veränderungen</string>
+    <string name="weekly_changes_subtitle">Gegenüber der Vorwoche</string>
+    <string name="weekly_highlights_title">Highlights</string>
+    <string name="weekly_patterns_title">Wochenmuster</string>
+    <string name="weekly_open_time_title">Offene Zeit</string>
+    <string name="weekly_open_time_message">%1$s dieser Woche sind noch nicht erfasst.</string>
+    <string name="weekly_to_timeline">Zur Timeline</string>
+    <string name="weekly_empty_title">Noch keine Woche sichtbar.</string>
+    <string name="weekly_empty_message">Erfasse ein paar Aktivitäten. Danach erzählt dir Aevum hier ruhig, welche Muster, Highlights und offenen Zeiten in deiner Woche sichtbar werden.</string>
+    <string name="weekly_closing_1">Jede Woche erzählt ihre eigene Geschichte.</string>
+    <string name="weekly_closing_2">Auch kleine Veränderungen werden mit der Zeit sichtbar.</string>
+    <string name="weekly_closing_3">Was sichtbar wird, lässt sich bewusster gestalten.</string>
+    <string name="weekly_narrative_empty">Sobald du einige Zeitblöcke erfasst hast, entsteht hier ein ruhiger Wochenrückblick.</string>
+    <string name="weekly_narrative_top_two">Du hast diese Woche viel Zeit in %1$s investiert und auch %2$s sichtbar gemacht.</string>
+    <string name="weekly_narrative_change">Diese Woche ist %1$s stärker sichtbar geworden als in der Vorwoche.</string>
+    <string name="weekly_narrative_active_days">Diese Woche war über mehrere Tage hinweg gut sichtbar und abwechslungsreich.</string>
+    <string name="weekly_narrative_top">%1$s war diese Woche der prägende Zeitbereich.</string>
+    <string name="weekly_narrative_fallback">Diese Woche beginnt, ihre eigene Geschichte zu erzählen.</string>
+    <string name="weekly_highlight_longest_activity">Längste Aktivität</string>
+    <string name="weekly_highlight_most_active_day">Aktivster Tag</string>
+    <string name="weekly_highlight_balanced_day">Ausgeglichenster Tag</string>
+    <string name="weekly_highlight_longest_leisure">Längste Freizeit</string>
+    <string name="weekly_highlight_longest_work">Längster Arbeitsblock</string>
+    <string name="weekly_highlight_value">%1$s · %2$s</string>
+    <string name="weekly_highlight_most_active_day_value">%1$s · %2$s sichtbar</string>
+    <string name="weekly_pattern_strongest_day">Stärkster Tag</string>
+    <string name="weekly_pattern_strongest_day_message">%1$s war der sichtbarste Tag deiner Woche.</string>
+    <string name="weekly_pattern_weekend">Wochenende</string>
+    <string name="weekly_pattern_weekend_message">Am Wochenende war deutlich mehr freie Zeit sichtbar.</string>
+    <string name="weekly_pattern_movement">Bewegung</string>
+    <string name="weekly_pattern_movement_message">Bewegung war über mehrere Tage der Woche verteilt.</string>
+    <string name="weekly_pattern_change">Veränderung</string>
+    <string name="weekly_pattern_change_more_message">%1$s war gegenüber der Vorwoche sichtbar mehr vertreten.</string>
+    <string name="weekly_pattern_change_less_message">%1$s war gegenüber der Vorwoche sichtbar weniger vertreten.</string>
+    <string name="weekly_pattern_variety">Abwechslung</string>
+    <string name="weekly_pattern_variety_message">Diese Woche verteilt sich auf mehrere Lebensbereiche.</string>
+
+    <!-- Insights -->
+    <string name="insights_top_activities">Top Aktivitäten</string>
+    <string name="insights_changes_title">Veränderungen zur Vorperiode</string>
+    <string name="insights_empty_title">Noch keine Daten</string>
+    <string name="insights_empty_message">Sobald du Aktivitäten startest oder Pauschalen aktivierst, tauchen hier deine Muster auf.</string>
+    <string name="insights_hours_short">Std</string>
+    <string name="insights_minutes_short">Min</string>
+    <string name="insights_lifetime_title">Lebenszeit</string>
+    <string name="insights_lifetime_subtitle">Wie viel Zeit bleibt dir wirklich?</string>
+    <string name="insights_breakdown_activity">Aktivität</string>
+    <string name="insights_breakdown_category">Kategorie</string>
+    <string name="insights_period_this_week">Diese Woche</string>
+    <string name="insights_period_this_month">Dieser Monat</string>
+    <string name="insights_summary_empty">Noch nicht genug Daten. Sobald du Zeitblöcke erfasst, entstehen hier ruhige Muster.</string>
+    <string name="insights_summary_multiple_areas">mehrere Bereiche</string>
+    <string name="insights_summary_today">Heute prägt vor allem %1$s deine erfasste Zeit.</string>
+    <string name="insights_summary_week">Diese Woche prägt vor allem %1$s deine erfasste Zeit.</string>
+    <string name="insights_summary_month">Dieser Monat prägt vor allem %1$s deine erfasste Zeit.</string>
+    <string name="insights_summary_change">\u0020Die größte Veränderung liegt bei %1$s.</string>
+    <string name="insights_card_largest_block_title">Größter Zeitblock</string>
+    <string name="insights_card_largest_block_today">%1$s war heute dein größter Bereich.</string>
+    <string name="insights_card_largest_block_week">%1$s war diese Woche dein größter Bereich.</string>
+    <string name="insights_card_largest_block_month">%1$s war diesen Monat dein größter Bereich.</string>
+    <string name="insights_card_more_visible_title">Mehr sichtbar</string>
+    <string name="insights_card_more_visible_message">%1$s ist gegenüber der Vorperiode gestiegen.</string>
+    <string name="insights_card_digital_time_title">Digitalzeit</string>
+    <string name="insights_card_digital_time_message">Deine Digitalzeit ist leicht gesunken.</string>
+    <string name="insights_card_rhythm_title">Rhythmus</string>
+    <string name="insights_card_rhythm_message">Mehrere Tage dieser Woche enthalten bereits erfasste Zeit.</string>
+    <string name="insights_card_variety_title">Abwechslung</string>
+    <string name="insights_card_variety_message">Deine Zeit verteilt sich auf mehrere Lebensbereiche.</string>
+    <string name="insights_allowance_label">%1$s (Pauschale)</string>
+
+    <!-- Review Inbox -->
+    <string name="review_inbox_eyebrow">Review Inbox</string>
+    <string name="review_inbox_hero_title">Aevum hat etwas vorbereitet</string>
+    <string name="review_inbox_hero_subtitle">Vorschläge zählen erst, wenn du sie übernimmst.</string>
+    <string name="review_inbox_accept_safe">%1$d sichere Vorschläge übernehmen</string>
+    <string name="review_inbox_selected_count">%1$d ausgewählt</string>
+    <string name="review_inbox_tap_hint">Tippe Karten zum Auswählen</string>
+    <string name="review_inbox_all_safe">Alle sicheren</string>
+    <string name="review_inbox_sleep_detected">Schlaf erkannt</string>
+    <string name="review_inbox_sleep_reason_fallback">Aus Health Connect erkannt. Bitte bestätigen.</string>
+    <string name="review_inbox_generic_reason_fallback">Automatischer Vorschlag aus deinen lokalen Signalen.</string>
+    <string name="review_inbox_empty_title">Alles geprüft.</string>
+    <string name="review_inbox_empty_message">Keine offenen Vorschläge. Aevum informiert dich, sobald etwas Neues erkannt wurde.</string>
+    <string name="review_inbox_message">%1$d Vorschläge warten noch auf deine Bestätigung.</string>
+    <string name="review_inbox_check_now">Jetzt prüfen</string>
+    <string name="review_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="review_duration_hours">%1$d h</string>
+    <string name="review_duration_minutes">%1$d min</string>
+
+    <!-- Growth -->
+    <string name="growth_insights_title">Wachstum</string>
+</resources>

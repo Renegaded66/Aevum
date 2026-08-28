@@ -33,11 +33,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -72,9 +74,9 @@ fun GoalEditorScreen(
             item {
                 AevumCard(variant = CardVariant.Gradient) {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                        TextButton(onClick = onBack) { Text("Zurück", fontSize = 14.sp) }
+                        TextButton(onClick = onBack) { Text(stringResource(R.string.common_back), fontSize = 14.sp) }
                         Text(
-                            if (goalId == null) "Ziel anlegen" else "Ziel bearbeiten",
+                            if (goalId == null) stringResource(R.string.goal_create) else stringResource(R.string.goal_edit),
                             fontSize = 30.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -89,8 +91,8 @@ fun GoalEditorScreen(
                         value = state.form.title,
                         onValueChange = viewModel::setTitle,
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Titel") },
-                        placeholder = { Text("z. B. 8h Schlaf pro Nacht") },
+                        label = { Text(stringResource(R.string.goal_title_label)) },
+                        placeholder = { Text(stringResource(R.string.goal_title_placeholder)) },
                         singleLine = true
                     )
                 }
@@ -100,14 +102,14 @@ fun GoalEditorScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Aktivitätstyp", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.goal_activity_type), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         Box {
                             OutlinedButton(
                                 onClick = { viewModel.setShowActivityTypeMenu(true) },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(state.form.selectedActivityTypeName ?: "Aktivitätstyp auswählen")
+                                    Text(state.form.selectedActivityTypeName ?: stringResource(R.string.goal_activity_type_select))
                                     Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
@@ -134,9 +136,13 @@ fun GoalEditorScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Zeitraum", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.goal_period), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            listOf("DAILY" to "Täglich", "WEEKLY" to "Wöchentlich", "MONTHLY" to "Monatlich").forEach { (value, label) ->
+                            listOf(
+                                "DAILY" to stringResource(R.string.common_daily),
+                                "WEEKLY" to stringResource(R.string.goal_weekly),
+                                "MONTHLY" to stringResource(R.string.goal_monthly)
+                            ).forEach { (value, label) ->
                                 FilterChip(
                                     selected = state.form.period == value,
                                     onClick = { viewModel.setPeriod(value) },
@@ -153,11 +159,14 @@ fun GoalEditorScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Zieltyp", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Mindestens = du möchtest diese Zeit erreichen. Maximal = du möchtest diese Zeit nicht überschreiten.",
+                        Text(stringResource(R.string.goal_type), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.goal_type_hint),
                             fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            listOf("AT_LEAST" to "Mindestens", "AT_MOST" to "Maximal").forEach { (value, label) ->
+                            listOf(
+                                "AT_LEAST" to stringResource(R.string.goal_at_least),
+                                "AT_MOST" to stringResource(R.string.goal_at_most)
+                            ).forEach { (value, label) ->
                                 FilterChip(
                                     selected = state.form.goalType == value,
                                     onClick = { viewModel.setGoalType(value) },
@@ -174,14 +183,14 @@ fun GoalEditorScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Zielwert & Einheit", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.goal_value_unit), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                             OutlinedTextField(
                                 value = state.form.targetValue,
                                 onValueChange = viewModel::setTargetValue,
                                 modifier = Modifier.weight(1f),
-                                label = { Text("Wert") },
-                                placeholder = { Text("z. B. 8") },
+                                label = { Text(stringResource(R.string.goal_value)) },
+                                placeholder = { Text(stringResource(R.string.goal_value_placeholder)) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
@@ -191,7 +200,7 @@ fun GoalEditorScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(if (state.form.targetUnit == "HOURS") "Stunden" else "Minuten")
+                                        Text(if (state.form.targetUnit == "HOURS") stringResource(R.string.common_hours) else stringResource(R.string.common_minutes))
                                         Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
@@ -199,7 +208,10 @@ fun GoalEditorScreen(
                                     expanded = state.form.showUnitMenu,
                                     onDismissRequest = { viewModel.setShowUnitMenu(false) }
                                 ) {
-                                    listOf("HOURS" to "Stunden", "MINUTES" to "Minuten").forEach { (value, label) ->
+                                    listOf(
+                                        "HOURS" to stringResource(R.string.common_hours),
+                                        "MINUTES" to stringResource(R.string.common_minutes)
+                                    ).forEach { (value, label) ->
                                         DropdownMenuItem(
                                             onClick = {
                                                 viewModel.setTargetUnit(value)
@@ -216,10 +228,10 @@ fun GoalEditorScreen(
             }
 
             // Error
-            state.form.error?.let { error ->
+            state.form.errorRes?.let { errorRes ->
                 item {
                     AevumCard(variant = CardVariant.Filled) {
-                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        Text(stringResource(errorRes), color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                     }
                 }
             }
@@ -230,7 +242,7 @@ fun GoalEditorScreen(
                     onClick = viewModel::saveGoal,
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
-                    Text("Speichern", fontSize = 16.sp)
+                    Text(stringResource(R.string.common_save), fontSize = 16.sp)
                 }
             }
 
@@ -245,16 +257,15 @@ fun GoalEditorScreen(
                             contentColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text("Ziel löschen", fontSize = 14.sp)
+                        Text(stringResource(R.string.goal_delete), fontSize = 14.sp)
                     }
                     if (showDeleteDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteDialog = false },
-                            title = { Text("Ziel löschen?") },
+                            title = { Text(stringResource(R.string.goal_delete_title)) },
                             text = {
                                 Text(
-                                    "Dieses Ziel wird dauerhaft entfernt.\n\n" +
-                                    "Bereits aufgezeichnete Aktivitäten bleiben davon unberührt.",
+                                    stringResource(R.string.goal_delete_message),
                                     fontSize = 14.sp
                                 )
                             },
@@ -264,10 +275,10 @@ fun GoalEditorScreen(
                                         showDeleteDialog = false
                                         viewModel.deleteGoal(goalId)
                                     }
-                                ) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                                ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
+                                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
                             }
                         )
                     }

@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.theme.AevumCategoryColors
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
@@ -66,12 +68,13 @@ fun SourceBadge(source: String, modifier: Modifier = Modifier) {
     }
 }
 
+@Composable
 fun sourceLabel(source: String): String = when (source) {
-    "SLEEP" -> "Schlaf"
-    "GEOFENCE" -> "Ort"
-    "ACTIVITY" -> "Bewegung"
-    "USAGE" -> "Digital"
-    "MANUAL" -> "Manuell"
+    "SLEEP" -> stringResource(R.string.common_sleep)
+    "GEOFENCE" -> stringResource(R.string.component_source_place)
+    "ACTIVITY" -> stringResource(R.string.common_movement)
+    "USAGE" -> stringResource(R.string.common_digital)
+    "MANUAL" -> stringResource(R.string.component_source_manual)
     else -> source.lowercase().replaceFirstChar { it.titlecase() }
 }
 

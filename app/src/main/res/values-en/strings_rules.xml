@@ -1,0 +1,21 @@
+<resources>
+    <!-- Rule engine titles & reasons (review inbox / timeline) -->
+    <string name="rule_title_commute_to_work">Commute to work</string>
+    <string name="rule_title_commute_home">Commute home</string>
+    <string name="rule_title_gym_trip">Trip to gym</string>
+    <string name="rule_title_shopping">Shopping: %1$s</string>
+    <string name="rule_title_gym_return">Return from gym</string>
+    <string name="rule_title_transit">On the way: %1$s → %2$s</string>
+    <string name="rule_title_work">Work</string>
+    <string name="rule_title_gym">Gym</string>
+    <string name="rule_title_home">Home</string>
+    <string name="rule_title_trip">Trip</string>
+    <string name="rule_reason_travel">Trigger pair detected: %1$s. %2$s suggested as travel time.</string>
+    <string name="rule_reason_stay">Trigger pair detected: entered %1$s → left. Suggestion stays reviewable.</string>
+    <string name="rule_reason_away">Trigger pair detected: left %1$s → arrived back. No destination known, therefore cautiously suggested as a trip.</string>
+    <string name="rule_reason_merge">%1$s | Merged with %2$s (gap &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">another candidate</string>
+
+    <!-- Fallback titles -->
+    <string name="common_activity_fallback">Activity</string>
+</resources>

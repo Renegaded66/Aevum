@@ -10,6 +10,7 @@ import com.d_drostes_apps.aevum.data.model.DailyAllowance
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
+import com.d_drostes_apps.aevum.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -146,11 +147,11 @@ class LifeViewViewModel @Inject constructor(
         val freeYears = (remainingYears - accountedYears).coerceAtLeast(0.0)
 
         val breakdown = listOf(
-            LifeSlice("Schlaf", sleepYears, 0xFF8B7CFF, "😴"),
-            LifeSlice("Autofahren", drivingYears, 0xFFF59E0B, "🚗"),
-            LifeSlice("Pauschalen", allowanceYears, 0xFF2DD4BF, "⏱"),
-            LifeSlice("Erfasst", otherYears, 0xFF66BB6A, "📊"),
-            LifeSlice("Frei", freeYears, 0xFF3A3F52, "✨")
+            LifeSlice(application.getString(R.string.common_sleep), sleepYears, 0xFF8B7CFF, "😴"),
+            LifeSlice(application.getString(R.string.lifeview_driving), drivingYears, 0xFFF59E0B, "🚗"),
+            LifeSlice(application.getString(R.string.lifeview_allowances), allowanceYears, 0xFF2DD4BF, "⏱"),
+            LifeSlice(application.getString(R.string.common_captured), otherYears, 0xFF66BB6A, "📊"),
+            LifeSlice(application.getString(R.string.lifeview_free), freeYears, 0xFF3A3F52, "✨")
         )
 
         // Aktivitaets-Details (Top 5 nach Lebensjahren)
@@ -164,7 +165,7 @@ class LifeViewViewModel @Inject constructor(
                 val type = typeMap[typeId]
                 LifeActivityDetail(
                     typeId = typeId,
-                    name = type?.name ?: "Sonstiges",
+                    name = type?.name ?: application.getString(R.string.common_other),
                     icon = type?.icon?.takeIf { it.isNotBlank() } ?: "•",
                     color = type?.color?.takeIf { it != 0L } ?: 0xFF66BB6A,
                     years = yearsFor(perDay),

@@ -1,0 +1,7 @@
+<resources>
+    <!-- Hintergrund-Notification (konsolidiert, M19) -->
+    <string name="notif_background_channel_name">Hintergrund-Erkennung</string>
+    <string name="notif_background_channel_desc">Aevum trackt Aktivitäten im Hintergrund — Orte, Fahrten, App-Nutzung</string>
+    <string name="notif_background_title">Aevum läuft im Hintergrund</string>
+    <string name="notif_background_text">Erkennt Orte, Fahrten und App-Nutzung</string>
+</resources>

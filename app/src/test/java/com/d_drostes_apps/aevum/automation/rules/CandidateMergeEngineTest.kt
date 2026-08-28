@@ -11,7 +11,7 @@ class CandidateMergeEngineTest {
 
     @Before
     fun setUp() {
-        engine = CandidateMergeEngine()
+        engine = CandidateMergeEngine(RuleStrings(null))
     }
 
     @Test

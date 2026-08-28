@@ -1,7 +1,9 @@
 package com.d_drostes_apps.aevum.ui.screens.weekly
 
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.d_drostes_apps.aevum.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
@@ -17,6 +19,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class WeeklyReviewViewModel @Inject constructor(
+    private val application: Application,
     activityRepository: ActivityRepository,
     candidateRepository: ActivityCandidateRepository,
     categoryRepository: CategoryRepository,
@@ -25,6 +28,15 @@ class WeeklyReviewViewModel @Inject constructor(
     private val zoneId = ZoneId.systemDefault()
     private val anchorDate = LocalDate.now()
 
+    private val initialUiState = WeeklyReviewUiState(
+        heroTitle = application.getString(R.string.weekly_hero_title),
+        narrative = application.getString(R.string.weekly_narrative_empty),
+        weekLabel = application.getString(R.string.insights_period_this_week),
+        closingText = application.getString(R.string.weekly_closing_1),
+        emptyTitle = application.getString(R.string.weekly_empty_title),
+        emptyMessage = application.getString(R.string.weekly_empty_message)
+    )
+
     val uiState: StateFlow<WeeklyReviewUiState> = combine(
         activityRepository.getAll(),
         candidateRepository.getByStatus("PENDING"),
@@ -32,6 +44,7 @@ class WeeklyReviewViewModel @Inject constructor(
         activityTypeRepository.getAll()
     ) { sessions, candidates, categories, types ->
         WeeklyReviewAnalytics.build(
+            context = application,
             sessions = sessions,
             candidates = candidates,
             categories = categories,
@@ -39,5 +52,5 @@ class WeeklyReviewViewModel @Inject constructor(
             anchorDate = anchorDate,
             zoneId = zoneId
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WeeklyReviewUiState())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialUiState)
 }

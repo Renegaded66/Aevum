@@ -1,0 +1,58 @@
+<resources>
+    <string name="app_name">Aevum</string>
+    <string name="app_name_debug">Aevum Debug</string>
+    <string name="onboarding_welcome_title">Welcome to Aevum</string>
+    <string name="onboarding_welcome_subtitle">Your personal life cockpit</string>
+    <string name="dashboard_title">Today</string>
+    <string name="timeline_title">Timeline</string>
+    <string name="insights_title">Insights</string>
+    <string name="growth_title">Growth</string>
+    <string name="settings_title">Settings</string>
+    <string name="balance_title">Balance</string>
+
+    <!-- App settings: language -->
+    <string name="settings_app_section">App Settings</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_desc">Select the app language</string>
+    <string name="settings_hero_subtitle">Automation is voluntary, local and explainable. You decide which places Aevum may observe in the background.</string>
+    <string name="settings_section_automation">Automation</string>
+    <string name="settings_trigger_detection">Triggers &amp; Detection</string>
+    <string name="settings_trigger_detection_desc">Geofences · Auto · Walking · Sleep · Permissions</string>
+    <string name="settings_geofences_manage">Manage geofences</string>
+    <string name="settings_geofences_manage_desc">Places, radii &amp; auto-start</string>
+    <string name="settings_trigger_events">Trigger Events</string>
+    <string name="settings_trigger_events_desc">All detected events</string>
+    <string name="settings_my_places">My places</string>
+    <string name="settings_your_activities">Your activities</string>
+    <string name="settings_activity_types">Manage activity types</string>
+    <string name="settings_activity_types_desc">Icons, colors, positivity</string>
+    <string name="settings_categories_desc">Create, assign activities, icon &amp; color</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_todos_manage">Manage todos</string>
+    <string name="settings_allowances_manage">Manage daily allowances</string>
+    <string name="settings_privacy_data">Privacy &amp; Data</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_privacy_desc">Local data, deletion</string>
+    <string name="settings_export_desc">All data as JSON</string>
+    <string name="settings_backup_desc">Backup &amp; restore</string>
+    <string name="settings_fitness_trackers">Fitness Trackers</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_connect_desc">Connect, sync, disconnect</string>
+    <string name="language_system">System</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_en">English</string>
+
+    <!-- Digital Balance block overlay -->
+    <string name="block_app_locked">App locked</string>
+    <string name="block_app_locked_title">%1$s is locked</string>
+    <string name="block_profile_active">Profile “%1$s” is active — this app is locked.</string>
+    <string name="block_limit_reached">Daily limit of %1$d minutes reached.</string>
+    <string name="block_daily_limit_reached">Daily limit reached.</string>
+    <string name="block_extend_5min">5 more minutes</string>
+    <string name="block_ignore_today">Ignore today</string>
+    <string name="block_close">Close</string>
+
+    <!-- SwitchActivity (live notification switch popup) -->
+    <string name="switch_activity_title">Switch activity</string>
+    <string name="switch_activity_subtitle">The current activity will be ended and the new one started.</string>
+</resources>

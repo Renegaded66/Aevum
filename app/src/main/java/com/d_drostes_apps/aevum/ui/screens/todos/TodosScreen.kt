@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -87,7 +89,7 @@ fun TodosScreen(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
             FloatingActionButton(onClick = onCreate) {
-                Icon(Icons.Default.Add, contentDescription = "Neues Todo")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.todo_new_todo))
             }
         }
     ) { padding ->
@@ -109,7 +111,7 @@ fun TodosScreen(
         if (state.activeTodos.isEmpty()) {
             item { TodosEmptyState(onCreate = onCreate) }
         } else {
-            item { SectionHeader("Heute", "${state.activeTodos.size} Todos") }
+            item { SectionHeader(stringResource(R.string.common_today), stringResource(R.string.todo_section_count, state.activeTodos.size)) }
             items(state.activeTodos.size, key = { state.activeTodos[it].todo.id }) { index ->
                 val item = state.activeTodos[index]
                 TodoCard(
@@ -132,8 +134,8 @@ fun TodosScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Archiv", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${state.archivedTodos.size} erledigte Todos", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.todo_archive), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.todo_archived_count, state.archivedTodos.size), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(if (showArchived) "▾" else "▸", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -160,9 +162,9 @@ private fun TodosHero(count: Int, doneCount: Int, onCreate: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            Text("TODOS", fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.todo_hero_label), fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                "Deine Aufgaben — automatisch abgehakt",
+                stringResource(R.string.todo_hero_title),
                 fontSize = 24.sp,
                 lineHeight = 30.sp,
                 fontWeight = FontWeight.SemiBold
@@ -173,7 +175,8 @@ private fun TodosHero(count: Int, doneCount: Int, onCreate: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    if (count == 0) "Alles erledigt 🎉" else "$doneCount von $count erledigt",
+                    if (count == 0) stringResource(R.string.todo_all_done)
+                    else stringResource(R.string.todo_done_count, doneCount, count),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -265,7 +268,8 @@ private fun TodoCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (item.done) "✓ Heute dabei" else "+ Heute dabei",
+                            if (item.done) stringResource(R.string.todo_checkin_done)
+                            else stringResource(R.string.todo_checkin_open),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (item.done) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
@@ -326,13 +330,13 @@ private fun TodoCard(
                 // Aktionen
                 // M18.38: Bearbeiten-Button (Stift) — oeffnet den Editor
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Bearbeiten", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.common_edit), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
                 IconButton(onClick = onArchive) {
-                    Icon(Icons.Default.Archive, contentDescription = "Archivieren", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.todo_archive_action), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -362,13 +366,13 @@ private fun TodoCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "Erfasst: ${TimeFormatting.formatDuration(item.progressMs)}",
+                            stringResource(R.string.todo_captured, TimeFormatting.formatDuration(item.progressMs)),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            "Ziel: ${todo.targetMinutes} min",
+                            stringResource(R.string.todo_target_minutes, todo.targetMinutes),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.Monospace
@@ -386,13 +390,13 @@ private fun TodoCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                "✓ Ziel erreicht",
+                                stringResource(R.string.todo_goal_reached),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                "+${TimeFormatting.formatDuration(overMs)} über Ziel",
+                                stringResource(R.string.todo_over_target, TimeFormatting.formatDuration(overMs)),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.tertiary,
@@ -434,8 +438,8 @@ private fun TodoCard(
                         )
                     }
                     Text(
-                        if (item.bestStreak > item.streak) "Best: $item.bestStreak"
-                        else "Am Stück",
+                        if (item.bestStreak > item.streak) stringResource(R.string.todo_best_streak, item.bestStreak)
+                        else stringResource(R.string.todo_streak_in_a_row),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -467,7 +471,7 @@ private fun TodoCard(
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            "🎯 ${item.periodLabel}",
+                            stringResource(R.string.todo_period_progress, item.periodLabel),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.tertiary
@@ -475,9 +479,9 @@ private fun TodoCard(
                     }
                     Text(
                         when (item.todo.recurrenceType) {
-                            com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine.TYPE_N_PER_WEEK -> "diese Woche"
-                            com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine.TYPE_N_PER_MONTH -> "diesen Monat"
-                            else -> "Ziel"
+                            com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine.TYPE_N_PER_WEEK -> stringResource(R.string.todo_this_week)
+                            com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine.TYPE_N_PER_MONTH -> stringResource(R.string.todo_this_month)
+                            else -> stringResource(R.string.todo_goal)
                         },
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -509,7 +513,7 @@ private fun ArchivedTodoRow(todo: com.d_drostes_apps.aevum.data.model.Todo, onDe
             overflow = TextOverflow.Ellipsis
         )
         IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -523,9 +527,9 @@ private fun TodosEmptyState(onCreate: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
         ) {
             Text("🎯", fontSize = 40.sp)
-            Text("Noch keine Todos", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.todo_empty_title), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Erstelle Aufgaben wie „Müll rausbringen“ (Checkbox) oder „2h lernen“ (Dauer-Ziel, automatisch abgehakt).",
+                stringResource(R.string.todo_empty_message),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center

@@ -48,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.EmptyState
@@ -97,7 +98,7 @@ private fun GoalsContent(
             if (state.activeGoals.isEmpty()) {
                 item { GoalsEmptyState(onCreate = onCreate) }
             } else {
-                item { SectionHeader("Aktive Ziele", "${state.activeGoals.size} Ziele") }
+                item { SectionHeader(stringResource(R.string.goal_active_title), stringResource(R.string.goal_count, state.activeGoals.size)) }
                 items(state.activeGoals.size, key = { state.activeGoals[it].goal.id }) { index ->
                     val goalProgress = state.activeGoals[index]
                     GoalProgressCard(goalProgress = goalProgress, onEdit = { onEdit(goalProgress.goal.id) })
@@ -105,7 +106,7 @@ private fun GoalsContent(
             }
             if (state.inactiveGoals.isNotEmpty() && state.showCompleted) {
                 item { Spacer(Modifier.height(AevumSpacing.lg)) }
-                item { SectionHeader("Archiviert", "${state.inactiveGoals.size} Ziele") }
+                item { SectionHeader(stringResource(R.string.goal_archived), stringResource(R.string.goal_count, state.inactiveGoals.size)) }
                 items(state.inactiveGoals.size, key = { state.inactiveGoals[it].goal.id }) { index ->
                     val goalProgress = state.inactiveGoals[index]
                     GoalProgressCard(goalProgress = goalProgress, onEdit = { onEdit(goalProgress.goal.id) }, isArchived = true)
@@ -125,19 +126,19 @@ private fun GoalsHero(onBack: () -> Unit, onCreate: () -> Unit) {
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("ZIELE", fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Dein Fortschritt sichtbar machen", fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.goal_hero_label), fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.goal_hero_title), fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.width(AevumSpacing.md))
-                OutlinedButton(onClick = onBack) { Text("Zurück") }
+                OutlinedButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
             }
             Text(
-                "Ziele geben deiner Zeit eine Richtung. Keine Punkte, keine Level — nur ruhiger Fortschritt.",
+                stringResource(R.string.goal_hero_text),
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth()) { Text("Ziel anlegen") }
+            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.goal_create)) }
         }
     }
 }
@@ -155,9 +156,9 @@ private fun SectionHeader(title: String, subtitle: String) {
 @Composable
 private fun GoalsEmptyState(onCreate: () -> Unit) {
     EmptyState(
-        title = "Noch keine Ziele",
-        message = "Du kannst Ziele anlegen, um deinen Fortschritt sichtbar zu machen. Zum Beispiel: 8 Stunden Schlaf pro Nacht, 3 Stunden Sport pro Woche, maximal 2 Stunden Digitalzeit pro Tag.",
-        actionLabel = "Erstes Ziel anlegen",
+        title = stringResource(R.string.goal_empty_title),
+        message = stringResource(R.string.goal_empty_message),
+        actionLabel = stringResource(R.string.goal_create_first),
         onActionClick = onCreate
     )
 }
@@ -190,7 +191,7 @@ private fun GoalProgressCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(goal.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
-                        Text(goalProgress.activityTypeName ?: "Aktivität", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(goalProgress.activityTypeName ?: stringResource(R.string.goal_activity_fallback), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("·", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         Text(goalProgress.periodLabel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -227,7 +228,7 @@ private fun GoalProgressCard(
                     fontFamily = FontFamily.Monospace
                 )
                 if (!isArchived) {
-                    OutlinedButton(onClick = onEdit) { Text("Bearbeiten") }
+                    OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.common_edit)) }
                 }
             }
 
@@ -241,14 +242,14 @@ private fun GoalProgressCard(
             // Type indicator
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    if (isAtMost) "Zieltyp: Maximal" else "Zieltyp: Mindestens",
+                    if (isAtMost) stringResource(R.string.goal_type_at_most) else stringResource(R.string.goal_type_at_least),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
                 if (goal.status == "ACTIVE") {
-                    Text("Aktiv", fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.common_active), fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Medium)
                 } else {
-                    Text("Archiviert", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text(stringResource(R.string.goal_archived), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }
             }
         }

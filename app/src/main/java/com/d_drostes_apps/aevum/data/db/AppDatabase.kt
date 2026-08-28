@@ -27,9 +27,6 @@ import com.d_drostes_apps.aevum.data.model.*
         TriggerEvent::class,
         AutomationSettings::class,
         Goal::class,
-        Habit::class,
-        HabitLog::class,
-        BucketListItem::class,
         AppUsageSample::class,
         ActivitySessionChange::class,
         SessionEvidence::class,
@@ -74,7 +71,9 @@ import com.d_drostes_apps.aevum.data.model.*
     // (Bildschirm-Aufzeichnung: 0..10 = Vorlauf in Minuten, -1 = deaktiviert).
     // AEVUM-3: v37 — activity_session.manual_quality_override (manuelle
     // Güte-Anpassung pro Aufzeichnung, nullable 0..100; null = automatisch).
-    version = 38,
+    // v39 — Habits & Bucket List entfernt: habit, habit_log,
+    // bucket_list_item Tabellen werden gedroppt (Feature-Entfernung).
+    version = 39,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -94,9 +93,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun triggerEventDao(): TriggerEventDao
     abstract fun automationSettingsDao(): AutomationSettingsDao
     abstract fun goalDao(): GoalDao
-    abstract fun habitDao(): HabitDao
-    abstract fun habitLogDao(): HabitLogDao
-    abstract fun bucketListItemDao(): BucketListItemDao
     abstract fun appUsageSampleDao(): AppUsageSampleDao
     // M18.61: Digital Balance — App-Limits
     abstract fun appLimitDao(): AppLimitDao
@@ -1412,6 +1408,18 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "ALTER TABLE `activity_session` ADD COLUMN `exclude_from_timeline` INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        // v38→v39 — Habits & Bucket List entfernt (Feature-Entfernung).
+        // Die Tabellen werden gedroppt; Room-Validierung erwartet sie
+        // danach nicht mehr. Bestehende Installationen verlieren nur die
+        // Habit-/Bucket-List-Daten, alle anderen Daten bleiben erhalten.
+        val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS `habit`")
+                database.execSQL("DROP TABLE IF EXISTS `habit_log`")
+                database.execSQL("DROP TABLE IF EXISTS `bucket_list_item`")
             }
         }
     }

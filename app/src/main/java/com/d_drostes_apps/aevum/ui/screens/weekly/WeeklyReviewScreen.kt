@@ -37,12 +37,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -114,8 +116,8 @@ private fun WeeklyHero(state: WeeklyReviewUiState, onBackToInsights: () -> Unit)
     AevumCard(variant = CardVariant.Gradient, contentPadding = PaddingValues(AevumSpacing.lg)) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("WEEKLY REVIEW", fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(onClick = onBackToInsights, shape = RoundedCornerShape(AevumRadius.full)) { Text("Insights", fontSize = 12.sp) }
+                Text(stringResource(R.string.weekly_review_title).uppercase(), fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = onBackToInsights, shape = RoundedCornerShape(AevumRadius.full)) { Text(stringResource(R.string.insights_title), fontSize = 12.sp) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
                 Text(state.heroTitle, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold)
@@ -130,7 +132,7 @@ private fun WeeklyHero(state: WeeklyReviewUiState, onBackToInsights: () -> Unit)
 private fun WeeklyTimelineSection(days: List<WeeklyDaySummary>, onOpenTimelineDay: (Long) -> Unit) {
     AevumCard(variant = CardVariant.Elevated) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            SectionTitle("Wochen-Zeitstrahl", "Sieben Tage als ruhiger Überblick")
+            SectionTitle(stringResource(R.string.weekly_timeline_title), stringResource(R.string.weekly_timeline_subtitle))
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), modifier = Modifier.fillMaxWidth()) {
                 days.forEach { day ->
                     WeeklyDayCell(day, modifier = Modifier.weight(1f), onClick = {
@@ -164,7 +166,7 @@ private fun WeeklyDayCell(day: WeeklyDaySummary, modifier: Modifier = Modifier, 
 private fun WeeklyDistributionSection(distribution: List<TimeDistributionSlice>) {
     AevumCard(variant = CardVariant.Outlined) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.lg)) {
-            SectionTitle("Zeitverteilung", "Welche Bereiche deine Woche geprägt haben")
+            SectionTitle(stringResource(R.string.weekly_distribution_title), stringResource(R.string.weekly_distribution_subtitle))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.lg), modifier = Modifier.fillMaxWidth()) {
                 WeeklyDonut(distribution = distribution, modifier = Modifier.size(156.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm), modifier = Modifier.weight(1f)) {
@@ -213,7 +215,7 @@ private fun WeeklyLegendRow(slice: TimeDistributionSlice) {
 private fun WeeklyChangesSection(changes: List<PeriodChange>) {
     AevumCard(variant = CardVariant.Filled) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            SectionTitle("Veränderungen", "Gegenüber der Vorwoche")
+            SectionTitle(stringResource(R.string.weekly_changes_title), stringResource(R.string.weekly_changes_subtitle))
             changes.forEach { change ->
                 val positive = change.deltaMs > 0
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
@@ -235,7 +237,7 @@ private fun WeeklyChangesSection(changes: List<PeriodChange>) {
 @Composable
 private fun HighlightsSection(highlights: List<WeeklyHighlight>) {
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-        Text("Highlights", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.weekly_highlights_title), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         highlights.forEach { item ->
             AevumCard(variant = CardVariant.Elevated, contentPadding = PaddingValues(AevumSpacing.md)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
@@ -253,7 +255,7 @@ private fun HighlightsSection(highlights: List<WeeklyHighlight>) {
 @Composable
 private fun PatternSection(patterns: List<InsightCard>) {
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-        Text("Wochenmuster", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.weekly_patterns_title), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         patterns.forEach { card ->
             AevumCard(variant = CardVariant.Filled, contentPadding = PaddingValues(AevumSpacing.md)) {
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
@@ -273,10 +275,10 @@ private fun OpenTimeSection(openTimeMs: Long, onOpenTimeline: () -> Unit) {
     AevumCard(variant = CardVariant.Outlined) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                Text("Offene Zeit", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Text("${TimeFormatting.formatDuration(openTimeMs)} dieser Woche sind noch nicht erfasst.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.weekly_open_time_title), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.weekly_open_time_message, TimeFormatting.formatDuration(openTimeMs)), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Button(onClick = onOpenTimeline, shape = RoundedCornerShape(AevumRadius.full)) { Text("Zur Timeline") }
+            Button(onClick = onOpenTimeline, shape = RoundedCornerShape(AevumRadius.full)) { Text(stringResource(R.string.weekly_to_timeline)) }
         }
     }
 }
@@ -286,10 +288,10 @@ private fun ReviewInboxSection(count: Int, onOpenReviewInbox: () -> Unit) {
     AevumCard(variant = CardVariant.Filled) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                Text("Review Inbox", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Text("$count Vorschläge warten noch auf deine Bestätigung.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.review_inbox_eyebrow), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.review_inbox_message, count), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Button(onClick = onOpenReviewInbox, shape = RoundedCornerShape(AevumRadius.full), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text("Jetzt prüfen") }
+            Button(onClick = onOpenReviewInbox, shape = RoundedCornerShape(AevumRadius.full), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text(stringResource(R.string.review_inbox_check_now)) }
         }
     }
 }
@@ -309,9 +311,9 @@ private fun ClosingSection(text: String) {
 @Composable
 private fun WeeklyEmptyState(onOpenTimeline: () -> Unit) {
     EmptyState(
-        title = "Noch keine Woche sichtbar.",
-        message = "Erfasse ein paar Aktivitäten. Danach erzählt dir Aevum hier ruhig, welche Muster, Highlights und offenen Zeiten in deiner Woche sichtbar werden.",
-        actionLabel = "Zur Timeline",
+        title = stringResource(R.string.weekly_empty_title),
+        message = stringResource(R.string.weekly_empty_message),
+        actionLabel = stringResource(R.string.weekly_to_timeline),
         onActionClick = onOpenTimeline
     )
 }
@@ -333,6 +335,8 @@ private fun WeeklyReviewPreview() {
                 hasData = true,
                 narrative = "Du hast diese Woche viel Zeit in Arbeit investiert und auch Bewegung sichtbar gemacht.",
                 weekLabel = "13.07.2026 – 19.07.2026",
+                emptyTitle = "Noch keine Woche sichtbar.",
+                emptyMessage = "Wenn du ein paar Aktivitäten erfasst hast, zeigt Aevum hier einen ruhigen Rückblick mit Zeitverteilung, Highlights und Wochenmustern.",
                 days = (0..6).map { index -> WeeklyDaySummary(java.time.LocalDate.now().plusDays(index.toLong()), "T$index", "Arbeit", (index + 1L) * 60 * 60_000L, AevumCategoryColors.work, (index + 1) / 7f) },
                 timeDistribution = listOf(
                     TimeDistributionSlice("work", "Arbeit", AevumCategoryColors.work, 8 * 60 * 60_000L, 62),

@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.ui.screens.goals
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.data.model.Goal
@@ -105,7 +106,7 @@ class GoalEditorViewModel @Inject constructor(
         val form = _form.value
         val error = validate(form)
         if (error != null) {
-            _form.update { it.copy(error = error) }
+            _form.update { it.copy(errorRes = error) }
             return
         }
 
@@ -149,11 +150,11 @@ class GoalEditorViewModel @Inject constructor(
         }
     }
 
-    private fun validate(form: GoalFormState): String? {
-        if (form.title.isBlank()) return "Titel ist erforderlich"
-        if (form.activityTypeId == null) return "Aktivitätstyp wählen"
-        if (form.targetValue.isBlank()) return "Zielwert eingeben"
-        if (form.targetValue.toFloatOrNull() == null || form.targetValue.toFloatOrNull()!! <= 0) return "Zielwert muss positiv sein"
+    private fun validate(form: GoalFormState): Int? {
+        if (form.title.isBlank()) return R.string.goal_error_title_required
+        if (form.activityTypeId == null) return R.string.goal_error_type_required
+        if (form.targetValue.isBlank()) return R.string.goal_error_value_required
+        if (form.targetValue.toFloatOrNull() == null || form.targetValue.toFloatOrNull()!! <= 0) return R.string.goal_error_value_positive
         return null
     }
 
@@ -176,7 +177,7 @@ data class GoalFormState(
     val targetUnit: String = "HOURS",
     val showActivityTypeMenu: Boolean = false,
     val showUnitMenu: Boolean = false,
-    val error: String? = null,
+    val errorRes: Int? = null,
     val saved: Boolean = false
 )
 

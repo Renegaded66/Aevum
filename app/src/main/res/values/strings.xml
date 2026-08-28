@@ -8,4 +8,51 @@
     <string name="insights_title">Insights</string>
     <string name="growth_title">Wachstum</string>
     <string name="settings_title">Einstellungen</string>
+    <string name="balance_title">Balance</string>
+
+    <!-- App-Einstellungen: Sprache -->
+    <string name="settings_app_section">App Einstellungen</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_language_desc">Sprache der App auswählen</string>
+    <string name="settings_hero_subtitle">Automatisierung ist freiwillig, lokal und erklärbar. Du entscheidest, welche Orte Aevum im Hintergrund beobachten darf.</string>
+    <string name="settings_section_automation">Automatisierung</string>
+    <string name="settings_trigger_detection">Trigger &amp; Erkennung</string>
+    <string name="settings_trigger_detection_desc">Geofences · Auto · Walking · Schlaf · Berechtigungen</string>
+    <string name="settings_geofences_manage">Geofences verwalten</string>
+    <string name="settings_geofences_manage_desc">Orte, Radien &amp; Auto-Start</string>
+    <string name="settings_trigger_events">Trigger Events</string>
+    <string name="settings_trigger_events_desc">Alle erkannten Ereignisse</string>
+    <string name="settings_my_places">Meine Orte</string>
+    <string name="settings_your_activities">Deine Aktivitäten</string>
+    <string name="settings_activity_types">Activity Types verwalten</string>
+    <string name="settings_activity_types_desc">Icons, Farben, Positivität</string>
+    <string name="settings_categories_desc">Erstellen, Aktivitäten zuordnen, Icon &amp; Farbe</string>
+    <string name="settings_advanced">Erweitert</string>
+    <string name="settings_todos_manage">Todos verwalten</string>
+    <string name="settings_allowances_manage">Tagespauschalen verwalten</string>
+    <string name="settings_privacy_data">Datenschutz &amp; Daten</string>
+    <string name="settings_privacy">Datenschutz</string>
+    <string name="settings_privacy_desc">Lokale Daten, Löschen</string>
+    <string name="settings_export_desc">Alle Daten als JSON</string>
+    <string name="settings_backup_desc">Sichern &amp; Wiederherstellen</string>
+    <string name="settings_fitness_trackers">Fitness-Tracker</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_connect_desc">Verbinden, Synchronisieren, Trennen</string>
+    <string name="language_system">System</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_en">English</string>
+
+    <!-- Digital-Balance-Sperr-Overlay -->
+    <string name="block_app_locked">App gesperrt</string>
+    <string name="block_app_locked_title">%1$s gesperrt</string>
+    <string name="block_profile_active">Profil „%1$s“ ist aktiv — diese App ist gesperrt.</string>
+    <string name="block_limit_reached">Tägliches Limit von %1$d Minuten erreicht.</string>
+    <string name="block_daily_limit_reached">Tägliches Limit erreicht.</string>
+    <string name="block_extend_5min">Noch 5 Minuten</string>
+    <string name="block_ignore_today">Heute ignorieren</string>
+    <string name="block_close">Schließen</string>
+
+    <!-- SwitchActivity (Live-Notification Wechsel-Popup) -->
+    <string name="switch_activity_title">Aktivität wechseln</string>
+    <string name="switch_activity_subtitle">Die aktuelle Aktivität wird beendet und die neue gestartet.</string>
 </resources>

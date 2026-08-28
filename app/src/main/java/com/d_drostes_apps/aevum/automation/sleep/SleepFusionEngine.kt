@@ -1,6 +1,8 @@
 package com.d_drostes_apps.aevum.automation.sleep
 
+import android.content.Context
 import android.util.Log
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.model.AutomationConstants
 import com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge
 import com.d_drostes_apps.aevum.automation.activityrecognition.StillCluster
@@ -13,6 +15,7 @@ import com.d_drostes_apps.aevum.data.repository.DetectionEventRepository
 import com.d_drostes_apps.aevum.data.repository.RawSourceEventRepository
 import com.d_drostes_apps.aevum.domain.automation.ReviewCandidateUseCase
 import com.d_drostes_apps.aevum.domain.automation.SAFE_CONFIDENCE_THRESHOLD
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.ZoneId
@@ -48,6 +51,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class SleepFusionEngine @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val screenEventRepository: ScreenEventRepository,
     private val activityRecognitionBridge: ActivityRecognitionBridge,
     private val appUsageSampleDao: AppUsageSampleDao,
@@ -208,9 +212,14 @@ class SleepFusionEngine @Inject constructor(
         val durationHours = hours.toInt()
         val durationMinutes = ((hours - durationHours) * 60).toInt()
         val durationStr = if (durationMinutes > 0) "${durationHours}h ${durationMinutes}min" else "${durationHours}h"
-        val title = "Schlaf erkannt ($durationStr)"
-        val reason = "Fusion aus ${signals.size} Signalen: ${signals.joinToString { it.label }}. " +
-                "Zeitfenster ${formatHm(sleepStart, zoneId)}–${formatHm(sleepEnd, zoneId)}."
+        val title = appContext.getString(R.string.sleep_title_detected, durationStr)
+        val reason = appContext.getString(
+            R.string.sleep_reason_fusion,
+            signals.size,
+            signals.joinToString { it.label },
+            formatHm(sleepStart, zoneId),
+            formatHm(sleepEnd, zoneId)
+        )
 
         // RawSourceEvent schreiben — sourceId muss in data_source existieren,
         // MIGRATION_13_14 seedet 'sleep_fusion_v1'.

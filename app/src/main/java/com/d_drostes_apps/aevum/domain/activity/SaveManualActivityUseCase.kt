@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.domain.activity
 
+import android.content.Context
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivitySessionChange
 import com.d_drostes_apps.aevum.data.model.Tag
@@ -7,11 +8,13 @@ import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivitySessionChangeRepository
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import java.util.UUID
 import javax.inject.Inject
 
 class SaveManualActivityUseCase @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val activityRepository: ActivityRepository,
     private val candidateRepository: ActivityCandidateRepository,
     private val changeRepository: ActivitySessionChangeRepository,
@@ -31,7 +34,8 @@ class SaveManualActivityUseCase @Inject constructor(
                 request.startAt,
                 request.endAt ?: request.startAt + 1
             ).first(),
-            editingSessionId = request.id
+            editingSessionId = request.id,
+            context = context
         )
 
         if (validation is SessionValidationResult.Invalid) {

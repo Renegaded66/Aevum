@@ -34,7 +34,9 @@ import javax.inject.Inject
  *    ungleich Home sind, prüfen wir, ob A ein HIGH-anchor hat (DWELL oder
  *    kein Drift). Wenn A nur ein LOW-Anchor ist, ignorieren.
  */
-class TriggerPairCandidateRuleEngine @Inject constructor() {
+class TriggerPairCandidateRuleEngine @Inject constructor(
+    private val strings: RuleStrings
+) {
     fun evaluate(
         triggers: List<TriggerEvent>,
         geofences: List<PlaceGeofence>,
@@ -162,16 +164,16 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
     ): ActivityCandidate {
         return when {
             from.isHomeLike() && to.isWorkLike() ->
-                travelWithName(exit, enter, "Arbeitsweg", 0.85f, geofences)
+                travelWithName(exit, enter, strings.commuteToWork(), 0.85f, geofences)
 
             from.isWorkLike() && to.isHomeLike() ->
-                travelWithName(exit, enter, "Heimweg", 0.85f, geofences)
+                travelWithName(exit, enter, strings.commuteHome(), 0.85f, geofences)
 
             from.isHomeLike() && to.isGymLike() ->
-                travelWithName(exit, enter, "Anfahrt: Fitnessstudio", 0.78f, geofences)
+                travelWithName(exit, enter, strings.gymTrip(), 0.78f, geofences)
 
             from.isHomeLike() && (to.isShopLike() || to.isSupermarketLike()) ->
-                travelWithName(exit, enter, "Einkauf: ${to.name}", 0.72f, geofences, categoryId = "household", activityTypeId = "household")
+                travelWithName(exit, enter, strings.shopping(to.name), 0.72f, geofences, categoryId = "household", activityTypeId = "household")
 
             else -> genericTravelCandidate(exit, enter, from, to)
         }
@@ -184,8 +186,8 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
         to: PlaceGeofence
     ): ActivityCandidate {
         val title = when {
-            from.isGymLike() && to.isHomeLike() -> "Rückfahrt: Fitnessstudio"
-            else -> "Unterwegs: ${from.name} → ${to.name}"
+            from.isGymLike() && to.isHomeLike() -> strings.gymReturn()
+            else -> strings.transit(from.name, to.name)
         }
         return ActivityCandidate(
             id = stableId("travel", exit.id, enter.id),
@@ -196,7 +198,7 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
             endAt = enter.occurredAt,
             confidence = 0.60f,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Trigger-Paar erkannt: ${from.name} verlassen → ${to.name} betreten. Als Wegzeit vorgeschlagen.",
+            reason = strings.reasonTravel("${from.name} verlassen → ${to.name} betreten", title),
             createdBy = AutomationConstants.CREATED_BY_TRIGGER_PAIR_RULES,
             createdAt = System.currentTimeMillis(),
             sourceCandidateId = "${exit.id}:${enter.id}"
@@ -224,7 +226,7 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
             endAt = enter.occurredAt,
             confidence = confidence,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Trigger-Paar erkannt: $fromTo. $title als Wegzeit vorgeschlagen.",
+            reason = strings.reasonTravel(fromTo, title),
             createdBy = AutomationConstants.CREATED_BY_TRIGGER_PAIR_RULES,
             createdAt = System.currentTimeMillis(),
             sourceCandidateId = "${exit.id}:${enter.id}"
@@ -233,10 +235,10 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
 
     private fun stayCandidate(enter: TriggerEvent, exit: TriggerEvent, place: PlaceGeofence): ActivityCandidate {
         val (title, confidence) = when {
-            place.isWorkLike() -> "Arbeit" to 0.90f
-            place.isGymLike() -> "Fitnessstudio" to 0.90f
-            place.isHomeLike() -> "Zuhause" to 0.88f
-            place.isSupermarketLike() || place.isShopLike() -> "Einkauf: ${place.name}" to 0.80f
+            place.isWorkLike() -> strings.work() to 0.90f
+            place.isGymLike() -> strings.gym() to 0.90f
+            place.isHomeLike() -> strings.home() to 0.88f
+            place.isSupermarketLike() || place.isShopLike() -> strings.shopping(place.name) to 0.80f
             else -> place.name to 0.75f
         }
         return ActivityCandidate(
@@ -248,7 +250,7 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
             endAt = exit.occurredAt,
             confidence = confidence,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Trigger-Paar erkannt: ${place.name} betreten → verlassen. Vorschlag bleibt überprüfbar.",
+            reason = strings.reasonStay(place.name),
             createdBy = AutomationConstants.CREATED_BY_TRIGGER_PAIR_RULES,
             createdAt = System.currentTimeMillis(),
             sourceCandidateId = "${enter.id}:${exit.id}"
@@ -258,14 +260,14 @@ class TriggerPairCandidateRuleEngine @Inject constructor() {
     private fun awayFromHomeCandidate(exit: TriggerEvent, enter: TriggerEvent, home: PlaceGeofence): ActivityCandidate =
         ActivityCandidate(
             id = stableId("away", exit.id, enter.id),
-            suggestedTitle = "Ausflug",
+            suggestedTitle = strings.trip(),
             suggestedCategoryId = "leisure",
             activityTypeId = "leisure",
             startAt = exit.occurredAt,
             endAt = enter.occurredAt,
             confidence = 0.62f,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Trigger-Paar erkannt: ${home.name} verlassen → wieder angekommen. Kein Ziel bekannt, daher vorsichtig als Ausflug vorgeschlagen.",
+            reason = strings.reasonAway(home.name),
             createdBy = AutomationConstants.CREATED_BY_TRIGGER_PAIR_RULES,
             createdAt = System.currentTimeMillis(),
             sourceCandidateId = "${exit.id}:${enter.id}"

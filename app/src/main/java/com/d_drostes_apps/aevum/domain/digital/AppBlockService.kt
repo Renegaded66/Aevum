@@ -276,8 +276,8 @@ class AppBlockService : Service() {
                 Notification.Builder(this)
             }
             val notification = builder
-                .setContentTitle("Fast am Limit: $label")
-                .setContentText("Noch $remainingMin Minuten — Limit ist ${limit.limitMinutes} min")
+                .setContentTitle(getString(R.string.notif_block_warning_title, label))
+                .setContentText(getString(R.string.notif_block_warning_text, remainingMin, limit.limitMinutes))
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentIntent(pi)
                 .setAutoCancel(true)
@@ -291,9 +291,9 @@ class AppBlockService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Digital Balance Sperre",
+                getString(R.string.notif_block_channel_name),
                 NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Überwacht App-Limits" }
+            ).apply { description = getString(R.string.notif_block_channel_desc) }
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .createNotificationChannel(channel)
         }
@@ -314,8 +314,8 @@ class AppBlockService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setContentTitle("Digital Balance aktiv")
-            .setContentText("App-Limits werden überwacht")
+            .setContentTitle(getString(R.string.notif_block_active_title))
+            .setContentText(getString(R.string.notif_block_active_text))
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentIntent(pi)
             .setOngoing(true)

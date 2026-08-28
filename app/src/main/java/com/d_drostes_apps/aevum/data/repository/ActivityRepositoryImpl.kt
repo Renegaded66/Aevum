@@ -32,6 +32,8 @@ class ActivityRepositoryImpl(
     override fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getByCategoryAndDateRange(categoryId, start, end)
     override fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>> = activityDao.getByActivityTypeAndDateRange(typeId, start, end)
     override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = activityDao.getBySourceType(sourceType)
+    override suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession? =
+        activityDao.getLastFinishedBySourceType(sourceType)
     override fun getCurrentActiveSession(): Flow<ActivitySession?> = activityDao.getCurrentActiveSession()
     // M9: Live Activity
     override fun getLiveSession(): Flow<ActivitySession?> = activityDao.getLiveSession()

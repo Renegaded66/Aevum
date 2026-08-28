@@ -38,11 +38,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.domain.todo.RecurrenceEngine
 import com.d_drostes_apps.aevum.ui.components.AevumCard
@@ -95,15 +97,15 @@ fun TodoEditorScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (todoId != null) "TODO BEARBEITEN" else "NEUES TODO",
+                            if (todoId != null) stringResource(R.string.todo_edit_label) else stringResource(R.string.todo_new_label),
                             fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            if (todoId != null) "Aufgabe anpassen" else "Aufgabe erstellen",
+                            if (todoId != null) stringResource(R.string.todo_edit_subtitle) else stringResource(R.string.todo_new_title),
                             fontSize = 28.sp, fontWeight = FontWeight.SemiBold
                         )
                     }
-                    TextButton(onClick = onBack) { Text("Abbrechen") }
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.common_cancel)) }
                 }
             }
         }
@@ -111,11 +113,11 @@ fun TodoEditorScreen(
         item {
             AevumCard {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                    Text("Was ist zu tun?", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.todo_what_to_do), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
                         value = state.title,
                         onValueChange = viewModel::setTitle,
-                        label = { Text("z.B. Müll rausbringen, 2h lernen") },
+                        label = { Text(stringResource(R.string.todo_title_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -127,16 +129,16 @@ fun TodoEditorScreen(
         item {
             AevumCard {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                    Text("Art", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.todo_type), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         TypeToggle(
-                            label = "Checkbox",
+                            label = stringResource(R.string.todo_type_checkbox),
                             selected = !state.isDuration && !state.checkInOnly,
                             onClick = { viewModel.setCheckInOnly(false); viewModel.setDuration(false) },
                             modifier = Modifier.weight(1f)
                         )
                         TypeToggle(
-                            label = "Dauer-Ziel",
+                            label = stringResource(R.string.todo_type_duration),
                             selected = state.isDuration,
                             onClick = { viewModel.setCheckInOnly(false); viewModel.setDuration(true) },
                             modifier = Modifier.weight(1f)
@@ -144,7 +146,7 @@ fun TodoEditorScreen(
                         // M18.60: Streak-only ("heute kein Alkohol") —
                         // kein Abhaken, nur Streak erhöhen.
                         TypeToggle(
-                            label = "Streak only",
+                            label = stringResource(R.string.todo_type_streak_only),
                             selected = state.checkInOnly,
                             onClick = { viewModel.setCheckInOnly(true) },
                             modifier = Modifier.weight(1f)
@@ -152,7 +154,7 @@ fun TodoEditorScreen(
                     }
                     if (state.checkInOnly) {
                         Text(
-                            "„Heute dabei“ — kein Abhaken, nur Streak erhöhen. Perfekt für „heute kein Alkohol“ oder „Sport gemacht“.",
+                            stringResource(R.string.todo_checkin_hint),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 16.sp
@@ -168,9 +170,9 @@ fun TodoEditorScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Ziel-Dauer", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.todo_target_duration), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             Text(
-                                "${state.targetMinutes} min",
+                                stringResource(R.string.todo_minutes_value, state.targetMinutes),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
@@ -197,7 +199,7 @@ fun TodoEditorScreen(
                             MinuteStepButton("+15", onClick = { viewModel.setTargetMinutes(state.targetMinutes + 15) })
                         }
                         Text(
-                            "Wird automatisch abgehakt, sobald die Aktivität diese Dauer heute erreicht hat.",
+                            stringResource(R.string.todo_auto_check_hint),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -231,9 +233,14 @@ fun TodoEditorScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Fällig", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.todo_due), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                            listOf(0 to "Heute", 1 to "Morgen", 7 to "In 7 Tagen", 14 to "In 14 Tagen").forEach { (days, label) ->
+                            listOf(
+                                0 to stringResource(R.string.common_today),
+                                1 to stringResource(R.string.todo_tomorrow),
+                                7 to stringResource(R.string.todo_in_7_days),
+                                14 to stringResource(R.string.todo_in_14_days)
+                            ).forEach { (days, label) ->
                                 val selected = state.dueInDays == days
                                 Box(
                                     modifier = Modifier
@@ -256,8 +263,8 @@ fun TodoEditorScreen(
                             }
                         }
                         Text(
-                            if (state.dueInDays == 0) "Ohne Datum bleibt das Todo relevant, bis du es abhakst."
-                            else "Nur an diesem Tag relevant — danach automatisch archiviert.",
+                            if (state.dueInDays == 0) stringResource(R.string.todo_no_date_hint)
+                            else stringResource(R.string.todo_due_date_hint),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -274,7 +281,7 @@ fun TodoEditorScreen(
                 },
                 enabled = state.title.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (todoId != null) "Änderungen speichern" else "Todo speichern") }
+            ) { Text(if (todoId != null) stringResource(R.string.common_save_changes) else stringResource(R.string.todo_save)) }
         }
         item { Spacer(Modifier.height(AevumSpacing.xxl)) }
     }
@@ -316,13 +323,13 @@ private fun ActivityTypePickerCard(
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Aktivität (optional)", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.todo_activity_optional), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 if (selectedId != null) {
-                    TextButton(onClick = { onSelect(null) }) { Text("Entfernen", fontSize = 12.sp) }
+                    TextButton(onClick = { onSelect(null) }) { Text(stringResource(R.string.todo_remove), fontSize = 12.sp) }
                 }
             }
             Text(
-                "Bei Dauer-Zielen wird die erfasste Zeit dieser Aktivität automatisch angerechnet.",
+                stringResource(R.string.todo_activity_hint),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -380,7 +387,7 @@ private fun RecurrenceCard(
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            Text("Wiederholung", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.todo_recurrence), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             RecurrenceEngine.allTypes.forEach { type ->
                 val selected = state.recurrenceType == type
                 Row(
@@ -434,7 +441,7 @@ private fun RecurrenceCard(
             }
 
             if (state.recurrenceType == RecurrenceEngine.TYPE_EVERY_N_DAYS) {
-                Text("Alle ${state.intervalDays} Tage", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.todo_every_n_days, state.intervalDays), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Slider(
                     value = state.intervalDays.toFloat(),
                     onValueChange = { onIntervalChange(it.toInt()) },
@@ -446,8 +453,8 @@ private fun RecurrenceCard(
             if (state.recurrenceType == RecurrenceEngine.TYPE_N_PER_WEEK ||
                 state.recurrenceType == RecurrenceEngine.TYPE_N_PER_MONTH
             ) {
-                val unit = if (state.recurrenceType == RecurrenceEngine.TYPE_N_PER_WEEK) "Woche" else "Monat"
-                Text("${state.countPerPeriod}x pro $unit", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                val unit = if (state.recurrenceType == RecurrenceEngine.TYPE_N_PER_WEEK) stringResource(R.string.common_week) else stringResource(R.string.common_month)
+                Text(stringResource(R.string.todo_count_per_period, state.countPerPeriod, unit), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Slider(
                     value = state.countPerPeriod.toFloat(),
                     onValueChange = { onCountChange(it.toInt()) },
@@ -455,7 +462,7 @@ private fun RecurrenceCard(
                     steps = 12
                 )
                 Text(
-                    "Flexibel: du entscheidest, an welchen Tagen. Die Quote zählt pro $unit.",
+                    stringResource(R.string.todo_flexible_hint, unit),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

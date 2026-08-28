@@ -24,10 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.d_drostes_apps.aevum.LocalizedActivity
+import com.d_drostes_apps.aevum.R
 
 /**
  * M18.61g-FIX 2: Vollbild-Sperr-Popup (User: "immer ein Pop Up von Aevum
@@ -46,7 +49,7 @@ import androidx.compose.ui.unit.sp
  * erneut — der Sperr-Loop. Nur "Noch 5 Minuten" / "Heute ignorieren"
  * entsperren wirklich.
  */
-class BlockActivity : ComponentActivity() {
+class BlockActivity : LocalizedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,7 +142,7 @@ private fun BlockScreen(
             Text("🔒", fontSize = 56.sp)
             Spacer(Modifier.height(16.dp))
             Text(
-                "$appLabel gesperrt",
+                stringResource(R.string.block_app_locked_title, appLabel),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -148,9 +151,9 @@ private fun BlockScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 if (profileName != null) {
-                    "Profil \"$profileName\" ist aktiv — diese App ist gesperrt."
+                    stringResource(R.string.block_profile_active, profileName)
                 } else {
-                    "Tägliches Limit von $limitMinutes Minuten erreicht."
+                    stringResource(R.string.block_limit_reached, limitMinutes)
                 },
                 fontSize = 15.sp,
                 color = Color(0xFFB0B8C8),
@@ -164,7 +167,7 @@ private fun BlockScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Noch 5 Minuten", fontSize = 15.sp)
+                Text(stringResource(R.string.block_extend_5min), fontSize = 15.sp)
             }
             Spacer(Modifier.height(12.dp))
             OutlinedButton(
@@ -177,7 +180,7 @@ private fun BlockScreen(
                     contentColor = Color(0xFFB0B8C8)
                 )
             ) {
-                Text("Heute ignorieren", fontSize = 15.sp)
+                Text(stringResource(R.string.block_ignore_today), fontSize = 15.sp)
             }
             Spacer(Modifier.height(12.dp))
             OutlinedButton(
@@ -190,7 +193,7 @@ private fun BlockScreen(
                     contentColor = Color(0xFFB0B8C8)
                 )
             ) {
-                Text("Schließen", fontSize = 15.sp)
+                Text(stringResource(R.string.block_close), fontSize = 15.sp)
             }
         }
     }

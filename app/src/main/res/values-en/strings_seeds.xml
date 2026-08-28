@@ -1,0 +1,40 @@
+<resources>
+    <!-- Seed names (default categories, activity types, tags) — created or
+         updated in the current language on app start. -->
+    <string name="seed_category_work">Work</string>
+    <string name="seed_category_sleep">Sleep</string>
+    <string name="seed_category_sport">Sport</string>
+    <string name="seed_category_learning">Learning</string>
+    <string name="seed_category_health">Health</string>
+    <string name="seed_category_leisure">Leisure</string>
+    <string name="seed_category_relationships">Relationships</string>
+    <string name="seed_category_transport">Transport</string>
+    <string name="seed_category_digital">Digital</string>
+    <string name="seed_category_household">Household</string>
+    <string name="seed_category_unknown">Other</string>
+
+    <string name="seed_activity_work">Work</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Sleep</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Jogging</string>
+    <string name="seed_activity_radfahren">Cycling</string>
+    <string name="seed_activity_spazieren">Walking</string>
+    <string name="seed_activity_learning">Learning</string>
+    <string name="seed_activity_reading">Reading</string>
+    <string name="seed_activity_meditation">Meditation</string>
+    <string name="seed_activity_eating">Eating</string>
+    <string name="seed_activity_social">Social</string>
+    <string name="seed_activity_household">Household</string>
+    <string name="seed_activity_driving">Driving</string>
+    <string name="seed_activity_transport">Transport</string>
+    <string name="seed_activity_digital">Digital</string>
+    <string name="seed_activity_leisure">Leisure</string>
+    <string name="seed_activity_other">Other</string>
+
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Focus</string>
+    <string name="seed_tag_routine">Routine</string>
+    <string name="seed_tag_energy">Energy</string>
+    <string name="seed_tag_recovery">Recovery</string>
+</resources>

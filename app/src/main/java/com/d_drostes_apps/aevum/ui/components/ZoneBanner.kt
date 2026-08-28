@@ -31,7 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 
@@ -114,7 +116,7 @@ fun ZoneBanner(
 
                 // Text
                 AnimatedContent(
-                    targetState = zone?.geofence?.name ?: "Abwesend",
+                    targetState = zone?.geofence?.name ?: stringResource(R.string.component_zone_absent),
                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                     label = "zone-name"
                 ) { name ->

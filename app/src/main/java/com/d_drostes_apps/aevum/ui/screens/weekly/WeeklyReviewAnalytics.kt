@@ -1,6 +1,8 @@
 package com.d_drostes_apps.aevum.ui.screens.weekly
 
+import android.content.Context
 import androidx.compose.ui.graphics.Color
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
@@ -14,9 +16,7 @@ import com.d_drostes_apps.aevum.ui.theme.AevumCategoryColors
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.TextStyle
 import java.time.temporal.TemporalAdjusters
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -25,6 +25,7 @@ private const val WEEK_MS = 7 * DAY_MS
 
 object WeeklyReviewAnalytics {
     fun build(
+        context: Context? = null,
         sessions: List<ActivitySession>,
         candidates: List<ActivityCandidate>,
         categories: List<Category>,
@@ -45,21 +46,23 @@ object WeeklyReviewAnalytics {
         val current = active.clippedTo(weekStart, weekEnd, zoneId)
         val previous = active.clippedTo(previousStart, previousEnd, zoneId)
         val totalMs = current.sumOf { it.durationMs }
-        val distribution = buildDistribution(current, categoryMap)
-        val days = buildDays(current, weekStartDate, zoneId, categoryMap)
-        val changes = buildChanges(current, previous, categoryMap)
-        val highlights = buildHighlights(current, days, categoryMap, typeMap)
-        val patterns = buildPatterns(days, distribution, changes, current, categoryMap)
+        val distribution = buildDistribution(context, current, categoryMap)
+        val days = buildDays(context, current, weekStartDate, zoneId, categoryMap)
+        val changes = buildChanges(context, current, previous, categoryMap)
+        val highlights = buildHighlights(context, current, days, categoryMap, typeMap)
+        val patterns = buildPatterns(context, days, distribution, changes, current, categoryMap)
         val pendingCount = candidates.count { candidate ->
             candidate.status == "PENDING" && candidate.startAt < weekEnd && candidate.endAt > weekStart
         }
 
         return WeeklyReviewUiState(
-            heroTitle = "Deine Woche",
-            narrative = buildNarrative(totalMs, distribution, changes, days),
+            heroTitle = str(context, R.string.weekly_hero_title),
+            narrative = buildNarrative(context, totalMs, distribution, changes, days),
             weekStart = weekStartDate,
             weekLabel = "${TimeFormatting.formatDate(weekStartDate)} – ${TimeFormatting.formatDate(weekEndDate.minusDays(1))}",
             hasData = totalMs > 0,
+            emptyTitle = if (totalMs <= 0) str(context, R.string.weekly_empty_title) else "",
+            emptyMessage = if (totalMs <= 0) str(context, R.string.weekly_empty_message) else "",
             days = days,
             timeDistribution = distribution,
             changes = changes,
@@ -68,14 +71,15 @@ object WeeklyReviewAnalytics {
             openTimeMs = (WEEK_MS - totalMs).coerceAtLeast(0L),
             pendingReviewCount = pendingCount,
             closingText = listOf(
-                "Jede Woche erzählt ihre eigene Geschichte.",
-                "Auch kleine Veränderungen werden mit der Zeit sichtbar.",
-                "Was sichtbar wird, lässt sich bewusster gestalten."
+                str(context, R.string.weekly_closing_1),
+                str(context, R.string.weekly_closing_2),
+                str(context, R.string.weekly_closing_3)
             )[(days.count { it.totalMs > 0 } + distribution.size) % 3]
         )
     }
 
     private fun buildDistribution(
+        context: Context?,
         sessions: List<WeeklyClippedSession>,
         categoryMap: Map<String, Category>
     ): List<TimeDistributionSlice> {
@@ -85,7 +89,7 @@ object WeeklyReviewAnalytics {
                 val duration = values.sumOf { it.durationMs }
                 TimeDistributionSlice(
                     id = id,
-                    label = categoryMap[id]?.name ?: "Sonstiges",
+                    label = categoryMap[id]?.name ?: str(context, R.string.common_other),
                     color = InsightsAnalytics.categoryColor(id),
                     durationMs = duration,
                     percent = percent(duration, total)
@@ -95,6 +99,7 @@ object WeeklyReviewAnalytics {
     }
 
     private fun buildDays(
+        context: Context?,
         sessions: List<WeeklyClippedSession>,
         weekStartDate: LocalDate,
         zoneId: ZoneId,
@@ -117,8 +122,8 @@ object WeeklyReviewAnalytics {
             val categoryId = top?.key ?: "unknown"
             WeeklyDaySummary(
                 date = day,
-                label = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.GERMAN).replace(".", ""),
-                topCategoryLabel = if ((top?.value ?: 0L) > 0L) categoryMap[categoryId]?.name ?: "Sonstiges" else "Noch offen",
+                label = dayLabel(context, day.dayOfWeek),
+                topCategoryLabel = if ((top?.value ?: 0L) > 0L) categoryMap[categoryId]?.name ?: str(context, R.string.common_other) else str(context, R.string.common_still_open),
                 totalMs = totals.getValue(day),
                 color = if ((top?.value ?: 0L) > 0L) InsightsAnalytics.categoryColor(categoryId) else AevumCategoryColors.unknown,
                 intensity = totals.getValue(day).toFloat() / max.toFloat()
@@ -127,6 +132,7 @@ object WeeklyReviewAnalytics {
     }
 
     private fun buildChanges(
+        context: Context?,
         current: List<WeeklyClippedSession>,
         previous: List<WeeklyClippedSession>,
         categoryMap: Map<String, Category>
@@ -141,7 +147,7 @@ object WeeklyReviewAnalytics {
                 val delta = currentMs - previousMs
                 if (currentMs == 0L && previousMs == 0L) null else PeriodChange(
                     id = id,
-                    label = categoryMap[id]?.name ?: "Sonstiges",
+                    label = categoryMap[id]?.name ?: str(context, R.string.common_other),
                     color = InsightsAnalytics.categoryColor(id),
                     currentMs = currentMs,
                     previousMs = previousMs,
@@ -155,6 +161,7 @@ object WeeklyReviewAnalytics {
     }
 
     private fun buildHighlights(
+        context: Context?,
         sessions: List<WeeklyClippedSession>,
         days: List<WeeklyDaySummary>,
         categoryMap: Map<String, Category>,
@@ -164,37 +171,37 @@ object WeeklyReviewAnalytics {
         val highlights = mutableListOf<WeeklyHighlight>()
         sessions.maxByOrNull { it.durationMs }?.let { longest ->
             highlights += WeeklyHighlight(
-                title = "Längste Aktivität",
-                value = "${typeMap[longest.activityTypeId]?.name ?: longest.title} · ${TimeFormatting.formatDuration(longest.durationMs)}",
+                title = str(context, R.string.weekly_highlight_longest_activity),
+                value = str(context, R.string.weekly_highlight_value, typeMap[longest.activityTypeId]?.name ?: longest.title, TimeFormatting.formatDuration(longest.durationMs)),
                 tone = InsightsAnalytics.categoryColor(longest.categoryId ?: "unknown")
             )
         }
         days.maxByOrNull { it.totalMs }?.takeIf { it.totalMs > 0L }?.let { day ->
             highlights += WeeklyHighlight(
-                title = "Aktivster Tag",
-                value = "${day.label} · ${TimeFormatting.formatDuration(day.totalMs)} sichtbar",
+                title = str(context, R.string.weekly_highlight_most_active_day),
+                value = str(context, R.string.weekly_highlight_most_active_day_value, day.label, TimeFormatting.formatDuration(day.totalMs)),
                 tone = day.color
             )
         }
         val balanced = days.filter { it.totalMs > 0L }.minByOrNull { day -> abs(day.totalMs - sessions.sumOf { it.durationMs } / days.count { it.totalMs > 0L }.coerceAtLeast(1)) }
         balanced?.let { day ->
             highlights += WeeklyHighlight(
-                title = "Ausgeglichenster Tag",
-                value = "${day.label} · ${day.topCategoryLabel}",
+                title = str(context, R.string.weekly_highlight_balanced_day),
+                value = str(context, R.string.weekly_highlight_value, day.label, day.topCategoryLabel),
                 tone = day.color
             )
         }
         sessions.filter { isLeisure(it.categoryId, categoryMap) }.maxByOrNull { it.durationMs }?.let { leisure ->
             highlights += WeeklyHighlight(
-                title = "Längste Freizeit",
-                value = "${leisure.title} · ${TimeFormatting.formatDuration(leisure.durationMs)}",
+                title = str(context, R.string.weekly_highlight_longest_leisure),
+                value = str(context, R.string.weekly_highlight_value, leisure.title, TimeFormatting.formatDuration(leisure.durationMs)),
                 tone = InsightsAnalytics.categoryColor(leisure.categoryId ?: "leisure")
             )
         }
         sessions.filter { isWork(it.categoryId, categoryMap) }.maxByOrNull { it.durationMs }?.let { work ->
             highlights += WeeklyHighlight(
-                title = "Längster Arbeitsblock",
-                value = "${work.title} · ${TimeFormatting.formatDuration(work.durationMs)}",
+                title = str(context, R.string.weekly_highlight_longest_work),
+                value = str(context, R.string.weekly_highlight_value, work.title, TimeFormatting.formatDuration(work.durationMs)),
                 tone = InsightsAnalytics.categoryColor(work.categoryId ?: "work")
             )
         }
@@ -202,6 +209,7 @@ object WeeklyReviewAnalytics {
     }
 
     private fun buildPatterns(
+        context: Context?,
         days: List<WeeklyDaySummary>,
         distribution: List<TimeDistributionSlice>,
         changes: List<PeriodChange>,
@@ -211,48 +219,63 @@ object WeeklyReviewAnalytics {
         if (sessions.isEmpty()) return emptyList()
         val cards = mutableListOf<InsightCard>()
         days.maxByOrNull { it.totalMs }?.takeIf { it.totalMs > 0L }?.let { day ->
-            cards += InsightCard("Stärkster Tag", "${day.label} war der sichtbarste Tag deiner Woche.", "◷")
+            cards += InsightCard(str(context, R.string.weekly_pattern_strongest_day), str(context, R.string.weekly_pattern_strongest_day_message, day.label), "◷")
         }
         val weekendMs = days.filter { it.date.dayOfWeek == DayOfWeek.SATURDAY || it.date.dayOfWeek == DayOfWeek.SUNDAY }.sumOf { it.totalMs }
         val weekdayAvg = days.filter { it.date.dayOfWeek !in listOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) }.map { it.totalMs }.average().takeIf { !it.isNaN() } ?: 0.0
         if (weekendMs > weekdayAvg * 2) {
-            cards += InsightCard("Wochenende", "Am Wochenende war deutlich mehr freie Zeit sichtbar.", "◇")
+            cards += InsightCard(str(context, R.string.weekly_pattern_weekend), str(context, R.string.weekly_pattern_weekend_message), "◇")
         }
         val sportDays = sessions.filter { isMovement(it.categoryId, categoryMap) }
             .map { it.date }
             .distinct()
             .count()
         if (sportDays >= 3) {
-            cards += InsightCard("Bewegung", "Bewegung war über mehrere Tage der Woche verteilt.", "✦")
+            cards += InsightCard(str(context, R.string.weekly_pattern_movement), str(context, R.string.weekly_pattern_movement_message), "✦")
         }
         changes.firstOrNull()?.let { change ->
-            val direction = if (change.deltaMs > 0) "mehr" else "weniger"
-            cards += InsightCard("Veränderung", "${change.label} war gegenüber der Vorwoche sichtbar $direction vertreten.", "↕")
+            val message = if (change.deltaMs > 0) {
+                str(context, R.string.weekly_pattern_change_more_message, change.label)
+            } else {
+                str(context, R.string.weekly_pattern_change_less_message, change.label)
+            }
+            cards += InsightCard(str(context, R.string.weekly_pattern_change), message, "↕")
         }
         if (distribution.size >= 3) {
-            cards += InsightCard("Abwechslung", "Diese Woche verteilt sich auf mehrere Lebensbereiche.", "☷")
+            cards += InsightCard(str(context, R.string.weekly_pattern_variety), str(context, R.string.weekly_pattern_variety_message), "☷")
         }
         return cards.distinctBy { it.title }.take(4)
     }
 
     private fun buildNarrative(
+        context: Context?,
         totalMs: Long,
         distribution: List<TimeDistributionSlice>,
         changes: List<PeriodChange>,
         days: List<WeeklyDaySummary>
     ): String {
-        if (totalMs <= 0L) return "Sobald du einige Zeitblöcke erfasst hast, entsteht hier ein ruhiger Wochenrückblick."
+        if (totalMs <= 0L) return str(context, R.string.weekly_narrative_empty)
         val top = distribution.firstOrNull()
         val second = distribution.drop(1).firstOrNull()
         val activeDays = days.count { it.totalMs > 0L }
         val change = changes.firstOrNull()
         return when {
-            top != null && second != null -> "Du hast diese Woche viel Zeit in ${top.label} investiert und auch ${second.label.lowercase()} sichtbar gemacht."
-            change != null && change.deltaMs > 0L -> "Diese Woche ist ${change.label.lowercase()} stärker sichtbar geworden als in der Vorwoche."
-            activeDays >= 5 -> "Diese Woche war über mehrere Tage hinweg gut sichtbar und abwechslungsreich."
-            top != null -> "${top.label} war diese Woche der prägende Zeitbereich."
-            else -> "Diese Woche beginnt, ihre eigene Geschichte zu erzählen."
+            top != null && second != null -> str(context, R.string.weekly_narrative_top_two, top.label, second.label.lowercase())
+            change != null && change.deltaMs > 0L -> str(context, R.string.weekly_narrative_change, change.label.lowercase())
+            activeDays >= 5 -> str(context, R.string.weekly_narrative_active_days)
+            top != null -> str(context, R.string.weekly_narrative_top, top.label)
+            else -> str(context, R.string.weekly_narrative_fallback)
         }
+    }
+
+    private fun dayLabel(context: Context?, dayOfWeek: DayOfWeek): String = when (dayOfWeek) {
+        DayOfWeek.MONDAY -> str(context, R.string.common_monday)
+        DayOfWeek.TUESDAY -> str(context, R.string.common_tuesday)
+        DayOfWeek.WEDNESDAY -> str(context, R.string.common_wednesday)
+        DayOfWeek.THURSDAY -> str(context, R.string.common_thursday)
+        DayOfWeek.FRIDAY -> str(context, R.string.common_friday)
+        DayOfWeek.SATURDAY -> str(context, R.string.common_saturday)
+        DayOfWeek.SUNDAY -> str(context, R.string.common_sunday)
     }
 
     private fun isWork(categoryId: String?, categoryMap: Map<String, Category>): Boolean {
@@ -300,10 +323,10 @@ object WeeklyReviewAnalytics {
 }
 
 data class WeeklyReviewUiState(
-    val heroTitle: String = "Deine Woche",
-    val narrative: String = "Sobald du einige Zeitblöcke erfasst hast, entsteht hier ein ruhiger Wochenrückblick.",
+    val heroTitle: String = "",
+    val narrative: String = "",
     val weekStart: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
-    val weekLabel: String = "Diese Woche",
+    val weekLabel: String = "",
     val hasData: Boolean = false,
     val days: List<WeeklyDaySummary> = emptyList(),
     val timeDistribution: List<TimeDistributionSlice> = emptyList(),
@@ -312,9 +335,9 @@ data class WeeklyReviewUiState(
     val patterns: List<InsightCard> = emptyList(),
     val openTimeMs: Long = WEEK_MS,
     val pendingReviewCount: Int = 0,
-    val closingText: String = "Jede Woche erzählt ihre eigene Geschichte.",
-    val emptyTitle: String = "Noch keine Woche sichtbar.",
-    val emptyMessage: String = "Wenn du ein paar Aktivitäten erfasst hast, zeigt Aevum hier einen ruhigen Rückblick mit Zeitverteilung, Highlights und Wochenmustern."
+    val closingText: String = "",
+    val emptyTitle: String = "",
+    val emptyMessage: String = ""
 )
 
 data class WeeklyDaySummary(
@@ -342,3 +365,77 @@ private data class WeeklyClippedSession(
     val durationMs: Long,
     val date: LocalDate
 )
+
+private fun str(context: android.content.Context?, key: Int, vararg args: Any): String =
+    context?.getString(key, *args) ?: String.format(fallback(key), *args)
+
+private fun fallback(key: Int): String = when (key) {
+    R.string.common_today -> "Heute"
+    R.string.common_work -> "Arbeit"
+    R.string.common_recovery -> "Erholung"
+    R.string.common_movement -> "Bewegung"
+    R.string.common_digital -> "Digital"
+    R.string.common_social -> "Soziales"
+    R.string.common_other -> "Sonstiges"
+    R.string.common_allowance -> "Pauschale"
+    R.string.common_monday -> "Mo"
+    R.string.common_tuesday -> "Di"
+    R.string.common_wednesday -> "Mi"
+    R.string.common_thursday -> "Do"
+    R.string.common_friday -> "Fr"
+    R.string.common_saturday -> "Sa"
+    R.string.common_sunday -> "So"
+    R.string.common_still_open -> "Noch offen"
+    R.string.insights_allowance_label -> "%1\$s (Pauschale)"
+    R.string.insights_card_digital_time_message -> "Deine Digitalzeit ist leicht gesunken."
+    R.string.insights_card_digital_time_title -> "Digitalzeit"
+    R.string.insights_card_largest_block_month -> "%1\$s war diesen Monat dein größter Bereich."
+    R.string.insights_card_largest_block_title -> "Größter Zeitblock"
+    R.string.insights_card_largest_block_today -> "%1\$s war heute dein größter Bereich."
+    R.string.insights_card_largest_block_week -> "%1\$s war diese Woche dein größter Bereich."
+    R.string.insights_card_more_visible_message -> "%1\$s ist gegenüber der Vorperiode gestiegen."
+    R.string.insights_card_more_visible_title -> "Mehr sichtbar"
+    R.string.insights_card_rhythm_message -> "Mehrere Tage dieser Woche enthalten bereits erfasste Zeit."
+    R.string.insights_card_rhythm_title -> "Rhythmus"
+    R.string.insights_card_variety_message -> "Deine Zeit verteilt sich auf mehrere Lebensbereiche."
+    R.string.insights_card_variety_title -> "Abwechslung"
+    R.string.insights_period_this_month -> "Dieser Monat"
+    R.string.insights_period_this_week -> "Diese Woche"
+    R.string.insights_summary_change -> " Die größte Veränderung liegt bei %1\$s."
+    R.string.insights_summary_empty -> "Noch nicht genug Daten. Sobald du Zeitblöcke erfasst, entstehen hier ruhige Muster."
+    R.string.insights_summary_month -> "Dieser Monat prägt vor allem %1\$s deine erfasste Zeit."
+    R.string.insights_summary_multiple_areas -> "mehrere Bereiche"
+    R.string.insights_summary_today -> "Heute prägt vor allem %1\$s deine erfasste Zeit."
+    R.string.insights_summary_week -> "Diese Woche prägt vor allem %1\$s deine erfasste Zeit."
+    R.string.weekly_closing_1 -> "Jede Woche erzählt ihre eigene Geschichte."
+    R.string.weekly_closing_2 -> "Auch kleine Veränderungen werden mit der Zeit sichtbar."
+    R.string.weekly_closing_3 -> "Was sichtbar wird, lässt sich bewusster gestalten."
+    R.string.weekly_hero_title -> "Deine Woche"
+    R.string.weekly_empty_title -> "Noch keine Woche sichtbar."
+    R.string.weekly_empty_message -> "Erfasse ein paar Aktivitäten. Danach erzählt dir Aevum hier ruhig, welche Muster, Highlights und offenen Zeiten in deiner Woche sichtbar werden."
+    R.string.weekly_highlight_balanced_day -> "Ausgeglichenster Tag"
+    R.string.weekly_highlight_longest_activity -> "Längste Aktivität"
+    R.string.weekly_highlight_longest_leisure -> "Längste Freizeit"
+    R.string.weekly_highlight_longest_work -> "Längster Arbeitsblock"
+    R.string.weekly_highlight_most_active_day -> "Aktivster Tag"
+    R.string.weekly_highlight_most_active_day_value -> "%1\$s · %2\$s sichtbar"
+    R.string.weekly_highlight_value -> "%1\$s · %2\$s"
+    R.string.weekly_narrative_active_days -> "Diese Woche war über mehrere Tage hinweg gut sichtbar und abwechslungsreich."
+    R.string.weekly_narrative_change -> "Diese Woche ist %1\$s stärker sichtbar geworden als in der Vorwoche."
+    R.string.weekly_narrative_empty -> "Sobald du einige Zeitblöcke erfasst hast, entsteht hier ein ruhiger Wochenrückblick."
+    R.string.weekly_narrative_fallback -> "Diese Woche beginnt, ihre eigene Geschichte zu erzählen."
+    R.string.weekly_narrative_top -> "%1\$s war diese Woche der prägende Zeitbereich."
+    R.string.weekly_narrative_top_two -> "Du hast diese Woche viel Zeit in %1\$s investiert und auch %2\$s sichtbar gemacht."
+    R.string.weekly_pattern_change -> "Veränderung"
+    R.string.weekly_pattern_change_less_message -> "%1\$s war gegenüber der Vorwoche sichtbar weniger vertreten."
+    R.string.weekly_pattern_change_more_message -> "%1\$s war gegenüber der Vorwoche sichtbar mehr vertreten."
+    R.string.weekly_pattern_movement -> "Bewegung"
+    R.string.weekly_pattern_movement_message -> "Bewegung war über mehrere Tage der Woche verteilt."
+    R.string.weekly_pattern_strongest_day -> "Stärkster Tag"
+    R.string.weekly_pattern_strongest_day_message -> "%1\$s war der sichtbarste Tag deiner Woche."
+    R.string.weekly_pattern_variety -> "Abwechslung"
+    R.string.weekly_pattern_variety_message -> "Diese Woche verteilt sich auf mehrere Lebensbereiche."
+    R.string.weekly_pattern_weekend -> "Wochenende"
+    R.string.weekly_pattern_weekend_message -> "Am Wochenende war deutlich mehr freie Zeit sichtbar."
+    else -> ""
+}

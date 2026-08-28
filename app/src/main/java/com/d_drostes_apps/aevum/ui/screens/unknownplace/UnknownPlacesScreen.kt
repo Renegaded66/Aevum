@@ -45,7 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.UnknownPlaceSession
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -84,17 +86,17 @@ fun UnknownPlacesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.Close, contentDescription = "Schließen")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_close))
                 }
                 Spacer(Modifier.width(AevumSpacing.sm))
                 Column {
                     Text(
-                        "Unbekannte Orte",
+                        stringResource(R.string.unknownplace_title),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "${state.openEntries.size} offen",
+                        stringResource(R.string.unknownplace_open_count, state.openEntries.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -103,8 +105,8 @@ fun UnknownPlacesScreen(
 
             if (state.openEntries.isEmpty()) {
                 EmptyState(
-                    title = "Keine unbekannten Orte",
-                    description = "Wenn du länger an einem Ort bist, der nicht zu deinen Geofences passt, erscheint er hier."
+                    title = stringResource(R.string.unknownplace_empty_title),
+                    description = stringResource(R.string.unknownplace_empty_desc)
                 )
             } else {
                 LazyColumn(
@@ -193,16 +195,16 @@ private fun UnknownPlaceCard(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
-                    Text("Namen geben")
+                    Text(stringResource(R.string.unknownplace_name_button))
                 }
                 OutlinedButton(
                     onClick = onConvert,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Geofence")
+                    Text(stringResource(R.string.unknownplace_geofence_button))
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Verwerfen")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_discard))
                 }
             }
         }
@@ -218,21 +220,21 @@ private fun NameDialog(
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Ort benennen") },
+        title = { Text(stringResource(R.string.unknownplace_name_dialog_title)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Name (z.B. Restaurant Milano)") },
+                label = { Text(stringResource(R.string.unknownplace_name_hint)) },
                 singleLine = true
             )
         },
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank()) onConfirm(name) }
-            ) { Text("Speichern") }
+            ) { Text(stringResource(R.string.common_save)) }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -246,17 +248,17 @@ private fun GeofenceCreateDialog(
     var radius by remember { mutableStateOf(150f) }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Geofence erstellen") },
+        title = { Text(stringResource(R.string.unknownplace_geofence_dialog_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.common_name)) },
                     singleLine = true
                 )
                 Spacer(Modifier.height(AevumSpacing.md))
-                Text("Radius: ${radius.toInt()} m")
+                Text(stringResource(R.string.unknownplace_radius, radius.toInt()))
                 Slider(
                     value = radius,
                     onValueChange = { radius = it },
@@ -268,9 +270,9 @@ private fun GeofenceCreateDialog(
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank()) onConfirm(name, radius) }
-            ) { Text("Erstellen") }
+            ) { Text(stringResource(R.string.common_create)) }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 

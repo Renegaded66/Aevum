@@ -4,7 +4,6 @@ import com.google.common.truth.Truth.assertThat
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Goal
-import com.d_drostes_apps.aevum.data.model.Habit
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import org.junit.Test
 import java.time.LocalDate
@@ -102,59 +101,6 @@ class GoalProgressAnalyticsTest {
         assertThat(result.progress).isEqualTo(0f)
         assertThat(result.isMet).isFalse()
     }
-
-    @Test
-    fun `evaluateHabit builds heatmap and streak for daily habit`() {
-        val habit = Habit(
-            id = "h1", title = "Täglich lesen", activityTypeId = "reading",
-            frequencyRuleJson = """{"type":"daily"}""",
-            successRuleJson = """{"type":"minDuration","minDurationMs":900000}"""
-        )
-        // 3 consecutive days of reading sessions
-        val sessions = (0..2).map { i ->
-            session("s$i", "reading", "leisure", anchor.minusDays(i.toLong()), 20, 21)
-        }
-
-        val result = GoalProgressAnalytics.evaluateHabit(habit, sessions, anchor, zone, typeMap)
-
-        assertThat(result.streak).isAtLeast(1)
-        assertThat(result.heatmap).hasSize(28)
-        assertThat(result.heatmap.any { it.completed }).isTrue()
-        assertThat(result.successRate).isGreaterThan(0)
-        assertThat(result.frequencyLabel).isEqualTo("Täglich")
-    }
-
-    @Test
-    fun `evaluateHabit with weekly frequency shows correct label`() {
-        val habit = Habit(
-            id = "h2", title = "3× Sport pro Woche", activityTypeId = "fitness",
-            frequencyRuleJson = "{\"type\":\"weekly\",\"count\":3}",
-            successRuleJson = """{"type":"minDuration","minDurationMs":1200000}"""
-        )
-
-        val result = GoalProgressAnalytics.evaluateHabit(habit, emptyList(), anchor, zone, typeMap)
-
-        assertThat(result.frequencyLabel).isEqualTo("3× pro Woche")
-        assertThat(result.streak).isEqualTo(0)
-        assertThat(result.activityTypeName).isEqualTo("Fitness")
-    }
-
-    @Test
-    fun `evaluateHabit empty state has zero streak and rate`() {
-        val habit = Habit(
-            id = "h3", title = "Meditation", activityTypeId = "meditation",
-            frequencyRuleJson = """{"type":"daily"}""",
-            successRuleJson = """{"type":"minDuration","minDurationMs":600000}"""
-        )
-
-        val result = GoalProgressAnalytics.evaluateHabit(habit, emptyList(), anchor, zone, typeMap)
-
-        assertThat(result.streak).isEqualTo(0)
-        assertThat(result.successRate).isEqualTo(0)
-        assertThat(result.activeDays).isEqualTo(28) // daily habit: all 28 days are expected
-        assertThat(result.heatmap.none { it.completed }).isTrue()
-    }
-
     private fun session(
         id: String,
         typeId: String,

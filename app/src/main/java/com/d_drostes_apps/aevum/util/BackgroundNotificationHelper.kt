@@ -43,10 +43,10 @@ object BackgroundNotificationHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Hintergrund-Erkennung",
+                context.getString(com.d_drostes_apps.aevum.R.string.notif_background_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Aevum trackt Aktivitäten im Hintergrund — Orte, Fahrten, App-Nutzung"
+                description = context.getString(com.d_drostes_apps.aevum.R.string.notif_background_channel_desc)
                 setShowBadge(false)
                 enableVibration(false)
                 setSound(null, null)
@@ -71,8 +71,8 @@ object BackgroundNotificationHelper {
         )
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Aevum läuft im Hintergrund")
-            .setContentText("Erkennt Orte, Fahrten und App-Nutzung")
+            .setContentTitle(context.getString(com.d_drostes_apps.aevum.R.string.notif_background_title))
+            .setContentText(context.getString(com.d_drostes_apps.aevum.R.string.notif_background_text))
             .setSmallIcon(com.d_drostes_apps.aevum.R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

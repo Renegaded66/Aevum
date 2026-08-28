@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.timeline
 
+import com.d_drostes_apps.aevum.R
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -200,7 +201,7 @@ class TimelineViewModel @Inject constructor(
                         startAt = startAt,
                         endAt = endAt,
                         timezoneId = zone.id,
-                        description = "Über Tagesansicht erstellt"
+                        description = application.getString(R.string.timeline_desc_created_from_day)
                     )
                 )
             } catch (_: Exception) { /* defensive: keine UI-Crash */ }
@@ -230,7 +231,7 @@ class TimelineViewModel @Inject constructor(
                         startAt = startAt,
                         endAt = null, // laeuft ab dem getippten Zeitpunkt weiter
                         timezoneId = zone.id,
-                        description = "Gestartet über Tagesansicht"
+                        description = application.getString(R.string.timeline_desc_started_from_day)
                     )
                 )
             } catch (_: Exception) { /* defensive: keine UI-Crash */ }
@@ -321,7 +322,11 @@ class TimelineViewModel @Inject constructor(
     fun groupedActivities(
         categories: List<Category>,
         types: List<ActivityType>
-    ): List<CategoryGroup> = groupActivitiesByCategory(categories, types)
+    ): List<CategoryGroup> = groupActivitiesByCategory(
+        categories,
+        types,
+        uncategorizedLabel = application.getString(R.string.timeline_uncategorized)
+    )
 
     /**
      * M18.73: Speichert die neue Aufzeichnung je nach gewähltem Modus:
@@ -356,12 +361,12 @@ class TimelineViewModel @Inject constructor(
                 // gegen direkte Aufrufe).
                 val typeId = form.activityTypeId
                     ?: run {
-                        _newRecordingError.value = "Bitte wähle eine Aktivität aus."
+                        _newRecordingError.value = application.getString(R.string.timeline_error_select_activity)
                         return@launch
                     }
                 val type = activityTypeRepository.getById(typeId).first()
                     ?: run {
-                        _newRecordingError.value = "Aktivität nicht gefunden."
+                        _newRecordingError.value = application.getString(R.string.timeline_error_activity_not_found)
                         return@launch
                     }
                 _newRecordingSaving.value = true
@@ -393,7 +398,10 @@ class TimelineViewModel @Inject constructor(
             } catch (e: Exception) {
                 _newRecordingSaving.value = false
                 Log.e("TimelineViewModel", "saveNew() fehlgeschlagen", e)
-                _newRecordingError.value = "Speichern fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}"
+                _newRecordingError.value = application.getString(
+                    R.string.timeline_error_save_failed,
+                    e.message ?: application.getString(R.string.timeline_error_unknown)
+                )
             }
         }
     }
@@ -420,7 +428,7 @@ class TimelineViewModel @Inject constructor(
                     startAt = candidate.startAt,
                     endAt = candidate.endAt,
                     timezoneId = zoneId.id,
-                    description = "Aus Gap-Detection übernommen"
+                    description = application.getString(R.string.timeline_desc_from_gap)
                 )
                 saveManualActivityUseCase(request)
             } catch (_: Exception) { /* defensive */ }
@@ -436,35 +444,37 @@ class TimelineViewModel @Inject constructor(
         }
         // Fallback für die alten Schnellauswahl-Buttons (categoryId only)
         return when (categoryId) {
-            "social" -> "Freunde treffen"
-            "learning" -> "Lernen"
-            "household" -> "Einkaufen"
-            "work" -> "Arbeit"
-            "leisure" -> "Freizeit"
-            "sport" -> "Bewegung"
-            "health" -> "Gesundheit"
-            "transport" -> "Unterwegs"
-            else -> "Aktivität"
+            "social" -> application.getString(R.string.timeline_title_meet_friends)
+            "learning" -> application.getString(R.string.common_learning)
+            "household" -> application.getString(R.string.timeline_title_shopping)
+            "work" -> application.getString(R.string.common_work)
+            "leisure" -> application.getString(R.string.common_leisure)
+            "sport" -> application.getString(R.string.common_movement)
+            "health" -> application.getString(R.string.common_health)
+            "transport" -> application.getString(R.string.timeline_title_on_the_go)
+            else -> application.getString(R.string.timeline_title_activity)
         }
     }
 
-    private val activityTypeFriendlyNames: Map<String, String> = mapOf(
-        "work" to "Arbeit",
-        "deep_work" to "Deep Work",
-        "sleep" to "Schlaf",
-        "fitness" to "Fitness",
-        "learning" to "Lernen",
-        "reading" to "Lesen",
-        "meditation" to "Meditation",
-        "eating" to "Essen",
-        "social" to "Soziales",
-        "household" to "Haushalt",
-        "driving" to "Autofahren",
-        "transport" to "Transport",
-        "digital" to "Digital",
-        "leisure" to "Freizeit",
-        "other" to "Sonstiges"
-    )
+    private val activityTypeFriendlyNames: Map<String, String> by lazy {
+        mapOf(
+            "work" to application.getString(R.string.common_work),
+            "deep_work" to application.getString(R.string.timeline_type_deep_work),
+            "sleep" to application.getString(R.string.common_sleep),
+            "fitness" to application.getString(R.string.common_fitness),
+            "learning" to application.getString(R.string.common_learning),
+            "reading" to application.getString(R.string.timeline_type_reading),
+            "meditation" to application.getString(R.string.timeline_type_meditation),
+            "eating" to application.getString(R.string.timeline_type_eating),
+            "social" to application.getString(R.string.common_social),
+            "household" to application.getString(R.string.common_household),
+            "driving" to application.getString(R.string.timeline_type_driving),
+            "transport" to application.getString(R.string.common_transport),
+            "digital" to application.getString(R.string.common_digital),
+            "leisure" to application.getString(R.string.common_leisure),
+            "other" to application.getString(R.string.common_other)
+        )
+    }
 
     /**
      * M15: Manueller Trigger für die Gap-Detection. Wird vom "Lücken
@@ -606,8 +616,8 @@ class TimelineViewModel @Inject constructor(
                 id = session.id,
                 title = session.title,
                 categoryId = effectiveCategoryId,
-                categoryName = categoryMap[effectiveCategoryId]?.name ?: "Sonstiges",
-                activityTypeName = typeMap[session.activityTypeId]?.name ?: "Freie Aktivität",
+                categoryName = categoryMap[effectiveCategoryId]?.name ?: application.getString(R.string.common_other),
+                activityTypeName = typeMap[session.activityTypeId]?.name ?: application.getString(R.string.timeline_free_activity),
                 time = TimeFormatting.formatTime(clip.clippedStartMs, zoneId),
                 // M16.5: Range spiegelt den sichtbaren Tagesausschnitt wider.
                 range = "${TimeFormatting.formatTime(clip.clippedStartMs, zoneId)}–${TimeFormatting.formatTime(clip.clippedEndMs, zoneId)}",
@@ -647,7 +657,8 @@ class TimelineViewModel @Inject constructor(
             val geofenceName = extractGeofenceName(trigger.metadataJson)
             val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
             val label = if (geofenceName != null) {
-                if (isEnter) "$geofenceName betreten" else "$geofenceName verlassen"
+                if (isEnter) application.getString(R.string.timeline_trigger_entered, geofenceName)
+                else application.getString(R.string.timeline_trigger_left, geofenceName)
             } else {
                 trigger.type.replace('_', ' ').lowercase().replaceFirstChar { it.titlecase() }
             }
@@ -669,7 +680,7 @@ class TimelineViewModel @Inject constructor(
                     title = candidate.suggestedTitle,
                     timeRange = "${TimeFormatting.formatTime(candidate.startAt, zoneId)}–${TimeFormatting.formatTime(candidate.endAt, zoneId)}",
                     duration = TimeFormatting.formatDuration(candidate.endAt - candidate.startAt),
-                    reason = candidate.reason ?: "Automatisch erkannt",
+                    reason = candidate.reason ?: application.getString(R.string.timeline_reason_auto),
                     confidence = (candidate.confidence * 100).toInt(),
                     // M15: Lücken-Candidates bekommen isGap=true, damit die
                     // UI sie speziell rendert (gestrichelt, Schnellauswahl).
@@ -731,8 +742,8 @@ class TimelineViewModel @Inject constructor(
                     id = session.id,
                     title = session.title,
                     categoryId = effectiveCategoryId,
-                    categoryName = categoryMap[effectiveCategoryId]?.name ?: "Sonstiges",
-                    activityTypeName = typeMap[session.activityTypeId]?.name ?: "Freie Aktivität",
+                    categoryName = categoryMap[effectiveCategoryId]?.name ?: application.getString(R.string.common_other),
+                    activityTypeName = typeMap[session.activityTypeId]?.name ?: application.getString(R.string.timeline_free_activity),
                     time = TimeFormatting.formatTime(clippedStart, zoneId),
                     range = "${TimeFormatting.formatTime(clippedStart, zoneId)}–${TimeFormatting.formatTime(clippedEnd, zoneId)}",
                     duration = TimeFormatting.formatDuration(session.activeDurationInWindow(dayStart, dayEnd, nowMs)),
@@ -779,6 +790,7 @@ private data class TimelineClip(
 @HiltViewModel
 class ActivityEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val application: Application,
     private val activityRepository: ActivityRepository,
     private val activityCandidateRepository: ActivityCandidateRepository,
     categoryRepository: CategoryRepository,
@@ -829,8 +841,10 @@ class ActivityEditorViewModel @Inject constructor(
                 val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
                 TriggerEventMarker(
                     id = it.id,
-                    label = gfName?.let { n -> if (isEnter) "$n betreten" else "$n verlassen" }
-                        ?: it.type.replace('_', ' '),
+                    label = gfName?.let { n ->
+                        if (isEnter) application.getString(R.string.timeline_trigger_entered, n)
+                        else application.getString(R.string.timeline_trigger_left, n)
+                    } ?: it.type.replace('_', ' '),
                     occurredAt = it.occurredAt,
                     kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
                     source = it.source
@@ -944,7 +958,14 @@ class ActivityEditorViewModel @Inject constructor(
                 // "passierte nichts" beim Speichern, weil DB-Exceptions von
                 // viewModelScope.launch verschluckt wurden.
                 Log.e("ActivityEditor", "save() fehlgeschlagen", e)
-                form.update { it.copy(errorMessage = "Speichern fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}") }
+                form.update {
+                    it.copy(
+                        errorMessage = application.getString(
+                            R.string.timeline_error_save_failed,
+                            e.message ?: application.getString(R.string.timeline_error_unknown)
+                        )
+                    )
+                }
             }
         }
     }
@@ -1022,6 +1043,7 @@ class ActivityEditorViewModel @Inject constructor(
 @HiltViewModel
 class ActivityDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val application: Application,
     private val activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
     activityTypeRepository: ActivityTypeRepository
@@ -1039,7 +1061,12 @@ class ActivityDetailViewModel @Inject constructor(
             session = session,
             category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },
             activityType = types.firstOrNull { it.id == session?.activityTypeId },
-            range = session?.let { "${TimeFormatting.formatTime(it.startAt, zoneId)}–${it.endAt?.let { end -> TimeFormatting.formatTime(end, zoneId) } ?: "läuft"}" }.orEmpty(),
+            range = session?.let {
+                "${TimeFormatting.formatTime(it.startAt, zoneId)}–${
+                    it.endAt?.let { end -> TimeFormatting.formatTime(end, zoneId) }
+                        ?: application.getString(R.string.timeline_running)
+                }"
+            }.orEmpty(),
             // M18.62-FIX: Pausen abziehen — vorher wurde die volle
             // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
             duration = session?.let { TimeFormatting.formatDuration(it.activeDurationMs()) }.orEmpty()
@@ -1080,7 +1107,7 @@ data class EditorBase(
 
 data class TimelineUiState(
     val selectedDate: LocalDate = LocalDate.now(),
-    val dayTitle: String = "Heute",
+    val dayTitle: String = "",
     val formattedDate: String = TimeFormatting.formatDate(LocalDate.now()),
     val sessions: List<TimelineSessionUi> = emptyList(),
     val totalTracked: String = "0m",
@@ -1282,7 +1309,8 @@ data class CategoryGroup(
  */
 internal fun groupActivitiesByCategory(
     categories: List<Category>,
-    types: List<ActivityType>
+    types: List<ActivityType>,
+    uncategorizedLabel: String = "Ohne Kategorie"
 ): List<CategoryGroup> {
     val sortedCategories = categories.sortedBy { it.sortOrder }
     val categorized = types.filter { it.defaultCategoryId != null }
@@ -1305,7 +1333,7 @@ internal fun groupActivitiesByCategory(
     if (uncategorized.isNotEmpty()) {
         groups += CategoryGroup(
             categoryId = null,
-            categoryName = "Ohne Kategorie",
+            categoryName = uncategorizedLabel,
             categoryIcon = "◇",
             categoryColor = "#94A3B8",
             activities = uncategorized.sortedBy { it.name.lowercase() }

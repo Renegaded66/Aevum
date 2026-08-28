@@ -1,5 +1,8 @@
 package com.d_drostes_apps.aevum.domain.liveactivity
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
@@ -39,7 +42,8 @@ import javax.inject.Singleton
 class LiveActivityManager @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val triggerEventRepository: TriggerEventRepository
+    private val triggerEventRepository: TriggerEventRepository,
+    @ApplicationContext private val context: Context? = null
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -189,7 +193,8 @@ class LiveActivityManager @Inject constructor(
         val sessionStart = startedAt.coerceAtMost(now)
         val session = ActivitySession(
             id = UUID.randomUUID().toString(),
-            title = title?.takeIf { it.isNotBlank() } ?: resolvedType?.name ?: "Aktivität",
+            title = title?.takeIf { it.isNotBlank() } ?: resolvedType?.name
+                ?: context?.getString(com.d_drostes_apps.aevum.R.string.common_activity_fallback) ?: "Aktivität",
             categoryId = resolvedType?.defaultCategoryId,
             activityTypeId = resolvedTypeId,
             startAt = sessionStart,
@@ -282,6 +287,15 @@ class LiveActivityManager @Inject constructor(
     /** M18.62-FIX: endAt für Finish-Pfade — bei PAUSED bleibt der Pause-Zeitpunkt. */
     private fun finishEndAt(session: ActivitySession, now: Long): Long =
         if (session.isPaused) session.endAt ?: now else now
+
+    /** M18.80: Ende der letzten beendeten Auto-Session (ACTIVITY_RECOGNITION_AUTO).
+     *  Wird vom DriveStartWorker als Nicht-Überlappungs-Guard genutzt: Ein
+     *  rückwirkender Cluster-Start darf nie VOR dem Ende der gerade beendeten
+     *  Auto-Fahrt liegen (Stau-Muster: Watchdog-Stop 13:00, neuer Cluster-
+     *  Start 12:55 → Überlappung in der Timeline). */
+    suspend fun lastAutoSessionEndMs(): Long? =
+        activityRepository.getLastFinishedBySourceType("ACTIVITY_RECOGNITION_AUTO")
+            ?.endAt
 
     /**
      * M18.71: Überlappende Aktivitäten — nur die Überlappungszeit

@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
 import com.d_drostes_apps.aevum.ui.components.AevumCard
@@ -120,9 +122,9 @@ private fun ReviewInboxContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("REVIEW INBOX", fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Aevum hat etwas vorbereitet", fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Vorschläge zählen erst, wenn du sie übernimmst.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.review_inbox_eyebrow), fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.review_inbox_hero_title), fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.review_inbox_hero_subtitle), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     IconButton(onClick = onBack) { Text("✕", fontSize = 24.sp) }
                 }
@@ -135,7 +137,7 @@ private fun ReviewInboxContent(
                     ) {
                         TextButton(onClick = onAcceptAllSafe) {
                             Text(
-                                "${state.safeAcceptCount} sichere Vorschläge übernehmen",
+                                stringResource(R.string.review_inbox_accept_safe, state.safeAcceptCount),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -200,17 +202,17 @@ private fun ReviewInboxContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "${selectedCount()} ausgewählt",
+                            stringResource(R.string.review_inbox_selected_count, selectedCount()),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                             OutlinedButton(onClick = {
                                 onDismissSelected()
-                            }) { Text("Verwerfen") }
+                            }) { Text(stringResource(R.string.common_discard)) }
                             Button(onClick = {
                                 onAcceptSelected()
-                            }) { Text("Übernehmen") }
+                            }) { Text(stringResource(R.string.common_apply)) }
                         }
                     }
                 }
@@ -234,16 +236,16 @@ private fun ReviewInboxContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Tippe Karten zum Auswählen",
+                            stringResource(R.string.review_inbox_tap_hint),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                             TextButton(onClick = onSelectAllSafe) {
-                                Text("Alle sicheren", fontSize = 14.sp)
+                                Text(stringResource(R.string.review_inbox_all_safe), fontSize = 14.sp)
                             }
                             TextButton(onClick = onToggleMultiSelect) {
-                                Text("Abbrechen", fontSize = 14.sp)
+                                Text(stringResource(R.string.common_cancel), fontSize = 14.sp)
                             }
                         }
                     }
@@ -323,9 +325,9 @@ private fun SleepReviewBody(
     val hours = durationMs / 3_600_000
     val minutes = (durationMs % 3_600_000) / 60_000
     val durationStr = when {
-        hours > 0 && minutes > 0 -> "${hours} h ${minutes} min"
-        hours > 0 -> "${hours} h"
-        else -> "${minutes} min"
+        hours > 0 && minutes > 0 -> stringResource(R.string.review_duration_hours_minutes, hours, minutes)
+        hours > 0 -> stringResource(R.string.review_duration_hours, hours)
+        else -> stringResource(R.string.review_duration_minutes, minutes)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
@@ -349,7 +351,7 @@ private fun SleepReviewBody(
             }
             Text("🌙", fontSize = 22.sp)
             Text(
-                "Schlaf erkannt",
+                stringResource(R.string.review_inbox_sleep_detected),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -390,7 +392,7 @@ private fun SleepReviewBody(
         }
 
         Text(
-            text = candidate.reason ?: "Aus Health Connect erkannt. Bitte bestätigen.",
+            text = candidate.reason ?: stringResource(R.string.review_inbox_sleep_reason_fallback),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 18.sp
@@ -401,9 +403,9 @@ private fun SleepReviewBody(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Verwerfen") }
-                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }
-                Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text("Übernehmen") }
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_discard)) }
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_edit)) }
+                Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_apply)) }
             }
         }
     }
@@ -468,7 +470,7 @@ private fun GenericReviewBody(
         }
 
         Text(
-            text = candidate.reason ?: "Automatischer Vorschlag aus deinen lokalen Signalen.",
+            text = candidate.reason ?: stringResource(R.string.review_inbox_generic_reason_fallback),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 18.sp
@@ -479,9 +481,9 @@ private fun GenericReviewBody(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Verwerfen") }
-                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }
-                Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text("Übernehmen") }
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_discard)) }
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_edit)) }
+                Button(onClick = onAccept, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_apply)) }
             }
         }
     }
@@ -490,9 +492,9 @@ private fun GenericReviewBody(
 @Composable
 private fun BetterEmptyState(onBack: () -> Unit) {
     EmptyState(
-        title = "Alles geprüft.",
-        message = "Keine offenen Vorschläge. Aevum informiert dich, sobald etwas Neues erkannt wurde.",
-        actionLabel = "Zurück",
+        title = stringResource(R.string.review_inbox_empty_title),
+        message = stringResource(R.string.review_inbox_empty_message),
+        actionLabel = stringResource(R.string.common_back),
         onActionClick = onBack
     )
 }

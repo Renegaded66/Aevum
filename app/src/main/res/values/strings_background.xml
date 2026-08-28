@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Live-Activity-Notification (LiveActivityService) -->
+    <string name="notif_live_channel_name">Laufende Aktivität</string>
+    <string name="notif_live_channel_desc">Zeigt die laufende Aktivität und Steuerungsaktionen</string>
+    <string name="notif_live_empty_text">Aktivität läuft</string>
+    <string name="notif_live_subtext_paused_auto">Pausiert · automatisch gestartet</string>
+    <string name="notif_live_subtext_paused">Pausiert</string>
+    <string name="notif_live_subtext_auto">automatisch gestartet</string>
+    <string name="notif_live_subtext_active">Aktiv</string>
+    <string name="notif_live_resume">Fortsetzen</string>
+    <string name="notif_live_pause">Pause</string>
+    <string name="notif_live_switch">⇄ Wechseln</string>
+    <string name="notif_live_stop">■ Stoppen</string>
+    <string name="notif_live_signal_label">AEVUM  •  AKTIVITÄTSSIGNAL</string>
+    <string name="notif_live_summary_paused">%1$s aktiv · %2$s gesamt</string>
+    <string name="notif_live_duration_h_m">%1$d h %2$d min</string>
+    <string name="notif_live_duration_min">%1$d min</string>
+    <string name="notif_live_duration_s">%1$d s</string>
+
+    <!-- Candidate-Review-Notification (CandidateReviewNotifier) -->
+    <string name="notif_review_channel_name">Aevum Review</string>
+    <string name="notif_review_channel_desc">Zurückhaltende Hinweise für neue überprüfbare Aktivitätsvorschläge</string>
+    <string name="notif_review_title">Neue Aktivität prüfen</string>
+    <string name="notif_review_single">Aevum hat „%1$s“ erkannt. Bitte kurz prüfen.</string>
+    <string name="notif_review_multi">Aevum hat %1$d neue Vorschläge erkannt. Bitte kurz prüfen.</string>
+
+    <!-- Digital-Balance-Sperre (AppBlockService) -->
+    <string name="notif_block_channel_name">Digital Balance Sperre</string>
+    <string name="notif_block_channel_desc">Überwacht App-Limits</string>
+    <string name="notif_block_active_title">Digital Balance aktiv</string>
+    <string name="notif_block_active_text">App-Limits werden überwacht</string>
+    <string name="notif_block_warning_title">Fast am Limit: %1$s</string>
+    <string name="notif_block_warning_text">Noch %1$d Minuten — Limit ist %2$d min</string>
+
+    <!-- Drive-Erkennung (DriveDetectionService) -->
+    <string name="service_drive_channel_name">Autofahrt-Erkennung</string>
+    <string name="service_drive_channel_desc">Erkennt Autofahrten über GPS im Hintergrund</string>
+    <string name="service_drive_title">Autofahrt-Erkennung aktiv</string>
+    <string name="service_drive_text">Aevum erkennt Fahrten über GPS im Hintergrund</string>
+
+    <!-- App-Aufzeichnung (AppTrackingService) -->
+    <string name="service_apptracking_channel_name">App-Aufzeichnung</string>
+    <string name="service_apptracking_channel_desc">Erkennt getrackte Apps und zeichnet sie automatisch als Activity auf</string>
+    <string name="service_apptracking_title">App-Aufzeichnung aktiv</string>
+    <string name="service_apptracking_text">Getrackte Apps werden automatisch als Activity aufgezeichnet</string>
+
+    <!-- Export / Backup / Datenschutz (DataManager) -->
+    <string name="export_error_open_target">Zieldatei konnte nicht geöffnet werden</string>
+    <string name="export_success">Export erstellt: %1$d Tabellen, %2$d KB</string>
+    <string name="export_error_failed">Export fehlgeschlagen: %1$s</string>
+    <string name="backup_success">Backup erstellt: %1$d Dateien, %2$d KB</string>
+    <string name="backup_error_failed">Backup fehlgeschlagen: %1$s</string>
+    <string name="backup_error_open">Backup-Datei konnte nicht geöffnet werden</string>
+    <string name="backup_error_no_db">Keine gültige Datenbank im Backup gefunden</string>
+    <string name="backup_error_version">Backup-Version (%1$d) passt nicht zur App-Version (%2$d). Bitte zuerst die App aktualisieren.</string>
+    <string name="backup_error_corrupt">Backup-Datei ist beschädigt (Integritätsprüfung fehlgeschlagen)</string>
+    <string name="backup_restore_success">Backup wiederhergestellt. Die App startet neu.</string>
+    <string name="backup_restore_error">Wiederherstellung fehlgeschlagen: %1$s</string>
+    <string name="data_deleted_all">Alle Daten wurden gelöscht. Die App startet neu.</string>
+    <string name="data_delete_error">Löschen fehlgeschlagen: %1$s</string>
+    <string name="data_unknown_error">unbekannter Fehler</string>
+
+    <!-- Garmin (GarminApiClient / DirectGarminClient) -->
+    <string name="garmin_error_mfa">MFA/2FA wird nicht unterstützt — bitte 2FA in Garmin Connect deaktivieren</string>
+    <string name="garmin_error_login_failed">Login fehlgeschlagen</string>
+    <string name="garmin_error_login_failed_detail">Login fehlgeschlagen: %1$s</string>
+    <string name="garmin_error_no_ticket">Kein Service-Ticket erhalten</string>
+    <string name="garmin_error_token_exchange">Token-Austausch fehlgeschlagen: %1$s</string>
+    <string name="garmin_error_token_exchange_all">DI Token Exchange fehlgeschlagen für alle Client-IDs</string>
+    <string name="garmin_error_too_many_attempts">Zu viele Login-Versuche — bitte später erneut versuchen</string>
+    <string name="garmin_error_invalid_response">Login fehlgeschlagen (ungültige Antwort, HTTP %1$d)</string>
+    <string name="garmin_error_wrong_credentials">Email oder Passwort falsch</string>
+    <string name="garmin_error_network">Netzwerkfehler: %1$s</string>
+
+    <!-- Health Connect (HealthConnectManager) -->
+    <string name="health_duration_h_m">%1$d h %2$d min</string>
+    <string name="health_duration_h">%1$d h</string>
+    <string name="health_sleep_title">Schlaf (%1$s)</string>
+    <string name="health_sleep_reason">Health Connect: %1$s (%2$s). Bitte prüfen.</string>
+
+    <!-- Schlaf-Erkennung (SleepHeuristicEngine / SleepFusionEngine) -->
+    <string name="sleep_title_detected">Schlaf erkannt (%1$s)</string>
+    <string name="sleep_title_suggested">Schlaf vorgeschlagen</string>
+    <string name="sleep_reason_no_usage">Keine Nutzung zwischen %1$s und %2$s (%3$s). Bildschirm aus + Ruhephase erkannt. Morgendliches Entsperren beendet die Schlaf-Phase.</string>
+    <string name="sleep_reason_usage_stats">Keine Handy-Nutzung zwischen %1$s und %2$s (%3$s). Erkannt aus der Nutzungsstatistik (Bildschirm aus + Ruhephase).</string>
+    <string name="sleep_reason_manual">Manuelle Erkennung aus Bildschirm-Daten. Bitte Zeiten anpassen.</string>
+    <string name="sleep_reason_fusion">Fusion aus %1$d Signalen: %2$s. Zeitfenster %3$s–%4$s.</string>
+
+    <!-- Gap-Erkennung (GapDetectionEngine) -->
+    <string name="gap_title_unknown_time">Unbekannte Zeit (%1$s)</string>
+    <string name="gap_reason">Lücke zwischen %1$s und %2$s erkannt. Was hast du in dieser Zeit gemacht?</string>
+
+    <!-- Activity-Recognition (ActivityRecognitionWorker) -->
+    <string name="data_mobility_title">Mobilität (%1$s)</string>
+    <string name="data_mobility_reason">Activity Recognition: %1$s im Fahrzeug (Konfidenz %2$d%%)</string>
+    <string name="data_duration_h_m">%1$d h %2$d min</string>
+    <string name="data_duration_min">%1$d min</string>
+    <string name="data_duration_lt_min">&lt;1m</string>
+
+    <!-- Session-Validierung (SessionTimeValidator) -->
+    <string name="validator_title_required">Bitte gib deiner Aktivität einen Namen.</string>
+    <string name="validator_end_after_start">Die Endzeit muss nach der Startzeit liegen. Wenn die Aktivität über Mitternacht geht, wähle eine Endzeit am nächsten Tag.</string>
+    <string name="validator_overlay_only">Diese Aktivität überlappt nur mit Overlay-Aktivitäten. Das ist meistens in Ordnung.</string>
+    <string name="validator_overlaps_one">Diese Aktivität überschneidet sich mit 1 bestehender Aktivität. Du kannst sie trotzdem speichern.</string>
+    <string name="validator_overlaps_many">Diese Aktivität überschneidet sich mit %1$d bestehenden Aktivitäten. Du kannst sie trotzdem speichern.</string>
+
+    <!-- Häufigkeits-Labels (GoalProgressAnalytics) -->
+    <string name="goal_frequency_daily">Täglich</string>
+    <string name="goal_frequency_weekly">%1$d× pro Woche</string>
+    <string name="goal_frequency_monthly">%1$d× pro Monat</string>
+
+    <!-- Zeit-Labels (TimeFormatting) -->
+    <string name="time_today">Heute</string>
+    <string name="time_yesterday">Gestern</string>
+    <string name="time_tomorrow">Morgen</string>
+    <string name="time_smart_today">Heute %1$s</string>
+    <string name="time_smart_yesterday">Gestern %1$s</string>
+    <string name="time_smart_other">%1$s, %2$s %3$s</string>
+    <string name="time_day_title_other">%1$s, %2$s</string>
+</resources>

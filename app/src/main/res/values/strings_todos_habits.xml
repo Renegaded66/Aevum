@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Todos -->
+    <string name="todo_new_todo">Neues Todo</string>
+    <string name="todo_section_count">%1$d Todos</string>
+    <string name="todo_archive">Archiv</string>
+    <string name="todo_archived_count">%1$d erledigte Todos</string>
+    <string name="todo_hero_label">TODOS</string>
+    <string name="todo_hero_title">Deine Aufgaben — automatisch abgehakt</string>
+    <string name="todo_all_done">Alles erledigt 🎉</string>
+    <string name="todo_done_count">%1$d von %2$d erledigt</string>
+    <string name="todo_checkin_done">✓ Heute dabei</string>
+    <string name="todo_checkin_open">+ Heute dabei</string>
+    <string name="todo_archive_action">Archivieren</string>
+    <string name="todo_captured">Erfasst: %1$s</string>
+    <string name="todo_target_minutes">Ziel: %1$d min</string>
+    <string name="todo_goal_reached">✓ Ziel erreicht</string>
+    <string name="todo_over_target">+%1$s über Ziel</string>
+    <string name="todo_best_streak">Best: %1$d</string>
+    <string name="todo_streak_in_a_row">Am Stück</string>
+    <string name="todo_period_progress">🎯 %1$s</string>
+    <string name="todo_this_week">diese Woche</string>
+    <string name="todo_this_month">diesen Monat</string>
+    <string name="todo_goal">Ziel</string>
+    <string name="todo_empty_title">Noch keine Todos</string>
+    <string name="todo_empty_message">Erstelle Aufgaben wie „Müll rausbringen“ (Checkbox) oder „2h lernen“ (Dauer-Ziel, automatisch abgehakt).</string>
+    <string name="todo_edit_label">TODO BEARBEITEN</string>
+    <string name="todo_new_label">NEUES TODO</string>
+    <string name="todo_edit_subtitle">Aufgabe anpassen</string>
+    <string name="todo_new_title">Aufgabe erstellen</string>
+    <string name="todo_what_to_do">Was ist zu tun?</string>
+    <string name="todo_title_hint">z.B. Müll rausbringen, 2h lernen</string>
+    <string name="todo_type">Art</string>
+    <string name="todo_type_checkbox">Checkbox</string>
+    <string name="todo_type_duration">Dauer-Ziel</string>
+    <string name="todo_type_streak_only">Streak only</string>
+    <string name="todo_checkin_hint">„Heute dabei“ — kein Abhaken, nur Streak erhöhen. Perfekt für „heute kein Alkohol“ oder „Sport gemacht“.</string>
+    <string name="todo_target_duration">Ziel-Dauer</string>
+    <string name="todo_minutes_value">%1$d min</string>
+    <string name="todo_auto_check_hint">Wird automatisch abgehakt, sobald die Aktivität diese Dauer heute erreicht hat.</string>
+    <string name="todo_activity_optional">Aktivität (optional)</string>
+    <string name="todo_remove">Entfernen</string>
+    <string name="todo_activity_hint">Bei Dauer-Zielen wird die erfasste Zeit dieser Aktivität automatisch angerechnet.</string>
+    <string name="todo_recurrence">Wiederholung</string>
+    <string name="todo_every_n_days">Alle %1$d Tage</string>
+    <string name="todo_count_per_period">%1$dx pro %2$s</string>
+    <string name="todo_flexible_hint">Flexibel: du entscheidest, an welchen Tagen. Die Quote zählt pro %1$s.</string>
+    <string name="todo_due">Fällig</string>
+    <string name="todo_tomorrow">Morgen</string>
+    <string name="todo_in_7_days">In 7 Tagen</string>
+    <string name="todo_in_14_days">In 14 Tagen</string>
+    <string name="todo_no_date_hint">Ohne Datum bleibt das Todo relevant, bis du es abhakst.</string>
+    <string name="todo_due_date_hint">Nur an diesem Tag relevant — danach automatisch archiviert.</string>
+    <string name="todo_save">Todo speichern</string>
+
+    <!-- Habits -->
+
+    <!-- Goals -->
+    <string name="goal_active_title">Aktive Ziele</string>
+    <string name="goal_count">%1$d Ziele</string>
+    <string name="goal_archived">Archiviert</string>
+    <string name="goal_hero_label">ZIELE</string>
+    <string name="goal_hero_title">Dein Fortschritt sichtbar machen</string>
+    <string name="goal_hero_text">Ziele geben deiner Zeit eine Richtung. Keine Punkte, keine Level — nur ruhiger Fortschritt.</string>
+    <string name="goal_create">Ziel anlegen</string>
+    <string name="goal_empty_title">Noch keine Ziele</string>
+    <string name="goal_empty_message">Du kannst Ziele anlegen, um deinen Fortschritt sichtbar zu machen. Zum Beispiel: 8 Stunden Schlaf pro Nacht, 3 Stunden Sport pro Woche, maximal 2 Stunden Digitalzeit pro Tag.</string>
+    <string name="goal_create_first">Erstes Ziel anlegen</string>
+    <string name="goal_activity_fallback">Aktivität</string>
+    <string name="goal_type_at_most">Zieltyp: Maximal</string>
+    <string name="goal_type_at_least">Zieltyp: Mindestens</string>
+    <string name="goal_edit">Ziel bearbeiten</string>
+    <string name="goal_title_label">Titel</string>
+    <string name="goal_title_placeholder">z. B. 8h Schlaf pro Nacht</string>
+    <string name="goal_activity_type">Aktivitätstyp</string>
+    <string name="goal_activity_type_select">Aktivitätstyp auswählen</string>
+    <string name="goal_period">Zeitraum</string>
+    <string name="goal_weekly">Wöchentlich</string>
+    <string name="goal_monthly">Monatlich</string>
+    <string name="goal_type">Zieltyp</string>
+    <string name="goal_type_hint">Mindestens = du möchtest diese Zeit erreichen. Maximal = du möchtest diese Zeit nicht überschreiten.</string>
+    <string name="goal_at_least">Mindestens</string>
+    <string name="goal_at_most">Maximal</string>
+    <string name="goal_value_unit">Zielwert &amp; Einheit</string>
+    <string name="goal_value">Wert</string>
+    <string name="goal_value_placeholder">z. B. 8</string>
+    <string name="goal_delete">Ziel löschen</string>
+    <string name="goal_delete_title">Ziel löschen?</string>
+    <string name="goal_delete_message">Dieses Ziel wird dauerhaft entfernt.\n\nBereits aufgezeichnete Aktivitäten bleiben davon unberührt.</string>
+    <string name="goal_error_title_required">Titel ist erforderlich</string>
+    <string name="goal_error_type_required">Aktivitätstyp wählen</string>
+    <string name="goal_error_value_required">Zielwert eingeben</string>
+    <string name="goal_error_value_positive">Zielwert muss positiv sein</string>
+
+    <!-- Bucket List -->
+
+    <!-- Daily Allowances -->
+    <string name="allowance_title">Tagespauschalen</string>
+    <string name="allowance_subtitle">Erscheinen in der Statistik, nicht in der Timeline</string>
+    <string name="allowance_new">Neue Pauschale</string>
+    <string name="allowance_minutes_per_day">%1$d min/Tag</string>
+    <string name="allowance_new_title">Neue Tagespauschale</string>
+    <string name="allowance_edit_title">Pauschale bearbeiten</string>
+    <string name="allowance_name_hint">Name (z.B. Fertig machen)</string>
+    <string name="allowance_activity">Aktivität</string>
+    <string name="allowance_per_day">pro Tag</string>
+    <string name="allowance_empty_title">Noch keine Tagespauschalen</string>
+    <string name="allowance_empty_message">Tippe auf +, um eine zu erstellen — z.B. „Fertig machen 30 min/Tag, die in die Statistik einfließen.</string>
+</resources>

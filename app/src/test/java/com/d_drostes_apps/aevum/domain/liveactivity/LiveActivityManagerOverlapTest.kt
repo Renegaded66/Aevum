@@ -33,6 +33,8 @@ class LiveActivityManagerOverlapTest {
         val finished = mutableListOf<Pair<String, Long>>() // (id, endAt)
         val inserted = mutableListOf<ActivitySession>()
         val deleted = mutableListOf<String>()
+        // M18.80: Letzte beendete Auto-Session (Guard-Test).
+        var lastFinishedAuto: ActivitySession? = null
 
         override fun getAll(): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getByDateRange(start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
@@ -40,6 +42,8 @@ class LiveActivityManagerOverlapTest {
         override fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = flowOf(emptyList())
+        override suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession? =
+            lastFinishedAuto?.takeIf { it.sourceType == sourceType }
         override fun getCurrentActiveSession(): Flow<ActivitySession?> = flowOf(null)
         override fun getLiveSession(): Flow<ActivitySession?> = live
         override suspend fun updateStatus(id: String, status: String) {}
@@ -205,5 +209,33 @@ class LiveActivityManagerOverlapTest {
         assertThat(repo.deleted).isEmpty()
         assertThat(repo.inserted).hasSize(1)
         assertThat(started.id).isEqualTo(repo.inserted[0].id)
+    }
+
+    // ── M18.80: Nicht-Überlappungs-Guard (Stau-Muster) ──
+
+    @Test
+    fun `lastAutoSessionEndMs liefert das Ende der letzten beendeten Auto-Session`() = runTest {
+        val repo = FakeActivityRepository()
+        val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+        repo.lastFinishedAuto = liveSession(
+            id = "alt",
+            startAt = 100_000L,
+            endAt = 468_000_000_000L, // 13:00
+            status = "FINISHED"
+        ).copy(sourceType = "ACTIVITY_RECOGNITION_AUTO")
+
+        // Guard-Quelle: exakt das Ende der letzten Auto-Session.
+        assertThat(manager.lastAutoSessionEndMs()).isEqualTo(468_000_000_000L)
+    }
+
+    @Test
+    fun `lastAutoSessionEndMs liefert null ohne beendete Auto-Session`() = runTest {
+        val repo = FakeActivityRepository()
+        val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+        // Nur eine beendete Session eines ANDEREN Quelltyps — kein Guard.
+        repo.lastFinishedAuto = liveSession(id = "man", startAt = 1L, endAt = 2L, status = "FINISHED")
+            .copy(sourceType = "LIVE")
+
+        assertThat(manager.lastAutoSessionEndMs()).isNull()
     }
 }

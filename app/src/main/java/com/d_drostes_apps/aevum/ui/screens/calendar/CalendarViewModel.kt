@@ -176,7 +176,7 @@ class CalendarViewModel @Inject constructor(
             val score = session.manualQualityOverride ?: type?.positivityScore ?: 50
             CalendarDaySessionUi(
                 sessionId = session.id,
-                title = session.title ?: "Aktivität",
+                title = session.title ?: "",
                 activityTypeId = session.activityTypeId ?: "other",
                 icon = type?.icon?.takeIf { it.isNotBlank() } ?: "•",
                 color = type?.color?.takeIf { it != 0L } ?: 0L,
@@ -199,8 +199,7 @@ class CalendarViewModel @Inject constructor(
             selectedDate = selected,
             days = dayList.associateBy { it.date },
             leadingEmptyCells = leadingEmpty,
-            daySessions = dayDetails,
-            weekDayLabels = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+            daySessions = dayDetails
         )
     }
 }
@@ -211,7 +210,6 @@ data class CalendarUiState(
     val days: Map<LocalDate, CalendarDayAggregate> = emptyMap(),
     val leadingEmptyCells: Int = 0,
     val daySessions: List<CalendarDaySessionUi> = emptyList(),
-    val weekDayLabels: List<String> = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"),
     val isLoading: Boolean = false
 ) {
     val totalTrackedMs: Long

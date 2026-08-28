@@ -2,6 +2,7 @@ package com.d_drostes_apps.aevum
 
 import com.google.common.truth.Truth.assertThat
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceTransition
+import com.d_drostes_apps.aevum.automation.rules.RuleStrings
 import com.d_drostes_apps.aevum.automation.rules.TriggerPairCandidateRuleEngine
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.PlaceGeofence
@@ -81,7 +82,7 @@ class AevumUnitTest {
 
     @Test
     fun triggerPairRulesCreateTravelCandidateFromExitToDifferentEnter() {
-        val engine = TriggerPairCandidateRuleEngine()
+        val engine = TriggerPairCandidateRuleEngine(RuleStrings(null))
         val candidates = engine.evaluate(
             triggers = listOf(
                 trigger("t1", 1_000, "HOME_LEFT", "home"),
@@ -102,7 +103,7 @@ class AevumUnitTest {
 
     @Test
     fun triggerPairRulesCreateStayCandidateFromEnterExitSamePlace() {
-        val engine = TriggerPairCandidateRuleEngine()
+        val engine = TriggerPairCandidateRuleEngine(RuleStrings(null))
         val candidates = engine.evaluate(
             triggers = listOf(
                 trigger("t1", 1_000, "WORK_ENTERED", "work"),
@@ -119,7 +120,7 @@ class AevumUnitTest {
 
     @Test
     fun triggerPairRulesKeepOpenExitWithoutDestinationUnresolved() {
-        val engine = TriggerPairCandidateRuleEngine()
+        val engine = TriggerPairCandidateRuleEngine(RuleStrings(null))
         val candidates = engine.evaluate(
             triggers = listOf(trigger("t1", 1_000, "HOME_LEFT", "home")),
             geofences = listOf(geofence("home", "Zuhause", "household", "household")),

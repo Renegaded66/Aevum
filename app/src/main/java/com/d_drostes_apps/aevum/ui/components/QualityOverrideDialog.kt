@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 
 /**
  * AEVUM-3: Gemeinsamer Dialog zur manuellen Güte-Anpassung.
@@ -67,7 +69,7 @@ fun QualityOverrideDialog(
                 if (hasOverride) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Manuell angepasst — am nächsten Tag gilt wieder die automatische Güte.",
+                        stringResource(R.string.component_quality_manual_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
@@ -75,7 +77,7 @@ fun QualityOverrideDialog(
                 } else {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Gilt nur für diesen Eintrag/Tag — die Aktivitäts-Einstellung bleibt unverändert.",
+                        stringResource(R.string.component_quality_single_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -83,14 +85,14 @@ fun QualityOverrideDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(score) }) { Text("Übernehmen") }
+            TextButton(onClick = { onSave(score) }) { Text(stringResource(R.string.common_apply)) }
         },
         dismissButton = {
             Column {
                 if (hasOverride) {
-                    TextButton(onClick = { onSave(null) }) { Text("Zurücksetzen") }
+                    TextButton(onClick = { onSave(null) }) { Text(stringResource(R.string.component_reset)) }
                 }
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             }
         }
     )

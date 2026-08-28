@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.data.garmin
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.garmin.DirectGarminClient.LoginResult.*
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -142,14 +143,14 @@ class DirectGarminClient @Inject constructor(
         } catch (e: MfaRequiredException) {
             return LoginResult.NeedsMfa
         } catch (e: AuthException) {
-            return LoginResult.Error(e.message ?: "Login fehlgeschlagen")
+            return LoginResult.Error(e.message ?: context.getString(R.string.garmin_error_login_failed))
         } catch (e: Exception) {
             Log.e(TAG, "SSO Login fehlgeschlagen: ${e.message}", e)
-            return LoginResult.Error("Login fehlgeschlagen: ${e.message}")
+            return LoginResult.Error(context.getString(R.string.garmin_error_login_failed_detail, e.message ?: context.getString(R.string.data_unknown_error)))
         }
 
         if (ticket == null) {
-            return LoginResult.Error("Kein Service-Ticket erhalten")
+            return LoginResult.Error(context.getString(R.string.garmin_error_no_ticket))
         }
 
         // 2) DI Token Exchange
@@ -157,7 +158,7 @@ class DirectGarminClient @Inject constructor(
             exchangeServiceTicket(ticket)
         } catch (e: Exception) {
             Log.e(TAG, "DI Token Exchange fehlgeschlagen: ${e.message}", e)
-            return LoginResult.Error("Token-Austausch fehlgeschlagen: ${e.message}")
+            return LoginResult.Error(context.getString(R.string.garmin_error_token_exchange, e.message ?: context.getString(R.string.data_unknown_error)))
         }
 
         // 3) Display Name abrufen (für API-Calls nötig)
@@ -203,11 +204,11 @@ class DirectGarminClient @Inject constructor(
             val responseText = stream?.bufferedReader()?.use { it.readText() } ?: ""
 
             if (code == 429) {
-                throw AuthException("Zu viele Login-Versuche — bitte später erneut versuchen")
+                throw AuthException(context.getString(R.string.garmin_error_too_many_attempts))
             }
 
             val json = try { JSONObject(responseText) } catch (e: Exception) {
-                throw AuthException("Login fehlgeschlagen (ungültige Antwort, HTTP $code)")
+                throw AuthException(context.getString(R.string.garmin_error_invalid_response, code))
             }
 
             val respType = json.optJSONObject("responseStatus")?.optString("type") ?: ""
@@ -215,13 +216,13 @@ class DirectGarminClient @Inject constructor(
             when (respType) {
                 "SUCCESSFUL" -> json.optString("serviceTicketId").takeIf { it.isNotBlank() }
                 "MFA_REQUIRED" -> throw MfaRequiredException()
-                "INVALID_USERNAME_PASSWORD" -> throw AuthException("Email oder Passwort falsch")
+                "INVALID_USERNAME_PASSWORD" -> throw AuthException(context.getString(R.string.garmin_error_wrong_credentials))
                 else -> {
                     val errorCode = json.optJSONObject("error")?.optString("status-code")
                     if (errorCode == "429") {
-                        throw AuthException("Zu viele Login-Versuche — bitte später erneut versuchen")
+                        throw AuthException(context.getString(R.string.garmin_error_too_many_attempts))
                     }
-                    throw AuthException("Login fehlgeschlagen: $respType")
+                    throw AuthException(context.getString(R.string.garmin_error_login_failed_detail, respType))
                 }
             }
         } catch (e: MfaRequiredException) {
@@ -229,7 +230,7 @@ class DirectGarminClient @Inject constructor(
         } catch (e: AuthException) {
             throw e
         } catch (e: Exception) {
-            throw AuthException("Netzwerkfehler: ${e.message}")
+            throw AuthException(context.getString(R.string.garmin_error_network, e.message ?: context.getString(R.string.data_unknown_error)))
         } finally {
             conn.disconnect()
         }
@@ -286,7 +287,7 @@ class DirectGarminClient @Inject constructor(
                 continue
             }
         }
-        throw AuthException("DI Token Exchange fehlgeschlagen für alle Client-IDs")
+        throw AuthException(context.getString(R.string.garmin_error_token_exchange_all))
     }
 
     // ── Token Refresh ──────────────────────────────────────────────

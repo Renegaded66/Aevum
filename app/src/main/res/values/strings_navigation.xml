@@ -1,0 +1,37 @@
+<resources>
+    <!-- Navigationstitel (AppDestination) -->
+    <string name="activity_create_title">Neue Aktivität</string>
+    <string name="activity_edit_title">Aktivität bearbeiten</string>
+    <string name="activity_candidate_title">Candidate bearbeiten</string>
+    <string name="activity_detail_title">Aktivität</string>
+    <string name="weekly_review_title">Weekly Review</string>
+    <string name="trigger_settings_title">Trigger &amp; Erkennung</string>
+    <string name="geofence_list_title">Geofences</string>
+    <string name="geofence_create_title">Geofence anlegen</string>
+    <string name="geofence_create_home_title">Zuhause anlegen</string>
+    <string name="geofence_create_work_title">Arbeit anlegen</string>
+    <string name="geofence_edit_title">Geofence bearbeiten</string>
+    <string name="trigger_events_title">Trigger Events</string>
+    <string name="geofence_debug_title">Geofence Diagnose</string>
+    <string name="automation_status_title">Automatisierung Status</string>
+    <string name="review_inbox_title">Review Inbox</string>
+    <string name="onboarding_title">Onboarding</string>
+    <string name="life_profile_setup_title">Lebensprofil</string>
+    <string name="permission_education_title">Berechtigungen</string>
+    <string name="places_setup_title">Orte</string>
+    <string name="unknown_places_title">Unbekannte Orte</string>
+    <string name="daily_allowances_title">Tagespauschalen</string>
+    <string name="activity_types_title">Aktivitäten &amp; Positivität</string>
+    <string name="categories_title">Kategorien</string>
+    <string name="calendar_title">Kalender</string>
+    <string name="digital_balance_title">Digital Balance</string>
+    <string name="app_tracking_title">App-Aufzeichnung</string>
+    <string name="todos_title">Todos</string>
+    <string name="todo_create_title">Neues Todo</string>
+    <string name="todo_edit_title">Todo bearbeiten</string>
+    <string name="lifeview_title">Lebenszeit</string>
+    <string name="privacy_title">Datenschutz</string>
+    <string name="export_title">Export</string>
+    <string name="backup_title">Backup</string>
+    <string name="fitness_trackers_title">Fitness-Tracker</string>
+</resources>

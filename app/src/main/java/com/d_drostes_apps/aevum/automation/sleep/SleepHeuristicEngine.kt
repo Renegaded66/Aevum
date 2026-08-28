@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.automation.sleep
 import android.content.Context
 import android.content.SharedPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.model.AutomationConstants
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.repository.ActivityCandidateRepository
@@ -277,7 +278,7 @@ class SleepHeuristicEngine @Inject constructor(
         val durationHours = hours.toInt()
         val durationMinutes = ((hours - durationHours) * 60).toInt()
         val durationStr = if (durationMinutes > 0) "${durationHours}h ${durationMinutes}min" else "${durationHours}h"
-        val title = "Schlaf erkannt ($durationStr)"
+        val title = appContext.getString(R.string.sleep_title_detected, durationStr)
 
         // M16: Verständliche Begründung statt technischer Kryptik.
         // M16.3: Nutze finalWakeMs statt onEvent.timestamp, damit die
@@ -397,16 +398,19 @@ class SleepHeuristicEngine @Inject constructor(
         val durationStr = if (m > 0) "${h}h ${m}min" else "${h}h"
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
-            suggestedTitle = "Schlaf erkannt ($durationStr)",
+            suggestedTitle = appContext.getString(R.string.sleep_title_detected, durationStr),
             suggestedCategoryId = "sleep",
             activityTypeId = "sleep",
             startAt = window.startMs,
             endAt = window.endMs,
             confidence = 0.60f,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Keine Handy-Nutzung zwischen ${formatHm(window.startMs, zoneId)} und " +
-                "${formatHm(window.endMs, zoneId)} ($durationStr). " +
-                "Erkannt aus der Nutzungsstatistik (Bildschirm aus + Ruhephase).",
+            reason = appContext.getString(
+                R.string.sleep_reason_usage_stats,
+                formatHm(window.startMs, zoneId),
+                formatHm(window.endMs, zoneId),
+                durationStr
+            ),
             createdBy = "USAGE_STATS_V1",
             createdAt = now,
             sourceCandidateId = externalId
@@ -436,9 +440,7 @@ class SleepHeuristicEngine @Inject constructor(
         val h = hours.toInt()
         val m = ((hours - h) * 60).toInt()
         val durationStr = if (m > 0) "${h}h ${m}min" else "${h}h"
-        return "Keine Nutzung zwischen $offStr und $onStr ($durationStr). " +
-               "Bildschirm aus + Ruhephase erkannt. " +
-               "Morgendliches Entsperren beendet die Schlaf-Phase."
+        return appContext.getString(R.string.sleep_reason_no_usage, offStr, onStr, durationStr)
     }
 
     /**
@@ -456,7 +458,7 @@ class SleepHeuristicEngine @Inject constructor(
         if (events.size < 2) return null
 
         val externalId = "screen_sleep_manual_${date}_${System.currentTimeMillis()}"
-        val title = "Schlaf vorgeschlagen"
+        val title = appContext.getString(R.string.sleep_title_suggested)
 
         val durationMs = 8L * 3_600_000 // default fallback
         val candidate = ActivityCandidate(
@@ -468,7 +470,7 @@ class SleepHeuristicEngine @Inject constructor(
             endAt = dayStart + 23 * 3_600_000L + durationMs,
             confidence = 0.50f,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Manuelle Erkennung aus Bildschirm-Daten. Bitte Zeiten anpassen.",
+            reason = appContext.getString(R.string.sleep_reason_manual),
             createdBy = "SCREEN_HEURISTIC_V1",
             createdAt = System.currentTimeMillis(),
             sourceCandidateId = externalId

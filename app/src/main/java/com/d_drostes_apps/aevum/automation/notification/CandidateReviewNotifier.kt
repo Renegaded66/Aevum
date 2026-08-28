@@ -41,13 +41,13 @@ class CandidateReviewNotifier @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val text = if (candidates.size == 1) {
-            "Aevum hat „${newest.suggestedTitle}“ erkannt. Bitte kurz prüfen."
+            context.getString(R.string.notif_review_single, newest.suggestedTitle)
         } else {
-            "Aevum hat ${candidates.size} neue Vorschläge erkannt. Bitte kurz prüfen."
+            context.getString(R.string.notif_review_multi, candidates.size)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Neue Aktivität prüfen")
+            .setContentTitle(context.getString(R.string.notif_review_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(pendingIntent)
@@ -65,8 +65,8 @@ class CandidateReviewNotifier @Inject constructor(
 
     private fun ensureChannel() {
         if (Build.VERSION.SDK_INT < 26) return
-        val channel = NotificationChannel(CHANNEL_ID, "Aevum Review", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "Zurückhaltende Hinweise für neue überprüfbare Aktivitätsvorschläge"
+        val channel = NotificationChannel(CHANNEL_ID, context.getString(R.string.notif_review_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = context.getString(R.string.notif_review_channel_desc)
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }

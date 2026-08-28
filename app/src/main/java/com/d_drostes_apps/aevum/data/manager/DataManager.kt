@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.data.manager
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.db.AppDatabase
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -93,14 +94,14 @@ class DataManager @Inject constructor(
             val json = root.toString(2)
             context.contentResolver.openOutputStream(target)?.use { out ->
                 out.write(json.toByteArray(Charsets.UTF_8))
-            } ?: return@withContext ExportResult.Error("Zieldatei konnte nicht geöffnet werden")
+            } ?: return@withContext ExportResult.Error(context.getString(R.string.export_error_open_target))
 
             ExportResult.Success(
-                message = "Export erstellt: ${tables.size} Tabellen, ${json.length / 1024} KB"
+                message = context.getString(R.string.export_success, tables.size, json.length / 1024)
             )
         } catch (e: Exception) {
             Log.e(TAG, "Export fehlgeschlagen", e)
-            ExportResult.Error("Export fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}")
+            ExportResult.Error(context.getString(R.string.export_error_failed, e.message ?: context.getString(R.string.data_unknown_error)))
         }
     }
 
@@ -109,16 +110,26 @@ class DataManager @Inject constructor(
     // ------------------------------------------------------------------
 
     /**
-     * Erstellt ein ZIP mit DB + WAL + SHM. WAL wird mitgenommen, damit
-     * auch noch nicht gecheckpointete Transaktionen im Backup sind.
+     * Erstellt ein ZIP mit DB + WAL + SHM + ALLEN SharedPreferences/DataStore-
+     * Dateien. WAL wird mitgenommen, damit auch noch nicht gecheckpointete
+     * Transaktionen im Backup sind.
+     *
+     * M18.72-FIX: Seit Einführung der Backup-Funktion sind neue Datenquellen
+     * dazugekommen (Lebensprofil-Geburtstag, Timeline-Ansicht, Garmin-Credentials,
+     * App-Sprache, Insights-Period, DataStore). Diese liegen NICHT in der DB,
+     * sondern in SharedPreferences/DataStore — ohne sie wäre ein Restore
+     * unvollständig. Jetzt: alle `aevum_*`-Prefs + DataStore werden mitgesichert.
      */
     suspend fun createBackup(target: Uri): ExportResult = withContext(Dispatchers.IO) {
         try {
             // WAL vor dem Kopieren checkpointen, damit die DB-Datei konsistent ist
             checkpointWal()
 
-            val files = listOf(dbFile to "aevum_database", walFile to "aevum_database-wal", shmFile to "aevum_database-shm")
+            val files = mutableListOf<Pair<File, String>>()
+            files += listOf(dbFile to "aevum_database", walFile to "aevum_database-wal", shmFile to "aevum_database-shm")
                 .filter { it.first.exists() }
+            // Preferences + DataStore (alle User-sichtbaren Daten außerhalb der DB)
+            files += collectPreferenceFiles()
 
             context.contentResolver.openOutputStream(target)?.use { out ->
                 ZipOutputStream(out).use { zip ->
@@ -128,15 +139,15 @@ class DataManager @Inject constructor(
                         zip.closeEntry()
                     }
                 }
-            } ?: return@withContext ExportResult.Error("Zieldatei konnte nicht geöffnet werden")
+            } ?: return@withContext ExportResult.Error(context.getString(R.string.export_error_open_target))
 
             val sizeKb = files.sumOf { it.first.length() } / 1024
             ExportResult.Success(
-                message = "Backup erstellt: ${files.size} Dateien, $sizeKb KB"
+                message = context.getString(R.string.backup_success, files.size, sizeKb)
             )
         } catch (e: Exception) {
             Log.e(TAG, "Backup fehlgeschlagen", e)
-            ExportResult.Error("Backup fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}")
+            ExportResult.Error(context.getString(R.string.backup_error_failed, e.message ?: context.getString(R.string.data_unknown_error)))
         }
     }
 
@@ -145,14 +156,19 @@ class DataManager @Inject constructor(
      * 1. ZIP enthält eine gültige aevum_database-Datei
      * 2. Schema-Version der Backup-DB passt zur aktuellen App-Version
      * 3. SQLite-Integrität (PRAGMA quick_check)
+     *
+     * M18.72-FIX: Zusätzlich zur DB werden die mitgesicherten
+     * SharedPreferences/DataStore-Dateien (aevum_* etc.) wiederhergestellt.
      */
     suspend fun restoreBackup(source: Uri): ExportResult = withContext(Dispatchers.IO) {
         try {
             val tempDir = File(context.cacheDir, "restore_${System.currentTimeMillis()}")
             tempDir.mkdirs()
 
-            // 1. ZIP entpacken
+            // 1. ZIP entpacken (alle Dateien — DB UND Preferences)
             val restoredDb = File(tempDir, "aevum_database")
+            // Paar: (entpackte Datei, relativer Pfad im App-Datenverzeichnis)
+            val restoredPrefs = mutableListOf<Pair<File, String>>()
             var foundDb = false
             context.contentResolver.openInputStream(source)?.use { input ->
                 ZipInputStream(input).use { zip ->
@@ -163,17 +179,29 @@ class DataManager @Inject constructor(
                             FileOutputStream(targetFile).use { zip.copyTo(it) }
                             foundDb = true
                         } else {
-                            // WAL/SHM nicht wiederherstellen — Room baut sie neu auf
+                            // WAL/SHM nicht wiederherstellen — Room baut sie neu auf.
+                            // Preferences/DataStore-Dateien sammeln und später kopieren.
+                            if (!entry.name.endsWith("-wal") && !entry.name.endsWith("-shm")) {
+                                // WICHTIG: Einträge in Unterverzeichnissen (z. B.
+                                // shared_prefs/aevum_language.xml) brauchen ein
+                                // existierendes Zielverzeichnis — sonst wirft
+                                // FileOutputStream FileNotFoundException
+                                // ("Open failed: enoent ...") und der gesamte
+                                // Restore bricht ab.
+                                targetFile.parentFile?.mkdirs()
+                                FileOutputStream(targetFile).use { zip.copyTo(it) }
+                                restoredPrefs += targetFile to entry.name
+                            }
                         }
                         zip.closeEntry()
                         entry = zip.nextEntry
                     }
                 }
-            } ?: return@withContext ExportResult.Error("Backup-Datei konnte nicht geöffnet werden")
+            } ?: return@withContext ExportResult.Error(context.getString(R.string.backup_error_open))
 
             if (!foundDb) {
                 tempDir.deleteRecursively()
-                return@withContext ExportResult.Error("Keine gültige Datenbank im Backup gefunden")
+                return@withContext ExportResult.Error(context.getString(R.string.backup_error_no_db))
             }
 
             // 2. Versions-Check
@@ -182,8 +210,7 @@ class DataManager @Inject constructor(
             if (backupVersion != currentVersion) {
                 tempDir.deleteRecursively()
                 return@withContext ExportResult.Error(
-                    "Backup-Version ($backupVersion) passt nicht zur App-Version ($currentVersion). " +
-                        "Bitte zuerst die App aktualisieren."
+                    context.getString(R.string.backup_error_version, backupVersion, currentVersion)
                 )
             }
 
@@ -191,7 +218,7 @@ class DataManager @Inject constructor(
             val integrityOk = checkIntegrity(restoredDb)
             if (!integrityOk) {
                 tempDir.deleteRecursively()
-                return@withContext ExportResult.Error("Backup-Datei ist beschädigt (Integritätsprüfung fehlgeschlagen)")
+                return@withContext ExportResult.Error(context.getString(R.string.backup_error_corrupt))
             }
 
             // 4. Aktuelle DB ersetzen (mit Sicherung der alten).
@@ -203,6 +230,12 @@ class DataManager @Inject constructor(
             } catch (e: Exception) {
                 Log.w(TAG, "Room-Close vor Restore fehlgeschlagen (nicht kritisch)", e)
             }
+            // DataStore: Kein close() in DataStore 1.1.1 — aber der Restore
+            // erzwingt ohnehin einen App-Neustart (needsRestart=true), und
+            // DataStore liest seine .preferences_pb beim nächsten Start
+            // frisch von der Platte → die wiederhergestellte Datei greift.
+            // Pending Writes im selben Prozess-Fenster sind nicht zu erwarten
+            // (der User führt keinen parallelen Schreibzugriff aus).
             val oldBackup = File(dbFile.parentFile, "aevum_database.bak")
             if (dbFile.exists()) {
                 oldBackup.delete()
@@ -213,14 +246,29 @@ class DataManager @Inject constructor(
             dbFile.delete()
             restoredDb.copyTo(dbFile)
 
+            // 5. Preferences/DataStore wiederherstellen (M18.72)
+            //    Zielpfad = applicationInfo.dataDir + relativer ZIP-Pfad,
+            //    damit shared_prefs/*.xml wirklich unter
+            //    <dataDir>/shared_prefs/ landen (Android liest Prefs nur
+            //    dort) und DataStore-Dateien unter <dataDir>/files/.
+            for ((prefFile, relativePath) in restoredPrefs) {
+                try {
+                    val dest = File(context.applicationInfo.dataDir, relativePath)
+                    dest.parentFile?.mkdirs()
+                    prefFile.copyTo(dest, overwrite = true)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Pref-Restore fehlgeschlagen für $relativePath (nicht kritisch)", e)
+                }
+            }
+
             tempDir.deleteRecursively()
             ExportResult.Success(
-                message = "Backup wiederhergestellt. Die App startet neu.",
+                message = context.getString(R.string.backup_restore_success),
                 needsRestart = true
             )
         } catch (e: Exception) {
             Log.e(TAG, "Restore fehlgeschlagen", e)
-            ExportResult.Error("Wiederherstellung fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}")
+            ExportResult.Error(context.getString(R.string.backup_restore_error, e.message ?: context.getString(R.string.data_unknown_error)))
         }
     }
 
@@ -253,27 +301,72 @@ class DataManager @Inject constructor(
             shmFile.delete()
             File(dbFile.parentFile, "aevum_database.bak").delete()
 
-            // 3. SharedPreferences löschen
-            context.getSharedPreferences("aevum_prefs", Context.MODE_PRIVATE).edit().clear().commit()
-            context.getSharedPreferences("automation_prefs", Context.MODE_PRIVATE).edit().clear().commit()
-            context.getSharedPreferences("life_profile_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+            // 3. SharedPreferences löschen (M18.72: ALLE bekannten Prefs,
+            //    nicht nur drei — sonst bleiben Reste nach "Alle Daten löschen")
+            val prefDir = File(context.applicationInfo.dataDir, "shared_prefs")
+            prefDir.listFiles()?.forEach { it.delete() }
+            // DataStore-Dateien löschen
+            listOf(
+                "aevum_preferences.preferences_pb",
+                "aevum_preferences.preferences_pb.tmp",
+                "aevum_preferences.preferences_pb.bak"
+            ).forEach { name ->
+                File(context.filesDir, name).delete()
+            }
+            File(context.filesDir, "datastore").deleteRecursively()
 
             // 4. Cache leeren
             context.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
 
             ExportResult.Success(
-                message = "Alle Daten wurden gelöscht. Die App startet neu.",
+                message = context.getString(R.string.data_deleted_all),
                 needsRestart = true
             )
         } catch (e: Exception) {
             Log.e(TAG, "Daten löschen fehlgeschlagen", e)
-            ExportResult.Error("Löschen fehlgeschlagen: ${e.message ?: "unbekannter Fehler"}")
+            ExportResult.Error(context.getString(R.string.data_delete_error, e.message ?: context.getString(R.string.data_unknown_error)))
         }
     }
 
     // ------------------------------------------------------------------
     // INTERN
     // ------------------------------------------------------------------
+
+    /**
+     * Sammelt alle SharedPreferences/DataStore-Dateien, die User-Daten
+     * außerhalb der DB enthalten (M18.72):
+     * - aevum_language (App-Sprache)
+     * - aevum_insights (gewählte Periode)
+     * - aevum_timeline (Zoom/Ansicht)
+     * - aevum_lifeview (Geburtstag, erwartetes Alter)
+     * - aevum_zone_state, aevum_screen_events, aevum_prefs, automation_prefs,
+     *   life_profile_prefs, aevum_garmin, aevum_garmin_direct
+     * - DataStore: aevum_preferences (inkl. .preferences_pb-Dateien)
+     */
+    private fun collectPreferenceFiles(): List<Pair<File, String>> {
+        val dataDir = context.applicationInfo.dataDir
+        val prefDir = File(dataDir, "shared_prefs")
+        val files = mutableListOf<Pair<File, String>>()
+        if (prefDir.exists()) {
+            prefDir.listFiles()?.forEach { file ->
+                if (file.isFile) {
+                    files += file to "shared_prefs/${file.name}"
+                }
+            }
+        }
+        // DataStore-Dateien (im files-Verzeichnis)
+        val filesDir = context.filesDir
+        listOf("aevum_preferences.preferences_pb", "aevum_preferences.preferences_pb.tmp", "aevum_preferences.preferences_pb.bak")
+            .forEach { name ->
+                val f = File(filesDir, name)
+                if (f.exists()) files += f to "files/$name"
+            }
+        // .bak von DataStore (ältere Versionen)
+        File(filesDir, "datastore").listFiles()?.forEach { f ->
+            if (f.isFile) files += f to "files/datastore/${f.name}"
+        }
+        return files
+    }
 
     private fun openReadableDb(): android.database.sqlite.SQLiteDatabase =
         android.database.sqlite.SQLiteDatabase.openDatabase(
@@ -340,8 +433,10 @@ class DataManager @Inject constructor(
         /**
          * Aktuelle Room-Schema-Version (muss mit `version = N` in AppDatabase.kt
          * übereinstimmen). Bei jeder DB-Migration hier mitziehen.
+         * M18.72-FIX: War fälschlich auf 22 eingefroren — seit Version 38
+         * (jetzt 39) schlug JEDER Restore mit Versions-Mismatch fehl.
          */
-        private const val CURRENT_SCHEMA_VERSION = 22
+        private const val CURRENT_SCHEMA_VERSION = 39
     }
 }
 

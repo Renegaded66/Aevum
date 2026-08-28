@@ -55,12 +55,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceDebugLogger
 import com.d_drostes_apps.aevum.data.model.PlaceGeofence
 import com.d_drostes_apps.aevum.data.model.TriggerEvent
@@ -89,7 +91,7 @@ fun AutomationStatusScreen(
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            item { Header("Automatisierung Status", "Warum funktioniert die Erkennung — oder nicht?", onBack, null, {}) }
+            item { Header(stringResource(R.string.automation_status_title), stringResource(R.string.automation_status_subtitle), onBack, null, {}) }
 
             // Overall readiness
             item {
@@ -97,12 +99,12 @@ fun AutomationStatusScreen(
                 AevumCard(variant = CardVariant.Gradient) {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         Text(
-                            if (ready) "Automatisierung bereit" else "Automatisierung nicht vollständig",
+                            if (ready) stringResource(R.string.automation_ready) else stringResource(R.string.automation_not_fully_ready),
                             fontSize = 22.sp, fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            if (ready) "Aevum erkennt Orte im Hintergrund und erzeugt Vorschläge."
-                            else "Einige Voraussetzungen sind noch nicht erfüllt. Siehe Details unten.",
+                            if (ready) stringResource(R.string.automation_ready_desc)
+                            else stringResource(R.string.automation_not_ready_desc),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -113,12 +115,12 @@ fun AutomationStatusScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Berechtigungen", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        StatusLine("Standort (Vordergrund)", state.foregroundGranted)
-                        StatusLine("Standort (Hintergrund)", state.backgroundGranted)
-                        StatusLine("Benachrichtigungen", state.notificationsGranted)
-                        StatusLine("Nutzungszugriff (Digital Balance)", state.usageStatsGranted)
-                        StatusLine("Health Connect verbunden", state.healthConnectReady)
+                        Text(stringResource(R.string.common_permissions), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        StatusLine(stringResource(R.string.automation_location_foreground), state.foregroundGranted)
+                        StatusLine(stringResource(R.string.automation_location_background), state.backgroundGranted)
+                        StatusLine(stringResource(R.string.settings_triggers_permission_notifications), state.notificationsGranted)
+                        StatusLine(stringResource(R.string.automation_usage_access_digital), state.usageStatsGranted)
+                        StatusLine(stringResource(R.string.automation_health_connect_connected), state.healthConnectReady)
                     }
                 }
             }
@@ -127,11 +129,11 @@ fun AutomationStatusScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Geofences", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        StatusLine("Registrierte Geofences", state.geofenceCount > 0)
-                        if (state.geofenceCount > 0) Text("${state.geofenceCount} aktiv registriert", fontSize = 14.sp)
-                        else Text("Keine Geofences registriert. Lege Zuhause oder Arbeit an.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        StatusLine("Foreground Service", state.foregroundServiceRunning)
+                        Text(stringResource(R.string.common_geofences), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        StatusLine(stringResource(R.string.automation_registered_geofences), state.geofenceCount > 0)
+                        if (state.geofenceCount > 0) Text(stringResource(R.string.automation_geofences_active_count, state.geofenceCount), fontSize = 14.sp)
+                        else Text(stringResource(R.string.automation_no_geofences), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        StatusLine(stringResource(R.string.automation_foreground_service), state.foregroundServiceRunning)
                     }
                 }
             }
@@ -140,12 +142,12 @@ fun AutomationStatusScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Trigger heute: ${state.triggersToday}", fontSize = 14.sp)
-                        Text("Letzter Trigger: ${state.lastTriggerTime}", fontSize = 14.sp)
-                        Text("Offene Vorschläge: ${state.pendingCandidates}", fontSize = 14.sp)
+                        Text(stringResource(R.string.settings_triggers_group_movement), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.automation_triggers_today, state.triggersToday), fontSize = 14.sp)
+                        Text(stringResource(R.string.automation_last_trigger, state.lastTriggerTime), fontSize = 14.sp)
+                        Text(stringResource(R.string.automation_pending_suggestions, state.pendingCandidates), fontSize = 14.sp)
                         if (state.lastAutoActivity.isNotEmpty()) {
-                            Text("Letzte automatische Aktivität: ${state.lastAutoActivity}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.automation_last_auto_activity, state.lastAutoActivity), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -155,13 +157,13 @@ fun AutomationStatusScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Diagnose", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        StatusLine("System-Events heute", state.systemEventsToday > 0)
-                        if (state.systemEventsToday > 0) Text("${state.systemEventsToday} Events vom System empfangen", fontSize = 13.sp)
-                        StatusLine("Fehler heute", state.failuresToday == 0)
-                        if (state.failuresToday > 0) Text("${state.failuresToday} Fehler — siehe Log", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Letztes Event: ${state.lastSystemEventType} · ${state.lastSystemEventTime}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Letzte Registrierung: ${state.lastRegistrationTime}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.automation_diagnose_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        StatusLine(stringResource(R.string.automation_system_events_today), state.systemEventsToday > 0)
+                        if (state.systemEventsToday > 0) Text(stringResource(R.string.automation_events_received, state.systemEventsToday), fontSize = 13.sp)
+                        StatusLine(stringResource(R.string.automation_failures_today), state.failuresToday == 0)
+                        if (state.failuresToday > 0) Text(stringResource(R.string.automation_failures_count, state.failuresToday), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.automation_last_event, state.lastSystemEventType, state.lastSystemEventTime), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.automation_last_registration, state.lastRegistrationTime), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -171,7 +173,7 @@ fun AutomationStatusScreen(
                 item {
                     AevumCard {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Text("Letzte Ereignisse", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.automation_recent_events), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             state.recentLog.forEach { entry ->
                                 val icon = if (entry.success) "✓" else "✗"
                                 val color = if (entry.success) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -193,8 +195,8 @@ fun AutomationStatusScreen(
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Button(onClick = viewModel::refreshAll) { Text("Alles prüfen") }
-                            OutlinedButton(onClick = viewModel::reRegisterGeofences) { Text("Geofences neu registrieren") }
+                            Button(onClick = viewModel::refreshAll) { Text(stringResource(R.string.automation_check_all)) }
+                            OutlinedButton(onClick = viewModel::reRegisterGeofences) { Text(stringResource(R.string.automation_re_register_geofences)) }
                         }
                         state.actionMessage?.let { Text(it, color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp) }
                     }
@@ -229,9 +231,9 @@ fun GeofenceEditorScreen(
         ) {
             item {
                 Header(
-                    if (isNew) "Geofence anlegen" else "Geofence bearbeiten",
-                    if (isQuickMode) "Karte ausrichten, Radius wählen, speichern." else "Karte + aktuelle Position + Zuhause/Arbeit Presets",
-                    onBack, "Speichern", viewModel::save
+                    if (isNew) stringResource(R.string.automation_geofence_new) else stringResource(R.string.automation_geofence_edit),
+                    if (isQuickMode) stringResource(R.string.automation_quick_mode_subtitle) else stringResource(R.string.automation_full_mode_subtitle),
+                    onBack, stringResource(R.string.common_save), viewModel::save
                 )
             }
 
@@ -271,8 +273,8 @@ fun GeofenceEditorScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                             Text(state.form.name, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
                             Text(state.form.icon, fontSize = 48.sp)
-                            Text("Karte passt du durch Verschieben an. Der Mittelpunkt ist dein Ort.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Button(onClick = viewModel::useCurrentLocation, modifier = Modifier.fillMaxWidth()) { Text("Meine aktuelle Position verwenden") }
+                            Text(stringResource(R.string.automation_quick_mode_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(onClick = viewModel::useCurrentLocation, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.automation_use_current_position)) }
                             state.locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                         }
                     }
@@ -282,14 +284,14 @@ fun GeofenceEditorScreen(
                 item {
                     AevumCard(variant = CardVariant.Gradient) {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                            OutlinedTextField(state.form.name, viewModel::setName, modifier = Modifier.fillMaxWidth(), label = { Text("Name") }, placeholder = { Text("Zuhause, Arbeit, Fitnessstudio…") })
+                            OutlinedTextField(state.form.name, viewModel::setName, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.common_name)) }, placeholder = { Text(stringResource(R.string.automation_name_placeholder)) })
                             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                                 OutlinedTextField(state.form.latitude, viewModel::setLatitude, modifier = Modifier.weight(1f), label = { Text("Latitude") })
                                 OutlinedTextField(state.form.longitude, viewModel::setLongitude, modifier = Modifier.weight(1f), label = { Text("Longitude") })
                             }
-                            OutlinedTextField(state.form.radius, viewModel::setRadius, modifier = Modifier.fillMaxWidth(), label = { Text("Radius (m)") })
+                            OutlinedTextField(state.form.radius, viewModel::setRadius, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.automation_radius_m)) })
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("Aktiv"); Switch(state.form.enabled, viewModel::setEnabled)
+                                Text(stringResource(R.string.common_active)); Switch(state.form.enabled, viewModel::setEnabled)
                             }
                             state.form.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         }
@@ -302,7 +304,7 @@ fun GeofenceEditorScreen(
                 item {
                     AevumCard {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Text("Aktivitätstyp", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.automation_activity_type), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                                 state.activityTypes.forEach { type ->
                                     FilterChip(
@@ -318,9 +320,9 @@ fun GeofenceEditorScreen(
                 item {
                     AevumCard {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Text("Icon", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.common_icon), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Wähle ein Symbol für diesen Ort",
+                                stringResource(R.string.automation_choose_icon_hint),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -339,7 +341,7 @@ fun GeofenceEditorScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    "${state.form.icon.ifBlank { "📍" }}  Icon auswählen",
+                                    "${state.form.icon.ifBlank { "📍" }}  ${stringResource(R.string.automation_choose_icon)}",
                                     fontSize = 14.sp
                                 )
                             }
@@ -368,9 +370,9 @@ fun GeofenceEditorScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Automatisierung", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.settings_triggers_additional), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    "Beim Betreten automatisch starten",
+                                    stringResource(R.string.automation_auto_start_on_enter),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -391,9 +393,9 @@ fun GeofenceEditorScreen(
                                 ?.name
                             Text(
                                 if (autoTypeName != null)
-                                    "Beim Betreten wird \"$autoTypeName\" automatisch gestartet."
+                                    stringResource(R.string.automation_auto_start_type, autoTypeName)
                                 else
-                                    "Wähle oben einen Aktivitätstyp — er wird beim Betreten automatisch gestartet.",
+                                    stringResource(R.string.automation_auto_start_choose_type),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -403,9 +405,9 @@ fun GeofenceEditorScreen(
                             )
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Beim Verlassen automatisch beenden", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.automation_auto_stop_on_exit), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                     Text(
-                                        "Aktivität endet beim Verlassen des Geofence",
+                                        stringResource(R.string.automation_auto_stop_desc),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -494,17 +496,17 @@ private fun QuickSetupCard(
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("Schnell einrichten", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("Profil wählen, aktuelle Position übernehmen, speichern.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.automation_quick_setup), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.automation_quick_setup_desc), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(onClick = { onQuick(QuickPlaceKind.Home) }) { Text("🏠 Zuhause") }
-                OutlinedButton(onClick = { onQuick(QuickPlaceKind.Work) }) { Text("💼 Arbeit") }
+                Button(onClick = { onQuick(QuickPlaceKind.Home) }) { Text("🏠 ${stringResource(R.string.common_home)}") }
+                OutlinedButton(onClick = { onQuick(QuickPlaceKind.Work) }) { Text("💼 ${stringResource(R.string.common_work)}") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(onClick = onCurrentLocation) { Text("Aktuelle Position") }
+                Button(onClick = onCurrentLocation) { Text(stringResource(R.string.automation_current_position)) }
                 // M18.60: Button nur anzeigen, wenn die Berechtigung fehlt.
                 if (!locationGranted) {
-                    OutlinedButton(onClick = onRequestLocation) { Text("Standort erlauben") }
+                    OutlinedButton(onClick = onRequestLocation) { Text(stringResource(R.string.common_allow_location)) }
                 }
             }
             message?.let { Text(it, color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp) }
@@ -530,8 +532,8 @@ fun MapLibreMapCard(
 
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("Karte", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("Verschieben = Mittelpunkt setzen. Der ⌖ zeigt die ausgewählte Position.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.automation_map), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.automation_map_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             AevumMapView(
                 latitude = lat, longitude = lon, radiusMeters = radiusVal,
@@ -539,7 +541,7 @@ fun MapLibreMapCard(
                 modifier = Modifier.fillMaxWidth().height(320.dp)
             )
 
-            Text("Radius: ${radiusVal.toInt()}m", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.automation_radius_value, radiusVal.toInt()), fontSize = 14.sp, fontWeight = FontWeight.Medium)
             androidx.compose.material3.Slider(
                 value = radiusVal.coerceIn(50f, 2000f),
                 onValueChange = { onRadiusChanged(it.toInt().toString()) },
@@ -567,9 +569,9 @@ fun TriggerEventsScreen(
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header("Trigger Events", "Gespeicherte Zeitpunkte aus Geofences", onBack, null, {}) }
+            item { Header(stringResource(R.string.automation_trigger_events), stringResource(R.string.automation_trigger_events_subtitle), onBack, null, {}) }
             if (state.triggers.isEmpty()) item {
-                EmptyState(title = "Noch keine Trigger", message = "Sobald ein Geofence ausgelöst wird, erscheint der Zeitpunkt hier.")
+                EmptyState(title = stringResource(R.string.automation_no_triggers), message = stringResource(R.string.automation_no_triggers_desc))
             }
             state.triggers.forEach { trigger -> item { TriggerRow(trigger, state.geofenceNames[trigger.geofenceId]?.name, onDelete = { pendingDeleteId = trigger.id }) } }
         }
@@ -580,15 +582,22 @@ fun TriggerEventsScreen(
         val trigger = state.triggers.firstOrNull { it.id == id }
         val geofenceName = trigger?.let { state.geofenceNames[it.geofenceId]?.name }
         val isEnter = trigger?.type?.contains("ENTER") == true || trigger?.type?.contains("ARRIVED") == true
-        val displayLabel = geofenceName?.let { if (isEnter) "$it betreten" else "$it verlassen" }
+        val displayLabel = geofenceName?.let {
+            if (isEnter) stringResource(R.string.automation_trigger_entered, it)
+            else stringResource(R.string.automation_trigger_left, it)
+        }
             ?: trigger?.type?.replace('_', ' ')?.lowercase()?.replaceFirstChar { c -> c.titlecase() }
-            ?: "diesen Trigger"
+            ?: stringResource(R.string.automation_this_trigger)
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null },
-            title = { Text("Trigger löschen?") },
+            title = { Text(stringResource(R.string.automation_delete_trigger_title)) },
             text = {
                 Text(
-                    "„$displayLabel“ vom ${trigger?.let { TimeFormatting.formatSmartDateTime(it.occurredAt) } ?: "unbekanntem Zeitpunkt"} wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden."
+                    stringResource(
+                        R.string.automation_delete_trigger_body,
+                        displayLabel,
+                        trigger?.let { TimeFormatting.formatSmartDateTime(it.occurredAt) } ?: stringResource(R.string.automation_unknown_time)
+                    )
                 )
             },
             confirmButton = {
@@ -597,9 +606,9 @@ fun TriggerEventsScreen(
                         viewModel.delete(id)
                         pendingDeleteId = null
                     }
-                ) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text("Abbrechen") } }
+            dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 }
@@ -618,13 +627,16 @@ private fun TriggerRow(trigger: TriggerEvent, geofenceName: String?, onDelete: (
             ) {
                 // M11.2: lesbare Beschriftung mit Geofence-Name
                 val isEnter = trigger.type.contains("ENTER") || trigger.type.contains("ARRIVED")
-                val displayLabel = geofenceName?.let { if (isEnter) "$it betreten" else "$it verlassen" }
+                val displayLabel = geofenceName?.let {
+                    if (isEnter) stringResource(R.string.automation_trigger_entered, it)
+                    else stringResource(R.string.automation_trigger_left, it)
+                }
                     ?: trigger.type.replace('_', ' ').lowercase().replaceFirstChar { c -> c.titlecase() }
                 Text(displayLabel, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 // M12.1.1: Datum + Zeit statt nur Zeit, damit klar ist,
                 // an welchem Tag der Trigger ausgelöst wurde.
                 Text(
-                    "${TimeFormatting.formatSmartDateTime(trigger.occurredAt)} · ${(trigger.confidence * 100).toInt()}% Konfidenz",
+                    "${TimeFormatting.formatSmartDateTime(trigger.occurredAt)} · ${stringResource(R.string.automation_confidence, (trigger.confidence * 100).toInt())}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
@@ -658,11 +670,11 @@ fun GeofenceDebugScreen(
     val state by viewModel.uiState.collectAsState()
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header("Diagnose", "Technische Details für Entwickler", onBack, null, {}) }
+            item { Header(stringResource(R.string.automation_diagnose_title), stringResource(R.string.automation_diagnose_subtitle), onBack, null, {}) }
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Berechtigungen", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.common_permissions), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         StatusLine("Foreground", state.foregroundLocationGranted)
                         StatusLine("Background", state.backgroundLocationGranted)
                         StatusLine("Notifications", state.notificationsGranted)
@@ -672,10 +684,10 @@ fun GeofenceDebugScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text("Daten", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Aktive Geofences: ${state.activeGeofences}")
-                        Text("Trigger: ${state.triggerCount}")
-                        Text("Candidates: ${state.pendingCandidates}")
+                        Text(stringResource(R.string.automation_data), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.automation_active_geofences, state.activeGeofences))
+                        Text(stringResource(R.string.automation_triggers_count, state.triggerCount))
+                        Text(stringResource(R.string.automation_candidates_count, state.pendingCandidates))
                     }
                 }
             }
@@ -683,8 +695,8 @@ fun GeofenceDebugScreen(
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Button(onClick = viewModel::refreshRegistration) { Text("Registrierung prüfen") }
-                            OutlinedButton(onClick = viewModel::runRulesNow) { Text("Regeln prüfen") }
+                            Button(onClick = viewModel::refreshRegistration) { Text(stringResource(R.string.automation_check_registration)) }
+                            OutlinedButton(onClick = viewModel::runRulesNow) { Text(stringResource(R.string.automation_check_rules)) }
                         }
                     }
                 }
@@ -693,7 +705,7 @@ fun GeofenceDebugScreen(
                 item {
                     AevumCard {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Text("Debug-Log", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.automation_debug_log), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             state.debugLog.takeLast(20).reversed().forEach { entry ->
                                 Text(
                                     "[${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(entry.timestamp))}] ${entry.tag}: ${entry.message}",
@@ -717,7 +729,7 @@ fun GeofenceDebugScreen(
 fun Header(title: String, subtitle: String, onBack: () -> Unit, actionLabel: String?, onAction: () -> Unit) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            TextButton(onClick = onBack) { Text("Zurück") }
+            TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
             Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (actionLabel != null) Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) { Text(actionLabel) }
@@ -738,23 +750,23 @@ fun GeofenceListScreen(
     var pendingDelete by remember { mutableStateOf<PlaceGeofence?>(null) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header("Geofences", "Orte, die Trigger und Vorschläge erzeugen", onBack, "Neu", onCreate) }
+            item { Header(stringResource(R.string.automation_geofences_title), stringResource(R.string.automation_geofences_subtitle), onBack, stringResource(R.string.automation_new), onCreate) }
             // M18.66-FIX20: Suchleiste mit Live-Suche
             item {
                 OutlinedTextField(
                     value = state.query,
                     onValueChange = viewModel::setQuery,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Geofence suchen…") },
+                    placeholder = { Text(stringResource(R.string.automation_search_placeholder)) },
                     leadingIcon = { Text("🔍", fontSize = 16.sp) },
                     singleLine = true
                 )
             }
             if (state.geofences.isEmpty()) item {
                 EmptyState(
-                    title = if (state.query.isBlank()) "Noch keine Orte" else "Keine Treffer",
-                    message = if (state.query.isBlank()) "Lege Zuhause, Arbeit oder Fitnessstudio an." else "Kein Geofence passt zu \"${state.query}\".",
-                    actionLabel = if (state.query.isBlank()) "Geofence anlegen" else null,
+                    title = if (state.query.isBlank()) stringResource(R.string.automation_no_places) else stringResource(R.string.automation_no_results),
+                    message = if (state.query.isBlank()) stringResource(R.string.automation_no_places_desc) else stringResource(R.string.automation_no_results_desc, state.query),
+                    actionLabel = if (state.query.isBlank()) stringResource(R.string.automation_create_geofence) else null,
                     onActionClick = onCreate
                 )
             }
@@ -765,16 +777,16 @@ fun GeofenceListScreen(
     pendingDelete?.let { gf ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Geofence löschen?") },
-            text = { Text("„${gf.name}“ wird gelöscht. Automatisierungen für diesen Ort werden deaktiviert.") },
+            title = { Text(stringResource(R.string.automation_delete_geofence_title)) },
+            text = { Text(stringResource(R.string.automation_delete_geofence_body, gf.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.delete(gf.id)
                     pendingDelete = null
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Abbrechen") }
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -793,11 +805,11 @@ private fun GeofenceRow(
             Text("${geofence.latitude}, ${geofence.longitude} · ${geofence.radiusMeters.toInt()}m", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 Switch(checked = geofence.enabled, onCheckedChange = { onEnabledChange(geofence, it) })
-                Text(if (geofence.enabled) "Aktiv" else "Deaktiviert", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (geofence.enabled) stringResource(R.string.common_active) else stringResource(R.string.automation_geofence_disabled), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(onClick = { onEdit(geofence.id) }) { Text("Bearbeiten") }
-                OutlinedButton(onClick = { onDelete(geofence.id) }) { Text("Löschen") }
+                Button(onClick = { onEdit(geofence.id) }) { Text(stringResource(R.string.common_edit)) }
+                OutlinedButton(onClick = { onDelete(geofence.id) }) { Text(stringResource(R.string.common_delete)) }
             }
         }
     }
@@ -821,36 +833,36 @@ fun SleepFusionStatusDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Schlaf-Fusion Status") },
+        title = { Text(stringResource(R.string.automation_sleep_fusion_status)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Text("Drei Quellen, eine Schlaf-Erkennung", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.automation_sleep_fusion_subtitle), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 StatusRow(
-                    label = "Bildschirm-Events (14h-Fenster)",
+                    label = stringResource(R.string.automation_screen_events_14h),
                     value = "${status.screenEventCount}"
                 )
                 StatusRow(
-                    label = "STILL-Cluster (Activity Recognition)",
+                    label = stringResource(R.string.automation_still_cluster),
                     value = stillHours
                 )
                 StatusRow(
-                    label = "Stille im Digital-Balance-Log",
+                    label = stringResource(R.string.automation_digital_quiet),
                     value = formatHm(status.digitalQuietMs)
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                Text("Letzte Bildschirm-Events", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.automation_last_screen_events), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 StatusRow(
-                    label = "Display aus",
+                    label = stringResource(R.string.automation_display_off),
                     value = status.lastScreenOff?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
                 )
                 StatusRow(
-                    label = "Display an",
+                    label = stringResource(R.string.automation_display_on),
                     value = status.lastScreenOn?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Schließen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
         }
     )
 }
@@ -872,29 +884,29 @@ fun SleepStatusDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Schlaf-Heuristik Status") },
+        title = { Text(stringResource(R.string.automation_sleep_heuristic_status)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 StatusRow(
-                    label = "Erfasste Bildschirm-Events",
+                    label = stringResource(R.string.automation_captured_screen_events),
                     value = "${status.eventCount}"
                 )
                 StatusRow(
-                    label = "Letztes Display aus",
+                    label = stringResource(R.string.automation_last_display_off),
                     value = status.lastScreenOff?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
                 )
                 StatusRow(
-                    label = "Letzte Bildschirm-Aktivität",
+                    label = stringResource(R.string.automation_last_screen_activity),
                     value = status.lastScreenOn?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                Text("Geschätzter Schlaf", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.automation_estimated_sleep), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 StatusRow(
-                    label = "Beginn",
+                    label = stringResource(R.string.automation_start),
                     value = status.estimatedSleepStart?.let { timeFmt.format(java.util.Date(it)) } ?: "—"
                 )
                 StatusRow(
-                    label = "Ende",
+                    label = stringResource(R.string.automation_end),
                     value = status.estimatedSleepEnd?.let { timeFmt.format(java.util.Date(it)) } ?: "—"
                 )
                 StatusRow(
@@ -902,9 +914,9 @@ fun SleepStatusDialog(
                     value = status.estimatedConfidence?.let { "${(it * 100).toInt()}%" } ?: "—"
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                Text("Zuletzt erzeugter Candidate", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.automation_last_candidate), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 StatusRow(
-                    label = "Erstellt",
+                    label = stringResource(R.string.automation_created),
                     value = status.lastCandidateCreatedAt?.let { dateFmt.format(java.util.Date(it)) } ?: "—"
                 )
                 if (status.lastCandidateReason != null) {
@@ -916,7 +928,7 @@ fun SleepStatusDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Schließen") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) } }
     )
 }
 
@@ -957,11 +969,11 @@ private fun GeofenceIconPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Icon auswählen", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(stringResource(R.string.automation_choose_icon), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
                 Text(
-                    "Wähle ein Symbol für diesen Ort",
+                    stringResource(R.string.automation_choose_icon_hint),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -998,7 +1010,7 @@ private fun GeofenceIconPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

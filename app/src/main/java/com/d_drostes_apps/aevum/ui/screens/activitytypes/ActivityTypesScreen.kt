@@ -44,8 +44,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.GlassCard
 import com.d_drostes_apps.aevum.ui.components.PositivitySlider
 import com.d_drostes_apps.aevum.ui.components.positivityColor
@@ -85,30 +87,30 @@ fun ActivityTypesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Zurück")
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.common_back))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Aktivitäten & Positivität",
+                        stringResource(R.string.activitytypes_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Was ist dir deine Zeit wert?",
+                        stringResource(R.string.activitytypes_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 // M18.12: Neue Aktivität anlegen
                 OutlinedButton(onClick = { showCreateDialog = true }) {
-                    Text("+ Neu", fontSize = 12.sp)
+                    Text(stringResource(R.string.activitytypes_add_new), fontSize = 12.sp)
                 }
             }
 
             if (state.activityTypes.isEmpty()) {
                 Spacer(Modifier.height(AevumSpacing.xl))
                 Text(
-                    "Noch keine Aktivitäten.",
+                    stringResource(R.string.activitytypes_empty),
                     modifier = Modifier.padding(AevumSpacing.lg),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -154,18 +156,18 @@ fun ActivityTypesScreen(
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false; newName = ""; newCategoryId = null },
-            title = { Text("Neue Aktivität", fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.activitytypes_new_activity), fontWeight = FontWeight.SemiBold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        label = { Text("Name (z. B. Gitarre)") },
+                        label = { Text(stringResource(R.string.activitytypes_name_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     // M18.17: Kategorie beim Anlegen wählen
-                    Text("Kategorie (optional)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.activitytypes_category_optional), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -201,10 +203,10 @@ fun ActivityTypesScreen(
                         newCategoryId = null
                     },
                     enabled = newName.trim().isNotEmpty()
-                ) { Text("Anlegen") }
+                ) { Text(stringResource(R.string.activitytypes_create)) }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false; newName = ""; newCategoryId = null }) { Text("Abbrechen") }
+                TextButton(onClick = { showCreateDialog = false; newName = ""; newCategoryId = null }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -270,7 +272,7 @@ private fun ActivityTypeCard(
                     )
                     if (!row.isSystem) {
                         Text(
-                            "Eigen",
+                            stringResource(R.string.activitytypes_own),
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -307,7 +309,7 @@ private fun ActivityTypeCard(
             // M18.17: Kategorie-Zuordnung — Chip zeigt aktuelle Kategorie,
             // Tippen öffnet den Picker (inkl. "Keine" + "Neue Kategorie").
             Text(
-                "KATEGORIE",
+                stringResource(R.string.activitytypes_category_label),
                 fontSize = 9.sp,
                 letterSpacing = 1.0.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -329,7 +331,7 @@ private fun ActivityTypeCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        row.categoryName ?: "Keine Kategorie",
+                        row.categoryName ?: stringResource(R.string.activitytypes_no_category),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = if (row.categoryId != null) accent else MaterialTheme.colorScheme.onSurfaceVariant
@@ -339,7 +341,7 @@ private fun ActivityTypeCard(
 
             // M18.12: Farb-Palette — custom Farbe pro Aktivität
             Text(
-                "FARBE",
+                stringResource(R.string.activitytypes_color_label),
                 fontSize = 9.sp,
                 letterSpacing = 1.0.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -380,7 +382,7 @@ private fun ActivityTypeCard(
     if (showIconPicker) {
         AlertDialog(
             onDismissRequest = { showIconPicker = false },
-            title = { Text("Icon wählen", fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.activitytypes_choose_icon), fontWeight = FontWeight.SemiBold) },
             text = {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -407,7 +409,7 @@ private fun ActivityTypeCard(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showIconPicker = false }) { Text("Fertig") }
+                TextButton(onClick = { showIconPicker = false }) { Text(stringResource(R.string.activitytypes_done)) }
             }
         )
     }
@@ -416,7 +418,7 @@ private fun ActivityTypeCard(
     if (showCategoryPicker) {
         AlertDialog(
             onDismissRequest = { showCategoryPicker = false },
-            title = { Text("Kategorie für \"${row.name}\"", fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.activitytypes_category_for, row.name), fontWeight = FontWeight.SemiBold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     // "Keine Kategorie" — Zuordnung entfernen
@@ -435,7 +437,7 @@ private fun ActivityTypeCard(
                             .padding(horizontal = AevumSpacing.md, vertical = 10.dp)
                     ) {
                         Text(
-                            "Keine Kategorie",
+                            stringResource(R.string.activitytypes_no_category),
                             fontSize = 14.sp,
                             fontWeight = if (row.categoryId == null) FontWeight.Bold else FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
@@ -478,7 +480,7 @@ private fun ActivityTypeCard(
                         OutlinedTextField(
                             value = newCategoryName,
                             onValueChange = { newCategoryName = it },
-                            label = { Text("Neue Kategorie…") },
+                            label = { Text(stringResource(R.string.activitytypes_new_category)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -491,12 +493,12 @@ private fun ActivityTypeCard(
                                 }
                             },
                             enabled = newCategoryName.trim().isNotEmpty()
-                        ) { Text("Anlegen") }
+                        ) { Text(stringResource(R.string.activitytypes_create)) }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showCategoryPicker = false }) { Text("Fertig") }
+                TextButton(onClick = { showCategoryPicker = false }) { Text(stringResource(R.string.activitytypes_done)) }
             }
         )
     }
@@ -508,16 +510,16 @@ private fun ActivityTypeCard(
     if (showDeleteDialog && onDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("„${row.name}“ löschen?", fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.activitytypes_delete_title, row.name), fontWeight = FontWeight.SemiBold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Die Activity wird dauerhaft entfernt und ist danach nicht mehr verfügbar.",
+                        stringResource(R.string.activitytypes_delete_warning),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Was soll mit den Aufzeichnungen passieren?",
+                        stringResource(R.string.activitytypes_delete_what_happens),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -534,9 +536,9 @@ private fun ActivityTypeCard(
                             .padding(horizontal = AevumSpacing.md, vertical = 12.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Nur Activity löschen", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.activitytypes_delete_only_activity), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                "Aufzeichnungen bleiben erhalten und werden „Sonstiges“ zugeordnet.",
+                                stringResource(R.string.activitytypes_delete_only_activity_desc),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -556,13 +558,13 @@ private fun ActivityTypeCard(
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                "Activity + alle Aufzeichnungen löschen",
+                                stringResource(R.string.activitytypes_delete_with_sessions),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.error
                             )
                             Text(
-                                "Alle Sessions dieser Activity werden dauerhaft entfernt.",
+                                stringResource(R.string.activitytypes_delete_with_sessions_desc),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -572,7 +574,7 @@ private fun ActivityTypeCard(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

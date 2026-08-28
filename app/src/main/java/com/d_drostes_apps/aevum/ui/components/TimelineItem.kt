@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 
@@ -85,7 +87,7 @@ fun TimelineItem(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurface)
                         if (isCurrent) {
-                            Text("LIVE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = colors.secondary)
+                            Text(stringResource(R.string.component_live), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = colors.secondary)
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
@@ -96,12 +98,12 @@ fun TimelineItem(
                 }
             }
             if (isConflict) {
-                Text("Konflikt prüfen", fontSize = 12.sp, color = Color(0xFFF59E0B), modifier = Modifier.padding(start = 70.dp))
+                Text(stringResource(R.string.component_conflict_check), fontSize = 12.sp, color = Color(0xFFF59E0B), modifier = Modifier.padding(start = 70.dp))
             }
             if (onEdit != null || onDismiss != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    if (onEdit != null) TextButton(onClick = onEdit) { Text("Bearbeiten") }
-                    if (onDismiss != null) TextButton(onClick = onDismiss) { Text("Verwerfen", color = colors.error) }
+                    if (onEdit != null) TextButton(onClick = onEdit) { Text(stringResource(R.string.common_edit)) }
+                    if (onDismiss != null) TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_discard), color = colors.error) }
                 }
             }
         }

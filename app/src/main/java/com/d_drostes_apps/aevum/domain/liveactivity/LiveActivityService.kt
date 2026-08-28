@@ -192,10 +192,10 @@ class LiveActivityService : Service() {
         // Priorität im Notification-Manager.
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Laufende Aktivität",
+            getString(R.string.notif_live_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Zeigt die laufende Aktivität und Steuerungsaktionen"
+            description = getString(R.string.notif_live_channel_desc)
             setShowBadge(true)
             enableVibration(true)
             // M18.4: Kein Laut, aber Vibration + Heads-up — der User soll
@@ -253,10 +253,10 @@ class LiveActivityService : Service() {
         // falls sie je als Live-Session laufen (z. B. wenn Geofence-Regel sie startet).
         val isAuto = session.sourceType in com.d_drostes_apps.aevum.ui.screens.timeline.AUTO_SOURCES
         val subText = when {
-            isPaused && isAuto -> "Pausiert · automatisch gestartet"
-            isPaused -> "Pausiert"
-            isAuto -> "automatisch gestartet"
-            else -> "Aktiv"
+            isPaused && isAuto -> getString(R.string.notif_live_subtext_paused_auto)
+            isPaused -> getString(R.string.notif_live_subtext_paused)
+            isAuto -> getString(R.string.notif_live_subtext_auto)
+            else -> getString(R.string.notif_live_subtext_active)
         }
 
         val openIntent = Intent(this, MainActivity::class.java)
@@ -272,7 +272,7 @@ class LiveActivityService : Service() {
             this, 1, pauseResumeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val pauseResumeLabel = if (isPaused) "Fortsetzen" else "Pause"
+        val pauseResumeLabel = if (isPaused) getString(R.string.notif_live_resume) else getString(R.string.notif_live_pause)
 
         val stopIntent = Intent(this, LiveActivityService::class.java).apply {
             action = ACTION_STOP
@@ -334,8 +334,8 @@ class LiveActivityService : Service() {
             .setSilent(true)
             .setShowWhen(false)
             .addAction(0, pauseResumeLabel, pauseResumePending)
-            .addAction(0, "⇄ Wechseln", switchPending)
-            .addAction(0, "■ Stoppen", stopPending)
+            .addAction(0, getString(R.string.notif_live_switch), switchPending)
+            .addAction(0, getString(R.string.notif_live_stop), stopPending)
             // M18.4: HIGH + STOPWATCH — Heads-up Banner über allem.
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
@@ -378,7 +378,7 @@ class LiveActivityService : Service() {
                     .bigPicture(patternBitmap)
                     .bigLargeIcon(largeIcon)
                     .setBigContentTitle(if (isPaused) "⏸ $title" else "▶ $title")
-                    .setSummaryText("$timeStr aktiv · $totalStr gesamt")
+                    .setSummaryText(getString(R.string.notif_live_summary_paused, timeStr, totalStr))
             )
         }
         return builder.build()
@@ -395,7 +395,7 @@ class LiveActivityService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Aevum")
-            .setContentText("Aktivität läuft")
+            .setContentText(getString(R.string.notif_live_empty_text))
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOnlyAlertOnce(true)
@@ -586,7 +586,7 @@ class LiveActivityService : Service() {
         } else {
             title
         }
-        canvas.drawText("AEVUM  •  AKTIVITÄTSSIGNAL", textX, 132f, labelPaint)
+        canvas.drawText(getString(R.string.notif_live_signal_label), textX, 132f, labelPaint)
         canvas.drawText(compactTitle, textX, 188f, titlePaint)
         canvas.drawText(timeStr, textX, 250f, timePaint)
 
@@ -611,9 +611,9 @@ class LiveActivityService : Service() {
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         return when {
-            hours > 0 -> "$hours h $minutes min"
-            minutes > 0 -> "$minutes min"
-            else -> "$seconds s"
+            hours > 0 -> getString(R.string.notif_live_duration_h_m, hours, minutes)
+            minutes > 0 -> getString(R.string.notif_live_duration_min, minutes)
+            else -> getString(R.string.notif_live_duration_s, seconds)
         }
     }
 }

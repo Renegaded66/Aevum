@@ -2,6 +2,7 @@ package com.d_drostes_apps.aevum.data.garmin
 
 import android.content.Context
 import com.d_drostes_apps.aevum.BuildConfig
+import com.d_drostes_apps.aevum.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -83,7 +84,7 @@ class GarminApiClient @Inject constructor(
     suspend fun connect(email: String, password: String): String? = withContext(Dispatchers.IO) {
         when (val result = directClient.login(email, password)) {
             is DirectGarminClient.LoginResult.Success -> null
-            is DirectGarminClient.LoginResult.NeedsMfa -> "MFA/2FA wird nicht unterstützt — bitte 2FA in Garmin Connect deaktivieren"
+            is DirectGarminClient.LoginResult.NeedsMfa -> context.getString(R.string.garmin_error_mfa)
             is DirectGarminClient.LoginResult.Error -> result.message
         }
     }

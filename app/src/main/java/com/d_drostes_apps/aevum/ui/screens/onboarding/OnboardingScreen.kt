@@ -7,8 +7,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Arrangement
+import com.d_drostes_apps.aevum.R
 
 @Composable
 fun OnboardingScreen(
@@ -24,7 +26,7 @@ fun OnboardingScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Onboarding",
+                text = stringResource(R.string.onboarding_placeholder),
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = androidx.compose.material3.MaterialTheme.colorScheme.onBackground

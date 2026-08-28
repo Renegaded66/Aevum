@@ -1,4 +1,5 @@
 package com.d_drostes_apps.aevum.ui.screens.timeline
+import com.d_drostes_apps.aevum.R
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -86,6 +87,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -158,7 +160,7 @@ fun TimelineScreen(
                 // M18.73: Plus-Button öffnet den New-Recording-Dialog mit
                 // drei Modi (Start & Ende / Offenes Ende / Nur Dauer).
                 onClick = viewModel::openNewRecording,
-                text = { Text("Aktivität") },
+                text = { Text(stringResource(R.string.timeline_fab_activity)) },
                 icon = { Text("+") }
             )
         }
@@ -244,9 +246,9 @@ fun TimelineScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         EmptyState(
-                            title = "Noch keine Aktivitäten",
-                            message = "Erfasse deinen Tag manuell oder aktiviere Geofencing. Trigger erscheinen künftig direkt auf dem Tageskalender.",
-                            actionLabel = "Erste Aktivität anlegen",
+                            title = stringResource(R.string.timeline_empty_title),
+                            message = stringResource(R.string.timeline_empty_message),
+                            actionLabel = stringResource(R.string.timeline_empty_action),
                             onActionClick = { onCreateActivity(TimeFormatting.startOfDayMillis(date)) }
                         )
                     }
@@ -294,8 +296,13 @@ fun TimelineScreen(
     // AEVUM-3: Güte-Dialog beim Lang-Druck auf eine Session.
     qualityTarget?.let { target ->
         QualityOverrideDialog(
-            title = "Güte anpassen",
-            message = "„${target.title}“ (${target.time}–${target.range.substringAfter("–")}) — wie wertvoll war diese Aufzeichnung?",
+            title = stringResource(R.string.common_adjust_quality),
+            message = stringResource(
+                R.string.timeline_quality_message_range,
+                target.title,
+                target.time,
+                target.range.substringAfter("–")
+            ),
             initialScore = target.positivityScore,
             hasOverride = target.hasQualityOverride,
             onDismiss = { qualityTarget = null },
@@ -381,9 +388,9 @@ private fun NewRecordingDialog(
                 .padding(bottom = AevumSpacing.xl),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            Text("Neue Aufzeichnung", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.timeline_new_recording_title), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Wähle den Modus und eine Aktivität — der Eintrag wird direkt auf dem ausgewählten Tag gespeichert.",
+                stringResource(R.string.timeline_new_recording_subtitle),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -393,9 +400,9 @@ private fun NewRecordingDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                SegmentButton("Start & End", form.mode == NewRecordingMode.FIXED, Modifier.weight(1f)) { onModeChange(NewRecordingMode.FIXED) }
-                SegmentButton("Offenes Ende", form.mode == NewRecordingMode.OPEN_END, Modifier.weight(1f)) { onModeChange(NewRecordingMode.OPEN_END) }
-                SegmentButton("Nur Dauer", form.mode == NewRecordingMode.FLAT_RATE, Modifier.weight(1f)) { onModeChange(NewRecordingMode.FLAT_RATE) }
+                SegmentButton(stringResource(R.string.timeline_mode_fixed), form.mode == NewRecordingMode.FIXED, Modifier.weight(1f)) { onModeChange(NewRecordingMode.FIXED) }
+                SegmentButton(stringResource(R.string.timeline_mode_open_end), form.mode == NewRecordingMode.OPEN_END, Modifier.weight(1f)) { onModeChange(NewRecordingMode.OPEN_END) }
+                SegmentButton(stringResource(R.string.timeline_mode_duration_only), form.mode == NewRecordingMode.FLAT_RATE, Modifier.weight(1f)) { onModeChange(NewRecordingMode.FLAT_RATE) }
             }
 
             // Datum (alle Modi)
@@ -421,7 +428,7 @@ private fun NewRecordingDialog(
                                 initialMinute = form.startMinute,
                                 accent = Color(0xFFF5A623),
                                 onTimeChange = { h, m -> onStartHourChange(h); onStartMinuteChange(m) },
-                                label = "START",
+                                label = stringResource(R.string.timeline_time_start_label),
                                 showDigitalDisplay = true
                             )
                         }
@@ -431,13 +438,13 @@ private fun NewRecordingDialog(
                                 initialMinute = form.endMinute,
                                 accent = MaterialTheme.colorScheme.primary,
                                 onTimeChange = { h, m -> onEndHourChange(h); onEndMinuteChange(m) },
-                                label = "ENDE",
+                                label = stringResource(R.string.timeline_time_end_label),
                                 showDigitalDisplay = true
                             )
                         }
                     }
                     Text(
-                        "Der Eintrag erscheint mit Start- und Endzeit auf der Timeline.",
+                        stringResource(R.string.timeline_fixed_hint),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -449,19 +456,19 @@ private fun NewRecordingDialog(
                             initialMinute = form.startMinute,
                             accent = Color(0xFFF5A623),
                             onTimeChange = { h, m -> onStartHourChange(h); onStartMinuteChange(m) },
-                            label = "START",
+                            label = stringResource(R.string.timeline_time_start_label),
                             showDigitalDisplay = true
                         )
                     }
                     Text(
-                        "Der Eintrag startet ab der gewählten Zeit und läuft weiter, bis du ihn manuell beendest.",
+                        stringResource(R.string.timeline_open_end_hint),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 NewRecordingMode.FLAT_RATE -> {
                     Text(
-                        "Nur Dauer erfassen — erscheint in der Tagesstatistik, nicht in der Timeline.",
+                        stringResource(R.string.timeline_duration_only_hint),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -496,9 +503,9 @@ private fun NewRecordingDialog(
                 }
                 Text(
                     when {
-                        saving -> "Speichern…"
-                        form.activityTypeId == null -> "Aktivität auswählen"
-                        else -> "Aufzeichnung speichern"
+                        saving -> stringResource(R.string.timeline_save_saving)
+                        form.activityTypeId == null -> stringResource(R.string.timeline_save_select_activity)
+                        else -> stringResource(R.string.timeline_save_recording)
                     }
                 )
             }
@@ -518,9 +525,9 @@ private fun NewRecordingDialog(
                         }
                         showDatePicker = false
                     }
-                ) { Text("Übernehmen") }
+                ) { Text(stringResource(R.string.common_apply)) }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Abbrechen") } }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.common_cancel)) } }
         ) {
             DatePicker(state = datePickerState)
         }
@@ -585,7 +592,7 @@ private fun FancyNewRecordingActivityPicker(
             }
         } else {
             Text(
-                "Noch keine Aktivität ausgewählt",
+                stringResource(R.string.timeline_no_activity_selected),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -596,7 +603,7 @@ private fun FancyNewRecordingActivityPicker(
             value = query,
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("🔍 Aktivität suchen…") },
+            placeholder = { Text(stringResource(R.string.timeline_search_placeholder)) },
             singleLine = true,
             shape = RoundedCornerShape(AevumRadius.lg),
             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -623,14 +630,18 @@ private fun FancyNewRecordingActivityPicker(
                 Text("🔍", fontSize = 36.sp)
                 Spacer(Modifier.height(AevumSpacing.xs))
                 Text(
-                    "Keine Aktivität für „$query\" gefunden",
+                    stringResource(R.string.timeline_no_results, query),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         } else {
             Text(
-                "${filtered.size} ${if (filtered.size == 1) "Aktivität" else "Aktivitäten"}",
+                if (filtered.size == 1) {
+                    stringResource(R.string.timeline_activity_count_singular, filtered.size)
+                } else {
+                    stringResource(R.string.timeline_activity_count_plural, filtered.size)
+                },
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -778,7 +789,7 @@ private fun FancyDurationRing(
                     )
                 }
                 Text(
-                    "pro Tag",
+                    stringResource(R.string.timeline_editor_per_day),
                     fontSize = 10.sp,
                     color = onSurfaceVarColor.copy(alpha = 0.7f)
                 )
@@ -839,13 +850,13 @@ private fun ActivityPickerSection(
     onSelectActivity: (ActivityType) -> Unit
 ) {
     Text(
-        "Aktivität (Pflicht)",
+        stringResource(R.string.timeline_editor_activity_required),
         fontSize = 12.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     if (groups.isEmpty()) {
         Text(
-            "Noch keine Aktivitäten vorhanden.",
+            stringResource(R.string.timeline_editor_no_activities),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -898,7 +909,8 @@ private fun ActivityPickerSection(
                 Spacer(Modifier.width(AevumSpacing.sm))
                 Icon(
                     imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Einklappen" else "Ausklappen",
+                    contentDescription = if (expanded) stringResource(R.string.timeline_cd_collapse)
+                    else stringResource(R.string.timeline_cd_expand),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1013,7 +1025,14 @@ fun ActivityEditorScreen(
                 )
             }
             item { ValidationCard(state.validation, state.form.errorMessage) }
-            item { Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) { Text(if (state.isEditing) "Änderungen speichern" else "Aktivität speichern") } }
+            item {
+                Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        if (state.isEditing) stringResource(R.string.common_save_changes)
+                        else stringResource(R.string.timeline_editor_save_new)
+                    )
+                }
+            }
             item { Spacer(Modifier.height(AevumSpacing.xxl)) }
         }
     }
@@ -1041,9 +1060,9 @@ fun ActivityDetailScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 EmptyState(
-                    title = "Aktivitaet nicht gefunden",
-                    message = "Der Eintrag existiert nicht mehr.",
-                    actionLabel = "Zurueck",
+                    title = stringResource(R.string.timeline_detail_not_found_title),
+                    message = stringResource(R.string.timeline_detail_not_found_message),
+                    actionLabel = stringResource(R.string.common_back),
                     onActionClick = onBack
                 )
             }
@@ -1056,7 +1075,7 @@ fun ActivityDetailScreen(
                 // Zurueck-Button
                 item {
                     TextButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 0.dp)) {
-                        Text("< Zurueck")
+                        Text(stringResource(R.string.timeline_detail_back))
                     }
                 }
 
@@ -1094,12 +1113,20 @@ fun ActivityDetailScreen(
                             onClick = { showQualityDialog = true },
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(vertical = AevumSpacing.md)
-                        ) { Text("Güte anpassen ${if (session.manualQualityOverride != null) "✎" else ""}", fontSize = 16.sp) }
+                        ) {
+                            Text(
+                                stringResource(
+                                    R.string.timeline_detail_quality_button,
+                                    if (session.manualQualityOverride != null) "✎" else ""
+                                ),
+                                fontSize = 16.sp
+                            )
+                        }
                         Button(
                             onClick = { onEdit(session.id) },
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(vertical = AevumSpacing.md)
-                        ) { Text("Bearbeiten", fontSize = 16.sp) }
+                        ) { Text(stringResource(R.string.common_edit), fontSize = 16.sp) }
                         OutlinedButton(
                             onClick = { confirmDelete = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -1110,7 +1137,7 @@ fun ActivityDetailScreen(
                                 1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                             ),
                             contentPadding = PaddingValues(vertical = AevumSpacing.md)
-                        ) { Text("Loeschen", fontSize = 16.sp) }
+                        ) { Text(stringResource(R.string.common_delete), fontSize = 16.sp) }
                     }
                 }
             }
@@ -1120,10 +1147,16 @@ fun ActivityDetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Aktivitaet loeschen?") },
-            text = { Text("Der Eintrag verschwindet aus Timeline und Dashboard.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.delete() }) { Text("Loeschen") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } }
+            title = { Text(stringResource(R.string.timeline_detail_delete_title)) },
+            text = { Text(stringResource(R.string.timeline_detail_delete_message)) },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; viewModel.delete() }) {
+                    Text(stringResource(R.string.common_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.common_cancel)) }
+            }
         )
     }
     // R20-v2: Güte-Anpassungs-Dialog im Detail-Screen
@@ -1131,8 +1164,8 @@ fun ActivityDetailScreen(
         val session = state.session
         if (session != null) {
             QualityOverrideDialog(
-                title = "Güte anpassen",
-                message = "„${session.title}“ — wie wertvoll war diese Aufzeichnung?",
+                title = stringResource(R.string.common_adjust_quality),
+                message = stringResource(R.string.timeline_quality_message, session.title),
                 initialScore = session.manualQualityOverride ?: state.activityType?.positivityScore ?: 50,
                 hasOverride = session.manualQualityOverride != null,
                 onDismiss = { showQualityDialog = false },
@@ -1154,7 +1187,7 @@ private fun DetailHeaderCard(session: ActivitySession, state: ActivityDetailUiSt
     val activityColor = if (state.activityType?.color != null && state.activityType.color != 0L) {
         Color(state.activityType.color)
     } else {
-        categoryColor(state.category?.name ?: "Sonstiges")
+        categoryColor(state.category?.name ?: stringResource(R.string.common_other))
     }
     val icon = state.activityType?.icon?.takeIf { it.isNotBlank() } ?: "\u2022"
 
@@ -1188,7 +1221,7 @@ private fun DetailHeaderCard(session: ActivitySession, state: ActivityDetailUiSt
                 modifier = Modifier.fillMaxWidth()
             )
             // Kategorie als Chip
-            CategoryChip(categoryId = state.category?.name ?: "Sonstiges")
+            CategoryChip(categoryId = state.category?.name ?: stringResource(R.string.common_other))
         }
     }
 }
@@ -1246,7 +1279,7 @@ private fun DetailDurationCard(duration: String, activityColorLong: Long) {
         ) {
             Column {
                 Text(
-                    "Dauer",
+                    stringResource(R.string.timeline_detail_duration),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1286,10 +1319,10 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
     }
     // Quell-Icon und Label bestimmen
     val (sourceIcon, sourceLabel) = when (session.sourceType) {
-        "MANUAL" -> "\u270F\uFE0F" to "Manuell"
-        "GEOFENCE_AUTO" -> "\uD83D\uDCCD" to "Geofence"
-        "HEALTH_SLEEP_AUTO" -> "\uD83D\uDE34" to "Schlaf (Auto)"
-        "ACTIVITY_RECOGNITION_AUTO" -> "\uD83D\uDEB4" to "Bewegung (Auto)"
+        "MANUAL" -> "\u270F\uFE0F" to stringResource(R.string.timeline_detail_source_manual)
+        "GEOFENCE_AUTO" -> "\uD83D\uDCCD" to stringResource(R.string.timeline_detail_source_geofence)
+        "HEALTH_SLEEP_AUTO" -> "\uD83D\uDE34" to stringResource(R.string.timeline_detail_source_sleep_auto)
+        "ACTIVITY_RECOGNITION_AUTO" -> "\uD83D\uDEB4" to stringResource(R.string.timeline_detail_source_movement_auto)
         else -> "\uD83D\uDCE5" to session.sourceType
     }
 
@@ -1298,14 +1331,15 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             DetailStatCard(
                 icon = "\uD83D\uDD51",
-                label = "Start",
+                label = stringResource(R.string.timeline_detail_start),
                 value = startTimeStr,
                 modifier = Modifier.weight(1f)
             )
             DetailStatCard(
                 icon = "\uD83D\uDD52",
-                label = if (session.endAt == null) "Laeuft noch" else "Ende",
-                value = endTimeStr ?: "offen",
+                label = if (session.endAt == null) stringResource(R.string.timeline_detail_running)
+                else stringResource(R.string.timeline_detail_end),
+                value = endTimeStr ?: stringResource(R.string.timeline_detail_open),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1313,13 +1347,13 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             DetailStatCard(
                 icon = "\u23F1",
-                label = "Dauer",
+                label = stringResource(R.string.timeline_detail_duration),
                 value = state.duration,
                 modifier = Modifier.weight(1f)
             )
             DetailStatCard(
                 icon = sourceIcon,
-                label = "Quelle",
+                label = stringResource(R.string.timeline_detail_source),
                 value = sourceLabel,
                 modifier = Modifier.weight(1f)
             )
@@ -1373,7 +1407,7 @@ private fun DetailPositivityCard(score: Int) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Positivitaet", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.timeline_detail_positivity), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     "$score%",
                     fontSize = 16.sp,
@@ -1410,7 +1444,7 @@ private fun DetailPositivityCard(score: Int) {
 private fun DetailDescriptionCard(description: String) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-            Text("Beschreibung", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.timeline_detail_description), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(description, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
         }
     }
@@ -1459,7 +1493,7 @@ private fun TimelineHeader(
                     .padding(horizontal = 4.dp)
             ) {
                 Text(
-                    state.dayTitle,
+                    state.dayTitle.ifEmpty { stringResource(R.string.common_today) },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -1482,7 +1516,7 @@ private fun TimelineHeader(
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Text(
-                    "Heute",
+                    stringResource(R.string.common_today),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary
@@ -1506,9 +1540,13 @@ private fun SummaryCard(state: TimelineUiState) {
     // M18.32: Kompaktere Summary — kleinere Werte, weniger vertikaler Platz.
     AevumCard(contentPadding = PaddingValues(vertical = AevumSpacing.sm)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SummaryValue("Erfasst", state.totalTracked)
-            SummaryValue("Einträge", state.sessionCount.toString())
-            SummaryValue("Konflikte", if (state.hasOverlaps) "Prüfen" else "Keine")
+            SummaryValue(stringResource(R.string.common_captured), state.totalTracked)
+            SummaryValue(stringResource(R.string.timeline_summary_entries), state.sessionCount.toString())
+            SummaryValue(
+                stringResource(R.string.timeline_summary_conflicts),
+                if (state.hasOverlaps) stringResource(R.string.timeline_summary_conflicts_check)
+                else stringResource(R.string.common_none)
+            )
         }
     }
 }
@@ -1535,7 +1573,7 @@ private fun CandidateReviewCard(
             // M15: Lücken-Candidates bekommen eine eigene Karte.
             val gapCandidates = candidates.filter { it.isGap }
             if (gapCandidates.isNotEmpty()) {
-                Text("Lücken im Tag", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.timeline_gaps_title), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 gapCandidates.forEach { candidate ->
                     GapCandidateCard(
                         candidate = candidate,
@@ -1547,7 +1585,7 @@ private fun CandidateReviewCard(
             }
             val regularCandidates = candidates.filter { !it.isGap }
             if (regularCandidates.isNotEmpty()) {
-                Text("Wir haben Aktivität erkannt", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.timeline_detected_title), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 regularCandidates.forEach { candidate ->
                     AevumCard(variant = CardVariant.Filled) {
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -1572,14 +1610,14 @@ private fun CandidateReviewCard(
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                                         horizontal = 4.dp, vertical = 10.dp
                                     )
-                                ) { Text("Übernehmen", fontSize = 12.sp, maxLines = 1) }
+                                ) { Text(stringResource(R.string.common_apply), fontSize = 12.sp, maxLines = 1) }
                                 OutlinedButton(
                                     onClick = { onEdit(candidate.id) },
                                     modifier = Modifier.weight(1f),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                                         horizontal = 4.dp, vertical = 10.dp
                                     )
-                                ) { Text("Bearbeiten", fontSize = 12.sp, maxLines = 1) }
+                                ) { Text(stringResource(R.string.common_edit), fontSize = 12.sp, maxLines = 1) }
                                 OutlinedButton(
                                     onClick = { onDismiss(candidate.id) },
                                     modifier = Modifier.weight(1f),
@@ -1592,7 +1630,7 @@ private fun CandidateReviewCard(
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                                         horizontal = 4.dp, vertical = 10.dp
                                     )
-                                ) { Text("Verwerfen", fontSize = 12.sp, maxLines = 1) }
+                                ) { Text(stringResource(R.string.common_discard), fontSize = 12.sp, maxLines = 1) }
                             }
                         }
                     }
@@ -1643,15 +1681,15 @@ private fun GapCandidateCard(
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Unbekannte Zeit", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.timeline_gap_unknown_time), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(candidate.timeRange + " · " + candidate.duration, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 AssistChip(
                     onClick = { onDismiss(candidate.id) },
-                    label = { Text("Verwerfen", fontSize = 11.sp) }
+                    label = { Text(stringResource(R.string.common_discard), fontSize = 11.sp) }
                 )
             }
-            Text("Was hast du in dieser Zeit gemacht?", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.timeline_gap_question), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             // 4 Schnellauswahl-Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1659,19 +1697,19 @@ private fun GapCandidateCard(
             ) {
                 AssistChip(
                     onClick = { onConvert(candidate.id, "social", "social") },
-                    label = { Text("Freunde", fontSize = 11.sp) }
+                    label = { Text(stringResource(R.string.timeline_gap_friends), fontSize = 11.sp) }
                 )
                 AssistChip(
                     onClick = { onConvert(candidate.id, "learning", "learning") },
-                    label = { Text("Lernen", fontSize = 11.sp) }
+                    label = { Text(stringResource(R.string.common_learning), fontSize = 11.sp) }
                 )
                 AssistChip(
                     onClick = { onConvert(candidate.id, "household", "household") },
-                    label = { Text("Einkaufen", fontSize = 11.sp) }
+                    label = { Text(stringResource(R.string.timeline_gap_shopping), fontSize = 11.sp) }
                 )
                 AssistChip(
                     onClick = { onConvert(candidate.id, "work", "work") },
-                    label = { Text("Arbeit", fontSize = 11.sp) }
+                    label = { Text(stringResource(R.string.common_work), fontSize = 11.sp) }
                 )
             }
             // M16.4: Button zum Öffnen des vollständigen ActivityPickers
@@ -1679,7 +1717,7 @@ private fun GapCandidateCard(
                 onClick = { showPicker = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Andere Aktivität wählen…", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.timeline_gap_other_activity), fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -1716,7 +1754,7 @@ private fun GapActivityPickerDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Aktivität wählen", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(stringResource(R.string.timeline_picker_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(
                 modifier = Modifier
@@ -1727,7 +1765,7 @@ private fun GapActivityPickerDialog(
             ) {
                 if (visibleTypes.isEmpty()) {
                     Text(
-                        "Keine Aktivitäten verfügbar.",
+                        stringResource(R.string.timeline_picker_empty),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -1739,7 +1777,7 @@ private fun GapActivityPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }
@@ -1810,7 +1848,7 @@ private fun QuickCreateDialog(
         onDismissRequest = onDismiss,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Neue Aktivität", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.timeline_editor_title_new), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 // M18.45: Beide Zeiten sind antippbar (öffnen den Picker).
                 Row(
                     modifier = Modifier
@@ -1820,13 +1858,14 @@ private fun QuickCreateDialog(
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
                     Text(
-                        "Start $startLabel",
+                        stringResource(R.string.timeline_quick_start, startLabel),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFF5A623)
                     )
                     Text(
-                        if (continueMode) "→ läuft weiter…" else "→ Ende $endLabel",
+                        if (continueMode) stringResource(R.string.timeline_quick_continue)
+                        else stringResource(R.string.timeline_quick_end, endLabel),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1857,14 +1896,14 @@ private fun QuickCreateDialog(
                     TextButton(onClick = {
                         showStartPicker = false
                         showEndPicker = false
-                    }) { Text("← Aktivität wählen") }
+                    }) { Text(stringResource(R.string.timeline_quick_back_to_activity)) }
                     if (showStartPicker) {
                         AevumTimePicker(
                             initialHour = startMinute / 60,
                             initialMinute = startMinute % 60,
                             accent = Color(0xFFF5A623),
                             onTimeChange = { h, m -> startMinute = (h * 60 + m).coerceIn(0, 1439) },
-                            label = "STARTZEIT",
+                            label = stringResource(R.string.timeline_time_start_label_long),
                             showDigitalDisplay = true
                         )
                     }
@@ -1874,7 +1913,7 @@ private fun QuickCreateDialog(
                             initialMinute = endMinute % 60,
                             accent = MaterialTheme.colorScheme.primary,
                             onTimeChange = { h, m -> endMinute = (h * 60 + m).coerceIn(0, 1439) },
-                            label = "ENDZEIT",
+                            label = stringResource(R.string.timeline_time_end_label_long),
                             showDigitalDisplay = true
                         )
                     }
@@ -1890,19 +1929,19 @@ private fun QuickCreateDialog(
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         SegmentButton(
-                            label = "Mit Endzeit",
+                            label = stringResource(R.string.timeline_editor_segment_fixed),
                             selected = !continueMode,
                             modifier = Modifier.weight(1f)
                         ) { continueMode = false }
                         SegmentButton(
-                            label = "● Weiter aufzeichnen",
+                            label = stringResource(R.string.timeline_quick_segment_continue),
                             selected = continueMode,
                             modifier = Modifier.weight(1f)
                         ) { continueMode = true }
                     }
                     // ── Aktivitäts-Auswahl (Icon + Name) ─────────────────
                     if (visibleTypes.isEmpty()) {
-                        Text("Keine Aktivitäten verfügbar.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                        Text(stringResource(R.string.timeline_picker_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     } else {
                         visibleTypes.forEach { type ->
                             val selected = type.id == selectedTypeId
@@ -1945,17 +1984,17 @@ private fun QuickCreateDialog(
                         OutlinedButton(
                             onClick = { showStartPicker = true; showEndPicker = false },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Startzeit ändern") }
+                        ) { Text(stringResource(R.string.common_change_start)) }
                         if (!continueMode) {
                             OutlinedButton(
                                 onClick = { showEndPicker = true; showStartPicker = false },
                                 modifier = Modifier.weight(1f)
-                            ) { Text("Endzeit ändern") }
+                            ) { Text(stringResource(R.string.timeline_quick_end_change)) }
                         }
                     }
                     if (continueMode) {
                         Text(
-                            "Die Aufzeichnung startet ab $startLabel und läuft weiter, bis du sie stoppst.",
+                            stringResource(R.string.timeline_quick_continue_hint, startLabel),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1965,19 +2004,19 @@ private fun QuickCreateDialog(
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 if (continueMode) {
                     // M18.45: "Weiter aufzeichnen" — Session ab Startzeit, endAt = null
                     Button(
                         onClick = { selectedTypeId?.let { onStartNow(it, startMinute) } },
                         enabled = selectedTypeId != null
-                    ) { Text("● Aufzeichnen", color = Color.White, fontWeight = FontWeight.Bold) }
+                    ) { Text(stringResource(R.string.timeline_quick_record), color = Color.White, fontWeight = FontWeight.Bold) }
                 } else {
                     // Feste Session mit Start- UND Endzeit
                     Button(
                         onClick = { selectedTypeId?.let { onCreate(it, startMinute, endMinute) } },
                         enabled = selectedTypeId != null && hasValidFixedRange
-                    ) { Text("Erstellen") }
+                    ) { Text(stringResource(R.string.common_create)) }
                 }
             }
         }
@@ -2059,16 +2098,17 @@ private fun DayCalendarTimeline(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Tageskalender", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.timeline_day_calendar), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (isListMode) "Eine Zeile pro Ereignis" else "00:00–24:00 · Pinch zum Zoomen",
+                        if (isListMode) stringResource(R.string.timeline_day_calendar_sub_list)
+                        else stringResource(R.string.timeline_day_calendar_sub_day),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                    ModeToggleButton("Liste", isListMode) { isListMode = true; onSetWeekView(false) }
-                    ModeToggleButton("Tag", !isListMode && !weekView) { isListMode = false; onSetWeekView(false) }
+                    ModeToggleButton(stringResource(R.string.common_list), isListMode) { isListMode = true; onSetWeekView(false) }
+                    ModeToggleButton(stringResource(R.string.common_day), !isListMode && !weekView) { isListMode = false; onSetWeekView(false) }
                     // M18.66-FIX14: Tag/Woche-Icons rechts neben den Liste/Tag-Toggles.
                     // CalendarViewDay = Tagesansicht, DateRange = Wochenansicht.
                     IconButton(
@@ -2077,7 +2117,7 @@ private fun DayCalendarTimeline(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CalendarViewDay,
-                            contentDescription = "Tagesansicht",
+                            contentDescription = stringResource(R.string.timeline_cd_day_view),
                             tint = if (!isListMode && !weekView) MaterialTheme.colorScheme.primary
                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
@@ -2089,7 +2129,7 @@ private fun DayCalendarTimeline(
                     ) {
                         Icon(
                             imageVector = Icons.Default.DateRange,
-                            contentDescription = "Wochenansicht",
+                            contentDescription = stringResource(R.string.timeline_cd_week_view),
                             tint = if (weekView) MaterialTheme.colorScheme.primary
                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                             // M18.66-FIX15: Icon vergrößert (18→24dp) — das
@@ -2298,7 +2338,7 @@ private fun EventListTimeline(
     }
     if (merged.isEmpty()) {
         Text(
-            "Keine Ereignisse. Erfasse deine erste Aktivität.",
+            stringResource(R.string.timeline_list_empty),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = AevumSpacing.md)
@@ -2315,7 +2355,7 @@ private fun EventListTimeline(
         grouped.forEach { (part, entries) ->
             // Abschnitts-Header
             Text(
-                part.label.uppercase(),
+                stringResource(part.labelRes).uppercase(),
                 fontSize = 10.sp,
                 letterSpacing = 1.2.sp,
                 color = MaterialTheme.colorScheme.primary,
@@ -2335,7 +2375,8 @@ private fun EventListTimeline(
                             detail = "${entry.session.range} · ${entry.session.duration}",
                             accent = if (entry.session.activityColor != 0L) Color(entry.session.activityColor) else positivityColor(entry.session.positivityScore),
                             icon = entry.session.activityIcon,
-                            kind = if (entry.session.isAuto) "Auto" else "Erfasst",
+                            kind = if (entry.session.isAuto) stringResource(R.string.timeline_kind_auto)
+                            else stringResource(R.string.common_captured),
                             isLive = entry.session.isRunning,
                             // AEVUM-3: Override-Hinweis („Güte ✎") bei manuell
                             // angepasster Aufzeichnung.
@@ -2351,9 +2392,9 @@ private fun EventListTimeline(
                         EventListRow(
                             time = entry.trigger.time,
                             title = "◆ ${entry.trigger.label}",
-                            detail = "${entry.trigger.confidence}% Konfidenz",
+                            detail = stringResource(R.string.timeline_confidence, entry.trigger.confidence),
                             accent = MaterialTheme.colorScheme.secondary,
-                            kind = "Trigger",
+                            kind = stringResource(R.string.timeline_kind_trigger),
                             onClick = {},
                             onEdit = {},
                             onDelete = { onDeleteTrigger(entry.trigger.id) }
@@ -2374,12 +2415,14 @@ private fun EventListTimeline(
         val session = sessions.firstOrNull { it.id == id }
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null },
-            title = { Text("Aktivität löschen?") },
+            title = { Text(stringResource(R.string.timeline_delete_session_title)) },
             text = {
                 Text(
-                    "„${session?.title ?: "Diese Aktivität"}“ (${
+                    stringResource(
+                        R.string.timeline_delete_session_message,
+                        session?.title ?: stringResource(R.string.timeline_this_activity),
                         session?.range ?: ""
-                    }) wird aus Timeline und Dashboard entfernt. Dieser Schritt kann nicht rückgängig gemacht werden."
+                    )
                 )
             },
             confirmButton = {
@@ -2388,21 +2431,23 @@ private fun EventListTimeline(
                         onDeleteSession(id)
                         pendingDeleteId = null
                     }
-                ) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+                ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text("Abbrechen") } }
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteId = null }) { Text(stringResource(R.string.common_cancel)) }
+            }
         )
     }
 }
 
 /** M18.8: Tagesabschnitte für scannbare Listen-Gruppierung. */
-private enum class DayPart(val label: String, val startMin: Int, val endMin: Int) {
-    Nacht("Nacht", 0, 5 * 60),
-    Morgen("Morgen", 5 * 60, 10 * 60),
-    Vormittag("Vormittag", 10 * 60, 13 * 60),
-    Nachmittag("Nachmittag", 13 * 60, 17 * 60),
-    Abend("Abend", 17 * 60, 21 * 60),
-    Spaet("Später Abend", 21 * 60, 24 * 60);
+private enum class DayPart(val labelRes: Int, val startMin: Int, val endMin: Int) {
+    Nacht(R.string.timeline_daypart_night, 0, 5 * 60),
+    Morgen(R.string.timeline_daypart_morning, 5 * 60, 10 * 60),
+    Vormittag(R.string.timeline_daypart_forenoon, 10 * 60, 13 * 60),
+    Nachmittag(R.string.timeline_daypart_afternoon, 13 * 60, 17 * 60),
+    Abend(R.string.timeline_daypart_evening, 17 * 60, 21 * 60),
+    Spaet(R.string.timeline_daypart_late_evening, 21 * 60, 24 * 60);
 
     companion object {
         fun of(minute: Int): DayPart = entries.first { minute in it.startMin until it.endMin }
@@ -2472,7 +2517,7 @@ private fun EventListRow(
                 // AEVUM-3: Lang-Druck öffnet den Güte-Slider für diese
                 // Aufzeichnung (Override statt Dauer-Einstellung).
                 onLongClick = onLongPress ?: {},
-                onLongClickLabel = "Güte anpassen"
+                onLongClickLabel = stringResource(R.string.common_adjust_quality)
             )
             .padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2979,7 +3024,7 @@ private fun ZoomableDayTimeline(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "${"%.0f".format(pixelsPerHour)} px/h",
+                    stringResource(R.string.timeline_zoom_hint, "%.0f".format(pixelsPerHour)),
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3012,7 +3057,15 @@ private fun WeekTimeline(
     val today = LocalDate.now()
 
     // M18.66-FIX14: Wochentage deutsch kurz (Mo, Di, Mi, Do, Fr, Sa, So)
-    val dayLabels = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+    val dayLabels = listOf(
+        stringResource(R.string.common_monday),
+        stringResource(R.string.common_tuesday),
+        stringResource(R.string.common_wednesday),
+        stringResource(R.string.common_thursday),
+        stringResource(R.string.common_friday),
+        stringResource(R.string.common_saturday),
+        stringResource(R.string.common_sunday)
+    )
     // Sortiere die Map nach Datum (Mo zuerst)
     val sortedDays = weekSessions.entries.sortedBy { it.key }
     // Falls die Map leer ist (sollte nicht passieren), berechne die Tage
@@ -3234,12 +3287,51 @@ private fun WeekColumn(
 
 @Composable
 private fun EditorHeader(isEditing: Boolean, duration: String, onBack: () -> Unit, onSave: () -> Unit) {
-    AevumCard(variant = CardVariant.Gradient) { Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Column(modifier = Modifier.weight(1f)) { Text(if (isEditing) "Aktivität bearbeiten" else "Neue Aktivität", fontSize = 28.sp, fontWeight = FontWeight.SemiBold); Text("Dauer: $duration", color = MaterialTheme.colorScheme.secondary, fontFamily = FontFamily.Monospace) }; Column(horizontalAlignment = Alignment.End) { TextButton(onClick = onBack) { Text("Abbrechen") }; Button(onClick = onSave) { Text("Speichern") } } } }
+    AevumCard(variant = CardVariant.Gradient) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (isEditing) stringResource(R.string.timeline_editor_title_edit)
+                    else stringResource(R.string.timeline_editor_title_new),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    stringResource(R.string.timeline_editor_duration, duration),
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = onBack) { Text(stringResource(R.string.common_cancel)) }
+                Button(onClick = onSave) { Text(stringResource(R.string.common_save)) }
+            }
+        }
+    }
 }
 
 @Composable
 private fun BasicFields(state: ActivityEditorUiState, onTitle: (String) -> Unit, onDescription: (String) -> Unit) {
-    AevumCard(variant = CardVariant.Gradient) { Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) { OutlinedTextField(value = state.form.title, onValueChange = onTitle, modifier = Modifier.fillMaxWidth(), label = { Text("Was hast du gemacht?") }, placeholder = { Text("z. B. Deep Work, Motorradfahrt, Sport") }, singleLine = true); OutlinedTextField(value = state.form.description, onValueChange = onDescription, modifier = Modifier.fillMaxWidth(), label = { Text("Notiz optional") }, minLines = 2, maxLines = 4) } }
+    AevumCard(variant = CardVariant.Gradient) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            OutlinedTextField(
+                value = state.form.title,
+                onValueChange = onTitle,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.timeline_editor_title_label)) },
+                placeholder = { Text(stringResource(R.string.timeline_editor_title_placeholder)) },
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = state.form.description,
+                onValueChange = onDescription,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.timeline_editor_note_label)) },
+                minLines = 2,
+                maxLines = 4
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -3285,12 +3377,12 @@ private fun UnifiedActivitySelector(types: List<ActivityType>, selectedId: Strin
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Aktivität",
+                    stringResource(R.string.timeline_editor_activity_label),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    selected?.name ?: "Aktivität auswählen",
+                    selected?.name ?: stringResource(R.string.timeline_editor_activity_select),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -3357,7 +3449,7 @@ private fun FancyActivityPickerSheet(
                 .padding(bottom = AevumSpacing.xl)
         ) {
             Text(
-                "Aktivität auswählen",
+                stringResource(R.string.timeline_editor_activity_select),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = AevumSpacing.md)
@@ -3367,7 +3459,7 @@ private fun FancyActivityPickerSheet(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("🔍 Aktivität suchen…") },
+                placeholder = { Text(stringResource(R.string.timeline_search_placeholder)) },
                 singleLine = true,
                 shape = RoundedCornerShape(AevumRadius.lg),
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -3394,14 +3486,18 @@ private fun FancyActivityPickerSheet(
                     Text("🔍", fontSize = 40.sp)
                     Spacer(Modifier.height(AevumSpacing.sm))
                     Text(
-                        "Keine Aktivität für „$query\" gefunden",
+                        stringResource(R.string.timeline_no_results, query),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
                 Text(
-                    "${filtered.size} ${if (filtered.size == 1) "Aktivität" else "Aktivitäten"}",
+                    if (filtered.size == 1) {
+                        stringResource(R.string.timeline_activity_count_singular, filtered.size)
+                    } else {
+                        stringResource(R.string.timeline_activity_count_plural, filtered.size)
+                    },
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = AevumSpacing.sm)
@@ -3493,13 +3589,13 @@ private fun VisualTimeEditorCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Zeitfenster", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Uhr antippen & drehen · Snap 5 min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.timeline_editor_time_window), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.timeline_editor_time_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(
                     when {
-                        durationOnly -> "${durationOnlyMinutes ?: 60} min"
-                        openEnded -> "läuft weiter…"
+                        durationOnly -> stringResource(R.string.timeline_duration_minutes, durationOnlyMinutes ?: 60)
+                        openEnded -> stringResource(R.string.timeline_editor_open_ended)
                         else -> state.duration
                     },
                     color = when {
@@ -3521,17 +3617,17 @@ private fun VisualTimeEditorCard(
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 SegmentButton(
-                    label = "Mit Endzeit",
+                    label = stringResource(R.string.timeline_editor_segment_fixed),
                     selected = !openEnded && !durationOnly,
                     modifier = Modifier.weight(1f)
                 ) { onOpenEndedChange(false); onDurationOnlyModeChange(false) }
                 SegmentButton(
-                    label = "● Ende offen",
+                    label = stringResource(R.string.timeline_editor_segment_open),
                     selected = openEnded && !durationOnly,
                     modifier = Modifier.weight(1f)
                 ) { onOpenEndedChange(true); onDurationOnlyModeChange(false) }
                 SegmentButton(
-                    label = "⏱ Nur Dauer",
+                    label = stringResource(R.string.timeline_editor_segment_duration),
                     selected = durationOnly,
                     modifier = Modifier.weight(1f)
                 ) { onDurationOnlyModeChange(true); onOpenEndedChange(false) }
@@ -3540,7 +3636,7 @@ private fun VisualTimeEditorCard(
                 // R20-v2: "Nur Dauer"-Eingabe
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                     Text(
-                        "Nur Dauer erfassen — erscheint in der Tagesstatistik, nicht in der Timeline.",
+                        stringResource(R.string.timeline_duration_only_hint),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3553,7 +3649,7 @@ private fun VisualTimeEditorCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Stunden", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.common_hours), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = { onDurationOnlyMinutesChange(((hours - 1).coerceAtLeast(0)) * 60 + minutes) }) { Text("−") }
                                 Text("$hours", fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
@@ -3562,7 +3658,7 @@ private fun VisualTimeEditorCard(
                         }
                         Text(":", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Minuten", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.common_minutes), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 val step = 5
                                 OutlinedButton(onClick = { onDurationOnlyMinutesChange(hours * 60 + ((minutes - step).coerceAtLeast(0) / step * step)) }) { Text("−") }
@@ -3595,7 +3691,7 @@ private fun VisualTimeEditorCard(
                                 onStartHour(h)
                                 onStartQuarter(m)
                             },
-                            label = "START",
+                            label = stringResource(R.string.timeline_time_start_label),
                             showDigitalDisplay = true
                         )
                     }
@@ -3609,7 +3705,7 @@ private fun VisualTimeEditorCard(
                                     onEndHour(h)
                                     onEndQuarter(m)
                                 },
-                                label = "ENDE",
+                                label = stringResource(R.string.timeline_time_end_label),
                                 showDigitalDisplay = true
                             )
                         }
@@ -3617,7 +3713,10 @@ private fun VisualTimeEditorCard(
                 }
                 if (openEnded) {
                     Text(
-                        "Die Aufzeichnung startet ab ${TimeFormatting.formatTime(state.form.startAt)} und läuft weiter, bis du sie manuell beendest.",
+                        stringResource(
+                            R.string.timeline_editor_open_ended_hint,
+                            TimeFormatting.formatTime(state.form.startAt)
+                        ),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3632,8 +3731,52 @@ private fun VisualTimeEditorCard(
 
 @Composable
 private fun TriggerSnapRow(markers: List<TriggerEventMarker>, onSnapStart: (TriggerEventMarker) -> Unit, onSnapEnd: (TriggerEventMarker) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) { Text("Trigger Marker (Architektur vorbereitet)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) { markers.forEach { marker -> AssistChip(onClick = { onSnapStart(marker) }, label = { Text("Start: ${TimeFormatting.formatTime(marker.occurredAt)} ${marker.label}") }); AssistChip(onClick = { onSnapEnd(marker) }, label = { Text("Ende: ${TimeFormatting.formatTime(marker.occurredAt)}") }) } } }
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+        Text(stringResource(R.string.timeline_editor_trigger_row), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            markers.forEach { marker ->
+                AssistChip(
+                    onClick = { onSnapStart(marker) },
+                    label = {
+                        Text(
+                            stringResource(
+                                R.string.timeline_editor_snap_start,
+                                TimeFormatting.formatTime(marker.occurredAt),
+                                marker.label
+                            )
+                        )
+                    }
+                )
+                AssistChip(
+                    onClick = { onSnapEnd(marker) },
+                    label = {
+                        Text(
+                            stringResource(
+                                R.string.timeline_editor_snap_end,
+                                TimeFormatting.formatTime(marker.occurredAt)
+                            )
+                        )
+                    }
+                )
+            }
+        }
+    }
 }
 
 @Composable
-private fun ValidationCard(validation: SessionValidationResult, errorMessage: String?) { val message = errorMessage ?: when (validation) { SessionValidationResult.Valid -> "Zeitfenster plausibel. Du kannst speichern."; is SessionValidationResult.Invalid -> validation.message; is SessionValidationResult.Warning -> validation.message }; AevumCard(variant = CardVariant.Filled) { Text(message, fontSize = 13.sp, color = if (validation is SessionValidationResult.Invalid || errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } }
+private fun ValidationCard(validation: SessionValidationResult, errorMessage: String?) {
+    val message = errorMessage ?: when (validation) {
+        SessionValidationResult.Valid -> stringResource(R.string.timeline_validation_valid)
+        is SessionValidationResult.Invalid -> validation.message
+        is SessionValidationResult.Warning -> validation.message
+    }
+    AevumCard(variant = CardVariant.Filled) {
+        Text(
+            message,
+            fontSize = 13.sp,
+            color = if (validation is SessionValidationResult.Invalid || errorMessage != null)
+                MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}

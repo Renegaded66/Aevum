@@ -445,10 +445,10 @@ class DriveDetectionService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Autofahrt-Erkennung",
+            getString(R.string.service_drive_channel_name),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Erkennt Autofahrten über GPS im Hintergrund"
+            description = getString(R.string.service_drive_channel_desc)
             setShowBadge(false)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -462,8 +462,8 @@ class DriveDetectionService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Autofahrt-Erkennung aktiv")
-            .setContentText("Aevum erkennt Fahrten über GPS im Hintergrund")
+            .setContentTitle(getString(R.string.service_drive_title))
+            .setContentText(getString(R.string.service_drive_text))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

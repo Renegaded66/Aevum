@@ -50,11 +50,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.DailyAllowance
 import com.d_drostes_apps.aevum.ui.components.AevumCard
@@ -89,16 +91,16 @@ fun DailyAllowancesScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = AevumSpacing.xl, bottom = AevumSpacing.lg),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) { Icon(Icons.Default.Close, contentDescription = "Schließen") }
+                IconButton(onClick = onBack) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_close)) }
                 Spacer(Modifier.width(AevumSpacing.sm))
                 Column {
                     Text(
-                        "Tagespauschalen",
+                        stringResource(R.string.allowance_title),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Erscheinen in der Statistik, nicht in der Timeline",
+                        stringResource(R.string.allowance_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -129,7 +131,7 @@ fun DailyAllowancesScreen(
             onClick = { showAddDialog = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(AevumSpacing.lg)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Neue Pauschale")
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.allowance_new))
         }
     }
 
@@ -217,7 +219,7 @@ private fun AllowanceRow(
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            "${allowance.minutesPerDay} min/Tag",
+                            stringResource(R.string.allowance_minutes_per_day, allowance.minutesPerDay),
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.SemiBold,
@@ -231,14 +233,14 @@ private fun AllowanceRow(
             IconButton(onClick = onEdit) {
                 Icon(
                     Icons.Default.Edit,
-                    contentDescription = "Bearbeiten",
+                    contentDescription = stringResource(R.string.common_edit),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "Löschen",
+                    contentDescription = stringResource(R.string.common_delete),
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -265,19 +267,19 @@ private fun AddAllowanceDialog(
 
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text(if (initial == null) "Neue Tagespauschale" else "Pauschale bearbeiten") },
+        title = { Text(if (initial == null) stringResource(R.string.allowance_new_title) else stringResource(R.string.allowance_edit_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name (z.B. Fertig machen)") },
+                    label = { Text(stringResource(R.string.allowance_name_hint)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(AevumSpacing.md))
                 Text(
-                    "Aktivität",
+                    stringResource(R.string.allowance_activity),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -423,7 +425,7 @@ private fun AddAllowanceDialog(
                                     )
                                 }
                                 Text(
-                                    "pro Tag",
+                                    stringResource(R.string.allowance_per_day),
                                     fontSize = 11.sp,
                                     color = onSurfaceVarColor.copy(alpha = 0.7f)
                                 )
@@ -477,9 +479,9 @@ private fun AddAllowanceDialog(
                         onConfirm(name, selectedTypeId, minutes.toInt())
                     }
                 }
-            ) { Text("Speichern") }
+            ) { Text(stringResource(R.string.common_save)) }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -491,13 +493,13 @@ private fun EmptyState() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Noch keine Tagespauschalen",
+                stringResource(R.string.allowance_empty_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(AevumSpacing.sm))
             Text(
-                "Tippe auf +, um eine zu erstellen — z.B. „Fertig machen 30 min/Tag, die in die Statistik einfließen.",
+                stringResource(R.string.allowance_empty_message),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )

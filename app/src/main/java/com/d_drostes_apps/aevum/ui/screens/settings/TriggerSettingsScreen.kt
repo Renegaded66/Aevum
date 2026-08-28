@@ -66,6 +66,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.geofence.GeofenceRegistrar
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionEngine
 import com.d_drostes_apps.aevum.automation.sleep.SleepFusionStatus
@@ -294,12 +296,12 @@ fun TriggerSettingsScreen(
             item {
                 val geofenceBlocked = !state.foregroundLocationGranted || !state.backgroundLocationGranted
                 TriggerGroup(
-                    title = "Ortsbasiert",
+                    title = stringResource(R.string.settings_triggers_group_location),
                     items = listOf(
                         TriggerToggle(
                             icon = "📍",
-                            title = "Geofences",
-                            description = "Zuhause, Arbeit & Co. erkennen — Betreten startet, Verlassen stoppt die Aktivität",
+                            title = stringResource(R.string.common_geofences),
+                            description = stringResource(R.string.settings_triggers_geofences_desc),
                             accent = Color(0xFF4F9CF9),
                             checked = state.settings.geofencingEnabled,
                             permissionGranted = !geofenceBlocked,
@@ -326,12 +328,12 @@ fun TriggerSettingsScreen(
             item {
                 val arBlocked = !state.activityRecognitionGranted
                 TriggerGroup(
-                    title = "Bewegung",
+                    title = stringResource(R.string.settings_triggers_group_movement),
                     items = listOf(
                         TriggerToggle(
                             icon = "🚗",
-                            title = "Autofahren",
-                            description = "Automatisch starten, wenn Android eine Fahrt erkennt — stoppt beim Aussteigen",
+                            title = stringResource(R.string.settings_triggers_driving),
+                            description = stringResource(R.string.settings_triggers_driving_desc),
                             accent = Color(0xFFF59E0B),
                             checked = state.settings.drivingDetectionEnabled,
                             permissionGranted = !arBlocked,
@@ -343,8 +345,8 @@ fun TriggerSettingsScreen(
                         ),
                         TriggerToggle(
                             icon = "🚶",
-                            title = "Walking & Laufen",
-                            description = "Trigger erst nach 5 Minuten am Stück (kein False-Trigger bei kurzen Wegen)",
+                            title = stringResource(R.string.settings_triggers_walking),
+                            description = stringResource(R.string.settings_triggers_walking_desc),
                             accent = Color(0xFF10B981),
                             checked = state.settings.walkingDetectionEnabled,
                             permissionGranted = !arBlocked,
@@ -356,8 +358,8 @@ fun TriggerSettingsScreen(
                         ),
                         TriggerToggle(
                             icon = "🚴",
-                            title = "Radfahren",
-                            description = "Sofort-Trigger bei erkannten Fahrrad-Fahrten",
+                            title = stringResource(R.string.settings_triggers_bicycle),
+                            description = stringResource(R.string.settings_triggers_bicycle_desc),
                             accent = Color(0xFF8B5CF6),
                             checked = state.settings.bicycleDetectionEnabled,
                             permissionGranted = !arBlocked,
@@ -453,10 +455,9 @@ private const val DIGITAL_BALANCE_ITEM_INDEX = 5
 private fun TriggerSettingsHero(onBack: () -> Unit) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("Trigger & Erkennung", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.settings_triggers_title), fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Entscheide pro Quelle, was Aevum automatisch erkennen darf. " +
-                    "Berechtigungen werden direkt hier verwaltet — alles läuft lokal auf deinem Gerät.",
+                stringResource(R.string.settings_triggers_hero_subtitle),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 20.sp
             )
@@ -485,21 +486,21 @@ private fun PermissionStatusCard(
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
             Text(
-                "Berechtigungen",
+                stringResource(R.string.common_permissions),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            PermissionStatusRow("Standort", foregroundGranted, onRequestForeground)
+            PermissionStatusRow(stringResource(R.string.settings_triggers_permission_location), foregroundGranted, onRequestForeground)
             PermissionStatusRow(
-                "Standort im Hintergrund (Immer erlauben)",
+                stringResource(R.string.settings_triggers_permission_background_location),
                 backgroundGranted,
                 onRequestBackground
             )
-            PermissionStatusRow("Aktivitätserkennung", activityRecognitionGranted, onRequestActivityRecognition)
-            PermissionStatusRow("Benachrichtigungen", notificationsGranted, onRequestNotifications)
-            PermissionStatusRow("Nutzungszugriff (Bildschirmzeit)", usageStatsGranted, onOpenUsageAccess)
+            PermissionStatusRow(stringResource(R.string.settings_triggers_permission_activity), activityRecognitionGranted, onRequestActivityRecognition)
+            PermissionStatusRow(stringResource(R.string.settings_triggers_permission_notifications), notificationsGranted, onRequestNotifications)
+            PermissionStatusRow(stringResource(R.string.settings_triggers_permission_usage), usageStatsGranted, onOpenUsageAccess)
         }
     }
 }
@@ -516,7 +517,8 @@ private fun PermissionStatusRow(label: String, granted: Boolean, onClick: () -> 
     ) {
         Text(label, fontSize = 13.sp)
         Text(
-            if (granted) "✓ Erteilt" else "Ausstehend",
+            if (granted) stringResource(R.string.settings_triggers_permission_granted_status)
+            else stringResource(R.string.settings_triggers_permission_pending),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (granted) PermissionGreen else PermissionRed
@@ -583,14 +585,14 @@ private fun TriggerToggleRow(toggle: TriggerToggle) {
             // M18.57: Permission-Hinweis — rot (fehlt) / grün (erteilt)
             if (toggle.permissionGranted) {
                 Text(
-                    "✓ Berechtigung erteilt",
+                    stringResource(R.string.settings_triggers_permission_granted),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = PermissionGreen
                 )
             } else {
                 Text(
-                    "⚠ Berechtigung noch nicht erteilt — tippen zum Erteilen",
+                    stringResource(R.string.settings_triggers_permission_missing),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = PermissionRed
@@ -641,23 +643,23 @@ private fun SleepSourceCard(
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text(
-                "Schlaf-Quelle",
+                stringResource(R.string.settings_triggers_sleep_source),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Eine Quelle — Aevum trägt erkannten Schlaf automatisch in die Timeline ein.",
+                stringResource(R.string.settings_triggers_sleep_source_desc),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             val sources = listOf(
-                SleepSourceOption("screen", "📱", "Bildschirmzeit"),
-                SleepSourceOption("health_connect", "❤️", "Health Connect"),
-                SleepSourceOption("garmin", "⌚", "Garmin"),
-                SleepSourceOption("none", "🚫", "Aus")
+                SleepSourceOption("screen", "📱", stringResource(R.string.settings_triggers_sleep_source_screen)),
+                SleepSourceOption("health_connect", "❤️", stringResource(R.string.settings_triggers_sleep_source_health)),
+                SleepSourceOption("garmin", "⌚", stringResource(R.string.settings_triggers_sleep_source_garmin)),
+                SleepSourceOption("none", "🚫", stringResource(R.string.settings_triggers_sleep_source_off))
             )
             val activeIndex = sources.indexOfFirst { it.id == currentSource }
                 .coerceAtLeast(0)
@@ -767,10 +769,10 @@ private fun SleepSourceCard(
 
             // Beschreibung der aktiven Quelle
             val description = when (currentSource) {
-                "screen" -> "Bildschirm aus = schlafen. Erkennt Schlaf aus deinen Bildschirm-Phasen — ohne zusätzliche Geräte."
-                "health_connect" -> "Importiert Schlaf aus Health Connect (z.B. Smartwatch, Fitnessband)."
-                "garmin" -> "Importiert Schlaf aus Garmin Connect — direkt in die Timeline, sobald Daten verfügbar sind."
-                else -> "Keine automatische Schlaf-Aufzeichnung. Schlaf kannst du weiterhin manuell eintragen."
+                "screen" -> stringResource(R.string.settings_triggers_sleep_desc_screen)
+                "health_connect" -> stringResource(R.string.settings_triggers_sleep_desc_health)
+                "garmin" -> stringResource(R.string.settings_triggers_sleep_desc_garmin)
+                else -> stringResource(R.string.settings_triggers_sleep_desc_none)
             }
             Text(
                 description,
@@ -814,14 +816,14 @@ private fun ScreenRecordingCard(
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text(
-                "Bildschirm-Aufzeichnung",
+                stringResource(R.string.settings_triggers_screen_recording),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "Wenn der Bildschirm mindestens x Minuten an ist und nichts anderes läuft, zeichnet Aevum „Digital“ mit x Minuten Vorlauf auf. Bildschirm aus = Stopp.",
+                stringResource(R.string.settings_triggers_screen_recording_desc),
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -834,16 +836,16 @@ private fun ScreenRecordingCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    if (isDeactivated) "🚫 Deaktiviert"
-                    else if (displayValue == 0) "⚡ Sofort bei Screen-ON"
-                    else "⏱️ Vorlauf: $displayValue min",
+                    if (isDeactivated) stringResource(R.string.settings_triggers_screen_deactivated)
+                    else if (displayValue == 0) stringResource(R.string.settings_triggers_screen_instant)
+                    else stringResource(R.string.settings_triggers_screen_lead, displayValue),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                     color = if (isDeactivated) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    if (isDeactivated) "—" else "startet nach ${displayValue} min",
+                    if (isDeactivated) "—" else stringResource(R.string.settings_triggers_screen_starts_after, displayValue),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -868,8 +870,8 @@ private fun ScreenRecordingCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("0 min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Aus", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_triggers_screen_zero), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_triggers_screen_off), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -888,27 +890,27 @@ private fun AdditionalAutomationCard(
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text(
-                "Weitere Automatisierung",
+                stringResource(R.string.settings_triggers_additional),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             SettingSwitchRow(
-                "Hintergrunderfassung",
-                "Geofences erkennen, auch wenn Aevum geschlossen ist",
+                stringResource(R.string.settings_triggers_background_capture),
+                stringResource(R.string.settings_triggers_background_capture_desc),
                 backgroundCaptureEnabled,
                 onBackgroundCapture
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f))
             SettingSwitchRow(
-                "Bildschirmzeit erfassen",
-                "Nutzungsstatistiken lokal analysieren",
+                stringResource(R.string.settings_triggers_screen_time_capture),
+                stringResource(R.string.settings_triggers_screen_time_capture_desc),
                 digitalBalanceEnabled,
                 onDigitalBalance
             )
             if (!usageStatsGranted && digitalBalanceEnabled) {
-                TextButton(onClick = onOpenUsageAccess) { Text("Nutzungszugriff öffnen") }
+                TextButton(onClick = onOpenUsageAccess) { Text(stringResource(R.string.settings_triggers_open_usage_access)) }
             }
         }
     }
@@ -947,23 +949,23 @@ private fun DataCard(
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text(
-                "Daten & Status",
+                stringResource(R.string.settings_triggers_data_status),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "$geofenceCount Geofences · $triggerCount Trigger · $pendingCandidateCount offene Vorschläge",
+                stringResource(R.string.settings_triggers_data_summary, geofenceCount, triggerCount, pendingCandidateCount),
                 fontSize = 13.sp
             )
             registrationMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(onClick = onOpenGeofences) { Text("Geofences") }
-                OutlinedButton(onClick = onOpenTriggers) { Text("Trigger") }
-                OutlinedButton(onClick = onOpenStatus) { Text("Status-Details") }
+                Button(onClick = onOpenGeofences) { Text(stringResource(R.string.common_geofences)) }
+                OutlinedButton(onClick = onOpenTriggers) { Text(stringResource(R.string.settings_triggers_trigger)) }
+                OutlinedButton(onClick = onOpenStatus) { Text(stringResource(R.string.settings_triggers_status_details)) }
             }
         }
     }
@@ -1120,9 +1122,9 @@ class TriggerSettingsViewModel @Inject constructor(
                             androidx.work.ExistingWorkPolicy.REPLACE,
                             request
                         )
-                    registrationMessage.value = "✓ Intelligente Schlaf-Erkennung aktiv. Analyse läuft."
+                    registrationMessage.value = app.getString(R.string.settings_triggers_sleep_fusion_active)
                 } catch (e: Exception) {
-                    registrationMessage.value = "Worker-Start fehlgeschlagen: ${e.message}"
+                    registrationMessage.value = app.getString(R.string.settings_triggers_worker_start_failed, e.message ?: "")
                 }
             }
         }
@@ -1155,7 +1157,7 @@ class TriggerSettingsViewModel @Inject constructor(
                 if (!status.connected) {
                     // Regler springt zurück: Quelle bleibt unverändert.
                     registrationMessage.value =
-                        "Garmin ist nicht verbunden. Bitte zuerst in Einstellungen → Fitness-Tracker anmelden."
+                        app.getString(R.string.settings_triggers_garmin_not_connected)
                     return@launch
                 }
                 applySleepSource(source)
@@ -1197,7 +1199,7 @@ class TriggerSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 pingTriggerRepository.create(name.trim(), ipAddress.trim(), activityTypeId)
-                registrationMessage.value = "✓ Ping-Trigger \"$name\" angelegt — prüft alle 2 Minuten."
+                registrationMessage.value = app.getString(R.string.settings_triggers_ping_created, name.trim())
                 // Worker sofort anstoßen (nicht erst auf den nächsten
                 // periodischen Lauf warten)
                 androidx.work.WorkManager.getInstance(app)
@@ -1209,7 +1211,7 @@ class TriggerSettingsViewModel @Inject constructor(
                             .build()
                     )
             } catch (e: Exception) {
-                registrationMessage.value = "Ping-Trigger konnte nicht angelegt werden: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_ping_create_failed, e.message ?: "")
             }
         }
     }
@@ -1229,7 +1231,7 @@ class TriggerSettingsViewModel @Inject constructor(
                         )
                 }
             } catch (e: Exception) {
-                registrationMessage.value = "Ping-Trigger konnte nicht aktualisiert werden: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_ping_update_failed, e.message ?: "")
             }
         }
     }
@@ -1239,7 +1241,7 @@ class TriggerSettingsViewModel @Inject constructor(
             try {
                 pingTriggerRepository.delete(id)
             } catch (e: Exception) {
-                registrationMessage.value = "Ping-Trigger konnte nicht gelöscht werden: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_ping_delete_failed, e.message ?: "")
             }
         }
     }
@@ -1267,14 +1269,14 @@ class TriggerSettingsViewModel @Inject constructor(
                     .count { it.activityTypeId == "sleep" }
                 registrationMessage.value = when {
                     sleepCandidatesAfter > sleepCandidatesBefore ->
-                        "✓ Schlaf-Vorschlag in der Review-Inbox bereit."
+                        app.getString(R.string.settings_triggers_sleep_suggestion_ready)
                     sleepCandidatesAfter == sleepCandidatesBefore ->
-                        "✓ Schlaf wurde direkt in die Timeline übernommen (Auto-Accept)."
+                        app.getString(R.string.settings_triggers_sleep_auto_accepted)
                     else ->
-                        "✓ Schlaf-Analyse abgeschlossen. Bereits erkannt — keine Änderung."
+                        app.getString(R.string.settings_triggers_sleep_analysis_done)
                 }
             } catch (e: Exception) {
-                registrationMessage.value = "Analyse fehlgeschlagen: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_analysis_failed, e.message ?: "")
             } finally {
                 _isAnalyzingSleep.value = false
             }
@@ -1287,7 +1289,7 @@ class TriggerSettingsViewModel @Inject constructor(
                 sleepHeuristicEngine.init(app)
                 _sleepStatus.value = sleepHeuristicEngine.getStatus()
             } catch (e: Exception) {
-                registrationMessage.value = "Status nicht verfügbar: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_status_unavailable, e.message ?: "")
             }
         }
     }
@@ -1309,7 +1311,7 @@ class TriggerSettingsViewModel @Inject constructor(
             try {
                 _fusionStatus.value = sleepFusionEngine.getStatus()
             } catch (e: Exception) {
-                registrationMessage.value = "Fusion-Status nicht verfügbar: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_fusion_status_unavailable, e.message ?: "")
             }
         }
     }
@@ -1324,9 +1326,9 @@ class TriggerSettingsViewModel @Inject constructor(
             try {
                 sleepFusionEngine.analyzeLatest()
                 _fusionStatus.value = sleepFusionEngine.getStatus()
-                registrationMessage.value = "✓ Schlaf-Fusion ausgeführt. Ergebnis in der Review-Inbox / Timeline prüfen."
+                registrationMessage.value = app.getString(R.string.settings_triggers_fusion_done)
             } catch (e: Exception) {
-                registrationMessage.value = "Fusion fehlgeschlagen: ${e.message}"
+                registrationMessage.value = app.getString(R.string.settings_triggers_fusion_failed, e.message ?: "")
             } finally {
                 _isAnalyzingFusion.value = false
             }
@@ -1393,26 +1395,26 @@ private fun PingTriggerCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Netzwerk (Ping)",
+                        stringResource(R.string.settings_triggers_ping_network),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "IP-Adresse überwachen — z.B. FireTV. Erreichbar → Activity startet, nicht erreichbar → stoppt.",
+                        stringResource(R.string.settings_triggers_ping_desc),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 TextButton(onClick = { showCreate = true }) {
-                    Text("+ Neu", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_triggers_ping_new), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
             if (triggers.isEmpty()) {
                 Text(
-                    "Noch keine Ping-Trigger. Füge die IP deines FireTV hinzu, um automatisch eine Activity zu starten, sobald er an ist.",
+                    stringResource(R.string.settings_triggers_ping_empty),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1443,7 +1445,7 @@ private fun PingTriggerCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "Löschen",
+                            contentDescription = stringResource(R.string.common_delete),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp)
                         )
@@ -1481,7 +1483,7 @@ private fun PingTriggerCreateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Neuer Ping-Trigger", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        title = { Text(stringResource(R.string.settings_triggers_ping_new_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(
                 modifier = Modifier
@@ -1489,23 +1491,23 @@ private fun PingTriggerCreateDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                Text("Name", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.common_name), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("z.B. FireTV Wohnzimmer") },
+                    placeholder = { Text(stringResource(R.string.settings_triggers_ping_name_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("IP-Adresse", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_triggers_ping_ip), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
                     value = ip,
                     onValueChange = { ip = it },
-                    placeholder = { Text("z.B. 192.168.1.42") },
+                    placeholder = { Text(stringResource(R.string.settings_triggers_ping_ip_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("Aktivität", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_triggers_ping_activity), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 activityTypes.forEach { type ->
                     Row(
                         modifier = Modifier
@@ -1529,8 +1531,8 @@ private fun PingTriggerCreateDialog(
             Button(
                 onClick = { onCreate(name, ip, activityTypeId) },
                 enabled = name.isNotBlank() && ip.isNotBlank() && activityTypeId.isNotEmpty()
-            ) { Text("Erstellen") }
+            ) { Text(stringResource(R.string.common_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }

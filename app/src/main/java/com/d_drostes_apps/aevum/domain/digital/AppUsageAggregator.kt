@@ -75,7 +75,13 @@ class AppUsageAggregator @Inject constructor(
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND,
                 UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    foregroundSince[event.packageName] = event.timeStamp
+                    // WICHTIG (Balkenhöhen-Fix): Manche OEMs liefern Events
+                    // mit Timestamps AUSSERHALB des Query-Fensters (z.B. ein
+                    // MOVE_TO_FOREGROUND von gestern 23:50 bei einem Query
+                    // ab heute 00:00). Ohne Clipping würde die Phase ab
+                    // gestern 23:50 bis jetzt gezählt → der heutige Balken
+                    // und die App-Liste zeigen massiv zu viel Zeit.
+                    foregroundSince[event.packageName] = maxOf(event.timeStamp, start)
                 }
                 UsageEvents.Event.MOVE_TO_BACKGROUND,
                 UsageEvents.Event.ACTIVITY_PAUSED,
@@ -116,7 +122,8 @@ class AppUsageAggregator @Inject constructor(
                 when (event.eventType) {
                     UsageEvents.Event.MOVE_TO_FOREGROUND,
                     UsageEvents.Event.ACTIVITY_RESUMED -> {
-                        foregroundSince[event.packageName] = event.timeStamp
+                        // Clipping wie in foregroundPhases (OEM-Events außerhalb des Fensters)
+                        foregroundSince[event.packageName] = maxOf(event.timeStamp, startOfDay)
                         unlocks++
                     }
                     UsageEvents.Event.MOVE_TO_BACKGROUND,
@@ -170,7 +177,8 @@ class AppUsageAggregator @Inject constructor(
                 when (event.eventType) {
                     UsageEvents.Event.MOVE_TO_FOREGROUND,
                     UsageEvents.Event.ACTIVITY_RESUMED -> {
-                        foregroundSince[event.packageName] = event.timeStamp
+                        // Clipping wie in foregroundPhases (OEM-Events außerhalb des Fensters)
+                        foregroundSince[event.packageName] = maxOf(event.timeStamp, startOfDay)
                     }
                     UsageEvents.Event.MOVE_TO_BACKGROUND,
                     UsageEvents.Event.ACTIVITY_PAUSED,

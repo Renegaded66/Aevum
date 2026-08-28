@@ -45,6 +45,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import kotlin.math.PI
@@ -175,8 +177,8 @@ fun AevumTimePicker(
                 .padding(2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            ModeChip("Stunde", !isMinuteMode) { isMinuteMode = false }
-            ModeChip("Minute", isMinuteMode) { isMinuteMode = true }
+            ModeChip(stringResource(R.string.component_hour), !isMinuteMode) { isMinuteMode = false }
+            ModeChip(stringResource(R.string.component_minute), isMinuteMode) { isMinuteMode = true }
         }
 
         Spacer(Modifier.height(AevumSpacing.md))

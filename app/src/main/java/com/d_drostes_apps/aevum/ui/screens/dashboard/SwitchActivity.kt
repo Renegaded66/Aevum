@@ -29,11 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import com.d_drostes_apps.aevum.LocalizedActivity
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
 import com.d_drostes_apps.aevum.ui.components.categoryColor
@@ -53,7 +56,7 @@ import javax.inject.Inject
  * aufgebaut (neue Farbe, neuer Titel, Timer zurückgesetzt).
  */
 @AndroidEntryPoint
-class SwitchActivity : ComponentActivity() {
+class SwitchActivity : LocalizedActivity() {
 
     @Inject lateinit var liveActivityManager: LiveActivityManager
 
@@ -105,13 +108,13 @@ private fun SwitchContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Aktivität wechseln",
+                    stringResource(R.string.switch_activity_title),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Text(
-                    "Die aktuelle Aktivität wird beendet und die neue gestartet.",
+                    stringResource(R.string.switch_activity_subtitle),
                     fontSize = 13.sp,
                     color = Color(0xFFB0B0C0)
                 )
@@ -150,7 +153,7 @@ private fun SwitchContent(
 
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Abbrechen",
+                    stringResource(R.string.common_cancel),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF8B8BA0),

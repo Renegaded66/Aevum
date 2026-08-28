@@ -30,8 +30,6 @@ import com.d_drostes_apps.aevum.ui.screens.timeline.ActivityEditorScreen
 import com.d_drostes_apps.aevum.ui.screens.timeline.TimelineScreen
 import com.d_drostes_apps.aevum.ui.screens.review.ReviewInboxScreen
 import com.d_drostes_apps.aevum.ui.screens.weekly.WeeklyReviewScreen
-import com.d_drostes_apps.aevum.ui.screens.habits.HabitsScreen
-import com.d_drostes_apps.aevum.ui.screens.habits.HabitEditorScreen
 
 @Composable
 fun AppNavHost(
@@ -125,7 +123,7 @@ fun AppNavHost(
         }
         composable(AppDestination.Insights.route) {
             // M17.4: InsightsScreen hat jetzt nur noch onBack —
-            // die Verlinkungen zu Goals/Habits/WeeklyReview sind
+            // die Verlinkungen zu Goals/WeeklyReview sind
             // (noch) nicht Teil des Redesigns, folgen separat.
             // M18.35: + onOpenLifeView zur Lebenszeit-Ansicht.
             InsightsScreen(
@@ -151,12 +149,9 @@ fun AppNavHost(
                 onOpenTriggerSettings = { navController.navigate(AppDestination.TriggerSettings.route) },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
-                onOpenHabits = { navController.navigate(AppDestination.Habits.route) },
                 // M18.30: Todos + Tagespauschalen
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
                 onOpenDailyAllowances = { navController.navigate(AppDestination.DailyAllowances.route) },
-                // M18.39: Bucket List
-                onOpenBucketList = { navController.navigate(AppDestination.BucketList.route) },
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
                 onOpenCategories = { navController.navigate(AppDestination.Categories.route) },
@@ -247,24 +242,6 @@ fun AppNavHost(
         composable(AppDestination.PlacesSetup.route) { OnboardingScreen() }
         composable(AppDestination.DashboardIntro.route) { OnboardingScreen() }
 
-        // Habits
-        composable(AppDestination.Habits.route) {
-            HabitsScreen(
-                onBack = { navController.popBackStack() },
-                onCreate = { navController.navigate(AppDestination.HabitCreate.route) },
-                onEdit = { id -> navController.navigate("habit/edit/$id") }
-            )
-        }
-        composable(AppDestination.HabitCreate.route) {
-            HabitEditorScreen(onBack = { navController.popBackStack() })
-        }
-        composable(
-            route = AppDestination.HabitEdit.route,
-            arguments = listOf(navArgument("habitId") { type = NavType.StringType })
-        ) {
-            HabitEditorScreen(onBack = { navController.popBackStack() })
-        }
-
         // M17.2 + M17.3
         composable(AppDestination.UnknownPlaces.route) {
             UnknownPlacesScreen(onBack = { navController.popBackStack() })
@@ -329,30 +306,6 @@ fun AppNavHost(
             val todoId = backStackEntry.arguments?.getString("todoId") ?: ""
             com.d_drostes_apps.aevum.ui.screens.todos.TodoEditorScreen(
                 todoId = todoId,
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() }
-            )
-        }
-        // M18.39: Bucket List — eigene Seite, von Settings aus erreichbar
-        composable(AppDestination.BucketList.route) {
-            com.d_drostes_apps.aevum.ui.screens.bucketlist.BucketListScreen(
-                onCreate = { navController.navigate(AppDestination.BucketListCreate.route) },
-                onEdit = { itemId -> navController.navigate("bucketlist/edit/$itemId") }
-            )
-        }
-        composable(AppDestination.BucketListCreate.route) {
-            com.d_drostes_apps.aevum.ui.screens.bucketlist.BucketListEditorScreen(
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() }
-            )
-        }
-        composable(
-            route = AppDestination.BucketListEdit.route,
-            arguments = listOf(navArgument("itemId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
-            com.d_drostes_apps.aevum.ui.screens.bucketlist.BucketListEditorScreen(
-                itemId = itemId,
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() }
             )

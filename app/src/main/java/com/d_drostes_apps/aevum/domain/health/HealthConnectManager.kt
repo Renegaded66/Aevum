@@ -7,6 +7,7 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.model.AutomationConstants
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.model.DetectionEvent
@@ -85,7 +86,7 @@ class HealthConnectManager @Inject constructor(
         val durationMs = endTime - startTime
         val hours = durationMs / 3_600_000
         val mins = (durationMs % 3_600_000) / 60_000
-        val durationStr = if (mins > 0) "${hours}h ${mins}m" else "${hours}h"
+        val durationStr = if (mins > 0) context.getString(R.string.health_duration_h_m, hours, mins) else context.getString(R.string.health_duration_h, hours)
 
         // M11: Dedup via externalId (Health Connect metadata.id). Wenn bereits
         // ein RawSourceEvent mit dieser externalId existiert, überspringen.
@@ -125,14 +126,14 @@ class HealthConnectManager @Inject constructor(
         // ActivityCandidate
         return ActivityCandidate(
             id = UUID.randomUUID().toString(),
-            suggestedTitle = "Schlaf ($durationStr)",
+            suggestedTitle = context.getString(R.string.health_sleep_title, durationStr),
             suggestedCategoryId = "sleep",
             activityTypeId = "sleep",
             startAt = startTime,
             endAt = endTime,
             confidence = SLEEP_CONFIDENCE,
             status = AutomationConstants.CANDIDATE_STATUS_PENDING,
-            reason = "Health Connect: ${record.title ?: "Schlaf"} ($durationStr). Bitte prüfen.",
+            reason = context.getString(R.string.health_sleep_reason, record.title ?: context.getString(R.string.common_sleep), durationStr),
             createdBy = "HEALTH_CONNECT_V1",
             createdAt = now,
             sourceCandidateId = rawId

@@ -1,0 +1,99 @@
+<resources>
+    <!-- Weekly Review -->
+    <string name="weekly_hero_title">Your week</string>
+    <string name="weekly_timeline_title">Week timeline</string>
+    <string name="weekly_timeline_subtitle">Seven days as a calm overview</string>
+    <string name="weekly_distribution_title">Time distribution</string>
+    <string name="weekly_distribution_subtitle">Which areas shaped your week</string>
+    <string name="weekly_changes_title">Changes</string>
+    <string name="weekly_changes_subtitle">Compared to last week</string>
+    <string name="weekly_highlights_title">Highlights</string>
+    <string name="weekly_patterns_title">Weekly patterns</string>
+    <string name="weekly_open_time_title">Open time</string>
+    <string name="weekly_open_time_message">%1$s of this week are not captured yet.</string>
+    <string name="weekly_to_timeline">To timeline</string>
+    <string name="weekly_empty_title">No week visible yet.</string>
+    <string name="weekly_empty_message">Capture a few activities. Then Aevum will calmly tell you which patterns, highlights and open times are becoming visible in your week.</string>
+    <string name="weekly_closing_1">Every week tells its own story.</string>
+    <string name="weekly_closing_2">Even small changes become visible over time.</string>
+    <string name="weekly_closing_3">What becomes visible can be shaped more consciously.</string>
+    <string name="weekly_narrative_empty">Once you capture a few time blocks, a calm weekly review will emerge here.</string>
+    <string name="weekly_narrative_top_two">This week you invested a lot of time in %1$s and also made %2$s visible.</string>
+    <string name="weekly_narrative_change">This week, %1$s became more visible than last week.</string>
+    <string name="weekly_narrative_active_days">This week was well visible and varied across several days.</string>
+    <string name="weekly_narrative_top">%1$s was the defining time area this week.</string>
+    <string name="weekly_narrative_fallback">This week is starting to tell its own story.</string>
+    <string name="weekly_highlight_longest_activity">Longest activity</string>
+    <string name="weekly_highlight_most_active_day">Most active day</string>
+    <string name="weekly_highlight_balanced_day">Most balanced day</string>
+    <string name="weekly_highlight_longest_leisure">Longest leisure</string>
+    <string name="weekly_highlight_longest_work">Longest work block</string>
+    <string name="weekly_highlight_value">%1$s · %2$s</string>
+    <string name="weekly_highlight_most_active_day_value">%1$s · %2$s captured</string>
+    <string name="weekly_pattern_strongest_day">Strongest day</string>
+    <string name="weekly_pattern_strongest_day_message">%1$s was the most visible day of your week.</string>
+    <string name="weekly_pattern_weekend">Weekend</string>
+    <string name="weekly_pattern_weekend_message">Significantly more free time was visible on the weekend.</string>
+    <string name="weekly_pattern_movement">Movement</string>
+    <string name="weekly_pattern_movement_message">Movement was spread across several days of the week.</string>
+    <string name="weekly_pattern_change">Change</string>
+    <string name="weekly_pattern_change_more_message">%1$s was visibly more present compared to last week.</string>
+    <string name="weekly_pattern_change_less_message">%1$s was visibly less present compared to last week.</string>
+    <string name="weekly_pattern_variety">Variety</string>
+    <string name="weekly_pattern_variety_message">This week is spread across several areas of life.</string>
+
+    <!-- Insights -->
+    <string name="insights_top_activities">Top activities</string>
+    <string name="insights_changes_title">Changes vs. previous period</string>
+    <string name="insights_empty_title">No data yet</string>
+    <string name="insights_empty_message">Once you start activities or enable allowances, your patterns will appear here.</string>
+    <string name="insights_hours_short">h</string>
+    <string name="insights_minutes_short">min</string>
+    <string name="insights_lifetime_title">Lifetime</string>
+    <string name="insights_lifetime_subtitle">How much time do you really have left?</string>
+    <string name="insights_breakdown_activity">Activity</string>
+    <string name="insights_breakdown_category">Category</string>
+    <string name="insights_period_this_week">This week</string>
+    <string name="insights_period_this_month">This month</string>
+    <string name="insights_summary_empty">Not enough data yet. Once you capture time blocks, calm patterns will emerge here.</string>
+    <string name="insights_summary_multiple_areas">several areas</string>
+    <string name="insights_summary_today">Today, %1$s shapes most of your captured time.</string>
+    <string name="insights_summary_week">This week, %1$s shapes most of your captured time.</string>
+    <string name="insights_summary_month">This month, %1$s shapes most of your captured time.</string>
+    <string name="insights_summary_change">\u0020The biggest change is in %1$s.</string>
+    <string name="insights_card_largest_block_title">Largest time block</string>
+    <string name="insights_card_largest_block_today">%1$s was your largest area today.</string>
+    <string name="insights_card_largest_block_week">%1$s was your largest area this week.</string>
+    <string name="insights_card_largest_block_month">%1$s was your largest area this month.</string>
+    <string name="insights_card_more_visible_title">More visible</string>
+    <string name="insights_card_more_visible_message">%1$s increased compared to the previous period.</string>
+    <string name="insights_card_digital_time_title">Digital time</string>
+    <string name="insights_card_digital_time_message">Your digital time has slightly decreased.</string>
+    <string name="insights_card_rhythm_title">Rhythm</string>
+    <string name="insights_card_rhythm_message">Several days of this week already contain captured time.</string>
+    <string name="insights_card_variety_title">Variety</string>
+    <string name="insights_card_variety_message">Your time is spread across several areas of life.</string>
+    <string name="insights_allowance_label">%1$s (allowance)</string>
+
+    <!-- Review Inbox -->
+    <string name="review_inbox_eyebrow">Review Inbox</string>
+    <string name="review_inbox_hero_title">Aevum has prepared something</string>
+    <string name="review_inbox_hero_subtitle">Suggestions only count once you adopt them.</string>
+    <string name="review_inbox_accept_safe">Accept %1$d safe suggestions</string>
+    <string name="review_inbox_selected_count">%1$d selected</string>
+    <string name="review_inbox_tap_hint">Tap cards to select</string>
+    <string name="review_inbox_all_safe">All safe</string>
+    <string name="review_inbox_sleep_detected">Sleep detected</string>
+    <string name="review_inbox_sleep_reason_fallback">Detected via Health Connect. Please confirm.</string>
+    <string name="review_inbox_generic_reason_fallback">Automatic suggestion from your local signals.</string>
+    <string name="review_inbox_empty_title">All checked.</string>
+    <string name="review_inbox_empty_message">No open suggestions. Aevum will let you know as soon as something new is detected.</string>
+    <string name="review_inbox_message">%1$d suggestions are waiting for your confirmation.</string>
+    <string name="review_inbox_check_now">Review now</string>
+    <string name="review_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="review_duration_hours">%1$d h</string>
+    <string name="review_duration_minutes">%1$d min</string>
+
+    <!-- Growth -->
+    <string name="growth_insights_title">Growth</string>
+</resources>

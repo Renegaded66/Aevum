@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
+import com.d_drostes_apps.aevum.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -125,7 +127,7 @@ fun GarminTilesRow(
     AevumCard(modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
             Text(
-                "HEUTE",
+                stringResource(R.string.dashboard_garmin_today),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,

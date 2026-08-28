@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
+import com.d_drostes_apps.aevum.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -66,6 +67,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -174,7 +176,7 @@ private fun IdleCard(
         ) {
             // Eyebrow — leise
             Text(
-                "Was beginnst du jetzt?",
+                stringResource(R.string.dashboard_start_question),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -183,7 +185,8 @@ private fun IdleCard(
 
             // Primary Action — der eine große Button
             PremiumStartButton(
-                label = if (startTimeMode) "Jetzt starten" else "Abschnitt beginnen",
+                label = if (startTimeMode) stringResource(R.string.dashboard_start_now)
+                else stringResource(R.string.dashboard_begin_section),
                 onClick = {
                     if (startTimeMode && selectedType != null) {
                         onStartWithTime(selectedType!!, null, customStartTime)
@@ -202,7 +205,7 @@ private fun IdleCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Text("Startzeit ändern…", fontSize = 12.sp)
+                    Text(stringResource(R.string.dashboard_change_start_ellipsis), fontSize = 12.sp)
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -213,7 +216,7 @@ private fun IdleCard(
                     var pickedHour by remember { mutableStateOf(currentHour) }
                     var pickedMinute by remember { mutableStateOf(currentMinute) }
 
-                    Text("Start um:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.dashboard_start_at), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     Button(
                         onClick = { showTimePicker = true },
@@ -230,7 +233,7 @@ private fun IdleCard(
                     if (showTimePicker) {
                         AlertDialog(
                             onDismissRequest = { showTimePicker = false; startTimeMode = false },
-                            title = { Text("Startzeit wählen", fontWeight = FontWeight.SemiBold) },
+                            title = { Text(stringResource(R.string.dashboard_pick_start_time), fontWeight = FontWeight.SemiBold) },
                             text = {
                                 AevumTimePicker(
                                     initialHour = pickedHour,
@@ -251,23 +254,26 @@ private fun IdleCard(
                                     }
                                     customStartTime = cal.timeInMillis
                                     showTimePicker = false
-                                }) { Text("OK") }
+                                }) { Text(stringResource(R.string.dashboard_ok)) }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showTimePicker = false; startTimeMode = false }) {
-                                    Text("Abbrechen")
+                                    Text(stringResource(R.string.common_cancel))
                                 }
                             }
                         )
                     }
 
                     Text(
-                        "Startet rückwirkend um ${com.d_drostes_apps.aevum.domain.time.TimeFormatting.formatTime(customStartTime)}",
+                        stringResource(
+                            R.string.dashboard_retroactive_start,
+                            com.d_drostes_apps.aevum.domain.time.TimeFormatting.formatTime(customStartTime)
+                        ),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(onClick = { startTimeMode = false }) {
-                        Text("Standard (jetzt)", fontSize = 12.sp)
+                        Text(stringResource(R.string.dashboard_standard_now), fontSize = 12.sp)
                     }
                 }
             }
@@ -376,7 +382,7 @@ private fun CompactQuickStart(
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
         if (displayFavorites.isNotEmpty()) {
             Text(
-                "Favoriten",
+                stringResource(R.string.dashboard_favorites),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -406,7 +412,7 @@ private fun CompactQuickStart(
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                 if (displayRecents.isNotEmpty()) {
                     Text(
-                        "Kürzlich",
+                        stringResource(R.string.dashboard_recents),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -435,7 +441,8 @@ private fun CompactQuickStart(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = if (expanded) "Weniger" else "Mehr Aktivitäten",
+                text = if (expanded) stringResource(R.string.dashboard_less)
+                else stringResource(R.string.dashboard_more_activities),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary,
@@ -443,7 +450,7 @@ private fun CompactQuickStart(
             )
             if (!expanded) {
                 Text(
-                    text = "Alle anzeigen",
+                    text = stringResource(R.string.dashboard_show_all),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable(onClick = onShowAll)
@@ -563,13 +570,15 @@ fun ActivityPickerSheet(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
                     Text(
-                        if (showTimeOption) "Rückwirkend starten" else "Aktivität wählen",
+                        if (showTimeOption) stringResource(R.string.dashboard_retroactive_title)
+                        else stringResource(R.string.dashboard_pick_activity),
                         fontSize = 26.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        if (showTimeOption) "Wähle die Startzeit" else "Tippe zum Starten. Lange drücken für Favoriten.",
+                        if (showTimeOption) stringResource(R.string.dashboard_pick_start_time_sub)
+                        else stringResource(R.string.dashboard_picker_hint),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -582,7 +591,7 @@ fun ActivityPickerSheet(
                     androidx.compose.material3.OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Suchen…", fontSize = 14.sp) },
+                        placeholder = { Text(stringResource(R.string.dashboard_search), fontSize = 14.sp) },
                         leadingIcon = {
                             Icon(
                                 androidx.compose.material.icons.Icons.Outlined.Search,
@@ -607,7 +616,7 @@ fun ActivityPickerSheet(
                         var pickedHour by remember { mutableStateOf(currentHour) }
                         var pickedMinute by remember { mutableStateOf(currentMinute) }
 
-                        Text("Start um:", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.dashboard_start_at), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                         Button(
                             onClick = { showTimePicker = true },
@@ -623,7 +632,7 @@ fun ActivityPickerSheet(
                         if (showTimePicker) {
                             AlertDialog(
                                 onDismissRequest = { showTimePicker = false },
-                                title = { Text("Startzeit", fontWeight = FontWeight.SemiBold) },
+                                title = { Text(stringResource(R.string.dashboard_start_time), fontWeight = FontWeight.SemiBold) },
                                 text = {
                                     AevumTimePicker(
                                         initialHour = pickedHour,
@@ -644,23 +653,26 @@ fun ActivityPickerSheet(
                                         }
                                         pickerStartTime = c.timeInMillis
                                         showTimePicker = false
-                                    }) { Text("OK") }
+                                    }) { Text(stringResource(R.string.dashboard_ok)) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { showTimePicker = false }) { Text("Abbrechen") }
+                                    TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.common_cancel)) }
                                 }
                             )
                         }
 
                         Text(
-                            "Startet rückwirkend um ${com.d_drostes_apps.aevum.domain.time.TimeFormatting.formatTime(pickerStartTime)}",
+                            stringResource(
+                                R.string.dashboard_retroactive_start,
+                                com.d_drostes_apps.aevum.domain.time.TimeFormatting.formatTime(pickerStartTime)
+                            ),
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                             Button(onClick = {
                                 pickerSelectedType?.let { onStartWithTime(it, null, pickerStartTime) }
-                            }) { Text("Jetzt starten") }
-                            OutlinedButton(onClick = { showTimeOption = false }) { Text("Zurück") }
+                            }) { Text(stringResource(R.string.dashboard_start_now)) }
+                            OutlinedButton(onClick = { showTimeOption = false }) { Text(stringResource(R.string.common_back)) }
                         }
                     }
                 }
@@ -669,7 +681,7 @@ fun ActivityPickerSheet(
                 // Favorites section
                 if (filteredFavorites.isNotEmpty()) {
                     item {
-                    SectionLabel("Favoriten")
+                    SectionLabel(stringResource(R.string.dashboard_favorites))
                 }
                 items(filteredFavorites, key = { "fav-${it.id}" }) { type ->
                     ActivityRow(
@@ -688,7 +700,7 @@ fun ActivityPickerSheet(
             }
 
             if (filteredRecents.any { it.id !in filteredFavorites.map { f -> f.id } }) {
-                item { SectionLabel("Kürzlich") }
+                item { SectionLabel(stringResource(R.string.dashboard_recents)) }
                 items(
                     filteredRecents.filter { it.id !in filteredFavorites.map { f -> f.id } },
                     key = { "rec-${it.id}" }
@@ -716,7 +728,7 @@ fun ActivityPickerSheet(
                 }
             }
 
-            item { SectionLabel("Alle") }
+            item { SectionLabel(stringResource(R.string.dashboard_all)) }
             items(
                 filteredAll.filter { it.id !in filteredFavorites.map { f -> f.id } && it.id !in filteredRecents.map { r -> r.id } },
                 key = { "all-${it.id}" }
@@ -739,7 +751,7 @@ fun ActivityPickerSheet(
             if (query.isNotEmpty() && filteredFavorites.isEmpty() && filteredRecents.isEmpty() && filteredAll.isEmpty()) {
                 item {
                     Text(
-                        "Keine Aktivität gefunden für \"$query\"",
+                        stringResource(R.string.dashboard_no_results, query),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = AevumSpacing.md)
@@ -754,7 +766,7 @@ fun ActivityPickerSheet(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large
                 ) {
-                    Text("+ Neue Aktivität anlegen", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.dashboard_create_activity), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -769,12 +781,12 @@ fun ActivityPickerSheet(
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false; newActivityName = "" },
-            title = { Text("Neue Aktivität", fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(R.string.dashboard_new_activity), fontWeight = FontWeight.SemiBold) },
             text = {
                 androidx.compose.material3.OutlinedTextField(
                     value = newActivityName,
                     onValueChange = { newActivityName = it },
-                    label = { Text("Name (z. B. Gitarre)") },
+                    label = { Text(stringResource(R.string.dashboard_name_example)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -790,10 +802,10 @@ fun ActivityPickerSheet(
                         }
                     },
                     enabled = newActivityName.trim().isNotEmpty()
-                ) { Text("Anlegen & starten") }
+                ) { Text(stringResource(R.string.dashboard_create_and_start)) }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false; newActivityName = "" }) { Text("Abbrechen") }
+                TextButton(onClick = { showCreateDialog = false; newActivityName = "" }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -871,7 +883,7 @@ private fun ActivityRow(
         }
         Icon(
             imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-            contentDescription = "Favorit",
+            contentDescription = stringResource(R.string.dashboard_cd_favorite),
             tint = if (isFavorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
             modifier = Modifier.size(20.dp)
         )
@@ -948,7 +960,8 @@ private fun RunningCard(
                         .background(accentColor)
                 )
                 Text(
-                    if (state.isAuto) "läuft automatisch" else "Aktiv",
+                    if (state.isAuto) stringResource(R.string.dashboard_running_auto)
+                    else stringResource(R.string.common_active),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = accentColor,
@@ -967,7 +980,7 @@ private fun RunningCard(
             // M12.1: Show origin for auto-started sessions
             if (state.isAuto && state.sourceLabel != null) {
                 Text(
-                    "Durch ${state.sourceLabel} gestartet",
+                    stringResource(R.string.dashboard_started_by, state.sourceLabel),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -1007,10 +1020,10 @@ private fun RunningCard(
                     OutlinedButton(onClick = onPause, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Pause")
+                        Text(stringResource(R.string.dashboard_pause))
                     }
                     OutlinedButton(onClick = onDiscard, modifier = Modifier.weight(1f)) {
-                        Text("Verwerfen")
+                        Text(stringResource(R.string.common_discard))
                     }
                     Button(
                         onClick = onStop,
@@ -1019,13 +1032,23 @@ private fun RunningCard(
                     ) {
                         Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Stop")
+                        Text(stringResource(R.string.dashboard_stop))
                     }
                 }
             } else {
                 HeroActionRow(
-                    primary = HeroAction(Icons.Default.Pause, "Pause", onPause, isPrimary = false),
-                    secondary = HeroAction(Icons.Default.Stop, "Stoppen", onStop, isDestructive = true)
+                    primary = HeroAction(
+                        Icons.Default.Pause,
+                        stringResource(R.string.dashboard_pause),
+                        onPause,
+                        isPrimary = false
+                    ),
+                    secondary = HeroAction(
+                        Icons.Default.Stop,
+                        stringResource(R.string.dashboard_stop_long),
+                        onStop,
+                        isDestructive = true
+                    )
                 )
             }
             // M18.23: Wechsel-Button — oeffnet ActivityPicker zum Wechseln
@@ -1036,7 +1059,7 @@ private fun RunningCard(
             ) {
                 Text("\u21C4", fontSize = 18.sp)
                 Spacer(Modifier.width(6.dp))
-                Text("Aktivitaet wechseln", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.dashboard_switch_activity), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -1082,7 +1105,8 @@ private fun PausedCard(
             ) {
                 Text("⏸", fontSize = 13.sp)
                 Text(
-                    if (state.isAuto) "pausiert · automatisch" else "Pausiert",
+                    if (state.isAuto) stringResource(R.string.dashboard_paused_auto)
+                    else stringResource(R.string.dashboard_paused),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1100,7 +1124,7 @@ private fun PausedCard(
             // M12.1: Show origin for auto-started sessions
             if (state.isAuto && state.sourceLabel != null) {
                 Text(
-                    "Durch ${state.sourceLabel} gestartet",
+                    stringResource(R.string.dashboard_started_by, state.sourceLabel),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
@@ -1121,14 +1145,14 @@ private fun PausedCard(
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xl),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DurationStat(label = "Gesamt", value = formatHumanDuration(state.totalMs(nowMs)))
+                DurationStat(label = stringResource(R.string.dashboard_total), value = formatHumanDuration(state.totalMs(nowMs)))
                 Box(
                     modifier = Modifier
                         .width(1.dp)
                         .height(22.dp)
                         .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 )
-                DurationStat(label = "Aktiv", value = formatHumanDuration(state.activeMs(nowMs)))
+                DurationStat(label = stringResource(R.string.common_active), value = formatHumanDuration(state.activeMs(nowMs)))
             }
 
             state.note?.takeIf { it.isNotBlank() }?.let {
@@ -1149,10 +1173,10 @@ private fun PausedCard(
                     OutlinedButton(onClick = onResume, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Weiter")
+                        Text(stringResource(R.string.common_continue))
                     }
                     OutlinedButton(onClick = onDiscard, modifier = Modifier.weight(1f)) {
-                        Text("Verwerfen")
+                        Text(stringResource(R.string.common_discard))
                     }
                     Button(
                         onClick = onStop,
@@ -1161,13 +1185,23 @@ private fun PausedCard(
                     ) {
                         Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Stop")
+                        Text(stringResource(R.string.dashboard_stop))
                     }
                 }
             } else {
                 HeroActionRow(
-                    primary = HeroAction(Icons.Default.PlayArrow, "Weiter", onResume, isPrimary = true),
-                    secondary = HeroAction(Icons.Default.Stop, "Stoppen", onStop, isDestructive = true)
+                    primary = HeroAction(
+                        Icons.Default.PlayArrow,
+                        stringResource(R.string.common_continue),
+                        onResume,
+                        isPrimary = true
+                    ),
+                    secondary = HeroAction(
+                        Icons.Default.Stop,
+                        stringResource(R.string.dashboard_stop_long),
+                        onStop,
+                        isDestructive = true
+                    )
                 )
             }
         }
@@ -1307,13 +1341,13 @@ fun SwitchActivityPickerSheet(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
         ) {
             Text(
-                "Wechseln zu...",
+                stringResource(R.string.dashboard_switch_to),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = AevumSpacing.sm)
             )
             Text(
-                "Aktuell: $currentTitle wird beendet",
+                stringResource(R.string.dashboard_current_ending, currentTitle),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = AevumSpacing.sm)

@@ -1,0 +1,37 @@
+<resources>
+    <!-- Navigation titles (AppDestination) -->
+    <string name="activity_create_title">New activity</string>
+    <string name="activity_edit_title">Edit activity</string>
+    <string name="activity_candidate_title">Edit candidate</string>
+    <string name="activity_detail_title">Activity</string>
+    <string name="weekly_review_title">Weekly Review</string>
+    <string name="trigger_settings_title">Triggers &amp; Detection</string>
+    <string name="geofence_list_title">Geofences</string>
+    <string name="geofence_create_title">Create geofence</string>
+    <string name="geofence_create_home_title">Create home</string>
+    <string name="geofence_create_work_title">Create work</string>
+    <string name="geofence_edit_title">Edit geofence</string>
+    <string name="trigger_events_title">Trigger Events</string>
+    <string name="geofence_debug_title">Geofence Diagnostics</string>
+    <string name="automation_status_title">Automation Status</string>
+    <string name="review_inbox_title">Review Inbox</string>
+    <string name="onboarding_title">Onboarding</string>
+    <string name="life_profile_setup_title">Life Profile</string>
+    <string name="permission_education_title">Permissions</string>
+    <string name="places_setup_title">Places</string>
+    <string name="unknown_places_title">Unknown Places</string>
+    <string name="daily_allowances_title">Daily Allowances</string>
+    <string name="activity_types_title">Activities &amp; Positivity</string>
+    <string name="categories_title">Categories</string>
+    <string name="calendar_title">Calendar</string>
+    <string name="digital_balance_title">Digital Balance</string>
+    <string name="app_tracking_title">App Tracking</string>
+    <string name="todos_title">Todos</string>
+    <string name="todo_create_title">New todo</string>
+    <string name="todo_edit_title">Edit todo</string>
+    <string name="lifeview_title">Life View</string>
+    <string name="privacy_title">Privacy</string>
+    <string name="export_title">Export</string>
+    <string name="backup_title">Backup</string>
+    <string name="fitness_trackers_title">Fitness Trackers</string>
+</resources>

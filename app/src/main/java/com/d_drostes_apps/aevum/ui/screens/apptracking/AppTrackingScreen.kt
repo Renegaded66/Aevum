@@ -47,7 +47,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -81,16 +83,16 @@ fun AppTrackingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Zurück")
+                Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "App-Aufzeichnung",
+                    stringResource(R.string.apptracking_title),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Apps automatisch als Activity aufzeichnen",
+                    stringResource(R.string.apptracking_subtitle),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -109,12 +111,12 @@ fun AppTrackingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.xs),
-            placeholder = { Text("Apps suchen…", fontSize = 14.sp) },
+            placeholder = { Text(stringResource(R.string.apptracking_search_placeholder), fontSize = 14.sp) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
             trailingIcon = if (state.searchQuery.isNotEmpty()) {
                 {
                     IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Suche löschen", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.apptracking_clear_search), modifier = Modifier.size(18.dp))
                     }
                 }
             } else null,
@@ -131,7 +133,7 @@ fun AppTrackingScreen(
             horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             AppColumn(
-                title = "Alle Apps",
+                title = stringResource(R.string.apptracking_all_apps),
                 subtitle = "${state.allApps.size}",
                 apps = state.allApps,
                 accent = MaterialTheme.colorScheme.primary,
@@ -141,7 +143,7 @@ fun AppTrackingScreen(
                 modifier = Modifier.weight(1f)
             )
             AppColumn(
-                title = "Aufzeichnung",
+                title = stringResource(R.string.apptracking_recording),
                 subtitle = "${state.trackedApps.size}",
                 apps = state.trackedApps,
                 accent = MaterialTheme.colorScheme.tertiary,
@@ -201,7 +203,7 @@ private fun AppColumn(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (title == "Aufzeichnung") "Tippe links auf eine App" else "Keine Treffer",
+                    if (title == stringResource(R.string.apptracking_recording)) stringResource(R.string.apptracking_tap_left_hint) else stringResource(R.string.apptracking_no_results),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -299,14 +301,14 @@ private fun AppRow(
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Filled.MoreVert,
-                            contentDescription = "Activity zuordnen",
+                            contentDescription = stringResource(R.string.apptracking_assign_activity),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         Text(
-                            "Activity zuordnen",
+                            stringResource(R.string.apptracking_assign_activity),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -327,7 +329,7 @@ private fun AppRow(
                                             Spacer(Modifier.width(AevumSpacing.sm))
                                             Icon(
                                                 Icons.Filled.Check,
-                                                contentDescription = "Ausgewählt",
+                                                contentDescription = stringResource(R.string.apptracking_selected),
                                                 modifier = Modifier.size(16.dp),
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
@@ -346,7 +348,7 @@ private fun AppRow(
                 // Linke Spalte: dezenter Plus-Button als Affordanz
                 Icon(
                     Icons.Filled.Add,
-                    contentDescription = "Zur Aufzeichnung hinzufügen",
+                    contentDescription = stringResource(R.string.apptracking_add_to_recording),
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -364,20 +366,20 @@ private fun PermissionHint(onOpenSettings: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Nutzungszugriff erforderlich",
+            stringResource(R.string.apptracking_permission_title),
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.height(AevumSpacing.sm))
         Text(
-            "Aevum braucht den Nutzungszugriff, um zu erkennen, welche App gerade geöffnet ist.",
+            stringResource(R.string.apptracking_permission_desc),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = AevumSpacing.lg)
         )
         Spacer(Modifier.height(AevumSpacing.md))
         androidx.compose.material3.Button(onClick = onOpenSettings) {
-            Text("Nutzungszugriff erteilen")
+            Text(stringResource(R.string.apptracking_permission_grant))
         }
     }
 }

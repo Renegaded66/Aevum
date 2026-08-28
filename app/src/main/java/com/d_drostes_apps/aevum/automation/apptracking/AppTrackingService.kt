@@ -288,10 +288,10 @@ class AppTrackingService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "App-Aufzeichnung",
+                getString(R.string.service_apptracking_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Erkennt getrackte Apps und zeichnet sie automatisch als Activity auf"
+                description = getString(R.string.service_apptracking_channel_desc)
                 setShowBadge(false)
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -306,8 +306,8 @@ class AppTrackingService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("App-Aufzeichnung aktiv")
-            .setContentText("Getrackte Apps werden automatisch als Activity aufgezeichnet")
+            .setContentTitle(getString(R.string.service_apptracking_title))
+            .setContentText(getString(R.string.service_apptracking_text))
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setSilent(true)

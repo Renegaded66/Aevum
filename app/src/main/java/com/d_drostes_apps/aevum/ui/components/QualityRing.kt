@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.d_drostes_apps.aevum.R
 
 /**
  * M18: QualityRing — animierter Zeitqualitäts-Ring.
@@ -47,7 +49,7 @@ fun QualityRing(
     modifier: Modifier = Modifier,
     ringSize: Dp = 120.dp,
     strokeWidth: Dp = 14.dp,
-    label: String = "Zeitqualität",
+    label: String? = null,
     // AEVUM-3: Tipp auf den Ring (Güte-Zahl) → Tages-Güte anpassen.
     onClick: (() -> Unit)? = null,
     // AEVUM-3: dezenter Hinweis („✎"), wenn die Güte manuell angepasst wurde.
@@ -133,7 +135,7 @@ fun QualityRing(
                 }
             }
             Text(
-                label,
+                label ?: stringResource(R.string.component_quality),
                 fontSize = 10.sp,
                 letterSpacing = 0.8.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

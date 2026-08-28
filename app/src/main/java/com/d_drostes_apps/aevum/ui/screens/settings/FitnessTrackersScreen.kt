@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.settings
 
+import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.garmin.GarminSyncScheduler
 import com.d_drostes_apps.aevum.data.garmin.GarminApiClient
 import com.d_drostes_apps.aevum.ui.components.AevumCard
@@ -73,6 +76,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class FitnessTrackersViewModel @Inject constructor(
+    private val app: Application,
     private val api: GarminApiClient,
     private val syncScheduler: GarminSyncScheduler
 ) : ViewModel() {
@@ -105,7 +109,7 @@ class FitnessTrackersViewModel @Inject constructor(
     /** Garmin-Login mit den eingegebenen Credentials. */
     fun connect(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "Bitte Email und Passwort eingeben")
+            _uiState.value = _uiState.value.copy(error = app.getString(R.string.settings_fitness_enter_credentials))
             return
         }
         viewModelScope.launch {
@@ -117,7 +121,7 @@ class FitnessTrackersViewModel @Inject constructor(
                     connected = true,
                     email = email,
                     password = "",
-                    message = "Verbunden! Garmin-Daten werden jetzt synchronisiert."
+                    message = app.getString(R.string.settings_fitness_connected_msg)
                 )
                 // Direkt nach dem Verbinden einmal synchronisieren
                 syncNow()
@@ -140,7 +144,7 @@ class FitnessTrackersViewModel @Inject constructor(
                 working = false,
                 connected = false,
                 email = "",
-                message = "Verbindung getrennt."
+                message = app.getString(R.string.settings_fitness_disconnected_msg)
             )
         }
     }
@@ -165,7 +169,7 @@ class FitnessTrackersViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         syncing = false,
                         lastSyncAt = fresh,
-                        message = "Synchronisierung abgeschlossen."
+                        message = app.getString(R.string.settings_fitness_sync_complete)
                     )
                     return@launch
                 }
@@ -174,7 +178,7 @@ class FitnessTrackersViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 syncing = false,
                 lastSyncAt = api.lastSyncAt,
-                message = "Synchronisierung gestartet."
+                message = app.getString(R.string.settings_fitness_sync_started)
             )
         }
     }
@@ -203,9 +207,12 @@ class FitnessTrackersViewModel @Inject constructor(
                 connected = status.connected,
                 error = status.error,
                 message = if (status.connected) {
-                    "Bridge-URL aktualisiert — Verbindung steht."
+                    app.getString(R.string.settings_fitness_bridge_updated)
                 } else {
-                    "URL gespeichert, aber Bridge nicht erreichbar: ${status.error ?: "Keine Antwort"}"
+                    app.getString(
+                        R.string.settings_fitness_bridge_unreachable,
+                        status.error ?: app.getString(R.string.settings_fitness_no_response)
+                    )
                 }
             )
         }
@@ -254,9 +261,9 @@ fun FitnessTrackersScreen(
         ) {
             TextButton(onClick = onBack) { Text("←") }
             Column {
-                Text("Fitness-Tracker", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.settings_fitness_title), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "Verbinde deine Sport-Apps — Daten fließen automatisch in die Timeline.",
+                    stringResource(R.string.settings_fitness_subtitle),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -289,7 +296,8 @@ fun FitnessTrackersScreen(
                         Column {
                             Text("Garmin Connect", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (state.connected) "Verbunden" else "Nicht verbunden",
+                                if (state.connected) stringResource(R.string.settings_fitness_connected)
+                                else stringResource(R.string.settings_fitness_not_connected),
                                 fontSize = 12.sp,
                                 color = if (state.connected) Color(0xFF34D399)
                                 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -304,7 +312,7 @@ fun FitnessTrackersScreen(
                 if (state.connected) {
                     // ── Verbunden: Status + Sync ──────────────────────
                     Text(
-                        "Deine Garmin-Daten (Schritte, Kalorien, Distanz, Schlaf, Aktivitäten) werden automatisch synchronisiert.",
+                        stringResource(R.string.settings_fitness_sync_info),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -315,11 +323,12 @@ fun FitnessTrackersScreen(
                     ) {
                         Text(
                             if (state.lastSyncAt > 0L) {
-                                "Letzter Sync: ${
+                                stringResource(
+                                    R.string.settings_fitness_last_sync,
                                     SimpleDateFormat("dd.MM. HH:mm", Locale.GERMAN)
                                         .format(Date(state.lastSyncAt))
-                                }"
-                            } else "Noch nie synchronisiert",
+                                )
+                            } else stringResource(R.string.settings_fitness_never_synced),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -330,7 +339,7 @@ fun FitnessTrackersScreen(
                             if (state.syncing) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             } else {
-                                Text("Jetzt synchronisieren")
+                                Text(stringResource(R.string.settings_fitness_sync_now))
                             }
                         }
                     }
@@ -339,19 +348,19 @@ fun FitnessTrackersScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.working
                     ) {
-                        Text("Verbindung trennen", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.settings_fitness_disconnect), color = MaterialTheme.colorScheme.error)
                     }
                 } else {
                     // ── Nicht verbunden: Login-Formular ───────────────
                     Text(
-                        "Melde dich mit deinem Garmin Connect Konto an. Dein Passwort wird nur zur Anmeldung verwendet und nicht gespeichert.",
+                        stringResource(R.string.settings_fitness_login_info),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = { Text("Garmin Email") },
+                        label = { Text(stringResource(R.string.settings_fitness_email_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(AevumRadius.md)
@@ -359,7 +368,7 @@ fun FitnessTrackersScreen(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Passwort") },
+                        label = { Text(stringResource(R.string.settings_fitness_password_label)) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth(),
@@ -373,11 +382,11 @@ fun FitnessTrackersScreen(
                         if (state.working) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("Verbinden & prüfen")
+                            Text(stringResource(R.string.settings_fitness_connect_check))
                         }
                     }
                     Text(
-                        "Hinweis: Konten mit Zwei-Faktor-Authentifizierung (2FA) oder Social-Login (Google/Apple) können leider nicht verbunden werden.",
+                        stringResource(R.string.settings_fitness_2fa_note),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -410,9 +419,9 @@ fun FitnessTrackersScreen(
         // ── Weitere Anbieter (Platzhalter, M18.59) ────────────────────
         AevumCard {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Text("Weitere Anbieter", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.settings_fitness_more_providers), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Weitere Fitness-Tracker folgen. Garmin Connect ist der erste Anbieter.",
+                    stringResource(R.string.settings_fitness_more_providers_desc),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -423,16 +432,16 @@ fun FitnessTrackersScreen(
     if (showDisconnectDialog) {
         AlertDialog(
             onDismissRequest = { showDisconnectDialog = false },
-            title = { Text("Verbindung trennen?") },
-            text = { Text("Deine Garmin-Verbindung wird getrennt. Bereits importierte Daten bleiben in der Timeline erhalten.") },
+            title = { Text(stringResource(R.string.settings_fitness_disconnect_title)) },
+            text = { Text(stringResource(R.string.settings_fitness_disconnect_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDisconnectDialog = false
                     viewModel.disconnect()
-                }) { Text("Trennen") }
+                }) { Text(stringResource(R.string.settings_fitness_disconnect_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDisconnectDialog = false }) { Text("Abbrechen") }
+                TextButton(onClick = { showDisconnectDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

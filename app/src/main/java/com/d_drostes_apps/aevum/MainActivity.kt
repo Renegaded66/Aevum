@@ -31,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,7 +54,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : LocalizedActivity() {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
@@ -121,14 +122,14 @@ private fun AevumMainApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val bottomTabs = listOf(
-        MainTab(AppDestination.Dashboard, "Heute"),
-        MainTab(AppDestination.Insights, "Insights"),
+        MainTab(AppDestination.Dashboard, R.string.dashboard_title),
+        MainTab(AppDestination.Insights, R.string.insights_title),
         // M18.37: Kalender und Timeline vertauscht (User-Wunsch):
         // vorher [Kalender, Timeline], jetzt [Timeline, Kalender].
-        MainTab(AppDestination.Timeline, "Timeline"),
+        MainTab(AppDestination.Timeline, R.string.timeline_title),
         // M18.61: Digital Balance ersetzt den Kalender-Tab
-        MainTab(AppDestination.DigitalBalance, "Balance"),
-        MainTab(AppDestination.Settings, "Settings")
+        MainTab(AppDestination.DigitalBalance, R.string.balance_title),
+        MainTab(AppDestination.Settings, R.string.settings_title)
     )
     val showBottomBar = currentDestination?.route?.let { route ->
         bottomTabs.any { tab -> route.matchesTopLevel(tab.destination.route) }
@@ -184,10 +185,10 @@ private fun AevumBottomNavigation(
                     icon = {
                         Icon(
                             imageVector = if (selected) tab.selectedIcon else tab.icon,
-                            contentDescription = tab.label
+                            contentDescription = stringResource(tab.labelRes)
                         )
                     },
-                    label = { Text(tab.label) },
+                    label = { Text(stringResource(tab.labelRes)) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                         selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -203,7 +204,7 @@ private fun AevumBottomNavigation(
 
 private data class MainTab(
     val destination: AppDestination,
-    val label: String,
+    val labelRes: Int,
     val icon: ImageVector = when (destination) {
         AppDestination.Dashboard -> Icons.Outlined.SpaceDashboard
         AppDestination.Insights -> Icons.Outlined.Insights

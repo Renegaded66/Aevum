@@ -48,7 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -145,10 +147,10 @@ private fun LifeHero(
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("LEBENSZEIT", fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Was bleibt dir wirklich?", fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.lifeview_hero_label), fontSize = 11.sp, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.lifeview_hero_question), fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
                 }
-                TextButton(onClick = onBack) { Text("Zurück") }
+                TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
             }
 
             if (state.hasBirthday) {
@@ -157,7 +159,7 @@ private fun LifeHero(
                 // schmalen Screens (z.B. "80 Jahre, 123 Tage"). Jetzt:
                 // 32sp + maxLines 2 + Umbruch — nie wieder Overlap.
                 Text(
-                    "${state.remainingYears} Jahre, ${state.remainingDays % 365} Tage",
+                    stringResource(R.string.lifeview_remaining, state.remainingYears, state.remainingDays % 365),
                     fontSize = 32.sp,
                     lineHeight = 36.sp,
                     fontWeight = FontWeight.Bold,
@@ -166,17 +168,17 @@ private fun LifeHero(
                     maxLines = 2
                 )
                 Text(
-                    "bis du ${state.expectedAge} wirst (Alter: ${state.age})",
+                    stringResource(R.string.lifeview_until_age, state.expectedAge, state.age),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                    OutlinedButton(onClick = onEditBirthday) { Text("Geburtstag", fontSize = 12.sp) }
-                    OutlinedButton(onClick = onEditAge) { Text("Alter ${state.expectedAge}", fontSize = 12.sp) }
+                    OutlinedButton(onClick = onEditBirthday) { Text(stringResource(R.string.lifeview_birthday), fontSize = 12.sp) }
+                    OutlinedButton(onClick = onEditAge) { Text(stringResource(R.string.lifeview_age_value, state.expectedAge), fontSize = 12.sp) }
                 }
             } else {
                 Text(
-                    "Gib deinen Geburtstag an, um zu sehen, wie viel Zeit dir wirklich bleibt.",
+                    stringResource(R.string.lifeview_no_birthday_hint),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -194,14 +196,14 @@ private fun BirthdayPrompt(onClick: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             Text("🎂", fontSize = 40.sp)
-            Text("Geburtstag eingeben", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.lifeview_birthday_prompt_title), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Nur das Jahr zählt für die Berechnung — dein Geburtstag bleibt lokal auf dem Gerät.",
+                stringResource(R.string.lifeview_birthday_prompt_desc),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Button(onClick = onClick) { Text("Geburtstag festlegen") }
+            Button(onClick = onClick) { Text(stringResource(R.string.lifeview_birthday_set)) }
         }
     }
 }
@@ -220,9 +222,9 @@ private fun LifeCalendarGrid(state: LifeViewUiState) {
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Dein Leben in Monaten", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.lifeview_life_in_months), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${state.livedMonths} von ${state.totalMonths} Monaten verbraucht",
+                        stringResource(R.string.lifeview_months_used, state.livedMonths, state.totalMonths),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace
@@ -271,7 +273,7 @@ private fun LifeCalendarGrid(state: LifeViewUiState) {
             }
             // Legende
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                Text("Geburt", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.lifeview_birth), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
                 Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF13B84A)))
                 Spacer(Modifier.width(4.dp))
@@ -279,11 +281,11 @@ private fun LifeCalendarGrid(state: LifeViewUiState) {
                 Spacer(Modifier.width(4.dp))
                 Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFE53935)))
                 Spacer(Modifier.width(6.dp))
-                Text("Heute", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.common_today), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(10.dp))
                 Box(Modifier.size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)))
                 Spacer(Modifier.width(4.dp))
-                Text("Verbleibend", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.lifeview_remaining_short), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -300,9 +302,9 @@ private fun TimeBreakdownCard(state: LifeViewUiState) {
             modifier = Modifier.fillMaxWidth().padding(AevumSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            Text("Wofür dein Leben draufgeht", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.lifeview_time_breakdown), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "Hochgerechnet auf die verbleibenden ${state.remainingYears} Jahre (aus den letzten 14 Tagen).",
+                stringResource(R.string.lifeview_projection_hint, state.remainingYears),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -365,7 +367,7 @@ private fun ActivityDetailsCard(state: LifeViewUiState) {
             modifier = Modifier.fillMaxWidth().padding(AevumSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            Text("Deine Aktivitäten im Lebensvergleich", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.lifeview_activities_comparison), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             state.activityDetails.forEach { detail ->
                 val color = Color(detail.color.toInt())
                 val maxYears = state.activityDetails.first().years.coerceAtLeast(0.1)
@@ -381,7 +383,7 @@ private fun ActivityDetailsCard(state: LifeViewUiState) {
                         Spacer(Modifier.width(6.dp))
                         Text(detail.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                         Text(
-                            "${formatYears(detail.years)} · ${detail.minutesPerDay} min/Tag",
+                            stringResource(R.string.lifeview_min_per_day, formatYears(detail.years), detail.minutesPerDay),
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -418,13 +420,13 @@ private fun WakeUpCallCard(state: LifeViewUiState) {
         ) {
             Text("⏳", fontSize = 32.sp)
             Text(
-                "Du wirst etwa ${formatYears(state.sleepYears)} deines restlichen Lebens schlafen.",
+                stringResource(R.string.lifeview_sleep_wakeup, formatYears(state.sleepYears)),
                 fontSize = 20.sp,
                 lineHeight = 26.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                "Das sind $sleepPercent% der Zeit, die dir noch bleibt. Autofahren kostet dich zusätzlich ${formatYears(state.drivingYears)}.",
+                stringResource(R.string.lifeview_sleep_wakeup_detail, sleepPercent, formatYears(state.drivingYears)),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -451,9 +453,9 @@ private fun BirthdayPickerDialog(
                         onConfirm(date)
                     }
                 }
-            ) { Text("Speichern") }
+            ) { Text(stringResource(R.string.common_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     ) {
         DatePicker(state = datePickerState)
     }
@@ -468,10 +470,10 @@ private fun AgeDialog(
     var age by remember { mutableStateOf(initial.toFloat()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Erwartetes Alter") },
+        title = { Text(stringResource(R.string.lifeview_expected_age)) },
         text = {
             Column {
-                Text("$age Jahre", fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.lifeview_age_years, age.toInt()), fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 Slider(
                     value = age,
                     onValueChange = { age = it },
@@ -479,22 +481,23 @@ private fun AgeDialog(
                     steps = 39
                 )
                 Text(
-                    "Standard: 80. Die Hochrechnungen nutzen diesen Wert.",
+                    stringResource(R.string.lifeview_age_default_hint),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(age.roundToInt()) }) { Text("Speichern") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        confirmButton = { TextButton(onClick = { onConfirm(age.roundToInt()) }) { Text(stringResource(R.string.common_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
+@Composable
 private fun formatYears(years: Double): String {
     return if (years >= 1) {
-        String.format(Locale.GERMANY, "%.1f Jahre", years)
+        stringResource(R.string.lifeview_years, String.format(Locale.GERMANY, "%.1f", years))
     } else {
         val months = (years * 12).roundToInt()
-        if (months >= 1) "$months Monate" else "< 1 Monat"
+        if (months >= 1) stringResource(R.string.lifeview_months, months) else stringResource(R.string.lifeview_less_than_month)
     }
 }

@@ -1,5 +1,7 @@
 package com.d_drostes_apps.aevum.domain.garmin
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.GarminActivity
@@ -52,7 +54,8 @@ import javax.inject.Singleton
 class GarminImportUseCase @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val garminRepository: GarminRepository,
-    private val activityTypeRepository: ActivityTypeRepository
+    private val activityTypeRepository: ActivityTypeRepository,
+    @ApplicationContext private val context: Context? = null
 ) {
     /**
      * Importiert eine Liste von Garmin-Aktivitäten (idempotent).
@@ -370,7 +373,7 @@ class GarminImportUseCase @Inject constructor(
         // vor dem Split entfernen, sonst schlägt der Name-Match fehl.
         val noInvisible = raw.replace(Regex("[\\u200B\\u200C\\u200D\\uFEFF]"), "")
         val trimmed = noInvisible.trim()
-        if (trimmed.isBlank()) return "Aktivität"
+        if (trimmed.isBlank()) return context?.getString(com.d_drostes_apps.aevum.R.string.common_activity_fallback) ?: "Aktivität"
         val words = trimmed.split(Regex("\\s+"))
         return if (words.size >= 2) words.last() else trimmed
     }

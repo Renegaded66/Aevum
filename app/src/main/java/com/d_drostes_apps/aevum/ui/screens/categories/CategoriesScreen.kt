@@ -40,8 +40,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.ui.components.AevumCard
@@ -78,10 +80,10 @@ fun CategoriesScreen(
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        TextButton(onClick = onBack) { Text("Zurück", fontSize = 14.sp) }
-                        Text("Kategorien", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = onBack) { Text(stringResource(R.string.common_back), fontSize = 14.sp) }
+                        Text(stringResource(R.string.common_categories), fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Wähle links eine Kategorie — rechts siehst du ihre Aktivitäten. Ordne Aktivitäten per Dropdown zu.",
+                            stringResource(R.string.categories_intro),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -101,7 +103,7 @@ fun CategoriesScreen(
                         verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
                     ) {
                         Text(
-                            "Kategorien",
+                            stringResource(R.string.common_categories),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp,
@@ -120,7 +122,7 @@ fun CategoriesScreen(
                             onClick = { showCreateDialog = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("+ Neue Kategorie", fontSize = 13.sp)
+                            Text(stringResource(R.string.categories_new), fontSize = 13.sp)
                         }
                     }
 
@@ -130,7 +132,7 @@ fun CategoriesScreen(
                         verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
                     ) {
                         Text(
-                            state.selectedCategory?.name?.uppercase() ?: "Aktivitäten",
+                            state.selectedCategory?.name?.uppercase() ?: stringResource(R.string.categories_activities),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp,
@@ -138,7 +140,7 @@ fun CategoriesScreen(
                         )
                         if (state.activitiesOfSelected.isEmpty() && state.unassigned.isEmpty()) {
                             Text(
-                                "Keine Aktivitäten in dieser Kategorie.",
+                                stringResource(R.string.categories_empty),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -154,7 +156,7 @@ fun CategoriesScreen(
                         // Unzugeordnete Aktivitäten als eigener Block
                         if (state.unassigned.isNotEmpty()) {
                             Text(
-                                "Ohne Kategorie",
+                                stringResource(R.string.categories_unassigned),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -271,7 +273,7 @@ private fun ActivityAssignRow(
             )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
-                    text = { Text("— Keine Kategorie —", fontSize = 13.sp) },
+                    text = { Text(stringResource(R.string.categories_none_option), fontSize = 13.sp) },
                     onClick = { onAssign(null); menuOpen = false }
                 )
                 categories.forEach { category ->
@@ -307,17 +309,17 @@ private fun CreateCategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Neue Kategorie", fontWeight = FontWeight.SemiBold) },
+        title = { Text(stringResource(R.string.categories_new_title), fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name (z. B. Sport)") },
+                    label = { Text(stringResource(R.string.categories_name_hint)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("Icon", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.common_icon), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     iconChoices.take(10).forEach { choice ->
                         Text(
@@ -344,7 +346,7 @@ private fun CreateCategoryDialog(
                         )
                     }
                 }
-                Text("Farbe", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.categories_color), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     colorChoices.forEach { choice ->
                         Box(
@@ -366,10 +368,10 @@ private fun CreateCategoryDialog(
             TextButton(
                 onClick = { onConfirm(name, icon, colorHex) },
                 enabled = name.trim().isNotEmpty()
-            ) { Text("Anlegen") }
+            ) { Text(stringResource(R.string.categories_create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

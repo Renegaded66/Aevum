@@ -71,6 +71,7 @@ class GarminImportUseCaseTest {
         override fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = flowOf(emptyList())
+        override suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession? = null
         override fun getCurrentActiveSession(): Flow<ActivitySession?> = flowOf(null)
         override fun getLiveSession(): Flow<ActivitySession?> = flowOf(null)
         override suspend fun updateStatus(id: String, status: String) {}

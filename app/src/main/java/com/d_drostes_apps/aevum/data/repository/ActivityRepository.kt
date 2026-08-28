@@ -20,6 +20,9 @@ interface ActivityRepository {
     fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>>
     fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>>
     fun getBySourceType(sourceType: String): Flow<List<ActivitySession>>
+    // M18.80: Letzte beendete Session eines Auto-Quelltyps (für den
+    // Nicht-Überlappungs-Guard bei rückwirkenden Starts).
+    suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession?
     fun getCurrentActiveSession(): Flow<ActivitySession?>
     // M9: Live Activity
     fun getLiveSession(): Flow<ActivitySession?>

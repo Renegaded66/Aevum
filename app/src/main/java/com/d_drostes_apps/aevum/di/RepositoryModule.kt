@@ -20,13 +20,10 @@ import com.d_drostes_apps.aevum.data.repository.UnknownPlaceSessionRepository
 import com.d_drostes_apps.aevum.data.repository.UnknownPlaceSessionRepositoryImpl
 import com.d_drostes_apps.aevum.data.db.UnknownPlaceSessionDao
 import com.d_drostes_apps.aevum.data.db.DailyAllowanceDao
-import com.d_drostes_apps.aevum.data.db.BucketListItemDao
 import com.d_drostes_apps.aevum.data.db.CategoryDao
 import com.d_drostes_apps.aevum.data.db.DataSourceDao
 import com.d_drostes_apps.aevum.data.db.DetectionEventDao
 import com.d_drostes_apps.aevum.data.db.GoalDao
-import com.d_drostes_apps.aevum.data.db.HabitDao
-import com.d_drostes_apps.aevum.data.db.HabitLogDao
 import com.d_drostes_apps.aevum.data.db.LifeProfileDao
 import com.d_drostes_apps.aevum.data.db.PlaceGeofenceDao
 import com.d_drostes_apps.aevum.data.db.RawDetectionEventDao
@@ -50,8 +47,6 @@ import com.d_drostes_apps.aevum.data.repository.AppUsageSampleRepository
 import com.d_drostes_apps.aevum.data.repository.AppUsageSampleRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.GeofenceEventLogRepository
 import com.d_drostes_apps.aevum.data.repository.GeofenceEventLogRepositoryImpl
-import com.d_drostes_apps.aevum.data.repository.BucketListRepository
-import com.d_drostes_apps.aevum.data.repository.BucketListRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.DataSourceRepository
@@ -60,8 +55,6 @@ import com.d_drostes_apps.aevum.data.repository.DetectionEventRepository
 import com.d_drostes_apps.aevum.data.repository.DetectionEventRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.GoalRepository
 import com.d_drostes_apps.aevum.data.repository.GoalRepositoryImpl
-import com.d_drostes_apps.aevum.data.repository.HabitRepository
-import com.d_drostes_apps.aevum.data.repository.HabitRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.LifeProfileRepository
 import com.d_drostes_apps.aevum.data.repository.LifeProfileRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
@@ -121,13 +114,6 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideGoalRepository(dao: GoalDao): GoalRepository = GoalRepositoryImpl(dao)
-
-    @Provides @Singleton
-    fun provideHabitRepository(habitDao: HabitDao, habitLogDao: HabitLogDao): HabitRepository =
-        HabitRepositoryImpl(habitDao, habitLogDao)
-
-    @Provides @Singleton
-    fun provideBucketListRepository(dao: BucketListItemDao): BucketListRepository = BucketListRepositoryImpl(dao)
 
     @Provides @Singleton
     fun provideLifeProfileRepository(dao: LifeProfileDao): LifeProfileRepository = LifeProfileRepositoryImpl(dao)

@@ -32,6 +32,9 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND start_at >= :start AND start_at < :end ORDER BY start_at")
     fun getByDateRange(start: Long, end: Long): Flow<List<ActivitySession>>
 
+    @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND source_type = :sourceType AND session_status = 'FINISHED' AND end_at IS NOT NULL ORDER BY end_at DESC LIMIT 1")
+    suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession?
+
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND start_at < :end AND (end_at IS NULL OR end_at > :start) ORDER BY start_at")
     fun getOverlappingRange(start: Long, end: Long): Flow<List<ActivitySession>>
 

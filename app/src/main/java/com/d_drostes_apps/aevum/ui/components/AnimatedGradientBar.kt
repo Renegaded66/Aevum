@@ -50,16 +50,17 @@ fun AnimatedGradientBar(
     animationDelayMs: Int = 0
 ) {
     var visible by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(progress) {
+    // Performance-Fix: Nur EINMAL animieren (beim ersten Erscheinen).
+    // Vorher startete LaunchedEffect(progress) bei JEDER progress-Änderung
+    // neu (Delay + bouncy Spring) — bei jedem Refresh/Scroll-Re-Enter
+    // sprangen alle Balken erneut → Ruckeln.
+    LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(animationDelayMs.toLong())
         visible = 1f
     }
     val animatedProgress by animateFloatAsState(
         targetValue = if (visible > 0f) progress.coerceIn(0f, 1f) else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = tween(300),
         label = "barProgress"
     )
 

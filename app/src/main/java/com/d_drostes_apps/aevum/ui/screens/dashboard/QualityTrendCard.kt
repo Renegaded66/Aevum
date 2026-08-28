@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
+import com.d_drostes_apps.aevum.R
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,14 +83,14 @@ fun QualityTrendCard(
             ) {
                 Column {
                     Text(
-                        "DEIN GÜTE-VERLAUF",
+                        stringResource(R.string.dashboard_quality_trend_title),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Zeitqualität pro Tag",
+                        stringResource(R.string.dashboard_quality_trend_sub),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -105,7 +107,7 @@ fun QualityTrendCard(
 
             if (windowData.isEmpty()) {
                 Text(
-                    "Noch keine Daten — sobald du Aktivitäten erfasst, erscheint hier dein Güte-Verlauf.",
+                    stringResource(R.string.dashboard_quality_trend_empty),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 16.sp
@@ -136,7 +138,11 @@ fun QualityTrendCard(
  */
 @Composable
 private fun WindowToggle(windowDays: Int, onSelect: (Int) -> Unit) {
-    val options = listOf(7 to "7T", 30 to "30T", 365 to "365T")
+    val options = listOf(
+        7 to stringResource(R.string.dashboard_trend_7d),
+        30 to stringResource(R.string.dashboard_trend_30d),
+        365 to stringResource(R.string.dashboard_trend_365d)
+    )
 
     Row(
         modifier = Modifier
