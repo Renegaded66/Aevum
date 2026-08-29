@@ -89,10 +89,11 @@ import com.d_drostes_apps.aevum.ui.theme.AevumTheme
  *     + Tagesfortschritt. Eine Karte, vier Aussagen.
  *  3. Schnellstart — LiveActivityCard NUR wenn nichts läuft. Sonst
  *     übernimmt das Banner die Kontrolle (keine Dopplung).
- *  4. "Wo deine Zeit hingeht" — Top-4-Kategorien, Balkenbreite = Dauer,
- *     Balkenfarbe = Positivität (rot→grün).
- *  5. Insights — max 2, nur wenn relevant.
- *  6. Review-Hinweis — nur wenn Vorschläge warten.
+ *  4. Reflexions-Karte — "Wo deine Zeit hingeht" (Top-5-Kategorien,
+ *     Balkenbreite = Dauer, Balkenfarbe = Positivität rot→grün) und
+ *     Insights (max 2) in EINER Karte (M18.81: zwei Sektionen fusioniert,
+ *     weniger Scrolltiefe).
+ *  5. Review-Hinweis — nur wenn Vorschläge warten.
  *
  * ENTFERNT (bewusst, gegen Überladung):
  *  - 5 KeyMetric-Karten (Erfasst/Fokus/Schlaf/Bewegung/Bildschirm/Top-Kat):
@@ -283,24 +284,16 @@ private fun DashboardContent(
             }
 
             // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
+            // M18.81 (Dashboard-Redesign): Die separate Tag-Nav-Pill
+            // (M18.60) ist in den Hero integriert — eine Sektion weniger.
             item {
                 PulsHero(
                     state = state,
                     // AEVUM-3: Tipp auf die Güte-Zahl öffnet den Tages-Slider.
-                    onQualityClick = { showQualityDialog = true }
-                )
-            }
-
-            // M18.60: Dezente Tages-Navigation — das Dashboard ist das
-            // Herzstück, also bewusst unaufdringlich: eine schlanke
-            // Pill-Zeile mit ‹ Datum ›. Nur sichtbar, wenn man von
-            // "heute" weg navigiert hat, erscheint zusätzlich "Heute".
-            item {
-                DayNavigationPill(
-                    displayedDate = state.displayedDate,
-                    onPrevious = { onNavigateDay(-1) },
-                    onNext = { onNavigateDay(1) },
-                    onReset = onResetToToday
+                    onQualityClick = { showQualityDialog = true },
+                    onPreviousDay = { onNavigateDay(-1) },
+                    onNextDay = { onNavigateDay(1) },
+                    onResetToToday = onResetToToday
                 )
             }
 
@@ -327,15 +320,11 @@ private fun DashboardContent(
             // weg"). Stattdessen: schwebender +-Button unten rechts, der
             // ein fancy Popup (ActivityPickerSheet) öffnet.
 
-            // 4) Wo deine Zeit hingeht — Top-4 mit Score-Farbe
-            if (state.qualityBreakdown.isNotEmpty()) {
-                // M18.66-FIX16: Top-5 (wie Insights "Top Aktivitäten")
-                item { QualityBreakdownBars(slices = state.qualityBreakdown.take(5)) }
-            }
-
-            // 5) Insights — max 2, nur wenn relevant
-            if (state.insights.isNotEmpty()) {
-                item { InsightStrip(state = state) }
+            // 4) M18.81 (Dashboard-Redesign): Reflexion — "Wo deine Zeit
+            // hingeht" (Top-5 mit Score-Farbe) + Insights jetzt in EINER
+            // Karte. Vorher zwei getrennte Sektionen.
+            if (state.qualityBreakdown.isNotEmpty() || state.insights.isNotEmpty()) {
+                item { DayReflectionCard(state = state) }
             }
 
             // M18.37: Kompakte Todos-Karte — das Herzstueck zeigt, was
@@ -551,7 +540,11 @@ private fun DashboardAtmosphere() {
 private fun PulsHero(
     state: DashboardUiState,
     // AEVUM-3: Tipp auf die Güte-Zahl (QualityRing) → Tages-Güte anpassen.
-    onQualityClick: () -> Unit = {}
+    onQualityClick: () -> Unit = {},
+    // M18.81: Tag-Navigation lebt jetzt im Hero-Kopf.
+    onPreviousDay: () -> Unit = {},
+    onNextDay: () -> Unit = {},
+    onResetToToday: () -> Unit = {}
 ) {
     val heroBg = Brush.verticalGradient(
         listOf(
@@ -575,6 +568,14 @@ private fun PulsHero(
                 .padding(AevumSpacing.lg)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                // M18.81 (Redesign): Tag-Navigation als dezente Chip-Zeile
+                // im Hero-Kopf — ‹ Datum › + (falls nicht heute) "Heute".
+                HeroDayNavigation(
+                    displayedDate = state.displayedDate,
+                    onPrevious = onPreviousDay,
+                    onNext = onNextDay,
+                    onReset = onResetToToday
+                )
                 // QualityRing + Kern-Blöcke
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     QualityRing(
@@ -817,6 +818,26 @@ private fun DayFlowMiniCanvas(
                     strokeWidth = 2f,
                     cap = StrokeCap.Round
                 )
+            }
+        }
+    }
+}
+
+/**
+ * M18.81 (Dashboard-Redesign): Reflexions-Karte — "Wo deine Zeit hingeht"
+ * (Top 5, animierte Bars) + bis zu 2 Insights in EINER Karte. Fusion der
+ * beiden Einzel-Sektionen gegen Scrolltiefe (UI_GUIDELINES: Kartenanzahl
+ * reduzieren).
+ */
+@Composable
+private fun DayReflectionCard(state: DashboardUiState) {
+    AevumCard(variant = CardVariant.Elevated) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            if (state.qualityBreakdown.isNotEmpty()) {
+                QualityBreakdownBars(slices = state.qualityBreakdown.take(5))
+            }
+            if (state.insights.isNotEmpty()) {
+                InsightStrip(state = state)
             }
         }
     }
@@ -1366,13 +1387,14 @@ private fun DashboardAllowancesRow(
 }
 
 /**
- * M18.60: Dezente Tages-Navigation fürs Dashboard (Herzstück — bewusst
- * unaufdringlich). Eine schlanke Pill-Zeile: ‹  Datum  ›. Wochentag +
- * "Heute"/"Gestern" statt des vollen Datums. Bei Vergangenheits-Ansicht
- * erscheint rechts ein "Heute"-Chip zum Zurückspringen.
+ * M18.60/M18.81 (Dashboard-Redesign): Dezente Tag-Navigation — jetzt als
+ * Chip-Zeile im Hero-Kopf statt als eigene Sektion unterm Hero (spart eine
+ * Scroll-Sektion). Schlanke Pill-Zeile: ‹  Datum  ›. Wochentag +
+ * "Heute"/"Gestern" statt des vollen Datums. Rechte Pfeiltaste gedimmt bei
+ * "heute"; "Heute"-Reset-Chip nur sichtbar, wenn man weg navigiert hat.
  */
 @Composable
-private fun DayNavigationPill(
+private fun HeroDayNavigation(
     displayedDate: java.time.LocalDate,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -1389,14 +1411,14 @@ private fun DayNavigationPill(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AevumRadius.lg))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(horizontal = AevumSpacing.sm, vertical = 4.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f))
+            .padding(horizontal = AevumSpacing.sm, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
         Text(
             "‹",
-            fontSize = 18.sp,
+            fontSize = 17.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clip(CircleShape)
@@ -1425,7 +1447,7 @@ private fun DayNavigationPill(
         }
         Text(
             "›",
-            fontSize = 18.sp,
+            fontSize = 17.sp,
             color = if (isToday) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
             else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
