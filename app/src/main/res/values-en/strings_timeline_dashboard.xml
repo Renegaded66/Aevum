@@ -233,4 +233,21 @@
     <string name="dashboard_trend_30d">30D</string>
     <string name="dashboard_trend_365d">365D</string>
     <string name="timeline_uncategorized">Uncategorized</string>
+
+    <!-- M18.82 Orbit Launcher (FAB activity picker) -->
+    <string name="orbit_title">Start activity</string>
+    <string name="orbit_hint_idle">Tap a planet to select</string>
+    <string name="orbit_hint_selected">Choose the start</string>
+    <string name="orbit_start_now">Now</string>
+    <string name="orbit_start_retro">Lead time</string>
+    <string name="orbit_retro_title">Lead time</string>
+    <string name="orbit_retro_sub">Has the activity been running for a while?</string>
+    <string name="orbit_retro_now">Start: now</string>
+    <string name="orbit_retro_now_chip">Now</string>
+    <string name="orbit_retro_started_ago">%1$s ago</string>
+    <string name="orbit_exact_time">Exact time</string>
+    <string name="orbit_exact_time_title">Exact start time</string>
+    <string name="orbit_start_at_time">Start at this time</string>
+    <string name="orbit_retro_start_now">Start now</string>
+    <string name="orbit_retro_start_with_time">Start with start time</string>
 </resources>

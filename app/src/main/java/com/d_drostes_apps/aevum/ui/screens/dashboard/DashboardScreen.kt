@@ -62,6 +62,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.data.model.AppUsageSample
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
+import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
 import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
@@ -390,13 +391,13 @@ private fun DashboardContent(
         }
     }
 
-    // M18.58: Das fancy Popup — alle Optionen zum Starten einer Activity
-    // (Favoriten, Kürzlich, alle Typen, Startzeit, neue Aktivität).
+    // M18.82: Das Orbit-Launcher-Overlay löst das alte Bottom-Sheet ab —
+    // Sternenhimmel mit Planeten (Favoriten innen), Tap auf Planet ->
+    // Detail-Panel (Sofort / Vorlaufzeit / exakte Uhrzeit).
     if (showStartPicker) {
-        ActivityPickerSheet(
+        OrbitLauncherSheet(
             activityTypes = state.activityTypes,
             recents = recents,
-            favorites = favorites,
             onStart = { typeId ->
                 onStartLive(typeId, null, System.currentTimeMillis())
                 showStartPicker = false
@@ -405,7 +406,6 @@ private fun DashboardContent(
                 onStartLive(typeId, note, time)
                 showStartPicker = false
             },
-            onToggleFavorite = onToggleFavorite,
             onCreateActivity = onCreateActivity,
             onDismiss = { showStartPicker = false }
         )
