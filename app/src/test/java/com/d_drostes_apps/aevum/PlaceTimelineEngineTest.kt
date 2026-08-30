@@ -229,6 +229,58 @@ class PlaceTimelineEngineTest {
         assertThat(visits.map { it.startAt }).isInOrder()
     }
 
+    @Test
+    fun `Stale offene Session von gestern zaehlt heute nicht mehr`() {
+        // User-Kette: Gym-Session gestern gestartet, Gym-EXIT verloren,
+        // Session läuft noch (endAt=null). Heute betritt/verlässt er Zuhause
+        // (Trigger-Paar bis 11:00). ERWARTUNG: heute kein Gym-Visit, und der
+        // Zuhause-Trigger-Intervall überlebt (nicht von Phantom-Coverage
+        // abgedeckt).
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = listOf(
+                session("stale", day - 20 * H, null, triggerId = "tstale")
+            ),
+            triggers = listOf(
+                trigger("tstale", "GEOFENCE_ENTER", day - 20 * H, geoId = "g2"),
+                // Zuhause: gestern 22:00 angekommen (ENTER), heute 11:00 verlassen (EXIT)
+                trigger("tz1", "GEOFENCE_ENTER", day - 2 * H, geoId = "g3"),
+                trigger("tz2", "GEOFENCE_EXIT", day + 11 * H, geoId = "g3")
+            ),
+            geofences = listOf(
+                geofence(),
+                geofence("g2").copy(name = "Gym"),
+                geofence("g3").copy(name = "Zuhause")
+            ),
+            namedPlaces = emptyList(),
+            nowMs = now // 20:00 des heutigen Tags
+        )
+        val names = visits.map { it.name }
+        assertThat(names).doesNotContain("Gym")
+        assertThat(names).contains("Zuhause")
+        // Zuhause-Visit geclippt auf Tagesbeginn.
+        val homeVisit = visits.first { it.name == "Zuhause" }
+        assertThat(homeVisit.startAt).isEqualTo(day)
+        assertThat(homeVisit.endAt).isEqualTo(day + 11 * H)
+    }
+
+    @Test
+    fun `Heute gestartete offene Session bleibt laufend`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = listOf(
+                session("live", day + 9 * H, null, triggerId = "t1")
+            ),
+            triggers = listOf(trigger("t1", "GEOFENCE_ENTER", day + 9 * H)),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].isOngoing).isTrue()
+        assertThat(visits[0].endAt).isEqualTo(now)
+    }
+
     private companion object {
         const val H = 60L * 60 * 1000
     }

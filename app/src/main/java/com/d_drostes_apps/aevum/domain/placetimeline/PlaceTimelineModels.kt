@@ -60,6 +60,9 @@ data class PlaceVisit(
     val icon: String,
     /** Hex-Farbe (aus dem Geofence, z.B. "#6366F1"). */
     val color: String,
+    /** Geokoordinaten für die Karten-Ansicht (null = nicht kartierbar). */
+    val latitude: Double?,
+    val longitude: Double?,
     val startAt: Long,
     val endAt: Long,
     val evidence: VisitEvidence,
@@ -108,6 +111,15 @@ object PlaceTimelineEngine {
         // ── Quelle 1: aufgezeichnete Sessions mit Trigger-Evidenz ──
         // session.sourceTriggerId → TriggerEvent (geofenceId). Das ist der
         // autoritative Link; wir raten NICHT anhand von ID-Formaten.
+        //
+        // M18.83.1 STALE-GUARD: Eine session mit endAt=null, die VOR diesem
+        // Tag gestartet ist, ist eine VERLORENE Session (verpasster EXIT —
+        // GMS-Reliability-Muster) und KEINE heutige Anwesenheits-Evidenz.
+        // Vorher: endAt = nowMs + Tag-Clipping ⇒ "Gym 00:00–jetzt" am nächsten
+        // Morgen, UND die Phantom-Coverage verdrängte per Session-Dedup den
+        // ehrlichen Zuhause-Trigger-Intervall (Kettenbug: User sah "Gym
+        // 0:00–11:00" statt "Zuhause 00:00–11:00"). Stale Sessions gehören
+        // in den Start-Tag — heute zählen sie nicht.
         val triggerById = triggers.associateBy { it.id }
         val sessionCovered = mutableListOf<Pair<Long, Long>>()
         for (s in sessions) {
@@ -115,80 +127,134 @@ object PlaceTimelineEngine {
             val trigger = triggerById[triggerId] ?: continue
             val geofenceId = trigger.geofenceId ?: continue
             val geo = geofenceById[geofenceId] ?: continue
-            val endAt = s.endAt ?: nowMs
+            // Stale-Guard + Live-Zweig: endAt==null ist nur DANN legitime
+            // Anwesenheit, wenn die Session HEUTE gestartet ist (läuft grade).
+            // Gestern gestartet + noch offen = verlorene SESSION (verpasster
+            // EXIT) → gehört in den Start-Tag, zählt heute nicht.
+            val isOngoingSession = s.endAt == null && s.startAt >= dayStart
+            val endAt = s.endAt ?: (if (s.startAt < dayStart) continue else minOf(nowMs, dayEnd))
             if (endAt <= dayStart || s.startAt >= dayEnd) continue
             val clippedStart = s.startAt.coerceAtLeast(dayStart)
             val clippedEnd = endAt.coerceAtMost(dayEnd)
-            val ongoing = s.endAt == null && nowMs in dayStart..dayEnd
             visits += PlaceVisit(
                 id = "session_${s.id}",
                 geofenceId = geo.id,
                 name = geo.name,
                 icon = geo.icon,
                 color = geo.color,
+                latitude = geo.latitude,
+                longitude = geo.longitude,
                 startAt = clippedStart,
                 endAt = clippedEnd,
                 evidence = visitEvidence(endAt - s.startAt),
-                isOngoing = ongoing
+                isOngoing = isOngoingSession
             )
             sessionCovered += clippedStart to clippedEnd
         }
 
-        // ── Quelle 2: Roh-Trigger-Paare (ENTER/DWELL ... EXIT) pro Geofence ──
+        // ── Quelle 2: Trigger-Paare GLOBAL über einen Zustandsautomaten ──
+        // M18.83.1: Der alte per-Geofence-Loop hatte drei verkettete Fehler,
+        // die zusammen den gemeldeten "Gym 0:00–11:00 obwohl Zuhause"-Bug
+        // produzierten:
+        //   (a) Stale offene Gym-Session (EXIT verloren) → Phantom 00:00–jetzt
+        //   (b) Zuhause-ENTER gestern + EXIT heute 11:00 → EXIT war der
+        //       chronologisch erste Event des Tages → "bare EXIT" → verworfen
+        //       → Zuhause fehlte komplett
+        //   (c) Offener gestriger Gym-ENTER → erneut Phantom
+        // NEU: Der User ist immer an GENAU EINEM Ort (oder unterwegs). Ein
+        // GLOBALES Event (irgendein Geofence-ENTER oder irgendein Geofence-EXIT)
+        // beendet den vorherigen Aufenthalt implizit. Intervalle werden über
+        // die GESAMTE Trigger-Chronik gebaut und erst am Ende auf den Tag
+        // geclippt — ENTER vom Vortag + EXIT heute funktioniert damit natürlich.
         val coveredBySession: (Long, Long) -> Boolean = { start, end ->
             sessionCovered.any { (cs, ce) -> start < ce && end > cs }
         }
-        for ((geofenceId, events) in triggers.filter { it.geofenceId != null }.groupBy { it.geofenceId!! }) {
-            val geo = geofenceById[geofenceId] ?: continue
-            var enterAt: Long? = null
-            for (t in events.sortedBy { it.occurredAt }) {
-                val isEnter = t.type.contains("ENTER") || t.type.contains("DWELL") || t.type.contains("ARRIVED")
-                val isExit = t.type.contains("EXIT") || t.type.contains("LEFT")
-                when {
-                    isEnter && enterAt == null -> enterAt = t.occurredAt
-                    // ENTER/DWELL nach ENTER ohne EXIT: stiller Merge (GPS-Drift),
-                    // das Intervall endet weiterhin am finalen EXIT.
-                    isEnter -> Unit
-                    isExit && enterAt != null -> {
-                        val start = enterAt!!
-                        enterAt = null
-                        if (t.occurredAt - start >= MIN_MERGED_DURATION_MS &&
-                            !coveredBySession(start, t.occurredAt)
-                        ) {
-                            visits += PlaceVisit(
-                                id = "trigger_${t.id}",
-                                geofenceId = geo.id,
-                                name = geo.name,
-                                icon = geo.icon,
-                                color = geo.color,
-                                startAt = start.coerceAtLeast(dayStart),
-                                endAt = t.occurredAt.coerceAtMost(dayEnd),
-                                evidence = visitEvidence(t.occurredAt - start),
-                                isOngoing = false
-                            )
-                        }
-                    }
-                    // EXIT ohne ENTER → bewusst ignoriert (keine erfindbare Dauer).
+        data class OpenVisit(val geofenceId: String, val enterAt: Long)
+        data class ClosedVisit(
+            val geofenceId: String,
+            val startAt: Long,
+            val endAt: Long,
+            /** true = durch einen EXIT des GLEICHEN Ortes beendet (selbstkonsistentes Paar). */
+            val explicitClose: Boolean
+        )
+
+        val closed = mutableListOf<ClosedVisit>()
+        var current: OpenVisit? = null
+        val allEvents = triggers.filter { it.geofenceId != null }.sortedBy { it.occurredAt }
+        for (t in allEvents) {
+            val isEnter = t.type.contains("ENTER") || t.type.contains("DWELL") || t.type.contains("ARRIVED")
+            val isExit = t.type.contains("EXIT") || t.type.contains("LEFT")
+            if (!isEnter && !isExit) continue
+            if (isEnter) {
+                // Neuer Anwesenheits-Beweis: der bisherige offene Aufenthalt
+                // (egal welcher Geofence) endet implizit hier — der User kann
+                // nur an einem Ort sein.
+                val cur = current
+                if (cur != null && cur.geofenceId != t.geofenceId) {
+                    closed += ClosedVisit(cur.geofenceId, cur.enterAt, t.occurredAt, explicitClose = false)
+                } else if (cur != null && cur.geofenceId == t.geofenceId) {
+                    // ENTER desselben Ortes ohne EXIT: stiller Merge (GPS-Drift).
+                    // Intervall läuft weiter.
+                    continue
                 }
+                current = OpenVisit(t.geofenceId!!, t.occurredAt)
+            } else if (current != null && t.occurredAt > current!!.enterAt) {
+                // EXIT (irgendeines Geofences) NACH dem aktuellen ENTER →
+                // schließt das Intervall. EIN-ORT-AXIOM: Ein EXIT beweist
+                // Bewegung — wenn der User um 11:00 Zuhause verlässt, kann er
+                // nicht mehr "im Gym" sein, selbst wenn der Gym-EXIT verloren
+                // ging. GPS-EXIT-Echos alter Besuche erzeugen höchstens kurze
+                // Intervalle, die am <60s-Filter zerbrechen (Design-Zweck).
+                closed += ClosedVisit(
+                    current.geofenceId, current.enterAt, t.occurredAt,
+                    explicitClose = t.geofenceId == current.geofenceId
+                )
+                current = null
             }
-            // Offener ENTER am Tagesende: nur anzeigen, wenn "jetzt" wirklich
-            // in dem Intervall liegt (sonst fehlt jede weitere Evidenz).
-            val open = enterAt
-            if (open != null && nowMs >= open && nowMs <= dayEnd) {
-                if (!(coveredBySession(open, minOf(nowMs, dayEnd)))) {
-                    visits += PlaceVisit(
-                        id = "trigger_open_${geo.id}",
-                        geofenceId = geo.id,
-                        name = geo.name,
-                        icon = geo.icon,
-                        color = geo.color,
-                        startAt = open.coerceAtLeast(dayStart),
-                        endAt = minOf(nowMs, dayEnd),
-                        evidence = visitEvidence(nowMs - open),
-                        isOngoing = true
-                    )
-                }
+            // EXIT VOR dem aktuellen ENTER (verzögertes Echo aus dem Vortag):
+            // bewusst ignoriert — kann den aktuellen Aufenthalt logisch
+            // nicht beenden.
+        }
+        // Offen gebliebenes Intervall am Ende: nur zeigen, falls "jetzt" im
+        // Intervall liegt (sonst wie ein Phantom wirken — kein Ende erfunden).
+        current?.let { cur ->
+            if (nowMs >= cur.enterAt && nowMs <= dayEnd) {
+                closed += ClosedVisit(cur.geofenceId, cur.enterAt, minOf(nowMs, dayEnd), explicitClose = false)
             }
+        }
+
+        for (c in closed) {
+            val geo = geofenceById[c.geofenceId] ?: continue
+            // Mitternacht: das Intervall darf am Vortag beginnen; die Dauer
+            // ist chronologisch positiv, nur der ANZEIGE-Ausschnitt wird geclippt.
+            val displayStart = c.startAt.coerceAtLeast(dayStart)
+            val displayEnd = c.endAt.coerceAtMost(dayEnd)
+            if (displayEnd <= dayStart || c.startAt >= dayEnd) continue
+            // ⭐ PHANTOM-GUARD (der gemeldete Gym-0:00–11:00-Bug): Ein Intervall,
+            // das VOR diesem Tag beginnt, wird nur dann für HEUTE gezeigt, wenn
+            // es durch einen EXIT des GLEICHEN Ortes sauber beendet wurde
+            // (selbstkonsistente Nacht). Implizit beendete Übernahmen (fremdes
+            // Event / immer noch offen) gehören in den Start-Tag — sonst
+            // fabriziert ein verlorener EXIT das Phantom "Gym 00:00–jetzt".
+            if (c.startAt < dayStart && !c.explicitClose) continue
+            if (displayEnd - displayStart < MIN_MERGED_DURATION_MS && c.startAt >= dayStart) continue
+            // Session-Coverage verdrängt Roh-Trigger (ein <60s-Ausschnitt, der
+            // voll im Tag liegt, stammt aus GPS-Drift — an Tagesgrenzen ist
+            // der geclippte Ausschnitt legitimerweise kürzer).
+            if (coveredBySession(c.startAt, c.endAt)) continue
+            visits += PlaceVisit(
+                id = "trigger_${c.startAt}_${c.geofenceId}",
+                geofenceId = c.geofenceId,
+                name = geo.name,
+                icon = geo.icon,
+                color = geo.color,
+                latitude = geo.latitude,
+                longitude = geo.longitude,
+                startAt = displayStart,
+                endAt = displayEnd,
+                evidence = visitEvidence(c.endAt - c.startAt),
+                isOngoing = c.endAt >= minOf(nowMs, dayEnd) && nowMs in c.startAt..c.endAt
+            )
         }
 
         // ── Quelle 3: benannte Orte (unknown_place_session mit name) ──
@@ -201,6 +267,8 @@ object PlaceTimelineEngine {
                 name = u.name,
                 icon = "📌",
                 color = "#6366F1",
+                latitude = u.latitude,
+                longitude = u.longitude,
                 startAt = u.startAt.coerceAtLeast(dayStart),
                 endAt = u.endAt.coerceAtMost(dayEnd),
                 evidence = VisitEvidence.NAMED_PLACE,

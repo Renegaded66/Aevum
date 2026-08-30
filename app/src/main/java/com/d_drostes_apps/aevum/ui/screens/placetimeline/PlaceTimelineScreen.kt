@@ -199,6 +199,7 @@ private fun PlaceTimelineContent(state: PlaceTimelineUiState) {
         verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
     ) {
         item { SummaryCard(state) }
+        item { PlaceMapCard(visits = state.visits, modifier = Modifier.padding(vertical = AevumSpacing.xs)) }
         item { Spacer(Modifier.height(AevumSpacing.xs)) }
         items(rows) { row ->
             when (row) {
@@ -435,10 +436,10 @@ private fun badgeLabel(evidence: VisitEvidence): String = when (evidence) {
 }
 
 /**
- * Hilfsfunktion: Hex-Color-String (z.B. "#FF6366F1" oder "FF6366F1") zu
- * Compose Color. Same pattern as TimelineScreen.parseHexColorOrNull.
+ * Hilfsfunktion: Hex-Color-String zu Compose Color — intern geteilt zwischen
+ * PlaceTimelineScreen und PlaceMapCanvas.
  */
-private fun parseHexColorOrNull(hex: String): Color? {
+internal fun parseHexColorOrNull(hex: String): Color? {
     val cleaned = hex.removePrefix("#")
     return try {
         Color(cleaned.toLong(16))
