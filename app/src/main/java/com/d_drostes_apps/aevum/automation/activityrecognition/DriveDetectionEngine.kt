@@ -172,6 +172,55 @@ object DriveDetectionEngine {
      *  können (Blackout verhindern). */
     const val DRIVE_CONFIRM_IN_FLIGHT_MS = 90_000L
 
+    // ── M18.84: STRUKTURELLE FAHRT-GATES (Post-Threshold-Ära) ─────────
+    //
+    // Historischer Kontext: M18.64→M18.78 hat die Speed/avg/count-Thresholds
+    // über 10+ Iterationen getunt (FIX5/10/12/13, M18.71/75/78 senkten sie
+    // für kurze Fahrten wieder ab). Das heutige Niveau (2 schnelle Probes,
+    // 2er-Kette, avg 4,5 m/s, Netto 150 m) ist für echte Fahrten korrekt —
+    // aber Indoor-GPS-Multipath IM GYM erfüllt ALLE diese Gates über das
+    // 15-Min-Fenster (Drift-Speed-Spikes + langsame Positionsverschiebung
+    // ≥150 m über Minuten). Threshold-Tuning allein kann das nicht mehr
+    // lösen (M18.69-Lektion: jedes Absenken erzeugt False-Negatives, jedes
+    // Anheben killt kurze Fahrten). Die beiden neuen Gates sind KONTEXT-
+    // Gates — sie nutzen Wissen, das die Speed-Serie prinzipiell nicht
+    // enthalten kann: Wo ist der User? Und: Wann war die letzte Fahrt?
+
+    /** M18.84: Nach einem Session-Stop (Watchdog/EXIT) darf die Erkennung
+     *  für diese Zeit KEINE neue Fahrt starten. Grund: Der 15-Min-Probe-
+     *  Puffer läuft nach dem Stopp weiter (Buffer wird beim Stopp NICHT
+     *  geleert — die Probes sind auch die Evidenz des Stop-Pfades) und
+     *  GPS-Drift beim Parken/Aussteigen klassifiziert sofort wieder
+     *  "Driving" → Zweit-Session direkt nach der Ersten
+     *  (User-Fall 30.08.: Auto 19:00–19:10 NACH der echten Fahrt).
+     *  3 Min decken den typischen Aussteige-/Park-Drift ab, ohne echte
+     *  Folgefahrten (Rückweg nach >3 Min Pause) zu blocken. */
+    const val DRIVE_RESTART_COOLDOWN_MS: Long = 3L * 60 * 1000
+
+    /** M18.84: Ein benannter Ort als Kreis (aus PlaceGeofence abgeleitet).
+     *  Pure data class — bewusst Android-frei für JVM-Tests. */
+    data class GeoCircle(
+        val id: String,
+        val name: String,
+        val latitude: Double,
+        val longitude: Double,
+        val radiusMeters: Double
+    )
+
+    /** M18.84: Liegt der Punkt im Kreis? (Haversine, gleiche Formel wie
+     *  überall in Aevum — bewusst dupliziert statt geteilt, damit die
+     *  Engine Android- und Dependency-frei bleibt.) */
+    fun isInsideCircle(lat: Double, lon: Double, circle: GeoCircle): Boolean =
+        haversineMeters(lat, lon, circle.latitude, circle.longitude) <= circle.radiusMeters
+
+    /** M18.84: Cooldown-Gate — liefert true, wenn eine neue Fahrt gerade
+     *  NICHT gestartet werden darf (letzte Auto-Session endete vor < 3 Min).
+     *  lastDriveEndMs == null → kein Cooldown (erste Fahrt/kein Verlauf). */
+    fun isWithinCooldown(nowMs: Long, lastDriveEndMs: Long?): Boolean {
+        if (lastDriveEndMs == null) return false
+        return nowMs - lastDriveEndMs < DRIVE_RESTART_COOLDOWN_MS
+    }
+
     /** Ein einzelner Geschwindigkeits-Probe. */
     data class DriveProbe(
         val timestampMs: Long,
@@ -209,10 +258,22 @@ object DriveDetectionEngine {
      *     Durchschnittsgeschwindigkeit mit mehreren schnellen Probes.
      *  5. Zeitliche Verteilung: Die Probes müssen über [MIN_SPREAD_MS]
      *     verteilt sein — ein einzelner Mess-Burst zählt nicht.
+     *
+     * M18.84 GEOFENCE-VETO: [geofences] sind die benannten Orte des Users
+     * (Zuhause, Gym, …). Befindet sich die GESAMTE verwertbare Evidenz
+     * innerhalb EINES Orts-Kreises, ist die Serie KEINE Fahrt — egal was
+     * Speed/avg/Displacement sagen. Das ist das strukturelle Gegenstück
+     * zum 16-Uhr-Phantom (User 5h im Gym, Drift-Speed-Spikes + langsame
+     * Positionsverschiebung erfüllten alle Speed-Gates). Bewusst breit
+     * formuliert (jede überlebende Probe im Kreis = Veto): Indoor-Multipath
+     * springt um ZENTRALE Orte, echte Fahrten verlassen den Kreis ZWANGS-
+     * LÄUFIG (Auto bewegt sich km-weit). Ausreißer-Einzelprobes am Kreisrand
+     * (Accuracy ≥ 50 m, Sprünge > 2 km) sind bereits VOR dem Veto gefiltert.
      */
     fun classify(
         probes: List<DriveProbe>,
-        nowMs: Long = System.currentTimeMillis()
+        nowMs: Long = System.currentTimeMillis(),
+        geofences: List<GeoCircle> = emptyList()
     ): Classification {
         // 1) Fenster + Genauigkeit + Geschwindigkeits-Ausreißer
         val valid = probes
@@ -297,6 +358,27 @@ object DriveDetectionEngine {
         }
         if (netDisplacement < MIN_NET_DISPLACEMENT_M) {
             return Classification.NotDriving
+        }
+
+        // M18.84 GEOFENCE-VETO (strukturelles Gate gegen Indoor-Phantom-
+        // Fahrten): Wenn ALLE verwertbaren Probes (mit Koordinaten) in
+        // EINEM benannten Orts-Kreis liegen, ist der User nachweislich
+        // nicht gefahren — die Speed-Werte sind Indoor-Multipath-Artefakte
+        // (Gym-Fall 30.08.: 5h still, alle Gates wegen Drift erfüllt).
+        // "In irgendeinem Kreis" reicht fürs Veto (Ein-Ort-Axiom, gleiche
+        // Logik wie der Visit-Zustandsautomat M18.83.1): Der User kann nur
+        // an einem Ort sein. EINE aus ALLEN Kreisen gefallene Probe hebt
+        // das Veto auf — echte Fahrten verlassen den Kreis zwangsläufig
+        // (Auto bewegt sich km-weit). Das Veto blockiert nur ein positives
+        // Driving nachträglich; NotDriving bleibt NotDriving.
+        if (geofences.isNotEmpty()) {
+            val withCoords = filtered.filter { it.latitude != null && it.longitude != null }
+            val allInsideANamedPlace = withCoords.isNotEmpty() && withCoords.all { p ->
+                geofences.any { isInsideCircle(p.latitude!!, p.longitude!!, it) }
+            }
+            if (allInsideANamedPlace) {
+                return Classification.NotDriving
+            }
         }
 
         // 4) Aufeinanderfolgende schnelle Probes + Durchschnitt

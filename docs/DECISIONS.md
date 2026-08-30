@@ -325,3 +325,23 @@
 **Tests:** komplette Suite, APK badging/signature, manuelle Smoke Tests.
 
 **Definition of Done:** verifizierte installierbare APK liegt vor.
+## ADR-0028 — M18.84: Strukturelle Fahrterkennungs-Gates statt weiterem Threshold-Tuning
+
+**Entscheidung:** Die False-Positive-Kette vom 30.08. (Auto 16–19 Uhr parallel zur 5h-Gym-Geofence-Session; Auto 19:00–19:10 nach der echten Heimfahrt; Spazieren 19:05–19:17 beim 100-m-Gang zur Wohnung) wird NICHT über weitere Speed/avg/count-Threshold-Änderungen gelöst, sondern über vier strukturelle Gates, die Wissen nutzen, das die Speed-Serie prinzipiell nicht enthalten kann (Wo ist der User? Wann war die letzte Fahrt? Was hat Google AR während der Fahrt gemeldet?):
+
+1. **Geofence-Veto in `DriveDetectionEngine.classify()`**: Liegen ALLE verwertbaren Probes (mit Koordinaten) in benannten Orts-Kreisen (Ein-Ort-Axiom), ist die Serie NotDriving — Indoor-Multipath-Spikes erfüllen sonst alle Speed-Gates (User-Saal 5h still, Drift ≥150 m Netto).
+2. **Inside-Geofence-Cap im DriveDetectionService**: Liegt der ÄLTESTE Probe (der rückdatierte Session-Start) in einem Orts-Kreis, wird der Start blockiert und der Fenster-Puffer gedrained — auch wenn das Veto oben nicht griff (Rand-Fix fiel knapp aus dem Kreis).
+3. **Restart-Cooldown 3 Min (`markDriveStopped`/`isWithinDriveRestartCooldown`)**: Beide Stop-Pfade (Watchdog + Google-EXIT) markieren den Stop, drainen den 15-Min-Probe-Puffer und beenden die Walking-Signal-Phase. Neustarts im Cooldown werden verworfen (Park-/Aussteige-Drift klassifiziert sonst sofort wieder "Driving" → Zweit-Session).
+4. **Walking-Clamp an letztes Auto-Ende**: `effectiveWalkingSince` + `recordingStartTime(now, lastDriveEndMs)` — AR-WALKING-Echos während Stop&Go-Fahrten laden keine Walking-Phase mehr auf; 5-Min-Schwelle und Vorlauf beginnen erst NACH dem Auto-Ende. Zusätzlich: WALKING-ENTER während driveActive wird im Receiver ignoriert, IN_VEHICLE-ENTER/beim Fahrt-Start wird `clearWalkingSignal()` gesetzt; die GPS-Walking-Phase startet nur außerhalb von Orts-Kreisen und resettet bei Orts-Eintritt.
+
+**Begründung:** M18.64→M18.78 hat die Thresholds über 10+ Iterationen getunt (Referenz `fahrterkennung-schwellen-balance.md`); jede Absenkung erzeugte False-Negatives, jede Anhebung killte kurze Fahrten. Die Gym-Konstellation (Multipath-Speed + langsame Indoor-Drift ≥150 m) passiert bei JEDEM Threshold-Level. Kontext-Gates greifen davor — sie können legitime Fahrten nicht brechen: Eine echte Fahrt verlässt Orts-Kreise zwangsläufig (km-weit), echte Folgefahrten kommen nach >3 Min, echte Wanderungen laufen außerhalb von Orten.
+
+**Nicht Bestandteil:** Keine Änderung an AUTO_SPEED_MPS/MIN_CONSECUTIVE_FAST/avgSpeed (M18.78-Niveau bleibt), keine neue DB-Tabelle, keine Änderung am Geofence-Auto-Start (GEOFENCE_AUTO bleibt unabhängig), kein Cooldown für Garmin/Watch-Backfills (nur ACTIVITY_RECOGNITION_AUTO).
+
+## ADR-0029 — M18.85: Interaktive MapLibre-Karte für die Orts-Timeline
+
+**Entscheidung:** Die Canvas-Karte (M18.83.2, stilisiert, statisch — "nur ein Strich") wird durch eine echte interaktive Karte (`PlaceTimelineMap.kt`) ersetzt: MapLibre + OSM-Rasterkacheln (identisches Muster wie der Geofence-Editor, ADR-0024 — keine neue Dependency, kein API-Key, offline-fähig), nummerierte farbige Marker pro besuchtem Ort (Besuchsreihenfolge), gestrichelte Routen-Segmente in Start-Orts-Farbe (GeoJSON-LineLayer), Auto-Fit via `newLatLngBounds` (Refit bei Tagwechsel), Marker-Tap → Fancy-Callout (eigenes InfoWindowAdapter-View im Aevum-Design mit echter Ortsfarbe als Akzentleiste) + Auto-Scroll der Liste zum Eintrag; Listen-Tap → Kamera fliegt zum Ort + Marker ausgewählt. Dark-Mode über raster-brightness/saturation im Style-JSON.
+
+**Kardinal-Lektion:** MapView-Lifecycle-Forwarding (onStart/onStop/onPause/onResume/onDestroy) ist Pflicht — ohne das friert die Kachel-Anzeige nach Hintergrund-Phasen. Der 60s-Ticker des ViewModels erzeugt jede Minute neue Visit-Objekte — die Karte baut nur bei geometrischem Key-Change neu (Id+Koordinaten+Farbe), sonst flackert sie.
+
+**Nicht Bestandteil:** Keine Satelliten-Ansicht, kein Routing (Strecken sind Luftlinien-Segmente zwischen Visits — es gibt keine GPS-Track-Aufzeichnung pro Fahrt), keine Places-Suche, kein Offline-MBTiles (künftiges Feature), keine Symbol-Layer-Annotations-Manager-Migration.

@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.d_drostes_apps.aevum.MainActivity
 import com.d_drostes_apps.aevum.R
+import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -26,6 +27,12 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * M18.66: AUTOFART-ERKENNUNG über KONTINUIERLICHEN GPS-Stream.
@@ -62,12 +69,30 @@ class DriveDetectionService : Service() {
 
     @Inject lateinit var bridge: ActivityRecognitionBridge
     @Inject lateinit var liveActivityManager: com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
+    // M18.84: Benannte Orte für das classify-Geofence-Veto + laufende
+    // Walking-Phase. Feld-Injection (kein Konstruktor — Service wird vom
+    // System instanziiert), einmaliger Snapshot-Ladevorgang pro Service-
+    // Lebensdauer (Geofences ändern sich selten; ein Restart des Service
+    // lädt neu — gleiche Frische-Philosophie wie der Settings-Cache).
+    @Inject lateinit var geofenceRepository: PlaceGeofenceRepository
+
+    /** M18.84: Service-eigener Coroutine-Scope für den Geofence-Snapshot. */
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** M18.84: Zeitpunkt, ab dem die Walking-Phase im aktuellen benannten
+     *  Ort läuft (0 = keine). Ersatz für das alte feld-lokale Phasen-Setup:
+     *  Die Phase wird nun auch gezählt, wenn der User sich bereits in einem
+     *  Ort befindet — aber NIE während driveActive, und beim Verlassen des
+     *  Orts-Kreises beginnt sie neu. */
+    private var walkingPhaseStartMs: Long = 0L
 
     private lateinit var fusedClient: FusedLocationProviderClient
     private var callback: LocationCallback? = null
     private var lastLat: Double? = null
     private var lastLon: Double? = null
     private var lastTsMs: Long = 0L
+    /** M18.84: Wurde der Geofence-Kontext (Veto-Kreise) bereits geladen? */
+    private var geofenceContextLoaded = false
     /** M18.66-FIX13: Timestamp des Service-Starts. Die ersten 90 Sekunden
      *  werden ignoriert (GPS-Kaltstart-Phase). In dieser Zeit liefert
      *  loc.speed oft Müllwerte (10-30 m/s trotz Stillstand) bei scheinbar
@@ -96,8 +121,12 @@ class DriveDetectionService : Service() {
     // Netto-Displacement statt kumulierter Distanz: Indoor-GPS-Drift
     // springt 10-20 m pro Fix und würde die Summe fälschlich aufblähen
     // (gleiche Lektion wie DriveDetectionEngine M18.66-FIX13).
+    //
+    // M18.84: Phasen-Reset erweitert — die Phase beginnt auch NEU, wenn
+    // der User einen benannten Orts-Kreis verlässt oder betritt (Orts-
+    // wechsel ist "Unterwegs", keine zusammenhängende Wanderung) und
+    // wird verworfen, solange eine Fahrt aktiv ist. Siehe updateWalkingPhase.
     // ──────────────────────────────────────────────────────────────
-    private var walkingPhaseStartMs: Long = 0L
     private var walkPhaseStartLat: Double? = null
     private var walkPhaseStartLon: Double? = null
     private var walkLastLat: Double? = null
@@ -279,6 +308,39 @@ class DriveDetectionService : Service() {
             haversineMeters(lastLat!!, lastLon!!, loc.latitude, loc.longitude)
         } else null
 
+        // M18.84: GEOFENCE-KONTEXT (lazy, einmal pro Service-Lebensdauer):
+        // Benannte Orte als GeoCircle in die Bridge — Basis für das
+        // classify-Veto (alle Probes in einem Kreis = keine Fahrt) und für
+        // die Walking-Phasen-Ortslogik. Laden bewusst NICHT blockierend im
+        // onStartCommand (Service-Start-Latenz), sondern beim ersten Fix
+        // async — bis dahin klassifiziert die Engine ohne Veto (alter
+        // Zustand, kein False-Negative-Risiko durch fehlenden Kontext).
+        if (!geofenceContextLoaded) {
+            geofenceContextLoaded = true
+            serviceScope.launch {
+                try {
+                    val circles = geofenceRepository.getAll().first()
+                        .filter { it.deletedAt == null && it.enabled }
+                        .map {
+                            DriveDetectionEngine.GeoCircle(
+                                id = it.id,
+                                name = it.name,
+                                latitude = it.latitude,
+                                longitude = it.longitude,
+                                radiusMeters = it.radiusMeters.toDouble()
+                            )
+                        }
+                    bridge.setGeofenceContext(circles)
+                    Log.d(TAG, "M18.84: ${circles.size} Geofence-Kreise geladen (Veto-Kontext)")
+                } catch (e: Exception) {
+                    // Kontext-Laden gescheitert → Veto bleibt aus (konservativ,
+                    // kein Crash des Location-Streams). Nächster Service-
+                    // Restart versucht erneut.
+                    Log.w(TAG, "M18.84: Geofence-Kontext laden fehlgeschlagen: ${e.message}")
+                }
+            }
+        }
+
         val probe = DriveDetectionEngine.DriveProbe(
             timestampMs = now,
             speedMps = speed,
@@ -330,21 +392,65 @@ class DriveDetectionService : Service() {
         lastLon = loc.longitude
         lastTsMs = now
 
+        // M18.84: Läuft die Fahrt noch (Herzschlag wurde oben refresht),
+        // ist ein aktiver Restart-Cooldown überholt — er stammt aus einem
+        // verlorenen Stop-Flag (Prozess-Tod) und würde eine REAL laufende
+        // zweite Fahrt nach kurzer Pause blocken. Laufende Fahrt = Fahrt.
+        if (bridge.isDriveActive() && bridge.isWithinDriveRestartCooldown(now)) {
+            bridge.markDriveStopped(0L)
+            Log.d(TAG, "M18.84: Cooldown bei laufender Fahrt zurückgesetzt")
+        }
+
         // Serie klassifizieren — NUR wenn noch keine Fahrt bestätigt ist.
         // Nach bestätigter Fahrt wird die Fahrt über speed > 1 m/s am
         // Leben gehalten (siehe oben), nicht über Re-Klassifikation.
+        // M18.84: (a) classify mit GEOFENCE-VETO (Indoor-Multipath im
+        // Gym erfüllt sonst alle Speed-Gates), (b) Inside-Geofence-Cap:
+        // Auch wenn das Veto nicht greift (ein Rand-Fix fiel aus dem
+        // Kreis), startet KEINE Fahrt, deren komplett zurückdatierter
+        // Start innerhalb eines Orts-Kreises liegt — der User war dort
+        // nachweislich anwesend (Gym-Geofence-Session läuft), kein Auto.
         if (!bridge.isDriveActive()) {
-            when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now)) {
+            val circles = bridge.currentGeofenceContext()
+            when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now, circles)) {
                 is DriveDetectionEngine.Classification.Driving -> {
-                    Log.d(TAG, "Fahrt erkannt (GPS-Stream, conf=${result.confidence}) -> Start")
-                    // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die Probes
-                    // gedrained werden. Der DriveStartWorker prüft sonst leere
-                    // Probes (classify=InsufficientData) und würde den Start
-                    // trotz bestätigter Fahrt ablehnen.
-                    bridge.markDriveConfirmed()
-                    bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
-                    DriveStartWorker.schedule(this)
-                    DriveWatchdogWorker.schedule(this)
+                    // M18.84 INSIDE-GEOFENCE-CAP: Der Cluster-Start, den der
+                    // DriveStartWorker rückdatiert, ist der älteste Probe.
+                    // Liegt DER in einem benannten Orts-Kreis, war der User
+                    // dort nachweislich anwesend (seine Geofence-Session
+                    // läuft) — der "Fahrt-Anfang" ist Indoor-Drift, kein
+                    // Auto. Blockiert selbst dann, wenn das Veto oben nicht
+                    // griff (z. B. weil ein Rand-Fix knapp aus dem Kreis
+                    // fiel, die Serie aber inzwischen km-weit driftete).
+                    val windowProbes = bridge.currentDriveProbes()
+                        .filter { now - it.timestampMs <= DriveDetectionEngine.MAX_PROBE_AGE_MS }
+                    val oldestWithCoords = windowProbes
+                        .filter { it.latitude != null && it.longitude != null }
+                        .minByOrNull { it.timestampMs }
+                    val startInsideGeofence = oldestWithCoords != null && circles.any {
+                        DriveDetectionEngine.isInsideCircle(
+                            oldestWithCoords!!.latitude!!, oldestWithCoords!!.longitude!!, it
+                        )
+                    }
+                    if (startInsideGeofence) {
+                        Log.d(
+                            TAG,
+                            "M18.84-Cap: Fahrt-Start läge in einem benannten Ort (ältester Probe im Kreis) — Start blockiert"
+                        )
+                        // Probes aus diesem Fenster verwerfen (sie gehören
+                        // zum Ort, nicht zu einer Fahrt) und weiter sammeln.
+                        bridge.drainDriveProbes()
+                    } else {
+                        Log.d(TAG, "Fahrt erkannt (GPS-Stream, conf=${result.confidence}) -> Start")
+                        // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die Probes
+                        // gedrained werden. Der DriveStartWorker prüft sonst leere
+                        // Probes (classify=InsufficientData) und würde den Start
+                        // trotz bestätigter Fahrt ablehnen.
+                        bridge.markDriveConfirmed()
+                        bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
+                        DriveStartWorker.schedule(this)
+                        DriveWatchdogWorker.schedule(this)
+                    }
                 }
                 else -> {
                     // Noch nicht genug / keine Fahrt — weiter sammeln.
@@ -372,18 +478,51 @@ class DriveDetectionService : Service() {
      * nichts anderes aufzeichnet). Steht die Bewegung länger als
      * 2 Minuten still, wird die Phase verworfen — der 5-Minuten-Zähler
      * startet bei neuer Bewegung neu.
+     *
+     * M18.84 ORTS-BOUNDARIES: Die Phase beginnt NEU, wenn der User einen
+     * benannten Orts-Kreis betritt oder verlässt (Ankunft ist "Unterwegs-
+     * Ende", kein Wanderungs-Beginn; ein Ortswechsel über Auto ist keine
+     * Wanderung). Der alte Code startete die Phase beim Parken/Aussteigen
+     * sofort neu und zählte dann die FAHRT-Zeit als Walking-Dauer mit —
+     * inklusive Netto-Displacement (User-Fall: "Spazieren 19:05–19:17"
+     * beim 100-m-Gang zur Wohnung, gemessen ab Gym-Parkplatz).
      */
     private fun updateWalkingPhase(loc: Location, now: Long) {
         // Nur brauchbare Fixes zählen (gleiche Genauigkeits-Regel wie
         // DriveDetectionEngine.MAX_ACCURACY_M).
         if (loc.accuracy > 50f) return
 
+        // M18.84: Orts-Kontext — in welchem benannten Kreis steht der Fix?
+        val circles = bridge.currentGeofenceContext()
+        val insideCircle = circles.firstOrNull {
+            DriveDetectionEngine.isInsideCircle(loc.latitude, loc.longitude, it)
+        }
+
         if (walkingPhaseStartMs == 0L) {
+            // M18.84: Phase NICHT starten, während der Fix in einem
+            // benannten Ort liegt — der User ist "da angekommen", nicht
+            // "auf Wanderung". Die Phase beginnt erst mit dem ersten
+            // Fix AUSSERHALB der Orte (echtes Unterwegs).
+            if (insideCircle != null) {
+                return
+            }
             walkingPhaseStartMs = now
             walkPhaseStartLat = loc.latitude
             walkPhaseStartLon = loc.longitude
             walkLastLat = loc.latitude
             walkLastLon = loc.longitude
+            return
+        }
+
+        // M18.84 ORTSWECHSEL-RESET: Betritt der User während einer
+        // laufenden Phase einen benannten Ort, endet das "Unterwegs" hier
+        // (Ankunft) — die Phase wird verworfen, ein neuer Besuch startet
+        // sauber beim nächsten Verlassen. Ohne diesen Reset lief die
+        // Phase über die Ankunft hinaus weiter und akkumulierte die
+        // nächste Fahrt als "Wanderung".
+        if (insideCircle != null) {
+            Log.d(TAG, "M18.84: Walking-Phase bei Orts-Eintritt ('${insideCircle.name}') verworfen")
+            resetWalkingPhase()
             return
         }
 
@@ -398,11 +537,7 @@ class DriveDetectionService : Service() {
             movedSinceLast < 1.0
         ) {
             Log.d(TAG, "Walking-Phase verworfen (Stillstand > 5min)")
-            walkingPhaseStartMs = 0L
-            walkPhaseStartLat = null
-            walkPhaseStartLon = null
-            walkLastLat = null
-            walkLastLon = null
+            resetWalkingPhase()
             return
         }
         walkLastLat = loc.latitude
@@ -427,15 +562,24 @@ class DriveDetectionService : Service() {
         Log.d(TAG, "Wanderung erkannt (GPS-Displacement ${net.toInt()}m in ${duration / 1000}s) -> Start")
         // Signal in die Bridge: Der WalkingStartWorker prüft die
         // 5-Minuten-Schwelle und startet mit Vorlaufzeit.
+        // M18.84: Vorlauf-Clamp passiert im WalkingStartWorker (Engine:
+        // recordingStartTime gegen letztes Auto-Ende) — hier läuft die
+        // Phase nach dem Reset ohnehin nur außerhalb von Orten.
         bridge.markWalkingSignal(walkingPhaseStartMs)
         // Walking-Phase zurücksetzen, damit ein späterer erneuter Start
         // (nach dem Stopp) frisch beginnt.
+        resetWalkingPhase()
+        WalkingStartWorker.schedule(this)
+    }
+
+    /** M18.84: Walking-Phase-Felder zentral zurücksetzen (alle Reset-Pfade
+     *  — Stillstand, Orts-Eintritt, erkannte Wanderung — teilen ihn). */
+    private fun resetWalkingPhase() {
         walkingPhaseStartMs = 0L
         walkPhaseStartLat = null
         walkPhaseStartLon = null
         walkLastLat = null
         walkLastLon = null
-        WalkingStartWorker.schedule(this)
     }
 
     private fun hasLocationPermission(): Boolean =
@@ -477,6 +621,9 @@ class DriveDetectionService : Service() {
             try { fusedClient.removeLocationUpdates(cb) } catch (_: Exception) {}
         }
         callback = null
+        // M18.84: Service-Scope sauber abbauen (Geofence-Snapshot-Laden
+        // darf nicht über den zerstörten Service hinauslaufen).
+        serviceScope.cancel()
         Log.d(TAG, "Location-Stream gestoppt")
         super.onDestroy()
     }

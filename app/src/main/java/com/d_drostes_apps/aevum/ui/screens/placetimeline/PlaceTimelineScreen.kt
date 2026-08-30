@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum.ui.screens.placetimeline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,9 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -191,7 +195,27 @@ private fun buildStoryRows(visits: List<PlaceVisit>): List<StoryRow> {
 @Composable
 private fun PlaceTimelineContent(state: PlaceTimelineUiState) {
     val rows = remember(state.visits) { buildStoryRows(state.visits) }
+    // M18.85: Auswahl-Sync Karte↔Liste. Marker-Tap wählt (Karte → Liste
+    // scrollt zum Eintrag); Listen-Tap wählt (Liste → Karte fliegt hin,
+    // Marker-Callout öffnet). LazyListState hier, damit die Karte und die
+    // Story-Liste sie teilen.
+    var selectedVisitId by remember(state.selectedDate) { mutableStateOf<String?>(null) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Auto-Scroll zum ausgewählten Eintrag (Karte → Liste).
+    LaunchedEffect(selectedVisitId, rows) {
+        if (selectedVisitId == null) return@LaunchedEffect
+        val rowIndex = rows.indexOfFirst { row ->
+            row is StoryRow.Visit && row.visit.id == selectedVisitId
+        }
+        if (rowIndex >= 0) {
+            // +2: Summary + Map-Karte stehen über den Visit-Zeilen.
+            listState.animateScrollToItem(rowIndex + 2)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             horizontal = AevumSpacing.md, vertical = AevumSpacing.sm
@@ -199,11 +223,27 @@ private fun PlaceTimelineContent(state: PlaceTimelineUiState) {
         verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
     ) {
         item { SummaryCard(state) }
-        item { PlaceMapCard(visits = state.visits, modifier = Modifier.padding(vertical = AevumSpacing.xs)) }
+        item {
+            // M18.85: Echte interaktive MapLibre-Karte (OSM-Kacheln,
+            // Pan/Zoom, nummerierte Marker, gestrichelte Routen,
+            // Marker-Callout) — ersetzt die stilisierte Canvas-Karte.
+            PlaceTimelineMap(
+                visits = state.visits,
+                selectedVisitId = selectedVisitId,
+                onVisitSelected = { id -> selectedVisitId = id },
+                modifier = Modifier.padding(vertical = AevumSpacing.xs)
+            )
+        }
         item { Spacer(Modifier.height(AevumSpacing.xs)) }
         items(rows) { row ->
             when (row) {
-                is StoryRow.Visit -> VisitRow(row.visit)
+                is StoryRow.Visit -> VisitRow(
+                    visit = row.visit,
+                    isSelected = row.visit.id == selectedVisitId,
+                    onVisitClick = {
+                        selectedVisitId = if (selectedVisitId == row.visit.id) null else row.visit.id
+                    }
+                )
                 is StoryRow.Road -> RoadRow(row.startAt, row.endAt)
             }
         }
@@ -274,12 +314,25 @@ private fun SummaryCard(state: PlaceTimelineUiState) {
 /**
  * Eine Visit-Zeile: linke Rail (Startzeit + Punkt + Linie), rechts die
  * Orts-Karte mit Icon-Kreis, Name, Dauer und Evidenz-Badge.
+ * M18.85: tappbar + Auswahl-Highlight (Sync mit der Karte) — die Zeile
+ * ist Teil der Karte↔Liste-Bidirektionalität.
  */
 @Composable
-private fun VisitRow(visit: PlaceVisit) {
+private fun VisitRow(
+    visit: PlaceVisit,
+    isSelected: Boolean = false,
+    onVisitClick: () -> Unit = {}
+) {
     val accent = parseHexColorOrNull(visit.color) ?: MaterialTheme.colorScheme.primary
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AevumRadius.md))
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                else androidx.compose.ui.graphics.Color.Transparent
+            )
+            .clickable { onVisitClick() },
         verticalAlignment = Alignment.Top
     ) {
         // Linke Rail: Startzeit über dem Punkt, Punkt + Halte-Linie darunter.

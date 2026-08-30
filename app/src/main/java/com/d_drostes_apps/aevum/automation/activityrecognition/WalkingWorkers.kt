@@ -84,12 +84,23 @@ class WalkingStartWorker(
             return Result.success()
         }
 
+        // M18.84: Ende der letzten Auto-Session — die Walking-Schwelle und
+        // der Vorlauf dürfen nie in eine Fahrt hinein reichen (Google-AR
+        // meldet WALKING während Stop&Go; der alte Code startete beim
+        // nächsten ENTER nach dem Aussteigen "Spazieren" mit 5-Min-Vorlauf
+        // in die Fahrt hinein). try-catch: Ein DB-Fehler hier darf den
+        // Start nicht crashen — dann ohne Clamp starten (alter Zustand).
+        val lastDriveEndMs = try {
+            live.lastAutoSessionEndMs()
+        } catch (_: Exception) { null }
+
         // 5-Minuten-Schwelle + "nichts anderes zeichnet auf" (Engine).
         if (!WalkingDetectionEngine.shouldStartWalking(
                 walkingSinceMs = bridge.walkingSince(),
                 now = now,
                 walkingEnabled = true, // Gate oben bereits geprüft
-                anythingRecording = live.liveSession.value?.isLive == true
+                anythingRecording = live.liveSession.value?.isLive == true,
+                lastDriveEndMs = lastDriveEndMs
             )
         ) {
             Log.d(TAG, "5-Minuten-Schwelle nicht erreicht oder andere Session aktiv — kein Start")
@@ -118,8 +129,9 @@ class WalkingStartWorker(
                 live.forceFinishForAuto()
             }
             // Vorlauf: die letzten 5 Minuten fallen rückwirkend in die
-            // Aufzeichnung (User-Spec (b)).
-            val startedAt = WalkingDetectionEngine.recordingStartTime(now)
+            // Aufzeichnung (User-Spec (b)) — M18.84: geclampt an das Ende
+            // der letzten Auto-Session (nie in die Fahrt hinein).
+            val startedAt = WalkingDetectionEngine.recordingStartTime(now, lastDriveEndMs)
             val session = live.start(
                 activityTypeId = activityTypeId,
                 title = title,

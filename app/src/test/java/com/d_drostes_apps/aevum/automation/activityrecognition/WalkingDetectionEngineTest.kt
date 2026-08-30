@@ -110,6 +110,83 @@ class WalkingDetectionEngineTest {
         )
     }
 
+    // ── M18.84: Vorlauf-Clamp an letztes Auto-Ende ──
+
+    @Test
+    fun `M18_84 - effective walking since never precedes the last drive end`() {
+        // AR-WALKING-Echos während der Fahrt: Signal-Phase startet 10 Min
+        // vor dem Auto-Ende. Effektiv gezählt wird erst NACH der Fahrt.
+        val driveEnd = now - 4 * 60_000L
+        val walkingSince = now - 10 * 60_000L
+        assertEquals(
+            driveEnd,
+            WalkingDetectionEngine.effectiveWalkingSince(walkingSince, driveEnd)
+        )
+        // Kein Auto-Ende bekannt → Signal-Phase zählt voll.
+        assertEquals(
+            walkingSince,
+            WalkingDetectionEngine.effectiveWalkingSince(walkingSince, null)
+        )
+        // Signal NACH dem Auto-Ende → unverändert.
+        val walkAfterDrive = now - 2 * 60_000L
+        assertEquals(
+            walkAfterDrive,
+            WalkingDetectionEngine.effectiveWalkingSince(walkAfterDrive, driveEnd)
+        )
+    }
+
+    @Test
+    fun `M18_84 - walking threshold uses effective since not raw AR signal`() {
+        // User-Fall 30.08.: WALKING-Phase begann während der Fahrt (AR-
+        // Echos), Auto endete 19:10, erster ENTER danach 19:12. Rohe
+        // Phase wäre ≥5 Min → Start mit Vorlauf in die Fahrt. Mit dem
+        // Clamp: effektiv erst 2 Min → KEIN Start.
+        val now2 = 1_200_000L
+        val driveEnd = now2 - 2 * 60_000L       // Auto endete vor 2 Min
+        val walkingSince = now2 - 8 * 60_000L   // AR-Phase begann vor 8 Min (in der Fahrt)
+        assertFalse(
+            WalkingDetectionEngine.shouldStartWalking(
+                walkingSinceMs = walkingSince,
+                now = now2,
+                walkingEnabled = true,
+                anythingRecording = false,
+                lastDriveEndMs = driveEnd
+            )
+        )
+        // Ohne Auto-Ende würde derselbe AR-Stand Start auslösen (alter
+        // Zustand, reproduced): 8 Min ≥ 5 Min Schwelle.
+        assertTrue(
+            WalkingDetectionEngine.shouldStartWalking(
+                walkingSinceMs = walkingSince,
+                now = now2,
+                walkingEnabled = true,
+                anythingRecording = false
+            )
+        )
+    }
+
+    @Test
+    fun `M18_84 - walking start time never precedes the last drive end`() {
+        // Vorlauf now−5 Min läge VOR dem Auto-Ende → Start wird auf das
+        // Auto-Ende geklemmt (keine Überlappung mit der Fahrt).
+        val driveEnd = now - 2 * 60_000L
+        assertEquals(
+            driveEnd,
+            WalkingDetectionEngine.recordingStartTime(now, driveEnd)
+        )
+        // Auto-Ende weit in der Vergangenheit → normaler 5-Min-Vorlauf.
+        val oldDriveEnd = now - 60 * 60_000L
+        assertEquals(
+            now - WalkingDetectionEngine.WALKING_THRESHOLD_MS,
+            WalkingDetectionEngine.recordingStartTime(now, oldDriveEnd)
+        )
+        // Kein Auto → normaler Vorlauf.
+        assertEquals(
+            now - WalkingDetectionEngine.WALKING_THRESHOLD_MS,
+            WalkingDetectionEngine.recordingStartTime(now, null)
+        )
+    }
+
     // ── Watchdog: Stopp erst nach 5 Minuten ohne Signal ──
 
     @Test

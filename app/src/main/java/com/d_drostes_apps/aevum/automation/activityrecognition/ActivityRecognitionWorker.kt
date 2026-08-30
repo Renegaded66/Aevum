@@ -530,6 +530,55 @@ class ActivityRecognitionBridge @Inject constructor(
     }
 
     // ──────────────────────────────────────────────────────────────
+    // M18.84: STRUKTURELLE STOP-PAKETE + GEOFENCE-KONTEXT.
+    //
+    // (a) driveStoppedAtMs: Zeitstempel des letzten Session-Endes (alle
+    //     Stop-Pfade setzen ihn via markDriveStopped). Der DriveStartWorker
+    //     blockiert Neustarts im 3-Min-Cooldown (DRIVE_RESTART_COOLDOWN_MS)
+    //     — sonst klassifiziert der weiterlaufende 15-Min-Probe-Puffer den
+    //     Park-Drift sofort wieder als Fahrt (Zweit-Session 19:00–19:10).
+    //     driveActive wird beim Stop weiterhin zurückgesetzt (Blackout-
+    //     Selbstheilung M18.76), aber die Erkennung bleibt im Cooldown
+    //     bewusst stumm. healIfOrphaned rührt driveStoppedAtMs NICHT an —
+    //     ein verwaistes Flag ist kein Stop.
+    // (b) geofenceContext: Cached-Kopie der benannten Orte als GeoCircle,
+    //     gefüllt vom DriveDetectionService (läuft ohnehin 24/7 und lädt
+    //     die Geofences 30s-frisch wie der Settings-Cache). classify()
+    //     nutzt sie für das M18.84-Geofence-Veto.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var driveStoppedAtMs: Long = 0L
+    @Volatile private var geofenceContext: List<DriveDetectionEngine.GeoCircle> = emptyList()
+
+    /** M18.84: Letzten Session-Stop markieren (Start des Restart-Cooldowns).
+     *  Wird von ALLEN Stop-Pfaden gerufen (Watchdog, Google-EXIT, manueller
+     *  Stop). 0 = kein bekannter Stop (nach Prozessstart) → kein Cooldown. */
+    @Synchronized
+    fun markDriveStopped(epochMs: Long) {
+        driveStoppedAtMs = epochMs
+    }
+
+    /** M18.84: Restart-Cooldown aktiv? (Dauer: DRIVE_RESTART_COOLDOWN_MS
+     *  ab dem letzten Stop). Für den DriveStartWorker und die Selbst-
+     *  heilung — im Cooldown wird KEINE neue Fahrt gestartet. */
+    @Synchronized
+    fun isWithinDriveRestartCooldown(nowMs: Long): Boolean =
+        DriveDetectionEngine.isWithinCooldown(nowMs, driveStoppedAtMs.takeIf { it > 0L })
+
+    /** M18.84: Benannte Orte (als GeoCircle) für das classify-Veto setzen.
+     *  Wird vom DriveDetectionService beim (Re-)Start aktualisiert —
+     *  danach read-only, classify liest sie nur (Copy-on-Read gegen
+     *  gleichzeitige Updates). */
+    @Synchronized
+    fun setGeofenceContext(circles: List<DriveDetectionEngine.GeoCircle>) {
+        geofenceContext = circles.toList()
+    }
+
+    /** M18.84: Aktuelle Orts-Kreise (Snapshot für classify-Aufrufer). */
+    @Synchronized
+    fun currentGeofenceContext(): List<DriveDetectionEngine.GeoCircle> =
+        geofenceContext.toList()
+
+    // ──────────────────────────────────────────────────────────────
     // M18.72: WALKING-SIGNALE (Wanderungen automatisch aufzeichnen).
     //
     // walkingSinceMs: Beginn der aktuellen ununterbrochenen Walking-
@@ -996,10 +1045,17 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             DriveStopWorker.schedule(context)
                         } else {
                             bridge.addSample(now, 75)
+                            // M18.84: IN_VEHICLE-ENTER beweist Fahrzeug-Beginn —
+                            // jede laufende Walking-Signal-Phase endet hier
+                            // (Google meldet WALKING auch während Stop&Go-
+                            // Fahrten; ohne Reset startete die 5-Min-Schwelle
+                            // später eine "Spazieren"-Session mit Vorlauf in
+                            // die Fahrt hinein).
+                            bridge.clearWalkingSignal()
                             // M18.66: SOFORT starten — die Transition IST
                             // die Bestätigung (User-Spezifikation: "Sobald
-                            // die Autofahrt erkannt wird, soll die
-                            // Activity Autofahren gestartet werden").
+                            // die Autofahrt erkannt wird, soll die Activity
+                            // Autofahren gestartet werden").
                             DriveStartWorker.schedule(context)
                             // Watchdog vorsorglich starten: stoppt die
                             // Session nach 5 Minuten ohne weiteres Signal.
@@ -1041,6 +1097,19 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             val isEnter = transitionType ==
                                 com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER
                             if (isEnter) {
+                                // M18.84: WALKING-ENTER während einer aktiven
+                                // Fahrt ignorieren — Google meldet WALKING
+                                // regelmäßig DURCHGEHEND in Stop&Go-Fahrten
+                                // (Anfahren/Kriechen wird oft als Gehen
+                                // klassifiziert). Das Signal würde sonst die
+                                // Walking-Phase aufladen und nach dem Auto-
+                                // Stop sofort eine "Spazieren"-Session mit
+                                // 5-Min-Vorlauf IN die Fahrt starten.
+                                if (bridge.isDriveActive()) {
+                                    Log.d("ActivityTransitionReceiver", "M18.84: WALKING-ENTER während aktiver Fahrt ignoriert")
+                                    hasChange = true
+                                    continue
+                                }
                                 // Walking-Phase (neu) starten oder verlängern —
                                 // die Engine entscheidet nach 5 Minuten am Stück.
                                 // RUNNING-Events landen auf dem Joggen-Typ.

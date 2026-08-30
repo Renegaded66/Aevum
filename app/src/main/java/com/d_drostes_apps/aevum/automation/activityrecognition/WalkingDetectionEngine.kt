@@ -32,30 +32,60 @@ object WalkingDetectionEngine {
     /**
      * Soll jetzt eine Wanderung gestartet werden?
      *
+     * M18.84: [lastDriveEndMs] — Ende der letzten Auto-Session (null wenn
+     * keine bekannt). Die 5-Minuten-Schwelle wird auf die EFFEKTIVE
+     * Walking-Zeit angewendet (nach der Fahrt), nicht auf die rohe
+     * Signal-Phase: Googles AR meldet WALKING auch während Stop&Go-Fahrten,
+     * und ohne diesen Cut reichte der erste ENTER nach dem Aussteigen
+     * (now − walkingSince ≥ 5 min), um "Spazieren" mit Vorlauf in die
+     * Fahrt hinein zu starten.
+     *
      * @param walkingSinceMs Zeitpunkt, seit dem der User ununterbrochen
      *        geht (System.currentTimeMillis), 0 wenn kein Signal vorliegt
      * @param now aktuelle Zeit
      * @param walkingEnabled Gate aus den Trigger-Settings
      * @param anythingRecording true, wenn bereits eine andere Session live ist
+     * @param lastDriveEndMs Ende der letzten Auto-Session oder null
      */
     fun shouldStartWalking(
         walkingSinceMs: Long,
         now: Long,
         walkingEnabled: Boolean,
-        anythingRecording: Boolean
+        anythingRecording: Boolean,
+        lastDriveEndMs: Long? = null
     ): Boolean {
         if (!walkingEnabled) return false
         if (anythingRecording) return false
         if (walkingSinceMs <= 0L) return false
-        return now - walkingSinceMs >= WALKING_THRESHOLD_MS
+        val effectiveSince = effectiveWalkingSince(walkingSinceMs, lastDriveEndMs)
+        return now - effectiveSince >= WALKING_THRESHOLD_MS
     }
+
+    /**
+     * M18.84: Effektiver Walking-Beginn — die Signal-Phase beginnt nie vor
+     * dem Ende der letzten Fahrt (AR-WALKING-Echos während der Fahrt
+     * zählen nicht als Wanderungszeit).
+     */
+    fun effectiveWalkingSince(walkingSinceMs: Long, lastDriveEndMs: Long?): Long =
+        if (lastDriveEndMs != null && lastDriveEndMs > walkingSinceMs) lastDriveEndMs
+        else walkingSinceMs
 
     /**
      * Startzeit der Wanderung: now − 5 Minuten (Vorlaufzeit). Die
      * vergangenen 5 Minuten fallen rückwirkend in die Aufzeichnung
      * (User-Spec (b): startedAt = now − 5min, analog Screen-Vorlauf M18.70).
+     *
+     * M18.84: Der Vorlauf wird NIE vor das Ende der letzten Auto-Session
+     * zurückdatiert — sonst überlappt die Wanderung die Fahrt, die sie
+     * gerade beendet hat (User-Fall: Spazieren 19:05–19:17 begann
+     * optisch VOR dem Auto-Stop 19:10). Der Vorlauf entfällt dann
+     * einfach (Start = Auto-Ende), die Schwelle selbst bleibt 5 Min.
      */
-    fun recordingStartTime(now: Long): Long = now - WALKING_THRESHOLD_MS
+    fun recordingStartTime(now: Long, lastDriveEndMs: Long? = null): Long {
+        val withLead = now - WALKING_THRESHOLD_MS
+        return if (lastDriveEndMs != null && lastDriveEndMs > withLead) lastDriveEndMs
+        else withLead
+    }
 
     /**
      * Soll die laufende Wanderung gestoppt werden? Erst wenn seit

@@ -114,11 +114,41 @@ class DriveStartWorker(
         // ein verspäteter Worker-Lauf (Doze-Latenz) startet keine
         // längst vorbei gefahrene Fahrt.
         val now = System.currentTimeMillis()
+        // M18.84 RESTART-COOLDOWN: Nach einem Session-Stop (Watchdog/
+        // Google-EXIT) blockiert der 3-Min-Cooldown Neustarts. Der 15-Min-
+        // Probe-Puffer läuft weiter und klassifiziert Park-/Aussteige-Drift
+        // sonst sofort wieder als Fahrt (Zweit-Session direkt nach der
+        // Ersten, User-Fall 19:00–19:10 NACH der echten Heimfahrt).
+        // Kein Cooldown wenn eine Auto-Session bereits läuft (dann ist
+        // dieser Lauf nur der Herzschlag-Refresh) und kein Cooldown nach
+        // Prozessstart (driveStoppedAtMs == 0 → isWithinCooldown false).
+        val liveSessionForCooldown = live.liveSession.value
+        val alreadyRunningAutoSession = liveSessionForCooldown != null &&
+            liveSessionForCooldown.isLive &&
+            liveSessionForCooldown.activityTypeId == "driving" &&
+            liveSessionForCooldown.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        if (!alreadyRunningAutoSession && bridge.isWithinDriveRestartCooldown(now)) {
+            Log.d(
+                TAG,
+                "M18.84-Cooldown: letzte Fahrt endete < ${DriveDetectionEngine.DRIVE_RESTART_COOLDOWN_MS / 1000}s her — kein Neustart (Park-Drift-Schutz)"
+            )
+            // Bestätigung + Cluster bewusst verwerfen: Sie stammen aus dem
+            // Post-Stop-Drift-Fenster und sind mit hoher Wahrscheinlichkeit
+            // Artefakte. driveActive zurücknehmen, damit nach dem Cooldown
+            // die Erkennung wieder klassifizieren kann.
+            bridge.consumeDriveConfirmation()
+            bridge.drainVehicleCluster()
+            if (bridge.isDriveActive()) bridge.clearDriveActive()
+            return Result.success()
+        }
         val confirmed = bridge.isDriveConfirmed()
         val confirmedFresh = confirmed && bridge.driveConfirmedAgeMs(now) <
             DriveDetectionEngine.MAX_PROBE_AGE_MS
-        val gpsOk = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now) is
-            DriveDetectionEngine.Classification.Driving
+        // M18.84: classify mit GEOFENCE-VETO — alle Probes in einem
+        // benannten Orts-Kreis = Indoor-Multipath, keine Fahrt.
+        val gpsOk = DriveDetectionEngine.classify(
+            bridge.currentDriveProbes(), now, bridge.currentGeofenceContext()
+        ) is DriveDetectionEngine.Classification.Driving
         if (!confirmedFresh && !gpsOk) {
             // M18.68-FIX (Detection-Blackout): Das Confirmation-Flag wird
             // vom DriveDetectionService gesetzt, BEVOR die Probes gedrained
@@ -209,6 +239,12 @@ class DriveStartWorker(
                 startedAt = startedAt
             )
             Log.d(TAG, "Auto-Session gestartet: ${session.id} (start=$startedAt)")
+            // M18.84: Eine bestätigte Fahrt beendet jede laufende Walking-
+            // Signal-Phase — Googles AR meldet WALKING auch während Stop&Go-
+            // Fahrten; ohne Reset hätte die 5-Min-Schwelle beim nächsten
+            // ENTER (Aussteigen) sofort eine "Spazieren"-Session mit
+            // Vorlauf IN die Fahrt hinein gestartet (User-Fall 19:05–19:17).
+            bridge.clearWalkingSignal()
             // Foreground-Service, damit der Timer im Hintergrund weiterläuft.
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
             // 5-Minuten-Watchdog: ohne weiteres Fahrt-Signal stoppt die Session.
@@ -298,6 +334,15 @@ class DriveStopWorker(
             // DriveDetectionService weiter den Heartbeat (speed >= 3 m/s
             // beim Gehen/Velo/Bus) und der Watchdog läuft nie ab.
             bridge.clearDriveActive()
+            // M18.84: Stop markieren (3-Min-Restart-Cooldown gegen Park-
+            // Drift-Re-Trigger) + Probe-Puffer leeren (Evidenz der alten
+            // Fahrt gehört nicht in die nächste Klassifikation) + Walking-
+            // Signal-Phase beenden (Google meldet beim Aussteigen WALKING
+            // — ohne Reset startete die 5-Min-Schwelle mit voller Vorlauf-
+            // Zeit in die bereits beendete Fahrt hinein).
+            bridge.markDriveStopped(System.currentTimeMillis())
+            bridge.drainDriveProbes()
+            bridge.clearWalkingSignal()
             live.stop()
             triggerRepo.insert(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(
@@ -457,6 +502,16 @@ class DriveWatchdogWorker(
             // DriveDetectionService eine neue Fahrt erkennen kann.
             val bridge = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java).activityRecognitionBridge()
             bridge.clearDriveActive()
+            // M18.84: Stop-Paket wie im DriveStopWorker — Cooldown markieren,
+            // Probe-Puffer leeren, Walking-Phase beenden. Der Watchdog ist
+            // der HAUPT-Stop-Pfad (Google-EXITs kommen unzuverlässig), ohne
+            // diese Zeilen würde er den Park-Drift sofort wieder als neue
+            // Fahrt klassifizieren (User-Fall: Auto 19:00–19:10 nach der
+            // echten Heimfahrt + Spazieren 19:05–19:17 beim 100-m-Gang
+            // zur Wohnung).
+            bridge.markDriveStopped(now)
+            bridge.drainDriveProbes()
+            bridge.clearWalkingSignal()
             live.stop()
             triggerRepo.insert(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(
