@@ -16,6 +16,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -112,8 +115,8 @@ import kotlin.math.sin
 
 private const val MAX_INNER_ORBIT = 6
 
-private val PLANET_RADIUS_DP = 26.dp
-private val MIN_PLANET_DP = 22.dp
+private val PLANET_RADIUS_DP = 32.dp
+private val MIN_PLANET_DP = 24.dp
 
 // ---------------------------------------------------------------------------
 // Layout-Plan: (orbit, indexInOrbit) für jeden Typ — deterministisch.
@@ -129,6 +132,21 @@ internal data class OrbitLayout(
         val indexInOrbit: Int,
         val isRecent: Boolean,
     )
+}
+
+/**
+ * M18.82.1 (User: "wenn zu viele sind, musst du smart eine Lösung finden"):
+ * Dynamische Kapazität je Orbit. Bis 24 Aktivitäten passen alle komfortabel
+ * auf 3 Orbits mit 32dp-Planeten. Darüber: Planeten schrumpfen stufenlos
+ * (Faktor 1.0 -> 0.72) statt zu clustern — Kugeln bleiben tappbar (>=40dp
+ * Ziel), Labels bleiben lesbar (10sp bleibt, ggf. mehr Overlap-Ellipsis).
+ * 6 Favoriten bleiben IMMER innen (kürzester Weg).
+ */
+internal fun planetScaleFactor(totalCount: Int): Float = when {
+    totalCount <= 24 -> 1.00f
+    totalCount <= 30 -> 0.88f
+    totalCount <= 38 -> 0.78f
+    else -> 0.70f
 }
 
 internal fun buildOrbitLayout(
@@ -268,9 +286,15 @@ fun OrbitLauncherSheet(
         val minPlanetR = with(density) { MIN_PLANET_DP.toPx() }
 
         val cx = w / 2f
-        val cy = h * 0.33f
+        // M18.82.1 (User: "etwas zu hoch"): Zentrum von 0.33 -> 0.40,
+        // mehr Platz nach unten für Planeten + Detail-Panel.
+        val cy = h * 0.40f
         val maxR = min(cx, cy) * 0.92f
         val orbitRs = listOf(maxR * 0.40f, maxR * 0.68f, maxR * 0.98f)
+        // M18.82.1: Auto-Shrink bei vielen Aktivitäten (smarte Dichte-Lösung):
+        // effektiver Planeten-Radius skaliert mit planetScaleFactor().
+        val densityScale = planetScaleFactor(filteredLayout.items.size)
+        val planetRa = planetR * densityScale
 
         val positions: Map<String, Offset> = remember(
             filteredLayout, orbitRot.value.roundToInt(), drift.value, w, h,
@@ -281,8 +305,8 @@ fun OrbitLauncherSheet(
                 val spread = if (item.countInOrbit <= 1) 0f else 360f / item.countInOrbit
                 val base = -90f + item.indexInOrbit * spread
                 val phase = item.orbit * 2.1f + item.indexInOrbit * 0.7f
-                val driftX = sin(drift.value + phase) * planetR * 0.10f
-                val driftY = cos(drift.value * 0.8f + phase) * planetR * 0.08f
+                val driftX = sin(drift.value + phase) * planetRa * 0.10f
+                val driftY = cos(drift.value * 0.8f + phase) * planetRa * 0.08f
                 val a = Math.toRadians((base + orbitRot.value).toDouble())
                 map[item.type.id] = Offset(
                     cx + r * cos(a).toFloat() + driftX,
@@ -333,7 +357,7 @@ fun OrbitLauncherSheet(
                 // gestaffelte Spawn-Animation: jede Kugel wirkt ihr Appear-Delay
                 val itemAppear = ((appear.value - idx * 0.05f).coerceIn(0f, 1f))
                 val springScale = 1f - (1f - itemAppear) * (1f - itemAppear) // easeOutQuad
-                val r = (planetR * scale * (0.4f + 0.6f * springScale)).coerceAtLeast(minPlanetR * 0.5f)
+                val r = (planetRa * scale * (0.4f + 0.6f * springScale)).coerceAtLeast(minPlanetR * 0.5f)
 
                 drawCircle(
                     brush = Brush.radialGradient(
@@ -376,27 +400,60 @@ fun OrbitLauncherSheet(
                     paint.getTextBounds(icon, 0, icon.length, bounds)
                     canvas.nativeCanvas.drawText(icon, pos.x, pos.y - bounds.exactCenterY(), paint)
                 }
-                // Namens-Label unter dem Planeten (nur Orbit-Modus)
-                if (!inSearchMode && selectedId == null && itemAppear > 0.8f) {
+                // Namens-Label JEDERZEIT unter dem Planeten (User: "jede braucht
+                // den Titel darunter"). Auch bei Auswahl sichtbar; Ellipsis bei
+                // langen Namen; leichte Alpha-Einblendung während Spawn.
+                if (!inSearchMode) {
                     val m = textMeasurer.measure(
                         AnnotatedString(item.type.name),
                         style = TextStyle(
                             fontSize = 10.sp,
-                            color = onColor.copy(alpha = 0.75f * itemAppear),
+                            color = onColor.copy(alpha = 0.8f * itemAppear.coerceAtLeast(0.3f)),
                             textAlign = TextAlign.Center,
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    drawText(m, topLeft = Offset(pos.x - m.size.width / 2f, pos.y + r * 0.75f))
+                    // Maximale Label-Breite = Nachbar-Gap, damit Labels sich
+                    // nicht überlappen (Klemmung auf 2*r + 8dp).
+                    drawText(m, topLeft = Offset(pos.x - m.size.width / 2f, pos.y + r * 0.9f))
                 }
             }
+        }
+
+        // --- Tap-Erkennung (kreisgenau) --------------------------------------
+        // M18.82.1 (Z-Ordnung): Diese Box MUSS vor dem Header kommen — lag sie
+        // danach, lag sie ÜBER X-Button/Suchfeld und fraß deren Taps (genau der
+        // "X funktioniert nicht"-Report). Header/search erhalten zIndex(2f).
+        if (!inSearchMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(1f)
+                    .pointerInput(filteredLayout, positions) {
+                        detectTapGestures { tap ->
+                            var bestId: String? = null
+                            var bestDist = Float.MAX_VALUE
+                            for (item in filteredLayout.items) {
+                                val p = positions[item.type.id] ?: continue
+                                val d = hypot(tap.x - p.x, tap.y - p.y)
+                                if (d < bestDist) { bestDist = d; bestId = item.type.id }
+                            }
+                            if (bestId != null && bestDist <= planetRa * 1.6f) {
+                                selectedId = if (selectedId == bestId) null else bestId
+                            } else {
+                                selectedId = null
+                            }
+                        }
+                    },
+            )
         }
 
         // --- Header ----------------------------------------------------------
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .zIndex(2f)
                 .statusBarsPadding()
                 .padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.md),
         ) {
@@ -412,6 +469,8 @@ fun OrbitLauncherSheet(
                     Icon(Icons.Filled.Close, contentDescription = stringRes(R.string.common_cancel), tint = onColor)
                 }
             }
+            // M18.82.1: Live-Suche — filtert bei JEDER Zeicheneingabe direkt
+            // (searchQuery-Änderung -> filteredLayout-remember-Key neu -> sofort).
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -423,36 +482,17 @@ fun OrbitLauncherSheet(
             )
         }
 
-        // --- Tap-Erkennung (kreisgenau) --------------------------------------
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(filteredLayout, positions) {
-                    detectTapGestures { tap ->
-                        if (inSearchMode) return@detectTapGestures
-                        var bestId: String? = null
-                        var bestDist = Float.MAX_VALUE
-                        for (item in filteredLayout.items) {
-                            val p = positions[item.type.id] ?: continue
-                            val d = hypot(tap.x - p.x, tap.y - p.y)
-                            if (d < bestDist) { bestDist = d; bestId = item.type.id }
-                        }
-                        if (bestId != null && bestDist <= planetR * 1.6f) {
-                            selectedId = if (selectedId == bestId) null else bestId
-                        } else {
-                            selectedId = null
-                        }
-                    }
-                },
-        )
-
         // --- Suchlisten-Modus (klassische Liste beim Suchen) ------------------
         if (inSearchMode) {
+            // M18.82.1: scrollbar (viele Live-Treffer), Headertonen-Abstand fix.
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    .zIndex(2f)
+                    .fillMaxWidth()
                     .padding(top = 190.dp, start = AevumSpacing.lg, end = AevumSpacing.lg, bottom = AevumSpacing.lg)
-                    .navigationBarsPadding(),
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState()),
             ) {
                 filteredLayout.items.forEach { item ->
                     val accent = accentFor(item.type)
