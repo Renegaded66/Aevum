@@ -38,6 +38,20 @@
     <string name="settings_fitness_trackers">Fitness Trackers</string>
     <string name="settings_garmin_connect">Garmin Connect</string>
     <string name="settings_garmin_connect_desc">Connect, sync, disconnect</string>
+    <!-- M18.83: Place Timeline (Google Maps style day story of visited places) -->
+    <string name="settings_place_timeline">Places timeline</string>
+    <string name="settings_place_timeline_desc">Where you were when — day story</string>
+    <string name="place_timeline_title">Places timeline</string>
+    <string name="place_timeline_subtitle">Your day as a place story</string>
+    <string name="place_timeline_empty_hint">No place visits on this day yet. Once you visit geofences or name an unknown place, it will appear here.</string>
+    <string name="place_timeline_summary_lede">%1$d visits · %2$s on the road</string>
+    <string name="place_timeline_badge_short">Short stop</string>
+    <string name="place_timeline_badge_long">Longer stay</string>
+    <string name="place_timeline_badge_named">Named place</string>
+    <string name="place_timeline_ongoing">happening now</string>
+    <string name="place_timeline_road_prefix">On the road</string>
+    <string name="place_timeline_cd_prev_day">Previous day</string>
+    <string name="place_timeline_cd_next_day">Next day</string>
     <string name="language_system">System</string>
     <string name="language_de">Deutsch</string>
     <string name="language_en">English</string>

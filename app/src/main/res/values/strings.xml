@@ -38,6 +38,20 @@
     <string name="settings_fitness_trackers">Fitness-Tracker</string>
     <string name="settings_garmin_connect">Garmin Connect</string>
     <string name="settings_garmin_connect_desc">Verbinden, Synchronisieren, Trennen</string>
+    <!-- M18.83: Place Timeline (Google-Maps-artige Tag-Story der besuchten Orte) -->
+    <string name="settings_place_timeline">Orts-Timeline</string>
+    <string name="settings_place_timeline_desc">Wo war ich wann — Tagesverlauf</string>
+    <string name="place_timeline_title">Orts-Timeline</string>
+    <string name="place_timeline_subtitle">Dein Tag im Ortsverlauf</string>
+    <string name="place_timeline_empty_hint">Noch keine Orts-Besuche an diesem Tag. Sobald du Geofences besuchst oder einen unbekannten Ort benennst, erscheint er hier.</string>
+    <string name="place_timeline_summary_lede">%1$d Besuche · %2$s unterwegs</string>
+    <string name="place_timeline_badge_short">Kurzer Stopp</string>
+    <string name="place_timeline_badge_long">Länger geblieben</string>
+    <string name="place_timeline_badge_named">Benannter Ort</string>
+    <string name="place_timeline_ongoing">läuft gerade</string>
+    <string name="place_timeline_road_prefix">Unterwegs</string>
+    <string name="place_timeline_cd_prev_day">Voriger Tag</string>
+    <string name="place_timeline_cd_next_day">Nächster Tag</string>
     <string name="language_system">System</string>
     <string name="language_de">Deutsch</string>
     <string name="language_en">English</string>

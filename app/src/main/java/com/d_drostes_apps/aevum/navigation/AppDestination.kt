@@ -57,5 +57,7 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     Export("export", R.string.export_title),
     Backup("backup", R.string.backup_title),
     // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
-    FitnessTrackers("fitness_trackers", R.string.fitness_trackers_title)
+    FitnessTrackers("fitness_trackers", R.string.fitness_trackers_title),
+    // M18.83: Orts-Timeline (Google-Maps-artige Tag-Story)
+    PlaceTimeline("place_timeline", R.string.place_timeline_title)
 }

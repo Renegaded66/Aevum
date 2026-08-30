@@ -280,6 +280,11 @@ fun TimelineScreen(
                         weekSessions = state.weekSessions,
                         onSetWeekView = viewModel::setWeekView,
                         onSelectDay = viewModel::selectDate,
+                        // M18.83: Zoom aus dem ViewModel (SharedPreferences-persistiert).
+                        // Slider + Pinch-to-Zoom schreiben zurück → der Zoom
+                        // überlebt Ansichtwechsel (Liste↔Tag↔Woche) und App-Restarts.
+                        pixelsPerHour = state.pixelsPerHour,
+                        onPixelsPerHourChange = viewModel::setPixelsPerHour,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = AevumSpacing.md)
@@ -2066,10 +2071,17 @@ private fun DayCalendarTimeline(
     weekSessions: Map<LocalDate, List<TimelineSessionUi>>,
     onSetWeekView: (Boolean) -> Unit,
     onSelectDay: (LocalDate) -> Unit,
+    // M18.83: Zoom-Persistierung — pixelsPerHour lebt im ViewModel (SharedPreferences-
+    // persistiert). Vorher hielt dieses Composable den Zoom in einem lokalen
+    // remember { mutableStateOf } → beim Ansichtwechsel (Liste↔Tag, Wochenansicht,
+    // App-Restart) sprang der Zoom auf Default, obwohl M18.66-FIX14 die
+    // Persistierung im ViewModel bereits gebaut hatte (toter UI-State,
+    // M18.36-Muster). Jetzt: ViewModel-Wert rein, jede Änderung zurück ins VM.
+    pixelsPerHour: Float,
+    onPixelsPerHourChange: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isListMode by remember { mutableStateOf(false) }
-    var pixelsPerHour by remember { mutableStateOf(TimelineUiState.DEFAULT_PIXELS_PER_HOUR) }
     // M18.58: Slide-Animation beim Wechsel Liste ↔ Tag. Die Richtung folgt
     // dem Ziel-Modus: Wechsel zu "Tag" schiebt von rechts rein (wie
     // Vorwärtsblättern), Wechsel zu "Liste" von links.
@@ -2151,7 +2163,7 @@ private fun DayCalendarTimeline(
                     Text("−", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Slider(
                         value = pixelsPerHour,
-                        onValueChange = { pixelsPerHour = it },
+                        onValueChange = onPixelsPerHourChange,
                         valueRange = TimelineUiState.MIN_PIXELS_PER_HOUR..TimelineUiState.MAX_PIXELS_PER_HOUR,
                         modifier = Modifier.weight(1f)
                     )
@@ -2266,7 +2278,7 @@ private fun DayCalendarTimeline(
                             triggers = triggers,
                             lanes = lanes,
                             pixelsPerHour = pixelsPerHour,
-                            onPixelsPerHourChange = { pixelsPerHour = it },
+                            onPixelsPerHourChange = onPixelsPerHourChange,
                             onOpen = onOpen,
                             onEdit = onEdit,
                             onAdjustQuality = onAdjustQuality,

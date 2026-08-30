@@ -71,6 +71,8 @@ fun SettingsScreen(
     onOpenActivityTypes: () -> Unit = {},
     // M18.59: Kategorien-Seite
     onOpenCategories: () -> Unit = {},
+    // M18.83: Orts-Timeline (Google-Maps-artige Tages-Story)
+    onOpenPlaceTimeline: () -> Unit = {},
     onOpenHomeGeofence: (String) -> Unit = {},
     onOpenWorkGeofence: (String) -> Unit = {},
     onCreateHomeGeofence: () -> Unit = {},
@@ -128,7 +130,9 @@ fun SettingsScreen(
                         // eine Seite existiert (inkl. Berechtigungs-Status).
                         SettingsEntry(stringResource(R.string.settings_trigger_detection), stringResource(R.string.settings_trigger_detection_desc), onOpenTriggerSettings),
                         SettingsEntry(stringResource(R.string.settings_geofences_manage), stringResource(R.string.settings_geofences_manage_desc), onOpenGeofences),
-                        SettingsEntry(stringResource(R.string.settings_trigger_events), stringResource(R.string.settings_trigger_events_desc), onOpenTriggers)
+                        SettingsEntry(stringResource(R.string.settings_trigger_events), stringResource(R.string.settings_trigger_events_desc), onOpenTriggers),
+                        // M18.83: Orts-Timeline — eigener Punkt unter Einstellungen.
+                        SettingsEntry(stringResource(R.string.settings_place_timeline), stringResource(R.string.settings_place_timeline_desc), onOpenPlaceTimeline)
                     )
                 )
             }

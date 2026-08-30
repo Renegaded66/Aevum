@@ -16,6 +16,7 @@
     <string name="common_active">Active</string>
     <string name="common_today">Today</string>
     <string name="common_yesterday">Yesterday</string>
+    <string name="common_tomorrow">Tomorrow</string>
     <string name="common_week">Week</string>
     <string name="common_month">Month</string>
     <string name="common_day">Day</string>
