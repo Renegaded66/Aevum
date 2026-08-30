@@ -286,10 +286,22 @@ fun OrbitLauncherSheet(
         val minPlanetR = with(density) { MIN_PLANET_DP.toPx() }
 
         val cx = w / 2f
-        // M18.82.1 (User: "etwas zu hoch"): Zentrum von 0.33 -> 0.40,
-        // mehr Platz nach unten für Planeten + Detail-Panel.
-        val cy = h * 0.40f
-        val maxR = min(cx, cy) * 0.92f
+        // M18.82.1 (User: "etwas zu hoch"): Zentrum von 0.33 -> 0.40.
+        // M18.82.2 (User: "immer noch Überlappung mit Suchleiste"): Kein
+        // Schätzwert mehr — die Header-Höhe wird GEMESSEN (onSizeChanged an
+        // der Header-Column) und die Orbit-Geometrie darunter positioniert.
+        // Überlappung ist damit strukturell unmöglich (oben + unten geklemmt).
+        var headerHeightPx by remember { mutableStateOf(0) }
+        val headerH = headerHeightPx.toFloat().coerceAtLeast(h * 0.16f)
+        // Verbrauchter vertikaler Raum ober- und unterhalb der Sky:
+        // Header oben, Detail-/Ringpanel unten (Puffer 8dp + Labels 22dp).
+        val skyTopPx = headerH + with(density) { 12.dp.toPx() }
+        val skyBottomPad = with(density) {
+            (AevumSpacing.lg + 64.dp + AevumSpacing.lg).toPx() // Detail-Panel-Mindesthöhe
+        }
+        val skyAvailH = h - skyTopPx - skyBottomPad
+        val maxR = min(min(cx, skyAvailH / 2f) * 0.92f, h * 0.30f)
+        val cy = skyTopPx + skyAvailH / 2f + with(density) { 4.dp.toPx() }
         val orbitRs = listOf(maxR * 0.40f, maxR * 0.68f, maxR * 0.98f)
         // M18.82.1: Auto-Shrink bei vielen Aktivitäten (smarte Dichte-Lösung):
         // effektiver Planeten-Radius skaliert mit planetScaleFactor().
@@ -401,21 +413,19 @@ fun OrbitLauncherSheet(
                     canvas.nativeCanvas.drawText(icon, pos.x, pos.y - bounds.exactCenterY(), paint)
                 }
                 // Namens-Label JEDERZEIT unter dem Planeten (User: "jede braucht
-                // den Titel darunter"). Auch bei Auswahl sichtbar; Ellipsis bei
-                // langen Namen; leichte Alpha-Einblendung während Spawn.
+                // den Titel darunter").
+                // M18.82.2: Labels VOLL WEISS (User-Wunsch), kein Alpha mehr.
                 if (!inSearchMode) {
                     val m = textMeasurer.measure(
                         AnnotatedString(item.type.name),
                         style = TextStyle(
                             fontSize = 10.sp,
-                            color = onColor.copy(alpha = 0.8f * itemAppear.coerceAtLeast(0.3f)),
+                            color = Color.White,
                             textAlign = TextAlign.Center,
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    // Maximale Label-Breite = Nachbar-Gap, damit Labels sich
-                    // nicht überlappen (Klemmung auf 2*r + 8dp).
                     drawText(m, topLeft = Offset(pos.x - m.size.width / 2f, pos.y + r * 0.9f))
                 }
             }
@@ -425,29 +435,33 @@ fun OrbitLauncherSheet(
         // M18.82.1 (Z-Ordnung): Diese Box MUSS vor dem Header kommen — lag sie
         // danach, lag sie ÜBER X-Button/Suchfeld und fraß deren Taps (genau der
         // "X funktioniert nicht"-Report). Header/search erhalten zIndex(2f).
-        if (!inSearchMode) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(1f)
-                    .pointerInput(filteredLayout, positions) {
-                        detectTapGestures { tap ->
-                            var bestId: String? = null
-                            var bestDist = Float.MAX_VALUE
-                            for (item in filteredLayout.items) {
-                                val p = positions[item.type.id] ?: continue
-                                val d = hypot(tap.x - p.x, tap.y - p.y)
-                                if (d < bestDist) { bestDist = d; bestId = item.type.id }
-                            }
-                            if (bestId != null && bestDist <= planetRa * 1.6f) {
-                                selectedId = if (selectedId == bestId) null else bestId
-                            } else {
-                                selectedId = null
-                            }
+        // M18.82.2: PERMANENT aktiv (auch während der Suche):
+        //  a) Hintergrund nie klickbar ("nicht durch das Overlay ins Dashboard
+        //     steuern") — die Box konsumiert alle freien Flächen.
+        //  b) Planeten bleiben in der Suche tappbar (User-Report). Die
+        //     Suchliste liegt zIndex(2) über der Box und konsumiert ihre
+        //     eigene Zeilen-Taps zuerst — beides koexistiert.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(1f)
+                .pointerInput(filteredLayout, positions) {
+                    detectTapGestures { tap ->
+                        var bestId: String? = null
+                        var bestDist = Float.MAX_VALUE
+                        for (item in filteredLayout.items) {
+                            val p = positions[item.type.id] ?: continue
+                            val d = hypot(tap.x - p.x, tap.y - p.y)
+                            if (d < bestDist) { bestDist = d; bestId = item.type.id }
                         }
-                    },
-            )
-        }
+                        if (bestId != null && bestDist <= planetRa * 1.6f) {
+                            selectedId = if (selectedId == bestId) null else bestId
+                        } else {
+                            selectedId = null
+                        }
+                    }
+                },
+        )
 
         // --- Header ----------------------------------------------------------
         Column(
@@ -455,6 +469,7 @@ fun OrbitLauncherSheet(
                 .fillMaxWidth()
                 .zIndex(2f)
                 .statusBarsPadding()
+                .onSizeChanged { headerHeightPx = it.height }
                 .padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.md),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -503,8 +518,11 @@ fun OrbitLauncherSheet(
                             .clip(RoundedCornerShape(12.dp))
                             .background(surfaceCol.copy(alpha = 0.9f))
                             .clickable {
-                                onStart(item.type.id)
-                                onDismiss()
+                                // M18.82.2 (User-Wunsch): Suchtreffer-Click öffnet
+                                // dasselbe Detail-Popup wie Planenten-Tap — zentraler
+                                // Start-Pfad (Sofort/Vorlaufzeit) bleibt konsistent.
+                                selectedId = item.type.id
+                                showTimeMode = false
                             }
                             .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -512,7 +530,7 @@ fun OrbitLauncherSheet(
                         Text(if (item.type.icon.isBlank()) "•" else item.type.icon, fontSize = 17.sp)
                         Spacer(Modifier.width(AevumSpacing.sm))
                         Text(item.type.name, fontSize = 15.sp, color = onColor, modifier = Modifier.weight(1f))
-                        Text("Sofort starten", fontSize = 10.sp, color = accent, fontWeight = FontWeight.Medium)
+                        Text("Auswählen", fontSize = 10.sp, color = accent, fontWeight = FontWeight.Medium)
                     }
                 }
                 // Neue Aktivität
@@ -533,12 +551,15 @@ fun OrbitLauncherSheet(
         }
 
         // --- Detail-Panel (unten, bei Auswahl) --------------------------------
+        // M18.82.2: Auch in der Suche sichtbar (User: Suchtreffer -> gleiches
+        // Popup wie Planenten-Tap). zIndex(3) liegt über der Suchliste (2).
         androidx.compose.animation.AnimatedVisibility(
-            visible = selected != null && !showTimeMode && !inSearchMode,
+            visible = selected != null && !showTimeMode,
             enter = fadeIn() + scaleIn(initialScale = 0.9f),
             exit = fadeOut() + scaleOut(targetScale = 0.92f),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .zIndex(3f)
                 .padding(horizontal = AevumSpacing.lg)
                 .navigationBarsPadding()
                 .padding(bottom = AevumSpacing.lg),
@@ -590,7 +611,13 @@ fun OrbitLauncherSheet(
                                 .height(52.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(scheme.primary.copy(alpha = 0.15f))
-                                .clickable { showTimeMode = true },
+                                .clickable {
+                                    // M18.82.2: Bei Vorlaufzeit die Suche verlassen —
+                                    // das Ring-Panel ist bewusst NUR im Sky-Modus
+                                    // (Suchliste + Ring würden um Platz kämpfen).
+                                    showTimeMode = true
+                                    searchQuery = ""
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
