@@ -127,15 +127,29 @@ class ScreenEventReceiver : BroadcastReceiver() {
                             Log.d(TAG, "Screen-Aufzeichnung geplant (Vorlauf=${minutes}min)")
                         }
                     } else if (type == "OFF") {
-                        androidx.work.WorkManager.getInstance(appContext)
-                            .cancelUniqueWork(com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker.WORK_NAME)
-                        // M18.71: Laufende SCREEN_AUTO-Session erst nach 30s
-                        // Screen-Aus stoppen (nicht sofort). Der Delay-Worker
-                        // prüft beim Feuern, ob der Screen immer noch aus ist.
+                        // M18.90-FIX: Der frühere cancelUniqueWork(screen_recording_auto)
+                        // hatte eine RACE-BEDINGUNG, die die Aufzeichnung still tötete:
+                        // OFF und kurz danach ON laufen in unabhängigen Coroutinen.
+                        // Lief das asynchrone Cancel des OFF-Events NACH dem
+                        // Enqueue des ON-Events, wurde der frisch geplante
+                        // ScreenRecordingWorker gelöscht — die Aufzeichnung
+                        // startete nie (bis zum nächsten Screen-ON). Symptom:
+                        // "15 Minuten durchgängig am Handy, nichts wurde
+                        // aufgenommen".
+                        //
+                        // Cancel ist unnötig: Der Worker prüft beim Feuern
+                        // selbst (a) Screen noch an? (b) nichts anderes live?
+                        // (c) Feature deaktiviert? und bricht als harmloser
+                        // No-Op ab. Ohne Cancel kann die ON/OFF-Reihenfolge
+                        // nichts mehr kaputt machen; ein vorzeitig feuern-
+                        // der Worker nach kurzem OFF ist harmlos, denn der
+                        // nächste ON ersetzt ihn eh (REPLACE).
+                        // Laufende SCREEN_AUTO-Session trotzdem nach 30s
+                        // Screen-Aus stoppen (Re-Check im Delay-Worker):
                         val live = deps.liveActivityManager().liveSession.value
                         if (live != null && live.isLive && live.sourceType == "SCREEN_AUTO") {
                             com.d_drostes_apps.aevum.automation.screen.ScreenOffStopWorker.schedule(appContext)
-                            Log.d(TAG, "Screen-Aufzeichnung: Stop in 30s geplant (Screen OFF)")
+                            Log.i(TAG, "Screen-Aufzeichnung: Stop in 30s geplant (Screen OFF)")
                         }
                     }
                 } catch (e: Exception) {

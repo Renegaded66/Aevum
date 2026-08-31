@@ -54,7 +54,7 @@ class ScreenRecordingWorker(
             // Bedingung: gerade nichts anderes zeichnet auf.
             val live = deps.liveActivityManager().liveSession.value
             if (live != null && live.isLive) {
-                Log.d(TAG, "Andere Session aktiv (${live.title}) — keine Screen-Aufzeichnung")
+                Log.i(TAG, "Screen-Aufzeichnung SKIPPED: andere Session aktiv (${live.title}, source=${live.sourceType}) — das ist nur sichtbar, wenn der User eine Parallel-Automatisierung laufen hat")
                 return Result.success()
             }
 
@@ -63,7 +63,7 @@ class ScreenRecordingWorker(
             val powerManager = applicationContext.getSystemService(Context.POWER_SERVICE)
                 as android.os.PowerManager
             if (!powerManager.isInteractive) {
-                Log.d(TAG, "Screen ist aus — keine Screen-Aufzeichnung")
+                Log.i(TAG, "Screen-Aufzeichnung SKIPPED: Screen ist aus (Worker feuerte nach OFF — harmlos)")
                 return Result.success()
             }
 

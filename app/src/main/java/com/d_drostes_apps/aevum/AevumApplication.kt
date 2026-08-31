@@ -436,6 +436,49 @@ class AevumApplication : Application() {
             Log.e("AevumApplication", "Screen event runtime receiver registration failed — continuing", e)
         }
 
+        // M18.90-SELBSTHEILUNG: Bildschirm-Aufzeichnung nachziehen, wenn
+        // der Runtime-Receiver tot war (Prozess wurde vom System getötet
+        // → keine SCREEN_ON-Events mehr) und der Screen aktuell an ist.
+        // Ohne diesen Pfad blieb die Aufzeichnung nach einem Prozess-Kill
+        // dauerhaft aus, bis der Nutzer den Screen einmal aus+an schaltete
+        // (Receiver ist erst dann wieder registriert). Symptom:
+        // "seit 15 Minuten durchgängig am Handy, keine Aufzeichnung".
+        // Der Worker prüft beim Feuern selbst alle Bedingungen
+        // (Screen an? nichts live? Feature aktiv?) — doppelte Starts sind
+        // ausgeschlossen, REPLACE macht den Aufruf idempotent.
+        try {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val powerManager = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                    if (powerManager.isInteractive) {
+                        val deps = EntryPointAccessors.fromApplication(this@AevumApplication, Deps::class.java)
+                        val live = deps.liveActivityManager().liveSession.value
+                        if (live == null || !live.isLive) {
+                            val settings = deps.settingsRepository().get().first()
+                            val minutes = settings?.screenRecordingMinutes ?: 5
+                            if (minutes != com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.DEACTIVATED) {
+                                val delay = minutes.coerceAtLeast(0).toLong()
+                                val request = androidx.work.OneTimeWorkRequestBuilder<com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker>()
+                                    .setInitialDelay(delay, java.util.concurrent.TimeUnit.MINUTES)
+                                    .build()
+                                androidx.work.WorkManager.getInstance(this@AevumApplication)
+                                    .enqueueUniqueWork(
+                                        com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker.WORK_NAME,
+                                        androidx.work.ExistingWorkPolicy.REPLACE,
+                                        request
+                                    )
+                                Log.d("AevumApplication", "Screen-Aufzeichnung: Selbstheilung geplant (Vorlauf=${minutes}min)")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("AevumApplication", "Screen-Aufzeichnung Selbstheilung failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Screen-Aufzeichnung Selbstheilung init failed — continuing", e)
+        }
+
         // M18.21: Notification-Restore beim App-Start.
         // Szenario: Das Handy war im Ultra-Energie-Sparmodus, der
         // Foreground-Service wurde gekillt, die Notification verschwand.

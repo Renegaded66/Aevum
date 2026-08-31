@@ -16,9 +16,9 @@ android {
         applicationId = "com.d_drostes_apps.aevum"
         minSdk = 29
         targetSdk = 36
-        // M18.87: Erster öffentlicher Release-Stand.
-        versionCode = 2
-        versionName = "1.0.0"
+        // M18.90: Screen-Aufzeichnung Race-Fix + Selbstheilung.
+        versionCode = 3
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
