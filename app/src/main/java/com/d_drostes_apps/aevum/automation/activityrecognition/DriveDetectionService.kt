@@ -75,6 +75,8 @@ class DriveDetectionService : Service() {
     // Lebensdauer (Geofences ändern sich selten; ein Restart des Service
     // lädt neu — gleiche Frische-Philosophie wie der Settings-Cache).
     @Inject lateinit var geofenceRepository: PlaceGeofenceRepository
+    // M18.86: Track-Punkte-Persistenz (Fahrtstrecke für die Orts-Timeline).
+    @Inject lateinit var trackPointRepository: com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
 
     /** M18.84: Service-eigener Coroutine-Scope für den Geofence-Snapshot. */
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -152,6 +154,24 @@ class DriveDetectionService : Service() {
         /** M18.72: Steht der Standort länger still, wird die Walking-Phase
          *  verworfen — der 5-Minuten-Zähler startet bei neuer Bewegung neu. */
         private const val WALKING_PHASE_RESET_MS = 2L * 60 * 1000
+
+        // ── M18.86: Track-Recording-Konstanten (ADR-0030) ──
+        /** Bewegungs-Schwelle für einen Track-Punkt: ≥ 30 m seit dem
+         *  letzten Punkt. Bei Stadt-Tempo (30-50 km/h) = alle ~2-5 s ein
+         *  Punkt? NEIN — kombiniert mit dem 5s-Stream ergibt 30 m ≈ alle
+         *  2-4 Fixes einen Punkt bei 30 km/h; die sichtbare Kurvendichte
+         *  reicht für "halwegs die Fahrtstrecke" ohne jede Kurve. */
+        private const val TRACK_MIN_MOVEMENT_M = 30.0
+        /** Heartbeat: Auch ohne Bewegung alle 5 Min ein Punkt (Ampel/Stau/
+         *  Pause — hält die Zeitachse der Strecke zusammen). */
+        private const val TRACK_HEARTBEAT_MS = 5L * 60 * 1000
+        /** Genauigkeits-Gate für Track-Punkte (Indoor-Multipath raus). */
+        private const val TRACK_MAX_ACCURACY_M = 50f
+        /** Batch-Flush: spätestens 8 Punkte ... */
+        private const val TRACK_FLUSH_BATCH = 8
+        /** ... oder 60 s (auch bei langsamen Punkt-Raten wird zügig
+         *  persistiert, damit ein Prozess-Tod maximal 1 Min Strecke frisst). */
+        private const val TRACK_FLUSH_INTERVAL_MS = 60_000L
 
         fun start(context: Context) {
             val intent = Intent(context, DriveDetectionService::class.java)
@@ -392,6 +412,10 @@ class DriveDetectionService : Service() {
         lastLon = loc.longitude
         lastTsMs = now
 
+        // M18.86: Track-Recording — verdichtet den Fix in die Strecken-
+        // aufzeichnung, wenn eine trackbare Session (Auto/Walking) läuft.
+        maybeRecordTrackPoint(loc, now, speed)
+
         // M18.84: Läuft die Fahrt noch (Herzschlag wurde oben refresht),
         // ist ein aktiver Restart-Cooldown überholt — er stammt aus einem
         // verlorenen Stop-Flag (Prozess-Tod) und würde eine REAL laufende
@@ -582,6 +606,110 @@ class DriveDetectionService : Service() {
         walkLastLon = null
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // M18.86: TRACK-RECORDING (Fahrtstrecke für die Orts-Timeline).
+    //
+    // Während einer laufenden Auto-Session (ACTIVITY_RECOGNITION_AUTO)
+    // oder Wanderung (WALKING_AUTO) schreibt der Service verdichtete
+    // GPS-Punkte in location_track_point:
+    //   • BEWEGUNGS-Punkt: ≥ 30 m seit dem letzten Punkt (~alle 25 s
+    //     bei Stadt-Tempo — "nicht jede Kurve, aber alle paar Minuten",
+    //     User-Wortlaut)
+    //   • HEARTBEAT-Punkt: alle 5 Min auch ohne Bewegung (Ampel/Stau —
+    //     sonst klammert die Karte stehende Phasen weg und springt)
+    //   • Genauigkeits-Gate ≤ 50 m wie überall (Indoor-Multipath hat
+    //     hier nichts verloren — ein Track ist Strecken-EVIDENZ)
+    // Der 5-Sekunden-Stream existiert ohnehin (Fahrterkennung) — kein
+    // zusätzlicher Sensor-Burn, nur ~1 Insert je 25 s über den Service-
+    // Scope (gebatcht: insertAll einer Liste, nie pro Fix).
+    // ──────────────────────────────────────────────────────────────
+    private var trackLastLat: Double? = null
+    private var trackLastLon: Double? = null
+    private var trackLastPointAtMs: Long = 0L
+    /** M18.86: Session-Id des letzten Track-Punkts — Wechsel = neuer
+     *  Anker-Punkt (jede Strecke beginnt mit EINEM Punkt am Start, auch
+     *  ohne 30-m-Bewegung; sonst klammerte die Karte den Aussteige-/Start-
+     *  Moment weg und die Strecke begähe mitten in der Bewegung). */
+    private var trackLastSessionId: String? = null
+    private val trackBuffer = java.util.Collections.synchronizedList(mutableListOf<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>())
+
+    /** M18.86: Verdichtet den Fix in den Track-Puffer, wenn eine
+     *  trackbare Session läuft. Flush passiert batched im selben Lauf. */
+    private fun maybeRecordTrackPoint(loc: Location, now: Long, speedMps: Float?) {
+        if (loc.accuracy > TRACK_MAX_ACCURACY_M) return
+
+        // Welche Session läuft (und ist damit track-würdig)? Nur Auto-
+        // Fahrten und Wanderungen haben Strecken — Geofence-Besuche sind
+        // Punkte, manuelle Sessions haben keine Location-Evidenz.
+        val live = liveActivityManager.liveSession.value ?: return
+        val trackable = live.isLive && (
+            live.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
+                live.sourceType == "WALKING_AUTO"
+            )
+        if (!trackable) return
+
+        // Session-Wechsel: Track-Anker neu setzen (erster Punkt immer).
+        val sessionChanged = trackLastSessionId != live.id
+        if (sessionChanged) {
+            trackLastLat = null
+            trackLastLon = null
+            trackLastPointAtMs = 0L
+            trackLastSessionId = live.id
+        }
+
+        val movedM = if (trackLastLat != null && trackLastLon != null) {
+            haversineMeters(trackLastLat!!, trackLastLon!!, loc.latitude, loc.longitude)
+        } else Double.MAX_VALUE // erster Punkt der Session immer
+
+        val timeForHeartbeat = now - trackLastPointAtMs >= TRACK_HEARTBEAT_MS
+        if (movedM < TRACK_MIN_MOVEMENT_M && !timeForHeartbeat) return
+
+        trackBuffer += com.d_drostes_apps.aevum.data.model.LocationTrackPoint(
+            id = java.util.UUID.randomUUID().toString(),
+            sessionId = live.id,
+            recordedAt = now,
+            latitude = loc.latitude,
+            longitude = loc.longitude,
+            accuracyMeters = loc.accuracy,
+            speedMps = speedMps
+        )
+        trackLastLat = loc.latitude
+        trackLastLon = loc.longitude
+        trackLastPointAtMs = now
+
+        // Batch-Flush: alle 8 Punkte ODER alle 60 s — was zuerst kommt.
+        // Bewusst gechunkt statt pro Fix (DB-Write-I/O auf IO-Dispatcher).
+        val timeSinceFlush = now - trackLastFlushMs
+        if (trackBuffer.size >= TRACK_FLUSH_BATCH || timeSinceFlush >= TRACK_FLUSH_INTERVAL_MS) {
+            flushTrackBuffer()
+        }
+    }
+
+    private var trackLastFlushMs: Long = 0L
+
+    /** M18.86: Puffer persistieren (IO) und lokal leeren. */
+    private fun flushTrackBuffer() {
+        if (trackBuffer.isEmpty()) return
+        val batch = synchronized(trackBuffer) {
+            val copy = trackBuffer.toList()
+            trackBuffer.clear()
+            copy
+        }
+        trackLastFlushMs = System.currentTimeMillis()
+        serviceScope.launch {
+            try {
+                trackPointRepository.insertAll(batch)
+                Log.d(TAG, "M18.86: ${batch.size} Track-Punkte persistiert (Session ${batch.firstOrNull()?.sessionId?.take(8)})")
+            } catch (e: Exception) {
+                // Persistenz-Fehler darf den Location-Stream nie crashen;
+                // Punkte sind Ergänzung, kein kritischer Pfad. Bewusst
+                // KEIN Retrying (Duplikate durch REPLACE-Id-Unfall-Risiko
+                // minimieren — verlorene 8 Punkte sind verkraftbar).
+                Log.w(TAG, "M18.86: Track-Flush fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -617,6 +745,9 @@ class DriveDetectionService : Service() {
     }
 
     override fun onDestroy() {
+        // M18.86: Restlichen Track-Puffer flushen, bevor der Scope stirbt
+        // (lieber sofort als auf den nächsten Service-Start warten).
+        flushTrackBuffer()
         callback?.let { cb ->
             try { fusedClient.removeLocationUpdates(cb) } catch (_: Exception) {}
         }

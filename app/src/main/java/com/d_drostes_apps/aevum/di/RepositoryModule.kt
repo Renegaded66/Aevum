@@ -57,6 +57,8 @@ import com.d_drostes_apps.aevum.data.repository.GoalRepository
 import com.d_drostes_apps.aevum.data.repository.GoalRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.LifeProfileRepository
 import com.d_drostes_apps.aevum.data.repository.LifeProfileRepositoryImpl
+import com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
+import com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.RawDetectionEventRepository
@@ -76,6 +78,7 @@ import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.GarminRepository
 import com.d_drostes_apps.aevum.data.repository.GarminRepositoryImpl
 import com.d_drostes_apps.aevum.data.db.GarminDao
+import com.d_drostes_apps.aevum.data.db.LocationTrackPointDao
 import javax.inject.Singleton
 
 @Module
@@ -155,4 +158,8 @@ object RepositoryModule {
 
     @Provides
     fun provideDailyAllowanceRepository(dao: DailyAllowanceDao): DailyAllowanceRepository = DailyAllowanceRepositoryImpl(dao)
+
+    // M18.86: GPS-Streckenpunkte (Orts-Timeline-Karte)
+    @Provides
+    fun provideLocationTrackPointRepository(dao: LocationTrackPointDao): LocationTrackPointRepository = LocationTrackPointRepositoryImpl(dao)
 }

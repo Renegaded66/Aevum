@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * M18.83: Place Timeline — "Wo war ich wann?" als Google-Maps-artige
@@ -51,7 +53,9 @@ class PlaceTimelineViewModel @Inject constructor(
     activityRepository: ActivityRepository,
     geofenceRepository: PlaceGeofenceRepository,
     triggerRepository: TriggerEventRepository,
-    unknownPlaceRepository: UnknownPlaceSessionRepository
+    unknownPlaceRepository: UnknownPlaceSessionRepository,
+    // M18.86: Track-Punkte für echte Strecken auf der Karte (ADR-0030).
+    private val trackPointRepository: com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
 ) : ViewModel() {
 
     private val zoneId: ZoneId = ZoneId.systemDefault()
@@ -95,6 +99,40 @@ class PlaceTimelineViewModel @Inject constructor(
         val geofences: List<PlaceGeofence>,
         val namedPlaces: List<UnknownPlaceSession>
     )
+
+    // M18.86: Track-Punkte asynchron nachladen (suspend, einmal pro Tag-
+    // Wechsel — NICHT in den combine-Flow: Die Track-Flow emittiert bei
+    // jedem Live-Insert während einer laufenden Fahrt, das würde die
+    // gesamte Visits-Berechnung 1x pro 25 s neu triggern. Stattdessen:
+    // separater State, Screen kombiniert).
+    private val _trackPoints = MutableStateFlow<List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>>(emptyList())
+    val trackPoints: StateFlow<List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>> = _trackPoints.asStateFlow()
+
+    private suspend fun loadTrackPoints(date: LocalDate) {
+        try {
+            val zone = ZoneId.systemDefault()
+            val dayStart = TimeFormatting.startOfDayMillis(date, zone)
+            val dayEnd = dayStart + MILLIS_PER_DAY
+            // Puffer: Strecken, die kurz vor/nach Mitternacht laufen,
+            // gehören visuell zu beiden Tagen — ±30 Min Fenster.
+            _trackPoints.value = trackPointRepository.getByTimeRange(
+                dayStart - 30 * 60 * 1000L,
+                dayEnd + 30 * 60 * 1000L
+            )
+        } catch (e: Exception) {
+            Log.w("PlaceTimelineVM", "M18.86: Track-Punkte laden fehlgeschlagen: ${e.message}")
+            _trackPoints.value = emptyList()
+        }
+    }
+
+    init {
+        // Beim Start + bei jedem Tagwechsel die Track-Punkte nachladen.
+        viewModelScope.launch {
+            _selectedDate.collect { date ->
+                loadTrackPoints(date)
+            }
+        }
+    }
 
     private val selectedDate: MutableStateFlow<LocalDate> = _selectedDate
 

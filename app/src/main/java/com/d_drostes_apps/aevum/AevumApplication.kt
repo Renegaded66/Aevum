@@ -55,6 +55,8 @@ class AevumApplication : Application() {
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
         fun ensureDefaultData(): EnsureDefaultDataUseCase
+        // M18.86: Track-Punkt-Retention (90 Tage) beim App-Start.
+        fun locationTrackPointRepository(): com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
         // AEVUM-1: Einmaliger Daten-Aufräumlauf beim App-Start — löscht
         // Duplikate (gleiche externalId oder gleicher Typ + zeitliche
         // Überlappung; z.B. der mehrfach gesyncte Garmin-Schlaf).
@@ -354,6 +356,28 @@ class AevumApplication : Application() {
             com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(this)
         } catch (e: Exception) {
             Log.e("AevumApplication", "DriveDetectionService start failed — continuing", e)
+        }
+        // M18.86: Track-Punkt-Retention (90 Tage) — einmal pro App-Start
+        // als Fire-and-Forget auf IO. Die Tabelle wächst mit ~1 Punkt/25 s
+        // während Fahrten (~150 Punkte/Tag bei viel Autofahrerei); ohne
+        // Retention würde sie nach Jahren die DB aufblähen. Verlust-Toleranz:
+        // Ein App-Start alle paar Tage reicht locker (die Karte zeigt eh
+        // nur den ausgewählten Tag).
+        try {
+            val trackRepo = EntryPointAccessors.fromApplication(
+                this,
+                Deps::class.java
+            ).locationTrackPointRepository()
+            val cutoff = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    trackRepo.deleteOlderThan(cutoff)
+                } catch (e: Exception) {
+                    Log.w("AevumApplication", "M18.86: Track-Retention fehlgeschlagen: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("AevumApplication", "M18.86: Track-Retention-Scheduler fehlgeschlagen: ${e.message}")
         }
         // M18.67: App-Aufzeichnung — ForegroundService starten. Der Service
         // beendet sich selbst, wenn keine App getrackt ist (Gate in

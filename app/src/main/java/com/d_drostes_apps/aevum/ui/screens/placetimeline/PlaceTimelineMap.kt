@@ -87,6 +87,7 @@ import java.util.concurrent.ConcurrentHashMap
 @Composable
 fun PlaceTimelineMap(
     visits: List<PlaceVisit>,
+    trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>,
     selectedVisitId: String?,
     onVisitSelected: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -97,6 +98,14 @@ fun PlaceTimelineMap(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isDark = isSystemInDarkTheme()
+
+    // M18.86: Track-Segmente pro Unterwegs-Lücke (echte Strecke). Der Key
+    // enthält die Segment-Geometrie (Punkt-Anzahl + erste/letzte Koordinate
+    // + Hash) — neue Punkte während einer laufenden Fahrt erweitern die
+    // Strecke LIVE, ohne die Marker neu zu bauen.
+    val trackSegmentsByGap = remember(visits, trackPoints) {
+        buildTrackSegmentsByGap(mappable, trackPoints)
+    }
 
     // Rebuild-Schlüssel: nur geometrisch relevante Änderungen bauen die
     // Marker neu — der 60s-Ticker (isOngoing-Ende wächst) flackert nicht.
@@ -173,16 +182,27 @@ fun PlaceTimelineMap(
     MapLifecycleEffect(viewRef, lifecycleOwner)
 
     // Marker + Routen bauen, wenn Map ready ist ODER sich der Tag/Visits
-    // geometrisch ändern.
+    // geometrisch ändern. M18.86: Track-Segmente werden separat gezeichnet
+    // (LaunchedEffect unten), damit neue Punkte während einer laufenden
+    // Fahrt nicht die Marker neu bauen.
     LaunchedEffect(mapKey, mapRef) {
         val map = mapRef ?: return@LaunchedEffect
         if (builtKey == mapKey) return@LaunchedEffect
         builtKey = mapKey
         markersByVisitId.clear()
-        rebuildMarkersAndRoutes(context, map, mappable, markersByVisitId)
+        rebuildMarkersAndRoutes(context, map, mappable, markersByVisitId, trackSegmentsByGap)
         // Auto-Fit: Bounds über alle Orte — Refit bei jedem neuen Key
         // (Tagwechsel springt die Kamera auf den neuen Tag).
-        fitToBounds(map, viewRef, mappable)
+        fitToBounds(map, viewRef, mappable, trackSegmentsByGap.values.flatMap { it.segments })
+    }
+
+    // M18.86: Track-Segmente (echte Fahrtstrecken) zeichnen — eigener
+    // Effect mit eigenem Key: Er wächst live mit (laufende Fahrt), ohne
+    // Marker/Layer der Marker neu zu bauen. Redundant gezeichnete
+    // Lücken-Segmente werden vorher entfernt (Id-Präfix).
+    LaunchedEffect(trackSegmentsByGap, mapRef) {
+        val map = mapRef ?: return@LaunchedEffect
+        rebuildTrackSegments(map, trackSegmentsByGap)
     }
 
     // Auswahl-Sync: Liste (oder extern) wählt Visit → Marker auswählen,
@@ -260,16 +280,17 @@ internal fun rasterStyleJson(dark: Boolean): String {
 }
 
 /**
- * Baut Marker (EIN Marker pro ORT — Mehrfach-Besuche teilen ihn; die
- * Nummer ist der Index des ERSTEN Besuchs) und gestrichelte Routen-
- * Segmente (Farbe des Start-Orts) neu auf. Schreibt die Marker→Visit-Id
- * in [markersByVisitId] (der ORTS-Anker ist die Id des ersten Besuchs).
+ * Baut Marker (EIN Pin pro ORT — Mehrfach-Besuche teilen ihn; die Nummer
+ * ist der Index des ERSTEN Besuchs) und dezente Fallback-Luftlinien für
+ * Lücken OHNE Track (alte Tage vor M18.86). Lücken MIT Track bekommen
+ * ihre echte Strecke von [rebuildTrackSegments].
  */
 private fun rebuildMarkersAndRoutes(
     context: Context,
     map: MapLibreMap,
     visits: List<PlaceVisit>,
-    markersByVisitId: ConcurrentHashMap<String, Marker>
+    markersByVisitId: ConcurrentHashMap<String, Marker>,
+    trackSegmentsByGap: Map<Pair<Long, Long>, GapTrack>
 ) {
     val style = map.style ?: return
     // Alte Marker + Routen entfernen (Rebuild bei Tagwechsel).
@@ -281,7 +302,8 @@ private fun rebuildMarkersAndRoutes(
 
     val iconFactory = IconFactory.getInstance(context)
 
-    // Ein Marker pro Ort (gleiche Koordinaten = derselbe Ort).
+    // Ein fancy Pin pro Ort (gleiche Koordinaten = derselbe Ort) — mit
+    // Geofence-Emoji (M18.86: "falls vorhanden mit den Geofence Icons").
     val byPlace = visits.groupBy { "${it.latitude}:${it.longitude}" }
     var placeNumber = 0
     visits.forEach { visit ->
@@ -290,7 +312,7 @@ private fun rebuildMarkersAndRoutes(
         if (visit !== group.first()) return@forEach // nur der erste Besuch baut den Marker
         placeNumber++
         val anchor = group.first()
-        val icon = numberedMarkerIcon(iconFactory, context, placeNumber, anchor.color)
+        val icon = placePinIcon(iconFactory, context, placeNumber, anchor.color, anchor.icon)
         val snippet = group.joinToString("\n") { v ->
             TimeFormatting.formatTime(v.startAt) + "–" + TimeFormatting.formatTime(v.endAt) +
                 " · " + TimeFormatting.formatDuration(v.durationMs)
@@ -305,15 +327,18 @@ private fun rebuildMarkersAndRoutes(
         markersByVisitId[anchor.id] = marker
     }
 
-    // Routen-Segmente in chronologischer Besuchs-Reihenfolge: von Besuch i
-    // nach Besuch i+1 (gleiche aufeinanderfolgende Koordinaten überspringen
-    // — kein Null-Segment bei Mehrfach-Besuchen am selben Ort).
+    // Fallback-Luftlinien nur für Lücken OHNE echte Strecke (Visits ohne
+    // Track-Daten, z. B. alle Tage vor M18.86). Farbe des Start-Orts,
+    // deutlich dezenter als die echte Strecke (opacity 0.35, dünn).
     var segment = 0
     for (i in 0 until visits.size - 1) {
         if (segment >= ROUTE_SEGMENT_MAX) break
         val a = visits[i]
         val b = visits[i + 1]
         if (a.latitude == b.latitude && a.longitude == b.longitude) continue
+        if (b.startAt <= a.endAt) continue // Überlappung — keine Lücke
+        val gapKey = a.endAt to b.startAt
+        if (trackSegmentsByGap.containsKey(gapKey)) continue // echte Strecke vorhanden
         val sourceId = ROUTE_SOURCE_PREFIX + segment
         val layerId = ROUTE_LAYER_PREFIX + segment
         val geoJson = """
@@ -327,9 +352,9 @@ private fun rebuildMarkersAndRoutes(
             LineLayer(layerId, sourceId).apply {
                 withProperties(
                     PropertyFactory.lineColor(parseHexAndroidColor(a.color)),
-                    PropertyFactory.lineWidth(3.5f),
-                    PropertyFactory.lineOpacity(0.85f),
-                    PropertyFactory.lineDasharray(arrayOf(2f, 1.5f)),
+                    PropertyFactory.lineWidth(2.5f),
+                    PropertyFactory.lineOpacity(0.35f),
+                    PropertyFactory.lineDasharray(arrayOf(1.5f, 2f)),
                     PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                     PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                 )
@@ -339,11 +364,98 @@ private fun rebuildMarkersAndRoutes(
     }
 }
 
+/** M18.86: Eine Lücke mit ihrer echten Strecke — Farbe des Start-Orts
+ *  für die Zeichenfläche, Segmente bereits gefiltert/zerschnitten. */
+private data class GapTrack(
+    val colorHex: String,
+    val segments: List<com.d_drostes_apps.aevum.domain.placetimeline.TrackSegment>
+)
+
+/** M18.86: Track-Segmente pro Unterwegs-Lücke bauen (reine Funktion,
+ *  inkl. Start-Orts-Farbe — kein globaler Cache nötig). */
+private fun buildTrackSegmentsByGap(
+    visits: List<PlaceVisit>,
+    trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>
+): Map<Pair<Long, Long>, GapTrack> {
+    val result = mutableMapOf<Pair<Long, Long>, GapTrack>()
+    for (i in 0 until visits.size - 1) {
+        val a = visits[i]
+        val b = visits[i + 1]
+        if (b.startAt <= a.endAt) continue // Überlappung — keine Lücke
+        val gapKey = a.endAt to b.startAt
+        val segments = com.d_drostes_apps.aevum.domain.placetimeline.TrackSegmentBuilder.buildSegments(
+            points = trackPoints,
+            fromMs = a.endAt,
+            toMs = b.startAt
+        )
+        if (segments.isNotEmpty()) {
+            result[gapKey] = GapTrack(colorHex = a.color, segments = segments)
+        }
+    }
+    return result
+}
+
+/**
+ * M18.86: Zeichnet die echte Fahrtstrecke als Polyline-Layer. Farbe =
+ * Start-Orts-Farbe der Lücke (gleiche Farbsprache wie die Fallback-
+ * Luftlinie, aber kräftig: opacity 0.9, 4.5px, gestrichelt im Google-
+ * Timeline-Rhythmus). Segmente nach GPS-Lücken bekommen denselben Layer-
+ * Typ — die Karte zeigt die Teilstrecken einfach nacheinander.
+ */
+private fun rebuildTrackSegments(
+    map: MapLibreMap,
+    trackSegmentsByGap: Map<Pair<Long, Long>, GapTrack>
+) {
+    val style = map.style ?: return
+    // Alte Track-Layer entfernen (Prefix, feste Obergrenze).
+    (0 until TRACK_LAYER_MAX).forEach { i ->
+        style.removeLayer(TRACK_LAYER_PREFIX + i)
+        style.removeSource(TRACK_SOURCE_PREFIX + i)
+    }
+
+    var layer = 0
+    val sortedGaps = trackSegmentsByGap.entries.sortedBy { it.key.first }
+    for ((_, track) in sortedGaps) {
+        for (segment in track.segments) {
+            if (layer >= TRACK_LAYER_MAX) return
+            val coordinates = segment.points.joinToString(",") {
+                "[${it.longitude},${it.latitude}]"
+            }
+            val geoJson = """
+                {"type":"FeatureCollection","features":[{"type":"Feature",
+                "geometry":{"type":"LineString","coordinates":[$coordinates]}}]}
+            """.trimIndent()
+            val sourceId = TRACK_SOURCE_PREFIX + layer
+            val layerId = TRACK_LAYER_PREFIX + layer
+            style.addSource(GeoJsonSource(sourceId, geoJson))
+            style.addLayer(
+                LineLayer(layerId, sourceId).apply {
+                    withProperties(
+                        PropertyFactory.lineColor(parseHexAndroidColor(track.colorHex)),
+                        PropertyFactory.lineWidth(4.5f),
+                        PropertyFactory.lineOpacity(0.9f),
+                        PropertyFactory.lineDasharray(arrayOf(2f, 1.2f)),
+                        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                    )
+                }
+            )
+            layer++
+        }
+    }
+}
+
 /** Auto-Fit auf alle Orte (mit Padding); Einzelort → Zoom 15 zentriert.
  *  view.post: Bounds-Kamera braucht die finale View-Größe — direkt nach
  *  dem Style-Load ist das Layout noch nicht fertig. */
-private fun fitToBounds(map: MapLibreMap, view: MapView?, visits: List<PlaceVisit>) {
-    val latLngs = visits.map { LatLng(it.latitude!!, it.longitude!!) }
+private fun fitToBounds(
+    map: MapLibreMap,
+    view: MapView?,
+    visits: List<PlaceVisit>,
+    trackSegments: List<com.d_drostes_apps.aevum.domain.placetimeline.TrackSegment> = emptyList()
+) {
+    val latLngs = visits.map { LatLng(it.latitude!!, it.longitude!!) } +
+        trackSegments.flatMap { seg -> seg.points.map { LatLng(it.latitude, it.longitude) } }
     val padPx = (72 * (view?.resources?.displayMetrics?.density ?: 2.75f)).toInt()
     view?.post {
         if (latLngs.size > 1) {
@@ -361,9 +473,106 @@ private fun fitToBounds(map: MapLibreMap, view: MapView?, visits: List<PlaceVisi
 }
 
 /**
+ * M18.86 FANCY-MARKER: Pin-Form (Google-Timeline-Stil) mit Ortsfarbe,
+ * weißem Rand, Geofence-Emoji im Kopf und Reihenfolge-Bubble — statt der
+ * langweiligen Kreise (User: "nicht einfach langweilige Kreise, mach mal
+ * wirklich was schönes").
+ *
+ * Aufbau (54×64 dp, an der Spitze geankert — MapLibre setzt klassische
+ * Marker zentriert; der sichtbare Pin "schwebt" daher leicht, was bei
+ * 54px Breite kaum auffällt und die Google-Maps-Optik trifft):
+ *  ┌────────────┐
+ *  │ ╭──────╮   │  ← Bubble: weißer Rand, Ortsfarbe, Emoji zentriert
+ *  │ │ 🏋️ ①│   │     + kleine Reihenfolge-Nummer oben rechts
+ *  │ ╰──────╯   │
+ *  │     ▼      │  ← Pin-Spitze (Ortsfarbe, dunkler abgesetzt)
+ *  └────────────┘
+ */
+internal fun placePinIcon(
+    iconFactory: IconFactory,
+    context: Context,
+    number: Int,
+    colorHex: String,
+    emoji: String
+): Icon {
+    val density = context.resources.displayMetrics.density
+    val wPx = (54 * density).toInt()
+    val hPx = (64 * density).toInt()
+    val bitmap = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val baseColor = parseHexAndroidColor(colorHex)
+    val darker = shadeColor(baseColor, 0.72f)
+
+    val cx = wPx / 2f
+    val bubbleCy = hPx * 0.36f
+    val bubbleR = wPx * 0.40f
+
+    // Pin-Spitze: Dreieck von der Bubble-Unterkante nach unten.
+    val tip = android.graphics.Path().apply {
+        moveTo(cx, hPx * 0.94f)
+        lineTo(cx - bubbleR * 0.62f, bubbleCy + bubbleR * 0.80f)
+        lineTo(cx + bubbleR * 0.62f, bubbleCy + bubbleR * 0.80f)
+        close()
+    }
+    canvas.drawPath(tip, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = darker })
+
+    // Tiefe der Bubble (Schatten-Ebene) für 3D-Pin-Gefühl.
+    canvas.drawCircle(cx, bubbleCy + 2.5f * density, bubbleR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = (darker and 0x00FFFFFF) or 0x33000000
+    })
+
+    // Bubble: Ortsfarbe mit weißem Ring.
+    canvas.drawCircle(cx, bubbleCy, bubbleR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    })
+    canvas.drawCircle(cx, bubbleCy, bubbleR - 2f * density, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = baseColor
+    })
+
+    // Emoji im Kopf — Geofence-Icon (fallback "📍", wenn der Geofence
+    // keins hat; leere Icons würden die Bubble leer lassen).
+    val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = bubbleR * 0.90f
+        textAlign = Paint.Align.CENTER
+    }
+    val emojiBaseline = bubbleCy - (emojiPaint.descent() + emojiPaint.ascent()) / 2f
+    canvas.drawText(emoji.ifBlank { "📍" }, cx, emojiBaseline, emojiPaint)
+
+    // Reihenfolge-Nummer: kleine Badge oben rechts auf der Bubble.
+    val badgeCx = cx + bubbleR * 0.78f
+    val badgeCy = bubbleCy - bubbleR * 0.72f
+    val badgeR = wPx * 0.155f
+    canvas.drawCircle(badgeCx, badgeCy, badgeR + 1.5f * density, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+    })
+    canvas.drawCircle(badgeCx, badgeCy, badgeR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = darker
+    })
+    val numPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = badgeR * 1.25f
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        textAlign = Paint.Align.CENTER
+    }
+    val numBaseline = badgeCy - (numPaint.descent() + numPaint.ascent()) / 2f
+    canvas.drawText(number.toString(), badgeCx, numBaseline, numPaint)
+
+    return iconFactory.fromBitmap(bitmap)
+}
+
+/** Verdunkelt eine ARGB-Farbe um [factor] (0..1 — 1 = unverändert). */
+internal fun shadeColor(color: Int, factor: Float): Int {
+    val r = (color shr 16 and 0xFF) * factor
+    val g = (color shr 8 and 0xFF) * factor
+    val b = (color and 0xFF) * factor
+    return Color.rgb(r.toInt().coerceIn(0, 255), g.toInt().coerceIn(0, 255), b.toInt().coerceIn(0, 255))
+}
+
+/**
  * Nummerierter, farbiger Marker als Bitmap: Glow-Ring + Farbfläche +
  * weiße Umrandung + weiße Nummer (Besuchsreihenfolge) — die Google-
- * Timeline-Nummerierung.
+ * Timeline-Nummerierung. (M18.85-Version, gehalten für Referenz/Fallback.)
  */
 internal fun numberedMarkerIcon(
     iconFactory: IconFactory,
@@ -504,6 +713,13 @@ private class PlaceCalloutAdapter(
 
 private const val ROUTE_SOURCE_PREFIX = "aevum-route-src-"
 private const val ROUTE_LAYER_PREFIX = "aevum-route-lyr-"
+/** M18.86: Echte Strecken-Layer (Tracks) — eigenes Prefix, damit Fallback-
+ *  Luftlinien (ROUTE_) und Tracks (TRACK_) sich nie in die Quere kommen. */
+private const val TRACK_SOURCE_PREFIX = "aevum-track-src-"
+private const val TRACK_LAYER_PREFIX = "aevum-track-lyr-"
 /** Sicherheitsgrenze: ein Tag hat real <30 Ortswechsel; 64 Layer-Ids
  *  sind reserviert (Remove-Loop braucht eine feste Obergrenze). */
 private const val ROUTE_SEGMENT_MAX = 64
+/** M18.86: Obergrenze der Track-Layer (Tage mit vielen Strecken — pro
+ *  Lücke können mehrere Segmente nach GPS-Ausfällen entstehen). */
+private const val TRACK_LAYER_MAX = 96

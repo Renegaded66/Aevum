@@ -76,6 +76,9 @@ fun PlaceTimelineScreen(
     viewModel: PlaceTimelineViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.86: Track-Punkte (echte Fahrtstrecken) — eigener State, lädt
+    // einmal pro Tagwechsel nach (nicht im combine-Flow, siehe VM).
+    val trackPoints by viewModel.trackPoints.collectAsState()
 
     Box(
         modifier = Modifier
@@ -92,7 +95,7 @@ fun PlaceTimelineScreen(
                 onToday = viewModel::today
             )
             if (state.hasData) {
-                PlaceTimelineContent(state = state)
+                PlaceTimelineContent(state = state, trackPoints = trackPoints)
             } else {
                 PlaceTimelineEmpty(state = state)
             }
@@ -193,7 +196,10 @@ private fun buildStoryRows(visits: List<PlaceVisit>): List<StoryRow> {
 }
 
 @Composable
-private fun PlaceTimelineContent(state: PlaceTimelineUiState) {
+private fun PlaceTimelineContent(
+    state: PlaceTimelineUiState,
+    trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>
+) {
     val rows = remember(state.visits) { buildStoryRows(state.visits) }
     // M18.85: Auswahl-Sync Karte↔Liste. Marker-Tap wählt (Karte → Liste
     // scrollt zum Eintrag); Listen-Tap wählt (Liste → Karte fliegt hin,
@@ -224,11 +230,13 @@ private fun PlaceTimelineContent(state: PlaceTimelineUiState) {
     ) {
         item { SummaryCard(state) }
         item {
-            // M18.85: Echte interaktive MapLibre-Karte (OSM-Kacheln,
-            // Pan/Zoom, nummerierte Marker, gestrichelte Routen,
-            // Marker-Callout) — ersetzt die stilisierte Canvas-Karte.
+            // M18.85/86: Echte interaktive MapLibre-Karte (OSM-Kacheln,
+            // Pan/Zoom, fancy Pins mit Geofence-Emojis, ECHTE Fahrtstrecken
+            // aus Track-Punkten — Luftlinie nur noch Fallback für alte
+            // Tage), Marker-Callout) — ersetzt die stilisierte Canvas-Karte.
             PlaceTimelineMap(
                 visits = state.visits,
+                trackPoints = trackPoints,
                 selectedVisitId = selectedVisitId,
                 onVisitSelected = { id -> selectedVisitId = id },
                 modifier = Modifier.padding(vertical = AevumSpacing.xs)

@@ -53,7 +53,9 @@ import com.d_drostes_apps.aevum.data.model.*
         // M18.61g: Ping-Trigger (FireTV-IP → Activity starten/stoppen)
         PingTrigger::class,
         // M18.67: App-Aufzeichnung (App → Activity automatisch)
-        AppTrackingEntry::class
+        AppTrackingEntry::class,
+        // M18.86: GPS-Streckenpunkte pro Session (Orts-Timeline-Karte)
+        LocationTrackPoint::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
@@ -73,7 +75,11 @@ import com.d_drostes_apps.aevum.data.model.*
     // Güte-Anpassung pro Aufzeichnung, nullable 0..100; null = automatisch).
     // v39 — Habits & Bucket List entfernt: habit, habit_log,
     // bucket_list_item Tabellen werden gedroppt (Feature-Entfernung).
-    version = 39,
+    // M18.86: v40 — location_track_point (verdichtete GPS-Streckenpunkte
+    // pro Session für die Orts-Timeline-Karte, ADR-0030). FK auf
+    // activity_session mit CASCADE — Hard-Delete der Session entfernt
+    // den Track mit, Soft-Delete (deleted_at) erhält ihn.
+    version = 40,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -109,6 +115,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
     // M18.58: Garmin Connect
     abstract fun garminDao(): GarminDao
+    // M18.86: GPS-Streckenpunkte (Orts-Timeline-Karte)
+    abstract fun locationTrackPointDao(): LocationTrackPointDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1420,6 +1428,30 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("DROP TABLE IF EXISTS `habit`")
                 database.execSQL("DROP TABLE IF EXISTS `habit_log`")
                 database.execSQL("DROP TABLE IF EXISTS `bucket_list_item`")
+            }
+        }
+
+        // M18.86 (ADR-0030): GPS-Streckenpunkte pro Session. CREATE TABLE
+        // + Indices spiegeln das Entity LocationTrackPoint EXAKT (Spalten-
+        // namen, NOT NULL, Defaults, Indices — M18.40/41-Lektion: Room
+        // validiert das Schema zur Runtime; Abweichung = IllegalStateException
+        // beim DB-Öffnen).
+        val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `location_track_point` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `session_id` TEXT NOT NULL,
+                        `recorded_at` INTEGER NOT NULL,
+                        `latitude` REAL NOT NULL,
+                        `longitude` REAL NOT NULL,
+                        `accuracy_meters` REAL,
+                        `speed_mps` REAL,
+                        FOREIGN KEY(`session_id`) REFERENCES `activity_session`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_location_track_point_session_id` ON `location_track_point` (`session_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_location_track_point_recorded_at` ON `location_track_point` (`recorded_at`)")
             }
         }
     }

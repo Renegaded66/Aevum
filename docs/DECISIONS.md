@@ -345,3 +345,38 @@
 **Kardinal-Lektion:** MapView-Lifecycle-Forwarding (onStart/onStop/onPause/onResume/onDestroy) ist Pflicht — ohne das friert die Kachel-Anzeige nach Hintergrund-Phasen. Der 60s-Ticker des ViewModels erzeugt jede Minute neue Visit-Objekte — die Karte baut nur bei geometrischem Key-Change neu (Id+Koordinaten+Farbe), sonst flackert sie.
 
 **Nicht Bestandteil:** Keine Satelliten-Ansicht, kein Routing (Strecken sind Luftlinien-Segmente zwischen Visits — es gibt keine GPS-Track-Aufzeichnung pro Fahrt), keine Places-Suche, kein Offline-MBTiles (künftiges Feature), keine Symbol-Layer-Annotations-Manager-Migration.
+
+## ADR-0030 — M18.86: GPS-Track-Punkte für echte Fahrtstrecken (Orts-Timeline)
+
+**Entscheidung:** Neue Tabelle `location_track_point` (DB v40) — verdichtete GPS-Punkte
+während laufender Auto-/Walking-Sessions, aufgezeichnet vom bestehenden
+`DriveDetectionService` (5s-Stream, kein neuer Service). Die Orts-Timeline-Karte
+zeichnet daraus echte Strecken-Polylines; Luftlinien bleiben nur Fallback für
+Lücken ohne Track (Tage vor M18.86).
+
+**Warum verdichtet statt roh:** Der 5s-Stream liefert ~17.000 Fixes/24h Fahrt.
+Verdichtung (≥30 m Bewegung ODER ≥60 s Stillstand) reduziert auf ~150-300
+Punkte/Tag — Google-Timeline-Maßstab ("nicht jede Kurve, alle paar Minuten").
+
+**Warum im DriveDetectionService statt neuem Service:** Der Service läuft
+ohnehin permanent (Fahrterkennung), hält den Location-Stream und kennt die
+Session-Id. Ein eigener Track-Service wäre doppelte Location-Infrastruktur.
+
+**Warum FK auf activity_session:** Punkte gehören zu einer Session (Auto/
+Spazieren). Sessions werden soft-deleted, nie hart gelöscht → FK bleibt stabil.
+ON DELETE CASCADE für den Fall, dass eine Session je hart gelöscht wird.
+
+**Retention:** 90 Tage, einmal pro App-Start (Fire-and-Forget in
+AevumApplication). Die Karte zeigt nur den ausgewählten Tag — ältere Punkte
+sind für die Timeline wertlos, blähen aber die DB auf.
+
+**Warum NICHT in den combine-Flow des ViewModels:** Der Track-Flow emittiert
+bei jedem Live-Insert während einer laufenden Fahrt (alle ~25 s) — das würde
+die gesamte Visits-Berechnung ständig neu triggern. Stattdessen: separater
+StateFlow, einmal pro Tagwechsel geladen, Screen kombiniert.
+
+**Alternativen verworfen:** (a) Track-Punkte in `trigger_event` — falsche
+Semantik (Trigger sind Diagnose-Events, keine Geometrie); (b) nur Start/Ende
+der Fahrt — ergibt keine Strecke; (c) Google-Maps-SDK — API-Key, Kosten,
+Datenschutz (ADR-0024); (d) MapLibre-Vektor-Tiles — OSM-Raster reicht für
+Strecken, kein neuer Tile-Provider.
