@@ -25,22 +25,22 @@ class DataSettingsViewModel @Inject constructor(
     val uiState: StateFlow<DataSettingsUiState> = _uiState.asStateFlow()
 
     /** Exportiert alle Daten als JSON in die gewählte Zieldatei. */
-    fun exportJson(target: Uri) = launchOperation("Export") {
+    fun exportJson(target: Uri) = launchOperation {
         dataManager.exportJson(target)
     }
 
     /** Erstellt ein ZIP-Backup in die gewählte Zieldatei. */
-    fun createBackup(target: Uri) = launchOperation("Backup") {
+    fun createBackup(target: Uri) = launchOperation {
         dataManager.createBackup(target)
     }
 
     /** Stellt ein ZIP-Backup wieder her. */
-    fun restoreBackup(source: Uri) = launchOperation("Wiederherstellung") {
+    fun restoreBackup(source: Uri) = launchOperation {
         dataManager.restoreBackup(source)
     }
 
     /** Löscht alle lokalen Daten. */
-    fun deleteAllData() = launchOperation("Löschen") {
+    fun deleteAllData() = launchOperation {
         dataManager.deleteAllData()
     }
 
@@ -48,7 +48,7 @@ class DataSettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(message = null, isError = false)
     }
 
-    private fun launchOperation(operationName: String, block: suspend () -> ExportResult) {
+    private fun launchOperation(block: suspend () -> ExportResult) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isWorking = true, message = null, isError = false)
             val result = block()

@@ -37,12 +37,33 @@ object LocaleHelper {
      * [applyTo] wird hier KEIN neuer Context erzeugt — das ist für
      * Activities der richtige Weg, damit ALLE Ressourcen (auch bereits
      * gehaltene Referenzen auf this) sofort die neue Sprache liefern.
+     *
+     * L10N-RUNTIME-FIX: Wird der Helper mit einem Activity-Context
+     * aufgerufen, wird der Application-Kontext mitgesynchronisiert.
+     * ViewModel-Strings (application.getString(...)) überleben ein
+     * Activity-recreate() — ohne dieses Update würden sie in der
+     * Sprache des Kaltstarts einfrieren (Dashboard-Narrative, Insights-/
+     * Weekly-Texte, Timeline-Labels blieben Deutsch trotz "English").
+     * `applicationContext !== context` bricht die Rekursion ab: Beim
+     * Aufruf MIT dem Application-Kontext (AevumApplication.onCreate)
+     * ist die Bedingung false — kein zweiter Update.
      */
     fun applyLocale(context: Context, languageCode: String) {
-        val locale = localeFor(languageCode) ?: return
+        val locale = localeFor(languageCode)
+        // L10N-RUNTIME-FIX: App-weites Locale für JVM-Formatter
+        // (Wochentagsnamen, Zahlen) mitsynchronisieren — "system" folgt
+        // der Systemsprache.
+        com.d_drostes_apps.aevum.util.AppLocale.update(locale)
+        val resolved = locale ?: return
         val config = Configuration(context.resources.configuration)
-        config.setLocale(locale)
+        config.setLocale(resolved)
         context.resources.updateConfiguration(config, context.resources.displayMetrics)
+        val app = context.applicationContext
+        if (app != null && app !== context) {
+            val appConfig = Configuration(app.resources.configuration)
+            appConfig.setLocale(resolved)
+            app.resources.updateConfiguration(appConfig, app.resources.displayMetrics)
+        }
     }
 
     /** Wendet die Sprache auf den Application-Context an (für onCreate). */

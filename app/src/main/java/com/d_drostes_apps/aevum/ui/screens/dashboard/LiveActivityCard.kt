@@ -82,7 +82,7 @@ import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.categoryColor
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
-import java.util.Locale
+import com.d_drostes_apps.aevum.util.AppLocale
 
 /**
  * M9.2/M10: Live Activity Card — Premium-Produkt-Feel.
@@ -1295,9 +1295,9 @@ fun formatLiveDuration(ms: Long): String {
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
     return if (hours > 0) {
-        String.format(Locale.GERMANY, "%d:%02d:%02d", hours, minutes, seconds)
+        String.format(AppLocale.current, "%d:%02d:%02d", hours, minutes, seconds)
     } else {
-        String.format(Locale.GERMANY, "%02d:%02d", minutes, seconds)
+        String.format(AppLocale.current, "%02d:%02d", minutes, seconds)
     }
 }
 

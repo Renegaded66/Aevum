@@ -317,10 +317,14 @@ private fun rebuildMarkersAndRoutes(
             TimeFormatting.formatTime(v.startAt) + "–" + TimeFormatting.formatTime(v.endAt) +
                 " · " + TimeFormatting.formatDuration(v.durationMs)
         }
+        // M18.87: Unbenannte Places haben leeren Namen →neutraler Titel
+        // "📍 Ort" (Details stehen im Snippet; UI-String wäre hier
+        // nicht greifbar — Kontext ist nicht-composabel).
+        val title = anchor.name.ifEmpty { "📍 Ort" }
         val marker = map.addMarker(
             MarkerOptions()
                 .position(LatLng(anchor.latitude!!, anchor.longitude!!))
-                .title(anchor.name)
+                .title(title)
                 .snippet(snippet)
                 .icon(icon)
         )
@@ -372,12 +376,47 @@ private data class GapTrack(
 )
 
 /** M18.86: Track-Segmente pro Unterwegs-Lücke bauen (reine Funktion,
- *  inkl. Start-Orts-Farbe — kein globaler Cache nötig). */
+ *  inkl. Start-Orts-Farbe — kein globaler Cache nötig).
+ *  M18.87: Zusätzlich die Strecke VOR dem ersten Visit (z.B. Heimfahrt
+ *  am Vorabend — die Ankunft ist der erste Visit des Tags). Der VM lädt
+ *  Track-Punkte mit ±30-Min-Puffer um die Tagesgrenze, daher ist das
+ *  hier die gleiche Lookback-Grenze.
+ *  M18.89: ABFAHRTS-GRACE — der formale Visit-Ende-Zeitpunkt (GMS-EXIT,
+ *  Session-Ende) liegt oft MINUTEN nach der realen Abfahrt (Geofence-Exit
+ *  erst beim Verlassen des Radius, Watchdog stoppt spät). Ohne Grace -
+ *  Fenster fehlen genau diese ersten Streckenpunkte: "Route beginnt erst
+ *  ab der Mitte". Die Lücke startet deshalb DEPARTURE_GRACE_MS vor dem
+ *  formalen Visit-Ende; Punkte, die in der Grace-Zone noch IM Visit-
+ *  Bereich des Orts liegen, zeichnen eine kurze Anfahrts-Fahne (real,
+ *  nicht falsch). */
+private const val BEFORE_FIRST_LOOKBACK_MS = 30L * 60 * 1000
+
+/** M18.89: Vorlauf-Fenster vor dem formalen visitEndAt, aus dem noch
+ *  Streckenpunkte gezeichnet werden (reale Abfahrt < formales Ende). */
+private const val DEPARTURE_GRACE_MS = 5L * 60 * 1000
+
 private fun buildTrackSegmentsByGap(
     visits: List<PlaceVisit>,
     trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>
 ): Map<Pair<Long, Long>, GapTrack> {
     val result = mutableMapOf<Pair<Long, Long>, GapTrack>()
+    if (visits.isEmpty()) return result
+    // M18.87: Strecke vor dem ERSTEN Visit (Ankunft an Ort #1).
+    val first = visits.first()
+    if (first.latitude != null && first.longitude != null) {
+        val beforeStart = first.startAt - BEFORE_FIRST_LOOKBACK_MS
+        val hasPreTrack = trackPoints.any { it.recordedAt in beforeStart until first.startAt }
+        if (hasPreTrack) {
+            val segments = com.d_drostes_apps.aevum.domain.placetimeline.TrackSegmentBuilder.buildSegments(
+                points = trackPoints,
+                fromMs = beforeStart,
+                toMs = first.startAt
+            )
+            if (segments.isNotEmpty()) {
+                result[beforeStart to first.startAt] = GapTrack(colorHex = first.color, segments = segments)
+            }
+        }
+    }
     for (i in 0 until visits.size - 1) {
         val a = visits[i]
         val b = visits[i + 1]
@@ -385,7 +424,9 @@ private fun buildTrackSegmentsByGap(
         val gapKey = a.endAt to b.startAt
         val segments = com.d_drostes_apps.aevum.domain.placetimeline.TrackSegmentBuilder.buildSegments(
             points = trackPoints,
-            fromMs = a.endAt,
+            // M18.89: Grace-Fenster — zeichne auch Punkte kurz VOR dem
+            // formalen Visit-Ende (reale Abfahrt war früher).
+            fromMs = a.endAt - DEPARTURE_GRACE_MS,
             toMs = b.startAt
         )
         if (segments.isNotEmpty()) {
@@ -410,6 +451,8 @@ private fun rebuildTrackSegments(
     // Alte Track-Layer entfernen (Prefix, feste Obergrenze).
     (0 until TRACK_LAYER_MAX).forEach { i ->
         style.removeLayer(TRACK_LAYER_PREFIX + i)
+        // M18.89: Casing-Hülle der Strecke mit entfernen.
+        style.removeLayer(TRACK_LAYER_PREFIX + i + "-casing")
         style.removeSource(TRACK_SOURCE_PREFIX + i)
     }
 
@@ -428,13 +471,29 @@ private fun rebuildTrackSegments(
             val sourceId = TRACK_SOURCE_PREFIX + layer
             val layerId = TRACK_LAYER_PREFIX + layer
             style.addSource(GeoJsonSource(sourceId, geoJson))
+            // M18.89: ERST die Umriss-Hülle (dunkel, breiter) — MapLibre
+            // rendert Layer in Add-Reihenfolge, die farbige Linie muss
+            // OBERHALB der Hülle liegen (Google-Maps-Routing-Optik).
+            style.addLayer(
+                LineLayer(layerId + "-casing", sourceId).apply {
+                    withProperties(
+                        PropertyFactory.lineColor("#1E293B"),
+                        PropertyFactory.lineWidth(8.5f),
+                        PropertyFactory.lineOpacity(0.5f),
+                        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                    )
+                }
+            )
             style.addLayer(
                 LineLayer(layerId, sourceId).apply {
                     withProperties(
                         PropertyFactory.lineColor(parseHexAndroidColor(track.colorHex)),
-                        PropertyFactory.lineWidth(4.5f),
-                        PropertyFactory.lineOpacity(0.9f),
-                        PropertyFactory.lineDasharray(arrayOf(2f, 1.2f)),
+                        // M18.89: deutliche Strecke — durchgezogen (Dash
+                        // kaute optisch an der halben Punktdichte), 6px
+                        // statt 4.5px, mit Hülle darunter.
+                        PropertyFactory.lineWidth(6f),
+                        PropertyFactory.lineOpacity(0.95f),
                         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                     )

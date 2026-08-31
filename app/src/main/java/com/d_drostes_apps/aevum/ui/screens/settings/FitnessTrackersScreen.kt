@@ -63,16 +63,20 @@ import javax.inject.Inject
  * M18.59: Fitness-Tracker — eigene Einstellungs-Seite.
  *
  * Hier authentifiziert sich JEDER Nutzer mit SEINEN Garmin-Credentials
- * (die App wird später veröffentlicht — kein fest verdrahteter Account).
- * Ablauf:
+ * (kein fest verdrahteter Account). Ablauf:
  *   1. Email + Passwort eingeben → "Verbinden" prüft die Verbindung
- *      (Login läuft über die Aevum-Garmin-Bridge, Passwort wird dort
- *      nach dem Login verworfen und NIE auf dem Gerät gespeichert).
+ *      (Login läuft DIREKT gegen Garmin SSO, Passwort wird NIE auf
+ *      dem Gerät gespeichert).
  *   2. Nach erfolgreicher Verbindung: Status-Karte mit "Jetzt
  *      synchronisieren" (manueller Sync) und "Trennen".
  *
  * Die Schlaf-Quelle "Garmin" in Trigger & Erkennung nutzt dieselbe
  * Verbindung — sie wird hier verwaltet, nicht dort.
+ *
+ * M18.87: Bridge-Ära beendet — die App spricht seit M18.66-FIX11
+ * direkt mit Garmin (DirectGarminClient). Alle Bridge-/Tunnel-Reste
+ * (URL-Override, X-Aevum-Key) wurden für die Play-Store-Veröffentlichung
+ * entfernt.
  */
 @HiltViewModel
 class FitnessTrackersViewModel @Inject constructor(
@@ -88,7 +92,7 @@ class FitnessTrackersViewModel @Inject constructor(
         refreshStatus()
     }
 
-    /** Prüft den Verbindungsstatus an der Bridge. */
+    /** Prüft den Verbindungsstatus bei Garmin. */
     fun refreshStatus() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(checking = true, error = null)
@@ -135,7 +139,7 @@ class FitnessTrackersViewModel @Inject constructor(
         }
     }
 
-    /** Garmin-Verbindung trennen (Tokens auf der Bridge löschen). */
+    /** Garmin-Verbindung trennen (lokale Tokens löschen). */
     fun disconnect() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(working = true, error = null)
@@ -156,7 +160,7 @@ class FitnessTrackersViewModel @Inject constructor(
             syncScheduler.syncNow()
             // M18.59-FIX (User: "Textfeld der letzten Synchronisation ändert
             // sich nicht, erst nach zurück+rauf"): Der Worker läuft asynchron
-            // und braucht oft 10-30s (Bridge-Aufrufe). Vorher wurde nur 1,5s
+            // und braucht oft 10-30s (Garmin-Aufrufe). Vorher wurde nur 1,5s
             // gewartet — lastSyncAt war noch der alte Wert. Jetzt wird bis
             // zu 45s gepollt, bis der Worker den Zeitstempel geschrieben hat.
             val target = api.lastSyncAt
@@ -185,37 +189,6 @@ class FitnessTrackersViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(message = null)
-    }
-
-    // M18.62-FIX (User: "Bridge nicht erreichbar"): Der Cloudflare-Quick-
-    // Tunnel rotiert die URL bei jedem Server-Neustart. Die App kann die
-    // Bridge-URL jetzt direkt hier in den Einstellungen anzeigen und
-    // ändern — ohne App-Update. Der Setter existierte bereits in
-    // GarminApiClient, es fehlte nur die UI.
-    fun bridgeUrl(): String = api.baseUrl
-
-    fun setBridgeUrl(url: String) {
-        val trimmed = url.trim().trimEnd('/')
-        if (trimmed.isBlank()) return
-        _uiState.value = _uiState.value.copy(working = true, error = null)
-        viewModelScope.launch {
-            api.baseUrl = trimmed
-            // Sofort prüfen, ob die neue URL die Bridge erreicht.
-            val status = api.getStatus()
-            _uiState.value = _uiState.value.copy(
-                working = false,
-                connected = status.connected,
-                error = status.error,
-                message = if (status.connected) {
-                    app.getString(R.string.settings_fitness_bridge_updated)
-                } else {
-                    app.getString(
-                        R.string.settings_fitness_bridge_unreachable,
-                        status.error ?: app.getString(R.string.settings_fitness_no_response)
-                    )
-                }
-            )
-        }
     }
 }
 
@@ -325,7 +298,7 @@ fun FitnessTrackersScreen(
                             if (state.lastSyncAt > 0L) {
                                 stringResource(
                                     R.string.settings_fitness_last_sync,
-                                    SimpleDateFormat("dd.MM. HH:mm", Locale.GERMAN)
+                                    SimpleDateFormat("dd.MM. HH:mm", com.d_drostes_apps.aevum.util.AppLocale.current)
                                         .format(Date(state.lastSyncAt))
                                 )
                             } else stringResource(R.string.settings_fitness_never_synced),

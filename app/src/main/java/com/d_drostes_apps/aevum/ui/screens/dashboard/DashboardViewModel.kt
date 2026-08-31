@@ -38,6 +38,7 @@ import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DashboardViewModel @Inject constructor(
     private val application: Application,
     private val activityRepository: ActivityRepository,
@@ -66,7 +67,10 @@ class DashboardViewModel @Inject constructor(
     private val currentZoneProvider: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider,
     // M18.75: ActivityRecognitionBridge — für den Blackout-Fix nach
     // manuellem Stop einer Auto-Session (driveActive zurücksetzen).
-    private val activityRecognitionBridge: com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge
+    private val activityRecognitionBridge: com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge,
+    // L10N-RUNTIME-FIX: Sprach-Flow — bei Sprachwechsel zur Laufzeit wird
+    // der komplette uiState (inkl. application.getString-Texte) neu gebaut.
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
@@ -456,8 +460,11 @@ class DashboardViewModel @Inject constructor(
     private val tagKey: kotlinx.coroutines.flow.Flow<String> =
         _selectedDayOffset.map { offset -> LocalDate.now().plusDays(offset.toLong()).toString() }
 
-    val uiState: StateFlow<DashboardUiState> = tagKey
-        .flatMapLatest { dayStr ->
+    val uiState: StateFlow<DashboardUiState> = languageRepository.language
+        .flatMapLatest { _ ->
+            // L10N-RUNTIME-FIX: Sprachwechsel → kompletter Rebuild
+            // (alle application.getString-Texte neu aufgelöst).
+            tagKey.flatMapLatest { dayStr ->
             val day = LocalDate.parse(dayStr)
             val dayStart = TimeFormatting.startOfDayMillis(day, zoneId)
             val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
@@ -511,6 +518,7 @@ class DashboardViewModel @Inject constructor(
                     displayedDate = day
                 )
             }
+        }
         }
         .catch { e ->
             Log.e("DashboardViewModel", "uiState combine() failed — emitting default state", e)

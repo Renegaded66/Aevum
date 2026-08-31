@@ -126,14 +126,10 @@ class GarminSyncWorker(
             android.util.Log.w(TAG, "ActivityType/Category sleep Upsert fehlgeschlagen: ${e.message}")
         }
 
-        // Bridge erreichbar?
+        // Garmin verbunden? (M18.87: Direkt-Client, kein Bridge-Server)
         val status = api.getStatus()
         if (!status.connected) {
-            android.util.Log.w(TAG, "Garmin-Bridge nicht verbunden: ${status.error}")
-            // M18.61g-FIX 3: Tote gespeicherte Tunnel-URL (Cloudflare
-            // rotiert) -> Override verwerfen, beim nächsten Sync die
-            // aktuelle BuildConfig-URL nutzen.
-            api.resetBaseUrlIfStale()
+            android.util.Log.w(TAG, "Garmin nicht verbunden: ${status.error}")
             return Result.retry()
         }
 

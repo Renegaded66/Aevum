@@ -156,7 +156,7 @@ private fun UnknownPlaceCard(
     onConvert: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val timeFormat = remember { SimpleDateFormat("dd.MM. HH:mm", Locale.GERMAN) }
+    val timeFormat = remember { SimpleDateFormat("dd.MM. HH:mm", com.d_drostes_apps.aevum.util.AppLocale.current) }
     Surface(
         modifier = Modifier
             .fillMaxWidth()

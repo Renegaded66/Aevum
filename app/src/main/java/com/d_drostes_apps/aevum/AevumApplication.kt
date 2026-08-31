@@ -466,6 +466,31 @@ class AevumApplication : Application() {
     }
 
     /**
+     * L10N-RUNTIME-FIX: System-Configuration-Events (Dark-Mode-Toggle,
+     * Schriftgrößen-/Tastaturwechsel etc.) liefert Android dem Application-
+     * Kontext eine NEUE Basiskonfiguration — der in [onCreate] gesetzte
+     * Locale-Override ging dabei verloren und Ressourcen fielen auf die
+     * Systemsprache zurück. Deshalb: vor dem super-Aufruf die gewählte
+     * Sprache synchron aus dem SharedPreferences-Spiegel (derselbe, den
+     * LanguageRepository bei jedem setLanguage mitschreibt) wieder auf die
+     * neue Config anwenden. "system" → super unverändert durchreichen.
+     * applyLocale mutiert die neue Config zurück auf die gewählte Sprache
+     * und synchronisiert zusätzlich AppLocale (JVM-Formatter).
+     */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        val language = getSharedPreferences("aevum_language", MODE_PRIVATE)
+            .getString("app_language", "system") ?: "system"
+        if (language != "system") {
+            try {
+                com.d_drostes_apps.aevum.util.LocaleHelper.applyLocale(this, language)
+            } catch (e: Exception) {
+                Log.e("AevumApplication", "Locale re-apply on config change failed — continuing", e)
+            }
+        }
+        super.onConfigurationChanged(newConfig)
+    }
+
+    /**
      * M16.7: Runtime-Registrierung für SCREEN_ON/USER_PRESENT-Broadcasts.
      *
      * Diese Aktionen sind seit Android 8 nicht mehr an manifest-registrierte

@@ -19,7 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.Locale
+import com.d_drostes_apps.aevum.util.AppLocale
 import javax.inject.Inject
 
 /**
@@ -599,9 +599,9 @@ class LiveActivityService : Service() {
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         return if (hours > 0) {
-            String.format(Locale.GERMANY, "%d:%02d:%02d", hours, minutes, seconds)
+            String.format(AppLocale.current, "%d:%02d:%02d", hours, minutes, seconds)
         } else {
-            String.format(Locale.GERMANY, "%02d:%02d", minutes, seconds)
+            String.format(AppLocale.current, "%02d:%02d", minutes, seconds)
         }
     }
 

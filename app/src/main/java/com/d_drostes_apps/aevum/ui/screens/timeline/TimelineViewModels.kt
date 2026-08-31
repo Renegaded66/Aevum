@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -58,7 +59,10 @@ class TimelineViewModel @Inject constructor(
     categoryRepository: CategoryRepository,
     activityTypeRepository: ActivityTypeRepository,
     tagRepository: TagRepository,
-    private val ensureDefaultData: EnsureDefaultDataUseCase
+    private val ensureDefaultData: EnsureDefaultDataUseCase,
+    // L10N-RUNTIME-FIX: Sprach-Repo — bei Sprachwechsel zur Laufzeit wird
+    // die Timeline (inkl. application.getString-Labels) neu gebaut.
+    private val languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
     // M18.44: Als Property gehalten, damit Quick-Create die Aktivität laden kann.
     private val activityTypeRepository: ActivityTypeRepository = activityTypeRepository
@@ -66,6 +70,9 @@ class TimelineViewModel @Inject constructor(
     // Aktivitäten nach Kategorien gruppieren kann.
     private val categoryRepository: CategoryRepository = categoryRepository
     private val zoneId = ZoneId.systemDefault()
+    // L10N-RUNTIME-FIX: Sprach-Flow für reaktive Rebuilds bei Sprachwechsel.
+    private val languageFlow: kotlinx.coroutines.flow.Flow<String> =
+        languageRepository.language
     private val selectedDate = MutableStateFlow(
         savedStateHandle.get<Long>("date")
             ?.let { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
@@ -111,13 +118,17 @@ class TimelineViewModel @Inject constructor(
     private val _weekView = MutableStateFlow(timelinePrefs.getBoolean(KEY_WEEK_VIEW, false))
     val weekView: StateFlow<Boolean> = _weekView
 
-    val uiState: StateFlow<TimelineUiState> = combine(
-        timelineBase,
-        categoryRepository.getAll(),
-        activityTypeRepository.getAll(),
-        pixelsPerHour,
-        _weekView
-    ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, pph: Float, weekView: Boolean ->
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<TimelineUiState> = languageFlow
+        .flatMapLatest { _ ->
+            // L10N-RUNTIME-FIX: Sprachwechsel → kompletter Rebuild.
+            combine(
+                timelineBase,
+                categoryRepository.getAll(),
+                activityTypeRepository.getAll(),
+                pixelsPerHour,
+                _weekView
+            ) { base: TimelineBase, categories: List<Category>, types: List<ActivityType>, pph: Float, weekView: Boolean ->
         val weekSessions = if (weekView) {
             buildWeekSessions(base.date, base.sessions, categories, types)
         } else {
@@ -131,7 +142,8 @@ class TimelineViewModel @Inject constructor(
                 // New-Recording-Dialog (Plus-Button).
                 activityGroups = groupedActivities(categories, types)
             )
-    }
+            }
+        }
         .catch { e ->
             Log.e("TimelineViewModel", "uiState combine() failed — emitting default state", e)
             emit(TimelineUiState())
@@ -691,7 +703,7 @@ class TimelineViewModel @Inject constructor(
             }
         return TimelineUiState(
             selectedDate = date,
-            dayTitle = TimeFormatting.formatDayTitle(date),
+            dayTitle = TimeFormatting.formatDayTitle(date, context = application),
             formattedDate = TimeFormatting.formatDate(date),
             sessions = rows,
             totalTracked = TimeFormatting.formatDuration(totalMs),
@@ -797,12 +809,17 @@ class ActivityEditorViewModel @Inject constructor(
     activityTypeRepository: ActivityTypeRepository,
     triggerEventRepository: TriggerEventRepository,
     private val saveManualActivity: SaveManualActivityUseCase,
-    private val ensureDefaultData: EnsureDefaultDataUseCase
+    private val ensureDefaultData: EnsureDefaultDataUseCase,
+    // L10N-RUNTIME-FIX: Validierungs-/Labeltexte bei Sprachwechsel neu bauen.
+    private val languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
     private val sessionId: String? = savedStateHandle["sessionId"]
     private val candidateId: String? = savedStateHandle["candidateId"]
     private val dateArg: Long? = savedStateHandle["date"]
     private val zoneId = ZoneId.systemDefault()
+    // L10N-RUNTIME-FIX: Sprach-Flow für reaktive Rebuilds.
+    private val languageFlow: kotlinx.coroutines.flow.Flow<String> =
+        languageRepository.language
     private val form = MutableStateFlow(ActivityEditorForm())
     private val savedId = MutableStateFlow<String?>(null)
 
@@ -814,10 +831,11 @@ class ActivityEditorViewModel @Inject constructor(
     }
 
     private val editorBase = combine(
+        languageFlow,
         form,
         categoryRepository.getAll(),
         activityTypeRepository.getAll()
-    ) { formValue: ActivityEditorForm, categories: List<Category>, types: List<ActivityType> ->
+    ) { _, formValue: ActivityEditorForm, categories: List<Category>, types: List<ActivityType> ->
         EditorBase(formValue, categories, types)
     }
 
@@ -835,7 +853,7 @@ class ActivityEditorViewModel @Inject constructor(
             categories = base.categories,
             activityTypes = base.types,
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
-            validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId),
+            validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId, context = application),
             triggerMarkers = triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
                 val gfName = extractGeofenceName(it.metadataJson)
                 val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
@@ -1046,17 +1064,23 @@ class ActivityDetailViewModel @Inject constructor(
     private val application: Application,
     private val activityRepository: ActivityRepository,
     categoryRepository: CategoryRepository,
-    activityTypeRepository: ActivityTypeRepository
+    activityTypeRepository: ActivityTypeRepository,
+    // L10N-RUNTIME-FIX: Labeltexte (z. B. "läuft …") bei Sprachwechsel neu bauen.
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
     private val sessionId: String = checkNotNull(savedStateHandle["sessionId"])
     private val deleted = MutableStateFlow(false)
     private val zoneId = ZoneId.systemDefault()
+    // L10N-RUNTIME-FIX: Sprach-Flow für reaktive Rebuilds.
+    private val languageFlow: kotlinx.coroutines.flow.Flow<String> =
+        languageRepository.language
 
     private val detailBase = combine(
+        languageFlow,
         activityRepository.getById(sessionId),
         categoryRepository.getAll(),
         activityTypeRepository.getAll()
-    ) { session: ActivitySession?, categories: List<Category>, types: List<ActivityType> ->
+    ) { _, session: ActivitySession?, categories: List<Category>, types: List<ActivityType> ->
         ActivityDetailUiState(
             session = session,
             category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },

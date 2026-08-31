@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,38 +9,45 @@ plugins {
 
 android {
     namespace = "com.d_drostes_apps.aevum"
-    compileSdk = 35
+    // M18.88: compileSdk/targetSdk 36 (Play-Store-Anforderung 2026).
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.d_drostes_apps.aevum"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        targetSdk = 36
+        // M18.87: Erster öffentlicher Release-Stand.
+        versionCode = 2
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
-        // M18.58: Garmin-Bridge-Basis-URL (Cloudflare-Quick-Tunnel zur
-        // Aevum-Garmin-Bridge auf dem Server). In der App überschreibbar
-        // über die Garmin-Einstellungen (falls der Tunnel neu startet und
-        // eine neue URL erhält).
-        // M18.62-FIX: Quick-Tunnel-URL rotiert bei JEDEM Server-Neustart —
-        // 2026-08-10: residence-joe-virtue-enclosure → submitting-portraits-
-        // anderson-solaris. Siehe auch URL-Feld in FitnessTrackersScreen.
-        buildConfigField(
-            "String",
-            "GARMIN_BRIDGE_URL",
-            "\"https://submitting-portraits-anderson-solaris.trycloudflare.com\""
-        )
-        // M18.59: Bridge-API-Key — kommt aus ~/.gradle/gradle.properties
-        // (NICHT im Repo, das Repo ist öffentlich!). Leerer Fallback für
-        // Fremd-Builds; die App zeigt dann einen klaren Hinweis.
-        val bridgeKey = providers.gradleProperty("aevumGarminBridgeKey")
-            .orElse("").get()
-        buildConfigField(
-            "String",
-            "GARMIN_BRIDGE_KEY",
-            "\"$bridgeKey\""
-        )
+    }
+
+    signingConfigs {
+        // M18.88: Release-Signierung optional aus local.properties
+        // (NICHT eingecheckt). Eintrag-Set:
+        //   aevum.release.storeFile=<path>   (relativ zum Repo-Root oder absolut)
+        //   aevum.release.storePassword=...
+        //   aevum.release.keyAlias=...
+        //   aevum.release.keyPassword=...
+        // Fehlen die Einträge, bleibt das Release unsigniert (wie bisher) —
+        // lokale Builds/CI brechen nicht. Die Upload-Entscheidung (eigener
+        // Keystore vs. Play App Signing) trifft der Publisher in der
+        // Play Console; die App selbst enthält KEINEN Schlüssel.
+        create("releaseConfig") {
+            val lpFile = rootProject.file("local.properties")
+            if (lpFile.exists()) {
+                val props = Properties()
+                lpFile.inputStream().use { props.load(it) }
+                val storePath = props.getProperty("aevum.release.storeFile")
+                if (!storePath.isNullOrBlank()) {
+                    storeFile = rootProject.file(storePath)
+                    storePassword = props.getProperty("aevum.release.storePassword")
+                    keyAlias = props.getProperty("aevum.release.keyAlias")
+                    keyPassword = props.getProperty("aevum.release.keyPassword")
+                }
+            }
+        }
     }
 
     buildTypes {
@@ -52,12 +61,17 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Nur signieren, wenn local.properties die Keystore-Einträge
+            // enthält (signingConfig mit storeFile==null würde den Build
+            // brechen); sonst unsignierte Artifacts wie bisher.
+            if (signingConfigs.getByName("releaseConfig").storeFile != null) {
+                signingConfig = signingConfigs.getByName("releaseConfig")
+            }
         }
     }
 
     buildFeatures {
         compose = true
-        // M18.58: Custom BuildConfig-Feld GARMIN_BRIDGE_URL
         buildConfig = true
     }
     composeOptions {

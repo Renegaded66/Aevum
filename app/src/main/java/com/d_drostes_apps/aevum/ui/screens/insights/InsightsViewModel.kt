@@ -17,17 +17,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class InsightsViewModel @Inject constructor(
     private val application: Application,
     private val activityRepository: ActivityRepository,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
     // M17.4: Tagespauschalen für die Statistik-Aggregation.
-    private val dailyAllowanceRepository: DailyAllowanceRepository
+    private val dailyAllowanceRepository: DailyAllowanceRepository,
+    // L10N-RUNTIME-FIX: Sprach-Flow — bei Sprachwechsel zur Laufzeit wird
+    // die komplette Statistik (inkl. application.getString-Texte) neu gebaut.
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
     private val zoneId = java.time.ZoneId.systemDefault()
     private val anchorDate = java.time.LocalDate.now()
@@ -66,12 +71,15 @@ class InsightsViewModel @Inject constructor(
         DataLayer(sessions, categories, types, allowances)
     }
 
-    val uiState: StateFlow<InsightsUiState> = combine(
-        dataFlow,
-        _selectedPeriod,
-        _selectedHeatmapDate,
-        _breakdownMode
-    ) { data, period, heatmapDate, breakdownMode ->
+    val uiState: StateFlow<InsightsUiState> = languageRepository.language
+        .flatMapLatest { _ ->
+            // L10N-RUNTIME-FIX: Sprachwechsel → kompletter Rebuild.
+            combine(
+                dataFlow,
+                _selectedPeriod,
+                _selectedHeatmapDate,
+                _breakdownMode
+            ) { data, period, heatmapDate, breakdownMode ->
         val typeMap = data.types.associateBy { it.id }
         // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
         // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
@@ -127,6 +135,7 @@ class InsightsViewModel @Inject constructor(
             allowanceAccumulations = allowanceAccums,
             breakdownMode = breakdownMode
         ).copy(selectedHeatmapDate = heatmapDate)
+        }
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),

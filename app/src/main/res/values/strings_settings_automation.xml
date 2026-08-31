@@ -35,9 +35,7 @@
     <string name="settings_fitness_disconnected_msg">Verbindung getrennt.</string>
     <string name="settings_fitness_sync_complete">Synchronisierung abgeschlossen.</string>
     <string name="settings_fitness_sync_started">Synchronisierung gestartet.</string>
-    <string name="settings_fitness_bridge_updated">Bridge-URL aktualisiert — Verbindung steht.</string>
-    <string name="settings_fitness_bridge_unreachable">URL gespeichert, aber Bridge nicht erreichbar: %1$s</string>
-    <string name="settings_fitness_no_response">Keine Antwort</string>
+
     <string name="settings_fitness_title">Fitness-Tracker</string>
     <string name="settings_fitness_subtitle">Verbinde deine Sport-Apps — Daten fließen automatisch in die Timeline.</string>
     <string name="settings_fitness_connected">Verbunden</string>

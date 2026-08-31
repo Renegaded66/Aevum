@@ -48,7 +48,9 @@ class LifeViewViewModel @Inject constructor(
     private val application: Application,
     private val activityRepository: ActivityRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val dailyAllowanceRepository: DailyAllowanceRepository
+    private val dailyAllowanceRepository: DailyAllowanceRepository,
+    // L10N-RUNTIME-FIX: Sprach-Flow — Slice-Labels bei Sprachwechsel neu bauen.
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
 
     private val zoneId = ZoneId.systemDefault()
@@ -78,14 +80,37 @@ class LifeViewViewModel @Inject constructor(
         _expectedAge.value = clamped
     }
 
-    val uiState: StateFlow<LifeViewUiState> = combine(
+    // L10N-RUNTIME-FIX: Sprach-Flow plus Daten-Inputs (6 Flows übersteigen
+    // das typisierte combine-Overload → Daten zuerst bündeln).
+    private data class LifeInputs(
+        val sessions: List<ActivitySession>,
+        val types: List<ActivityType>,
+        val allowances: List<DailyAllowance>,
+        val bday: LocalDate?,
+        val age: Int
+    )
+
+    private val lifeInputs = combine(
         activityRepository.getAll(),
         activityTypeRepository.getAll(),
         dailyAllowanceRepository.getAll(),
         _birthday,
         _expectedAge
     ) { sessions, types, allowances, bday, age ->
-        buildState(sessions, types, allowances, bday, age)
+        LifeInputs(sessions, types, allowances, bday, age)
+    }
+
+    val uiState: StateFlow<LifeViewUiState> = combine(
+        languageRepository.language,
+        lifeInputs
+    ) { _, inputs ->
+        buildState(
+            sessions = inputs.sessions,
+            types = inputs.types,
+            allowances = inputs.allowances,
+            bday = inputs.bday,
+            expectedAge = inputs.age
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LifeViewUiState())
 
     private fun buildState(

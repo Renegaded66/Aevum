@@ -288,7 +288,7 @@ private fun SettingsSection(title: String, entries: List<SettingsEntry>) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(entry.title, fontWeight = FontWeight.Medium)
                         // M12.2: status wird dynamisch pro Eintrag gesetzt (z. B. "Vorhanden" / "Jetzt anlegen").
-                        Text(entry.status, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(entry.status ?: stringResource(R.string.common_available), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     // M12.2: Auch ohne onClick zeigen wir einen echten "Öffnen"-Button
                     // statt eines "Bald"-Chips. Default = passiver "Öffnen"-Button
@@ -296,7 +296,7 @@ private fun SettingsSection(title: String, entries: List<SettingsEntry>) {
                     if (entry.onClick != null) {
                         Button(onClick = entry.onClick!!) { Text(stringResource(R.string.common_open)) }
                     } else {
-                        AssistChip(onClick = {}, label = { Text(entry.status) })
+                        AssistChip(onClick = {}, label = { Text(entry.status ?: stringResource(R.string.common_available)) })
                     }
                 }
             }
@@ -312,7 +312,9 @@ private fun SettingsSection(title: String, entries: List<SettingsEntry>) {
  */
 private data class SettingsEntry(
     val title: String,
-    val status: String = "Verfügbar",
+    // L10N-FIX: null → lokalisierter Default (common_available), kein
+    // hartkodiertes "Verfügbar" mehr.
+    val status: String? = null,
     val onClick: (() -> Unit)? = null
 )
 /**

@@ -35,9 +35,7 @@
     <string name="settings_fitness_disconnected_msg">Connection disconnected.</string>
     <string name="settings_fitness_sync_complete">Synchronization completed.</string>
     <string name="settings_fitness_sync_started">Synchronization started.</string>
-    <string name="settings_fitness_bridge_updated">Bridge URL updated — connection established.</string>
-    <string name="settings_fitness_bridge_unreachable">URL saved, but bridge not reachable: %1$s</string>
-    <string name="settings_fitness_no_response">No response</string>
+
     <string name="settings_fitness_title">Fitness trackers</string>
     <string name="settings_fitness_subtitle">Connect your sports apps — data flows automatically into your timeline.</string>
     <string name="settings_fitness_connected">Connected</string>

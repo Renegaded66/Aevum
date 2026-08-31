@@ -50,6 +50,9 @@
     <string name="place_timeline_badge_named">Benannter Ort</string>
     <string name="place_timeline_ongoing">läuft gerade</string>
     <string name="place_timeline_road_prefix">Unterwegs</string>
+    <string name="place_timeline_unnamed_place">Ort (unbenannt)</string>
+    <string name="place_timeline_badge_live">Aktuell hier</string>
+    <string name="place_timeline_badge_unnamed">Unbenannter Ort</string>
     <string name="place_timeline_cd_prev_day">Voriger Tag</string>
     <string name="place_timeline_cd_next_day">Nächster Tag</string>
     <string name="language_system">System</string>

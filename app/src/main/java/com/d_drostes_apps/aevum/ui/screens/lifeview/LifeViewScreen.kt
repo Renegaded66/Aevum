@@ -59,7 +59,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
+import com.d_drostes_apps.aevum.util.AppLocale
 import kotlin.math.roundToInt
 
 /**
@@ -495,7 +495,7 @@ private fun AgeDialog(
 @Composable
 private fun formatYears(years: Double): String {
     return if (years >= 1) {
-        stringResource(R.string.lifeview_years, String.format(Locale.GERMANY, "%.1f", years))
+        stringResource(R.string.lifeview_years, String.format(AppLocale.current, "%.1f", years))
     } else {
         val months = (years * 12).roundToInt()
         if (months >= 1) stringResource(R.string.lifeview_months, months) else stringResource(R.string.lifeview_less_than_month)

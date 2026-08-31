@@ -83,7 +83,7 @@ fun GarminTilesRow(
         if (s.steps > 0) {
             tiles += GarminTile(
                 icon = "👟",
-                value = String.format(Locale.GERMAN, "%,d", s.steps),
+                value = String.format(com.d_drostes_apps.aevum.util.AppLocale.current, "%,d", s.steps),
                 colors = listOf(Color(0xFF155E75), Color(0xFF22D3EE))
             )
         }
@@ -200,7 +200,7 @@ private fun formatDuration(ms: Long): String {
 
 private fun formatDistance(meters: Double): String {
     return if (meters >= 1000) {
-        String.format(Locale.GERMAN, "%.1f km", meters / 1000.0)
+        String.format(com.d_drostes_apps.aevum.util.AppLocale.current, "%.1f km", meters / 1000.0)
     } else {
         "${meters.toInt()} m"
     }

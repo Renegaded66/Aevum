@@ -177,7 +177,8 @@ class PlaceTimelineEngineTest {
     }
 
     @Test
-    fun `Unbenannte Unknown-Places erscheinen nicht`() {
+    fun `Unbenannte Unknown-Places erscheinen als UNNAMED_PLACE M18-87`() {
+        // M18.87: Wie Google Timeline — auch Orte ohne Geofence/Name zeigen.
         val visits = PlaceTimelineEngine.buildVisits(
             dayStart = day, dayEnd = dayEnd,
             sessions = emptyList(),
@@ -186,6 +187,27 @@ class PlaceTimelineEngineTest {
             namedPlaces = listOf(
                 UnknownPlaceSession(
                     id = "u1", startAt = day + 14 * H, endAt = day + 15 * H,
+                    latitude = 52.1, longitude = 8.1, name = null
+                )
+            ),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].evidence).isEqualTo(VisitEvidence.UNNAMED_PLACE)
+        assertThat(visits[0].startAt).isEqualTo(day + 14 * H)
+        assertThat(visits[0].endAt).isEqualTo(day + 15 * H)
+    }
+
+    @Test
+    fun `Kurze unbenannte Unknown-Places unter 15 Minuten erscheinen nicht`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = emptyList(),
+            geofences = emptyList(),
+            namedPlaces = listOf(
+                UnknownPlaceSession(
+                    id = "u1", startAt = day + 14 * H, endAt = day + 14 * H + 10 * 60_000L,
                     latitude = 52.1, longitude = 8.1, name = null
                 )
             ),
@@ -279,6 +301,328 @@ class PlaceTimelineEngineTest {
         assertThat(visits).hasSize(1)
         assertThat(visits[0].isOngoing).isTrue()
         assertThat(visits[0].endAt).isEqualTo(now)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // M18.87: PRESENCE-Trigger (GPS-Zonen-Wahrheit als Fallback-Evidenz)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun presenceTrigger(id: String, type: String, at: Long, geoId: String = "g3") =
+        TriggerEvent(
+            id = id, occurredAt = at, type = type, source = "presence_sampler",
+            confidence = 0.55f, geofenceId = geoId
+        )
+
+    @Test
+    fun `Presence-Intervall dauerhaft Zuhause wird gezeigt auch ohne Events heute`() {
+        // User-Kette: Gestern 22:00 Zuhause angekommen (GMS) — aber HEUTE
+        // kein GMS-Event (Dedup/verlorener EXIT). Der Presence-Sampler
+        // weiß dafür: gestern 23:00 ENTER, EXIT um 20:00 offen... keins.
+        // → Presence-Intervall muss "Zuhause 00:00–jetzt (läuft)" zeigen.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t_gms_enter", "GEOFENCE_ENTER", day - 2 * H, geoId = "g3"),
+                presenceTrigger("p1", "PRESENCE_ENTER", day - 1 * H),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 11 * H)
+            ),
+            geofences = listOf(geofence(), geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        val homeVisits = visits.filter { it.name == "Zuhause" }
+        assertThat(homeVisits).isNotEmpty()
+        // Der Presence-Intervall-Ausschnitt des Tags: 00:00–11:00.
+        val presenceVisit = homeVisits.first { it.id.startsWith("presence_") }
+        assertThat(presenceVisit.startAt).isEqualTo(day)
+        assertThat(presenceVisit.endAt).isEqualTo(day + 11 * H)
+    }
+
+    @Test
+    fun `Offene Presence endet bei jetzt und laeuft gerade`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 8 * H, geoId = "g1")
+                // kein EXIT — User ist noch da
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now // 20:00
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].isOngoing).isTrue()
+        assertThat(visits[0].endAt).isEqualTo(now)
+    }
+
+    @Test
+    fun `Presence-Exit ohne Enter erzeugt keinen Visit`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(presenceTrigger("p1", "PRESENCE_EXIT", day + 9 * H)),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).isEmpty()
+    }
+
+    @Test
+    fun `Presence unter 60s wird verworfen`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 9 * H),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 9 * H + 30_000L)
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).isEmpty()
+    }
+
+    @Test
+    fun `Presence läuft um Session herum statt verworfen zu werden`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = listOf(
+                session("s1", day + 8 * H, day + 12 * H, triggerId = "t1")
+            ),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 8 * H, geoId = "g1"),
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 7 * H, geoId = "g1"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 14 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        // M18.88: Session (8–12) + Presence (7–14, gleicher Ort) werden
+        // von der Konsolidierung zu EINEM durchgehenden Visit 7–14.
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].id).isEqualTo("session_s1")
+        assertThat(visits[0].startAt).isEqualTo(day + 7 * H)
+        assertThat(visits[0].endAt).isEqualTo(day + 14 * H)
+    }
+
+    @Test
+    fun `Presence läuft um GMS-Trigger-Intervall herum statt verworfen zu werden`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H),
+                trigger("t2", "GEOFENCE_EXIT", day + 12 * H),
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 8 * H, geoId = "g1"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 14 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        // GMS-Paar (9–12) + Presence (8–14, gleicher Ort) → konsolidiert
+        // zu EINEM Visit 8–14.
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].startAt).isEqualTo(day + 8 * H)
+        assertThat(visits[0].endAt).isEqualTo(day + 14 * H)
+        assertThat(visits[0].name).isEqualTo("Büro")
+    }
+
+    @Test
+    fun `Sessions und GMS zusammen verdraengen den vollstaendigen Presence-Bereich`() {
+        // Session deckt Presence komplett (7–14 voll in Session 6–16).
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = listOf(
+                session("s1", day + 6 * H, day + 16 * H, triggerId = "t1")
+            ),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 6 * H, geoId = "g1"),
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 7 * H, geoId = "g1"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 14 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].id).isEqualTo("session_s1")
+    }
+
+    @Test
+    fun `Presence-Trigger erzeugen keine doppelten Echo-Visits im GMS-Automaten`() {
+        // Wäre das Filtern der PRESENCE_*-Typen aus dem GMS-Automaten
+        // entfernt, entstünde ein zweiter Visit für dasselbe Intervall.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 9 * H, geoId = "g1"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 12 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].id).startsWith("presence_")
+    }
+
+    @Test
+    fun `Zonenwechsel im Presence-Verlauf erzeugt zwei sequenzielle Visits`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 8 * H, geoId = "g3"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 10 * H, geoId = "g3"),
+                presenceTrigger("p3", "PRESENCE_ENTER", day + 10 * H, geoId = "g1"),
+                presenceTrigger("p4", "PRESENCE_EXIT", day + 13 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence(), geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(2)
+        assertThat(visits[0].name).isEqualTo("Zuhause")   // 08:00–10:00
+        assertThat(visits[1].name).isEqualTo("Büro")      // 10:00–13:00
+        assertThat(visits[0].endAt).isEqualTo(day + 10 * H)
+        assertThat(visits[1].startAt).isEqualTo(day + 10 * H)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // M18.88: LÜCKENLOSE Tag-Story — Tail-Bridge, Live-Zone, Merge
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun trackPoint(at: Long, lat: Double = 52.0, lon: Double = 8.0) =
+        com.d_drostes_apps.aevum.data.model.LocationTrackPoint(
+            id = "tp_${at}_$lat", sessionId = "s_track", recordedAt = at,
+            latitude = lat, longitude = lon, accuracyMeters = 20f
+        )
+
+    @Test
+    fun `Tail-Bridge leitet Ankunft-Station aus letztem Track-Punkt ab`() {
+        // Reported-Fall: GYM-Visit (9-12), Heimfahrt (Tracks 12:00-12:45,
+        // endet in Zuhause), GMS-ENTER fired nie → Ankunft fehlte.
+        // Zuhause liegt bei 52.0/7.9, Radius 100 m — der letzte Track-
+        // Punkt (12:45) liegt IN Zuhause, mitten in der Heimfahrt.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H),
+                trigger("t2", "GEOFENCE_EXIT", day + 12 * H)
+            ),
+            geofences = listOf(
+                geofence(), // Büro @ 52.0/8.0
+                geofence("g3").copy(name = "Zuhause", latitude = 52.0, longitude = 7.9)
+            ),
+            namedPlaces = emptyList(),
+            nowMs = day + 20 * H,
+            trackPoints = listOf(
+                trackPoint(day + 12 * H + 10 * 60_000L, 51.5, 7.5),  // unterwegs
+                trackPoint(day + 12 * H + 30 * 60_000L, 51.98, 7.9), // nah dran
+                trackPoint(day + 12 * H + 45 * 60_000L, 52.0, 7.9)   // in Zuhause
+            )
+            // bewusst OHNE currentZone — die Bridge allein muss greifen
+        )
+        assertThat(visits.map { it.name }).contains("Zuhause")
+        val arrival = visits.last { it.geofenceId == "g3" }
+        assertThat(arrival.id).startsWith("tailbridge_")
+        assertThat(arrival.startAt).isEqualTo(day + 12 * H + 45 * 60_000L)
+        assertThat(arrival.isOngoing).isTrue()
+    }
+
+    @Test
+    fun `Live-Zone zeigt heutigen Aufenthalt bei Kaltstart ohne Presence-Historie`() {
+        // Reported-Fall nach Update: ein "Zuhause entered"-Trigger
+        // existiert, aber kein GMS-Event heute — die Timeline war leer.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = emptyList(),
+            geofences = listOf(geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now, // 20:00
+            currentZoneGeofenceId = "g3",
+            currentZoneSinceMs = day + 1 * H
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].name).isEqualTo("Zuhause")
+        assertThat(visits[0].evidence).isEqualTo(VisitEvidence.LIVE_ZONE)
+        assertThat(visits[0].isOngoing).isTrue()
+        assertThat(visits[0].startAt).isEqualTo(day + 1 * H)
+    }
+
+    @Test
+    fun `Live-Zone erscheint nicht wenn bereits eine echte Evidenz läuft`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(trigger("t1", "GEOFENCE_DWELL", day + 15 * H)),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g1",
+            currentZoneSinceMs = day + 15 * H
+        )
+        // Genau EIN Visit (der offene GMS-ENTER) — keine Live-Zone doppelt.
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].evidence).isNotEqualTo(VisitEvidence.LIVE_ZONE)
+    }
+
+    @Test
+    fun `Fragmentierte Visits desselben Ortes werden konsolidiert`() {
+        // GMS-Visit (9:00–12:00) + Presence-Rest (12:00:30–14:00) — 30s
+        // Lücke, gleicher Ort → EIN Visit.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H),
+                trigger("t2", "GEOFENCE_EXIT", day + 12 * H, geoId = "g1"),
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 12 * H + 30_000L, geoId = "g1"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 14 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        val officeVisits = visits.filter { it.geofenceId == "g1" }
+        assertThat(officeVisits).hasSize(1)
+        assertThat(officeVisits[0].startAt).isEqualTo(day + 9 * H)
+        assertThat(officeVisits[0].endAt).isEqualTo(day + 14 * H)
+    }
+
+    @Test
+    fun `Alle Visits desselben Ortes verschmelzen zu einem laufenden heute`() {
+        // Der User-Report komplett: Gestern angekommen, heute kein Event.
+        // Presence (gestern ENTER) + kein EXIT → heute offenes Intervall,
+        // Konsolidierung macht EINEN Visit "Zuhause 00:00–jetzt".
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day - 8 * H, geoId = "g3"),
+                presenceTrigger("p2", "PRESENCE_EXIT", day + 9 * H, geoId = "g3"),
+                presenceTrigger("p3", "PRESENCE_ENTER", day + 9 * H + 60_000L, geoId = "g3"),
+                presenceTrigger("p4", "PRESENCE_EXIT", day + 13 * H, geoId = "g3"),
+                presenceTrigger("p5", "PRESENCE_ENTER", day + 13 * H + 30_000L, geoId = "g3")
+            ),
+            geofences = listOf(geofence(), geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        // Presence-Intervalle (0–9, 9:01–13, 13:00:30–jetzt) → nach Merge
+        // ZWEI: 0–9 (geclippt) und 9:01–20:00 (offen). Nicht 3.
+        val homeVisits = visits.filter { it.geofenceId == "g3" }
+        assertThat(homeVisits.size).isAtMost(2)
+        assertThat(homeVisits.last().isOngoing).isTrue()
     }
 
     private companion object {

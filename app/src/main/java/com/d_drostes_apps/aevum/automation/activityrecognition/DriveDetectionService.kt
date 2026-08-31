@@ -173,6 +173,16 @@ class DriveDetectionService : Service() {
          *  persistiert, damit ein Prozess-Tod maximal 1 Min Strecke frisst). */
         private const val TRACK_FLUSH_INTERVAL_MS = 60_000L
 
+        // ── M18.89: Pre-Session-Track-Backfill-Konstanten ──
+        /** Pseudo-State-Key der Pre-Session-Sammelphase (Fahrt erkannt,
+         *  Session noch nicht live). */
+        private const val PENDING_TRACK_STATE_KEY = "pending"
+        /** Pending-Fixes älter als dieses Fenster sind wertlos (Erkennungs-
+         *  phasen dauern real 2–4 min; 25 min deckt Worst Cases ab). */
+        private const val PENDING_TRACK_MAX_AGE_MS = 25L * 60 * 1000
+        /** Obergrenze der Pending-Fixes (5s-Stream × 25 min = 300 → 400). */
+        private const val PENDING_TRACK_MAX_POINTS = 400
+
         fun start(context: Context) {
             val intent = Intent(context, DriveDetectionService::class.java)
             try {
@@ -629,32 +639,113 @@ class DriveDetectionService : Service() {
     /** M18.86: Session-Id des letzten Track-Punkts — Wechsel = neuer
      *  Anker-Punkt (jede Strecke beginnt mit EINEM Punkt am Start, auch
      *  ohne 30-m-Bewegung; sonst klammerte die Karte den Aussteige-/Start-
-     *  Moment weg und die Strecke begähe mitten in der Bewegung). */
+     *  Moment weg und die Strecke begähe mitten in der Bewegung).
+     *  M18.89: Sonderwert [PENDING_TRACK_STATE_KEY], solange die Fixe nur
+     *  "vorläufig" (Fahrt erkannt, Session noch nicht live) gesammelt
+     *  werden. */
     private var trackLastSessionId: String? = null
     private val trackBuffer = java.util.Collections.synchronizedList(mutableListOf<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>())
 
+    // ════════════════════════════════════════════════════════════════
+    // M18.89: PRE-SESSION-TRACK-BACKFILL ("halbe Route"-Fix).
+    //
+    // Vorher: maybeRecordTrackPoint schrieb NUR, wenn die trackbare
+    // Session schon live war. Live wird sie aber erst NACH der Erkennung
+    // (classify: 90s-Spread + Worker + Gates ≈ 2–4 min) — und die Session
+    // startet dann RÜCKDATIERT auf den Cluster-Start. Die gesamte Früh-
+    // phase (Anfahren, Verlassen des Geofences) fehlte deshalb in JEDEM
+    // Track: Die Route begann sichtbar erst mittendrin ("Route beginnt
+    // erst ab der Mitte zwischen den beiden Geofences").
+    //
+    // Fix: Solange eine Fahrt ERKANNT ist (bridge.isDriveActive) bzw. eine
+    // Walking-Phase läuft, aber noch keine trackbare Session existiert,
+    // landen die Fixes im pending-Buffer. Sobald die Session live ist,
+    // werden die gesammelten Fixe (rückdatiert, sessionId = live.id) in
+    // den normalen Track-Puffer überführt. Startet KEINE Session (False
+    // Positive, Cooldown-Verwerfen), wird der Puffer verworfen — es
+    // bleibt bei "Evidenz statt Müll".
+    // ════════════════════════════════════════════════════════════════
+    private data class PendingTrackFix(
+        val recordedAt: Long,
+        val latitude: Double,
+        val longitude: Double,
+        val accuracyMeters: Float,
+        val speedMps: Float?
+    )
+    private val pendingTrackBuffer = java.util.Collections.synchronizedList(
+        mutableListOf<PendingTrackFix>()
+    )
+
     /** M18.86: Verdichtet den Fix in den Track-Puffer, wenn eine
-     *  trackbare Session läuft. Flush passiert batched im selben Lauf. */
+     *  trackbare Session läuft — oder (M18.89) eine Fahrt bereits ERKANNT
+     *  ist und die Session in Kürze startet (Backfill der Frühphase).
+     *  Flush passiert batched im selben Lauf. */
     private fun maybeRecordTrackPoint(loc: Location, now: Long, speedMps: Float?) {
         if (loc.accuracy > TRACK_MAX_ACCURACY_M) return
 
         // Welche Session läuft (und ist damit track-würdig)? Nur Auto-
         // Fahrten und Wanderungen haben Strecken — Geofence-Besuche sind
         // Punkte, manuelle Sessions haben keine Location-Evidenz.
-        val live = liveActivityManager.liveSession.value ?: return
-        val trackable = live.isLive && (
+        val live = liveActivityManager.liveSession.value
+        val trackable = live != null && live.isLive && (
             live.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
                 live.sourceType == "WALKING_AUTO"
             )
-        if (!trackable) return
 
-        // Session-Wechsel: Track-Anker neu setzen (erster Punkt immer).
-        val sessionChanged = trackLastSessionId != live.id
+        // M18.89: BACKFILL-FALL — Fahrt erkannt (driveActive) oder Walking-
+        // Phase aktiv, aber Session noch nicht live. Fixe für die spätere
+        // Session vormerken.
+        val pending = !trackable &&
+            (bridge.isDriveActive() || walkingPhaseStartMs != 0L)
+
+        if (!trackable && !pending) {
+            // Kein trackbarer Zustand — altes Pending wäre Fehl-Evidenz
+            // (Fahrt wurde doch nicht gestartet / Cooldown-Pfad hat
+            // verworfen): verwerfen, damit die NEUE Fahrt nicht die alten
+            // Punkte erbt.
+            if (pendingTrackBuffer.isNotEmpty()) {
+                pendingTrackBuffer.clear()
+                Log.d(TAG, "M18.89: Pending-Track verworfen (kein trackbarer Zustand)")
+            }
+            return
+        }
+
+        // Session/State-Wechsel: Track-Anker neu setzen (erster Punkt immer).
+        val stateKey = if (trackable) live!!.id else PENDING_TRACK_STATE_KEY
+        val sessionChanged = trackLastSessionId != stateKey
         if (sessionChanged) {
+            // Übergang pending → live Session: gesammelte Frühphase mit der
+            // REALen sessionId in den normalen Puffer überführen.
+            if (trackable && trackLastSessionId == PENDING_TRACK_STATE_KEY) {
+                val migrated = synchronized(pendingTrackBuffer) {
+                    val copy = pendingTrackBuffer.toList()
+                    pendingTrackBuffer.clear()
+                    copy
+                }
+                val migratedPoints = migrated.map {
+                    com.d_drostes_apps.aevum.data.model.LocationTrackPoint(
+                        id = java.util.UUID.randomUUID().toString(),
+                        sessionId = live!!.id,
+                        recordedAt = it.recordedAt,
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                        accuracyMeters = it.accuracyMeters,
+                        speedMps = it.speedMps
+                    )
+                }
+                if (migratedPoints.isNotEmpty()) {
+                    trackBuffer.addAll(migratedPoints)
+                    Log.d(TAG, "M18.89: ${migratedPoints.size} Pre-Session-Track-Punkte in Session überführt (Backfill der Frühphase)")
+                }
+            } else if (trackLastSessionId == PENDING_TRACK_STATE_KEY) {
+                // Session-Wechsel OHNE gültige neue live-Session (kann nicht
+                // passieren — stateKey pending nur bei pending) — defensiv.
+                pendingTrackBuffer.clear()
+            }
             trackLastLat = null
             trackLastLon = null
             trackLastPointAtMs = 0L
-            trackLastSessionId = live.id
+            trackLastSessionId = stateKey
         }
 
         val movedM = if (trackLastLat != null && trackLastLon != null) {
@@ -664,25 +755,46 @@ class DriveDetectionService : Service() {
         val timeForHeartbeat = now - trackLastPointAtMs >= TRACK_HEARTBEAT_MS
         if (movedM < TRACK_MIN_MOVEMENT_M && !timeForHeartbeat) return
 
-        trackBuffer += com.d_drostes_apps.aevum.data.model.LocationTrackPoint(
-            id = java.util.UUID.randomUUID().toString(),
-            sessionId = live.id,
-            recordedAt = now,
-            latitude = loc.latitude,
-            longitude = loc.longitude,
-            accuracyMeters = loc.accuracy,
-            speedMps = speedMps
-        )
+        if (pending) {
+            // Sammelphase: nur im Speicher, KEIN DB-Write (Room-FK auf
+            // activity_session würde ohne echte Session crashen).
+            synchronized(pendingTrackBuffer) {
+                pendingTrackBuffer += PendingTrackFix(
+                    recordedAt = now,
+                    latitude = loc.latitude,
+                    longitude = loc.longitude,
+                    accuracyMeters = loc.accuracy,
+                    speedMps = speedMps
+                )
+                // Größen-/Alters-Grenze: sehr lange Erkennungsphasen oder
+                // verwaiste Sammelzustände müssen nicht endlos wachsen.
+                while (pendingTrackBuffer.size > PENDING_TRACK_MAX_POINTS) {
+                    pendingTrackBuffer.removeAt(0)
+                }
+                val cutoff = now - PENDING_TRACK_MAX_AGE_MS
+                pendingTrackBuffer.removeAll { it.recordedAt < cutoff }
+            }
+        } else {
+            trackBuffer += com.d_drostes_apps.aevum.data.model.LocationTrackPoint(
+                id = java.util.UUID.randomUUID().toString(),
+                sessionId = live!!.id,
+                recordedAt = now,
+                latitude = loc.latitude,
+                longitude = loc.longitude,
+                accuracyMeters = loc.accuracy,
+                speedMps = speedMps
+            )
+
+            // Batch-Flush: alle 8 Punkte ODER alle 60 s — was zuerst kommt.
+            // Bewusst gechunkt statt pro Fix (DB-Write-I/O auf IO-Dispatcher).
+            val timeSinceFlush = now - trackLastFlushMs
+            if (trackBuffer.size >= TRACK_FLUSH_BATCH || timeSinceFlush >= TRACK_FLUSH_INTERVAL_MS) {
+                flushTrackBuffer()
+            }
+        }
         trackLastLat = loc.latitude
         trackLastLon = loc.longitude
         trackLastPointAtMs = now
-
-        // Batch-Flush: alle 8 Punkte ODER alle 60 s — was zuerst kommt.
-        // Bewusst gechunkt statt pro Fix (DB-Write-I/O auf IO-Dispatcher).
-        val timeSinceFlush = now - trackLastFlushMs
-        if (trackBuffer.size >= TRACK_FLUSH_BATCH || timeSinceFlush >= TRACK_FLUSH_INTERVAL_MS) {
-            flushTrackBuffer()
-        }
     }
 
     private var trackLastFlushMs: Long = 0L

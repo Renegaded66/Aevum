@@ -52,6 +52,14 @@ class GeofenceTransitionProcessor @Inject constructor(
             debugLogger.log("PROCESSOR", "Unknown transition → ignoriert")
             return GeofenceProcessingResult.Ignored
         }
+        // M18.87: Presence-Trigger werden ausschließlich vom Presence-Sampler
+        // (CurrentZoneProvider) geschrieben — der Processor darf sie nie
+        // verarbeiten (Dedup gegen den letzten Real-Trigger würde sonst die
+        // Real-Trigger-Sequenz verfälschen).
+        if (geofenceId.startsWith("presence_") || geofenceId == "presence_sampler") {
+            debugLogger.log("PROCESSOR", "Presence-Trigger → nicht für den Processor bestimmt")
+            return GeofenceProcessingResult.Ignored
+        }
         val geofence = geofenceRepository.getById(geofenceId).first()
         if (geofence == null) {
             debugLogger.log("PROCESSOR", "Geofence $geofenceId nicht gefunden")

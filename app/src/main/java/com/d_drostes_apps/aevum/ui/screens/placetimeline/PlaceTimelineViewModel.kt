@@ -55,7 +55,10 @@ class PlaceTimelineViewModel @Inject constructor(
     triggerRepository: TriggerEventRepository,
     unknownPlaceRepository: UnknownPlaceSessionRepository,
     // M18.86: Track-Punkte für echte Strecken auf der Karte (ADR-0030).
-    private val trackPointRepository: com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
+    private val trackPointRepository: com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository,
+    // M18.88: Live-Zone als letzte Instanz — jeder Tag zeigt mind. den
+    // aktuellen Aufenthalt ("Ich bin immer irgendwo", kein "heute leer").
+    private val zoneProvider: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider
 ) : ViewModel() {
 
     private val zoneId: ZoneId = ZoneId.systemDefault()
@@ -92,19 +95,7 @@ class PlaceTimelineViewModel @Inject constructor(
         triggerRepository.getAll()
     ) { sessions, triggers -> sessions to triggers }
 
-    private data class Inputs2(
-        val date: LocalDate,
-        val sessions: List<ActivitySession>,
-        val triggers: List<TriggerEvent>,
-        val geofences: List<PlaceGeofence>,
-        val namedPlaces: List<UnknownPlaceSession>
-    )
-
     // M18.86: Track-Punkte asynchron nachladen (suspend, einmal pro Tag-
-    // Wechsel — NICHT in den combine-Flow: Die Track-Flow emittiert bei
-    // jedem Live-Insert während einer laufenden Fahrt, das würde die
-    // gesamte Visits-Berechnung 1x pro 25 s neu triggern. Stattdessen:
-    // separater State, Screen kombiniert).
     private val _trackPoints = MutableStateFlow<List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>>(emptyList())
     val trackPoints: StateFlow<List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>> = _trackPoints.asStateFlow()
 
@@ -135,23 +126,59 @@ class PlaceTimelineViewModel @Inject constructor(
     }
 
     private val selectedDate: MutableStateFlow<LocalDate> = _selectedDate
+    // M18.88: Live-Zone als StateFlow — der kombinierte inputs-Flow re-
+    // emittiert, wenn sich die Zone ändert (Zonenwechsel während der
+    // Timeline offen ist → Visit-Enden/Starts aktualisieren sich live).
+    private val currentZoneId: kotlinx.coroutines.flow.Flow<String?> = zoneProvider.currentZone
+        .map { it?.geofence?.id }
+
+    // M18.88: Bestätigungszeitpunkt der Zone (ZoneInfo.updatedAt) — Start-
+    // anker der Live-Zone-Station (verhindert wandernde Startzeit).
+    private val currentZoneSince: kotlinx.coroutines.flow.Flow<Long?> =
+        zoneProvider.currentZone.map { it?.updatedAt }
+
+    // M18.88: Zone + Ticker + Track-Punkte als inneres Paar — combine-Operator-
+    // Limit (5 Flows) pragmatisch verschachtelt (M18.42/57-Muster).
+    private data class Inputs2(
+        val date: LocalDate,
+        val sessions: List<ActivitySession>,
+        val triggers: List<TriggerEvent>,
+        val geofences: List<PlaceGeofence>,
+        val namedPlaces: List<UnknownPlaceSession>,
+        val zoneGeofenceId: String?,
+        val zoneSinceMs: Long?,
+        val trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>
+    )
+
+    private val zoneTimeTracks = combine(
+        currentZoneId,
+        currentZoneSince,
+        ticker,
+        _trackPoints
+    ) { zoneId, zoneSince, nowMs, tracks -> listOf(zoneId, zoneSince, nowMs, tracks) }
 
     private val inputs: kotlinx.coroutines.flow.Flow<Inputs2> = combine(
         selectedDate,
         sessionsAndTriggers,
         geofenceRepository.getAll(),
         unknownPlaceRepository.getAll(),
-        ticker
+        zoneTimeTracks
     ) { date: LocalDate,
         pair: Pair<List<ActivitySession>, List<TriggerEvent>>,
         geofences: List<PlaceGeofence>,
         namedPlaces: List<UnknownPlaceSession>,
-        nowMs: Long ->
-        Inputs2(date, pair.first, pair.second, geofences, namedPlaces)
+        z: List<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        Inputs2(
+            date, pair.first, pair.second, geofences, namedPlaces,
+            z[0] as String?,
+            z[1] as Long?,
+            z[3] as List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>
+        )
     }
 
     val uiState: StateFlow<PlaceTimelineUiState> = inputs
-        .map { i -> buildState(i.date, i.sessions, i.triggers, i.geofences, i.namedPlaces, System.currentTimeMillis()) }
+        .map { i -> buildState(i.date, i.sessions, i.triggers, i.geofences, i.namedPlaces, i.zoneGeofenceId, i.zoneSinceMs, i.trackPoints, System.currentTimeMillis()) }
         .catch { e ->
             Log.e("PlaceTimelineVM", "uiState combine() failed — emitting default state", e)
             emitAll(flowOf(PlaceTimelineUiState()))
@@ -164,6 +191,9 @@ class PlaceTimelineViewModel @Inject constructor(
         triggers: List<TriggerEvent>,
         geofences: List<PlaceGeofence>,
         namedPlaces: List<UnknownPlaceSession>,
+        currentZoneGeofenceId: String?,
+        currentZoneSinceMs: Long?,
+        trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>,
         nowMs: Long
     ): PlaceTimelineUiState {
         val dayStart = TimeFormatting.startOfDayMillis(date, zoneId)
@@ -175,7 +205,10 @@ class PlaceTimelineViewModel @Inject constructor(
             triggers = triggers,
             geofences = geofences.filter { it.deletedAt == null },
             namedPlaces = namedPlaces,
-            nowMs = nowMs
+            nowMs = nowMs,
+            trackPoints = trackPoints,
+            currentZoneGeofenceId = currentZoneGeofenceId,
+            currentZoneSinceMs = currentZoneSinceMs
         )
         return PlaceTimelineUiState(
             selectedDate = date,

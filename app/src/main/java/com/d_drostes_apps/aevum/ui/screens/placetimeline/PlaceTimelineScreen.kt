@@ -186,6 +186,9 @@ private sealed interface StoryRow {
 private fun buildStoryRows(visits: List<PlaceVisit>): List<StoryRow> {
     val rows = mutableListOf<StoryRow>()
     visits.forEachIndexed { i, visit ->
+        // M18.87: Unbenannte Orte erscheinen als Visit-Zeile (📍, neutraler
+        // Text via stringResource) — zwischen normalen Visits wie gehabt
+        // "Unterwegs"-Lücken.
         rows += StoryRow.Visit(visit)
         val next = visits.getOrNull(i + 1)
         if (next != null && next.startAt > visit.endAt) {
@@ -194,6 +197,11 @@ private fun buildStoryRows(visits: List<PlaceVisit>): List<StoryRow> {
     }
     return rows
 }
+
+/** M18.87: Anzeigename für einen Visit — unbenannte Unknown-Places
+ *  bekommen einen Neutral-Text (Strings via stringResource in der UI). */
+internal fun isUnnamedPlaceVisit(visit: PlaceVisit): Boolean =
+    visit.evidence == VisitEvidence.UNNAMED_PLACE
 
 @Composable
 private fun PlaceTimelineContent(
@@ -287,7 +295,10 @@ private fun SummaryCard(state: PlaceTimelineUiState) {
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            summary.placeTotals.take(3).forEach { (name, ms) ->
+            summary.placeTotals.take(3).forEach { (rawName, ms) ->
+                // M18.87: Unbenannte Places → Neutral-Label in der Summary.
+                val name = rawName.ifEmpty { "" }
+                val unnamedVisit = name.isEmpty()
                 val visitColor = state.visits.firstOrNull { it.name == name }
                     ?.let { parseHexColorOrNull(it.color) }
                     ?: MaterialTheme.colorScheme.primary
@@ -302,7 +313,11 @@ private fun SummaryCard(state: PlaceTimelineUiState) {
                             .background(visitColor)
                     )
                     Text(
-                        text = name,
+                        text = if (unnamedVisit) {
+                            stringResource(R.string.place_timeline_unnamed_place)
+                        } else {
+                            name
+                        },
                         fontSize = 14.sp,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
@@ -390,7 +405,12 @@ private fun VisitRow(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = visit.name,
+                        // M18.87: Unbenannte Places → Neutral-Text statt leer.
+                        text = if (isUnnamedPlaceVisit(visit)) {
+                            stringResource(R.string.place_timeline_unnamed_place)
+                        } else {
+                            visit.name
+                        },
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                         modifier = Modifier.weight(1f, fill = false),
@@ -494,6 +514,8 @@ private fun badgeLabel(evidence: VisitEvidence): String = when (evidence) {
     VisitEvidence.NAMED_PLACE -> stringResource(R.string.place_timeline_badge_named)
     VisitEvidence.GEOFENCE_LONG -> stringResource(R.string.place_timeline_badge_long)
     VisitEvidence.GEOFENCE_SHORT -> stringResource(R.string.place_timeline_badge_short)
+    VisitEvidence.UNNAMED_PLACE -> stringResource(R.string.place_timeline_badge_unnamed)
+    VisitEvidence.LIVE_ZONE -> stringResource(R.string.place_timeline_badge_live)
 }
 
 /**

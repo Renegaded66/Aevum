@@ -134,6 +134,40 @@ class CurrentZoneProvider @Inject constructor(
 
         _currentZone.value = result
 
+        // ═════════════════════════════════════════════════════════════════
+        // M18.87: PRESENCE-SAMPLER — die GPS-Wahrheit als Trigger-Evidenz.
+        //
+        // Problem: Die Orts-Timeline leitet Visits NUR aus ENTER/EXIT-Events
+        // ab. Die drei Fälle "ich bin dauerhaft Zuhause" erzeugen KEINE
+        // Evidenz:
+        //   1. Zuhause-ENTER gestern, heute kein (GMS-)Event — der
+        //      M18.48-Dedup unterdrückt ENTER-nach-ENTER bewusst, und ein
+        //      DWELL-Echo kommt nur bei Neuregistrierung.
+        //   2. Home hat kein autoStartActivityTypeId → der direkte Pfad
+        //      schreibt ausschließlich bei Zonenwechsel Trigger.
+        //   3. Prozesses-Tod verliert den Zustand komplett.
+        // Resultat: "Heute nirgendwo", obwohl GPS längst weiß "in Zuhause".
+        //
+        // Lösung: Bei JEDEM checkNow() (ProactiveGeofenceCheckWorker ~2 min
+        // + Dashboard-Aufrufe) den Zonen-Zustand als PRESENCE_TRIGGER
+        // persistieren — INSERT beim Betreten, CLOSE beim Verlassen (nach
+        // 2-Check-Bestätigung gegen Rand-Flackern). Die Engine leitet
+        // daraus "Zuhause seit X, läuft gerade" ab, auch tageübergreifend.
+        // Quelle "presence_sampler" + Typen PRESENCE_* →
+        //   • TriggerPairCandidateRuleEngine ignoriert sie (keine
+        //     Travel-Doppel-Candidates),
+        //   • GeofenceTransitionProcessor wird defensiv nie für sie
+        //     aufgerufen (Skip-Guard),
+        //   • PlaceTimelineEngine sieht contains("ENTER"/"EXIT").
+        // ═════════════════════════════════════════════════════════════════
+        try {
+            recordPresenceEvidence(newZoneId, result, System.currentTimeMillis())
+        } catch (e: Exception) {
+            // Presence ist Zusatz-Evidenz — ein Fehler darf den
+            // Auto-Start/Stop-Pfad niemals stören.
+            Log.w(TAG, "M18.87 Presence-Sampling fehlgeschlagen: ${e.message}")
+        }
+
         // M18.66-FIX7: DIREKTER AUTO-START — kein Processor, kein Dedup.
         // Wenn der User eine Zone betritt und autoStartActivityTypeId
         // gesetzt ist → Activity starten. Wenn er sie verlässt → stoppen.
@@ -261,6 +295,129 @@ class CurrentZoneProvider @Inject constructor(
     fun setZone(geofence: PlaceGeofence?, distanceMeters: Double = 0.0) {
         _currentZone.value = geofence?.let {
             ZoneInfo(it, distanceMeters, System.currentTimeMillis())
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // M18.87: PRESENCE-EVIDENZ
+    // ═════════════════════════════════════════════════════════════════════
+
+    companion object {
+        /** Source-Marker der Presence-Trigger (Engine/Processor-Filter). */
+        const val TRIGGER_SOURCE = "presence_sampler"
+        const val TYPE_ENTER = "PRESENCE_ENTER"
+        const val TYPE_EXIT = "PRESENCE_EXIT"
+
+        /** Checks außerhalb der Zone, bevor die Presence geschlossen wird
+         *  (Rand-Flackern: ein GPS-Drift-Fix knapp außerhalb darf eine
+         *  tagelange Anwesenheit nicht beenden). */
+        const val PRESENCE_CONFIRM_MISSES = 2
+
+        private const val KEY_PRESENCE_GEOFENCE = "presence_geofence_id"
+        private const val KEY_PRESENCE_START = "presence_started_at"
+        private const val KEY_PRESENCE_MISSES = "presence_misses"
+    }
+
+    /**
+     * Persistiert den GPS-Zonen-Zustand als Trigger-Evidenz (M18.87).
+     *
+     * Lifecycle (State in SharedPreferences, überlebt Prozess-Tod):
+     *  - Kein offener Zustand + Zone betreten → PRESENCE_ENTER + Öffnen.
+     *  - Gleiche Zone → kein Write (Stille ist der Normalfall).
+     *  - Andere Zone → PRESENCE_EXIT (alt) + PRESENCE_ENTER (neu), sofort
+     *    (der Check-Zyklen-Abstand IST schon das Flacker-Filter).
+     *  - null (außerhalb aller Zonen) → erst nach [PRESENCE_CONFIRM_MISSES]
+     *    Bestätigungen PRESENCE_EXIT schreiben.
+     *
+     * Die Trigger sind insert-only-Evidenz (keine UPDATEs — Trigger sind
+     * unveränderliche Fakten). Die Engine kombiniert ENTER+EXIT zum
+     * Intervall, identisch zum GEOFENCE_ENTER/EXIT-Muster.
+     */
+    private suspend fun recordPresenceEvidence(
+        newZoneId: String?,
+        result: ZoneInfo?,
+        t: Long
+    ) {
+        val openGeofenceId = prefs.getString(KEY_PRESENCE_GEOFENCE, null)
+
+        if (openGeofenceId == null) {
+            // Kein offener Presence-Zustand.
+            if (newZoneId != null && result != null) {
+                triggerRepository.insert(presenceTrigger(TYPE_ENTER, result.geofence, t))
+                savePresenceOpen(newZoneId, t)
+                Log.d(TAG, "M18.87: PRESENCE_ENTER ${result.geofence.name} @ $t")
+            }
+            return
+        }
+
+        if (newZoneId == openGeofenceId) {
+            // Gleiche Zone, dauerhaft da → KEIN Write. Es gibt keinen
+            // Zeitstempel-Beweis "immer noch da" — die Engine leitet die
+            // Anwesenheit bis zum nächsten Event bzw. now ab. (Ein Trigger
+            // pro Check würde die Evidenz fluten und enterAt dauernd
+            // verschieben.)
+            return
+        }
+
+        if (newZoneId != null) {
+            // Zonenwechsel: alte Presence schließen, neue sofort öffnen.
+            val prevGeofence = geofenceRepository.getById(openGeofenceId).first()
+            if (prevGeofence != null) {
+                triggerRepository.insert(presenceTrigger(TYPE_EXIT, prevGeofence, t))
+            }
+            triggerRepository.insert(presenceTrigger(TYPE_ENTER, result!!.geofence, t))
+            savePresenceOpen(newZoneId, t)
+            Log.d(TAG, "M18.87: Zonenwechsel → PRESENCE_EXIT/ENTER @ $t")
+            return
+        }
+
+        // newZoneId == null bei offenem Zustand → außerhalb aller Zonen.
+        // EIN Check ist Rand-Flackern; der zweite bestätigt.
+        val misses = prefs.getInt(KEY_PRESENCE_MISSES, 0) + 1
+        if (misses < PRESENCE_CONFIRM_MISSES) {
+            prefs.edit().putInt(KEY_PRESENCE_MISSES, misses).apply()
+            return
+        }
+        // Bestätigt außerhalb → Presence schließen.
+        Log.d(TAG, "M18.87: außerhalb bestätigt ($misses Checks) → PRESENCE_EXIT @ $t")
+        clearPresenceOpen()
+        val prevGeofence = geofenceRepository.getById(openGeofenceId).first()
+        if (prevGeofence != null) {
+            triggerRepository.insert(presenceTrigger(TYPE_EXIT, prevGeofence, t))
+        }
+    }
+
+    private fun presenceTrigger(
+        type: String,
+        geofence: PlaceGeofence,
+        at: Long
+    ) = TriggerEvent(
+        id = UUID.randomUUID().toString(),
+        occurredAt = at,
+        type = type,
+        source = TRIGGER_SOURCE,
+        confidence = 0.55f,
+        geofenceId = geofence.id,
+        detectionEventId = null,
+        metadataJson = """{"geofenceName":"${geofence.name}","reason":"presence_sampler"}""",
+        anchorQuality = "HIGH"
+    )
+
+    private fun savePresenceOpen(geofenceId: String, startedAt: Long) {
+        prefs.edit().apply {
+            putString(KEY_PRESENCE_GEOFENCE, geofenceId)
+            putLong(KEY_PRESENCE_START, startedAt)
+            putInt(KEY_PRESENCE_MISSES, 0)
+            apply()
+        }
+    }
+
+    private fun clearPresenceOpen() {
+        prefs.edit().apply {
+            remove(KEY_PRESENCE_GEOFENCE)
+            remove(KEY_PRESENCE_START)
+            putInt(KEY_PRESENCE_MISSES, 0)
+            apply()
         }
     }
 

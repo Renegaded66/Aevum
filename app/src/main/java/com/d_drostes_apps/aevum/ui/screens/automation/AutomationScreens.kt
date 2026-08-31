@@ -499,7 +499,14 @@ private fun QuickSetupCard(
             Text(stringResource(R.string.automation_quick_setup), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(stringResource(R.string.automation_quick_setup_desc), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(onClick = { onQuick(QuickPlaceKind.Home) }) { Text("🏠 ${stringResource(R.string.common_home)}") }
+                // M18.87 (User: "beim erstellen eines neuen geofences kann man
+                // das home und work profile anwählen. aber eines ist immer
+                // standardmäßig angewählt. also so blau"): Vorher war Home ein
+                // gefüllter (Primary-)Button und Work outlined — das gefüllte
+                // Blau wirkte wie eine Vorauswahl, obwohl beide Buttons nur
+                // Aktionen sind (Tap wendet sofort an, kein Auswahl-Zustand).
+                // Jetzt beide als outlined — visuell neutral, keiner "gewählt".
+                OutlinedButton(onClick = { onQuick(QuickPlaceKind.Home) }) { Text("🏠 ${stringResource(R.string.common_home)}") }
                 OutlinedButton(onClick = { onQuick(QuickPlaceKind.Work) }) { Text("💼 ${stringResource(R.string.common_work)}") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -596,7 +603,7 @@ fun TriggerEventsScreen(
                     stringResource(
                         R.string.automation_delete_trigger_body,
                         displayLabel,
-                        trigger?.let { TimeFormatting.formatSmartDateTime(it.occurredAt) } ?: stringResource(R.string.automation_unknown_time)
+                        trigger?.let { TimeFormatting.formatSmartDateTime(it.occurredAt, context = androidx.compose.ui.platform.LocalContext.current) } ?: stringResource(R.string.automation_unknown_time)
                     )
                 )
             },
@@ -636,7 +643,7 @@ private fun TriggerRow(trigger: TriggerEvent, geofenceName: String?, onDelete: (
                 // M12.1.1: Datum + Zeit statt nur Zeit, damit klar ist,
                 // an welchem Tag der Trigger ausgelöst wurde.
                 Text(
-                    "${TimeFormatting.formatSmartDateTime(trigger.occurredAt)} · ${stringResource(R.string.automation_confidence, (trigger.confidence * 100).toInt())}",
+                    "${TimeFormatting.formatSmartDateTime(trigger.occurredAt, context = androidx.compose.ui.platform.LocalContext.current)} · ${stringResource(R.string.automation_confidence, (trigger.confidence * 100).toInt())}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(trigger.source, fontFamily = FontFamily.Monospace, fontSize = 12.sp)

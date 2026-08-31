@@ -47,7 +47,7 @@ object TimeFormatting {
             today -> context?.getString(R.string.time_smart_today, time) ?: "Heute $time"
             today.minusDays(1) -> context?.getString(R.string.time_smart_yesterday, time) ?: "Gestern $time"
             else -> {
-                val dow = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.GERMAN)
+                val dow = date.dayOfWeek.getDisplayName(TextStyle.SHORT, com.d_drostes_apps.aevum.util.AppLocale.current)
                 val dayMonth = "%02d.%02d.".format(date.dayOfMonth, date.monthValue)
                 context?.getString(R.string.time_smart_other, dow, dayMonth, time) ?: "$dow, $dayMonth $time"
             }
@@ -59,7 +59,7 @@ object TimeFormatting {
         today.minusDays(1) -> context?.getString(R.string.time_yesterday) ?: "Gestern"
         today.plusDays(1) -> context?.getString(R.string.time_tomorrow) ?: "Morgen"
         else -> {
-            val dow = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.GERMAN)
+            val dow = date.dayOfWeek.getDisplayName(TextStyle.FULL, com.d_drostes_apps.aevum.util.AppLocale.current)
             val formatted = formatDate(date)
             context?.getString(R.string.time_day_title_other, dow, formatted) ?: "$dow, $formatted"
         }
