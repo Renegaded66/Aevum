@@ -855,6 +855,15 @@ class ActivityEditorViewModel @Inject constructor(
         val formValue = base.form
         val dayStart = TimeFormatting.startOfDayMillis(formValue.date, zoneId)
         val dayEnd = TimeFormatting.endOfDayMillis(formValue.date, zoneId)
+        // M18.93v3-FIX (User: "Schlaf soll auf 08:05 kürzbar sein, aber der
+        // Vorschlag existiert nicht"): Schlaf startet am VORABEND → der
+        // Editor-Tag = gestern → das reine Tagesfenster [dayStart, dayEnd)
+        // endet um Mitternacht und filterte ALLE heutigen Morgen-Anker weg.
+        // Das Anker-Fenster ist jetzt die SESSION-SPANNE mit Puffer:
+        // [min(start, dayStart) - 12h .. max(end, dayEnd) + 12h] — deckt
+        // Mitternacht-Sessions und den 08:05-Anchor des Folgetags ab.
+        val windowStart = minOf(formValue.startAt, dayStart) - 12L * 60 * 60 * 1000
+        val windowEnd = maxOf(formValue.endAt ?: formValue.startAt, dayEnd) + 12L * 60 * 60 * 1000
         val typeById = base.types.associateBy { it.id }
         ActivityEditorUiState(
             isEditing = sessionId != null,
@@ -865,7 +874,7 @@ class ActivityEditorViewModel @Inject constructor(
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId, context = application),
             triggerMarkers = buildList {
                 // M18.93: Trigger als Snap-Anker (wie bisher, Icon leer).
-                addAll(triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
+                addAll(triggers.filter { it.occurredAt in windowStart..windowEnd }.map {
                     val gfName = extractGeofenceName(it.metadataJson)
                     val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
                     TriggerEventMarker(
@@ -879,27 +888,40 @@ class ActivityEditorViewModel @Inject constructor(
                         source = it.source
                     )
                 })
-                // M18.93: ANDERE Aufzeichnungen des Tages als Snap-Anker —
-                // überlappende/kurze Lücken sind die relevanten Kürzungskandidaten.
-                // Eigenes Editieren (die Session selbst) ausgeschlossen; die
-                // UI blendet Selbst-Referenzen zusätzlich aus (Defensive).
+                // M18.93: ANDERE Aufzeichnungen als Snap-Anker. Anchor-Regel:
+                //  - Ende der anderen Session, wenn es im Editor-Zeitfenster
+                //    liegt (User-Beispiel: Digitale Aktivität endet 08:15? Nein —
+                //    überlappt: ihr ENDE 08:15 liegt HINTER dem Schlaf-Ende 08:10
+                //    → wir nehmen ihren START 08:05 als Kürzungskante).
+                //  - Sonst: Start, wenn er nahe an unserem Ende/Start liegt.
                 addAll(
                     sessions
                         .filter { it.id != sessionId }
                         .filter { it.deletedAt == null }
                         .mapNotNull { s ->
-                            // Bevorzugt die überlappende Kante: Ende der anderen
-                            // Session in unserem Fenster, sonst ihr Start.
-                            val anchor = if (s.endAt != null && s.endAt in formValue.startAt..(formValue.endAt ?: Long.MAX_VALUE)) {
-                                s.endAt
-                            } else if (s.startAt in dayStart..dayEnd) {
-                                s.startAt
-                            } else {
-                                null
+                            val ourEnd = formValue.endAt ?: Long.MAX_VALUE
+                            val anchor = when {
+                                // Ende der anderen Session liegt in unserer Spanne
+                                // (zwischen unserem Start und unserem Ende) →
+                                // die andere Session schneidet uns AB (Ihr Ende
+                                // ist DIE Kante, auf die wir kürzen wollen).
+                                s.endAt != null && s.endAt > formValue.startAt && s.endAt <= (formValue.endAt ?: Long.MAX_VALUE) ->
+                                    s.endAt
+                                // Start der anderen Session liegt VOR unserem
+                                // Ende (Überlappung) → ihr Start ist die Kante.
+                                s.startAt >= formValue.startAt && s.startAt <= (formValue.endAt ?: Long.MAX_VALUE) ->
+                                    s.startAt
+                                // Nahe an unserem Start (±12h, für Rückwärts-Verlängerung).
+                                // (Explizit geklammert — ohne Klammern bindet ?: vor
+                                // dem Minus und abs() sähe einen rohen Timestamp.)
+                                kotlin.math.abs((s.endAt ?: s.startAt) - formValue.startAt) <= 12L * 60 * 60 * 1000 ->
+                                    s.endAt ?: s.startAt
+                                else -> null
                             } ?: return@mapNotNull null
+                            if (anchor !in windowStart..windowEnd) return@mapNotNull null
                             val type = s.activityTypeId?.let { typeById[it] }
                             TriggerEventMarker(
-                                id = "session:" + s.id,
+                                id = "session:" + s.id + ":" + anchor,
                                 label = type?.name ?: s.title,
                                 occurredAt = anchor,
                                 kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,

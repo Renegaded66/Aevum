@@ -3,7 +3,11 @@ package com.d_drostes_apps.aevum.ui.screens.dashboard
 import com.d_drostes_apps.aevum.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -41,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -62,6 +67,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.data.model.AppUsageSample
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
+import com.d_drostes_apps.aevum.ui.components.ChargingRing
 import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
 import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -1068,6 +1074,12 @@ private fun LiveActivityBanner(
     onSwitch: (String, String?) -> Unit = { _, _ -> },
     activityTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType> = emptyList()
 ) {
+    // M18.93v3 FANCY-BANNER: Das kompakte Viereck ("Aufnahme läuft" + Punkt
+    // + 3 Buttons) ist durch ein echtes Auflade-Erlebnis ersetzt:
+    // ChargingRing (Füll-Ring um das Activity-Icon, Glow-Komet wandert in
+    // einem Orbit, Kern pulsiert) + Titel/Timer daneben + Buttons unten.
+    // Fraction = aktive Aufzeichnungszeit / 60 Min (volle Stunde = voller
+    // Ring, danach bleibt er voll — kein irritierender Reset).
     val title = when (state) {
         is LiveActivityState.Running -> state.title
         is LiveActivityState.Paused -> state.title
@@ -1076,26 +1088,42 @@ private fun LiveActivityBanner(
     val isPaused = state is LiveActivityState.Paused
     // M18.60: State fuer das Wechsel-Sheet
     var showSwitchSheet by remember { mutableStateOf(false) }
+    // M18.93v3: Puls für ChargingRing + Status-Text (atmet sanft).
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "bannerPulse")
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1400),
+            androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "bannerPulseAlpha"
+    )
     val accent = if (isPaused) {
         MaterialTheme.colorScheme.tertiary
     } else {
         MaterialTheme.colorScheme.primary
     }
-    val timerText = when (state) {
-        is LiveActivityState.Running -> {
-            val active = state.activeMs(nowMs)
-            "%02d:%02d:%02d".format(
-                active / 3_600_000,
-                (active % 3_600_000) / 60_000,
-                (active % 60_000) / 1000
-            )
-        }
-        is LiveActivityState.Paused -> {
-            val active = state.activeMs(nowMs)
-            "%02d:%02d".format(active / 60_000, (active % 60_000) / 1000)
-        }
+    val activityIcon = when (state) {
+        is LiveActivityState.Running ->
+            activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
+        is LiveActivityState.Paused ->
+            activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
         else -> ""
     }
+    val activeMs = when (state) {
+        is LiveActivityState.Running -> state.activeMs(nowMs)
+        is LiveActivityState.Paused -> state.activeMs(nowMs)
+        else -> 0L
+    }
+    val timerText = "%02d:%02d:%02d".format(
+        activeMs / 3_600_000,
+        (activeMs % 3_600_000) / 60_000,
+        (activeMs % 60_000) / 1000
+    )
+    // Auflade-Fortschritt: aktive Zeit / 60 Min (cap 1.0 — voller Ring
+    // bleibt voll, kein Reset bei Überschreiten).
+    val chargeFraction = (activeMs / (60f * 60_000f)).coerceIn(0f, 1f)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1121,50 +1149,47 @@ private fun LiveActivityBanner(
                 .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.md)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                // Zeile 1: Status + Titel + Timer — die Buttons sind in
-                // eine eigene Zeile gewandert (M18.62-FIX: vorher quetschte
-                // die eine Row mit 3 Buttons die Titel-Column auf ~2 Zeichen
-                // Breite, der Text brach um und die Karte wurde extrem tief).
+                // Zeile 1: ChargingRing + Titel/Status/Timer.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
                 ) {
-                    // Status-Punkt
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(accent)
+                    ChargingRing(
+                        fraction = chargeFraction,
+                        accent = accent,
+                        pulseAlpha = if (isPaused) 0.25f else pulseAlpha,
+                        emoji = activityIcon.ifBlank { "\u23F1" },
+                        modifier = Modifier.size(76.dp)
                     )
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(
                             if (isPaused) stringResource(R.string.dashboard_paused)
                             else stringResource(R.string.dashboard_recording),
                             fontSize = 10.sp,
                             letterSpacing = 1.0.sp,
                             color = accent,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.alpha(0.55f + 0.45f * pulseAlpha)
                         )
                         Text(
                             title,
-                            fontSize = 15.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Text(
+                            timerText,
+                            fontSize = 26.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Light,
+                            color = accent,
+                            letterSpacing = (-0.5).sp
+                        )
                     }
-                    // Timer (Monospace) — M18.60: kompakt, damit die Zeile mit
-                    // Pause/Wechsel/Stop nicht überdimensioniert wirkt.
-                    Text(
-                        timerText,
-                        fontSize = 15.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = accent
-                    )
                 }
-                // Zeile 2: Aktionen — volle Breite, nichts wird gequetscht
+                // Zeile 2: Aktionen — volle Breite, nichts wird gequetscht.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
