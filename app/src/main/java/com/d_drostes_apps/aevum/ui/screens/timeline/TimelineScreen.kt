@@ -3735,41 +3735,123 @@ private fun VisualTimeEditorCard(
                 }
             }
             if (state.triggerMarkers.isNotEmpty() && !durationOnly) {
-                TriggerSnapRow(state.triggerMarkers, onSnapStart, onSnapEnd)
+                TriggerSnapRow(
+                    markers = state.triggerMarkers,
+                    startAtMs = state.form.startAt,
+                    endAtMs = state.form.endAt,
+                    onSnapStart = onSnapStart,
+                    onSnapEnd = onSnapEnd
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TriggerSnapRow(markers: List<TriggerEventMarker>, onSnapStart: (TriggerEventMarker) -> Unit, onSnapEnd: (TriggerEventMarker) -> Unit) {
+private fun TriggerSnapRow(
+    markers: List<TriggerEventMarker>,
+    startAtMs: Long,
+    endAtMs: Long?,
+    onSnapStart: (TriggerEventMarker) -> Unit,
+    onSnapEnd: (TriggerEventMarker) -> Unit
+) {
+    // M18.93 (User: "Kürzungen am Anfang und Ende differenziert statt alles
+    // in eine Liste; nur passende Trigger, die wirklich nahe an Start/Ende
+    // liegen; Beispiel: Schlaf bis 08:10 von Garmin, Handy-Aufzeichnung
+    // 08:05 → der 08:05-Trigger soll als End-Kürzung klickbar sein"):
+    //
+    //  - ZWEI gruppierte Zeilen: "Am Anfang kürzen" / "Am Ende kürzen".
+    //  - Relevanz-Filter: nur Trigger im ±120-Min-Fenster um den jeweils
+    //    zugehörigen Zeitpunkt (Start bzw. Ende).
+    //  - Pro Seite die 3 BESTEN (kleinste Differenz), beste Treffer
+    //    hervorgehoben; Delta-Label zeigt die Abweichung in Minuten.
+    //  - Leere Seiten werden komplett ausgeblendet (kein Leerraum).
+    // M18.93: Relevanz-Filter — Marker ±120min um Start/Ende, Top-3 je Seite.
+    val endMs = endAtMs ?: startAtMs
+    val windowMs = 120L * 60_000
+
+    fun candidates(targetMs: Long): List<Pair<TriggerEventMarker, Long>> =
+        markers
+            .map { it to (it.occurredAt - targetMs) }
+            .filter { kotlin.math.abs(it.second) <= windowMs }
+            .sortedBy { kotlin.math.abs(it.second) }
+            .take(3)
+
+    val startCandidates = remember(markers, startAtMs) { candidates(startAtMs) }
+    val endCandidates = remember(markers, endMs) { candidates(endMs) }
+
+    if (startCandidates.isEmpty() && endCandidates.isEmpty()) return
+
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-        Text(stringResource(R.string.timeline_editor_trigger_row), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            markers.forEach { marker ->
-                AssistChip(
-                    onClick = { onSnapStart(marker) },
-                    label = {
+        Text(stringResource(R.string.timeline_editor_trigger_row_m93), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (startCandidates.isNotEmpty()) {
+            TriggerSnapGroup(
+                title = stringResource(R.string.timeline_editor_snap_start_section),
+                candidates = startCandidates,
+                accent = MaterialTheme.colorScheme.tertiary,
+                onClick = { onSnapStart(it) }
+            )
+        }
+        if (endCandidates.isNotEmpty()) {
+            TriggerSnapGroup(
+                title = stringResource(R.string.timeline_editor_snap_end_section),
+                candidates = endCandidates,
+                accent = MaterialTheme.colorScheme.primary,
+                onClick = { onSnapEnd(it) }
+            )
+        }
+    }
+}
+
+/** Eine Gruppe (Anfang/Ende) relevanter Trigger-Chips; der beste Treffer
+ *  (kleinste Differenz) bekommt einen Akzent-Rand. */
+@Composable
+private fun TriggerSnapGroup(
+    title: String,
+    candidates: List<Pair<TriggerEventMarker, Long>>,
+    accent: androidx.compose.ui.graphics.Color,
+    onClick: (TriggerEventMarker) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xxs)) {
+        Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = accent)
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            candidates.forEachIndexed { index, (marker, deltaMs) ->
+                val deltaMin = kotlin.math.round(deltaMs / 60_000.0).toInt()
+                val isBest = index == 0
+                androidx.compose.material3.Surface(
+                    onClick = { onClick(marker) },
+                    shape = RoundedCornerShape(AevumRadius.md),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = if (isBest) androidx.compose.foundation.BorderStroke(1.5.dp, accent)
+                    else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = AevumSpacing.sm, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
                         Text(
-                            stringResource(
-                                R.string.timeline_editor_snap_start,
-                                TimeFormatting.formatTime(marker.occurredAt),
-                                marker.label
-                            )
+                            TimeFormatting.formatTime(marker.occurredAt) + "  ·  " +
+                                stringResource(
+                                    if (deltaMs >= 0) R.string.timeline_editor_snap_delta_after
+                                    else R.string.timeline_editor_snap_delta_before,
+                                    kotlin.math.abs(deltaMin)
+                                ),
+                            fontSize = 12.sp,
+                            fontWeight = if (isBest) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (isBest) accent else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            marker.label,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
-                )
-                AssistChip(
-                    onClick = { onSnapEnd(marker) },
-                    label = {
-                        Text(
-                            stringResource(
-                                R.string.timeline_editor_snap_end,
-                                TimeFormatting.formatTime(marker.occurredAt)
-                            )
-                        )
-                    }
-                )
+                }
             }
         }
     }

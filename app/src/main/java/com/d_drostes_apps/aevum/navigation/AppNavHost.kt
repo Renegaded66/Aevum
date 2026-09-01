@@ -37,7 +37,50 @@ fun AppNavHost(
     startDestination: String = AppDestination.Dashboard.route,
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
 ) {
-    NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
+    // M18.93 (User: "Animation beim Seitenwechsel manchmal fehlerhaft
+    // abrupt"): Sanfte, einheitliche Transitions — dezenter Fade + kurzer
+    // Slide in Push-Richtung, gegenläufig beim Pop. Kein Scale, kein
+    // Overlap-Flackern mehr (Default-Transitions mixen snap-artige Fades
+    // mit harten Slides; dieselbe Dauer + gleiche Beschleunigung überall).
+    val dur = 260
+    val easing = androidx.compose.animation.core.FastOutSlowInEasing
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        modifier = modifier,
+        enterTransition = {
+            androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing)
+            ) + androidx.compose.animation.slideInHorizontally(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing),
+                initialOffsetX = { it / 14 }
+            )
+        },
+        exitTransition = {
+            androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing)
+            ) + androidx.compose.animation.slideOutHorizontally(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing),
+                targetOffsetX = { -it / 18 }
+            )
+        },
+        popEnterTransition = {
+            androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing)
+            ) + androidx.compose.animation.slideInHorizontally(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing),
+                initialOffsetX = { -it / 14 }
+            )
+        },
+        popExitTransition = {
+            androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing)
+            ) + androidx.compose.animation.slideOutHorizontally(
+                animationSpec = androidx.compose.animation.core.tween(dur, easing = easing),
+                targetOffsetX = { it / 14 }
+            )
+        }
+    ) {
         composable(AppDestination.Dashboard.route) {
             DashboardScreen(
                 onOpenTimeline = { navController.navigate(AppDestination.Timeline.route) },
@@ -155,12 +198,8 @@ fun AppNavHost(
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
                 onOpenCategories = { navController.navigate(AppDestination.Categories.route) },
-                // M12.2: Home/Work öffnen den existierenden Geofence-Editor
-                // oder legen den Geofence direkt mit dem passenden QuickSetup an.
-                onOpenHomeGeofence = { id -> navController.navigate("geofence/edit/$id") },
-                onOpenWorkGeofence = { id -> navController.navigate("geofence/edit/$id") },
-                onCreateHomeGeofence = { navController.navigate(AppDestination.GeofenceCreateHome.route) },
-                onCreateWorkGeofence = { navController.navigate(AppDestination.GeofenceCreateWork.route) },
+                // M18.93: Home/Work-Quick-Setup-Callbacks entfernt ("Meine
+                // Orte" ist raus — die Geofences-Seite deckt das ab).
                 // M18.55: Datenschutz, Export, Backup
                 onOpenPrivacy = { navController.navigate(AppDestination.Privacy.route) },
                 onOpenExport = { navController.navigate(AppDestination.Export.route) },

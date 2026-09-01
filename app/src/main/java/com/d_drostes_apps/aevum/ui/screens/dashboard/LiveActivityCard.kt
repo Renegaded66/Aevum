@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -947,18 +949,48 @@ private fun RunningCard(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Eyebrow mit Puls-Dot
+            // M18.93 FANCY-HEADER: Activity-Icon mit Glow-Ring + pulsierendem
+            // Status-Eyebrow + animiertem Ladefortschritt (Fortschritt =
+            // Anteil der laufenden Stunde, die schon aufgezeichnet ist —
+            // "etwas lädt auf", volle Stunde = 100%).
+            val activityIcon = remember(state.title, state.categoryId) {
+                activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .alpha(pulseAlpha)
-                        .clip(CircleShape)
-                        .background(accentColor)
-                )
+                // Icon mit pulsierendem Glow-Ring (nur wenn Icon existiert).
+                if (activityIcon.isNotBlank()) {
+                    Box(contentAlignment = Alignment.Center) {
+                        // Glow-Ring (pulsierend, größer).
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .scale(1f + 0.12f * pulseAlpha)
+                                .clip(CircleShape)
+                                .background(accentColor.copy(alpha = 0.25f * pulseAlpha))
+                        )
+                        // Icon-Kern.
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(accentColor.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(activityIcon, fontSize = 16.sp)
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .alpha(pulseAlpha)
+                            .clip(CircleShape)
+                            .background(accentColor)
+                    )
+                }
                 Text(
                     if (state.isAuto) stringResource(R.string.dashboard_running_auto)
                     else stringResource(R.string.common_active),
@@ -966,7 +998,7 @@ private fun RunningCard(
                     fontWeight = FontWeight.Medium,
                     color = accentColor,
                     letterSpacing = 0.4.sp,
-                    modifier = Modifier.alpha(pulseAlpha)
+                    modifier = Modifier.alpha(0.6f + 0.4f * pulseAlpha)
                 )
             }
 
@@ -987,10 +1019,7 @@ private fun RunningCard(
             }
 
             // Hero-Timer — nowMs drives a real-time recompose
-            // M18.61e-FIX (User: "Timer Feld ist viel zu groß, richtig
-            // überdimensioniert seit du den neuen button eingefügt hast"):
-            // 64sp war riesig. Auf 40sp reduziert — groß genug für den
-            // Hero-Charakter, aber nicht mehr überdimensioniert.
+            // M18.61e-FIX: 40sp statt 64sp (User: "Timer Feld ist viel zu groß").
             Text(
                 text = formatLiveDuration(state.activeMs(nowMs)),
                 fontSize = 40.sp,
@@ -999,6 +1028,51 @@ private fun RunningCard(
                 color = MaterialTheme.colorScheme.onSurface,
                 letterSpacing = (-1).sp
             )
+
+            // M18.93 AUF-LADE-BALKEN: Fortschritt durch die laufende Stunde
+            // (Minute 0-59 → 0-100%). Dezent (3dp), Akzent-Farbe mit
+            // Glow-Lauflicht — "etwas lädt sich auf". Nimmt keine extra
+            // Höhe weg (10dp inkl. Padding).
+            val minuteFraction = remember(nowMs) {
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
+                ((cal.get(java.util.Calendar.MINUTE) * 60 + cal.get(java.util.Calendar.SECOND)) / 3600f)
+                    .coerceIn(0f, 1f)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AevumSpacing.xl)
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(minuteFraction)
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    accentColor.copy(alpha = 0.55f),
+                                    accentColor
+                                )
+                            )
+                        )
+                )
+                // Glow-Knubbel am Fortschritts-Ende (pulsierend).
+                if (minuteFraction > 0.02f) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .offset(x = (minuteFraction * 320).dp - 5.dp)
+                            .size(10.dp)
+                            .alpha(pulseAlpha)
+                            .clip(CircleShape)
+                            .background(accentColor)
+                    )
+                }
+            }
 
             state.note?.takeIf { it.isNotBlank() }?.let {
                 Text(

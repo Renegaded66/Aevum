@@ -72,6 +72,12 @@
     <string name="timeline_editor_segment_duration">⏱ Nur Dauer</string>
     <string name="timeline_editor_open_ended_hint">Die Aufzeichnung startet ab %1$s und läuft weiter, bis du sie manuell beendest.</string>
     <string name="timeline_editor_trigger_row">Trigger Marker (Architektur vorbereitet)</string>
+    <!-- M18.93: Gruppierte Trigger-Snaps mit Relevanz-Filter -->
+    <string name="timeline_editor_trigger_row_m93">Trigger in der Nähe</string>
+    <string name="timeline_editor_snap_start_section">Am Anfang kürzen</string>
+    <string name="timeline_editor_snap_end_section">Am Ende kürzen</string>
+    <string name="timeline_editor_snap_delta_after">%1$d Min nach</string>
+    <string name="timeline_editor_snap_delta_before">%1$d Min vor</string>
     <string name="timeline_editor_snap_start">Start: %1$s %2$s</string>
     <string name="timeline_editor_snap_end">Ende: %1$s</string>
     <string name="timeline_validation_valid">Zeitfenster plausibel. Du kannst speichern.</string>

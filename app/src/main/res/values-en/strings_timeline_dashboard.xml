@@ -72,6 +72,12 @@
     <string name="timeline_editor_segment_duration">⏱ Duration only</string>
     <string name="timeline_editor_open_ended_hint">The recording starts at %1$s and keeps running until you stop it manually.</string>
     <string name="timeline_editor_trigger_row">Trigger markers (architecture prepared)</string>
+    <!-- M18.93: Grouped trigger snaps with relevance filter -->
+    <string name="timeline_editor_trigger_row_m93">Nearby triggers</string>
+    <string name="timeline_editor_snap_start_section">Trim at start</string>
+    <string name="timeline_editor_snap_end_section">Trim at end</string>
+    <string name="timeline_editor_snap_delta_after">%1$d min after</string>
+    <string name="timeline_editor_snap_delta_before">%1$d min before</string>
     <string name="timeline_editor_snap_start">Start: %1$s %2$s</string>
     <string name="timeline_editor_snap_end">End: %1$s</string>
     <string name="timeline_validation_valid">Time window looks plausible. You can save.</string>
