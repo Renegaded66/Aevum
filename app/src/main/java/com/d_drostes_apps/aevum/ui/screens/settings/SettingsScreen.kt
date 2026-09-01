@@ -217,7 +217,7 @@ private fun LanguageSettingsSection(
         LanguageOption(LanguageRepository.LANGUAGE_SYSTEM, "🌐", stringResource(R.string.language_system))
     )
     var expanded by remember { mutableStateOf(false) }
-    val selected = options.firstOrNull { it.code == currentLanguage } ?: options.last()
+    val selected = options.firstOrNull { it.code == currentLanguage } ?: options.firstOrNull { it.code == LanguageRepository.LANGUAGE_DEFAULT } ?: options.first()
 
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -331,9 +331,9 @@ class SettingsViewModel @Inject constructor(
     val geofences: StateFlow<List<PlaceGeofence>> = placeGeofenceRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Aktuell gewählte App-Sprache ("system", "de", "en"). */
+    /** Aktuell gewählte App-Sprache ("system", "de", "en"). Default: en (M18.91). */
     val language: StateFlow<String> = languageRepository.language
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LanguageRepository.LANGUAGE_SYSTEM)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LanguageRepository.LANGUAGE_DEFAULT)
 
     suspend fun setLanguage(language: String) {
         languageRepository.setLanguage(language)

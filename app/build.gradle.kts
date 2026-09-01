@@ -16,9 +16,9 @@ android {
         applicationId = "com.d_drostes_apps.aevum"
         minSdk = 29
         targetSdk = 36
-        // M18.90: Screen-Aufzeichnung Race-Fix + Selbstheilung.
-        versionCode = 3
-        versionName = "1.0.1"
+        // M18.91: Standardsprache Englisch.
+        versionCode = 4
+        versionName = "1.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

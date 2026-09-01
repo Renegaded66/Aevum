@@ -33,6 +33,15 @@ class LanguageRepository @Inject constructor(
         const val LANGUAGE_DE = "de"
         const val LANGUAGE_EN = "en"
 
+        /**
+         * M18.91: Standardsprache der App = ENGLISCH (User: "wenn man die
+         * App installiert, dann soll erstmal alles auf englisch sein").
+         * Frische Installation → kein gespeicherter Wert → Englisch.
+         * Der User kann weiterhin explizit "System" wählen (folgt dann der
+         * Gerätesprache) oder Deutsch/Englisch fest pinnen.
+         */
+        const val LANGUAGE_DEFAULT = LANGUAGE_EN
+
         /** Name des SharedPreferences-Spiegels — auch von LocalizedActivity/AevumApplication gelesen. */
         const val PREFS_NAME = "aevum_language"
 
@@ -46,10 +55,10 @@ class LanguageRepository @Inject constructor(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /** Aktuelle Sprache als Flow (für die Settings-UI). */
-    val language: Flow<String> = dataStore.data.map { it[KEY_LANGUAGE] ?: LANGUAGE_SYSTEM }
+    val language: Flow<String> = dataStore.data.map { it[KEY_LANGUAGE] ?: LANGUAGE_DEFAULT }
 
     /** Synchroner Read für App-Start / Activity-Creation. */
-    fun currentLanguageSync(): String = prefs.getString(PREFS_KEY, LANGUAGE_SYSTEM) ?: LANGUAGE_SYSTEM
+    fun currentLanguageSync(): String = prefs.getString(PREFS_KEY, LANGUAGE_DEFAULT) ?: LANGUAGE_DEFAULT
 
     suspend fun setLanguage(language: String) {
         dataStore.edit { it[KEY_LANGUAGE] = language }

@@ -27,8 +27,8 @@ abstract class LocalizedActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val language = getSharedPreferences(LanguageRepository.PREFS_NAME, MODE_PRIVATE)
-            .getString(LanguageRepository.PREFS_KEY, LanguageRepository.LANGUAGE_SYSTEM)
-            ?: LanguageRepository.LANGUAGE_SYSTEM
+            .getString(LanguageRepository.PREFS_KEY, LanguageRepository.LANGUAGE_DEFAULT)
+            ?: LanguageRepository.LANGUAGE_DEFAULT
         LocaleHelper.applyLocale(this, language)
         super.onCreate(savedInstanceState)
     }
@@ -45,8 +45,8 @@ abstract class LocalizedActivity : ComponentActivity() {
      */
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         val language = getSharedPreferences(LanguageRepository.PREFS_NAME, MODE_PRIVATE)
-            .getString(LanguageRepository.PREFS_KEY, LanguageRepository.LANGUAGE_SYSTEM)
-            ?: LanguageRepository.LANGUAGE_SYSTEM
+            .getString(LanguageRepository.PREFS_KEY, LanguageRepository.LANGUAGE_DEFAULT)
+            ?: LanguageRepository.LANGUAGE_DEFAULT
         if (language != LanguageRepository.LANGUAGE_SYSTEM) {
             LocaleHelper.applyLocale(this, language)
         }
