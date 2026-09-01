@@ -1,8 +1,9 @@
 package com.d_drostes_apps.aevum.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,39 +24,37 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 /**
- * M18.93v5 FLIP-CLOCK: Split-Flap-Ziffer wie bei einer analogen Flip-Clock
- * (Bahn-Abfahrtsanzeige / klassischer Wecker).
+ * M18.93v6 FLIP-CLOCK: Split-Flap-Ziffer wie bei einer analogen Flip-Clock.
  *
- * Aufbau (die Karte ist ZWEI Hälften mit Falzlinie in der Mitte):
+ * Geometrie: Die Karte ist zwei flush Hälften mit Falzlinie. Das Zeichen
+ * wird GANZ zentriert über die volle Kartenhöhe gedacht und in ECHTE
+ * Hälften geclippt:
+ *   - obere Box zeigt Glyphen-Zeilen [glyphTop .. glyphTop + halfH)
+ *   - untere Box zeigt Glyphen-Zeilen [glyphTop + halfH .. glyphTop + H)
+ * (v5-Fehler behoben: dort war der Y-Offset falsch — beide Boxen zeigten
+ * die Glyphen-Mitte, was wie zwei übereinanderliegende Textfelder aussah.)
  *
- *   obere Hälfte: zeigt OBERE Hälfte des aktuellen Zeichens (statisch)
- *   untere Hälfte: zeigt UNTERE Hälfte des aktuellen Zeichens
+ * Ablauf beim Zeichenwechsel (Animatable, 2×115ms):
+ *   Phase 1: untere Klappe rotiert um die Falz 0°→-90° (zeigt altes Zeichen)
+ *   Halbzzeit: current = neu
+ *   Phase 2: untere Klappe +90°→0° (zeigt neues Zeichen)
  *
- * Beim Zeichenwechsel (2 Phasen, je 110ms):
- *   Phase 1: die UNTERE Klappe klappt nach oben (rotationX 0→-90°) — sie
- *            zeigt dabei die untere Hälfte des ALTEN Zeichens.
- *   Halbzzeit: current = neu.
- *   Phase 2: die untere Hälfte zeigt das NEUE Zeichen und klappt von +90°
- *            zurück auf 0° (aus der Falz heraus).
- *
- * Das Zeichen wird per TextMeasurer in ECHTE Hälften gerendert (Canvas
- * drawText mit Clip) — keine Text-Translations-Tricks, keine Glyph-
- * Metrik-Rätsel. Kamera-Perspektive via graphicsLayer(cameraDistance).
- *
- * Hinterfragung der Alternative: AnimatedContent-Slide wäre 10 Zeilen —
- * aber das ist ein SLIDE, kein physisches Umklappen. Der User will
- * explizit die analoge Klapp-Optik; graphicsLayer-rotationX um die
- * Falzlinie ist die einzig richtige Geometrie.
+ * v5-Bug "klappt nur einmal": Der alte Fortschritts-Poller war keine
+ * Schleife und setzte flipping nie zurück. Jetzt fährt ein einzelner
+ * Animatable-Treiber die zwei Phasen deterministisch; eintreffende
+ * Sekunden-Wechsels werden nach dem laufenden Flip abgearbeitet
+ * (Warteschleife, kein verlorener Tick).
  */
 @Composable
 fun FlipDigit(
@@ -67,92 +67,86 @@ fun FlipDigit(
     var current by remember { mutableStateOf(digit) }
     var flipping by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Char?>(null) }
+    val phase = remember { Animatable(0f) }
 
-    // 0f → 1f über beide Phasen (220ms gesamt).
-    val progress by animateFloatAsState(
-        targetValue = if (flipping) 1f else 0f,
-        animationSpec = tween(durationMillis = 220),
-        label = "flipProgress"
-    )
-
+    // Eingang: wartet, bis ein laufender Flip fertig ist, dann startet er.
     LaunchedEffect(digit) {
-        if (digit != current && !flipping) {
-            pending = digit
-            flipping = true
-        }
+        if (digit == current) return@LaunchedEffect
+        while (flipping) delay(16)
+        pending = digit
+        flipping = true
     }
+    // Flip-Treiber: Phase 1 hoch → swap → Phase 2 runter → fertig.
     LaunchedEffect(flipping) {
         if (!flipping) return@LaunchedEffect
-        // Halbzzeit-Swap: wenn die Klappe die Falzlinie passiert (90°),
-        // wird das verdeckte Zeichen sichtbar geschaltet.
-        if (progress >= 0.5f && current != pending) {
-            current = pending ?: current
-        }
-        if (progress >= 1f) {
-            current = pending ?: current
-            pending = null
-            flipping = false
-        }
+        phase.snapTo(0f)
+        phase.animateTo(1f, tween(115))
+        current = pending ?: current
+        phase.snapTo(0f)
+        phase.animateTo(1f, tween(115))
+        current = pending ?: current
+        pending = null
+        flipping = false
+        phase.snapTo(0f)
     }
 
     val textStyle = TextStyle(
         fontFamily = FontFamily.Monospace,
         fontWeight = FontWeight.Bold,
-        fontSize = height.value.sp * 0.82f
+        fontSize = height.value.sp * 0.72f
     )
     val textMeasurer = rememberTextMeasurer()
     val cardColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
     val textColor = MaterialTheme.colorScheme.onSurface
     val halfH = height / 2
 
-    // Phase bestimmen: 0..0.5 = untere Klappe hoch (alt), 0.5..1 = untere
-    // Klappe runter (neu). rotationX der klappenden Hälfte.
+    // rotationX der unteren Klappe: Phase 1 (phase 0→1) = 0→-90 (hoch, alt
+    // sichtbar), Phase 2 (phase wieder 0→1) = +90→0 (runter, neu sichtbar).
+    // Der Treiber setzt vor Phase 2 snapTo(0) — die Klappe "erscheint" bei
+    // +90° (Rückseite) und fällt auf 0°. Zeichenwechsel unten: erst nach
+    // Phase 1 (Klappe ist an der Falz, ~unsichtbar), also lowerChar einfach
+    // = current NACH dem Swap; während Phase 1 zeigt die Klappe das alte
+    // Zeichen (current ist noch alt), während Phase 2 das neue.
     val lowerAngle = when {
         !flipping -> 0f
-        progress < 0.5f -> -(progress / 0.5f) * 90f   // 0 → -90 (klappt hoch)
-        else -> (1f - (progress - 0.5f) / 0.5f) * 90f // +90 → 0 (klappt runter)
+        else -> -phase.value * 90f
     }
-    val showNewOnLower = flipping && progress >= 0.5f
-    val lowerChar = if (showNewOnLower) (pending ?: current) else current
+    val lowerChar = current
 
     Column(modifier = modifier) {
-        // ── Obere Hälfte (statisch — zeigt die obere Hälfte von current) ──
+        // ── Obere Hälfte: OBERE Hälfte des aktuellen Zeichens ──
         Box(
             modifier = Modifier
                 .width(width)
                 .height(halfH)
                 .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
                 .background(
-                    Brush.verticalGradient(
-                        listOf(cardColor, cardColor.copy(alpha = 0.5f))
-                    )
+                    Brush.verticalGradient(listOf(cardColor, cardColor.copy(alpha = 0.5f)))
                 ),
             contentAlignment = Alignment.TopCenter
         ) {
-            androidx.compose.foundation.Canvas(
-                modifier = Modifier.width(width).height(halfH)
-            ) {
+            Canvas(modifier = Modifier.width(width).height(halfH)) {
                 val layout = textMeasurer.measure(current.toString(), textStyle)
-                // Zeichen vertikal so platzieren, dass die OBERE Hälfte der
-                // Glyphe in dieser Box sichtbar ist (Baseline unter der Mitte).
+                // Glyph zentriert über die VOLLKARTE platzieren; diese Box
+                // clippt automatisch auf die obere Hälfte.
+                val glyphTop = (size.height * 2f - layout.size.height) / 2f
                 drawText(
                     textLayoutResult = layout,
                     color = textColor,
                     topLeft = androidx.compose.ui.geometry.Offset(
                         (size.width - layout.size.width) / 2f,
-                        -layout.size.height / 2f + size.height * 0.5f
+                        glyphTop
                     )
                 )
             }
         }
-        // ── Untere Hälfte (klappt) ──
+        // ── Untere Hälfte (die Klappe) ──
         Box(
             modifier = Modifier
                 .width(width)
                 .height(halfH)
                 .graphicsLayer {
-                    cameraDistance = 12f * density
-                    // Falzlinie als Transform-Origin (oben Mitte der Box).
+                    cameraDistance = 14f * density
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
                     rotationX = lowerAngle
                 }
@@ -164,22 +158,22 @@ fun FlipDigit(
                 ),
             contentAlignment = Alignment.BottomCenter
         ) {
-            androidx.compose.foundation.Canvas(
-                modifier = Modifier.width(width).height(halfH)
-            ) {
+            Canvas(modifier = Modifier.width(width).height(halfH)) {
                 val layout = textMeasurer.measure(lowerChar.toString(), textStyle)
+                // Gleiche Glyph-Position wie oben, aber um halfH nach oben
+                // verschoben — sichtbar ist die UNTERE Glyph-Hälfte.
+                val glyphTop = (size.height * 2f - layout.size.height) / 2f - size.height
                 drawText(
                     textLayoutResult = layout,
                     color = textColor,
-                    // Untere Hälfte der Glyphe: Text um die halbe Höhe nach oben.
                     topLeft = androidx.compose.ui.geometry.Offset(
                         (size.width - layout.size.width) / 2f,
-                        -layout.size.height / 2f
+                        glyphTop
                     )
                 )
             }
         }
-        // ── Falzlinie (dezente Trennung — der Flip-Clock-Charakter) ──
+        // Falzlinie (Flip-Clock-Charakter).
         Box(
             modifier = Modifier
                 .width(width)
@@ -188,6 +182,7 @@ fun FlipDigit(
         )
     }
 }
+
 /**
  * Flip-Time-Text: "HH:MM:SS" als Flip-Clock-Zeile. Sekunden ändern sich
  * jede Sekunde — nur die geänderte Ziffer klappt (nicht der ganze Text).
@@ -201,8 +196,7 @@ fun FlipTimeText(
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         timeText.forEachIndexed { index, ch ->
             if (ch == ':') {
-                // Doppelpunkt statisch (dezent, blinkt nicht — ruhige Optik).
-                androidx.compose.material3.Text(
+                Text(
                     ":",
                     fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
