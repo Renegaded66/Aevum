@@ -18,16 +18,23 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 /**
- * M18.93v4 BUBBLE-STREAM: Endloser Strom von "Energie-Blubberblasen", die
+ * M18.93v5 BUBBLE-STREAM: Endloser Strom von "Energie-Blubberblasen", die
  * von links nach rechts fliegen (von der Aktivität in den Zeit-Tank).
  * Jede Blase hat deterministische Parameter (Spur, Phase, Größe, Tempo) —
  * der Strom wirkt organisch, ist aber komplett reproduzierbar (kein RNG
- * in der Composition). Kein Fortschritt, kein Ende: RepeatMode.Restart
- * + Phasen-Offsets = nie leeres Bild, nie Sprünge.
+ * in der Composition).
+ *
+ * M18.93v5-FIX (User: "geht gerade mal 2 Sekunden, man sieht den Cut"):
+ *  - Basis-Periode 6000ms; GANZZAHLIGE Geschwindigkeits-Multiplikatoren
+ *    (1x/2x): progress(t=1⁻) == progress(t=0⁺) pro Blase exakt — der
+ *    globale Wrap ist damit unsichtbar (vorher sprangen Bruchteil-
+ *    Geschwindigkeiten an beliebigen Positionen = sichtbarer Cut).
+ *  - Alpha sin-fade an beiden Enden → Blasen tauchen weich auf/ab.
+ *  - 10 Blasen (vorher 6), etwas größer, sanftere Sinus-Wellenbahn.
  *
  * Bewusst OHNE externe Library (Recherche 2026-09: Floating-Bubble-View =
  * System-Overlays, Quarks = Explosionen — beide falsches Werkzeug für
- * einen In-Layout-Strom; eigenes Canvas ist 40 Zeilen, 0 Abhängigkeiten,
+ * einen In-Layout-Strom; eigenes Canvas ist klein, 0 Abhängigkeiten,
  * und rendert ohne Recomposition, nur Canvas-Redraw).
  *
  * [animate]=false (Pause): Blasen "stehen" gedimmt — friert mit dem Timer.
@@ -36,9 +43,9 @@ import kotlin.math.sin
 fun BubbleStream(
     color: Color,
     modifier: Modifier = Modifier,
-    bubbleCount: Int = 6,
+    bubbleCount: Int = 10,
     animate: Boolean = true,
-    periodMs: Int = 2400
+    periodMs: Int = 6000
 ) {
     val transition = rememberInfiniteTransition(label = "bubbleStream")
     val t by transition.animateFloat(
@@ -75,10 +82,12 @@ fun BubbleStream(
 
         repeat(bubbleCount) { i ->
             // Deterministische Parameter pro Blase (golden-ratio-Streuung).
-            val speed = 0.85f + ((i * 2654435761L) and 0xFFFFL) / 65535f * 0.5f
+            // ⚠️ speed MUSS ganzzahlig bleiben (1f/2f) — sonst ist der Wrap
+            // bei t=1→0 als Positions-Sprung sichtbar (der v4-"Cut").
+            val speed = 1f + ((i * 5) % 2) // 1f oder 2f
             val lane = 0.22f + ((i * 40503L) and 0xFFL) / 255f * 0.56f
             val phase = ((i * 97L) and 0xFFL) / 255f
-            val radiusPx = 2.2.dp.toPx() + ((i * 31L) and 0x7L) * 0.9f
+            val radiusPx = 2.6.dp.toPx() + ((i * 31L) and 0x7L) * 0.9f
 
             val progress = if (animate) (t * speed + phase) % 1f else phase * 0.55f + 0.2f
             val x = w * progress

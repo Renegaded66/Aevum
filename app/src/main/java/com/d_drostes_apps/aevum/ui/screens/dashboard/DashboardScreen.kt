@@ -70,6 +70,7 @@ import com.d_drostes_apps.aevum.data.model.AppUsageSample
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.BubbleStream
+import com.d_drostes_apps.aevum.ui.components.FlipTimeText
 import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
 import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -1224,14 +1225,8 @@ private fun LiveActivityBanner(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Text(
-                        timerText,
-                        fontSize = 26.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Light,
-                        color = accent,
-                        letterSpacing = (-0.5).sp
-                    )
+                    // M18.93v5 FLIP-CLOCK: Ziffern klappen analog um.
+                    FlipTimeText(timeText = timerText, accent = accent)
                 }
                 // Zeile 2: Aktionen — volle Breite, nichts wird gequetscht.
                 Row(
