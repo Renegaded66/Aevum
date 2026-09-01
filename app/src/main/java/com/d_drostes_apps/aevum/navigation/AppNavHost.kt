@@ -208,7 +208,19 @@ fun AppNavHost(
             GeofenceListScreen(
                 onBack = { navController.popBackStack() },
                 onCreate = { navController.navigate(AppDestination.GeofenceCreate.route) },
-                onEdit = { id -> navController.navigate("geofence/edit/$id") }
+                onEdit = { id -> navController.navigate("geofence/edit/$id") },
+                // M18.92: 🗺️ → Geofence-Übersichtskarte
+                onOpenMap = { navController.navigate(AppDestination.GeofenceMap.route) }
+            )
+        }
+        // M18.92: Geofence-Übersichtskarte — alle Zonen als farbige Pins +
+        // Radius-Kreise, 🧍 am eigenen Standort, Tap → Callout → Editor.
+        composable(AppDestination.GeofenceMap.route) {
+            com.d_drostes_apps.aevum.ui.screens.automation.GeofenceMapScreen(
+                onBack = { navController.popBackStack() },
+                onEditGeofence = { id ->
+                    navController.navigate("geofence/edit/$id")
+                }
             )
         }
         composable(AppDestination.GeofenceCreate.route) {

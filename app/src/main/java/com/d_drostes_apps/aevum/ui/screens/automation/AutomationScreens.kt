@@ -733,13 +733,33 @@ fun GeofenceDebugScreen(
 // ══════════════════════════════════════════════════════
 
 @Composable
-fun Header(title: String, subtitle: String, onBack: () -> Unit, actionLabel: String?, onAction: () -> Unit) {
+fun Header(title: String, subtitle: String, onBack: () -> Unit, actionLabel: String?, onAction: () -> Unit,
+           // M18.92: Optionale sekundäre Aktion (z. B. 🗺️ Karten-Icon auf der
+           // Geofence-Liste). Default-Params = alle bestehenden Aufrufer
+           // kompilieren unverändert weiter.
+           secondaryActionEmoji: String? = null, onSecondaryAction: () -> Unit = {}) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
             Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (actionLabel != null) Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) { Text(actionLabel) }
+            if (actionLabel != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                    if (secondaryActionEmoji != null) {
+                        androidx.compose.material3.Surface(
+                            onClick = onSecondaryAction,
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                Text(secondaryActionEmoji, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                    Button(onClick = onAction, modifier = Modifier.weight(1f)) { Text(actionLabel) }
+                }
+            }
         }
     }
 }
@@ -750,6 +770,8 @@ fun GeofenceListScreen(
     onBack: () -> Unit,
     onCreate: () -> Unit,
     onEdit: (String) -> Unit,
+    // M18.92: 🗺️-Icon öffnet die neue Geofence-Übersichtskarte.
+    onOpenMap: () -> Unit = {},
     viewModel: GeofenceListViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -757,7 +779,18 @@ fun GeofenceListScreen(
     var pendingDelete by remember { mutableStateOf<PlaceGeofence?>(null) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header(stringResource(R.string.automation_geofences_title), stringResource(R.string.automation_geofences_subtitle), onBack, stringResource(R.string.automation_new), onCreate) }
+            item {
+                Header(
+                    stringResource(R.string.automation_geofences_title),
+                    stringResource(R.string.automation_geofences_subtitle),
+                    onBack,
+                    stringResource(R.string.automation_new),
+                    onCreate,
+                    // M18.92: Karten-Icon (🗺️) → Übersichtskarte aller Geofences
+                    secondaryActionEmoji = "🗺️",
+                    onSecondaryAction = onOpenMap
+                )
+            }
             // M18.66-FIX20: Suchleiste mit Live-Suche
             item {
                 OutlinedTextField(
