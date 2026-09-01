@@ -3803,8 +3803,10 @@ private fun TriggerSnapRow(
     }
 }
 
-/** Eine Gruppe (Anfang/Ende) relevanter Trigger-Chips; der beste Treffer
- *  (kleinste Differenz) bekommt einen Akzent-Rand. */
+/** Eine Gruppe (Anfang/Ende) relevanter Snap-Chips — Trigger UND andere
+ *  Aufzeichnungen. Modern-fancy: Icon-Kreis (ActivityType-Emoji bei
+ *  Sessions, ⚡ bei Triggern) + Uhrzeit + Delta + Label, bester Treffer
+ *  mit Akzent-Rand. Ein Klick wendet an. */
 @Composable
 private fun TriggerSnapGroup(
     title: String,
@@ -3821,6 +3823,7 @@ private fun TriggerSnapGroup(
             candidates.forEachIndexed { index, (marker, deltaMs) ->
                 val deltaMin = kotlin.math.round(deltaMs / 60_000.0).toInt()
                 val isBest = index == 0
+                val isSession = marker.source == "SESSION"
                 androidx.compose.material3.Surface(
                     onClick = { onClick(marker) },
                     shape = RoundedCornerShape(AevumRadius.md),
@@ -3828,28 +3831,53 @@ private fun TriggerSnapGroup(
                     border = if (isBest) androidx.compose.foundation.BorderStroke(1.5.dp, accent)
                     else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = AevumSpacing.sm, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    Row(
+                        modifier = Modifier.padding(start = 8.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                     ) {
-                        Text(
-                            TimeFormatting.formatTime(marker.occurredAt) + "  ·  " +
-                                stringResource(
-                                    if (deltaMs >= 0) R.string.timeline_editor_snap_delta_after
-                                    else R.string.timeline_editor_snap_delta_before,
-                                    kotlin.math.abs(deltaMin)
-                                ),
-                            fontSize = 12.sp,
-                            fontWeight = if (isBest) FontWeight.SemiBold else FontWeight.Medium,
-                            color = if (isBest) accent else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            marker.label,
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
+                        // Icon-Kreis: Session-Emoji (mit farbigem Halo) oder ⚡ für Trigger.
+                        if (isSession && marker.icon.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(accent.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(marker.icon, fontSize = 14.sp)
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("⚡", fontSize = 13.sp)
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                            Text(
+                                TimeFormatting.formatTime(marker.occurredAt) + "  ·  " +
+                                    stringResource(
+                                        if (deltaMs >= 0) R.string.timeline_editor_snap_delta_after
+                                        else R.string.timeline_editor_snap_delta_before,
+                                        kotlin.math.abs(deltaMin)
+                                    ),
+                                fontSize = 12.sp,
+                                fontWeight = if (isBest) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (isBest) accent else MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                marker.label,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

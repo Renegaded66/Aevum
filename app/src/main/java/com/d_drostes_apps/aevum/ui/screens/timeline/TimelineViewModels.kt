@@ -839,14 +839,23 @@ class ActivityEditorViewModel @Inject constructor(
         EditorBase(formValue, categories, types)
     }
 
+    // M18.93: Sessions des Tages als Snap-Anker ("andere Aufzeichnungen" —
+    // User-Beispiel: Schlaf bis 08:10, digitale Aktivität 08:05-08:15 →
+    // der Schlaf-Editor zeigt den 08:05-Anker zum Kürzen). Sessions sind
+    // besser als Trigger, weil sie die REAL überlappende Aufzeichnung
+    // abbilden; die UI zeigt sie mit dem ActivityType-Emoji.
+    private val sessionsFlow = activityRepository.getAll()
+
     val uiState: StateFlow<ActivityEditorUiState> = combine(
         editorBase,
         triggerEventRepository.getAll(),
+        sessionsFlow,
         savedId
-    ) { base: EditorBase, triggers: List<TriggerEvent>, saved: String? ->
+    ) { base: EditorBase, triggers: List<TriggerEvent>, sessions: List<com.d_drostes_apps.aevum.data.model.ActivitySession>, saved: String? ->
         val formValue = base.form
         val dayStart = TimeFormatting.startOfDayMillis(formValue.date, zoneId)
         val dayEnd = TimeFormatting.endOfDayMillis(formValue.date, zoneId)
+        val typeById = base.types.associateBy { it.id }
         ActivityEditorUiState(
             isEditing = sessionId != null,
             form = formValue,
@@ -854,18 +863,50 @@ class ActivityEditorViewModel @Inject constructor(
             activityTypes = base.types,
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId, context = application),
-            triggerMarkers = triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
-                val gfName = extractGeofenceName(it.metadataJson)
-                val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
-                TriggerEventMarker(
-                    id = it.id,
-                    label = gfName?.let { n ->
-                        if (isEnter) application.getString(R.string.timeline_trigger_entered, n)
-                        else application.getString(R.string.timeline_trigger_left, n)
-                    } ?: it.type.replace('_', ' '),
-                    occurredAt = it.occurredAt,
-                    kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
-                    source = it.source
+            triggerMarkers = buildList {
+                // M18.93: Trigger als Snap-Anker (wie bisher, Icon leer).
+                addAll(triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
+                    val gfName = extractGeofenceName(it.metadataJson)
+                    val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
+                    TriggerEventMarker(
+                        id = "trigger:" + it.id,
+                        label = gfName?.let { n ->
+                            if (isEnter) application.getString(R.string.timeline_trigger_entered, n)
+                            else application.getString(R.string.timeline_trigger_left, n)
+                        } ?: it.type.replace('_', ' '),
+                        occurredAt = it.occurredAt,
+                        kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
+                        source = it.source
+                    )
+                })
+                // M18.93: ANDERE Aufzeichnungen des Tages als Snap-Anker —
+                // überlappende/kurze Lücken sind die relevanten Kürzungskandidaten.
+                // Eigenes Editieren (die Session selbst) ausgeschlossen; die
+                // UI blendet Selbst-Referenzen zusätzlich aus (Defensive).
+                addAll(
+                    sessions
+                        .filter { it.id != sessionId }
+                        .filter { it.deletedAt == null }
+                        .mapNotNull { s ->
+                            // Bevorzugt die überlappende Kante: Ende der anderen
+                            // Session in unserem Fenster, sonst ihr Start.
+                            val anchor = if (s.endAt != null && s.endAt in formValue.startAt..(formValue.endAt ?: Long.MAX_VALUE)) {
+                                s.endAt
+                            } else if (s.startAt in dayStart..dayEnd) {
+                                s.startAt
+                            } else {
+                                null
+                            } ?: return@mapNotNull null
+                            val type = s.activityTypeId?.let { typeById[it] }
+                            TriggerEventMarker(
+                                id = "session:" + s.id,
+                                label = type?.name ?: s.title,
+                                occurredAt = anchor,
+                                kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
+                                source = "SESSION",
+                                icon = type?.icon.orEmpty()
+                            )
+                        }
                 )
             },
             savedSessionId = saved

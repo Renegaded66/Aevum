@@ -949,127 +949,74 @@ private fun RunningCard(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // M18.93 FANCY-HEADER: Activity-Icon mit Glow-Ring + pulsierendem
-            // Status-Eyebrow + animiertem Ladefortschritt (Fortschritt =
-            // Anteil der laufenden Stunde, die schon aufgezeichnet ist —
-            // "etwas lädt auf", volle Stunde = 100%).
+            // M18.93v2 AUF-LADE-HERO: Komplettes "Energie laden"-Erlebnis —
+            // ein Ladefortschritts-RING um das Activity-Icon (füllt sich im
+            // Takt der laufenden Stunde, Orbit-Glow-Komet wandert mit),
+            // daneben Titel + Live-Timer. Textfeld + Zeitangabe bleiben
+            // (User-Wunsch), die Optik ist jetzt ein echtes Auflade-Visual.
             val activityIcon = remember(state.title, state.categoryId) {
                 activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-            ) {
-                // Icon mit pulsierendem Glow-Ring (nur wenn Icon existiert).
-                if (activityIcon.isNotBlank()) {
-                    Box(contentAlignment = Alignment.Center) {
-                        // Glow-Ring (pulsierend, größer).
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .scale(1f + 0.12f * pulseAlpha)
-                                .clip(CircleShape)
-                                .background(accentColor.copy(alpha = 0.25f * pulseAlpha))
-                        )
-                        // Icon-Kern.
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(accentColor.copy(alpha = 0.18f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(activityIcon, fontSize = 16.sp)
-                        }
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .alpha(pulseAlpha)
-                            .clip(CircleShape)
-                            .background(accentColor)
-                    )
-                }
-                Text(
-                    if (state.isAuto) stringResource(R.string.dashboard_running_auto)
-                    else stringResource(R.string.common_active),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = accentColor,
-                    letterSpacing = 0.4.sp,
-                    modifier = Modifier.alpha(0.6f + 0.4f * pulseAlpha)
-                )
-            }
-
-            Text(
-                state.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // M12.1: Show origin for auto-started sessions
-            if (state.isAuto && state.sourceLabel != null) {
-                Text(
-                    stringResource(R.string.dashboard_started_by, state.sourceLabel),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-
-            // Hero-Timer — nowMs drives a real-time recompose
-            // M18.61e-FIX: 40sp statt 64sp (User: "Timer Feld ist viel zu groß").
-            Text(
-                text = formatLiveDuration(state.activeMs(nowMs)),
-                fontSize = 40.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Light,
-                color = MaterialTheme.colorScheme.onSurface,
-                letterSpacing = (-1).sp
-            )
-
-            // M18.93 AUF-LADE-BALKEN: Fortschritt durch die laufende Stunde
-            // (Minute 0-59 → 0-100%). Dezent (3dp), Akzent-Farbe mit
-            // Glow-Lauflicht — "etwas lädt sich auf". Nimmt keine extra
-            // Höhe weg (10dp inkl. Padding).
             val minuteFraction = remember(nowMs) {
                 val cal = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
                 ((cal.get(java.util.Calendar.MINUTE) * 60 + cal.get(java.util.Calendar.SECOND)) / 3600f)
                     .coerceIn(0f, 1f)
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = AevumSpacing.xl)
-                    .height(6.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.lg),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(minuteFraction)
-                        .height(6.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    accentColor.copy(alpha = 0.55f),
-                                    accentColor
-                                )
-                            )
-                        )
+                ChargingRing(
+                    fraction = minuteFraction,
+                    accent = accentColor,
+                    pulseAlpha = pulseAlpha,
+                    emoji = activityIcon.ifBlank { "\u23F1" }
                 )
-                // Glow-Knubbel am Fortschritts-Ende (pulsierend).
-                if (minuteFraction > 0.02f) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .offset(x = (minuteFraction * 320).dp - 5.dp)
-                            .size(10.dp)
-                            .alpha(pulseAlpha)
-                            .clip(CircleShape)
-                            .background(accentColor)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .alpha(0.5f + 0.5f * pulseAlpha)
+                                .clip(CircleShape)
+                                .background(accentColor)
+                        )
+                        Text(
+                            if (state.isAuto) stringResource(R.string.dashboard_running_auto)
+                            else stringResource(R.string.common_active),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = accentColor,
+                            letterSpacing = 0.4.sp
+                        )
+                    }
+                    Text(
+                        state.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    // M12.1: Show origin for auto-started sessions
+                    if (state.isAuto && state.sourceLabel != null) {
+                        Text(
+                            stringResource(R.string.dashboard_started_by, state.sourceLabel),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    Text(
+                        text = formatLiveDuration(state.activeMs(nowMs)),
+                        fontSize = 34.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Light,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = (-1).sp
                     )
                 }
             }
@@ -1464,6 +1411,94 @@ fun SwitchActivityPickerSheet(
                 }
             }
             Spacer(Modifier.height(AevumSpacing.lg))
+        }
+    }
+}
+
+// ============================================================
+// M18.93v2: ChargingRing — "Energie laden"-Visual für das
+// Live-Banner. Fortschritts-Ring füllt sich im Takt der laufenden
+// Stunde; ein Glow-Komet wandert an der Ring-Spitze mit; das
+// Activity-Emoji pulsiert im Kern. Reines Canvas (kein XML).
+// ============================================================
+
+@Composable
+private fun ChargingRing(
+    fraction: Float,
+    accent: androidx.compose.ui.graphics.Color,
+    pulseAlpha: Float,
+    emoji: String
+) {
+    val size = 76.dp
+    Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.size(size)) {
+            val stroke = 5.dp.toPx()
+            val strokeGlow = 10.dp.toPx()
+            val diameter = size.toPx() - strokeGlow
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                (size.toPx() - diameter) / 2f, (size.toPx() - diameter) / 2f
+            )
+            val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+
+            // 1) Weicher Glow-Kreis hinter allem (pulsierend).
+            drawCircle(
+                color = accent.copy(alpha = 0.10f + 0.08f * pulseAlpha),
+                radius = diameter / 2f + 6.dp.toPx(),
+                center = center
+            )
+            // 2) Track-Ring (leise).
+            drawArc(
+                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+            // 3) Fortschritts-Bogen (Gradient gefüllt bis fraction).
+            drawArc(
+                brush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                    0f to accent.copy(alpha = 0.45f),
+                    1f to accent
+                ),
+                startAngle = -90f,
+                sweepAngle = 360f * fraction,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+            // 4) Glow-Komet an der Ring-Spitze (Orbit).
+            val angle = Math.toRadians((360f * fraction - 90f).toDouble())
+            val orbitR = diameter / 2f
+            val cometX = center.x + orbitR * kotlin.math.cos(angle).toFloat()
+            val cometY = center.y + orbitR * kotlin.math.sin(angle).toFloat()
+            drawCircle(
+                color = accent.copy(alpha = 0.30f * pulseAlpha),
+                radius = strokeGlow,
+                center = androidx.compose.ui.geometry.Offset(cometX, cometY)
+            )
+            drawCircle(
+                color = accent,
+                radius = stroke * 0.9f,
+                center = androidx.compose.ui.geometry.Offset(cometX, cometY)
+            )
+        }
+        // Icon-Kern (pulsierend).
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .scale(0.94f + 0.06f * pulseAlpha)
+                .clip(CircleShape)
+                .background(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        listOf(accent.copy(alpha = 0.30f), accent.copy(alpha = 0.10f))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(emoji, fontSize = 22.sp)
         }
     }
 }
