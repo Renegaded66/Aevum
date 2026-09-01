@@ -78,6 +78,8 @@
     <string name="timeline_editor_snap_end_section">Am Ende kürzen</string>
     <string name="timeline_editor_snap_delta_after">%1$d Min nach</string>
     <string name="timeline_editor_snap_delta_before">%1$d Min vor</string>
+    <!-- M18.93v4: Undo-Snackbar nach Snap-Klick -->
+    <string name="timeline_editor_snap_applied">Zeit angepasst</string>
     <string name="timeline_editor_snap_start">Start: %1$s %2$s</string>
     <string name="timeline_editor_snap_end">Ende: %1$s</string>
     <string name="timeline_validation_valid">Zeitfenster plausibel. Du kannst speichern.</string>

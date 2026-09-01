@@ -81,6 +81,7 @@ import com.d_drostes_apps.aevum.domain.liveactivity.RecentActivityType
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.AevumTimePicker
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.components.ChargingRing
 import com.d_drostes_apps.aevum.ui.components.categoryColor
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
@@ -1411,94 +1412,6 @@ fun SwitchActivityPickerSheet(
                 }
             }
             Spacer(Modifier.height(AevumSpacing.lg))
-        }
-    }
-}
-
-// ============================================================
-// M18.93v2: ChargingRing — "Energie laden"-Visual für das
-// Live-Banner. Fortschritts-Ring füllt sich im Takt der laufenden
-// Stunde; ein Glow-Komet wandert an der Ring-Spitze mit; das
-// Activity-Emoji pulsiert im Kern. Reines Canvas (kein XML).
-// ============================================================
-
-@Composable
-private fun ChargingRing(
-    fraction: Float,
-    accent: androidx.compose.ui.graphics.Color,
-    pulseAlpha: Float,
-    emoji: String
-) {
-    val size = 76.dp
-    Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.Canvas(modifier = Modifier.size(size)) {
-            val stroke = 5.dp.toPx()
-            val strokeGlow = 10.dp.toPx()
-            val diameter = size.toPx() - strokeGlow
-            val topLeft = androidx.compose.ui.geometry.Offset(
-                (size.toPx() - diameter) / 2f, (size.toPx() - diameter) / 2f
-            )
-            val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
-
-            // 1) Weicher Glow-Kreis hinter allem (pulsierend).
-            drawCircle(
-                color = accent.copy(alpha = 0.10f + 0.08f * pulseAlpha),
-                radius = diameter / 2f + 6.dp.toPx(),
-                center = center
-            )
-            // 2) Track-Ring (leise).
-            drawArc(
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f),
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-            )
-            // 3) Fortschritts-Bogen (Gradient gefüllt bis fraction).
-            drawArc(
-                brush = androidx.compose.ui.graphics.Brush.sweepGradient(
-                    0f to accent.copy(alpha = 0.45f),
-                    1f to accent
-                ),
-                startAngle = -90f,
-                sweepAngle = 360f * fraction,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-            )
-            // 4) Glow-Komet an der Ring-Spitze (Orbit).
-            val angle = Math.toRadians((360f * fraction - 90f).toDouble())
-            val orbitR = diameter / 2f
-            val cometX = center.x + orbitR * kotlin.math.cos(angle).toFloat()
-            val cometY = center.y + orbitR * kotlin.math.sin(angle).toFloat()
-            drawCircle(
-                color = accent.copy(alpha = 0.30f * pulseAlpha),
-                radius = strokeGlow,
-                center = androidx.compose.ui.geometry.Offset(cometX, cometY)
-            )
-            drawCircle(
-                color = accent,
-                radius = stroke * 0.9f,
-                center = androidx.compose.ui.geometry.Offset(cometX, cometY)
-            )
-        }
-        // Icon-Kern (pulsierend).
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .scale(0.94f + 0.06f * pulseAlpha)
-                .clip(CircleShape)
-                .background(
-                    androidx.compose.ui.graphics.Brush.radialGradient(
-                        listOf(accent.copy(alpha = 0.30f), accent.copy(alpha = 0.10f))
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(emoji, fontSize = 22.sp)
         }
     }
 }

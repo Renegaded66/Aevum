@@ -1000,10 +1000,20 @@ fun ActivityEditorScreen(
     viewModel: ActivityEditorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.93v4 UNDO: Nach jedem Snap-Chip-Klick erscheint unten eine
+    // Snackbar mit "Rückgängig machen" — ein Klick stellt die
+    // Ursprungszeiten wieder her (Snapshot im ViewModel).
+    var showUndoToast by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val undoLabel = stringResource(R.string.common_undo)
+    val snapAppliedLabel = stringResource(R.string.timeline_editor_snap_applied)
     LaunchedEffect(state.savedSessionId) { state.savedSessionId?.let(onSaved) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        androidx.compose.material3.Scaffold(
+            snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
+        ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(innerPadding),
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
@@ -1019,8 +1029,14 @@ fun ActivityEditorScreen(
                     onStartQuarter = viewModel::setStartMinute,
                     onEndHour = viewModel::setEndHour,
                     onEndQuarter = viewModel::setEndMinute,
-                    onSnapStart = viewModel::snapStartTo,
-                    onSnapEnd = viewModel::snapEndTo,
+                    onSnapStart = { marker ->
+                        viewModel.snapStartTo(marker)
+                        showUndoToast = true
+                    },
+                    onSnapEnd = { marker ->
+                        viewModel.snapEndTo(marker)
+                        showUndoToast = true
+                    },
                     openEnded = state.form.endAt == null,
                     onOpenEndedChange = viewModel::setOpenEnded,
                     durationOnly = state.form.durationOnlyMinutes != null,
@@ -1039,6 +1055,23 @@ fun ActivityEditorScreen(
                 }
             }
             item { Spacer(Modifier.height(AevumSpacing.xxl)) }
+        }
+        } // innerPadding
+    }
+    // M18.93v4: Snackbar-Trigger — zeigt "Rückgängig machen" nach jedem
+    // Snap. showUndoToast wird von den Snap-Callbacks gesetzt.
+    if (showUndoToast) {
+        LaunchedEffect(showUndoToast) {
+            snackbarHostState.showSnackbar(
+                message = snapAppliedLabel,
+                actionLabel = undoLabel,
+                duration = androidx.compose.material3.SnackbarDuration.Short
+            ).let { result ->
+                if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                    viewModel.undoSnap()
+                }
+                showUndoToast = false
+            }
         }
     }
 }

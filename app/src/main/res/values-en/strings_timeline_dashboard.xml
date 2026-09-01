@@ -78,6 +78,8 @@
     <string name="timeline_editor_snap_end_section">Trim at end</string>
     <string name="timeline_editor_snap_delta_after">%1$d min after</string>
     <string name="timeline_editor_snap_delta_before">%1$d min before</string>
+    <!-- M18.93v4: Undo snackbar after snap tap -->
+    <string name="timeline_editor_snap_applied">Time adjusted</string>
     <string name="timeline_editor_snap_start">Start: %1$s %2$s</string>
     <string name="timeline_editor_snap_end">End: %1$s</string>
     <string name="timeline_validation_valid">Time window looks plausible. You can save.</string>

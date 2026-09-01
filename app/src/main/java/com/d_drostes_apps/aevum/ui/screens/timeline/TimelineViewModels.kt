@@ -1007,11 +1007,38 @@ class ActivityEditorViewModel @Inject constructor(
         }
         current.copy(endAt = fixedEnd)
     }
-    fun snapStartTo(marker: TriggerEventMarker) = form.update { current ->
-        val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
-        current.copy(startAt = marker.occurredAt, endAt = marker.occurredAt + duration)
+    fun snapStartTo(marker: TriggerEventMarker) {
+        // M18.93v4: Vor jedem Snap den vorherigen Zustand sichern —
+        // die UI zeigt danach eine Snackbar mit "Rückgängig machen".
+        rememberUndo()
+        form.update { current ->
+            val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
+            current.copy(startAt = marker.occurredAt, endAt = marker.occurredAt + duration)
+        }
     }
-    fun snapEndTo(marker: TriggerEventMarker) = form.update { it.copy(endAt = marker.occurredAt) }
+    fun snapEndTo(marker: TriggerEventMarker) {
+        rememberUndo()
+        form.update { it.copy(endAt = marker.occurredAt) }
+    }
+
+    // M18.93v4 UNDO: Der komplette Zeit-Zustand VOR dem letzten Snap.
+    // Wird von der UI als Snackbar "Rückgängig machen" angeboten; die
+    // Snackbar verschwindet nach 5s, danach ist der Snap endgültig
+    // (aber jederzeit manuell rückstellbar über die Time-Picker).
+    private var undoSnapshot: Pair<Long, Long?>? = null
+    private fun rememberUndo() {
+        undoSnapshot = form.value.let { it.startAt to it.endAt }
+    }
+    /** Setzt Start/Ende auf den Zustand vor dem letzten Snap zurück.
+     *  Rückgabe false, wenn es nichts zum Zurücksetzen gibt. */
+    fun undoSnap(): Boolean {
+        val (start, end) = undoSnapshot ?: return false
+        form.update { it.copy(startAt = start, endAt = end) }
+        undoSnapshot = null
+        return true
+    }
+    /** Ob gerade ein rückgängig-machbarer Snap aussteht (steuert die Snackbar). */
+    val canUndo: Boolean get() = undoSnapshot != null
 
     fun save() {
         viewModelScope.launch {

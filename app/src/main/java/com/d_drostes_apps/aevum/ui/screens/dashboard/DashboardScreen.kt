@@ -10,6 +10,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -67,7 +69,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.data.model.AppUsageSample
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
-import com.d_drostes_apps.aevum.ui.components.ChargingRing
+import com.d_drostes_apps.aevum.ui.components.BubbleStream
 import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
 import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -1121,9 +1123,6 @@ private fun LiveActivityBanner(
         (activeMs % 3_600_000) / 60_000,
         (activeMs % 60_000) / 1000
     )
-    // Auflade-Fortschritt: aktive Zeit / 60 Min (cap 1.0 — voller Ring
-    // bleibt voll, kein Reset bei Überschreiten).
-    val chargeFraction = (activeMs / (60f * 60_000f)).coerceIn(0f, 1f)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1149,19 +1148,64 @@ private fun LiveActivityBanner(
                 .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.md)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                // Zeile 1: ChargingRing + Titel/Status/Timer.
+                // M18.93v4 ZWEI-ICON-HERO mit BUBBLE-STREAM: Links das
+                // Activity-Icon (in pulsierendem Halo), rechts der Zeit-Tank
+                // (⏳ in leisem Ring); dazwischen fliegt endlos ein Strom
+                // von Energie-Blubberblasen von links nach rechts — "die
+                // Aktivität lädt den Tank auf". KEIN Fortschritt, kein Balken:
+                // reine Dauerauflade-Animation. Bei Pause: Blasen stehen.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
                 ) {
-                    ChargingRing(
-                        fraction = chargeFraction,
-                        accent = accent,
-                        pulseAlpha = if (isPaused) 0.25f else pulseAlpha,
-                        emoji = activityIcon.ifBlank { "\u23F1" },
-                        modifier = Modifier.size(76.dp)
+                    // Icon 1: Aktivität (Glow-Kern).
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .scale(0.96f + 0.05f * pulseAlpha)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        accent.copy(alpha = 0.32f),
+                                        accent.copy(alpha = 0.10f)
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(activityIcon.ifBlank { "\u23F1" }, fontSize = 24.sp)
+                    }
+
+                    // Blubber-Strom (füllt den Zwischenraum) — fliegt immer.
+                    BubbleStream(
+                        color = accent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        animate = !isPaused
                     )
+
+                    // Icon 2: Zeit-Tank (statisch, leiser Ring — das Ziel).
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .border(2.dp, accent.copy(alpha = 0.55f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("\u23F1", fontSize = 22.sp, color = accent)
+                    }
+                }
+
+                // Titel + Status + Timer (kompakt darunter).
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(
                             if (isPaused) stringResource(R.string.dashboard_paused)
@@ -1179,15 +1223,15 @@ private fun LiveActivityBanner(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            timerText,
-                            fontSize = 26.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Light,
-                            color = accent,
-                            letterSpacing = (-0.5).sp
-                        )
                     }
+                    Text(
+                        timerText,
+                        fontSize = 26.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Light,
+                        color = accent,
+                        letterSpacing = (-0.5).sp
+                    )
                 }
                 // Zeile 2: Aktionen — volle Breite, nichts wird gequetscht.
                 Row(
