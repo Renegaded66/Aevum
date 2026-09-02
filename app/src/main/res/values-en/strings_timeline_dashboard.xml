@@ -72,6 +72,14 @@
     <string name="timeline_editor_segment_duration">⏱ Duration only</string>
     <string name="timeline_editor_open_ended_hint">The recording starts at %1$s and keeps running until you stop it manually.</string>
     <string name="timeline_editor_trigger_row">Trigger markers (architecture prepared)</string>
+    <!-- M18.93: Grouped trigger snaps with relevance filter -->
+    <string name="timeline_editor_trigger_row_m93">Nearby triggers</string>
+    <string name="timeline_editor_snap_start_section">Trim at start</string>
+    <string name="timeline_editor_snap_end_section">Trim at end</string>
+    <string name="timeline_editor_snap_delta_after">%1$d min after</string>
+    <string name="timeline_editor_snap_delta_before">%1$d min before</string>
+    <!-- M18.93v4: Undo snackbar after snap tap -->
+    <string name="timeline_editor_snap_applied">Time adjusted</string>
     <string name="timeline_editor_snap_start">Start: %1$s %2$s</string>
     <string name="timeline_editor_snap_end">End: %1$s</string>
     <string name="timeline_validation_valid">Time window looks plausible. You can save.</string>
@@ -192,6 +200,7 @@
     <string name="dashboard_start_question">What will you begin now?</string>
     <string name="dashboard_start_now">Start now</string>
     <string name="dashboard_begin_section">Begin section</string>
+    <string name="dashboard_start_default">Begin %1$s</string>
     <string name="dashboard_change_start_ellipsis">Change start time…</string>
     <string name="dashboard_start_at">Start at:</string>
     <string name="dashboard_pick_start_time">Choose start time</string>
@@ -215,6 +224,7 @@
     <string name="dashboard_new_activity">New activity</string>
     <string name="dashboard_name_example">Name (e.g. Guitar)</string>
     <string name="dashboard_create_and_start">Create &amp; start</string>
+    <string name="dashboard_pick_icon">Choose icon (optional)</string>
     <string name="dashboard_running_auto">running automatically</string>
     <string name="dashboard_started_by">Started by %1$s</string>
     <string name="dashboard_pause">Pause</string>

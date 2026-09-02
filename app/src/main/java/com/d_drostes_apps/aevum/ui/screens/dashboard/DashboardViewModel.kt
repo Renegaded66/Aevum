@@ -16,6 +16,7 @@ import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
 import com.d_drostes_apps.aevum.domain.digital.UsageStatsCollector
+import com.d_drostes_apps.aevum.domain.digital.UsageStatsPermission
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
@@ -48,6 +49,9 @@ class DashboardViewModel @Inject constructor(
     private val ensureDefaultData: EnsureDefaultDataUseCase,
     val liveActivityManager: LiveActivityManager,
     private val usageStatsCollector: UsageStatsCollector,
+    // M18.93v7-FIX: Einheitliche Bildschirmzeit-Quelle für Dashboard +
+    // Balance (App-Foreground-Events statt SCREEN_INTERACTIVE).
+    private val appUsageAggregator: com.d_drostes_apps.aevum.domain.digital.AppUsageAggregator,
     // M18.33: Tagespauschalen — erscheinen sofort im Dashboard (on-the-fly),
     // ohne auf den Midnight-Worker zu warten.
     private val dailyAllowanceRepository: com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository,
@@ -243,10 +247,19 @@ class DashboardViewModel @Inject constructor(
                 // Bildschirmzeit). Nur wenn die Events fehlen (OEM ohne
                 // Screen-Events), fällt die Berechnung auf die gecappte
                 // topApps-Summe zurück.
+                // M18.93v7-FIX (User: "Dashboard 33 Min vs Balance 25 Min vs
+                // System-App 31 Min"): screenTimeTodayMs() (SCREEN_INTERACTIVE)
+                // misst Display-an-Zeit inkl. Lock-Screen — eine ANDERE Größe
+                // als die App-Foreground-Zeit (MOVE_TO_FOREGROUND), die der
+                // Digital-Balance-Tab und Google Digital Wellbeing zeigen.
+                // Dashboard und Balance nutzen jetzt DIESELBE Quelle:
+                // AppUsageAggregator.todayForegroundTotalMs(). Der Screen-Event-
+                // Fallback (topApps-Summe) bleibt als Ausweichpfad, wenn der
+                // Aggregator keine Events liefert.
                 val precise = try {
-                    usageStatsCollector.screenTimeTodayMs()
+                    appUsageAggregator.todayForegroundTotalMs()
                 } catch (_: Exception) { null }
-                if (precise != null) {
+                if (precise != null && precise > 0L) {
                     _screenTimeMs.value = precise
                 } else {
                     val wakeMs = try {
@@ -341,8 +354,12 @@ class DashboardViewModel @Inject constructor(
      * Primärfarbe 0) und startet sofort eine Session — der User will
      * tracken, nicht erst konfigurieren. Icon/Farbe kann er danach im
      * ActivityTypes-Screen (Settings) anpassen.
+     * M18.93v8 (UX-Psychologie „IKEA-Effekt" — Video 2TlIg3VokY8):
+     * Der User wählt beim Anlegen JETZT schon ein Icon mit — selbst
+     * gebaute (Name + Icon gewählte) Objekte werden höher bewertet;
+     * „Weiter" statt „Erstellen" senkt die Abbruch-Schwelle.
      */
-    fun createAndStartActivity(name: String) {
+    fun createAndStartActivity(name: String, icon: String = "•") {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
@@ -354,7 +371,7 @@ class DashboardViewModel @Inject constructor(
                 propertiesJson = null,
                 isFavorite = false,
                 positivityScore = 50,
-                icon = "•",
+                icon = icon.ifBlank { "•" },
                 color = 0L
             )
             activityTypeRepository.insert(type)
@@ -439,7 +456,32 @@ class DashboardViewModel @Inject constructor(
             while (true) {
                 kotlinx.coroutines.delay(60_000)
                 minuteTick.value = System.currentTimeMillis()
+                // M18.93v7-FIX: Bildschirmzeit live mitlaufen lassen.
+                // Bisher wurde _screenTimeMs nur bei refreshUsageStats()
+                // (App-Resume) neu berechnet — bei offenem Dashboard blieb
+                // der Wert stehen, obwohl die Nutzung weiterlief.
+                refreshScreenTime()
             }
+        }
+    }
+
+    /** M18.93v7: Bildschirmzeit einmalig (ohne topApps) neu berechnen. */
+    private fun refreshScreenTime() {
+        viewModelScope.launch {
+            try {
+                val precise = appUsageAggregator.todayForegroundTotalMs()
+                if (precise > 0L) {
+                    _screenTimeMs.value = precise
+                } else if (UsageStatsPermission.isGranted(application)) {
+                    // Permission ja, aber (noch) keine Events → topApps-Fallback.
+                    val wakeMs = try {
+                        usageWakeDetector.firstUsageSince(start)
+                    } catch (_: Exception) { null }
+                    val now = System.currentTimeMillis()
+                    val capMs = if (wakeMs != null) (now - wakeMs).coerceAtLeast(0L) else Long.MAX_VALUE
+                    _screenTimeMs.value = _topApps.value.sumOf { it.durationMs.coerceAtMost(capMs) }
+                }
+            } catch (_: Exception) { /* noop — nächster Tick versucht es erneut */ }
         }
     }
     /**

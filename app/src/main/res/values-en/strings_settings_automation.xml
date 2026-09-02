@@ -214,6 +214,13 @@
     <string name="automation_geofence_disabled">Disabled</string>
     <string name="automation_delete_geofence_title">Delete geofence?</string>
     <string name="automation_delete_geofence_body">“%1$s” will be deleted. Automations for this place will be disabled.</string>
+    <!-- M18.92: Geofence overview map -->
+    <string name="geofence_map_title">Geofence map</string>
+    <string name="geofence_map_active">Active</string>
+    <string name="geofence_map_inactive">Inactive</string>
+    <string name="geofence_map_you_are_here">You are here</string>
+    <string name="geofence_map_recenter">Center on my location</string>
+    <string name="geofence_map_fit_all">Show all geofences</string>
     <string name="automation_sleep_fusion_status">Sleep fusion status</string>
     <string name="automation_sleep_fusion_subtitle">Three sources, one sleep detection</string>
     <string name="automation_screen_events_14h">Screen events (14h window)</string>

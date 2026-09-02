@@ -19,6 +19,8 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     // M18.57: Fusioniert mit der alten "Berechtigungen"-Seite (AutomationSettings entfernt).
     TriggerSettings("trigger_settings", R.string.trigger_settings_title),
     GeofenceList("geofences", R.string.geofence_list_title),
+    // M18.92: Geofence-Übersichtskarte (alle Zonen auf einer fancy Karte)
+    GeofenceMap("geofence_map", R.string.geofence_map_title),
     GeofenceCreate("geofence/new", R.string.geofence_create_title),
     GeofenceCreateHome("geofence/new/home", R.string.geofence_create_home_title),
     GeofenceCreateWork("geofence/new/work", R.string.geofence_create_work_title),
