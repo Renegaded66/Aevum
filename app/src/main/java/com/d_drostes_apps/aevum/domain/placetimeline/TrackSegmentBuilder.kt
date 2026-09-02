@@ -54,8 +54,14 @@ object TrackSegmentBuilder {
      *  jeder echten Strecken-Abweichung, die die Karte verzerren würde). */
     const val MAX_DRAW_ACCURACY_M = 200f
 
-    /** Zeitlücke, die ein Segment zerschneidet (GPS-Ausfall/Tunnel/Doze). */
-    const val SEGMENT_BREAK_MS = 5L * 60 * 1000
+    /** Zeitlücke, die ein Segment zerschneidet (GPS-Ausfall/Tunnel/Doze).
+     *  M18.94: 5 Min → 30 Min. Eine bewusste Pause (M18.62-Session-Split,
+     *  User steht still, z.B. am Handy) dauert real 5–30 Min und ist KEIN
+     *  GPS-Ausfall — seit M18.94 schreibt der Service während PAUSED
+     *  keine Punkte mehr, die Lücke ist also eine echte Bewegungspause.
+     *  Erst ab 30 Min (Tunnel/Doze/Prozess-Tod) wird zerschnitten, damit
+     *  die Karte keine erfundenen Geraden über echte Ausfälle zeichnet. */
+    const val SEGMENT_BREAK_MS = 30L * 60 * 1000
 
     /**
      * Baut die zeichenbaren Segmente für EINE Unterwegs-Lücke.
