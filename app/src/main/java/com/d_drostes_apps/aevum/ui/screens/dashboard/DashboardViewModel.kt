@@ -960,8 +960,11 @@ class DashboardViewModel @Inject constructor(
             // quality = Σ(dauer × score) / Σ(dauer). Pro Aktivität.
             // M18.62-FIX: Pauschalen fließen mit ein (User: "die
             // Tagespunktzahl soll auch die Pauschalen berücksichtigen").
-            qualityScore = computeQualityScore(activeSessions, typeMap, allowances, overrideByAllowance, now),
-            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap, allowances, overrideByAllowance, now),
+            // M18.94-FIX: Fenster des GEWÄHLTEN Tages (start/end) + auf
+            // den Tag gedeckeltes now — bei Tag-Navigation zeigt der Ring
+            // den Score des angezeigten Tages, nicht von heute.
+            qualityScore = computeQualityScore(activeSessions, typeMap, allowances, overrideByAllowance, now, start, end),
+            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap, allowances, overrideByAllowance, now, start, end),
             // M18.37: Todos fuer die Dashboard-Karte
             todoDoneCount = todoDoneCount,
             todoOpenCount = todoOpenCount,
@@ -990,16 +993,24 @@ class DashboardViewModel @Inject constructor(
         typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
         allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance> = emptyList(),
         overrideByAllowance: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
-        now: Long = System.currentTimeMillis()
+        now: Long = System.currentTimeMillis(),
+        // M18.94-FIX (User: \"Tage zurück → Punktzahl/Güte stimmt nicht
+        // zum Tag\"): Fenster des GEWÄHLTEN Tages statt hart LocalDate.now().
+        // VORHER wurde bei Tag-Navigation der Score von HEUTE angezeigt
+        // (falsche Sessions + Pauschalen-Regel mit aktueller Uhrzeit).
+        // buildState übergibt start/end des gewählten Tages und ein auf
+        // den Tag gedeckeltes now — für vergangene Tage ist now = Tages-
+        // ende, wodurch die Pauschalen-Regel (M18.38 \"gilt ab Uhrzeit\")
+        // automatisch \"immer gilt\" (1440 ≥ jede Pauschale).
+        dayStart: Long = TimeFormatting.startOfDayMillis(LocalDate.now(zoneId), zoneId),
+        dayEnd: Long = TimeFormatting.endOfDayMillis(LocalDate.now(zoneId), zoneId)
     ): Int {
         var totalWeight = 0L
         var weighted = 0.0
-        // M18.74-FIX: Dauer auf den heutigen Tag clippen — identisch zum
-        // Trend (computeDailyQuality). VORHER: Mitternachts-Sessions
+        // M18.74-FIX: Dauer auf den Tages-Ausschnitt clippen — identisch
+        // zum Trend (computeDailyQuality). VORHER: Mitternachts-Sessions
         // (z.B. Schlaf 23:00–07:00) wurden mit voller Dauer gewichtet,
-        // obwohl nur der heutige Anteil zählt → Headline wich vom Trend ab.
-        val dayStart = TimeFormatting.startOfDayMillis(LocalDate.now(zoneId), zoneId)
-        val dayEnd = TimeFormatting.endOfDayMillis(LocalDate.now(zoneId), zoneId)
+        // obwohl nur der Anteil des Tages zählt → Headline wich vom Trend ab.
         sessions.forEach { session ->
             // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
             val duration = session.activeDurationInWindow(dayStart, dayEnd, now)
@@ -1036,7 +1047,11 @@ class DashboardViewModel @Inject constructor(
         typeMap: Map<String, com.d_drostes_apps.aevum.data.model.ActivityType>,
         allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance> = emptyList(),
         overrideByAllowance: Map<String, com.d_drostes_apps.aevum.data.model.AllowanceDayOverride> = emptyMap(),
-        now: Long = System.currentTimeMillis()
+        now: Long = System.currentTimeMillis(),
+        // M18.94-FIX: Fenster des GEWÄHLTEN Tages (wie computeQualityScore)
+        // — bei Tag-Navigation zeigten die Balken sonst den heutigen Tag.
+        dayStart: Long = TimeFormatting.startOfDayMillis(LocalDate.now(zoneId), zoneId),
+        dayEnd: Long = TimeFormatting.endOfDayMillis(LocalDate.now(zoneId), zoneId)
     ): List<QualitySlice> {
         val slices = sessions
             .filter { it.activityTypeId != null }
@@ -1046,15 +1061,15 @@ class DashboardViewModel @Inject constructor(
                 // AEVUM-3: Pro-Session-Override gewinnt. Sessions einer
                 // Gruppe können unterschiedliche Overrides haben — für den
                 // Balken nehmen wir den dauer-gewichteten Mittelwert.
-                val totalDur = typeSessions.sumOf { it.activeDurationMs(now) }
+                val totalDur = typeSessions.sumOf { it.activeDurationInWindow(dayStart, dayEnd, now) }
                 val weightedScore = typeSessions.sumOf { session ->
                     val s = session.manualQualityOverride ?: type?.positivityScore ?: 50
-                    session.activeDurationMs(now).toDouble() * s
+                    session.activeDurationInWindow(dayStart, dayEnd, now).toDouble() * s
                 }
                 val score = if (totalDur > 0L) (weightedScore / totalDur).toInt().coerceIn(0, 100)
                             else type?.positivityScore ?: 50
                 // M18.62-FIX: Pausen abziehen (vorher volle Wanduhrzeit)
-                val duration = typeSessions.sumOf { it.activeDurationMs(now) }
+                val duration = typeSessions.sumOf { it.activeDurationInWindow(dayStart, dayEnd, now) }
                 QualitySlice(
                     activityTypeId = typeId,
                     label = type?.name ?: typeId,

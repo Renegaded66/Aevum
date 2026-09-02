@@ -434,9 +434,12 @@ class DataManager @Inject constructor(
          * Aktuelle Room-Schema-Version (muss mit `version = N` in AppDatabase.kt
          * übereinstimmen). Bei jeder DB-Migration hier mitziehen.
          * M18.72-FIX: War fälschlich auf 22 eingefroren — seit Version 38
-         * (jetzt 39) schlug JEDER Restore mit Versions-Mismatch fehl.
+         * schlug JEDER Restore mit Versions-Mismatch fehl.
+         * M18.94-FIX: 39 → 40 (MIGRATION_39_40). Der Kommentar war auf 39
+         * stehen geblieben, während AppDatabase auf 40 migrierte — Restore
+         * brach erneut mit "Bitte zuerst die App aktualisieren".
          */
-        private const val CURRENT_SCHEMA_VERSION = 39
+        private const val CURRENT_SCHEMA_VERSION = 40
     }
 }
 
