@@ -165,6 +165,6 @@ class PingTriggerWorker(
 
     companion object {
         const val WORK_NAME = "aevum.ping_trigger"
-        const val INTERVAL_MINUTES = 2L
+        const val INTERVAL_MINUTES = 5L
     }
 }
