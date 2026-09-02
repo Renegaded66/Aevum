@@ -139,9 +139,14 @@ class DriveDetectionService : Service() {
         private const val CHANNEL_ID = "aevum_drive_detection"
         private const val NOTIFICATION_ID = 6303
 
-        /** Stream-Intervall: 5s. Schnell genug für Fahrt-Erkennung,
-         *  akkufreundlicher als kontinuierlich (Google Maps nutzt ähnlich). */
-        private const val LOCATION_INTERVAL_MS = 5_000L
+        /** Stream-Intervall: 15s. M18.93v10 (User: "Aevum verbraucht mehr
+         *  Akku — Grund-Funktionalität reicht, nicht Aktivitätsaufzeichnung
+         *  alle 5m"): 5s war Erkennungs-Dichte für Sport-Apps. 15s reicht
+         *  für Fahrt-Erkennung (Speed-Serie braucht nur 2 schnelle Fixes
+         *  über 90s Spread) UND für ungefähre Wege auf der Karte (15s =
+         *  alle ~125m bei 30 km/h — immer noch dicht genug für Kurven).
+         *  Akku: 3x weniger Fixes/Stunde, 3x weniger Location-Wakes. */
+        private const val LOCATION_INTERVAL_MS = 15_000L
         /** Mindest-Bewegung zwischen zwei Probes (5s Abstand), die als
          *  "Fahrt lebt" zählt (~7 km/h — deckt Stadtverkehr/Stau ab). */
         private const val MIN_PROBE_MOVEMENT_M = 10.0
@@ -156,12 +161,13 @@ class DriveDetectionService : Service() {
         private const val WALKING_PHASE_RESET_MS = 2L * 60 * 1000
 
         // ── M18.86: Track-Recording-Konstanten (ADR-0030) ──
-        /** Bewegungs-Schwelle für einen Track-Punkt: ≥ 30 m seit dem
-         *  letzten Punkt. Bei Stadt-Tempo (30-50 km/h) = alle ~2-5 s ein
-         *  Punkt? NEIN — kombiniert mit dem 5s-Stream ergibt 30 m ≈ alle
-         *  2-4 Fixes einen Punkt bei 30 km/h; die sichtbare Kurvendichte
-         *  reicht für "halwegs die Fahrtstrecke" ohne jede Kurve. */
-        private const val TRACK_MIN_MOVEMENT_M = 30.0
+        /** Bewegungs-Schwelle für einen Track-Punkt: ≥ 60 m seit dem
+         *  letzten Punkt. M18.93v10 (User: "nicht alle 5m speichern"):
+         *  30 m war überfein — bei 15s-Stream sind das ~2 Punkte/min bei
+         *  30 km/h, die Karte wirkt identisch, die DB schrumpft um die
+         *  Hälfte. 60 m ≈ alle 30-60s ein Punkt bei Stadt-Tempo — genug
+         *  für jede Kurve im Sichtbereich, ohne Aktivitäts-Dichte. */
+        private const val TRACK_MIN_MOVEMENT_M = 60.0
         /** Heartbeat: Auch ohne Bewegung alle 5 Min ein Punkt (Ampel/Stau/
          *  Pause — hält die Zeitachse der Strecke zusammen). */
         private const val TRACK_HEARTBEAT_MS = 5L * 60 * 1000

@@ -281,10 +281,10 @@ class GeofenceTransitionProcessor @Inject constructor(
                     existing.isLive &&
                     existing.activityTypeId == geofence.autoStartActivityTypeId
                 if (!isSameActivity) {
-                    if (existing != null && existing.isLive) {
-                        // Andere Live-Session beenden, bevor die neue startet.
-                        liveActivityManager.forceFinishForAuto()
-                    }
+                    // M18.93v10-FIX: forceFinishForAuto() vor start()
+                    // entfernt — start() beendet die alte Session sauber
+                    // (trimOverlappingForNewSession kürzt bei Überlappung,
+                    // forceFinish bei keiner).
                     val session = liveActivityManager.startAutoAndScheduleDiscard(
                         activityTypeId = geofence.autoStartActivityTypeId,
                         title = geofence.name,

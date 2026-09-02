@@ -63,12 +63,22 @@ object TrackSegmentBuilder {
      * @param points alle Track-Punkte (ungefiltert, chronologisch)
      * @param fromMs Ende des vorherigen Visits (Ankunft)
      * @param toMs Beginn des nächsten Visits (Abfahrt)
+     * @param anchorStartLat/Lon Koordinaten des Start-Visits (optional) —
+     *        die Karte verbindet den Ort mit der Strecke per gerader Linie,
+     *        damit auch der Weg VOR dem ersten Track-Punkt sichtbar ist
+     *        (User: "wie ich überhaupt dahin gekommen bin — gerade
+     *        Verbindungslinien sind ok").
+     * @param anchorEndLat/Lon Koordinaten des Ziel-Visits (optional)
      * @return leere Liste = kein Track für diese Lücke (Fallback-Luftlinie)
      */
     fun buildSegments(
         points: List<LocationTrackPoint>,
         fromMs: Long,
-        toMs: Long
+        toMs: Long,
+        anchorStartLat: Double? = null,
+        anchorStartLon: Double? = null,
+        anchorEndLat: Double? = null,
+        anchorEndLon: Double? = null
     ): List<TrackSegment> {
         if (points.isEmpty() || toMs <= fromMs) return emptyList()
 
@@ -77,7 +87,32 @@ object TrackSegmentBuilder {
             .filter { it.recordedAt in fromMs..toMs }
             .filter { it.accuracyMeters == null || it.accuracyMeters <= MAX_DRAW_ACCURACY_M }
             .sortedBy { it.recordedAt }
-        if (inWindow.size < 2) return emptyList()
+
+        // M18.93v10: Weniger als 2 echte Punkte, aber Anker bekannt?
+        // Dann trotzdem die Verbindungslinie bauen (Anker + Einzelpunkte) —
+        // der User will keine Lücken zwischen Orten ("man kann ja nicht
+        // springen"). Nur wenn GAR KEIN Punkt existiert, bleibt es beim
+        // Fallback (dezentere Luftlinie in Visit-Farbe).
+        if (inWindow.size < 2) {
+            val connectors = mutableListOf<TrackPoint>()
+            anchorStartLat?.let { lat ->
+                anchorStartLon?.let { lon ->
+                    connectors += TrackPoint(lat, lon, fromMs, null)
+                }
+            }
+            inWindow.forEach { p ->
+                connectors += TrackPoint(p.latitude, p.longitude, p.recordedAt, p.speedMps)
+            }
+            anchorEndLat?.let { lat ->
+                anchorEndLon?.let { lon ->
+                    connectors += TrackPoint(lat, lon, toMs, null)
+                }
+            }
+            if (connectors.size >= 2) {
+                return listOf(TrackSegment(points = connectors, startsAfterGap = false))
+            }
+            return emptyList()
+        }
 
         // Regel 3: An Zeitlücken zerschneiden.
         val segments = mutableListOf<TrackSegment>()
@@ -105,6 +140,61 @@ object TrackSegmentBuilder {
         if (current.size >= 2) {
             segments += TrackSegment(points = current, startsAfterGap = currentStartedAfterGap)
         }
-        return segments.filter { it.size >= 2 }
+        val built = segments.filter { it.size >= 2 }
+        // M18.93v10 (User: "der Weg dorthin fehlt"): Auch ohne 2 Punkte
+        // in der Lücke gibt es eine Verbindung, wenn Anker bekannt sind —
+        // als gerade Linie vom Start-Visit zum ersten Track-Punkt bzw.
+        // vom letzten Track-Punkt zum Ziel-Visit. Der User hat explizit
+        // gesagt: unexakte Teilabschnitte als gerade Verbindungslinien
+        // sind in Ordnung ("man kann ja nicht springen").
+        if (built.isEmpty()) {
+            val connectors = mutableListOf<TrackPoint>()
+            anchorStartLat?.let { lat ->
+                anchorStartLon?.let { lon ->
+                    connectors += TrackPoint(lat, lon, fromMs, null)
+                }
+            }
+            inWindow.forEach { p ->
+                connectors += TrackPoint(p.latitude, p.longitude, p.recordedAt, p.speedMps)
+            }
+            anchorEndLat?.let { lat ->
+                anchorEndLon?.let { lon ->
+                    connectors += TrackPoint(lat, lon, toMs, null)
+                }
+            }
+            if (connectors.size >= 2) {
+                return listOf(TrackSegment(points = connectors, startsAfterGap = false))
+            }
+            return emptyList()
+        }
+        // M18.93v10: Bestehende Segmente um die Anker ergänzen — die
+        // Strecke beginnt/endet dann exakt am Visit (kein sichtbarer
+        // Sprung zwischen Ort und ersten Track-Punkt mehr).
+        val first = built.first()
+        val last = built.last()
+        val startMissing = anchorStartLat != null && anchorStartLon != null &&
+            (first.points.first().latitude != anchorStartLat || first.points.first().longitude != anchorStartLon)
+        val endMissing = anchorEndLat != null && anchorEndLon != null &&
+            (last.points.last().latitude != anchorEndLat || last.points.last().longitude != anchorEndLon)
+        if (!startMissing && !endMissing) return built
+        return built.mapIndexed { i, seg ->
+            var pts = seg.points
+            // Ein einzelnes Segment: beide Anker anhängen/voranstellen.
+            if (built.size == 1) {
+                if (startMissing) pts = listOf(TrackPoint(anchorStartLat!!, anchorStartLon!!, fromMs, null)) + pts
+                if (endMissing) pts = pts + TrackPoint(anchorEndLat!!, anchorEndLon!!, toMs, null)
+                TrackSegment(points = pts, startsAfterGap = seg.startsAfterGap)
+            } else if (i == 0 && startMissing) {
+                TrackSegment(
+                    points = listOf(TrackPoint(anchorStartLat!!, anchorStartLon!!, fromMs, null)) + pts,
+                    startsAfterGap = seg.startsAfterGap
+                )
+            } else if (i == built.size - 1 && endMissing) {
+                TrackSegment(
+                    points = pts + TrackPoint(anchorEndLat!!, anchorEndLon!!, toMs, null),
+                    startsAfterGap = seg.startsAfterGap
+                )
+            } else seg
+        }
     }
 }

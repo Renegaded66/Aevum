@@ -78,10 +78,9 @@ class PingTriggerWorker(
                         val sameSession = live != null && live.isLive &&
                             live.sourceTriggerId == trigger.id
                         if (!sameSession) {
-                            if (live != null && live.isLive) {
-                                // Andere Live-Session beenden, bevor die neue startet
-                                liveActivityManager.forceFinishForAuto()
-                            }
+                            // M18.93v10-FIX: forceFinishForAuto() vor
+                            // start() entfernt — start() löst die alte
+                            // Session selbst auf.
                             val session = liveActivityManager.start(
                                 activityTypeId = trigger.activityTypeId,
                                 title = trigger.name,
