@@ -692,8 +692,16 @@ class DriveDetectionService : Service() {
         // Welche Session läuft (und ist damit track-würdig)? Nur Auto-
         // Fahrten und Wanderungen haben Strecken — Geofence-Besuche sind
         // Punkte, manuelle Sessions haben keine Location-Evidenz.
+        // M18.94-FIX (User: \"Strecke hört mittendrin auf und beginnt
+        // 100 m später wieder\"): PAUSED-Sessions sind NICHT trackbar.
+        // M18.62 macht Pause = Session-Split (endAt gesetzt, \"Weiter\"
+        // startet eine NEUE Session) — die Pause ist eine bewusste
+        // Unterbrechung der Bewegung, kein GPS-Ausfall. Während der
+        // Pause (User am Handy) schrieb der Service sonst Heartbeat-/
+        // Drift-Punkte weiter, und die >5-Min-Lücke zerschnitt die
+        // Strecke in zwei Teilstücke mit sichtbarer Lücke.
         val live = liveActivityManager.liveSession.value
-        val trackable = live != null && live.isLive && (
+        val trackable = live != null && live.isRunning && (
             live.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
                 live.sourceType == "WALKING_AUTO"
             )
@@ -701,7 +709,12 @@ class DriveDetectionService : Service() {
         // M18.89: BACKFILL-FALL — Fahrt erkannt (driveActive) oder Walking-
         // Phase aktiv, aber Session noch nicht live. Fixe für die spätere
         // Session vormerken.
-        val pending = !trackable &&
+        // M18.94-FIX: Eine PAUSED-Session ist KEIN Backfill-Zustand — die
+        // Pause ist eine bewusste Unterbrechung (User steht still, z.B.
+        // am Handy). Ohne den Check würden Pause-Fixes gesammelt und beim
+        // \"Weiter\" (neue Session) als Pre-Session-Backfill in die neue
+        // Strecke migriert — die Karte zeichnete dann Pausen-Stummel.
+        val pending = !trackable && live?.isPaused != true &&
             (bridge.isDriveActive() || walkingPhaseStartMs != 0L)
 
         if (!trackable && !pending) {
