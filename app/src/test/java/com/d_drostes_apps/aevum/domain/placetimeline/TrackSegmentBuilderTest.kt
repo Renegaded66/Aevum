@@ -63,22 +63,64 @@ class TrackSegmentBuilderTest {
 
     @Test
     fun `Zeitluecke zerschneidet das Segment`() {
-        // 4 Punkte, dann 8 Min GPS-Ausfall (Tunnel/Doze), dann 4 Punkte →
-        // 2 Segmente; das zweite startet nach der Lücke.
+        // 4 Punkte, dann 35 Min GPS-Ausfall (Tunnel/Doze/Prozess-Tod),
+        // dann 4 Punkte → 2 Segmente; das zweite startet nach der Lücke.
+        // M18.94: Schwelle 5 → 30 Min (bewusste Pausen zerschneiden nicht).
         val first = (0 until 4).map { i -> point(i, t0 + i * 30_000L, 50.0 + i * 0.0009) }
         val second = (4 until 8).map { i ->
-            point(i, t0 + i * 30_000L + 8 * 60_000L, 50.005 + (i - 4) * 0.0009)
+            point(i, t0 + i * 30_000L + 35 * 60_000L, 50.005 + (i - 4) * 0.0009)
         }
         val segments = TrackSegmentBuilder.buildSegments(
             first + second,
             fromMs = t0,
-            toMs = t0 + 20 * 60_000L
+            toMs = t0 + 45 * 60_000L
         )
         assertThat(segments).hasSize(2)
         assertThat(segments[0].startsAfterGap).isFalse()
         assertThat(segments[1].startsAfterGap).isTrue()
         assertThat(segments[0].points).hasSize(4)
         assertThat(segments[1].points).hasSize(4)
+    }
+
+    // ── M18.94: PAUSE-SEMANTIK (User: "Spaziergang pausiert, Strecke
+    // hört mittendrin auf und beginnt 100 m später wieder") ──
+
+    @Test
+    fun `Pause bis 30 Minuten zerschneidet die Strecke nicht`() {
+        // Spaziergang mit Pause: 4 Punkte, 12 Min Pause (User am Handy —
+        // der Service schreibt seit M18.94 während PAUSED keine Punkte),
+        // dann 4 Punkte. Die Lücke ist eine BEWUSSTE Unterbrechung, kein
+        // GPS-Ausfall → EIN durchgehendes Segment, keine sichtbare Lücke.
+        val first = (0 until 4).map { i -> point(i, t0 + i * 30_000L, 50.0 + i * 0.0009) }
+        val second = (4 until 8).map { i ->
+            point(i, t0 + i * 30_000L + 12 * 60_000L, 50.005 + (i - 4) * 0.0009)
+        }
+        val segments = TrackSegmentBuilder.buildSegments(
+            first + second,
+            fromMs = t0,
+            toMs = t0 + 20 * 60_000L
+        )
+        assertThat(segments).hasSize(1)
+        assertThat(segments[0].startsAfterGap).isFalse()
+        assertThat(segments[0].points).hasSize(8)
+    }
+
+    @Test
+    fun `Pause ueber 30 Minuten zerschneidet weiterhin`() {
+        // Sehr lange Pause (> 30 Min) ist nicht mehr als Pause erklärbar
+        // (eher GPS-Ausfall/Prozess-Tod) → weiterhin zerschneiden, damit
+        // keine erfundene Gerade über echte Ausfälle gezeichnet wird.
+        val first = (0 until 4).map { i -> point(i, t0 + i * 30_000L, 50.0 + i * 0.0009) }
+        val second = (4 until 8).map { i ->
+            point(i, t0 + i * 30_000L + 40 * 60_000L, 50.005 + (i - 4) * 0.0009)
+        }
+        val segments = TrackSegmentBuilder.buildSegments(
+            first + second,
+            fromMs = t0,
+            toMs = t0 + 50 * 60_000L
+        )
+        assertThat(segments).hasSize(2)
+        assertThat(segments[1].startsAfterGap).isTrue()
     }
 
     @Test
