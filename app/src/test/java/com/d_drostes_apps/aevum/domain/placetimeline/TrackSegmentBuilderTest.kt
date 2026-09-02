@@ -121,4 +121,80 @@ class TrackSegmentBuilderTest {
         assertThat(segments).hasSize(1)
         assertThat(segments.first().points).hasSize(4)
     }
+
+    // ── M18.93v10: ANKER-VERBINDUNGEN (User: "der Weg dorthin fehlt") ──
+
+    @Test
+    fun `Anker verbinden den Start-Ort mit dem ersten Track-Punkt`() {
+        // Spaziergang: Der Track beginnt erst NACH 400 m (Erkennungs-
+        // Latenz). Die Anker-Koordinaten (Zuhause) werden vorangestellt —
+        // die Karte zeigt die gerade Verbindungslinie zum Ort.
+        val track = (0 until 4).map { i -> point(i, t0 + i * 30_000L, 50.004 + i * 0.0009) }
+        val segments = TrackSegmentBuilder.buildSegments(
+            track,
+            fromMs = t0,
+            toMs = t0 + 4 * 30_000L,
+            anchorStartLat = 50.0, anchorStartLon = 8.0
+        )
+        assertThat(segments).hasSize(1)
+        assertThat(segments.first().points).hasSize(5)
+        assertThat(segments.first().points.first().latitude).isEqualTo(50.0)
+        assertThat(segments.first().points.first().speedMps).isNull() // Anker ohne Speed
+    }
+
+    @Test
+    fun `Anker verbinden das letzte Track-Ende mit dem Ziel-Ort`() {
+        val track = (0 until 4).map { i -> point(i, t0 + i * 30_000L, 50.0 + i * 0.0009) }
+        val segments = TrackSegmentBuilder.buildSegments(
+            track,
+            fromMs = t0,
+            toMs = t0 + 4 * 30_000L,
+            anchorEndLat = 50.01, anchorEndLon = 8.1
+        )
+        assertThat(segments).hasSize(1)
+        assertThat(segments.first().points).hasSize(5)
+        assertThat(segments.first().points.last().latitude).isEqualTo(50.01)
+        assertThat(segments.first().points.last().longitude).isEqualTo(8.1)
+    }
+
+    @Test
+    fun `einzelner Track-Punkt mit Ankern wird zur Verbindungslinie`() {
+        // Nur 1 Track-Punkt in der Lücke (kurze Fahrt, späte Erkennung) —
+        // mit beiden Ankern entsteht trotzdem eine Linie Ort→Punkt→Ort.
+        val single = listOf(point(0, t0, 50.004))
+        val segments = TrackSegmentBuilder.buildSegments(
+            single,
+            fromMs = t0,
+            toMs = t0 + 60_000L,
+            anchorStartLat = 50.0, anchorStartLon = 8.0,
+            anchorEndLat = 50.01, anchorEndLon = 8.1
+        )
+        assertThat(segments).hasSize(1)
+        assertThat(segments.first().points).hasSize(3)
+        assertThat(segments.first().points.first().latitude).isEqualTo(50.0)
+        assertThat(segments.first().points.last().latitude).isEqualTo(50.01)
+    }
+
+    @Test
+    fun `ohne Anker bleibt ein einzelner Punkt unsichtbar`() {
+        // Regression: Der alte Fall (kein Anker, 1 Punkt) bleibt leer —
+        // die dezente Fallback-Luftlinie der Karte übernimmt.
+        val single = listOf(point(0, t0, 50.0))
+        val segments = TrackSegmentBuilder.buildSegments(single, t0, t0 + 60_000L)
+        assertThat(segments).isEmpty()
+    }
+
+    @Test
+    fun `Anker erzeugen keine Linie wenn gar kein Track-Punkt existiert`() {
+        // Keine Track-Daten für die Lücke → leere Liste (Fallback-Luftlinie
+        // in Visit-Farbe bleibt der bewusste, dezente Ersatz).
+        val segments = TrackSegmentBuilder.buildSegments(
+            emptyList(),
+            fromMs = t0,
+            toMs = t0 + 60_000L,
+            anchorStartLat = 50.0, anchorStartLon = 8.0,
+            anchorEndLat = 50.01, anchorEndLon = 8.1
+        )
+        assertThat(segments).isEmpty()
+    }
 }

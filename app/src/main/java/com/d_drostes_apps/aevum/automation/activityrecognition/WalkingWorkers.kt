@@ -121,16 +121,11 @@ class WalkingStartWorker(
         }
 
         try {
-            // Andere Live-Session (z. B. manuelles Workout oder Digital)
-            // vorher sauber beenden — M18.71-Overlap-Regeln greifen im
-            // start()-Pfad (Kürzen/Splitten statt Löschen). Es darf nie
-            // zwei Live-Sessions geben.
-            if (liveSession != null && liveSession.isLive) {
-                live.forceFinishForAuto()
-            }
-            // Vorlauf: die letzten 5 Minuten fallen rückwirkend in die
-            // Aufzeichnung (User-Spec (b)) — M18.84: geclampt an das Ende
-            // der letzten Auto-Session (nie in die Fahrt hinein).
+            // M18.93v10-FIX (User: "immer nur eine Aktivität gleichzeitig"):
+            // forceFinishForAuto() VOR start() entfernt — start() kürzt
+            // die alte Session über trimOverlappingForNewSession exakt bis
+            // zum neuen (evtl. rückwirkenden) Start statt sie pauschal mit
+            // endAt=jetzt zu beenden (Overlap in der Timeline).
             val startedAt = WalkingDetectionEngine.recordingStartTime(now, lastDriveEndMs)
             val session = live.start(
                 activityTypeId = activityTypeId,

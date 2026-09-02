@@ -233,11 +233,15 @@ class DriveStartWorker(
         }
 
         try {
-            // Andere Live-Session (z.B. manuelles Workout) vorher sauber
-            // beenden — wie bei Geofence.
-            if (liveSession != null && liveSession.isLive) {
-                live.forceFinishForAuto()
-            }
+            // M18.93v10-FIX (User: "immer nur eine Aktivität gleichzeitig"):
+            // Das forceFinishForAuto() VOR start() ist ENTFERNT — es
+            // beendete die alte Session pauschal mit endAt=jetzt, während
+            // die neue Session rückwirkend (Cluster-Start, bis 15 Min
+            // zurück) startet → ÜBERLAPPUNG in der Timeline. start() löst
+            // das selbst über trimOverlappingForNewSession: die alte
+            // Session wird exakt bis zum neuen Start gekürzt (kein Overlap,
+            // kein Verlust). Der Fallback (keine Zeit-Überlappung) beendet
+            // die alte Session weiterhin sauber.
             val session = live.start(
                 activityTypeId = "driving",
                 title = "Autofahren",

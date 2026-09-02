@@ -25,9 +25,15 @@ object WalkingDetectionEngine {
      *  automatisch gestartet wird (User-Spec). */
     const val WALKING_THRESHOLD_MS = 5L * 60 * 1000
 
-    /** Watchdog: 5 Minuten ohne Walking-Signal = Wanderung vorbei.
-     *  Analog zur Drive-5-Minuten-Regel (User-Spec-Familie M18.66). */
-    const val WALKING_WATCHDOG_NO_SIGNAL_MS = 5L * 60 * 1000
+    /** Watchdog: 8 Minuten ohne Walking-Signal = Wanderung vorbei.
+     *  M18.93v10 (User: "Spaziergänge dürfen ruhig noch 3 Minuten länger
+     *  laufen wenn keine Bewegung erkannt wird, bspw. an einer roten
+     *  Ampel"): 5 Min war zu knapp — Ampel-/Kreuzungs-Stopps (30-90s)
+     *  plus GPS-Lücken beendeten die Session, obwohl der User weitergeht.
+     *  8 Min deckt 3 zusätzliche Minuten Stillstand ab, ohne dass eine
+     *  beendete Wanderung (echtes Stehenbleiben > 8 Min) endlos weiter-
+     *  läuft. Analog zur Drive-5-Minuten-Regel (User-Spec-Familie M18.66). */
+    const val WALKING_WATCHDOG_NO_SIGNAL_MS = 8L * 60 * 1000
 
     /**
      * Soll jetzt eine Wanderung gestartet werden?

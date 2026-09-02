@@ -291,11 +291,11 @@ class ActivityRecognitionWorker(
                 val existing = liveActivityManager.liveSession.value
                 val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "driving"
                 if (!isDuplicate) {
-                    // Aktuelle andere Live-Session beenden (z. B. manuelles
-                    // Workout) bevor die Fahrt startet — wie bei Geofence.
-                    if (existing != null && existing.isLive) {
-                        liveActivityManager.forceFinishForAuto()
-                    }
+                    // M18.93v10-FIX: forceFinishForAuto() VOR start()
+                    // entfernt — start() kürzt die alte Session exakt bis
+                    // zum Cluster-Start (trimOverlappingForNewSession),
+                    // statt sie pauschal mit endAt=jetzt zu beenden
+                    // (Überlappung bei rückwirkendem Start).
                     // M18.66: Activity "Autofahren" (driving) — nicht mehr
                     // "Mobilität" (transport). Der User will die Activity
                     // Autofahren, keine generische Mobilität.

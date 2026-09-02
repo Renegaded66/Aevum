@@ -410,7 +410,11 @@ private fun buildTrackSegmentsByGap(
             val segments = com.d_drostes_apps.aevum.domain.placetimeline.TrackSegmentBuilder.buildSegments(
                 points = trackPoints,
                 fromMs = beforeStart,
-                toMs = first.startAt
+                toMs = first.startAt,
+                // M18.93v10: Ankunfts-Ort als Ziel-Anker — die Strecke
+                // endet exakt am ersten Visit (kein Sprung zur Ankunft).
+                anchorEndLat = first.latitude,
+                anchorEndLon = first.longitude
             )
             if (segments.isNotEmpty()) {
                 result[beforeStart to first.startAt] = GapTrack(colorHex = first.color, segments = segments)
@@ -427,7 +431,16 @@ private fun buildTrackSegmentsByGap(
             // M18.89: Grace-Fenster — zeichne auch Punkte kurz VOR dem
             // formalen Visit-Ende (reale Abfahrt war früher).
             fromMs = a.endAt - DEPARTURE_GRACE_MS,
-            toMs = b.startAt
+            toMs = b.startAt,
+            // M18.93v10 (User: "der Weg dorthin fehlt"): Start- und
+            // Ziel-Ort als Anker — die Strecke verbindet die Visits
+            // lückenlos (gerade Verbindungslinien, wo keine Track-
+            // Punkte existieren, z.B. die ersten 400m vor der
+            // Spaziergang-Erkennung).
+            anchorStartLat = a.latitude,
+            anchorStartLon = a.longitude,
+            anchorEndLat = b.latitude,
+            anchorEndLon = b.longitude
         )
         if (segments.isNotEmpty()) {
             result[gapKey] = GapTrack(colorHex = a.color, segments = segments)

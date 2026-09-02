@@ -189,10 +189,10 @@ class CurrentZoneProvider @Inject constructor(
                             existing.activityTypeId == autoType
 
                         if (!isSameActivity) {
-                            // Andere Session beenden, neue starten.
-                            if (existing != null && existing.isLive) {
-                                liveActivityManager.forceFinishForAuto()
-                            }
+                            // M18.93v10-FIX: forceFinishForAuto() vor
+                            // start() entfernt — start() löst die alte
+                            // Session selbst auf (Kürzen bei Overlap,
+                            // Beenden bei keiner Überlappung).
                             // M18.66-FIX9: Titel = ActivityType-Name, NICHT
                             // Geofence-Name. Der User hat in der Geofence-
                             // Automatisierung "Fitness" als Activity ausgewählt
