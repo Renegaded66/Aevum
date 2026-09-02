@@ -44,8 +44,14 @@ private const val DRIVE_WATCHDOG_NO_SIGNAL_MS = 5L * 60 * 1000
 /** M18.67-FIX4: Mindest-Bewegung zwischen zwei Probes (2 Min Abstand),
  *  die als "Fahrt lebt" zählt. 360 m / 2 Min = 3 m/s = 10,8 km/h —
  *  schließt Gehen (1,2-1,5 m/s = 144-180 m) aus, erfasst aber
- *  Stadtverkehr (5-15 m/s = 600-1800 m). */
-private const val DRIVE_MIN_PROBE_MOVEMENT_M = 360.0
+ *  Stadtverkehr (5-15 m/s = 600-1800 m).
+ *  M18.93v9-FIX (User: "Autofahrt bricht während der Fahrt ab"): 360 m
+ *  war für Stop&Go-Stadtverkehr zu streng — eine Fahrt mit 2 Ampel-
+ *  Stopps legt im 2-Minuten-Fenster oft nur 200-300 m zurück (Anfahren
+ *  + Bremsen + Warten). 200 m / 2 Min = 1,67 m/s = 6 km/h Durchschnitt
+ *  entspricht exakt der Heartbeat-Schwelle des DriveDetectionService
+ *  (speed >= 2 m/s) und bleibt über Geh-Tempo (max 1,5 m/s = 180 m). */
+private const val DRIVE_MIN_PROBE_MOVEMENT_M = 200.0
 /** Work-Name (UniqueWork für REPLACE-Semantik). */
 private const val DRIVE_WATCHDOG_WORK = "aevum.drive_watchdog"
 
@@ -417,11 +423,14 @@ class DriveWatchdogWorker(
         val provider = deps.locationProvider()
         val now = System.currentTimeMillis()
 
-        // M18.66: EXIT-Marker IMMER konsumieren — wenn Google explizit
-        // "nicht mehr im Fahrzeug" meldet und eine Auto-Session läuft,
-        // sofort stoppen (nicht 5 Minuten warten). Wenn KEINE Session
-        // läuft, wird der Marker verworfen — er darf nie eine SPÄTERE
-        // Fahrt stoppen (veralteter EXIT).
+        // M18.66: EXIT-Marker konsumieren. M18.93v9-FIX: Der Marker ist
+        // nur noch ein "prüfe jetzt"-Signal, KEIN sofortiger Stop mehr —
+        // Google liefert bei Stop&Go/Ampel-Halten regelmäßig
+        // IN_VEHICLE-EXIT-Artefakte, die die Fahrt mitten in der
+        // Bewegung beendeten (User: "2 Aufzeichnungen mit Sekunden
+        // Leerraum bei 10 Min Fahrt"). Der GPS-Check unten entscheidet:
+        // bewegt sich der Standort weiter, lebt die Fahrt (Ampel);
+        // steht er, wird gestoppt (echtes Parken).
         val exited = bridge.consumeVehicleExited()
 
         // Läuft überhaupt eine Auto-Fahr-Session?
@@ -435,14 +444,16 @@ class DriveWatchdogWorker(
         }
 
         if (exited != null) {
-            Log.d(TAG, "IN_VEHICLE-EXIT gemeldet -> Auto-Fahr-Session sofort beenden")
-            stopDrivingSession(live, triggerRepo, now)
-            return Result.success()
+            Log.d(TAG, "IN_VEHICLE-EXIT gemeldet -> GPS-Check entscheidet (M18.93v9, kein Sofort-Stop)")
         }
 
         // 1) Frisches AR-Signal (IN_VEHICLE-Sample)? → Fahrt lebt.
+        // M18.93v9: Bei einem EXIT-Marker wird dieser Check ÜBERSPRUNGEN —
+        // Google meldet "nicht mehr im Fahrzeug", da zählt nur noch die
+        // GPS-Bewegung (das letzte Sample ist beim EXIT fast immer frisch
+        // und würde den Check sonst nur verlängern statt zu prüfen).
         val last = bridge.lastVehicleSample()
-        if (last > 0 && now - last < DRIVE_WATCHDOG_NO_SIGNAL_MS) {
+        if (exited == null && last > 0 && now - last < DRIVE_WATCHDOG_NO_SIGNAL_MS) {
             Log.d(TAG, "Fahrt lebt (letztes AR-Sample vor ${(now - last) / 1000}s) -> Watchdog verlängert")
             schedule(applicationContext)
             return Result.success()
@@ -464,6 +475,19 @@ class DriveWatchdogWorker(
             Log.d(TAG, "Kein GPS-Fix -> Fahrt konservativ beenden")
         } else {
             kotlinx.coroutines.delay(DRIVE_PROBE_INTERVAL_MS)
+            // M18.93v9-FIX (User: "Autofahrt bricht während der Fahrt ab,
+            // 2 Aufzeichnungen mit Sekunden Leerraum bei 10 Min Fahrt"):
+            // WÄHREND des 2-Minuten-Checks kann der DriveDetectionService
+            // den Heartbeat refreshen (speed >= 2 m/s — Ampel wurde grün,
+            // Stop&Go ging weiter). Der Watchdog sah das nicht und stoppte
+            // die Fahrt trotzdem. Nach dem Check wird der Heartbeat
+            // NOCHMAL geprüft — ist er inzwischen frisch, lebt die Fahrt.
+            val heartbeatNow = bridge.lastVehicleSample()
+            if (heartbeatNow > 0 && now - heartbeatNow < DRIVE_WATCHDOG_NO_SIGNAL_MS) {
+                Log.d(TAG, "M18.93v9: Heartbeat während des GPS-Checks refresht (Fahrt lebt) -> Watchdog verlängert")
+                schedule(applicationContext)
+                return Result.success()
+            }
             val second = try {
                 when (val r = provider.getCurrentLocation()) {
                     is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success -> r
@@ -542,6 +566,17 @@ class DriveWatchdogWorker(
                 OneTimeWorkRequestBuilder<DriveWatchdogWorker>()
                     .setInitialDelay(DRIVE_WATCHDOG_NO_SIGNAL_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
                     .build()
+            )
+        }
+
+        /** M18.93v9: Sofort-Check ohne 5-Min-Delay — für IN_VEHICLE-EXIT-
+         *  Artefakte (Ampel/Stop&Go). Der GPS-Bewegungs-Check entscheidet
+         *  sofort, ob die Fahrt wirklich endete. */
+        fun scheduleImmediate(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                DRIVE_WATCHDOG_WORK,
+                ExistingWorkPolicy.REPLACE,
+                OneTimeWorkRequestBuilder<DriveWatchdogWorker>().build()
             )
         }
 
