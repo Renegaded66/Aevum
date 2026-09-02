@@ -34,7 +34,12 @@ import java.util.concurrent.TimeUnit
 // ══════════════════════════════════════════════════════════════════════
 
 private const val TAG = "ProactiveGeofenceCheck"
-private const val CHECK_INTERVAL_MS = 2L * 60 * 1000  // 2 Minuten
+// M18.93v11 (User: "Akkuverbrauch weiter drosseln"): 2 Min war
+// Fallback-Dichte für Sport-Apps — 720 GPS-Wakes/Tag. 5 Min reicht
+// für den GMS-Geofence-Fallback völlig (Geofence-Trigger mit 5 Min
+// Latenz sind für Zuhause/Gym/Arbeit unsichtbar), spart 60% der
+// Wakes (720 -> 288/Tag).
+private const val CHECK_INTERVAL_MS = 5L * 60 * 1000  // 5 Minuten
 private const val CHECK_WORK = "aevum.proactive_geofence_check"
 
 class ProactiveGeofenceCheckWorker(

@@ -332,7 +332,12 @@ class AppBlockService : Service() {
         private const val CHANNEL_ID = "digital_balance_block"
         private const val NOTIFICATION_ID = 9002
         private const val WARNING_NOTIFICATION_ID = 9100
-        private const val CHECK_INTERVAL_MS = 2_000L
+        // M18.93v11 (User: "Akkuverbrauch weiter drosseln"): 2s-Polling
+        // mit queryUsageStats war der aggressivste Fresser bei aktiven
+        // Limits (43.200 Checks/Tag). 5s reicht für die Sperr-Funktion
+        // völlig (Overlay erscheint max. 3s später — für den User
+        // unsichtbar), spart 60% der UsageStats-Zugriffe.
+        private const val CHECK_INTERVAL_MS = 5_000L
 
         fun start(context: Context) {
             val intent = Intent(context, AppBlockService::class.java)

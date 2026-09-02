@@ -79,7 +79,11 @@ class AppTrackingService : Service() {
         private const val TAG = "AppTrackingSvc"
         private const val CHANNEL_ID = "aevum_app_tracking"
         private const val NOTIFICATION_ID = 6401
-        private const val POLL_INTERVAL_MS = 5_000L
+        // M18.93v11 (User: "Akkuverbrauch weiter drosseln"): 5s-Polling
+        // war überdimensioniert — App-Wechsel werden auch mit 15s
+        // zuverlässig erkannt (der User bleibt i.d.R. Minuten in einer
+        // App), aber mit 3x weniger Wakes/Stunde.
+        private const val POLL_INTERVAL_MS = 15_000L
 
         fun start(context: Context) {
             val intent = Intent(context, AppTrackingService::class.java)

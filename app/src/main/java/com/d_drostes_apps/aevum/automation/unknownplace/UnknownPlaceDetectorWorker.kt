@@ -210,7 +210,12 @@ class UnknownPlaceDetectorWorker(
         const val TAG = "UnknownPlaceDetector"
         const val WORK_NAME = "aevum.unknown_place.detect"
         // M17.2: 5 min — Minimum-Intervall das WorkManager erlaubt.
-        const val WORK_INTERVAL_MINUTES = 5L
+        // M18.93v11 (User: "Akkuverbrauch weiter drosseln"): 5 Min war
+        // überdimensioniert — ein neuer Eintrag entsteht erst nach
+        // MIN_DURATION_MS (15 Min) an einem Ort. 15 Min Check-Intervall
+        // spart 2/3 der Wakes (288 -> 96/Tag), ohne dass ein Aufenthalt
+        // verpasst wird (der erste Check nach 15 Min erkennt ihn).
+        const val WORK_INTERVAL_MINUTES = 15L
 
         // M17.2: 15 min. Kurz genug für echte Aufenthalte (Restaurant,
         // Arzttermin), lang genug um GPS-Drift am Geofence-Rand zu ignorieren.
