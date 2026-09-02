@@ -1037,12 +1037,19 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_EXIT
                         ) {
                             bridge.markVehicleExited(now)
-                            // M18.66: EXIT = Google meldet "nicht mehr im
-                            // Fahrzeug" -> SOFORT stoppen (kein 5-Minuten-
-                            // Warten, kein GPS-Check). Der Watchdog wäre
-                            // mit 5 Min Delay zu langsam für einen
-                            // bestätigten EXIT.
-                            DriveStopWorker.schedule(context)
+                            // M18.93v9-FIX (User: "Autofahrt bricht während
+                            // der Fahrt ab, 2 Aufzeichnungen mit Sekunden
+                            // Leerraum"): Google liefert bei Stop&Go/Ampel-
+                            // Halten regelmäßig IN_VEHICLE-EXIT-Artefakte.
+                            // Der sofortige DriveStopWorker beendete die
+                            // Session dann mitten in der Fahrt (Neustart
+                            // nach Cooldown = 2 Aufzeichnungen + Lücke).
+                            // Jetzt: EXIT = "Google vermutet Fahrtende" →
+                            // sofortiger Watchdog-Check (ohne 5-Min-Delay),
+                            // der per GPS-Bewegung entscheidet: bewegt sich
+                            // der Standort weiter, lebt die Fahrt (Ampel);
+                            // steht er, wird gestoppt (echtes Parken).
+                            DriveWatchdogWorker.scheduleImmediate(context)
                         } else {
                             bridge.addSample(now, 75)
                             // M18.84: IN_VEHICLE-ENTER beweist Fahrzeug-Beginn —

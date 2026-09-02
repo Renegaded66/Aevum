@@ -3800,15 +3800,20 @@ private fun TriggerSnapRow(
     //    hervorgehoben; Delta-Label zeigt die Abweichung in Minuten.
     //  - Leere Seiten werden komplett ausgeblendet (kein Leerraum).
     // M18.93: Relevanz-Filter — Marker ±120min um Start/Ende, Top-3 je Seite.
+    // M18.93v9-FIX (User: "Schlaf konnte nicht auf den Trigger 2h vorher
+    // gekürzt werden"): Das ±120-Min-Fenster war exakt die 2h-Grenze —
+    // ein Trigger knapp darüber fiel raus, und Top-3 verdrängte ihn, wenn
+    // 3 nähere Marker existierten. Jetzt: ±180 Min (3h) + Top-5, damit
+    // auch der 2h-Vorschlag sicher erscheint.
     val endMs = endAtMs ?: startAtMs
-    val windowMs = 120L * 60_000
+    val windowMs = 180L * 60_000
 
     fun candidates(targetMs: Long): List<Pair<TriggerEventMarker, Long>> =
         markers
             .map { it to (it.occurredAt - targetMs) }
             .filter { kotlin.math.abs(it.second) <= windowMs }
             .sortedBy { kotlin.math.abs(it.second) }
-            .take(3)
+            .take(5)
 
     val startCandidates = remember(markers, startAtMs) { candidates(startAtMs) }
     val endCandidates = remember(markers, endMs) { candidates(endMs) }
