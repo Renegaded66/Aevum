@@ -82,6 +82,7 @@
     <string name="balance_blocked_count">%1$d gesperrt</string>
     <string name="balance_permission_title">Digital Balance</string>
     <string name="balance_permission_desc">Um deine App-Nutzung zu sehen und Limits zu setzen, braucht Aevum Zugriff auf die Nutzungsdaten.</string>
+    <string name="balance_permission_desc_rec">Du bekommst Einblick in deine echte Nutzung — Stundengrafik, Unlocks und App-Verläufe, die sonst niemand sieht. Und du kannst Limits setzen, die dich vor 2-Uhr-Scroll-Sessions schützen. Dafür fragt Aevum einmalig nach Zugriff auf die Nutzungsdaten.</string>
     <string name="balance_permission_grant">Nutzungszugriff erlauben</string>
     <string name="balance_refresh">Aktualisieren</string>
     <string name="balance_of_goal">von %1$s Ziel</string>
@@ -98,6 +99,7 @@
     <string name="balance_limit_min">Limit %1$d min</string>
     <string name="balance_limit_reached">Limit erreicht</string>
     <string name="balance_remaining">Noch %1$s</string>
+    <string name="balance_soon_blocked">Gleich gesperrt — noch %1$s</string>
     <string name="balance_limit_active">Limit aktiv</string>
     <string name="balance_no_limit">Kein Limit</string>
     <string name="balance_set_limit">Limit setzen</string>

@@ -208,7 +208,9 @@ fun OrbitLauncherSheet(
     recents: List<RecentActivityType>,
     onStart: (String) -> Unit,
     onStartWithTime: (String, String?, Long) -> Unit,
-    onCreateActivity: (String) -> Unit = {},
+    // M18.12: Neue Aktivität manuell anlegen
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
 ) {
     val favorites = remember(activityTypes) { activityTypes.filter { it.isFavorite }.map { it.id }.toSet() }
@@ -705,7 +707,7 @@ fun OrbitLauncherSheet(
                     TextButton(onClick = {
                         val name = newActivityName.trim()
                         if (name.isNotEmpty()) {
-                            onCreateActivity(name)
+                            onCreateActivity(name, "•")
                             showCreateDialog = false
                             newActivityName = ""
                         }

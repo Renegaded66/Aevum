@@ -355,7 +355,13 @@ private fun PermissionCard(onOpenSettings: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    stringResource(R.string.balance_permission_desc),
+                    // M18.93v8 (Reciprocity — Video 2TlIg3VokY8): Statt nur
+                    // „braucht Zugriff" (Verlangen ohne Gegenwert) zeigt die
+                    // Karte ZUERST, was der User bekommt: Limits, die ihn
+                    // schützen, und Verläufe, die sonst keiner sieht. Wer
+                    // zuerst etwas bekommt (Einblick), gibt leichter zurück
+                    // (Zustimmung) — Cialdinis mächtigstes Prinzip.
+                    stringResource(R.string.balance_permission_desc_rec),
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -455,7 +461,24 @@ private fun TodayHeroCard(
                         fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        stringResource(R.string.balance_of_goal, DigitalBalanceViewModel.formatDuration(goalMs)),
+                        // M18.93v8 (Anchoring + Goal Gradient — Video 2TlIg3VokY8):
+                        // Der Ø-7-Tage-Wert ist der Vergleichsanker: „von 5h Ziel ·
+                        // Ø 3h 10m" zeigt relativ, wie der heutige Tag im Schnitt
+                        // liegt (Contrast-Effekt) und wie viel zum Ziel fehlt —
+                        // statt einer isolierten Zahl, die niemand einordnen kann.
+                        buildString {
+                            append(stringResource(R.string.balance_of_goal, DigitalBalanceViewModel.formatDuration(goalMs)))
+                            val pastTotals = state.dailyTotals
+                                .filter { it.first != java.time.LocalDate.now() }
+                                .map { it.second }
+                            if (pastTotals.isNotEmpty()) {
+                                val avg = pastTotals.sum() / pastTotals.size
+                                if (avg > 0L) {
+                                    append(" · Ø ")
+                                    append(DigitalBalanceViewModel.formatDuration(avg))
+                                }
+                            }
+                        },
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -825,10 +848,23 @@ private fun AppLimitCard(
                     )
                     app.remainingMs?.let { rem ->
                         Text(
-                            if (app.isBlocked) stringResource(R.string.balance_limit_reached) else stringResource(R.string.balance_remaining, DigitalBalanceViewModel.formatDuration(rem)),
+                            // M18.93v8 (Loss Aversion — Video 2TlIg3VokY8):
+                            // Ab 80 % des Limits Verlust-Framing: „Gleich gesperrt —
+                            // noch 5 min" statt neutralem „Noch 5 min". Der Schmerz
+                            // des Verlusts (Zugriff weg) ist doppelt so stark wie
+                            // die Freude über verbleibende Zeit (Kahneman) —
+                            // Verhaltensänderung setzt eher ein.
+                            when {
+                                app.isBlocked -> stringResource(R.string.balance_limit_reached)
+                                progress >= 0.8f -> stringResource(
+                                    R.string.balance_soon_blocked,
+                                    DigitalBalanceViewModel.formatDuration(rem)
+                                )
+                                else -> stringResource(R.string.balance_remaining, DigitalBalanceViewModel.formatDuration(rem))
+                            },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (app.isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            color = if (app.isBlocked || progress >= 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                     }
                 }

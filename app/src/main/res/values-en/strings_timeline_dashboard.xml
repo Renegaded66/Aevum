@@ -200,6 +200,7 @@
     <string name="dashboard_start_question">What will you begin now?</string>
     <string name="dashboard_start_now">Start now</string>
     <string name="dashboard_begin_section">Begin section</string>
+    <string name="dashboard_start_default">Begin %1$s</string>
     <string name="dashboard_change_start_ellipsis">Change start time…</string>
     <string name="dashboard_start_at">Start at:</string>
     <string name="dashboard_pick_start_time">Choose start time</string>
@@ -223,6 +224,7 @@
     <string name="dashboard_new_activity">New activity</string>
     <string name="dashboard_name_example">Name (e.g. Guitar)</string>
     <string name="dashboard_create_and_start">Create &amp; start</string>
+    <string name="dashboard_pick_icon">Choose icon (optional)</string>
     <string name="dashboard_running_auto">running automatically</string>
     <string name="dashboard_started_by">Started by %1$s</string>
     <string name="dashboard_pause">Pause</string>

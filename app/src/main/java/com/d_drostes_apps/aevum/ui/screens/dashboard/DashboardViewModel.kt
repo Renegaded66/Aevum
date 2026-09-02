@@ -354,8 +354,12 @@ class DashboardViewModel @Inject constructor(
      * Primärfarbe 0) und startet sofort eine Session — der User will
      * tracken, nicht erst konfigurieren. Icon/Farbe kann er danach im
      * ActivityTypes-Screen (Settings) anpassen.
+     * M18.93v8 (UX-Psychologie „IKEA-Effekt" — Video 2TlIg3VokY8):
+     * Der User wählt beim Anlegen JETZT schon ein Icon mit — selbst
+     * gebaute (Name + Icon gewählte) Objekte werden höher bewertet;
+     * „Weiter" statt „Erstellen" senkt die Abbruch-Schwelle.
      */
-    fun createAndStartActivity(name: String) {
+    fun createAndStartActivity(name: String, icon: String = "•") {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
@@ -367,7 +371,7 @@ class DashboardViewModel @Inject constructor(
                 propertiesJson = null,
                 isFavorite = false,
                 positivityScore = 50,
-                icon = "•",
+                icon = icon.ifBlank { "•" },
                 color = 0L
             )
             activityTypeRepository.insert(type)

@@ -111,7 +111,8 @@ fun LiveActivityCard(
     onDiscard: () -> Unit = {},
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen (Name → neuer ActivityType)
-    onCreateActivity: (String) -> Unit = {},
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> },
     // M18.23: Aktivität wechseln — aktueller Timer wird beendet, neue gestartet
     onSwitch: (String, String?) -> Unit = { _, _ -> }
 ) {
@@ -159,13 +160,21 @@ private fun IdleCard(
     onStartWithTime: (String, String?, Long) -> Unit = { _, _, _ -> },
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen
-    onCreateActivity: (String) -> Unit = {}
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> }
 ) {
     var showPicker by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     // M11: optional start time
     var startTimeMode by remember { mutableStateOf(false) }
-    var selectedType by remember { mutableStateOf<String?>(null) }
+    // M18.93v8 (UX-Psychologie „Smart Defaults" — Video 2TlIg3VokY8):
+    // Der große Start-Button ist mit dem ersten Favoriten VORBELEGT
+    // (sonst Recents). 70–90 % der Nutzer übernehmen Defaults — so
+    // startet die häufigste Aktivität mit EINEM Tap statt erst den
+    // Picker zu öffnen. „Andere wählen" bleibt als Ausweg sichtbar.
+    var selectedType by remember {
+        mutableStateOf(favorites.firstOrNull()?.id ?: recents.firstOrNull()?.id)
+    }
     var customStartTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
     AevumCard(
@@ -186,15 +195,26 @@ private fun IdleCard(
                 letterSpacing = 0.4.sp
             )
 
-            // Primary Action — der eine große Button
+            // Primary Action — der eine große Button.
+            // M18.93v8 (Smart Defaults — Video 2TlIg3VokY8): Liegt ein
+            // Default vor (Favorit oder zuletzt genutzt), startet der
+            // Button DIESE Aktivität direkt mit einem Tap. Der Name steht
+            // im Label — die Entscheidung ist schon getroffen, „Andere
+            // wählen" öffnet den Picker als Ausweg.
+            val defaultName = favorites.firstOrNull()?.name
+                ?: recents.firstOrNull()?.title
             PremiumStartButton(
-                label = if (startTimeMode) stringResource(R.string.dashboard_start_now)
-                else stringResource(R.string.dashboard_begin_section),
+                label = when {
+                    startTimeMode -> stringResource(R.string.dashboard_start_now)
+                    defaultName != null -> stringResource(R.string.dashboard_start_default, defaultName)
+                    else -> stringResource(R.string.dashboard_begin_section)
+                },
                 onClick = {
                     if (startTimeMode && selectedType != null) {
                         onStartWithTime(selectedType!!, null, customStartTime)
                         startTimeMode = false
-                        selectedType = null
+                    } else if (selectedType != null) {
+                        onStart(selectedType!!, null)
                     } else {
                         showPicker = true
                     }
@@ -520,7 +540,8 @@ fun ActivityPickerSheet(
     onStartWithTime: (String, String?, Long) -> Unit = { _, _, _ -> },
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen
-    onCreateActivity: (String) -> Unit = {},
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     // M18.52: In der Karte eingestellte Startzeit (sonst startet das
     // Sheet mit "jetzt" und die Zeit geht verloren).
@@ -781,31 +802,70 @@ fun ActivityPickerSheet(
     // M18.12: Dialog für neue Aktivität — Name reicht, Icon/Farbe folgen
     // im ActivityTypes-Screen (Settings). Nach dem Anlegen wird direkt
     // gestartet — der User will sofort tracken, nicht erst konfigurieren.
+    // M18.93v8 (IKEA-Effekt — Video 2TlIg3VokY8): Der User wählt beim
+    // Anlegen JETZT ein Icon mit — selbst Gebautes wird höher bewertet,
+    // Verlassen fühlt sich wie Wegwerfen an. Der Button heißt „Weiter"
+    // (kein Endpunkt, kein „Erstellen"-Ritual).
     if (showCreateDialog) {
+        var selectedIcon by remember { mutableStateOf("•") }
         AlertDialog(
             onDismissRequest = { showCreateDialog = false; newActivityName = "" },
             title = { Text(stringResource(R.string.dashboard_new_activity), fontWeight = FontWeight.SemiBold) },
             text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = newActivityName,
-                    onValueChange = { newActivityName = it },
-                    label = { Text(stringResource(R.string.dashboard_name_example)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+                ) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = newActivityName,
+                        onValueChange = { newActivityName = it },
+                        label = { Text(stringResource(R.string.dashboard_name_example)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        stringResource(R.string.dashboard_pick_icon),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                    ) {
+                        items(
+                            listOf(
+                                "📚", "💪", "🧘", "🍳", "🛠️", "👨‍💻",
+                                "🏃", "🛒", "🚗", "🎮", "📺", "☕",
+                                "🧹", "🛏️", "🚿", "💼", "📞", "✍️", "🧠", "🎵"
+                            )
+                        ) { emoji ->
+                            val selected = emoji == selectedIcon
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AevumRadius.full))
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                    .clickable { selectedIcon = emoji }
+                                    .padding(10.dp)
+                            ) {
+                                Text(emoji, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val name = newActivityName.trim()
                         if (name.isNotEmpty()) {
-                            onCreateActivity(name)
+                            onCreateActivity(name, selectedIcon)
                             showCreateDialog = false
                             newActivityName = ""
                         }
                     },
                     enabled = newActivityName.trim().isNotEmpty()
-                ) { Text(stringResource(R.string.dashboard_create_and_start)) }
+                ) { Text(stringResource(R.string.common_continue)) }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false; newActivityName = "" }) { Text(stringResource(R.string.common_cancel)) }

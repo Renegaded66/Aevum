@@ -205,7 +205,8 @@ private fun DashboardContent(
     onDiscardLive: () -> Unit = {},
     onToggleFavorite: (com.d_drostes_apps.aevum.data.model.ActivityType) -> Unit,
     // M18.12: Neue Aktivität anlegen + starten
-    onCreateActivity: (String) -> Unit = {},
+    // M18.93v8: Icon kommt mit (IKEA-Effekt).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> },
     // M18.23: Aktivität wechseln
     onSwitchLive: (String, String?) -> Unit = { _, _ -> },
     // M18.60: Tages-Navigation + Pauschal-Overrides
