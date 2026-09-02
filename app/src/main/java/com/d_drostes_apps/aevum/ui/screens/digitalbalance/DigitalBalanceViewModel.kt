@@ -81,6 +81,12 @@ class DigitalBalanceViewModel @Inject constructor(
 
     private val rangeDays = MutableStateFlow(7)
     private val refreshTick = MutableStateFlow(0L)
+    // M18.93v7-FIX: Live-Tick alle 60s — der Balance-Tab aktualisierte
+    // nur bei onResume/Refresh (User: "System-App zeigt 31 Min, Balance
+    // 25 Min"). System-Apps wie Digital Wellbeing aktualisieren live;
+    // Aevum-Balance blieb bis zum nächsten Refresh hinter dem echten
+    // Wert zurück.
+    private val minuteTick = MutableStateFlow(0L)
     // M18.62: Gewählter Tag (Balken-Klick im Diagramm). null = heute.
     private val selectedDay = MutableStateFlow<LocalDate?>(null)
     // M18.61g: Sortierung — "usage" (absteigend nach Nutzung) oder "alpha"
@@ -134,8 +140,19 @@ class DigitalBalanceViewModel @Inject constructor(
         refreshTick,
         sortMode,
         selectedDay,
-        appLimitRepository.getAll()
-    ) { days, _, sort, selDay, limits ->
+        appLimitRepository.getAll(),
+        minuteTick
+    ) { values ->
+        // M18.93v7: 6 Flows → Array-Form (kotlinx combine hat typisierte
+        // Überladungen nur bis 5); Casts wie im DashboardViewModel.
+        @Suppress("UNCHECKED_CAST")
+        val days = values[0] as Int
+        @Suppress("UNCHECKED_CAST")
+        val sort = values[2] as String
+        @Suppress("UNCHECKED_CAST")
+        val selDay = values[3] as LocalDate?
+        @Suppress("UNCHECKED_CAST")
+        val limits = values[4] as List<AppLimit>
         val permission = UsageStatsPermission.isGranted(getApplication())
         if (!permission) {
             DigitalBalanceUiState(hasPermission = false, loading = false)
@@ -143,6 +160,17 @@ class DigitalBalanceViewModel @Inject constructor(
             buildState(days, limits, sort, selDay)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DigitalBalanceUiState())
+
+    init {
+        // M18.93v7-FIX: Der Balance-Tab soll live mitlaufen (System-
+        // Wellbeing-Muster) und nicht erst beim manuellen Refresh.
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                minuteTick.value = System.currentTimeMillis()
+            }
+        }
+    }
 
     private suspend fun buildState(days: Int, limits: List<AppLimit>, sort: String = "usage", selDay: LocalDate? = null): DigitalBalanceUiState {
         val today = LocalDate.now()
@@ -222,7 +250,15 @@ class DigitalBalanceViewModel @Inject constructor(
             }
         }
 
-        val dayTotal = dayUsage.sumOf { it.durationMs }
+        // M18.93v7-FIX (User: "Balance 25 Min vs System-App 31 Min"):
+        // todayUsageByApp() filterte Phasen < 1s heraus (`> 1_000`) —
+        // viele kurze App-Wechsel (z.B. Notification-Shade, Schnell-
+        // Umschalter) verschwanden dadurch aus der Summe. Der System-
+        // Ring (Google Digital Wellbeing) zählt ALLE Vordergrund-Phasen
+        // ohne Schwellwert. Der Hero-Ring nutzt daher jetzt die
+        // unfilterte detail.totalMs (identische Event-API, kein Filter);
+        // die App-Liste behält den 1s-Filter (Rauschen ausblenden).
+        val dayTotal = detail.totalMs
 
         return DigitalBalanceUiState(
             hasPermission = true,

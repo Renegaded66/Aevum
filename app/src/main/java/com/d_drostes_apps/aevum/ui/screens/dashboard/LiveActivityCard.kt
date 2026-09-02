@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -79,6 +81,7 @@ import com.d_drostes_apps.aevum.domain.liveactivity.RecentActivityType
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.AevumTimePicker
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.components.ChargingRing
 import com.d_drostes_apps.aevum.ui.components.categoryColor
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
@@ -108,7 +111,8 @@ fun LiveActivityCard(
     onDiscard: () -> Unit = {},
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen (Name → neuer ActivityType)
-    onCreateActivity: (String) -> Unit = {},
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> },
     // M18.23: Aktivität wechseln — aktueller Timer wird beendet, neue gestartet
     onSwitch: (String, String?) -> Unit = { _, _ -> }
 ) {
@@ -156,13 +160,21 @@ private fun IdleCard(
     onStartWithTime: (String, String?, Long) -> Unit = { _, _, _ -> },
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen
-    onCreateActivity: (String) -> Unit = {}
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> }
 ) {
     var showPicker by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     // M11: optional start time
     var startTimeMode by remember { mutableStateOf(false) }
-    var selectedType by remember { mutableStateOf<String?>(null) }
+    // M18.93v8 (UX-Psychologie „Smart Defaults" — Video 2TlIg3VokY8):
+    // Der große Start-Button ist mit dem ersten Favoriten VORBELEGT
+    // (sonst Recents). 70–90 % der Nutzer übernehmen Defaults — so
+    // startet die häufigste Aktivität mit EINEM Tap statt erst den
+    // Picker zu öffnen. „Andere wählen" bleibt als Ausweg sichtbar.
+    var selectedType by remember {
+        mutableStateOf(favorites.firstOrNull()?.id ?: recents.firstOrNull()?.id)
+    }
     var customStartTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
     AevumCard(
@@ -183,15 +195,26 @@ private fun IdleCard(
                 letterSpacing = 0.4.sp
             )
 
-            // Primary Action — der eine große Button
+            // Primary Action — der eine große Button.
+            // M18.93v8 (Smart Defaults — Video 2TlIg3VokY8): Liegt ein
+            // Default vor (Favorit oder zuletzt genutzt), startet der
+            // Button DIESE Aktivität direkt mit einem Tap. Der Name steht
+            // im Label — die Entscheidung ist schon getroffen, „Andere
+            // wählen" öffnet den Picker als Ausweg.
+            val defaultName = favorites.firstOrNull()?.name
+                ?: recents.firstOrNull()?.title
             PremiumStartButton(
-                label = if (startTimeMode) stringResource(R.string.dashboard_start_now)
-                else stringResource(R.string.dashboard_begin_section),
+                label = when {
+                    startTimeMode -> stringResource(R.string.dashboard_start_now)
+                    defaultName != null -> stringResource(R.string.dashboard_start_default, defaultName)
+                    else -> stringResource(R.string.dashboard_begin_section)
+                },
                 onClick = {
                     if (startTimeMode && selectedType != null) {
                         onStartWithTime(selectedType!!, null, customStartTime)
                         startTimeMode = false
-                        selectedType = null
+                    } else if (selectedType != null) {
+                        onStart(selectedType!!, null)
                     } else {
                         showPicker = true
                     }
@@ -517,7 +540,8 @@ fun ActivityPickerSheet(
     onStartWithTime: (String, String?, Long) -> Unit = { _, _, _ -> },
     onToggleFavorite: (ActivityType) -> Unit,
     // M18.12: Neue Aktivität manuell anlegen
-    onCreateActivity: (String) -> Unit = {},
+    // M18.93v8: Icon kommt mit (IKEA-Effekt — User baut vor dem Starten).
+    onCreateActivity: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     // M18.52: In der Karte eingestellte Startzeit (sonst startet das
     // Sheet mit "jetzt" und die Zeit geht verloren).
@@ -778,31 +802,70 @@ fun ActivityPickerSheet(
     // M18.12: Dialog für neue Aktivität — Name reicht, Icon/Farbe folgen
     // im ActivityTypes-Screen (Settings). Nach dem Anlegen wird direkt
     // gestartet — der User will sofort tracken, nicht erst konfigurieren.
+    // M18.93v8 (IKEA-Effekt — Video 2TlIg3VokY8): Der User wählt beim
+    // Anlegen JETZT ein Icon mit — selbst Gebautes wird höher bewertet,
+    // Verlassen fühlt sich wie Wegwerfen an. Der Button heißt „Weiter"
+    // (kein Endpunkt, kein „Erstellen"-Ritual).
     if (showCreateDialog) {
+        var selectedIcon by remember { mutableStateOf("•") }
         AlertDialog(
             onDismissRequest = { showCreateDialog = false; newActivityName = "" },
             title = { Text(stringResource(R.string.dashboard_new_activity), fontWeight = FontWeight.SemiBold) },
             text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = newActivityName,
-                    onValueChange = { newActivityName = it },
-                    label = { Text(stringResource(R.string.dashboard_name_example)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+                ) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = newActivityName,
+                        onValueChange = { newActivityName = it },
+                        label = { Text(stringResource(R.string.dashboard_name_example)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        stringResource(R.string.dashboard_pick_icon),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                    ) {
+                        items(
+                            listOf(
+                                "📚", "💪", "🧘", "🍳", "🛠️", "👨‍💻",
+                                "🏃", "🛒", "🚗", "🎮", "📺", "☕",
+                                "🧹", "🛏️", "🚿", "💼", "📞", "✍️", "🧠", "🎵"
+                            )
+                        ) { emoji ->
+                            val selected = emoji == selectedIcon
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AevumRadius.full))
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                    .clickable { selectedIcon = emoji }
+                                    .padding(10.dp)
+                            ) {
+                                Text(emoji, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val name = newActivityName.trim()
                         if (name.isNotEmpty()) {
-                            onCreateActivity(name)
+                            onCreateActivity(name, selectedIcon)
                             showCreateDialog = false
                             newActivityName = ""
                         }
                     },
                     enabled = newActivityName.trim().isNotEmpty()
-                ) { Text(stringResource(R.string.dashboard_create_and_start)) }
+                ) { Text(stringResource(R.string.common_continue)) }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false; newActivityName = "" }) { Text(stringResource(R.string.common_cancel)) }
@@ -947,58 +1010,77 @@ private fun RunningCard(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Eyebrow mit Puls-Dot
+            // M18.93v2 AUF-LADE-HERO: Komplettes "Energie laden"-Erlebnis —
+            // ein Ladefortschritts-RING um das Activity-Icon (füllt sich im
+            // Takt der laufenden Stunde, Orbit-Glow-Komet wandert mit),
+            // daneben Titel + Live-Timer. Textfeld + Zeitangabe bleiben
+            // (User-Wunsch), die Optik ist jetzt ein echtes Auflade-Visual.
+            val activityIcon = remember(state.title, state.categoryId) {
+                activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
+            }
+            val minuteFraction = remember(nowMs) {
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
+                ((cal.get(java.util.Calendar.MINUTE) * 60 + cal.get(java.util.Calendar.SECOND)) / 3600f)
+                    .coerceIn(0f, 1f)
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.lg),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .alpha(pulseAlpha)
-                        .clip(CircleShape)
-                        .background(accentColor)
+                ChargingRing(
+                    fraction = minuteFraction,
+                    accent = accentColor,
+                    pulseAlpha = pulseAlpha,
+                    emoji = activityIcon.ifBlank { "\u23F1" }
                 )
-                Text(
-                    if (state.isAuto) stringResource(R.string.dashboard_running_auto)
-                    else stringResource(R.string.common_active),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = accentColor,
-                    letterSpacing = 0.4.sp,
-                    modifier = Modifier.alpha(pulseAlpha)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .alpha(0.5f + 0.5f * pulseAlpha)
+                                .clip(CircleShape)
+                                .background(accentColor)
+                        )
+                        Text(
+                            if (state.isAuto) stringResource(R.string.dashboard_running_auto)
+                            else stringResource(R.string.common_active),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = accentColor,
+                            letterSpacing = 0.4.sp
+                        )
+                    }
+                    Text(
+                        state.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    // M12.1: Show origin for auto-started sessions
+                    if (state.isAuto && state.sourceLabel != null) {
+                        Text(
+                            stringResource(R.string.dashboard_started_by, state.sourceLabel),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    Text(
+                        text = formatLiveDuration(state.activeMs(nowMs)),
+                        fontSize = 34.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Light,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = (-1).sp
+                    )
+                }
             }
-
-            Text(
-                state.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // M12.1: Show origin for auto-started sessions
-            if (state.isAuto && state.sourceLabel != null) {
-                Text(
-                    stringResource(R.string.dashboard_started_by, state.sourceLabel),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-
-            // Hero-Timer — nowMs drives a real-time recompose
-            // M18.61e-FIX (User: "Timer Feld ist viel zu groß, richtig
-            // überdimensioniert seit du den neuen button eingefügt hast"):
-            // 64sp war riesig. Auf 40sp reduziert — groß genug für den
-            // Hero-Charakter, aber nicht mehr überdimensioniert.
-            Text(
-                text = formatLiveDuration(state.activeMs(nowMs)),
-                fontSize = 40.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Light,
-                color = MaterialTheme.colorScheme.onSurface,
-                letterSpacing = (-1).sp
-            )
 
             state.note?.takeIf { it.isNotBlank() }?.let {
                 Text(

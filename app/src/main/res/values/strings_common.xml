@@ -9,6 +9,7 @@
     <string name="common_continue">Weiter</string>
     <string name="common_open">Öffnen</string>
     <string name="common_close">Schließen</string>
+    <string name="common_undo">Rückgängig machen</string>
     <string name="common_create">Erstellen</string>
     <string name="common_apply">Übernehmen</string>
     <string name="common_name">Name</string>

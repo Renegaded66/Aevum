@@ -17,7 +17,10 @@ data class TriggerEventMarker(
     val label: String,
     val occurredAt: Long,
     val kind: TriggerEventKind,
-    val source: String = "PLANNED"
+    val source: String = "PLANNED",
+    // M18.93: Optionales Icon (z.B. ActivityType-Emoji bei Session-Ankern);
+    // leer = die UI nutzt ein generisches Trigger-Glyph.
+    val icon: String = ""
 )
 
 enum class TriggerEventKind {

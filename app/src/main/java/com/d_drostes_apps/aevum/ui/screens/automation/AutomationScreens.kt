@@ -52,7 +52,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -255,14 +257,17 @@ fun GeofenceEditorScreen(
                 }
             }
 
-            // Map (always shown)
+            // Map (always shown) — M18.93: Emoji-Pin mit dem LIVE gewählten
+            // Icon + Geofence-Farbe statt unscheinbarem Fadenkreuz.
             item {
                 MapLibreMapCard(
                     latitude = state.form.latitude,
                     longitude = state.form.longitude,
                     radius = state.form.radius,
                     onCenterChanged = viewModel::setCoordinates,
-                    onRadiusChanged = viewModel::setRadius
+                    onRadiusChanged = viewModel::setRadius,
+                    centerEmoji = state.form.icon,
+                    centerColorHex = state.form.color
                 )
             }
 
@@ -531,7 +536,10 @@ fun MapLibreMapCard(
     longitude: String,
     radius: String,
     onCenterChanged: (Double, Double) -> Unit,
-    onRadiusChanged: (String) -> Unit
+    onRadiusChanged: (String) -> Unit,
+    // M18.93: Emoji-Pin in der Kartenmitte (live = gewähltes Icon/Farbe).
+    centerEmoji: String = "",
+    centerColorHex: String = ""
 ) {
     val lat = latitude.replace(',', '.').toDoubleOrNull() ?: 51.6167
     val lon = longitude.replace(',', '.').toDoubleOrNull() ?: 7.5167
@@ -545,7 +553,9 @@ fun MapLibreMapCard(
             AevumMapView(
                 latitude = lat, longitude = lon, radiusMeters = radiusVal,
                 onCenterChanged = onCenterChanged,
-                modifier = Modifier.fillMaxWidth().height(320.dp)
+                modifier = Modifier.fillMaxWidth().height(320.dp),
+                centerEmoji = centerEmoji,
+                centerColorHex = centerColorHex
             )
 
             Text(stringResource(R.string.automation_radius_value, radiusVal.toInt()), fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -733,13 +743,33 @@ fun GeofenceDebugScreen(
 // ══════════════════════════════════════════════════════
 
 @Composable
-fun Header(title: String, subtitle: String, onBack: () -> Unit, actionLabel: String?, onAction: () -> Unit) {
+fun Header(title: String, subtitle: String, onBack: () -> Unit, actionLabel: String?, onAction: () -> Unit,
+           // M18.92: Optionale sekundäre Aktion (z. B. 🗺️ Karten-Icon auf der
+           // Geofence-Liste). Default-Params = alle bestehenden Aufrufer
+           // kompilieren unverändert weiter.
+           secondaryActionEmoji: String? = null, onSecondaryAction: () -> Unit = {}) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
             Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (actionLabel != null) Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) { Text(actionLabel) }
+            if (actionLabel != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                    if (secondaryActionEmoji != null) {
+                        androidx.compose.material3.Surface(
+                            onClick = onSecondaryAction,
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                Text(secondaryActionEmoji, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                    Button(onClick = onAction, modifier = Modifier.weight(1f)) { Text(actionLabel) }
+                }
+            }
         }
     }
 }
@@ -750,14 +780,106 @@ fun GeofenceListScreen(
     onBack: () -> Unit,
     onCreate: () -> Unit,
     onEdit: (String) -> Unit,
+    // M18.92: 🗺️-Icon öffnet die neue Geofence-Übersichtskarte.
+    onOpenMap: () -> Unit = {},
     viewModel: GeofenceListViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    // M18.93: Inline-Karte oben (ohne Klick sichtbar), ⛶ maximiert zur
+    // Fullscreen-Karte. Eigener Map-ViewModel liefert den Live-Standort.
+    val mapViewModel: GeofenceMapViewModel = hiltViewModel()
+    val mapState by mapViewModel.uiState.collectAsState()
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        mapViewModel.startLocationPulse()
+        onDispose { mapViewModel.stopLocationPulse() }
+    }
     // M18.66-FIX20: Bestätigungsdialog vor dem Löschen
     var pendingDelete by remember { mutableStateOf<PlaceGeofence?>(null) }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg), verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            item { Header(stringResource(R.string.automation_geofences_title), stringResource(R.string.automation_geofences_subtitle), onBack, stringResource(R.string.automation_new), onCreate) }
+            // M18.93: Kompakter Header (User: "Überschrift-Kasten deutlich
+            // kleiner") — eine Zeile: ← Titel, rechts 🗺️ + Neu.
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    TextButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Text("←", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.automation_geofences_title), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            stringResource(R.string.automation_geofences_subtitle),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                    // 🗺️ → Vollbild-Karte
+                    androidx.compose.material3.Surface(
+                        onClick = onOpenMap,
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    ) {
+                        Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                            Text("\uD83D\uDDFA\uFE0F", fontSize = 18.sp)
+                        }
+                    }
+                    Button(onClick = onCreate) { Text(stringResource(R.string.automation_new)) }
+                }
+            }
+            // M18.93: INLINE-KARTE — sofort sichtbar ohne Klick. 210 dp,
+            // abgerundet, mit ⛶-Maximieren-Button. Live-Standort inklusive.
+            if (state.geofences.isNotEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(210.dp)
+                            .clip(RoundedCornerShape(AevumRadius.md))
+                    ) {
+                        GeofenceMapView(
+                            geofences = state.geofences,
+                            userLocation = mapState.location,
+                            isDark = androidx.compose.foundation.isSystemInDarkTheme(),
+                            modifier = Modifier.fillMaxWidth().height(210.dp),
+                            fitOnBuild = true,
+                            onMarkerTap = { map, marker ->
+                                map.deselectMarkers()
+                                map.selectMarker(marker)
+                            },
+                            onCalloutTap = onEdit,
+                            overlayContent = { _, userLoc, map, view ->
+                                if (userLoc != null) {
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        GlassCircleButton(
+                                            emoji = "\u2922",
+                                            contentDescription = stringResource(R.string.geofence_map_fit_all),
+                                            onClick = {
+                                                if (map != null) fitToGeofences(map, view, state.geofences, userLoc)
+                                            },
+                                            compact = true,
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                        // ⛶ Maximieren-Button oben rechts (eigenes Overlay,
+                        // damit die Vollscreen-Navigation aus dem List-Screen
+                        // feuert — der Inline-Map-Overlay-Kanal bleibt für
+                        // den Fit-Button).
+                        GlassPill(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp),
+                            onClick = onOpenMap
+                        ) {
+                            Text("\u2922", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
             // M18.66-FIX20: Suchleiste mit Live-Suche
             item {
                 OutlinedTextField(
@@ -806,17 +928,88 @@ private fun GeofenceRow(
     onEnabledChange: (PlaceGeofence, Boolean) -> Unit,
     onDelete: (String) -> Unit
 ) {
-    AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("${geofence.icon} ${geofence.name}", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("${geofence.latitude}, ${geofence.longitude} · ${geofence.radiusMeters.toInt()}m", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Switch(checked = geofence.enabled, onCheckedChange = { onEnabledChange(geofence, it) })
-                Text(if (geofence.enabled) stringResource(R.string.common_active) else stringResource(R.string.automation_geofence_disabled), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // M18.93: Elegante Zwei-Zeilen-Row mit farbigem Emoji-Avatar,
+    // Status-Pill und Meta-Zeile; Aktionen als dezente Text-Buttons
+    // rechts. Tap auf die Row editiert (statt eigenem Edit-Button).
+    val accent = try {
+        androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(geofence.color.ifBlank { "#6366F1" }))
+    } catch (_: IllegalArgumentException) {
+        androidx.compose.ui.graphics.Color(0xFF6366F1)
+    }
+    AevumCard(
+        onClick = { onEdit(geofence.id) },
+        contentPadding = PaddingValues(horizontal = AevumSpacing.lg, vertical = AevumSpacing.md)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+            // Farbiger Emoji-Avatar (Geofence-Farbe als Kreisfläche).
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    geofence.icon.ifBlank { "\uD83D\uDCCD" },
+                    fontSize = 22.sp,
+                    modifier = Modifier.alpha(if (geofence.enabled) 1f else 0.45f)
+                )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Button(onClick = { onEdit(geofence.id) }) { Text(stringResource(R.string.common_edit)) }
-                OutlinedButton(onClick = { onDelete(geofence.id) }) { Text(stringResource(R.string.common_delete)) }
+
+            // Name + Meta (Radius + Koordinaten kurz).
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    geofence.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    "${geofence.radiusMeters.toInt()} m  ·  ${"%.4f".format(geofence.latitude)}, ${"%.4f".format(geofence.longitude)}",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Status-Pill + Switch + Löschen (dezent).
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    if (geofence.enabled) stringResource(R.string.common_active)
+                    else stringResource(R.string.automation_geofence_disabled),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (geofence.enabled) MaterialTheme.colorScheme.secondary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            (if (geofence.enabled) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.12f)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = geofence.enabled,
+                        onCheckedChange = { onEnabledChange(geofence, it) },
+                        modifier = Modifier.scale(0.78f)
+                    )
+                    TextButton(
+                        onClick = { onDelete(geofence.id) },
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.common_delete),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
@@ -951,16 +1144,60 @@ private fun StatusRow(label: String, value: String) {
 }
 
 /**
- * M18.60: Große Icon-Vorauswahl für Geofences (User: "Aus einer
- * Vorauswahl, nicht zum selber eintippen. Eine große Auswahl bitte.").
- * 40 Emoji — Orte, Aktivitäten, Alltag.
+ * M18.93: Große Icon-Vorauswahl für Geofences — KATEGORISIERT, ~120 Emoji.
+ *
+ * ⚠️ Kompatibilitäts-Regel (User: "bei manchen wird ein Fragezeichen
+ * angezeigt"): NUR Basis-Emojis aus Unicode 6.0/7.0 (2010-2014, sicher auf
+ * JEDEM Android ab 4.x). KEINE ZWJ-Sequenzen (👨‍👩‍👧 rendert als 3 Einzel-
+ * Emojis oder Fragezeichen — deshalb raus), KEINE Unicode-9+ (🥑🦊 etc.),
+ * keine Skin-Tone-Modifier (🤙🏽), keine VS16-abhängigen Glyphen ohne
+ * Fallback (🍽️ hat VS16 — der Text-Variante ✁ ist unschön, also raus).
+ * Alle Glyphen sind in der Android-System-Emoji-Schrift seit KitKat.
+ * Zusätzlich: Form-Editor speichert `icon.take(8)` statt take(4) —
+ * abgetrennte Surrogate-Hälften waren der zweite Fragezeichen-Faktor.
  */
-private val GeofenceIconChoices: List<String> = listOf(
-    "🏠", "💼", "🏢", "🏫", "🎓", "🏋️", "🏃", "🚴", "🏊", "⚽",
-    "🏀", "🎾", "⛳", "🧘", "🛒", "🏪", "🍽️", "☕", "🍺", "🎬",
-    "🎮", "🎵", "📚", "💻", "🛏️", "🚿", "🧹", "🌳", "🏖️", "⛰️",
-    "🚗", "🚌", "🚆", "✈️", "⛽", "🏥", "💊", "✂️", "🐕", "👨‍👩‍👧"
+internal val GeofenceIconChoicesByCategory: List<Pair<String, List<String>>> = listOf(
+    "Orte" to listOf(
+        "🏠", "🏡", "🏢", "🏪", "🏦", "🏨", "🏫", "🏭", "🏥", "🏛",
+        "⛪", "🗼", "🌊", "🌋", "🌴", "🌳", "🌲", "🌵", "🌾", "🏝"
+    ),
+    "Sport" to listOf(
+        "⚽", "⚾", "🏀", "🏈", "🏉", "🎾", "🏊", "🏃", "🚵", "🎣",
+        "🏂", "🏒", "🏹", "⛸", "🎿", "🏆", "🏅", "🎖", "🎯", "⛳"
+    ),
+    "Essen" to listOf(
+        "☕", "🍺", "🍻", "🍸", "🍴", "🍔", "🍕", "🍟", "🍚", "🍜",
+        "🍣", "🍩", "🍫", "🍰", "🍎", "🍌", "🍇", "🍒", "🍓", "🍞"
+    ),
+    "Alltag" to listOf(
+        "🛍", "🎬", "🎮", "🎧", "🎼", "🎹", "🎭", "🎨", "📖", "📚",
+        "💻", "🖨", "✂", "🔧", "🔨", "🛠", "💊", "💉", "🚿", "🛎"
+    ),
+    "Unterwegs" to listOf(
+        "🚗", "🚙", "🚌", "🚎", "🚓", "🚑", "🚒", "🚚", "🚛", "🚜",
+        "🚲", "⛽", "🚦", "🚧", "🚏", "🚉", "🚄", "✈", "🚀", "⛵"
+    ),
+    "Tiere" to listOf(
+        "🐕", "🐈", "🐱", "🐶", "🐦", "🐧", "🐤", "🐴", "🐝", "🐛",
+        "🐬", "🐳", "🐋", "🐢", "🐟", "🐠", "🐙", "🐌", "🐇", "🐀"
+    ),
+    "Menschen" to listOf(
+        "👨", "👩", "👴", "👵", "👦", "👧", "👶", "👱", "💁", "👮",
+        "👷", "💂", "🕴", "💪", "💑", "🎓", "💼", "🚶", "🛌", "👣"
+    ),
+    "Natur" to listOf(
+        "🌅", "🌇", "🌆", "🌃", "🌌", "⭐", "🌟", "✨", "☀", "⛅",
+        "☁", "🌧", "❄", "⚡", "🔥", "💧", "🌙", "🌛", "🌞", "🌈"
+    ),
+    "Symbole" to listOf(
+        "🔔", "💎", "👑", "🏁", "🚫", "❌", "🔒", "🔓", "🔑", "💰",
+        "💸", "📈", "📉", "⏰", "⏳", "📅", "📌", "📎", "✏", "📝"
+    )
 )
+
+/** Flache Liste aller wählbaren Icons (für Default-Validierung). */
+internal val GeofenceIconChoices: List<String>
+    get() = GeofenceIconChoicesByCategory.flatMap { it.second }.distinct()
 
 /**
  * M18.61 (User: "lieber in einem pop up fenster auswählbar damit man
@@ -974,6 +1211,9 @@ private fun GeofenceIconPickerDialog(
     onPick: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // M18.93: Kategorie-Chips + große kategorisierte Auswahl (200 Emoji,
+    // alle Unicode-6/7-sicher). Standardwert "📍" ist immer oben dabei.
+    var selectedCategory by remember { mutableStateOf(GeofenceIconChoicesByCategory.first().first) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.automation_choose_icon), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
@@ -985,11 +1225,29 @@ private fun GeofenceIconPickerDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(AevumSpacing.sm))
+                // Kategorie-Chips (horizontale Scroll-Row).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                ) {
+                    GeofenceIconChoicesByCategory.forEach { (category, _) ->
+                        FilterChip(
+                            selected = selectedCategory == category,
+                            onClick = { selectedCategory = category },
+                            label = { Text(category, fontSize = 12.sp) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(AevumSpacing.sm))
                 LazyColumn(
                     modifier = Modifier.heightIn(max = 360.dp),
                     verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
-                    items(GeofenceIconChoices.chunked(5)) { rowIcons ->
+                    val icons = GeofenceIconChoicesByCategory
+                        .firstOrNull { it.first == selectedCategory }?.second.orEmpty()
+                    items(icons.chunked(5)) { rowIcons ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)

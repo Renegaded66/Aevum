@@ -157,7 +157,58 @@ class AppUsageAggregator @Inject constructor(
     }
 
     /**
-     * Nutzung pro App HEUTE (seit Mitternacht) via Event-API.
+     * M18.93v7-FIX (User: "Dashboard 33 Min vs Balance 25 Min vs System-App
+     * 31 Min"): GESAMTE App-Vordergrund-Zeit HEUTE via Event-API.
+     *
+     * Das Dashboard nutzte bisher UsageStatsCollector.screenTimeTodayMs()
+     * (SCREEN_INTERACTIVE/SCREEN_NON_INTERACTIVE = Display-an-Zeit inkl.
+     * Lock-Screen/Standby) — das ist eine ANDERE Größe als die
+     * App-Foreground-Zeit (MOVE_TO_FOREGROUND/BACKGROUND), die der
+     * Digital-Balance-Tab und Google Digital Wellbeing anzeigen. Dadurch
+     * wichen Dashboard- und Balance-Wert strukturell voneinander ab.
+     *
+     * Diese Funktion liefert die Summe ALLER Vordergrund-Phasen ohne den
+     * >1s-Filter von todayUsageByApp() (Kurz-Phasen sind echte Nutzung).
+     * Konsistent mit todayUsageByApp/todayDetail: gleiche Events, gleiche
+     * Mitternachtsgrenze.
+     */
+    suspend fun todayForegroundTotalMs(): Long = withContext(Dispatchers.IO) {
+        try {
+            val zone = ZoneId.systemDefault()
+            val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+            val now = System.currentTimeMillis()
+            val events = usageStats.queryEvents(startOfDay, now) ?: return@withContext 0L
+
+            var total = 0L
+            val foregroundSince = HashMap<String, Long>()
+            val event = UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                when (event.eventType) {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND,
+                    UsageEvents.Event.ACTIVITY_RESUMED -> {
+                        foregroundSince[event.packageName] = maxOf(event.timeStamp, startOfDay)
+                    }
+                    UsageEvents.Event.MOVE_TO_BACKGROUND,
+                    UsageEvents.Event.ACTIVITY_PAUSED,
+                    UsageEvents.Event.ACTIVITY_STOPPED -> {
+                        foregroundSince.remove(event.packageName)?.let { s ->
+                            total += (event.timeStamp - s).coerceAtLeast(0L)
+                        }
+                    }
+                }
+            }
+            foregroundSince.forEach { (_, s) ->
+                total += (now - s).coerceAtLeast(0L)
+            }
+            total
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    /**
+     * Nutzung pro App heute (seit Mitternacht) via Event-API.
      * Liefert nur Apps mit > 0 Nutzung, sortiert absteigend.
      */
     suspend fun todayUsageByApp(): List<AppUsage> = withContext(Dispatchers.IO) {

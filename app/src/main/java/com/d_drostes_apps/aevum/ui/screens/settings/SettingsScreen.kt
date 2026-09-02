@@ -72,11 +72,10 @@ fun SettingsScreen(
     // M18.59: Kategorien-Seite
     onOpenCategories: () -> Unit = {},
     // M18.83: Orts-Timeline (Google-Maps-artige Tages-Story)
+    // M18.93: "Meine Orte" entfernt — onOpenHomeGeofence/onOpenWorkGeofence/
+    // onCreateHomeGeofence/onCreateWorkGeofence entfallen (Home/Work läuft
+    // über Einstellungen → Geofences mit Quick-Setup).
     onOpenPlaceTimeline: () -> Unit = {},
-    onOpenHomeGeofence: (String) -> Unit = {},
-    onOpenWorkGeofence: (String) -> Unit = {},
-    onCreateHomeGeofence: () -> Unit = {},
-    onCreateWorkGeofence: () -> Unit = {},
     // M18.55: Datenschutz, Export, Backup
     onOpenPrivacy: () -> Unit = {},
     onOpenExport: () -> Unit = {},
@@ -136,27 +135,10 @@ fun SettingsScreen(
                     )
                 )
             }
-            item {
-                // M12.2: Home/Work-Status wird jetzt live aus dem Geofence-Repository gelesen.
-                val placeGeofences by hiltViewModel<SettingsViewModel>().geofences.collectAsState()
-                val homeExisting = placeGeofences.firstOrNull { it.name.contains("Zuhause", ignoreCase = true) || it.name.contains("home", ignoreCase = true) }
-                val workExisting = placeGeofences.firstOrNull { it.name.contains("Arbeit", ignoreCase = true) || it.name.contains("work", ignoreCase = true) }
-                SettingsSection(
-                    stringResource(R.string.settings_my_places),
-                    listOf(
-                        SettingsEntry(
-                            stringResource(R.string.common_home),
-                            status = if (homeExisting != null) stringResource(R.string.common_existing) else stringResource(R.string.common_create_now),
-                            onClick = { if (homeExisting != null) onOpenHomeGeofence(homeExisting.id) else onCreateHomeGeofence() }
-                        ),
-                        SettingsEntry(
-                            stringResource(R.string.common_work),
-                            status = if (workExisting != null) stringResource(R.string.common_existing) else stringResource(R.string.common_create_now),
-                            onClick = { if (workExisting != null) onOpenWorkGeofence(workExisting.id) else onCreateWorkGeofence() }
-                        )
-                    )
-                )
-            }
+            // M18.93 (User: "Der Bereich Meine Orte kann komplett aus den
+            // Einstellungen raus, das ist ja das gleiche wie Geofences"):
+            // Home/Work-Quick-Setup lebt jetzt ausschließlich unter
+            // Einstellungen → Geofences (dort gibt es Quick-Setup + Karte).
             // M18.2: Aktivitäten mit Positivitäts-Slider
             // M18.59: + Kategorien-Seite (User-Wunsch: Kategorien auflisten,
             // neue erstellen, Aktivitäten zuordnen, Icon+Farbe personalisieren)

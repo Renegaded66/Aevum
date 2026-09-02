@@ -839,14 +839,32 @@ class ActivityEditorViewModel @Inject constructor(
         EditorBase(formValue, categories, types)
     }
 
+    // M18.93: Sessions des Tages als Snap-Anker ("andere Aufzeichnungen" —
+    // User-Beispiel: Schlaf bis 08:10, digitale Aktivität 08:05-08:15 →
+    // der Schlaf-Editor zeigt den 08:05-Anker zum Kürzen). Sessions sind
+    // besser als Trigger, weil sie die REAL überlappende Aufzeichnung
+    // abbilden; die UI zeigt sie mit dem ActivityType-Emoji.
+    private val sessionsFlow = activityRepository.getAll()
+
     val uiState: StateFlow<ActivityEditorUiState> = combine(
         editorBase,
         triggerEventRepository.getAll(),
+        sessionsFlow,
         savedId
-    ) { base: EditorBase, triggers: List<TriggerEvent>, saved: String? ->
+    ) { base: EditorBase, triggers: List<TriggerEvent>, sessions: List<com.d_drostes_apps.aevum.data.model.ActivitySession>, saved: String? ->
         val formValue = base.form
         val dayStart = TimeFormatting.startOfDayMillis(formValue.date, zoneId)
         val dayEnd = TimeFormatting.endOfDayMillis(formValue.date, zoneId)
+        // M18.93v3-FIX (User: "Schlaf soll auf 08:05 kürzbar sein, aber der
+        // Vorschlag existiert nicht"): Schlaf startet am VORABEND → der
+        // Editor-Tag = gestern → das reine Tagesfenster [dayStart, dayEnd)
+        // endet um Mitternacht und filterte ALLE heutigen Morgen-Anker weg.
+        // Das Anker-Fenster ist jetzt die SESSION-SPANNE mit Puffer:
+        // [min(start, dayStart) - 12h .. max(end, dayEnd) + 12h] — deckt
+        // Mitternacht-Sessions und den 08:05-Anchor des Folgetags ab.
+        val windowStart = minOf(formValue.startAt, dayStart) - 12L * 60 * 60 * 1000
+        val windowEnd = maxOf(formValue.endAt ?: formValue.startAt, dayEnd) + 12L * 60 * 60 * 1000
+        val typeById = base.types.associateBy { it.id }
         ActivityEditorUiState(
             isEditing = sessionId != null,
             form = formValue,
@@ -854,18 +872,63 @@ class ActivityEditorViewModel @Inject constructor(
             activityTypes = base.types,
             duration = TimeFormatting.formatDuration((formValue.endAt ?: formValue.startAt) - formValue.startAt),
             validation = SessionTimeValidator.validate(formValue.title, formValue.startAt, formValue.endAt, emptyList(), sessionId, context = application),
-            triggerMarkers = triggers.filter { it.occurredAt in dayStart until dayEnd }.map {
-                val gfName = extractGeofenceName(it.metadataJson)
-                val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
-                TriggerEventMarker(
-                    id = it.id,
-                    label = gfName?.let { n ->
-                        if (isEnter) application.getString(R.string.timeline_trigger_entered, n)
-                        else application.getString(R.string.timeline_trigger_left, n)
-                    } ?: it.type.replace('_', ' '),
-                    occurredAt = it.occurredAt,
-                    kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
-                    source = it.source
+            triggerMarkers = buildList {
+                // M18.93: Trigger als Snap-Anker (wie bisher, Icon leer).
+                addAll(triggers.filter { it.occurredAt in windowStart..windowEnd }.map {
+                    val gfName = extractGeofenceName(it.metadataJson)
+                    val isEnter = it.type.contains("ENTER") || it.type.contains("ARRIVED")
+                    TriggerEventMarker(
+                        id = "trigger:" + it.id,
+                        label = gfName?.let { n ->
+                            if (isEnter) application.getString(R.string.timeline_trigger_entered, n)
+                            else application.getString(R.string.timeline_trigger_left, n)
+                        } ?: it.type.replace('_', ' '),
+                        occurredAt = it.occurredAt,
+                        kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
+                        source = it.source
+                    )
+                })
+                // M18.93: ANDERE Aufzeichnungen als Snap-Anker. Anchor-Regel:
+                //  - Ende der anderen Session, wenn es im Editor-Zeitfenster
+                //    liegt (User-Beispiel: Digitale Aktivität endet 08:15? Nein —
+                //    überlappt: ihr ENDE 08:15 liegt HINTER dem Schlaf-Ende 08:10
+                //    → wir nehmen ihren START 08:05 als Kürzungskante).
+                //  - Sonst: Start, wenn er nahe an unserem Ende/Start liegt.
+                addAll(
+                    sessions
+                        .filter { it.id != sessionId }
+                        .filter { it.deletedAt == null }
+                        .mapNotNull { s ->
+                            val ourEnd = formValue.endAt ?: Long.MAX_VALUE
+                            val anchor = when {
+                                // Ende der anderen Session liegt in unserer Spanne
+                                // (zwischen unserem Start und unserem Ende) →
+                                // die andere Session schneidet uns AB (Ihr Ende
+                                // ist DIE Kante, auf die wir kürzen wollen).
+                                s.endAt != null && s.endAt > formValue.startAt && s.endAt <= (formValue.endAt ?: Long.MAX_VALUE) ->
+                                    s.endAt
+                                // Start der anderen Session liegt VOR unserem
+                                // Ende (Überlappung) → ihr Start ist die Kante.
+                                s.startAt >= formValue.startAt && s.startAt <= (formValue.endAt ?: Long.MAX_VALUE) ->
+                                    s.startAt
+                                // Nahe an unserem Start (±12h, für Rückwärts-Verlängerung).
+                                // (Explizit geklammert — ohne Klammern bindet ?: vor
+                                // dem Minus und abs() sähe einen rohen Timestamp.)
+                                kotlin.math.abs((s.endAt ?: s.startAt) - formValue.startAt) <= 12L * 60 * 60 * 1000 ->
+                                    s.endAt ?: s.startAt
+                                else -> null
+                            } ?: return@mapNotNull null
+                            if (anchor !in windowStart..windowEnd) return@mapNotNull null
+                            val type = s.activityTypeId?.let { typeById[it] }
+                            TriggerEventMarker(
+                                id = "session:" + s.id + ":" + anchor,
+                                label = type?.name ?: s.title,
+                                occurredAt = anchor,
+                                kind = com.d_drostes_apps.aevum.domain.trigger.TriggerEventKind.CUSTOM,
+                                source = "SESSION",
+                                icon = type?.icon.orEmpty()
+                            )
+                        }
                 )
             },
             savedSessionId = saved
@@ -944,11 +1007,38 @@ class ActivityEditorViewModel @Inject constructor(
         }
         current.copy(endAt = fixedEnd)
     }
-    fun snapStartTo(marker: TriggerEventMarker) = form.update { current ->
-        val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
-        current.copy(startAt = marker.occurredAt, endAt = marker.occurredAt + duration)
+    fun snapStartTo(marker: TriggerEventMarker) {
+        // M18.93v4: Vor jedem Snap den vorherigen Zustand sichern —
+        // die UI zeigt danach eine Snackbar mit "Rückgängig machen".
+        rememberUndo()
+        form.update { current ->
+            val duration = ((current.endAt ?: current.startAt + ONE_HOUR) - current.startAt).coerceAtLeast(15 * 60 * 1000L)
+            current.copy(startAt = marker.occurredAt, endAt = marker.occurredAt + duration)
+        }
     }
-    fun snapEndTo(marker: TriggerEventMarker) = form.update { it.copy(endAt = marker.occurredAt) }
+    fun snapEndTo(marker: TriggerEventMarker) {
+        rememberUndo()
+        form.update { it.copy(endAt = marker.occurredAt) }
+    }
+
+    // M18.93v4 UNDO: Der komplette Zeit-Zustand VOR dem letzten Snap.
+    // Wird von der UI als Snackbar "Rückgängig machen" angeboten; die
+    // Snackbar verschwindet nach 5s, danach ist der Snap endgültig
+    // (aber jederzeit manuell rückstellbar über die Time-Picker).
+    private var undoSnapshot: Pair<Long, Long?>? = null
+    private fun rememberUndo() {
+        undoSnapshot = form.value.let { it.startAt to it.endAt }
+    }
+    /** Setzt Start/Ende auf den Zustand vor dem letzten Snap zurück.
+     *  Rückgabe false, wenn es nichts zum Zurücksetzen gibt. */
+    fun undoSnap(): Boolean {
+        val (start, end) = undoSnapshot ?: return false
+        form.update { it.copy(startAt = start, endAt = end) }
+        undoSnapshot = null
+        return true
+    }
+    /** Ob gerade ein rückgängig-machbarer Snap aussteht (steuert die Snackbar). */
+    val canUndo: Boolean get() = undoSnapshot != null
 
     fun save() {
         viewModelScope.launch {

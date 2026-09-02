@@ -264,7 +264,7 @@ class GeofenceEditorViewModel @Inject constructor(
     fun setLatitude(v: String) = form.update { it.copy(latitude = v, error = null) }
     fun setLongitude(v: String) = form.update { it.copy(longitude = v, error = null) }
     fun setRadius(v: String) = form.update { it.copy(radius = v.filter { it.isDigit() }.take(4), error = null) }
-    fun setIcon(v: String) = form.update { it.copy(icon = v.take(4), error = null) }
+    fun setIcon(v: String) = form.update { it.copy(icon = v.take(8), error = null) }
     fun setColor(v: String) = form.update { it.copy(color = v, error = null) }
     fun setEnabled(v: Boolean) = form.update { it.copy(enabled = v, error = null) }
     fun setActivityType(id: String?, catId: String?) = form.update { it.copy(activityTypeId = id, categoryId = catId ?: it.categoryId, error = null) }

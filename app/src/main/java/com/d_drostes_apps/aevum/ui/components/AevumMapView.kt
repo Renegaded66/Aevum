@@ -1,11 +1,16 @@
 package com.d_drostes_apps.aevum.ui.components
 
 import android.graphics.Color
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,7 +22,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
@@ -51,11 +59,23 @@ fun AevumMapView(
     longitude: Double,
     radiusMeters: Float,
     onCenterChanged: (Double, Double) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // M18.93: Emoji-Pin statt Fadenkreuz — zeigt das aktuell gewählte
+    // Geofence-Icon live in der Kartenmitte (Fallback: 📍).
+    centerEmoji: String = "",
+    // Akzentfarbe des Pins (Geofence-Farbe, Hex "#RRGGBB" oder leer).
+    centerColorHex: String = ""
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
+    val centerColor = remember(centerColorHex) {
+        try {
+            ComposeColor(android.graphics.Color.parseColor(centerColorHex.ifBlank { "#6366F1" }))
+        } catch (_: IllegalArgumentException) {
+            ComposeColor(0xFF6366F1)
+        }
+    }
 
     // OSM raster style JSON
     val rasterStyleJson = remember {
@@ -135,12 +155,35 @@ fun AevumMapView(
             modifier = Modifier.fillMaxWidth().height(320.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Crosshair icon
-            Text(
-                text = "⌖",
-                fontSize = 32.sp,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 16.dp)
+            // M18.93: Schönes Emoji-Pin statt Fadenkreuz — zeigt LIVE das
+            // aktuell gewählte Geofence-Icon (Parameter centerEmoji) auf
+            // farbiger Bubble mit weißem Ring, Schatten und Pin-Spitze;
+            // darunter weicher Bodenschatten. Position bleibt exakt die
+            // Karten-Mitte (Crosshair-Zentrierungs-UX unverändert).
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 26.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .shadow(6.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(3.dp, centerColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(centerEmoji.ifBlank { "\uD83D\uDCCD" }, fontSize = 26.sp)
+                }
+                // Pin-Spitze (kleines Dreieck als ▼-Glyph, exakt zentriert).
+                Text("▼", fontSize = 14.sp, color = centerColor, modifier = Modifier.offset(y = (-4).dp))
+            }
+            // Weicher Bodenschatten unter der Pin-Spitze.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = 34.dp)
+                    .size(width = 26.dp, height = 7.dp)
+                    .alpha(0.25f)
+                    .clip(CircleShape)
+                    .background(ComposeColor.Black)
             )
         }
 
