@@ -173,7 +173,16 @@ object PlaceTimelineEngine {
             // Stop, z.B. Auto-Stop hängt an checkNow()/WorkManager).
             // Die Session endet dann am EXIT-Zeitpunkt, nicht "jetzt".
             val exitAfterStart = latestExitByGeofence[geo.id]?.takeIf { it > s.startAt }
-            val effectiveEnd = endAt.coerceAtMost(exitAfterStart ?: endAt)
+            // M18.99: LIVE-ZONE-WIDERSPRUCH — die Live-Zone (frischer
+            // GPS-Check) beweist einen Ortswechsel auch OHNE EXIT-
+            // Trigger (verlorener EXIT, Prozess-Tod, Doze). Die offene
+            // Session endet am Zonen-Anker.
+            val zoneConflictEnd = if (currentZoneGeofenceId != null && currentZoneGeofenceId != geo.id) {
+                currentZoneSinceMs?.takeIf { it > s.startAt }
+            } else null
+            val effectiveEnd = endAt
+                .coerceAtMost(exitAfterStart ?: endAt)
+                .coerceAtMost(zoneConflictEnd ?: Long.MAX_VALUE)
             if (effectiveEnd <= s.startAt) continue
             val clippedStart = s.startAt.coerceAtLeast(dayStart)
             val clippedEnd = effectiveEnd.coerceAtMost(dayEnd)
@@ -200,7 +209,7 @@ object PlaceTimelineEngine {
         // persistiert die GPS-Wahrheit "User ist in Zone X" als
         // PRESENCE_ENTER/EXIT-Paare. Deckt die Lücke reiner Event-Analyse.
         val presenceIntervals =
-            derivePresenceIntervals(dayStart, dayEnd, triggers, geofenceById, nowMs, latestExitByGeofence)
+            derivePresenceIntervals(dayStart, dayEnd, triggers, geofenceById, nowMs, latestExitByGeofence, currentZoneGeofenceId, currentZoneSinceMs)
 
         // ── Quelle 2: Trigger-Paare GLOBAL über einen Zustandsautomaten ──
         // Der User ist immer an GENAU EINEM Ort (oder unterwegs). Ein
@@ -253,7 +262,20 @@ object PlaceTimelineEngine {
         }
         current?.let { cur ->
             if (nowMs >= cur.enterAt && nowMs <= dayEnd) {
-                closed += ClosedVisit(cur.geofenceId, cur.enterAt, minOf(nowMs, dayEnd), explicitClose = false)
+                // M18.99: LIVE-ZONE-WIDERSPRUCH — die Live-Zone (frischer
+                // GPS-Check, z.B. Dashboard zeigt Zuhause) beweist einen
+                // Ortswechsel, den GMS nie als EXIT persistiert hat
+                // (verlorener EXIT, Prozess-Tod, Doze). Der offene ENTER
+                // endet am Zonen-Anker — impliziter EXIT durch
+                // Zonenwechsel. Reported: "Dashboard zeigt Zuhause, aber
+                // Orts-Timeline zeigt Arbeit seit 12 Stunden."
+                val zoneConflictEnd = if (currentZoneGeofenceId != null && currentZoneGeofenceId != cur.geofenceId) {
+                    currentZoneSinceMs?.takeIf { it > cur.enterAt }
+                } else null
+                val openEnd = minOf(nowMs, dayEnd, zoneConflictEnd ?: Long.MAX_VALUE)
+                if (openEnd > cur.enterAt) {
+                    closed += ClosedVisit(cur.geofenceId, cur.enterAt, openEnd, explicitClose = false)
+                }
             }
         }
 
@@ -557,7 +579,12 @@ object PlaceTimelineEngine {
         geofenceById: Map<String, PlaceGeofence>,
         nowMs: Long,
         // M18.98: EXIT-Wahrheit — widerlegt offene Presence-Intervalle.
-        latestExitByGeofence: Map<String, Long>
+        latestExitByGeofence: Map<String, Long>,
+        // M18.99: Live-Zone-Widerspruch — der frische GPS-Check beweist
+        // einen Ortswechsel auch ohne Presence-EXIT (Sampler hängt an
+        // checkNow/WorkManager). Offene Presence endet am Zonen-Anker.
+        currentZoneGeofenceId: String?,
+        currentZoneSinceMs: Long?
     ): List<Triple<Long, Long, String>> {
         val presenceTriggers = triggers.filter {
             it.geofenceId != null &&
@@ -602,7 +629,13 @@ object PlaceTimelineEngine {
             // Presence-Sampler hängt an checkNow()/WorkManager und
             // kann den EXIT verpasst haben). Ende = EXIT-Zeitpunkt.
             val exitAfterEnter = latestExitByGeofence[it.geofenceId]?.takeIf { e -> e > it.startAt }
-            close(minOf(nowMs, dayEnd, exitAfterEnter ?: Long.MAX_VALUE))
+            // M18.99: LIVE-ZONE-WIDERSPRUCH — der frische GPS-Check
+            // beweist einen Ortswechsel auch ohne Presence-EXIT.
+            // Offene Presence endet am Zonen-Anker.
+            val zoneConflictEnd = if (currentZoneGeofenceId != null && currentZoneGeofenceId != it.geofenceId) {
+                currentZoneSinceMs?.takeIf { z -> z > it.startAt }
+            } else null
+            close(minOf(nowMs, dayEnd, exitAfterEnter ?: Long.MAX_VALUE, zoneConflictEnd ?: Long.MAX_VALUE))
         }
         return intervals
     }
