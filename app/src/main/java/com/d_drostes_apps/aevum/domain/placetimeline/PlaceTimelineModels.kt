@@ -130,6 +130,26 @@ object PlaceTimelineEngine {
         // doppelt belegen (sie subtrahiert sie stattdessen).
         val emittedTriggerIntervals = mutableListOf<Pair<Long, Long>>()
 
+        // ── M18.98: EXIT-WAHRHEIT — die Trigger-Chronik ist die ──────
+        // unveränderliche Faktenbasis. Ein bestätigter EXIT für einen
+        // Geofence beweist: Der User war ab diesem Zeitpunkt NICHT mehr
+        // dort. Damit werden alle drei "läuft gerade"-Vermutungen
+        // (offene Session, offene Presence, Live-Zone) widerlegt, wenn
+        // ein EXIT NACH ihrem jeweiligen Anker existiert.
+        // Reported Bug: "Orts-Timeline zeigt weiterhin Arbeit, obwohl
+        // ich vor 3 Stunden gegangen bin." Der GMS-EXIT-Pfad
+        // (BroadcastReceiver → StabilizationWorker → processTransition)
+        // persistiert den EXIT-Trigger korrekt, synchronisiert aber
+        // CurrentZoneProvider._currentZone NICHT → die Live-Zone
+        // (Quelle 5) blieb auf "Arbeit" und zeichnete endAt=now →
+        // "Arbeit läuft gerade" bis jetzt. Die Konsolidierung merge
+        // GMS-Visit + Live-Zone-Visit zu einem einzigen laufenden
+        // Visit. Der Lookup hier ist der zentrale Widerspruchs-Beweis.
+        val latestExitByGeofence: Map<String, Long> = triggers
+            .filter { it.geofenceId != null && (it.type.contains("EXIT") || it.type.contains("LEFT")) }
+            .groupBy { it.geofenceId!! }
+            .mapValues { (_, list) -> list.maxOf { it.occurredAt } }
+
         // ── Quelle 1: aufgezeichnete Sessions mit Trigger-Evidenz ──
         // session.sourceTriggerId → TriggerEvent (geofenceId). Das ist der
         // autoritative Link; wir raten NICHT anhand von ID-Formaten.
@@ -148,8 +168,15 @@ object PlaceTimelineEngine {
             val isOngoingSession = s.endAt == null && s.startAt >= dayStart
             val endAt = s.endAt ?: (if (s.startAt < dayStart) continue else minOf(nowMs, dayEnd))
             if (endAt <= dayStart || s.startAt >= dayEnd) continue
+            // M18.98: EXIT-WAHRHEIT — ein bestätigter EXIT nach dem
+            // Session-Start widerlegt die offene Session (verlorener
+            // Stop, z.B. Auto-Stop hängt an checkNow()/WorkManager).
+            // Die Session endet dann am EXIT-Zeitpunkt, nicht "jetzt".
+            val exitAfterStart = latestExitByGeofence[geo.id]?.takeIf { it > s.startAt }
+            val effectiveEnd = endAt.coerceAtMost(exitAfterStart ?: endAt)
+            if (effectiveEnd <= s.startAt) continue
             val clippedStart = s.startAt.coerceAtLeast(dayStart)
-            val clippedEnd = endAt.coerceAtMost(dayEnd)
+            val clippedEnd = effectiveEnd.coerceAtMost(dayEnd)
             visits += PlaceVisit(
                 id = "session_${s.id}",
                 geofenceId = geo.id,
@@ -161,7 +188,9 @@ object PlaceTimelineEngine {
                 startAt = clippedStart,
                 endAt = clippedEnd,
                 evidence = visitEvidence(endAt - s.startAt),
-                isOngoing = isOngoingSession
+                // M18.98: isOngoing an das EFFEKTIVE Ende koppeln — eine
+                // durch EXIT gedeckelte Session läuft nicht mehr.
+                isOngoing = isOngoingSession && effectiveEnd >= minOf(nowMs, dayEnd)
             )
             sessionCovered += clippedStart to clippedEnd
         }
@@ -171,7 +200,7 @@ object PlaceTimelineEngine {
         // persistiert die GPS-Wahrheit "User ist in Zone X" als
         // PRESENCE_ENTER/EXIT-Paare. Deckt die Lücke reiner Event-Analyse.
         val presenceIntervals =
-            derivePresenceIntervals(dayStart, dayEnd, triggers, geofenceById, nowMs)
+            derivePresenceIntervals(dayStart, dayEnd, triggers, geofenceById, nowMs, latestExitByGeofence)
 
         // ── Quelle 2: Trigger-Paare GLOBAL über einen Zustandsautomaten ──
         // Der User ist immer an GENAU EINEM Ort (oder unterwegs). Ein
@@ -410,7 +439,16 @@ object PlaceTimelineEngine {
             val ongoingCoversNow = visits.any { v ->
                 v.isOngoing && nowMs >= v.startAt && nowMs <= v.endAt + BRIDGE_OVERLAP_TOLERANCE_MS
             }
-            if (liveGeo != null && !ongoingCoversNow) {
+            // M18.98: EXIT-WAHRHEIT — die Live-Zone ist eine VERMUTUNG
+            // (letzter checkNow()-Stand, kann stundenlang stale sein,
+            // wenn WorkManager/Doze/GPS den Check ausfallen lassen).
+            // Ein bestätigter EXIT für DIESEN Geofence nach dem
+            // Zonen-Anker widerlegt sie: Der User ist nachweislich
+            // nicht mehr dort → KEINE Live-Zone-Station.
+            val zoneAnchor = currentZoneSinceMs ?: nowMs
+            val exitAfterAnchor = latestExitByGeofence[currentZoneGeofenceId]
+                ?.takeIf { it > zoneAnchor }
+            if (liveGeo != null && !ongoingCoversNow && exitAfterAnchor == null) {
                 visits += PlaceVisit(
                     id = "livezone_${dayStart}_${liveGeo.id}",
                     geofenceId = liveGeo.id,
@@ -517,7 +555,9 @@ object PlaceTimelineEngine {
         dayEnd: Long,
         triggers: List<TriggerEvent>,
         geofenceById: Map<String, PlaceGeofence>,
-        nowMs: Long
+        nowMs: Long,
+        // M18.98: EXIT-Wahrheit — widerlegt offene Presence-Intervalle.
+        latestExitByGeofence: Map<String, Long>
     ): List<Triple<Long, Long, String>> {
         val presenceTriggers = triggers.filter {
             it.geofenceId != null &&
@@ -557,7 +597,12 @@ object PlaceTimelineEngine {
         }
         open?.let {
             // Offen geblieben: läuft bis jetzt (kein Ende erfunden).
-            close(minOf(nowMs, dayEnd))
+            // M18.98: EXIT-WAHRHEIT — ein bestätigter EXIT nach dem
+            // Presence-ENTER widerlegt die offene Presence (der
+            // Presence-Sampler hängt an checkNow()/WorkManager und
+            // kann den EXIT verpasst haben). Ende = EXIT-Zeitpunkt.
+            val exitAfterEnter = latestExitByGeofence[it.geofenceId]?.takeIf { e -> e > it.startAt }
+            close(minOf(nowMs, dayEnd, exitAfterEnter ?: Long.MAX_VALUE))
         }
         return intervals
     }
