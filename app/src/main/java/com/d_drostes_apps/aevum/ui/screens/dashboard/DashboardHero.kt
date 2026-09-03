@@ -92,12 +92,28 @@ import kotlin.math.sin
 internal val DashboardHeroHeight = 336.dp
 
 /**
- * Ebene 1: Der Hero-Hintergrund + Inhalt. Wird von DashboardContent
- * hinter der LazyColumn platziert und beim Scrollen per graphicsLayer
- * zusammengeschoben (Inhalt schneller weg, Hintergrund als Parallax).
+ * M18.100: Deko-Hintergrund des Heroes — NUR die Farbfläche (Gradient +
+ * Orbs). Liegt als eigene Ebene HINTER der LazyColumn. Der Inhalt
+ * (DashboardHeroContent) ist Item 0 der LazyColumn — M18.96-Fix:
+ * Vorher lag der GESAMTE Hero (inkl. Tag-Navigation) hinter der
+ * LazyColumn (zIndex 1f); deren transparente contentPadding-Fläche
+ * schluckte alle Taps im Hero-Bereich (Pfeile, QualityRing, "Heute").
  */
 @Composable
-internal fun DashboardHeroLayer(
+internal fun DashboardHeroBackground(modifier: Modifier = Modifier) {
+    // M18.100: Explizite Höhe — die Deko-Fläche ist jetzt eine eigene
+    // Ebene (kein Content mehr, der sie aufspannt). Fixe Hero-Höhe,
+    // beginnt bei y=0 (full-bleed hinter der Statusbar).
+    HeroBackground(modifier = modifier.fillMaxWidth().height(DashboardHeroHeight))
+}
+
+/**
+ * M18.96: Hero-Inhalt — QualityRing + Makro-Kacheln + Tagesfluss +
+ * Fortschritt. M18.100: Als Item 0 der LazyColumn (klickbar, scrollt
+ * über den Deko-Hintergrund — Kalorien-Tracker-Optik bleibt).
+ */
+@Composable
+internal fun DashboardHeroContent(
     state: DashboardUiState,
     isLive: Boolean,
     liveTitle: String,
@@ -106,43 +122,39 @@ internal fun DashboardHeroLayer(
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onResetToToday: () -> Unit,
+    // M18.100: Klick auf das Datum in der Mitte → Kalender-Popup.
+    onDateClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxWidth()) {
-        // Hintergrund: animierter Gradient + driftende Orbs (Parallax-
-        // Ebene — bewegt sich langsamer als der Inhalt). Full-bleed:
-        // beginnt bei y=0 (hinter der Statusbar) — der Farbbereich
-        // reicht bis ganz oben.
-        HeroBackground(modifier = Modifier.fillMaxSize())
-        // Inhalt: Ring + Makro-Kacheln + Flow + Fortschritt. Beginnt
-        // UNTER der Statusbar (statusBarsPadding) — die LazyColumn hat
-        // dasselbe Padding, dadurch ist die Geometrie konsistent:
-        // erstes Item startet exakt unterhalb des Hero-Inhalts.
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
-            verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            // M18.100: KEIN statusBarsPadding hier — die LazyColumn
+            // (Item-0-Container) liefert es bereits; doppeltes Padding
+            // würde den Hero-Inhalt ~2× Statusbar-Höhe nach unten
+            // drücken (Lücke zur Deko-Fläche).
+            .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+    ) {
+        // Kopf: Tag-Navigation + Live-Chip (wenn Aufnahme läuft).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Kopf: Tag-Navigation + Live-Chip (wenn Aufnahme läuft).
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                HeroDayNavigation(
-                    displayedDate = state.displayedDate,
-                    onPrevious = onPreviousDay,
-                    onNext = onNextDay,
-                    onReset = onResetToToday,
-                    modifier = Modifier.weight(1f)
-                )
-                if (isLive) {
-                    Spacer(Modifier.width(AevumSpacing.sm))
-                    LiveStatusChip(title = liveTitle, activeMs = liveActiveMs)
-                }
+            HeroDayNavigation(
+                displayedDate = state.displayedDate,
+                onPrevious = onPreviousDay,
+                onNext = onNextDay,
+                onReset = onResetToToday,
+                onDateClick = onDateClick,
+                modifier = Modifier.weight(1f)
+            )
+            if (isLive) {
+                Spacer(Modifier.width(AevumSpacing.sm))
+                LiveStatusChip(title = liveTitle, activeMs = liveActiveMs)
             }
+        }
 
             // Ring-Zeile: QualityRing (Kern-Kennzahl) + Headline.
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -237,7 +249,6 @@ internal fun DashboardHeroLayer(
 
             // Tagesfortschritt — dünne Bar, keine Ring-Dopplung.
             DayProgressBar(dayProgress = state.dayProgress)
-        }
     }
 }
 
@@ -511,6 +522,8 @@ private fun HeroDayNavigation(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onReset: () -> Unit,
+    // M18.100: Klick auf das Datum (Mitte) → Kalender-Popup.
+    onDateClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = java.time.LocalDate.now()
@@ -542,7 +555,10 @@ private fun HeroDayNavigation(
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp)
+            modifier = Modifier
+                .clip(RoundedCornerShape(AevumRadius.sm))
+                .clickable(onClick = onDateClick) // M18.100: Kalender-Popup
+                .padding(horizontal = 8.dp, vertical = 2.dp)
         )
         if (!isToday) {
             Text(

@@ -33,12 +33,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -167,6 +170,8 @@ fun DashboardScreen(
         // M18.60: Tages-Navigation + Pauschal-Overrides
         onNavigateDay = viewModel::navigateDay,
         onResetToToday = viewModel::resetToToday,
+        // M18.100: Kalender-Popup (Datum im Hero-Kopf)
+        onJumpToDate = viewModel::jumpToDate,
         onSetAllowanceOverride = viewModel::setAllowanceOverride,
         onClearAllowanceOverride = viewModel::clearAllowanceOverride,
         // AEVUM-3: Tages-Güte manuell anpassen (Tipp auf die Güte-Zahl).
@@ -174,6 +179,7 @@ fun DashboardScreen(
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardContent(
     modifier: Modifier = Modifier,
@@ -210,6 +216,8 @@ private fun DashboardContent(
     // M18.60: Tages-Navigation + Pauschal-Overrides
     onNavigateDay: (Int) -> Unit = {},
     onResetToToday: () -> Unit = {},
+    // M18.100: Kalender-Popup — direkt zu einem Datum springen
+    onJumpToDate: (java.time.LocalDate) -> Unit = {},
     onSetAllowanceOverride: (String, Int) -> Unit = { _, _ -> },
     onClearAllowanceOverride: (String) -> Unit = {},
     // AEVUM-3: Tages-Güte manuell anpassen (Tipp auf die Güte-Zahl im Hero).
@@ -227,6 +235,9 @@ private fun DashboardContent(
     // im Hero öffnet den Slider für den GEWÄHLTEN Tag. Der Override wird
     // auf die Sessions des Tages geschrieben, nie auf die Einstellung.
     var showQualityDialog by remember { mutableStateOf(false) }
+    // M18.100: Kalender-Popup — Klick auf das Datum im Hero-Kopf öffnet
+    // den DatePicker; die Auswahl springt direkt zu dem Tag.
+    var showDatePickerDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -234,25 +245,14 @@ private fun DashboardContent(
             // M18.96: ZWEI-EBENEN-LAYOUT (Kalorien-Tracker-Optik).
             // Ebene 1 (hinten): der Hero — animierter Farbbereich mit
             // QualityRing + Makro-Kacheln. Ebene 2 (vorn): die LazyColumn
-            // mit topPadding = Hero-Höhe; beim Scrollen schiebt sich der
-            // Inhalt ÜBER den Hero (zIndex), der Hero wird per
-            // graphicsLayer zusammengeschoben (Parallax: Inhalt schneller
-            // weg, Hintergrund bleibt als Farbfläche).
+            // M18.100: ZWEI EBENEN (M18.96-Fix): Ebene hinten = NUR die
+            // Deko-Farbfläche (DashboardHeroBackground, fest am oberen
+            // Rand); Ebene vorn = LazyColumn mit dem Hero-INHALT als
+            // Item 0 (klickbar — die Pfeile waren vorher unklickbar,
+            // weil die transparente contentPadding-Fläche der LazyColumn
+            // alle Taps im Hero-Bereich schluckte). Die Deko-Fläche
+            // bleibt statisch, die Inhalte scrollen einfach darüber.
             val listState = rememberLazyListState()
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val heroHeightPx = with(density) { DashboardHeroHeight.toPx() }
-            // M18.96: Collapse-Fortschritt des Heroes. WICHTIG: Nur der
-            // firstVisibleItemScrollOffset reicht NICHT — er springt auf 0
-            // zurück, sobald das erste Item (Live-Banner) den Viewport
-            // verlässt und Item 2 sichtbar wird. Sobald firstVisibleItemIndex
-            // > 0 ist, ist der Hero vollständig überdeckt → collapse = 1.
-            val heroCollapse by animateFloatAsState(
-                targetValue = if (listState.firstVisibleItemIndex > 0) 1f
-                else (listState.firstVisibleItemScrollOffset.toFloat() /
-                    heroHeightPx.coerceAtLeast(1f)).coerceIn(0f, 1f),
-                animationSpec = tween(120),
-                label = "heroCollapse"
-            )
             // Live-Info für den Hero-Chip (Time-Ansicht oben).
             val liveTitle = when (liveState) {
                 is LiveActivityState.Running -> liveState.title
@@ -264,23 +264,8 @@ private fun DashboardContent(
                 is LiveActivityState.Paused -> liveState.activeMs(nowMs)
                 else -> 0L
             }
-            DashboardHeroLayer(
-                state = state,
-                isLive = isLive,
-                liveTitle = liveTitle,
-                liveActiveMs = liveActiveMs,
-                onQualityClick = { showQualityDialog = true },
-                onPreviousDay = { onNavigateDay(-1) },
-                onNextDay = { onNavigateDay(1) },
-                onResetToToday = onResetToToday,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .graphicsLayer {
-                        // Parallax: Hero-Inhalt schiebt sich mit 0.55x
-                        // der Scroll-Geschwindigkeit nach oben.
-                        translationY = -heroCollapse * heroHeightPx * 0.55f
-                        alpha = 1f - 0.25f * heroCollapse
-                    }
+            DashboardHeroBackground(
+                modifier = Modifier.align(Alignment.TopCenter)
             )
             // M18.60-FIX (User: "Tage wechseln — da sollte eine Animation
             // passieren, die das gesamte Fragment nach links/rechts
@@ -327,11 +312,29 @@ private fun DashboardContent(
             contentPadding = PaddingValues(
                 start = AevumSpacing.md,
                 end = AevumSpacing.md,
-                top = DashboardHeroHeight + AevumSpacing.sm,
+                // M18.100: top = 0 — der Hero ist jetzt Item 0 (die
+                // Deko-Fläche liegt als eigene Ebene DARUNTER).
+                top = 0.dp,
                 bottom = AevumSpacing.lg
             ),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
+            // 0) M18.100: Hero-Inhalt als Item 0 — klickbar (Pfeile,
+            // QualityRing, "Heute", Datum→Kalender). Scrollt über die
+            // Deko-Fläche (Kalorien-Tracker-Optik bleibt).
+            item(key = "hero") {
+                DashboardHeroContent(
+                    state = state,
+                    isLive = isLive,
+                    liveTitle = liveTitle,
+                    liveActiveMs = liveActiveMs,
+                    onQualityClick = { showQualityDialog = true },
+                    onPreviousDay = { onNavigateDay(-1) },
+                    onNextDay = { onNavigateDay(1) },
+                    onResetToToday = onResetToToday,
+                    onDateClick = { showDatePickerDialog = true }
+                )
+            }
             // 1) Live-Banner — wichtigste Info zuerst. Gleitet von oben rein.
             item {
                 AnimatedVisibility(visible = isLive, enter = slideIn, exit = slideOut) {
@@ -355,9 +358,9 @@ private fun DashboardContent(
                 ZoneBanner(zone = currentZone, debugInfo = zoneDebugInfo)
             }
 
-            // M18.96: Der Puls-Hero (QualityRing + Makro-Kacheln) liegt
-            // jetzt als eigene Ebene HINTER der LazyColumn (DashboardHeroLayer)
-            // und wird beim Scrollen überdeckt — kein Item mehr hier.
+            // M18.100: Der Hero-Inhalt ist jetzt Item 0 (klickbar); nur
+            // die Deko-Farbfläche liegt als Ebene HINTER der LazyColumn
+            // (DashboardHeroBackground) und wird beim Scrollen überdeckt.
 
             // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik (User-Wunsch:
             // "Statistik über den Güte Verlauf der letzten Tage, wobei man
@@ -511,6 +514,47 @@ private fun DashboardContent(
                 showQualityDialog = false
             }
         )
+    }
+
+    // M18.100: Kalender-Popup — Klick auf das Datum im Hero-Kopf.
+    // Material3-DatePicker; Auswahl springt direkt zu dem Tag.
+    if (showDatePickerDialog) {
+        val selectedMillis = remember(state.displayedDate) {
+            state.displayedDate
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedMillis,
+            yearRange = IntRange(
+                java.time.LocalDate.now().year - 1,
+                java.time.LocalDate.now().year
+            )
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val picked = java.time.Instant.ofEpochMilli(millis)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate()
+                        onJumpToDate(picked)
+                    }
+                    showDatePickerDialog = false
+                }) {
+                    Text(stringResource(R.string.dashboard_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        ) {
+            DatePicker(state = pickerState)
+        }
     }
 }
 

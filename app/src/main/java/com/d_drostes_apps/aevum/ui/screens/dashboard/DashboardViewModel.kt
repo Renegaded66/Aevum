@@ -117,6 +117,17 @@ class DashboardViewModel @Inject constructor(
         reloadDayOverrides()
     }
 
+    /** M18.100: Direkt zu einem absoluten Datum springen (Kalender-Popup
+     *  im Dashboard-Hero). Offset wird relativ zu heute berechnet. */
+    fun jumpToDate(date: LocalDate) {
+        val todayDate = LocalDate.now()
+        val offset = java.time.temporal.ChronoUnit.DAYS.between(todayDate, date)
+            .toInt().coerceIn(-365, 0)
+        if (offset == _selectedDayOffset.value) return
+        _selectedDayOffset.value = offset
+        reloadDayOverrides()
+    }
+
     private fun reloadDayOverrides() {
         viewModelScope.launch {
             _dayOverrides.value = dailyAllowanceRepository.getOverridesForDate(today.toString())
