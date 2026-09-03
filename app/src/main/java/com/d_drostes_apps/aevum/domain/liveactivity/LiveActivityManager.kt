@@ -139,13 +139,29 @@ class LiveActivityManager @Inject constructor(
 
     init {
         // Single ticker loop: drives both _tick (counter) and _nowMs (wall clock).
-        // Only fires updates while a session is RUNNING — paused and idle states freeze.
+        // M18.97-FIX (User: "tickende analoge Uhr wechselt nur einmal für
+        // eine Sekunde beim Dashboard-Besuch, dann nicht mehr"): _nowMs
+        // wurde NUR bei RUNNING-Sessions aktualisiert. Das Dashboard liest
+        // ausschließlich nowMs (verifiziert) — bei IDLE (keine Session)
+        // oder PAUSED blieb die Zeitquelle eingefroren: Die FlipClock/
+        // ChargingRing-Uhr im Live-Banner bekam nur die initiale
+        // Recomposition, danach nie wieder einen Tick.
+        // Jetzt: _nowMs = WANDUHRZEIT, immer (jede Sekunde, unabhängig vom
+        // Session-Status). Die PAUSED-Freeze-Semantik bleibt erhalten:
+        // die Karten rechnen activeMs(now) mit konstantem totalMs bei
+        // Paused → eingefrorener Timer trotz tickender Uhrzeit.
+        // _tick (Zähler für die Running-Karten) wird weiterhin NUR bei
+        // RUNNING inkrementiert — daran hängt die alte Freeze-Logik.
+        // Akku-Bewertung (M18.93v11-Kontext): Der Loop existierte schon
+        // und läuft dauerhaft im Prozess; ein StateFlow-Set ohne
+        // Subscriber ist ein billiger CAS (kein Wake, kein Sensor, kein
+        // Worker). Im Hintergrund ohne UI hat nowMs keinen Collector.
         scope.launch {
             while (true) {
                 try {
                     val session = liveSession.value
+                    _nowMs.value = System.currentTimeMillis()
                     if (session?.isRunning == true) {
-                        _nowMs.value = System.currentTimeMillis()
                         _tick.value++
                     }
                 } catch (_: Exception) { }
