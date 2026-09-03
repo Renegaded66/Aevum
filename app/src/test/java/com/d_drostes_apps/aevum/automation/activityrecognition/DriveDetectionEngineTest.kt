@@ -214,6 +214,41 @@ class DriveDetectionEngineTest {
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.InsufficientData)
     }
 
+    // ── M18.95: SCHNELLER START (User: "Aufzeichnung kann viel früher
+    // beginnen — sobald über mehrere Sekunden die Geschwindigkeit
+    // erhöht ist") ──
+
+    @Test
+    fun `Fahrt mit 30s Spread wird erkannt — schneller Start`() {
+        // M18.95: MIN_SPREAD_MS 90s -> 30s. 3 schnelle Probes à 15s
+        // (30s Spread, 15s-Stream) mit ~500m Bewegung pro Schritt:
+        // Netto-Displacement ~1000m, fastCount = 3, maxConsecutive = 3,
+        // avg = 20 m/s → Driving. Vorher (90s) war das InsufficientData
+        // — die Erkennung brauchte 90s + Anfahr-Phase ≈ 2-4 Min.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 15_000L, 21.0f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 30_000L, 22.0f, 20f, latitude = 50.009, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 30_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `20s-Burst bleibt keine Fahrt — Spread-Gate unter 30s`() {
+        // Regression: Ein kurzer GPS-Burst (3 schnelle Fixes in 20s,
+        // z.B. Kaltstart-Sprung) hat Spread < 30s → weiterhin
+        // InsufficientData. Der Burst-Schutz bleibt trotz schnellerem
+        // Start erhalten.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 10_000L, 21.0f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 20_000L, 22.0f, 20f, latitude = 50.009, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 20_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.InsufficientData)
+    }
+
     @Test
     fun `GPS-Sprung-Ausreißer wird verworfen`() {
         // Probe 2 springt 5 km in 30s (Tunnel-Sprung) — der Sprung wird

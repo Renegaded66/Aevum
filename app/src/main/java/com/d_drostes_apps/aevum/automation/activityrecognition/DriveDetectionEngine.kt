@@ -103,16 +103,34 @@ object DriveDetectionEngine {
      *  [MIN_FAST_PROBES] = 3 und avgSpeed >= 5 m/s bleibt die Erkennung
      *  robust: Radfahrer-Spikes (8.5, 5.0, 8.5, ...) erreichen nie
      *  maxConsecutive = 2, einzelne GPS-Bursts scheitern am
-     *  Netto-Displacement-Gate (>= 150m) und am Spread (>= 90s). */
+     *  Netto-Displacement-Gate (>= 150m) und am Spread (>= 30s). */
     const val MIN_CONSECUTIVE_FAST = 2
-    /** Probes müssen über mindestens 90 Sekunden verteilt sein.
+    /** Probes müssen über mindestens 30 Sekunden verteilt sein.
      *  M18.66-FIX6: 1 Min -> 2 Min. User-Vorschlag: "Durchschnitts-
      *  geschwindigkeit innerhalb von 2 Minuten über 25 km/h". Das
      *  filtert kurze GPS-Bursts zuverlässig heraus.
      *  M18.71: 2 Min -> 90s. Die Erkennung soll schneller ansprechen
      *  (sensibler); 90s Verteilung filtert Bursts weiterhin zuverlässig
-     *  (18 Probes bei 5s-Intervall). */
-    const val MIN_SPREAD_MS = 90_000L
+     *  (18 Probes bei 5s-Intervall).
+     *  M18.95: 90s -> 30s (User: "Aufzeichnung startet erst nach ~4
+     *  Minuten — kann viel früher beginnen, sobald über mehrere
+     *  Sekunden die Geschwindigkeit erhöht ist"). Die 90s waren die
+     *  GRÖSSTE Einzel-Latenz: 90s Spread + Anfahr-Phase + WorkManager
+     *  ≈ 2-4 Min bis zum Start. Andere Apps (Google Maps Timeline,
+     *  Timeero, DriveQuant) starten nach 20-60s und datieren die
+     *  Startzeit zurück (macht Aevum über den Cluster-Start bereits).
+     *  WARUM 30s sicher ist: Der Burst-Schutz kommt NICHT allein vom
+     *  Spread — ein GPS-Burst (2-3 schnelle Fixes in <20s) hat Spread
+     *  < 30s und scheitert weiterhin; selbst ein 30s-Burst scheitert
+     *  am Netto-Displacement-Gate (≥ 150 m = 18 km/h Durchschnitt über
+     *  30s — ein reiner Positions-Sprung dieser Größe bei accuracy
+     *  ≤ 50 m ist nach dem 60s-Kaltstart-Warmup untypisch) und am
+     *  Geofence-Veto (Indoor-Multipath). Radfahrer-Schutz ist die
+     *  Konsekutiv-Kette (2 Fixes am Stück ≥ 8 m/s = 30s bei 15s-Stream),
+     *  nicht der Spread — ein Rennradler mit 90s+ Abfahrt erfüllte
+     *  den alten Spread ohnehin. Bei 15s-Stream: 3 Fixes = 30s Spread,
+     *  real mit Anfahr-Phase ~45s bis zur Bestätigung. */
+    const val MIN_SPREAD_MS = 30_000L
     /** GPS-Sprung > 2 km zwischen zwei Probes (< 60s auseinander) ist
      *  ein Ausreißer (Tunnel-Sprung, Sensorfehler). */
     const val JUMP_OUTLIER_M = 2000.0
