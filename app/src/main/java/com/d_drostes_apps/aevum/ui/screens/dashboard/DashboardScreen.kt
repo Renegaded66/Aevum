@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -50,12 +51,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -65,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.data.model.AppUsageSample
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
@@ -75,7 +74,6 @@ import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
 import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
-import com.d_drostes_apps.aevum.ui.components.QualityRing
 import com.d_drostes_apps.aevum.ui.components.positivityColor
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -233,6 +231,57 @@ private fun DashboardContent(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             DashboardAtmosphere()
+            // M18.96: ZWEI-EBENEN-LAYOUT (Kalorien-Tracker-Optik).
+            // Ebene 1 (hinten): der Hero — animierter Farbbereich mit
+            // QualityRing + Makro-Kacheln. Ebene 2 (vorn): die LazyColumn
+            // mit topPadding = Hero-Höhe; beim Scrollen schiebt sich der
+            // Inhalt ÜBER den Hero (zIndex), der Hero wird per
+            // graphicsLayer zusammengeschoben (Parallax: Inhalt schneller
+            // weg, Hintergrund bleibt als Farbfläche).
+            val listState = rememberLazyListState()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val heroHeightPx = with(density) { DashboardHeroHeight.toPx() }
+            // M18.96: Collapse-Fortschritt des Heroes. WICHTIG: Nur der
+            // firstVisibleItemScrollOffset reicht NICHT — er springt auf 0
+            // zurück, sobald das erste Item (Live-Banner) den Viewport
+            // verlässt und Item 2 sichtbar wird. Sobald firstVisibleItemIndex
+            // > 0 ist, ist der Hero vollständig überdeckt → collapse = 1.
+            val heroCollapse by animateFloatAsState(
+                targetValue = if (listState.firstVisibleItemIndex > 0) 1f
+                else (listState.firstVisibleItemScrollOffset.toFloat() /
+                    heroHeightPx.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                animationSpec = tween(120),
+                label = "heroCollapse"
+            )
+            // Live-Info für den Hero-Chip (Time-Ansicht oben).
+            val liveTitle = when (liveState) {
+                is LiveActivityState.Running -> liveState.title
+                is LiveActivityState.Paused -> liveState.title
+                else -> ""
+            }
+            val liveActiveMs = when (liveState) {
+                is LiveActivityState.Running -> liveState.activeMs(nowMs)
+                is LiveActivityState.Paused -> liveState.activeMs(nowMs)
+                else -> 0L
+            }
+            DashboardHeroLayer(
+                state = state,
+                isLive = isLive,
+                liveTitle = liveTitle,
+                liveActiveMs = liveActiveMs,
+                onQualityClick = { showQualityDialog = true },
+                onPreviousDay = { onNavigateDay(-1) },
+                onNextDay = { onNavigateDay(1) },
+                onResetToToday = onResetToToday,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        // Parallax: Hero-Inhalt schiebt sich mit 0.55x
+                        // der Scroll-Geschwindigkeit nach oben.
+                        translationY = -heroCollapse * heroHeightPx * 0.55f
+                        alpha = 1f - 0.25f * heroCollapse
+                    }
+            )
             // M18.60-FIX (User: "Tage wechseln — da sollte eine Animation
             // passieren, die das gesamte Fragment nach links/rechts
             // verschiebt"): AnimatedContent um den kompletten Inhalt,
@@ -264,11 +313,23 @@ private fun DashboardContent(
                 label = "day-slide"
             ) { _ ->
             LazyColumn(
-                modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    // M18.96: Inhalt liegt ÜBER dem Hero (zIndex) und
+                    // beginnt erst unterhalb seiner Höhe — beim Scrollen
+                    // schiebt er sich über den Farbbereich.
+                    .zIndex(1f),
             // M18.58: Abstand zum oberen Bildschirmrand reduziert (User-Wunsch).
             // Vorher vertical = AevumSpacing.lg (16dp) — jetzt nur noch 8dp oben,
             // unten bleibt 16dp fürs Scroll-Ende.
-            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+            contentPadding = PaddingValues(
+                start = AevumSpacing.md,
+                end = AevumSpacing.md,
+                top = DashboardHeroHeight + AevumSpacing.sm,
+                bottom = AevumSpacing.lg
+            ),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             // 1) Live-Banner — wichtigste Info zuerst. Gleitet von oben rein.
@@ -294,19 +355,9 @@ private fun DashboardContent(
                 ZoneBanner(zone = currentZone, debugInfo = zoneDebugInfo)
             }
 
-            // 2) Puls-Hero — die Antwort auf "Wie war mein Tag?"
-            // M18.81 (Dashboard-Redesign): Die separate Tag-Nav-Pill
-            // (M18.60) ist in den Hero integriert — eine Sektion weniger.
-            item {
-                PulsHero(
-                    state = state,
-                    // AEVUM-3: Tipp auf die Güte-Zahl öffnet den Tages-Slider.
-                    onQualityClick = { showQualityDialog = true },
-                    onPreviousDay = { onNavigateDay(-1) },
-                    onNextDay = { onNavigateDay(1) },
-                    onResetToToday = onResetToToday
-                )
-            }
+            // M18.96: Der Puls-Hero (QualityRing + Makro-Kacheln) liegt
+            // jetzt als eigene Ebene HINTER der LazyColumn (DashboardHeroLayer)
+            // und wird beim Scrollen überdeckt — kein Item mehr hier.
 
             // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik (User-Wunsch:
             // "Statistik über den Güte Verlauf der letzten Tage, wobei man
@@ -538,159 +589,13 @@ private fun DashboardAtmosphere() {
 /**
  * M18.7: Puls-Hero — das neue Herzstück des Dashboards.
  *
- * Eine Karte, vier Aussagen:
- *  - QualityRing (groß): "Wie wertvoll war deine Zeit?" — die Kern-Kennzahl
- *  - 3 fundamentale Zeit-Blöcke: Erfasst / Schlaf / Bildschirm
- *  - Tagesfluss-Miniatur (24h-Spur)
- *  - Tagesfortschritt (dünne Bar mit %)
- *
- * Keine Interpretationen (Fokus/Balance/Top-Kat) — nur Fakten.
+ * M18.96: VERSCHOBEN nach DashboardHero.kt (DashboardHeroLayer) — der
+ * Hero ist jetzt eine eigene Ebene HINTER der LazyColumn (Kalorien-
+ * Tracker-Optik: Inhalt schiebt sich beim Scrollen über den Hero).
+ * Diese Datei enthält nur noch die Content-Karten der LazyColumn.
  */
-@Composable
-private fun PulsHero(
-    state: DashboardUiState,
-    // AEVUM-3: Tipp auf die Güte-Zahl (QualityRing) → Tages-Güte anpassen.
-    onQualityClick: () -> Unit = {},
-    // M18.81: Tag-Navigation lebt jetzt im Hero-Kopf.
-    onPreviousDay: () -> Unit = {},
-    onNextDay: () -> Unit = {},
-    onResetToToday: () -> Unit = {}
-) {
-    val heroBg = Brush.verticalGradient(
-        listOf(
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.30f),
-            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.18f)
-        )
-    )
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AevumRadius.xl),
-        color = Color.Transparent,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(heroBg)
-                .padding(AevumSpacing.lg)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                // M18.81 (Redesign): Tag-Navigation als dezente Chip-Zeile
-                // im Hero-Kopf — ‹ Datum › + (falls nicht heute) "Heute".
-                HeroDayNavigation(
-                    displayedDate = state.displayedDate,
-                    onPrevious = onPreviousDay,
-                    onNext = onNextDay,
-                    onReset = onResetToToday
-                )
-                // QualityRing + Kern-Blöcke
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    QualityRing(
-                        qualityScore = state.qualityScore,
-                        ringSize = 108.dp,
-                        strokeWidth = 11.dp,
-                        label = stringResource(R.string.dashboard_quality_label),
-                        // AEVUM-3: Tipp auf die Güte-Zahl → Tages-Güte anpassen.
-                        onClick = onQualityClick,
-                        // AEVUM-3: dezenter Hinweis, dass der Tag manuell
-                        // angepasst wurde („✎" hinter der Zahl).
-                        overrideBadge = if (state.hasDayQualityOverride) "✎" else null
-                    )
-                    Spacer(Modifier.width(AevumSpacing.lg))
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                    ) {
-                        Text(
-                            stringResource(R.string.dashboard_your_day),
-                            fontSize = 10.sp,
-                            letterSpacing = 1.4.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            state.headline.ifEmpty { stringResource(R.string.dashboard_narrative_empty_title) },
-                            fontSize = 19.sp,
-                            lineHeight = 23.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        // M18.60-FIX (User: "Statistiken sollen sich mit
-                        // einer Animation aufladen bis zu den Werten des
-                        // jeweiligen Tages"): Der Erfasst-Wert zaehlt beim
-                        // Tag-Wechsel animiert von alt zu neu (600ms).
-                        AnimatedHeroMetric(
-                            icon = "⏱️",
-                            valueMs = state.totalTrackedMs,
-                            label = stringResource(R.string.common_captured)
-                        )
-                        HeroMetric(
-                            icon = "🌙",
-                            value = if (state.lastSleepDurationMs > 0) formatHours(state.lastSleepDurationMs) else "—",
-                            label = stringResource(R.string.common_sleep)
-                        )
-                        HeroMetric(
-                            icon = "📱",
-                            value = state.digitalScreenTimeFormatted,
-                            label = stringResource(R.string.dashboard_screen)
-                        )
-                    }
-                }
-
-                // Tagesfluss-Miniatur (24h-Spur)
-                if (state.flowSegments.isNotEmpty()) {
-                    DayFlowMiniCanvas(
-                        segments = state.flowSegments,
-                        currentMinute = state.currentMinute
-                    )
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().height(40.dp),
-                        shape = RoundedCornerShape(AevumRadius.md),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                stringResource(R.string.dashboard_flow_empty),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // Tagesfortschritt — dünne Bar, keine Ring-Dopplung
-                DayProgressBar(dayProgress = state.dayProgress)
-            }
-        }
-    }
-}
 
 /** M18.7: Eine Kennzahl-Zeile im Hero: Emoji + Wert (Monospace) + Label. */
-@Composable
-private fun HeroMetric(icon: String, value: String, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(icon, fontSize = 15.sp)
-        Text(
-            value,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            label,
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
-        )
-    }
-}
 
 /**
  * M18.60: Animierte Hero-Metrik — der Wert zaehlt beim Tag-Wechsel
@@ -698,140 +603,12 @@ private fun HeroMetric(icon: String, value: String, label: String) {
  * den "Werte laden sich auf"-Effekt, den der User beim Dashboard-
  * Tageswechsel sehen will.
  */
-@Composable
-private fun AnimatedHeroMetric(icon: String, valueMs: Long, label: String) {
-    // M18.60: animateLongAsState existiert in dieser Compose-Version
-    // nicht — stattdessen Float-Animation (exakt genug fuer Zeitwerte).
-    val animatedMs by animateFloatAsState(
-        targetValue = valueMs.toFloat(),
-        animationSpec = tween(durationMillis = 600, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        label = "hero-metric"
-    )
-    val hours = animatedMs.toLong() / 3_600_000
-    val minutes = (animatedMs.toLong() % 3_600_000) / 60_000
-    val text = when {
-        hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
-        hours > 0 -> "${hours}h"
-        else -> "${minutes}m"
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(icon, fontSize = 15.sp)
-        Text(
-            text,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            label,
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
-        )
-    }
-}
 
 /** M18.7: Tagesfortschritt als dünne Gradient-Bar mit Prozent. */
-@Composable
-private fun DayProgressBar(dayProgress: Float) {
-    val percent = (dayProgress * 100).toInt().coerceIn(0, 100)
-    // M18.7: Farben VOR dem Canvas ziehen — DrawScope ist kein Composable-Kontext
-    val primary = MaterialTheme.colorScheme.primary
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(6.dp)
-                .clip(RoundedCornerShape(AevumRadius.full))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
-        ) {
-            Canvas(modifier = Modifier.matchParentSize()) {
-                val w = size.width * (dayProgress.coerceIn(0f, 1f))
-                if (w > 0f) {
-                    drawRoundRect(
-                        brush = Brush.horizontalGradient(
-                            listOf(primary, tertiary)
-                        ),
-                        topLeft = Offset.Zero,
-                        size = Size(w, size.height),
-                        cornerRadius = CornerRadius(size.height / 2, size.height / 2)
-                    )
-                }
-            }
-        }
-        Text(
-            stringResource(R.string.dashboard_day_progress, percent),
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
 
 /**
  * Mini Day-Flow Canvas — kompakt, mit "jetzt"-Marker.
  */
-@Composable
-private fun DayFlowMiniCanvas(
-    segments: List<DashboardFlowSegment>,
-    currentMinute: Int
-) {
-    val trackHeight = 36.dp
-    val animatedProgress by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = tween(600),
-        label = "day-flow-mini"
-    )
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-    val nowLineColor = MaterialTheme.colorScheme.primary
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(trackHeight)
-            .clip(RoundedCornerShape(AevumRadius.full))
-            .background(trackColor)
-    ) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val height = size.height
-            segments.forEach { seg ->
-                val start = (seg.startMinute / 1440f) * size.width
-                val end = (seg.endMinute / 1440f) * size.width
-                val width = ((end - start) * animatedProgress).coerceAtLeast(2f)
-                val segColor = com.d_drostes_apps.aevum.ui.components.categoryColor(seg.categoryName)
-                val alpha = when {
-                    seg.isCandidate -> 0.30f
-                    seg.isCurrent -> 0.90f
-                    else -> 0.62f
-                }
-                drawRoundRect(
-                    color = segColor.copy(alpha = alpha),
-                    topLeft = Offset(start, 4f),
-                    size = Size(width, height - 8f),
-                    cornerRadius = CornerRadius(8f, 8f)
-                )
-            }
-            // Now line
-            if (currentMinute in 0..1440) {
-                val nowX = size.width * currentMinute / 1440f
-                drawLine(
-                    color = nowLineColor,
-                    start = Offset(nowX, 0f),
-                    end = Offset(nowX, height),
-                    strokeWidth = 2f,
-                    cap = StrokeCap.Round
-                )
-            }
-        }
-    }
-}
 
 /**
  * M18.81 (Dashboard-Redesign): Reflexions-Karte — "Wo deine Zeit hingeht"
@@ -1457,71 +1234,10 @@ private fun DashboardAllowancesRow(
  * Scroll-Sektion). Schlanke Pill-Zeile: ‹  Datum  ›. Wochentag +
  * "Heute"/"Gestern" statt des vollen Datums. Rechte Pfeiltaste gedimmt bei
  * "heute"; "Heute"-Reset-Chip nur sichtbar, wenn man weg navigiert hat.
+ *
+ * M18.96: VERSCHOBEN nach DashboardHero.kt (HeroDayNavigation) — der
+ * Hero ist jetzt eine eigene Ebene hinter der LazyColumn.
  */
-@Composable
-private fun HeroDayNavigation(
-    displayedDate: java.time.LocalDate,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onReset: () -> Unit
-) {
-    val today = java.time.LocalDate.now()
-    val isToday = displayedDate == today
-    val label = when {
-        isToday -> stringResource(R.string.common_today)
-        displayedDate == today.minusDays(1) -> stringResource(R.string.common_yesterday)
-        else -> displayedDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd.MM."))
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AevumRadius.lg))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f))
-            .padding(horizontal = AevumSpacing.sm, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Text(
-            "‹",
-            fontSize = 17.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(onClick = onPrevious)
-                .padding(horizontal = 10.dp, vertical = 2.dp)
-        )
-        Text(
-            label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-        if (!isToday) {
-            Text(
-                stringResource(R.string.common_today),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(AevumRadius.sm))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    .clickable(onClick = onReset)
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            )
-        }
-        Text(
-            "›",
-            fontSize = 17.sp,
-            color = if (isToday) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(enabled = !isToday, onClick = onNext)
-                .padding(horizontal = 10.dp, vertical = 2.dp)
-        )
-    }
-}
 
 /**
  * M18.60: Popup für eine Tagespauschale am angezeigten Tag.
