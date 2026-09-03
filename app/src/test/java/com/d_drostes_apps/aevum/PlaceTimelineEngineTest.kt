@@ -714,6 +714,97 @@ class PlaceTimelineEngineTest {
         assertThat(visits[0].isOngoing).isFalse()
     }
 
+    @Test
+    fun `Offener GMS-ENTER endet an Live-Zone-Widerspruch`() {
+        // M18.99-Report: "Dashboard zeigt Zuhause, aber Orts-Timeline
+        // zeigt Arbeit seit 12 Stunden." GMS-ENTER Arbeit (9:00) OHNE
+        // EXIT (verlorener EXIT), Live-Zone = Zuhause (16:55, frischer
+        // GPS-Check) → Arbeit endet 16:55, Zuhause läuft gerade.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H)
+            ),
+            geofences = listOf(geofence(), geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g3",
+            currentZoneSinceMs = day + 16 * H + 55 * 60_000L
+        )
+        val office = visits.first { it.geofenceId == "g1" }
+        assertThat(office.endAt).isEqualTo(day + 16 * H + 55 * 60_000L)
+        assertThat(office.isOngoing).isFalse()
+        val home = visits.first { it.geofenceId == "g3" }
+        assertThat(home.isOngoing).isTrue()
+        assertThat(home.startAt).isEqualTo(day + 16 * H + 55 * 60_000L)
+    }
+
+    @Test
+    fun `Offener GMS-ENTER bleibt wenn Live-Zone gleicher Ort`() {
+        // Gegen-Test: Live-Zone = Arbeit (User ist wirklich noch da) →
+        // der offene Visit läuft bis jetzt, keine Zuhause-Station.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H)
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g1",
+            currentZoneSinceMs = day + 16 * H
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].endAt).isEqualTo(now)
+        assertThat(visits[0].isOngoing).isTrue()
+    }
+
+    @Test
+    fun `Offene Session endet an Live-Zone-Widerspruch`() {
+        // M18.99: Offene Session (verlorener Stop) + Live-Zone anderer
+        // Ort → Session endet am Zonen-Anker.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = listOf(
+                session("s1", day + 9 * H, null, triggerId = "t1")
+            ),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H)
+            ),
+            geofences = listOf(geofence(), geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g3",
+            currentZoneSinceMs = day + 16 * H
+        )
+        val office = visits.first { it.geofenceId == "g1" }
+        assertThat(office.endAt).isEqualTo(day + 16 * H)
+        assertThat(office.isOngoing).isFalse()
+    }
+
+    @Test
+    fun `Offene Presence endet an Live-Zone-Widerspruch`() {
+        // M18.99: Offene Presence (Sampler hängt an checkNow) +
+        // Live-Zone anderer Ort → Presence endet am Zonen-Anker.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 9 * H, geoId = "g1")
+            ),
+            geofences = listOf(geofence(), geofence("g3").copy(name = "Zuhause")),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g3",
+            currentZoneSinceMs = day + 16 * H
+        )
+        val office = visits.first { it.geofenceId == "g1" }
+        assertThat(office.endAt).isEqualTo(day + 16 * H)
+        assertThat(office.isOngoing).isFalse()
+    }
+
     private companion object {
         const val H = 60L * 60 * 1000
     }
