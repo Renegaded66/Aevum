@@ -625,6 +625,95 @@ class PlaceTimelineEngineTest {
         assertThat(homeVisits.last().isOngoing).isTrue()
     }
 
+    @Test
+    fun `Live-Zone wird durch EXIT nach Zonen-Anker widerlegt`() {
+        // M18.98-Report: "Orts-Timeline zeigt weiterhin Arbeit, obwohl
+        // ich vor 3 Stunden gegangen bin." GMS-EXIT (17:00) ist in der
+        // DB, aber CurrentZoneProvider._currentZone ist stale (Arbeit).
+        // Die Live-Zone (Quelle 5) darf KEINEN Visit "Arbeit läuft
+        // gerade" bis 20:00 zeichnen.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H),
+                trigger("t2", "GEOFENCE_EXIT", day + 17 * H)
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g1",
+            currentZoneSinceMs = day + 16 * H
+        )
+        // Nur der GMS-Visit 9–17 — KEINE Live-Zone-Station danach.
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].endAt).isEqualTo(day + 17 * H)
+        assertThat(visits[0].isOngoing).isFalse()
+    }
+
+    @Test
+    fun `Live-Zone bleibt wenn kein EXIT existiert`() {
+        // Kein EXIT in der Chronik → die Live-Zone ist die einzige
+        // Evidenz und bleibt (Kaltstart-Fall M18.88).
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = emptyList(),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now,
+            currentZoneGeofenceId = "g1",
+            currentZoneSinceMs = day + 15 * H
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].evidence).isEqualTo(VisitEvidence.LIVE_ZONE)
+        assertThat(visits[0].isOngoing).isTrue()
+    }
+
+    @Test
+    fun `Offene Session endet am EXIT statt jetzt`() {
+        // M18.98: Session ist offen (endAt=null, verlorener Stop), aber
+        // ein bestätigter EXIT (17:00) beweist das Verlassen → die
+        // Session darf nicht "läuft gerade" bis 20:00 zeigen.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = listOf(
+                session("s1", day + 9 * H, null, triggerId = "t1")
+            ),
+            triggers = listOf(
+                trigger("t1", "GEOFENCE_ENTER", day + 9 * H),
+                trigger("t2", "GEOFENCE_EXIT", day + 17 * H)
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].endAt).isEqualTo(day + 17 * H)
+        assertThat(visits[0].isOngoing).isFalse()
+    }
+
+    @Test
+    fun `Offene Presence endet am EXIT statt jetzt`() {
+        // M18.98: Presence-ENTER (9:00) ohne Presence-EXIT (Sampler
+        // hängt an checkNow), aber GMS-EXIT (17:00) beweist das
+        // Verlassen → Presence-Intervall endet 17:00, nicht 20:00.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = listOf(
+                presenceTrigger("p1", "PRESENCE_ENTER", day + 9 * H, geoId = "g1"),
+                trigger("t2", "GEOFENCE_EXIT", day + 17 * H)
+            ),
+            geofences = listOf(geofence()),
+            namedPlaces = emptyList(),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].endAt).isEqualTo(day + 17 * H)
+        assertThat(visits[0].isOngoing).isFalse()
+    }
+
     private companion object {
         const val H = 60L * 60 * 1000
     }

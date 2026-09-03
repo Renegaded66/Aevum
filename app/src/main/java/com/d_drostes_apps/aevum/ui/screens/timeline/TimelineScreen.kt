@@ -2303,7 +2303,11 @@ private fun DayCalendarTimeline(
                             onColumnTap = { day ->
                                 onSetWeekView(false)
                                 onSelectDay(day)
-                            }
+                            },
+                            // M18.98: Tap auf einen Session-Block in der
+                            // Wochenansicht öffnet DIREKT die Detailansicht
+                            // der Aufzeichnung (vorher: erst Tagesansicht).
+                            onSessionTap = onOpen
                         )
                     } else {
                         ZoomableDayTimeline(
@@ -3092,7 +3096,9 @@ private fun ZoomableDayTimeline(
 private fun WeekTimeline(
     weekSessions: Map<LocalDate, List<TimelineSessionUi>>,
     pixelsPerHour: Float,
-    onColumnTap: (LocalDate) -> Unit
+    onColumnTap: (LocalDate) -> Unit,
+    // M18.98: Tap auf einen Session-Block → Detailansicht direkt.
+    onSessionTap: (String) -> Unit
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
     val scrollState = androidx.compose.foundation.rememberScrollState()
@@ -3192,11 +3198,10 @@ private fun WeekTimeline(
                             pixelsPerHour = pixelsPerHour,
                             isToday = isToday,
                             nowMinute = if (isToday) nowMinute else -1,
+                            onSessionTap = onSessionTap,
+                            onColumnTap = { onColumnTap(day) },
                             modifier = Modifier
                                 .weight(1f)
-                                .pointerInput(day) {
-                                    detectTapGestures { onColumnTap(day) }
-                                }
                         )
                     }
                 }
@@ -3216,6 +3221,9 @@ private fun WeekColumn(
     pixelsPerHour: Float,
     isToday: Boolean,
     nowMinute: Int,
+    // M18.98: Tap auf einen Session-Block → Detailansicht direkt.
+    onSessionTap: (String) -> Unit,
+    onColumnTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
@@ -3233,6 +3241,33 @@ private fun WeekColumn(
         modifier = modifier
             .fillMaxHeight()
             .height(totalHeight)
+            // M18.98: Hit-Test mit IDENTISCHER Geometrie wie die
+            // Zeichnung (M18.66-FIX17-Muster der Tagesansicht): Tap auf
+            // einen Session-Block öffnet DIREKT die Detailansicht, Tap
+            // auf leere Zeit öffnet die Tagesansicht (onColumnTap).
+            .pointerInput(daySessions, pixelsPerHour) {
+                detectTapGestures { offset ->
+                    val pxHour = pixelsPerHour.dp.toPx()
+                    val hit = daySessions.firstOrNull { s ->
+                        val startMin = s.startMinuteOfDay.coerceIn(0, 1440)
+                        val rawEnd = s.endMinuteOfDay
+                        val endMin = when {
+                            rawEnd <= 0 -> startMin + 1
+                            rawEnd < startMin + 1 -> startMin + 1
+                            rawEnd > 1440 -> 1440
+                            else -> rawEnd
+                        }
+                        val top = (startMin / 60f) * pxHour
+                        val bottom = (endMin / 60f) * pxHour
+                        val blockH = (bottom - top).coerceAtLeast(3f)
+                        // Akzentbalken links (3dp) + Blockfläche — wie
+                        // gezeichnet. Der Tap auf der Uhr-Achse (x < 1dp)
+                        // ist praktisch unmöglich in der schmalen Spalte.
+                        offset.y >= top - 2f && offset.y <= top + blockH + 2f
+                    }
+                    if (hit != null) onSessionTap(hit.id) else onColumnTap()
+                }
+            }
     ) {
         val pxHour = pixelsPerHour.dp.toPx()
         val w = size.width
