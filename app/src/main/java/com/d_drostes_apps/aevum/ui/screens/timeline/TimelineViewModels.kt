@@ -577,8 +577,13 @@ class TimelineViewModel @Inject constructor(
         // dort als 0:00–24:00 gerendert. Eine laufende Session endet effektiv
         // bei "jetzt" — sie darf nur an Tagen ≤ heute erscheinen.
         val nowMs = System.currentTimeMillis()
+        // M18.101: excludeFromTimeline-Sessions (Nur-Dauer) werden JETZT
+        // angezeigt — der User will sie in der Liste sehen und löschen
+        // können. Sie starten am Tagesbeginn (startAt = dayStart) und
+        // überlappen damit jeden Tag; der Filter auf den GEWÄHLTEN Tag
+        // bleibt über rangesOverlap korrekt.
         val filteredSessions = allSessions
-            .filter { it.deletedAt == null && !it.excludeFromTimeline && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+            .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
             .sortedBy { it.startAt }
 
         // M16.5: Pro Session den sichtbaren Tagesausschnitt berechnen.
@@ -741,7 +746,10 @@ class TimelineViewModel @Inject constructor(
             val dayStart = TimeFormatting.startOfDayMillis(day, zoneId)
             val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
             val daySessions = allSessions
-                .filter { it.deletedAt == null && !it.excludeFromTimeline && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+                // M18.101: excludeFromTimeline (Nur-Dauer) auch in der
+                // Wochenansicht zeigen (User: "sollen in der Listenansicht
+                // trotzdem auftauchen").
+                .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
                 .sortedBy { it.startAt }
             val rows = daySessions.map { session ->
                 val clippedStart = maxOf(session.startAt, dayStart)

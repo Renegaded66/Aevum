@@ -250,9 +250,26 @@ private fun DashboardContent(
             // Rand); Ebene vorn = LazyColumn mit dem Hero-INHALT als
             // Item 0 (klickbar — die Pfeile waren vorher unklickbar,
             // weil die transparente contentPadding-Fläche der LazyColumn
-            // alle Taps im Hero-Bereich schluckte). Die Deko-Fläche
-            // bleibt statisch, die Inhalte scrollen einfach darüber.
+            // alle Taps im Hero-Bereich schluckte).
+            // M18.101: Parallax-Collapse wieder aktiv (User: "der moderne
+            // scroll Effekt ist weg, der obere Teil soll in den
+            // Hintergrund rücken"): Der Hero-Inhalt (Item 0) wird beim
+            // Scrollen per graphicsLayer schneller nach oben geschoben
+            // und ausgeblendet (Collapse), die Deko-Fläche bleibt mit
+            // 0.55× Parallax dahinter sichtbar.
             val listState = rememberLazyListState()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val heroHeightPx = with(density) { DashboardHeroHeight.toPx() }
+            // Collapse-Fortschritt: Sobald Item 0 (Hero) den Viewport
+            // verlässt (firstVisibleItemIndex > 0), ist er vollständig
+            // überdeckt → collapse = 1.
+            val heroCollapse by animateFloatAsState(
+                targetValue = if (listState.firstVisibleItemIndex > 0) 1f
+                else (listState.firstVisibleItemScrollOffset.toFloat() /
+                    heroHeightPx.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                animationSpec = tween(120),
+                label = "heroCollapse"
+            )
             // Live-Info für den Hero-Chip (Time-Ansicht oben).
             val liveTitle = when (liveState) {
                 is LiveActivityState.Running -> liveState.title
@@ -265,7 +282,14 @@ private fun DashboardContent(
                 else -> 0L
             }
             DashboardHeroBackground(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        // Parallax: Deko-Fläche schiebt sich mit 0.55x
+                        // der Scroll-Geschwindigkeit nach oben.
+                        translationY = -heroCollapse * heroHeightPx * 0.55f
+                        alpha = 1f - 0.25f * heroCollapse
+                    }
             )
             // M18.60-FIX (User: "Tage wechseln — da sollte eine Animation
             // passieren, die das gesamte Fragment nach links/rechts
@@ -322,6 +346,9 @@ private fun DashboardContent(
             // 0) M18.100: Hero-Inhalt als Item 0 — klickbar (Pfeile,
             // QualityRing, "Heute", Datum→Kalender). Scrollt über die
             // Deko-Fläche (Kalorien-Tracker-Optik bleibt).
+            // M18.101: Collapse-Transformation — der Hero-Inhalt schiebt
+            // sich beim Scrollen schneller nach oben (0.55×) und wird
+            // ausgeblendet, die Deko-Fläche bleibt als Parallax dahinter.
             item(key = "hero") {
                 DashboardHeroContent(
                     state = state,
@@ -332,7 +359,11 @@ private fun DashboardContent(
                     onPreviousDay = { onNavigateDay(-1) },
                     onNextDay = { onNavigateDay(1) },
                     onResetToToday = onResetToToday,
-                    onDateClick = { showDatePickerDialog = true }
+                    onDateClick = { showDatePickerDialog = true },
+                    modifier = Modifier.graphicsLayer {
+                        translationY = -heroCollapse * heroHeightPx * 0.45f
+                        alpha = 1f - 0.35f * heroCollapse
+                    }
                 )
             }
             // 1) Live-Banner — wichtigste Info zuerst. Gleitet von oben rein.

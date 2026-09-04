@@ -475,9 +475,10 @@ private fun LiveStatusChip(title: String, activeMs: Long) {
         animationSpec = infiniteRepeatable(tween(1100), RepeatMode.Reverse),
         label = "liveChipAlpha"
     )
-    val timerText = "%02d:%02d".format(
+    val timerText = "%02d:%02d:%02d".format(
         activeMs / 3_600_000,
-        (activeMs % 3_600_000) / 60_000
+        (activeMs % 3_600_000) / 60_000,
+        (activeMs % 60_000) / 1_000
     )
     Surface(
         shape = RoundedCornerShape(AevumRadius.full),

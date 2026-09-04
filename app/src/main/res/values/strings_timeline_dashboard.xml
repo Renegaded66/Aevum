@@ -13,7 +13,7 @@
     <string name="timeline_mode_duration_only">Nur Dauer</string>
     <string name="timeline_fixed_hint">Der Eintrag erscheint mit Start- und Endzeit auf der Timeline.</string>
     <string name="timeline_open_end_hint">Der Eintrag startet ab der gewählten Zeit und läuft weiter, bis du ihn manuell beendest.</string>
-    <string name="timeline_duration_only_hint">Nur Dauer erfassen — erscheint in der Tagesstatistik, nicht in der Timeline.</string>
+    <string name="timeline_duration_only_hint">Nur Dauer erfassen — erscheint in der Tagesstatistik und in der Timeline (ohne Uhrzeit).</string>
     <string name="timeline_save_saving">Speichern…</string>
     <string name="timeline_save_select_activity">Aktivität auswählen</string>
     <string name="timeline_save_recording">Aufzeichnung speichern</string>
