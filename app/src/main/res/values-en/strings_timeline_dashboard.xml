@@ -13,7 +13,7 @@
     <string name="timeline_mode_duration_only">Duration only</string>
     <string name="timeline_fixed_hint">The entry will appear on the timeline with start and end time.</string>
     <string name="timeline_open_end_hint">The entry starts at the selected time and keeps running until you stop it manually.</string>
-    <string name="timeline_duration_only_hint">Record duration only — appears in the day statistics, not on the timeline.</string>
+    <string name="timeline_duration_only_hint">Record duration only — appears in the day statistics and on the timeline (without a time).</string>
     <string name="timeline_save_saving">Saving…</string>
     <string name="timeline_save_select_activity">Select activity</string>
     <string name="timeline_save_recording">Save recording</string>

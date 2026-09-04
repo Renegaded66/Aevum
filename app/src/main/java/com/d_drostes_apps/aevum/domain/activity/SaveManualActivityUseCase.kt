@@ -47,13 +47,39 @@ class SaveManualActivityUseCase @Inject constructor(
 
         // M18.66-FIX21 (User: "Neue Activity Aufzeichnungen sollten immer alte
         // stoppen"): Beim ANLEGEN einer neuen manuellen Session wird die
-        // laufende Live-Session beendet (endAt = jetzt). So entstehen keine
-        // Überlappungen — egal ob die laufende Session per Geofence,
-        // Fahrterkennung oder manuell gestartet wurde. Beim EDITIEREN einer
-        // bestehenden Session passiert das NICHT (der User bearbeitet ja
-        // genau diese Session).
+        // laufende Live-Session beendet (endAt = jetzt), WENN die neue
+        // Session sie zeitlich überlappt. So entstehen keine Überlappungen —
+        // egal ob die laufende Session per Geofence, Fahrterkennung oder
+        // manuell gestartet wurde. Beim EDITIEREN einer bestehenden Session
+        // passiert das NICHT (der User bearbeitet ja genau diese Session).
+        //
+        // M18.101-FIX (User: "Wenn ich eine neue Aktivität hinzufüge wird
+        // fälschlicherweise die aktuelle Aufzeichnung unterbrochen, auch
+        // dann wenn ich nur eine Dauer oder zu einem anderen Zeitraum
+        // hinzugefügt habe"): Der pauschale Stop war falsch — er beendete
+        // die Live-Session auch dann, wenn die neue Aktivität sie GAR
+        // NICHT überlappt (z.B. Dauer-only = Tagesbeginn, oder ein
+        // Zeitraum am Vormittag, während die Live-Session abends läuft).
+        // Jetzt: Nur bei ECHTER Überlappung stoppen. Die Live-Session
+        // läuft weiter, wenn die neue Aktivität in einem anderen Zeitraum
+        // liegt. (Die Live-Session hat endAt=null → effektiv bis jetzt;
+        // eine neue Session mit endAt in der Zukunft überlappt sie.)
         if (existing == null) {
-            liveActivityManager.stop()
+            val live = liveActivityManager.liveSession.value
+            // M18.59-Semantik: Eine laufende Session (endAt=null) endet
+            // effektiv bei JETZT — rangesOverlap würde null sonst als
+            // Long.MAX_VALUE behandeln und JEDE neue Session (auch
+            // Dauer-only am Tagesbeginn) als überlappend einstufen.
+            val liveOverlaps = live != null && live.isLive &&
+                SessionTimeValidator.rangesOverlap(
+                    request.startAt,
+                    request.endAt,
+                    live.startAt,
+                    now
+                )
+            if (liveOverlaps) {
+                liveActivityManager.stop()
+            }
         }
 
         val sessionId = request.id ?: UUID.randomUUID().toString()
