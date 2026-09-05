@@ -92,7 +92,11 @@ object GarminSleepDedup {
         sleepEnd: Long
     ): List<ActivitySession> {
         val overlapping = overlappingSessions(nightSessions, sleepStart, sleepEnd)
-            .filter { it.sourceType == "GARMIN_SLEEP_AUTO" }
+            // M18.103: User-bearbeitete Sessions sind auch für die
+            // Duplikat-Bereinigung tabu — sie könnten sonst als
+            // "Duplikat" gelöscht werden, obwohl der User sie
+            // angefasst hat.
+            .filter { it.sourceType == "GARMIN_SLEEP_AUTO" && !it.isUserEdited }
         val primary = primarySession(overlapping) ?: return emptyList()
         return overlapping.filter { it.id != primary.id }
     }
@@ -162,6 +166,17 @@ object GarminSleepDedup {
         if (session.activityTypeId != "sleep" && session.categoryId != "sleep") return false
         // Manuell eingetragener Schlaf wird NIE überschrieben.
         if (session.sourceType == "MANUAL") return false
+        // M18.103 (User: "Manchmal ändere ich die Aktivität in der
+        // Timeline, falls Garmin den Schlaf falsch aufgezeichnet hat.
+        // Beim nächsten Garmin Sync ist wieder die Garmin Zeit da und
+        // meine Änderung ist weg. Es soll solange regelmäßig syncen,
+        // bis man es bearbeitet, dann erhält es eine Flag und wird
+        // nicht mehr verändert"): Sobald der User eine Session über
+        // den Editor bearbeitet hat (SaveManualActivityUseCase setzt
+        // isUserEdited=true), ist sie für den Sync tabu — weder
+        // Zeit-Update noch Ersetzen. Garmin liefert evtl. korrigierte
+        // Zeiten, aber der User-Eingriff gewinnt.
+        if (session.isUserEdited) return false
         // Garmin-Schlaf derselben Nacht: Zeit-Überlappung ODER gleiche
         // Nacht (Zeitkorrektur, die nicht mehr überlappt).
         if (session.sourceType == "GARMIN_SLEEP_AUTO") {
