@@ -133,38 +133,51 @@ fun PlaceTimelineMap(
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
-                    MapView(ctx).also { viewRef = it }.apply {
-                        getMapAsync { map ->
-                            map.uiSettings.isAttributionEnabled = true
-                            map.uiSettings.isLogoEnabled = false
-                            map.uiSettings.isRotateGesturesEnabled = false
-                            map.uiSettings.isTiltGesturesEnabled = false
-                            map.setStyle(Style.Builder().fromJson(rasterStyleJson(isDark))) { _ ->
-                                mapRef = map
-                                // M18.85 FANCY-CALLOUT: Statt des grauen Standard-
-                                // InfoWindows ein eigenes View-Layout im Aevum-
-                                // Design (dunkle Fläche, abgerundet, Ortsfarbe
-                                // als Akzent-Leiste, Titel + Zeitfenster).
-                                map.setInfoWindowAdapter(
-                                    PlaceCalloutAdapter(ctx, isDark) { marker ->
-                                        markersByVisitId.entries
-                                            .firstOrNull { it.value == marker }
-                                            ?.key?.let { id -> mappable.firstOrNull { it.id == id } }
-                                            ?.let { parseHexAndroidColor(it.color) }
+                    // M18.102-CRASHFIX: Factory-Guard (v7.1-Ausnahme für
+                    // 3rd-party-Native-Init) — libmaplibre.so-Ladefehler
+                    // (16-KB-Page-Size) crashen sonst den Screen.
+                    try {
+                        MapView(ctx).also { viewRef = it }.apply {
+                            getMapAsync { map ->
+                                map.uiSettings.isAttributionEnabled = true
+                                map.uiSettings.isLogoEnabled = false
+                                map.uiSettings.isRotateGesturesEnabled = false
+                                map.uiSettings.isTiltGesturesEnabled = false
+                                map.setStyle(Style.Builder().fromJson(rasterStyleJson(isDark))) { _ ->
+                                    mapRef = map
+                                    // M18.85 FANCY-CALLOUT: Statt des grauen Standard-
+                                    // InfoWindows ein eigenes View-Layout im Aevum-
+                                    // Design (dunkle Fläche, abgerundet, Ortsfarbe
+                                    // als Akzent-Leiste, Titel + Zeitfenster).
+                                    map.setInfoWindowAdapter(
+                                        PlaceCalloutAdapter(ctx, isDark) { marker ->
+                                            markersByVisitId.entries
+                                                .firstOrNull { it.value == marker }
+                                                ?.key?.let { id -> mappable.firstOrNull { it.id == id } }
+                                                ?.let { parseHexAndroidColor(it.color) }
+                                        }
+                                    )
+                                    // Marker-Tap: Callout + Sync zur Liste.
+                                    map.setOnMarkerClickListener { marker ->
+                                        val visitId = markersByVisitId.entries
+                                            .firstOrNull { it.value == marker }?.key
+                                        if (visitId != null) {
+                                            map.deselectMarkers()
+                                            map.selectMarker(marker)
+                                            onVisitSelected(visitId)
+                                        }
+                                        true
                                     }
-                                )
-                                // Marker-Tap: Callout + Sync zur Liste.
-                                map.setOnMarkerClickListener { marker ->
-                                    val visitId = markersByVisitId.entries
-                                        .firstOrNull { it.value == marker }?.key
-                                    if (visitId != null) {
-                                        map.deselectMarkers()
-                                        map.selectMarker(marker)
-                                        onVisitSelected(visitId)
-                                    }
-                                    true
                                 }
                             }
+                        }
+                    } catch (t: Throwable) {
+                        android.util.Log.e("PlaceTimelineMap", "MapView-Init fehlgeschlagen — Platzhalter", t)
+                        android.widget.TextView(ctx).apply {
+                            text = "⚠️ Karte nicht verfügbar"
+                            setTextColor(android.graphics.Color.GRAY)
+                            textSize = 13f
+                            gravity = android.view.Gravity.CENTER
                         }
                     }
                 },
@@ -173,7 +186,7 @@ fun PlaceTimelineMap(
                     // (auch dem 60s-Ticker) — Rebuilds laufen ausschließlich
                     // über den keyierten LaunchedEffect unten.
                 },
-                onRelease = { view -> view.onDestroy() }
+                onRelease = { view -> (view as? MapView)?.onDestroy() }
             )
         }
     }

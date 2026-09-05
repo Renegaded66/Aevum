@@ -577,13 +577,14 @@ class TimelineViewModel @Inject constructor(
         // dort als 0:00–24:00 gerendert. Eine laufende Session endet effektiv
         // bei "jetzt" — sie darf nur an Tagen ≤ heute erscheinen.
         val nowMs = System.currentTimeMillis()
-        // M18.101: excludeFromTimeline-Sessions (Nur-Dauer) werden JETZT
-        // angezeigt — der User will sie in der Liste sehen und löschen
-        // können. Sie starten am Tagesbeginn (startAt = dayStart) und
-        // überlappen damit jeden Tag; der Filter auf den GEWÄHLTEN Tag
-        // bleibt über rangesOverlap korrekt.
+        // M18.102-KORREKTUR (User: "Es sollte nur in der Listenansicht ganz
+        // oben erscheinen, also nicht die Timeline an sich"): Nur-Dauer-
+        // Sessions gehören NICHT ins Timeline-Raster (Tag/Woche) — M18.101
+        // hatte sie mit startAt=Tagesbeginn dort als "00:00–02:00"-Balken
+        // gezeigt (Quatsch, sie haben keine Uhrzeit). Sie laufen jetzt über
+        // durationOnlySessions (separate Liste, nur für die Listenansicht).
         val filteredSessions = allSessions
-            .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+            .filter { it.deletedAt == null && !it.excludeFromTimeline && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
             .sortedBy { it.startAt }
 
         // M16.5: Pro Session den sichtbaren Tagesausschnitt berechnen.
@@ -660,6 +661,39 @@ class TimelineViewModel @Inject constructor(
                 activityColor = typeMap[session.activityTypeId]?.color ?: 0L
             )
         }
+        // M18.102: Nur-Dauer-Sessions des gewählten Tages (separate Liste
+        // für die Listenansicht — ganz oben, ohne Uhrzeiten). startAt =
+        // Tagesbeginn → der Tag-Test ist exakt der Erstellt-Tag.
+        val durationOnlySessions = allSessions
+            .filter { it.deletedAt == null && it.excludeFromTimeline }
+            .filter { it.startAt >= dayStart && it.startAt < dayEnd }
+            .sortedBy { it.startAt }
+            .map { session ->
+                val effectiveCategoryId = session.categoryId
+                    ?: typeMap[session.activityTypeId]?.defaultCategoryId
+                TimelineSessionUi(
+                    id = session.id,
+                    title = session.title,
+                    categoryId = effectiveCategoryId,
+                    categoryName = categoryMap[effectiveCategoryId]?.name ?: application.getString(R.string.common_other),
+                    activityTypeName = typeMap[session.activityTypeId]?.name ?: application.getString(R.string.timeline_free_activity),
+                    time = "",
+                    range = "",
+                    duration = TimeFormatting.formatDuration(session.activeDurationInWindow(dayStart, dayEnd, nowMs)),
+                    source = session.sourceType,
+                    isAuto = session.sourceType in AUTO_SOURCES,
+                    startMinuteOfDay = 0,
+                    endMinuteOfDay = 0,
+                    isRunning = false,
+                    isOverlapping = false,
+                    positivityScore = session.manualQualityOverride
+                        ?: typeMap[session.activityTypeId]?.positivityScore ?: 50,
+                    hasQualityOverride = session.manualQualityOverride != null,
+                    activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
+                    activityColor = typeMap[session.activityTypeId]?.color ?: 0L,
+                    isDurationOnly = true
+                )
+            }
         // M16.5: totalMs und categoryDurations basieren auf dem sichtbaren
         // Tagesausschnitt. So summiert sich die Tagesstatistik konsistent
         // zur angezeigten Timeline.
@@ -711,6 +745,7 @@ class TimelineViewModel @Inject constructor(
             dayTitle = TimeFormatting.formatDayTitle(date, context = application),
             formattedDate = TimeFormatting.formatDate(date),
             sessions = rows,
+            durationOnlySessions = durationOnlySessions,
             totalTracked = TimeFormatting.formatDuration(totalMs),
             sessionCount = filteredSessions.size,
             categories = categories,
@@ -746,10 +781,9 @@ class TimelineViewModel @Inject constructor(
             val dayStart = TimeFormatting.startOfDayMillis(day, zoneId)
             val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
             val daySessions = allSessions
-                // M18.101: excludeFromTimeline (Nur-Dauer) auch in der
-                // Wochenansicht zeigen (User: "sollen in der Listenansicht
-                // trotzdem auftauchen").
-                .filter { it.deletedAt == null && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
+                // M18.102-KORREKTUR: Nur-Dauer-Sessions raus aus der
+                // Wochen-Timeline (erscheinen nur in der Listenansicht).
+                .filter { it.deletedAt == null && !it.excludeFromTimeline && SessionTimeValidator.rangesOverlap(dayStart, dayEnd, it.startAt, it.endAt ?: nowMs) }
                 .sortedBy { it.startAt }
             val rows = daySessions.map { session ->
                 val clippedStart = maxOf(session.startAt, dayStart)
@@ -1090,6 +1124,16 @@ class ActivityEditorViewModel @Inject constructor(
         val id = sessionId
         if (id != null) {
             val session = activityRepository.getById(id).first() ?: return
+            // M18.102-FIX (User: "Nach Eingabe der Dauer stand da schon
+            // 0 bis 2 Uhr"): Beim Bearbeiten einer Nur-Dauer-Session
+            // durationOnly-Flags wiederherstellen, damit der Editor den
+            // Dauer-only-Modus zeigt statt "00:00–02:00" (die Session
+            // hat keine Uhrzeiten — startAt=Tagesbeginn ist nur intern).
+            val durOnlyMinutes = if (session.excludeFromTimeline) {
+                ((session.endAt ?: session.startAt) - session.startAt)
+                    .coerceAtLeast(1L)
+                    .let { ms -> (ms / 60_000L).toInt().coerceAtLeast(1) }
+            } else null
             form.value = ActivityEditorForm(
                 title = session.title,
                 description = session.description.orEmpty(),
@@ -1097,7 +1141,9 @@ class ActivityEditorViewModel @Inject constructor(
                 activityTypeId = session.activityTypeId,
                 startAt = session.startAt,
                 endAt = session.endAt ?: session.startAt + ONE_HOUR,
-                date = TimeFormatting.millisToLocalDate(session.startAt, zoneId)
+                date = TimeFormatting.millisToLocalDate(session.startAt, zoneId),
+                durationOnlyMinutes = durOnlyMinutes,
+                excludeFromTimeline = session.excludeFromTimeline
             )
         } else if (candidateId != null) {
             val candidate = activityCandidateRepository.getById(candidateId).first() ?: return
@@ -1184,7 +1230,12 @@ class ActivityDetailViewModel @Inject constructor(
             category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },
             activityType = types.firstOrNull { it.id == session?.activityTypeId },
             range = session?.let {
-                "${TimeFormatting.formatTime(it.startAt, zoneId)}–${
+                // M18.102 (User: "Es soll ja keine Uhrzeiten haben"): Eine
+                // Nur-Dauer-Session hat KEINE Uhrzeiten — startAt=Tagesbeginn
+                // ist nur intern. Statt "00:00–02:00" im Detail leeren Range
+                // liefern; die UI überspringt die Range-Karte dann.
+                if (it.excludeFromTimeline) ""
+                else "${TimeFormatting.formatTime(it.startAt, zoneId)}–${
                     it.endAt?.let { end -> TimeFormatting.formatTime(end, zoneId) }
                         ?: application.getString(R.string.timeline_running)
                 }"
@@ -1232,6 +1283,10 @@ data class TimelineUiState(
     val dayTitle: String = "",
     val formattedDate: String = TimeFormatting.formatDate(LocalDate.now()),
     val sessions: List<TimelineSessionUi> = emptyList(),
+    // M18.102: Nur-Dauer-Sessions des gewählten Tages — separat, weil sie
+    // nur in der Listenansicht ganz oben erscheinen (ohne Uhrzeit), nicht
+    // im Raster der Tag-/Wochen-Timeline.
+    val durationOnlySessions: List<TimelineSessionUi> = emptyList(),
     val totalTracked: String = "0m",
     val sessionCount: Int = 0,
     val categories: List<Category> = emptyList(),
@@ -1341,7 +1396,12 @@ data class TimelineSessionUi(
     val hasQualityOverride: Boolean = false,
     // M18.13: Icon + custom Farbe der Aktivität.
     val activityIcon: String = "•",
-    val activityColor: Long = 0L
+    val activityColor: Long = 0L,
+    // M18.102: Nur-Dauer-Session (excludeFromTimeline) — erscheint NUR in
+    // der Listenansicht ganz oben (ohne Uhrzeit), NIE in der Tag- oder
+    // Wochen-Timeline. range ist bei ihr leer (dient im Lösch-Dialog als
+    // Dauer-Anzeige, UI zeigt sie nicht als Zeitbereich).
+    val isDurationOnly: Boolean = false
 )
 
 data class ActivityEditorForm(

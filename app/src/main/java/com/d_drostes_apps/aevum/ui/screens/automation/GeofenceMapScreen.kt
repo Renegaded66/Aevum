@@ -219,46 +219,59 @@ internal fun GeofenceMapView(
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
-                    // textureMode(true): TextureView statt SurfaceView —
-                    // transformations-sicher in Navigation-Transitions.
-                    val options = MapLibreMapOptions.createFromAttributes(ctx)
-                        .textureMode(true)
-                    MapView(ctx, options).also { viewRef = it }.apply {
-                        onCreate(null)
-                        getMapAsync { map ->
-                            map.uiSettings.isAttributionEnabled = true
-                            map.uiSettings.isLogoEnabled = false
-                            map.uiSettings.isRotateGesturesEnabled = false
-                            map.uiSettings.isTiltGesturesEnabled = false
-                            this@apply.addOnDidFailLoadingMapListener { reason ->
-                                mapError = reason ?: "Unbekannter Style-Fehler"
-                            }
-                            map.setStyle(Style.Builder().fromJson(rasterStyleJson(isDark))) { _ ->
-                                mapError = null
-                                mapRef = map
-                                map.setInfoWindowAdapter(
-                                    GeofenceCalloutAdapter(ctx, isDark) { marker ->
-                                        markersByGfId.entries.firstOrNull { it.value == marker }?.key
-                                            ?.let { id -> geofences.firstOrNull { it.id == id } }
+                    // M18.102-CRASHFIX: Factory-Guard (v7.1-Ausnahme für
+                    // 3rd-party-Native-Init) — libmaplibre.so-Ladefehler
+                    // (16-KB-Page-Size) crashen sonst den Screen.
+                    try {
+                        // textureMode(true): TextureView statt SurfaceView —
+                        // transformations-sicher in Navigation-Transitions.
+                        val options = MapLibreMapOptions.createFromAttributes(ctx)
+                            .textureMode(true)
+                        MapView(ctx, options).also { viewRef = it }.apply {
+                            onCreate(null)
+                            getMapAsync { map ->
+                                map.uiSettings.isAttributionEnabled = true
+                                map.uiSettings.isLogoEnabled = false
+                                map.uiSettings.isRotateGesturesEnabled = false
+                                map.uiSettings.isTiltGesturesEnabled = false
+                                this@apply.addOnDidFailLoadingMapListener { reason ->
+                                    mapError = reason ?: "Unbekannter Style-Fehler"
+                                }
+                                map.setStyle(Style.Builder().fromJson(rasterStyleJson(isDark))) { _ ->
+                                    mapError = null
+                                    mapRef = map
+                                    map.setInfoWindowAdapter(
+                                        GeofenceCalloutAdapter(ctx, isDark) { marker ->
+                                            markersByGfId.entries.firstOrNull { it.value == marker }?.key
+                                                ?.let { id -> geofences.firstOrNull { it.id == id } }
+                                        }
+                                    )
+                                    map.setOnMarkerClickListener { marker ->
+                                        if (marker === userMarkerRef) return@setOnMarkerClickListener true
+                                        if (markersByGfId.containsValue(marker)) onMarkerTap(map, marker)
+                                        true
                                     }
-                                )
-                                map.setOnMarkerClickListener { marker ->
-                                    if (marker === userMarkerRef) return@setOnMarkerClickListener true
-                                    if (markersByGfId.containsValue(marker)) onMarkerTap(map, marker)
-                                    true
-                                }
-                                map.setOnInfoWindowClickListener { marker ->
-                                    val gfId = markersByGfId.entries
-                                        .firstOrNull { it.value == marker }?.key
-                                    if (gfId != null) onCalloutTap(gfId)
-                                    true
+                                    map.setOnInfoWindowClickListener { marker ->
+                                        val gfId = markersByGfId.entries
+                                            .firstOrNull { it.value == marker }?.key
+                                        if (gfId != null) onCalloutTap(gfId)
+                                        true
+                                    }
                                 }
                             }
+                        }
+                    } catch (t: Throwable) {
+                        android.util.Log.e("GeofenceMapScreen", "MapView-Init fehlgeschlagen — Platzhalter", t)
+                        android.widget.TextView(ctx).apply {
+                            text = "⚠️ Karte nicht verfügbar"
+                            setTextColor(android.graphics.Color.GRAY)
+                            textSize = 13f
+                            gravity = android.view.Gravity.CENTER
                         }
                     }
                 },
                 update = { _ -> },
-                onRelease = { view -> view.onDestroy() }
+                onRelease = { view -> (view as? MapView)?.onDestroy() }
             )
 
             // Lifecycle-Forwarding mit Parameter-Capture (M18.92-FIX1).
