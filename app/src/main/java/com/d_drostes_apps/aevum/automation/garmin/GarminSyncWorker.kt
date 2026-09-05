@@ -275,6 +275,21 @@ class GarminSyncWorker(
             // 1) Bereits persistierte Nacht-Identität?
             val byExternalId = repo.getByExternalId(externalId).first()
             if (byExternalId.isNotEmpty()) {
+                // M18.103 (User: "bis man es bearbeitet, dann erhält es
+                // eine Flag und wird nicht mehr verändert"): Hat der User
+                // EINE Session dieser Nacht über den Editor bearbeitet
+                // (isUserEdited=true), ist die NACHT tabu — egal ob die
+                // editierte Session die älteste ist oder nicht. Es wird
+                // weder geupdated noch bereinigt (sonst könnte die
+                // User-Korrektur als "Duplikat" gelöscht werden). Der
+                // Sync läuft für andere Nächte einfach weiter.
+                if (byExternalId.any { it.isUserEdited }) {
+                    android.util.Log.i(
+                        TAG,
+                        "Garmin-Schlaf $day vom User bearbeitet — Sync überspringt (isUserEdited)"
+                    )
+                    continue
+                }
                 // Primär = älteste (deterministisch); Rest = Duplikate
                 // (sollte es nicht geben, aber heilt z.B. abgebrochene
                 // Syncs) → bereinigen.
@@ -334,7 +349,15 @@ class GarminSyncWorker(
                 .first()
                 .filter {
                     it.deletedAt == null &&
-                        (it.activityTypeId == "sleep" || it.categoryId == "sleep")
+                        // M18.103: Auch Sessions, deren AKTIVITÄT der User
+                        // geändert hat (User: "manchmal ändere ich auch die
+                        // Aktivität in der Timeline"), müssen als Garmin-
+                        // Schlaf-Nacht erkennbar bleiben — sonst wäre die
+                        // user-editierte Session für den Sync unsichtbar
+                        // und es würde eine ZWEITE Garmin-Schlaf-Session
+                        // angelegt werden.
+                        (it.activityTypeId == "sleep" || it.categoryId == "sleep" ||
+                            it.sourceType == "GARMIN_SLEEP_AUTO")
                 }
 
             // M18.65 (User-Spezifikation Schritt 1): Schlaf mit GENAU
@@ -415,6 +438,21 @@ class GarminSyncWorker(
                     "Garmin-Schlaf $day übernommen + externalId nachgetragen (${sleep.sleepTimeSeconds}s)"
                 )
             } else {
+                // M18.103 (User-Schutz): Existiert in dieser Nacht bereits
+                // eine GARMIN_SLEEP_AUTO-Session, die aber NICHT ersetzbar
+                // ist (z.B. user-editierte Alt-Session ohne externalId),
+                // darf der Sync nicht einfach eine ZWEITE anlegen — das
+                // wäre ein Duplikat. Sync überspringt die Nacht.
+                val existingGarmin = nightSessions.firstOrNull {
+                    it.sourceType == "GARMIN_SLEEP_AUTO"
+                }
+                if (existingGarmin != null) {
+                    android.util.Log.i(
+                        TAG,
+                        "Garmin-Schlaf $day übersprungen — Garmin-Session ${existingGarmin.id} existiert, aber ist nicht ersetzbar (user-edit?)"
+                    )
+                    continue
+                }
                 // Wirklich neu (oder nur Heuristik-Sessions da) →
                 // Heuristik/Health-Schlaf der Nacht löschen und den
                 // Garmin-Schlaf frisch schreiben.

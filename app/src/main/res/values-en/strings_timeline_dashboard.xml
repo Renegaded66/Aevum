@@ -66,6 +66,7 @@
     <string name="timeline_zoom_hint">%1$s px/h</string>
     <string name="timeline_editor_time_window">Time window</string>
     <string name="timeline_editor_time_hint">Tap &amp; turn the clock · Snap 5 min</string>
+    <string name="timeline_editor_hint_pick_activity">Pick your activity below — everything else is optional.</string>
     <string name="timeline_editor_open_ended">still running…</string>
     <string name="timeline_editor_segment_fixed">With end time</string>
     <string name="timeline_editor_segment_open">● Open end</string>

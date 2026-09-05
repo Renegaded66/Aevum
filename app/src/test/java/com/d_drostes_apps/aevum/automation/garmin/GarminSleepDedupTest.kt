@@ -309,4 +309,59 @@ class GarminSleepDedupTest {
 
         assertThat(GarminSleepDedup.sameSleepNight(nap, sleepStart, sleepEnd)).isFalse()
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.103: User-Schutz — "solange regelmäßig syncen, bis man es
+    // bearbeitet, dann erhält es eine Flag und wird nicht mehr
+    // verändert" (User-Feedback zum Garmin-Schlaf-Sync).
+    // isUserEdited wird von SaveManualActivityUseCase gesetzt, sobald
+    // der User eine Session über den Editor speichert.
+    // ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `user-editierte Session wird trotz Zeitkorrektur NICHT mehr ersetzt`() {
+        val edited = session("se", sleepStart, sleepEnd, createdAt = 1L).copy(isUserEdited = true)
+        // Garmin korrigiert die Zeit nachträglich (23:46–08:01 → 00:10–08:00):
+        val newStart = sleepStart + 24 * 60_000L
+        val newEnd = sleepEnd - 60_000L
+
+        assertThat(GarminSleepDedup.isReplaceableBySleep(edited, newStart, newEnd)).isFalse()
+    }
+
+    @Test
+    fun `user-editierte Session wird trotz kompletter Überlappung nicht ersetzt`() {
+        val edited = session("se", sleepStart, sleepEnd, createdAt = 1L).copy(isUserEdited = true)
+
+        assertThat(GarminSleepDedup.isReplaceableBySleep(edited, sleepStart - 60_000L, sleepEnd + 60_000L)).isFalse()
+    }
+
+    @Test
+    fun `nicht editierte Garmin-Session bleibt weiterhin ersetzbar (Korrekturen fliessen)`() {
+        val untouched = session("s", sleepStart, sleepEnd, createdAt = 1L)
+
+        assertThat(GarminSleepDedup.isReplaceableBySleep(untouched, sleepStart + 24 * 60_000L, sleepEnd - 60_000L)).isTrue()
+    }
+
+    @Test
+    fun `user-editierte Session wird nicht als Duplikat bereinigt`() {
+        // Zwei Sessions derselben Nacht: die user-editierte (neuere) und
+        // eine Alt-Session ohne Flag. Die user-editierte darf NIEMALS als
+        // Duplikat soft-deleted werden.
+        val editedNewer = session("se", sleepStart, sleepEnd, createdAt = 200L).copy(isUserEdited = true)
+        val old = session("old", sleepStart + 10 * 60_000L, sleepEnd, createdAt = 100L)
+
+        val cleanup = GarminSleepDedup.duplicatesToCleanup(listOf(editedNewer, old), sleepStart, sleepEnd)
+
+        assertThat(cleanup.map { it.id }).doesNotContain("se")
+    }
+
+    @Test
+    fun `matchesExactly bleibt für user-editierte Sessions wahr (falls Zeiten gleich bleiben)`() {
+        // Der Sync darf eine user-editierte Session bei EXAKT gleichen
+        // Zeiten natürlich als No-Op erkennen (idempotent) —
+        // Hauptsache er verändert nichts.
+        val edited = session("se", sleepStart, sleepEnd, createdAt = 1L).copy(isUserEdited = true)
+
+        assertThat(GarminSleepDedup.matchesExactly(edited, sleepStart, sleepEnd)).isTrue()
+    }
 }

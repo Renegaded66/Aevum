@@ -1053,7 +1053,31 @@ fun ActivityEditorScreen(
                     onDurationOnlyMinutesChange = viewModel::setDurationOnly
                 )
             }
-            item { ValidationCard(state.validation, state.form.errorMessage) }
+            // M18.103 (Tester: "It Shows Error Message every time"): Beim
+            // ÖFFNEN eines neuen Editors erschien sofort die rote
+            // Meldung "Bitte gib deiner Aktivität einen Namen." — obwohl
+            // der User noch nichts eingegeben hatte (leerer Titel →
+            // Validator Invalid). Jetzt: Frisch geöffneter Editor zeigt
+            // einen neutralen Hinweis; erst Eingaben (oder ein
+            // gescheiterter Speicherversuch) schalten auf die echte
+            // Validierungs-/Fehlerkarte um.
+            val pristine = !state.isEditing &&
+                state.form.errorMessage == null &&
+                state.form.title.isBlank() &&
+                state.form.activityTypeId == null
+            item {
+                if (pristine) {
+                    AevumCard(variant = CardVariant.Filled) {
+                        Text(
+                            stringResource(R.string.timeline_editor_hint_pick_activity),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    ValidationCard(state.validation, state.form.errorMessage)
+                }
+            }
             item {
                 Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) {
                     Text(
