@@ -110,6 +110,19 @@ class MainActivity : LocalizedActivity() {
                     if (!notificationActive) {
                         com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
                     }
+                    // M18.104 (Akku-Redesign): Läuft eine Auto-/Wanderungs-
+                    // Session, deren GPS-Track-Stream durch Prozess-Tod
+                    // endete (Service wird nicht sticky-neu-gestartet, wenn
+                    // der User die App öffnet) → TRACK-Restore. No-Op, wenn
+                    // die Session kein Track-Typ ist oder bereits läuft.
+                    if (session.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
+                        session.sourceType == "WALKING_AUTO"
+                    ) {
+                        com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                            applicationContext,
+                            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_TRACK_RESTORE
+                        )
+                    }
                 }
             } catch (_: Exception) { }
         }

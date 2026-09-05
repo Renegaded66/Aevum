@@ -74,6 +74,27 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         debugLogger.log("RECEIVER", "${triggeringGeofences.size} Geofences: $transitionName")
 
+        // M18.104 (Akku-Redesign): Geofence-EXIT = Bewegungs-Verdacht ("User
+        // verlässt Zuhause/Gym → fährt oder geht los"). Direkt HIER im
+        // Receiver einen CONFIRM-Burst starten — der Receiver-Kontext ist
+        // eine offizielle FGS-Start-Exemption (Android-Doku: "your app
+        // receives an event that's related to geofencing"), anders als ein
+        // WorkManager-Worker-Kontext. Der Burst klassifiziert die GPS-
+        // Speed-Serie (DriveDetectionEngine) und speist die Walking-Phase;
+        // Cooldowns im Service fangen Flapping ab. ENTER braucht KEINEN
+        // Burst (der User ARRIVIERT — Bewegung endet, nicht beginnt).
+        if (transition == Geofence.GEOFENCE_TRANSITION_EXIT) {
+            try {
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                    context,
+                    com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_CONFIRM
+                )
+                debugLogger.log("RECEIVER", "M18.104: EXIT -> CONFIRM-Burst gestartet")
+            } catch (e: Exception) {
+                debugLogger.log("RECEIVER", "M18.104: CONFIRM-Burst-Start fehlgeschlagen: ${e.message}")
+            }
+        }
+
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 // M18.44: ECHTES Gate — wenn Geofencing in den

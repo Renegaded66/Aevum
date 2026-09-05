@@ -122,11 +122,23 @@ class InitialActivitySnapshotWorker(
                 "Initial-Snapshot erkannte IN_VEHICLE-Cluster: " +
                     "${vehicleCluster.durationMs / 1000}s, confidence=${vehicleCluster.peakConfidence} → Start"
             )
-            // M17.4: Probe-Cluster in den Buffer zurückschreiben (Bridge wurde
+            // Probe-Cluster in den Buffer zurückschreiben (Bridge wurde
             // durch drain() geleert), damit der StartWorker ihn verarbeiten kann.
             bridge.addSample(vehicleCluster.endMs, vehicleCluster.peakConfidence)
             bridge.addSample(vehicleCluster.endMs + 1_000, vehicleCluster.peakConfidence)
             DriveStartWorker.schedule(ctx)
+            // M18.104 (Akku-Redesign): Der DriveStartWorker hat ein GPS-Gate
+            // (M18.66-FIX15: AR-ENTER allein startet nichts mehr — erst
+            // markDriveConfirmed ODER klassifizierte GPS-Probes). Der alte
+            // 24/7-Stream lieferte diese Evidenz; nach dem Wegfall startet
+            // der Boot-Pfad hier zusätzlich einen CONFIRM-Burst, dessen
+            // Fixes die DriveDetectionEngine klassifiziert. Der Burst
+            // bestätigt die Fahrt (oder verwirft sie sauber — besser als
+            // eine blinde Session).
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                ctx,
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_CONFIRM
+            )
         } else {
             Log.d(TAG, "Initial-Snapshot: keine IN_VEHICLE-Aktivität erkannt (cluster=$vehicleCluster)")
         }

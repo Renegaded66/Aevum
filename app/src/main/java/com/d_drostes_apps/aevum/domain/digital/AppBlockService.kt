@@ -104,6 +104,8 @@ class AppBlockService : Service() {
             @Suppress("DEPRECATION")
             registerReceiver(blockActionReceiver, filter)
         }
+        // M18.104: Screen-Receiver (siehe startWatching-Kommentar).
+        registerScreenStateReceiver()
         startWatching()
     }
 
@@ -120,16 +122,75 @@ class AppBlockService : Service() {
         scope.cancel()
         handler.removeCallbacksAndMessages(null)
         try { unregisterReceiver(blockActionReceiver) } catch (_: Exception) { /* nie registriert */ }
+        // M18.104: Screen-Receiver sauber deregistrieren.
+        screenStateReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) { /* nie registriert */ }
+        }
+        screenStateReceiver = null
         super.onDestroy()
     }
 
     private fun startWatching() {
         handler.post(object : Runnable {
             override fun run() {
-                checkForegroundApp()
-                handler.postDelayed(this, CHECK_INTERVAL_MS)
+                // M18.104 (Akku-Redesign): Screen aus → KEIN Foreground-Check.
+                // Vorher liefen 5s queryUsageStats-Abfragen rund um die Uhr
+                // (17.280/Tag) — nachts nutzlos, niemand wechselt Apps bei
+                // ausgeschaltetem Display. Der Screen-Receiver unten setzt
+                // das Flag und triggert einen Sofort-Check bei SCREEN_ON,
+                // sodass die Sperr-Reaktion (max. 5s) unverändert bleibt,
+                // sobald der User das Gerät wieder nutzt. SCREEN_OFF friert
+                // den Zustand korrekt ein: Die zuletzt geöffnete App bleibt
+                // "im Vordergrund", solange der Screen aus ist.
+                if (screenOn) {
+                    checkForegroundApp()
+                }
+                handler.postDelayed(
+                    this,
+                    if (screenOn) CHECK_INTERVAL_MS else CHECK_INTERVAL_SCREEN_OFF_MS
+                )
             }
         })
+    }
+
+    /** M18.104: Screen-Zustand (ACTION_SCREEN_ON/OFF-Receiver im FGS-
+     *  Kontext). Default true — konservativ, bis der erste Broadcast
+     *  eintrifft. */
+    @Volatile private var screenOn: Boolean = true
+    private var screenStateReceiver: android.content.BroadcastReceiver? = null
+
+    /** M18.104: Screen-Receiver — null Kosten im Schlaf, sofortige
+     *  Sperr-Reaktion beim Aufwachen. */
+    private fun registerScreenStateReceiver() {
+        if (screenStateReceiver != null) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_ON -> {
+                        screenOn = true
+                        // Sofort-Check beim Aufwachen — der User könnte
+                        // direkt in eine gesperrte App wechseln.
+                        handler.post { checkForegroundApp() }
+                    }
+                    Intent.ACTION_SCREEN_OFF -> screenOn = false
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(receiver, filter)
+            }
+            screenStateReceiver = receiver
+        } catch (e: Exception) {
+            android.util.Log.w("AppBlockSvc", "Screen-Receiver fehlgeschlagen: ${e.message} — Watchdog läuft dauerhaft")
+        }
     }
 
     private fun checkForegroundApp() {
@@ -338,6 +399,10 @@ class AppBlockService : Service() {
         // völlig (Overlay erscheint max. 3s später — für den User
         // unsichtbar), spart 60% der UsageStats-Zugriffe.
         private const val CHECK_INTERVAL_MS = 5_000L
+        // M18.104 (Akku-Redesign): Screen aus → Watchdog-Takt verlangsamen
+        // (siehe startWatching-Kommentar — der Screen-ON-Broadcast weckt
+        // sofort, die 10-Min-Schleife ist nur der Fallback-Keepalive).
+        private const val CHECK_INTERVAL_SCREEN_OFF_MS = 10L * 60 * 1000
 
         fun start(context: Context) {
             val intent = Intent(context, AppBlockService::class.java)

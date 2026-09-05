@@ -348,18 +348,20 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ActivityRecognitionRegistrar failed — continuing", e)
         }
-        // M18.66: Autofahrt-Erkennung über KONTINUIERLICHEN GPS-Stream.
-        // Recherche-Befund (Google Maps / Life360 / Android-Doku): Ein
-        // einmaliger getCurrentLocation()-Fix liefert fast nie hasSpeed() —
-        // zuverlässige Fahrterkennung braucht einen dauerhaften
-        // Location-Stream (DriveDetectionService, ForegroundService vom
-        // Typ "location"). Der alte DriveProbeWorker (alle 2 Min ein
-        // einmaliger Fix) war der Grund, warum die Erkennung nie zuverlässig
-        // funktionierte: speedMps war fast immer null.
+        // M18.104 (Akku-Redesign): Kein 24/7-GPS-Stream mehr beim App-
+        // Start. Der DriveDetectionService ist jetzt ereignisgetrieben:
+        // AR-Transitions (IN_VEHICLE/WALKING-ENTER) und Geofence-EXITs
+        // starten GPS-Bursts. Beim App-Start restaurieren wir nur den
+        // TRACK-Modus, falls eine Auto-/Wanderungs-Session noch läuft
+        // (Prozess wurde gekillt, Session lebt in der DB weiter) — der
+        // Restore ist ein No-Op ohne laufende Session.
         try {
-            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(this)
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                this,
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_TRACK_RESTORE
+            )
         } catch (e: Exception) {
-            Log.e("AevumApplication", "DriveDetectionService start failed — continuing", e)
+            Log.e("AevumApplication", "DriveDetectionService restore failed — continuing", e)
         }
         // M18.86: Track-Punkt-Retention (90 Tage) — einmal pro App-Start
         // als Fire-and-Forget auf IO. Die Tabelle wächst mit ~1 Punkt/25 s

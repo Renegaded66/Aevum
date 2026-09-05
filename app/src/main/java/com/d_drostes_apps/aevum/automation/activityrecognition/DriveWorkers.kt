@@ -257,6 +257,15 @@ class DriveStartWorker(
             bridge.clearWalkingSignal()
             // Foreground-Service, damit der Timer im Hintergrund weiterläuft.
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+            // M18.104 (Akku-Redesign): Der Burst-Service muss vom CONFIRM-
+            // in den TRACK-Modus wechseln — er läuft als eigenständiger
+            // FGS weiter (löst sich vom Worker-Kontext, der endet). Der
+            // Restore-Pfad ist ein No-Op, wenn der Service nicht läuft
+            // (dann übernimmt der nächste AR-EXIT/ENTER die Beobachtung).
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                applicationContext,
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_TRACK_RESTORE
+            )
             // 5-Minuten-Watchdog: ohne weiteres Fahrt-Signal stoppt die Session.
             DriveWatchdogWorker.schedule(applicationContext)
             triggerRepo.insert(

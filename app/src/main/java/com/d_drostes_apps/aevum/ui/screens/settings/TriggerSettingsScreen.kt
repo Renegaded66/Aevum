@@ -1092,15 +1092,16 @@ class TriggerSettingsViewModel @Inject constructor(
                 }
             }
         }
-        // M18.66: Autofahrt-Erkennung über kontinuierlichen GPS-Stream
-        // synchron zum Gate starten/stoppen. Der DriveDetectionService
-        // hält den Location-Stream (Google Maps / Life360-Ansatz) — ohne
-        // ihn gibt es keine zuverlässige Fahrterkennung. Der alte
-        // DriveProbeWorker (einmaliger Fix alle 2 Min) war wirkungslos.
+        // M18.104 (Akku-Redesign): Der DriveDetectionService läuft nicht
+        // mehr 24/7 — er ist jetzt ereignisgetrieben (AR-ENTER/Geofence-
+        // EXIT starten GPS-Bursts, siehe DriveDetectionService-Klassen-Doc).
+        // Beim Toggle: AUS → Service komplett stoppen (auch laufende
+        // Bursts enden). AN → NICHTS starten: Der erste AR-ENTER des
+        // Google-Sensor-Hubs startet den nächsten Burst automatisch —
+        // ein GPS-Stream ohne Bewegungs-Verdacht wäre genau der
+        // Akku-Fresser, den dieses Redesign abschafft.
         try {
-            if (enabled) {
-                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(app)
-            } else {
+            if (!enabled) {
                 com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.stop(app)
             }
         } catch (e: Exception) {

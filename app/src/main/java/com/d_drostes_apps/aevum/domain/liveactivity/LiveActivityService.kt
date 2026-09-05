@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.d_drostes_apps.aevum.MainActivity
@@ -139,10 +140,23 @@ class LiveActivityService : Service() {
                         // M18.24: Ein fehlerhaftes Notification-Update darf
                         // den Loop nicht killen — sonst friert der Timer ein.
                     }
-                    delay(1000)
+                    // M18.104 (Akku-Redesign): Screen aus → Takt entspannen.
+                    // Der 1s-Loop weckte die CPU 86.400×/Tag, obwohl das
+                    // System die Notification bei ausgeschaltetem Screen
+                    // ohnehin nicht rendert. Der Screen-Receiver (unten)
+                    // setzt das Flag und triggert beim Aufwachen ein
+                    // Sofort-Update — der Timer ist beim Wiedereinschalten
+                    // sofort wieder frisch (kein sichtbarer Sprung: die
+                    // Notification zeigt mm:ss; beim Aufwachen rendert das
+                    // System eh einen frischen Frame mit korrekter Zeit).
+                    delay(if (screenOn) 1000L else 10_000L)
                 }
             }
         }
+
+        // M18.104: Screen-Receiver — null Kosten im Schlaf, sofortiges
+        // Notification-Refresh beim Aufwachen.
+        registerScreenStateReceiver()
 
         // Ensure we're foreground
         // M18.24: startForeground kann crashen (ForegroundServiceDidNotStartInTimeException,
@@ -170,6 +184,11 @@ class LiveActivityService : Service() {
 
     override fun onDestroy() {
         updateJob?.cancel()
+        // M18.104: Screen-Receiver sauber deregistrieren.
+        screenStateReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) { /* nie registriert */ }
+        }
+        screenStateReceiver = null
         // M19-v2: Wenn die Live-Aufzeichnung endet, die Hintergrund-
         // Benachrichtigung wiederherstellen — die Hintergrund-Services
         // laufen weiter und brauchen ihre Notification zurück.
@@ -224,8 +243,67 @@ class LiveActivityService : Service() {
             stopSelf()
             return
         }
+        // M18.104 (Akku-Redesign): Tick nur bei sichtbarem Sekunden-
+        // Umschlag. Ein 1s-delay-Loop weckt die CPU JEDER Sekunde
+        // (86.400 Wakes/Tag, davon lief buildNotification() inkl. 800×400-
+        // Bitmap-Rendering). Notification-Zeit = mm:ss — ein Update ist
+        // erst nötig, wenn die angezeigte Sekunde wechselt. Bei PAUSED
+        // friert (endAt - startAt) ein → kein Update mehr. GLEICHE Formel
+        // wie buildNotification (sonst driftet die Sperre gegen die
+        // Anzeige).
+        val now = System.currentTimeMillis()
+        val totalMs = if (session.isPaused) {
+            (session.endAt ?: now) - session.startAt
+        } else {
+            now - session.startAt
+        }.coerceAtLeast(0)
+        val shownSecond = ((totalMs - session.totalPausedMs).coerceAtLeast(0)) / 1000L
+        if (shownSecond == lastShownSecond) return
+        lastShownSecond = shownSecond
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, buildNotification())
+    }
+
+    /** M18.104: Sekunde, die die Notification zuletzt anzeigte — verhindert
+     *  redundante notify()-Calls (Bitmap-Rendering war der heimliche
+     *  CPU-Fresser des 1s-Loops). */
+    private var lastShownSecond: Long = -1L
+
+    /** M18.104: Screen-Zustand (ACTION_SCREEN_ON/OFF). */
+    @Volatile private var screenOn: Boolean = true
+    private var screenStateReceiver: android.content.BroadcastReceiver? = null
+
+    /** M18.104: Screen-Receiver registrieren (FGS-Kontext, endet mit dem
+     *  Service in onDestroy). Beim Aufwachen sofort das Notification-
+     *  Refresh anstoßen. */
+    private fun registerScreenStateReceiver() {
+        if (screenStateReceiver != null) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+                when (intent?.action) {
+                    android.content.Intent.ACTION_SCREEN_ON -> {
+                        screenOn = true
+                        lastShownSecond = -1L // erzwingt ein Update im nächsten Tick
+                    }
+                    android.content.Intent.ACTION_SCREEN_OFF -> screenOn = false
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_SCREEN_ON)
+            addAction(android.content.Intent.ACTION_SCREEN_OFF)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(receiver, filter)
+            }
+            screenStateReceiver = receiver
+        } catch (e: Exception) {
+            android.util.Log.w("LiveActivitySvc", "Screen-Receiver fehlgeschlagen: ${e.message} — 1s-Takt läuft weiter")
+        }
     }
 
     private fun buildNotification(): Notification {
