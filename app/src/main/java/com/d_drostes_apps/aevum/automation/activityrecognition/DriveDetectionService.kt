@@ -1,10 +1,6 @@
 package com.d_drostes_apps.aevum.automation.activityrecognition
 
 import android.annotation.SuppressLint
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -14,10 +10,7 @@ import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.d_drostes_apps.aevum.MainActivity
-import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -26,43 +19,69 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
- * M18.66: AUTOFART-ERKENNUNG über KONTINUIERLICHEN GPS-Stream.
+ * M18.104: EREIGNISGETRIEBENE FAHRT-/WANDERUNGS-ERKENNUNG (Akku-Redesign).
  *
- * DER Kern-Fix nach der Recherche (Google Maps / Life360 / Android-Doku):
- * Zuverlässige Fahrterkennung braucht einen DAUERHAFTEN Location-Stream
- * (requestLocationUpdates + LocationCallback), NICHT einen einmaligen
- * getCurrentLocation()-Fix alle 2 Minuten.
+ * ═════════════════════════════════════════════════════════════════════
+ * WAS SICH GEÄNDERT HAT UND WARUM (Root Cause des 20%-in-5h-Akku-
+ * Verbrauchs bei 5 Minuten Bildschirmzeit):
  *
- * WARUM der alte DriveProbeWorker scheiterte (bewiesen):
- * - Es gab KEINEN einzigen requestLocationUpdates-Aufruf in der ganzen App.
- * - Ein einmaliger getCurrentLocation()-Fix mit PRIORITY_BALANCED liefert
- *   fast NIE hasSpeed() — die Geschwindigkeit kommt nur aus einem aktiven
- *   Stream. Also war speedMps fast immer null, und DriveDetectionEngine
- *   (verlangt speed >= 8.0 m/s) konnte NIE eine Fahrt bestätigen.
- * - Im Hintergrund wird getCurrentLocation() zusätzlich gedrosselt.
+ * M18.66 hielt diesen Service als DAUER-Location-Stream am Leben
+ * (PRIORITY_HIGH_ACCURACY, alle 15s, 24/7 solange Auto/Walking-Erkennung
+ * aktiv war). Der GPS-Chip schlief NIE — auch nicht, wenn der User 5 h
+ * still im Büro saß. Ein FGS zählt in der Akku-Statistik als
+ * "Vordergrund", weshalb Android die 20% der APP zuschrieb, obwohl die
+ * Bildschirmzeit nur 5 Minuten betrug.
  *
- * DIESER Service hält einen kontinuierlichen LocationRequest-Stream
- * (PRIORITY_HIGH_ACCURACY, ~5s Intervall) als ForegroundService vom Typ
- * "location". Er läuft die ganze Zeit, solange die Autofahrt-Erkennung in
- * den Trigger-Settings aktiv ist.
+ * M18.93v10/v11 drosselte nur Intervalle (5s→15s Stream, 2min→5min
+ * Probes) — die Grundarchitektur "GPS immer an" blieb. Dieser Rewrite
+ * ersetzt sie durch das Muster, das die Android-Doku ("Optimize
+ * location use for battery life": "Request updates when the targeted
+ * activity is detected, and remove updates when the user stops
+ * performing that activity"; "avoid using PRIORITY_HIGH_ACCURACY for
+ * sustained background work") und Life360/DriveQuant/HyperTrack
+ * verwenden:
  *
- * Erkenngungslogik (an Google Maps / Life360 angelehnt):
- * - Jeder Location-Fix wird in die [ActivityRecognitionBridge] gepuffert
- *   (addDriveProbe mit echten speed/accuracy/distance).
- * - DriveDetectionEngine klassifiziert die Serie (mehrere Probes >= 8 m/s).
- * - Driving -> DriveStartWorker startet die Session "Autofahren" sofort.
- * - Bewegung >= MIN_PROBE_MOVEMENT_M zwischen zwei Probes refresht den
- *   Heartbeat (die Fahrt lebt) -> Watchdog wird verlängert.
- * - Der DriveWatchdogWorker stoppt nach 5 Minuten ohne Fahrt-Signal.
+ *   DAUER-SIGNALE (OS-managed, ~0 Akku):
+ *     • Activity-Recognition-Transitions (Sensor-Hub, GMS)
+ *     • GMS-Geofences (ENTER/EXIT via PendingIntent)
+ *   BURST-SIGNALE (kurz, zweckgebunden, teuer):
+ *     • CONFIRM-Burst (6 Min HIGH 15s): bestätigt einen Fahrzeug-
+ *       Verdacht (AR IN_VEHICLE-ENTER, Geofence-EXIT) über die
+ *       DriveDetectionEngine, BEVOR eine Session startet. DriveQuant:
+ *       "GPS is deliberately not activated while the driver is not
+ *       moving or before a trip is confirmed."
+ *     • WALKING_CHECK-Burst (8 Min BALANCED 60s): misst das Netto-
+ *       Displacement (≥ 300 m) für die Wanderungs-Erkennung.
+ *     • TRACK: Während einer bestätigten Auto-/Wanderungs-Session
+ *       läuft der Stream so lange die Session lebt. Ein 2-Min-Tick
+ *       prüft, ob die Session noch läuft — beendet sie sich (Watchdog,
+ *       Google-EXIT, manueller Stop, PAUSE-Split), geht der Stream AUS.
+ *       Der Tick deckt ALLE Stop-Pfade ab, ohne dass jeder Worker den
+ *       Service stoppen müsste (gleiche Lektion wie die M18.76-Blackout-
+ *       Selbstheilung: nie Call-Sites jagen — Zustand abgleichen).
+ *
+ * Die ERKENNUNGS-SEMANTIK ist unverändert übernommen (jedes Gate aus
+ * M18.66–M18.103 bleibt): GPS-Kaltstart-Warmup, Genauigkeits-Gate,
+ * Netto-Displacement-Gate, Geofence-Veto + Inside-Geofence-Cap,
+ * Restart-Cooldown, driveActive-Selbstheilung, Walking-Orts-
+ * Boundaries, Track-Recording mit Pre-Session-Backfill.
+ *
+ * FGS-Start-Beschränkungen (Android 12+): Alle Start-Pfade sind
+ * offizielle Exemptions — "your app receives an event that's related
+ * to geofencing or activity recognition transition" (Android-Doku,
+ * "Restrictions on starting a foreground service from the background").
+ * ═════════════════════════════════════════════════════════════════════
  */
 @AndroidEntryPoint
 class DriveDetectionService : Service() {
@@ -70,22 +89,17 @@ class DriveDetectionService : Service() {
     @Inject lateinit var bridge: ActivityRecognitionBridge
     @Inject lateinit var liveActivityManager: com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
     // M18.84: Benannte Orte für das classify-Geofence-Veto + laufende
-    // Walking-Phase. Feld-Injection (kein Konstruktor — Service wird vom
-    // System instanziiert), einmaliger Snapshot-Ladevorgang pro Service-
-    // Lebensdauer (Geofences ändern sich selten; ein Restart des Service
-    // lädt neu — gleiche Frische-Philosophie wie der Settings-Cache).
+    // Walking-Phase. Feld-Injection, einmaliger Snapshot pro Service-
+    // Lebensdauer (Geofences ändern sich selten; ein Restart des
+    // Service lädt neu).
     @Inject lateinit var geofenceRepository: PlaceGeofenceRepository
     // M18.86: Track-Punkte-Persistenz (Fahrtstrecke für die Orts-Timeline).
     @Inject lateinit var trackPointRepository: com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
 
-    /** M18.84: Service-eigener Coroutine-Scope für den Geofence-Snapshot. */
+    /** Service-eigener Coroutine-Scope (Timer, Geofence-Snapshot, Flush). */
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** M18.84: Zeitpunkt, ab dem die Walking-Phase im aktuellen benannten
-     *  Ort läuft (0 = keine). Ersatz für das alte feld-lokale Phasen-Setup:
-     *  Die Phase wird nun auch gezählt, wenn der User sich bereits in einem
-     *  Ort befindet — aber NIE während driveActive, und beim Verlassen des
-     *  Orts-Kreises beginnt sie neu. */
+    /** M18.84: Beginn der laufenden Walking-Phase (0 = keine). */
     private var walkingPhaseStartMs: Long = 0L
 
     private lateinit var fusedClient: FusedLocationProviderClient
@@ -95,39 +109,48 @@ class DriveDetectionService : Service() {
     private var lastTsMs: Long = 0L
     /** M18.84: Wurde der Geofence-Kontext (Veto-Kreise) bereits geladen? */
     private var geofenceContextLoaded = false
-    /** M18.66-FIX13: Timestamp des Service-Starts. Die ersten 90 Sekunden
-     *  werden ignoriert (GPS-Kaltstart-Phase). In dieser Zeit liefert
-     *  loc.speed oft Müllwerte (10-30 m/s trotz Stillstand) bei scheinbar
-     *  akzeptabler Genauigkeit (< 30m) — der GPS-Empfänger sucht noch
-     *  Satelliten und springt. Das ist exakt das "5 Minuten nach Update"-
-     *  Muster: Service startet nach App-Update neu → Kaltstart → falsche
-     *  Speed-Werte → False-Positive. 90s deckt den typischen Kaltstart
-     *  ab (Assisted GPS: 20-60s, Cold GPS: 60-120s).
-     *  M18.71: 90s -> 60s. Die Erkennung soll sensibler/schneller
-     *  ansprechen; Assisted GPS liefert nach 20-60s brauchbare Fixes.
-     *  Die False-Positive-Abwehr übernimmt weiterhin das Netto-
-     *  Displacement-Gate (≥ 150 m) in der Engine. */
-    private var serviceStartMs: Long = 0L
+    /** M18.66-FIX13: Beginn des ERSTEN Streams dieser Service-Lebensdauer —
+     *  die ersten 60s werden ignoriert (GPS-Kaltstart: speed oft Müllwerte
+     *  bei scheinbar akzeptabler Genauigkeit). EINMAL pro Prozess — Folge-
+     *  Bursts laufen mit warmem Empfänger; nur der allererste Fix nach
+     *  echtem Kaltstart (Prozess frisch, GPS-Chip im Schlaf) braucht den
+     *  Warmup. Wird erst bei erfolgreicher Stream-Anmeldung gesetzt. */
+    private var streamStartMs: Long = 0L
+
+    // ── M18.104: Burst-Zustandsmaschine ──────────────────────────────
+    /** Aktueller Stream-Modus (OFF = kein GPS-Stream, Service endet). */
+    private var mode: StreamMode = StreamMode.OFF
+    /** Beginn des aktuellen Modus (Fenster-Timeout-Basis). */
+    private var modeStartMs: Long = 0L
+    /** Fenster-/Tick-Timer (Coroutine im lebenden FGS-Prozess — wird
+     *  nicht eingefroren, delay() läuft zuverlässig; gleiches Muster
+     *  wie der 1s-Loop im LiveActivityService). */
+    private var modeTimerJob: Job? = null
+    /** Ende des letzten ergebnislosen CONFIRM-Bursts (Burst-Cooldown). */
+    private var lastResultlessConfirmEndMs: Long = 0L
+    /** Ende des letzten ergebnislosen WALKING-Bursts. */
+    private var lastResultlessWalkingEndMs: Long = 0L
+    /** Grace-Deadline: Bestätigung frisch gesetzt, Session-Start des
+     *  DriveStartWorker noch in-flight → Stream hält bis dahin. */
+    private var confirmGraceUntilMs: Long = 0L
+    /** M18.104: Verlängerungs-Zähler der aktuellen CONFIRM-Episode
+     *  (Bewegungs-Gate + wiederholte Trigger — cap gegen Flapping). */
+    private var confirmExtensions: Int = 0
+    /** M18.104: Verlängerungs-Zähler der aktuellen WALKING-Episode. */
+    private var walkingExtensions: Int = 0
+    /** M18.104: Letztes Netto-Displacement der aktiven Walking-Phase (m). */
+    private var lastWalkingNetDisplacementM: Double = 0.0
+    /** Aktuell registrierte Stream-Parameter (Recycling-Check). */
+    private var activePriority: Int = -1
+    private var activeIntervalMs: Long = -1L
+
+    private enum class StreamMode {
+        OFF, CONFIRM, WALKING, TRACK_DRIVE, TRACK_WALK
+    }
 
     // ──────────────────────────────────────────────────────────────
-    // M18.72: WALKING-PHASE (GPS-Pfad für die Wanderungs-Erkennung).
-    //
-    // Wenn Googles Activity-Recognition-Transitions keine WALKING-
-    // ENTERs liefert (App im Hintergrund, Sensor-Spring), erkennt der
-    // GPS-Stream die Wanderung über Netto-Displacement: Der User muss
-    // sich ab [walkingPhaseStartMs] mindestens
-    // [WALKING_MIN_GPS_DISTANCE_M] (300 m) geradlinig vom Phasenstart
-    // entfernen — frühestens nach 5 Minuten (Engine-Schwelle). Steht
-    // die Bewegung länger als [WALKING_PHASE_RESET_MS] still, wird die
-    // Phase verworfen (kein akkumuliertes Gedächtnis über Pausen).
-    // Netto-Displacement statt kumulierter Distanz: Indoor-GPS-Drift
-    // springt 10-20 m pro Fix und würde die Summe fälschlich aufblähen
-    // (gleiche Lektion wie DriveDetectionEngine M18.66-FIX13).
-    //
-    // M18.84: Phasen-Reset erweitert — die Phase beginnt auch NEU, wenn
-    // der User einen benannten Orts-Kreis verlässt oder betritt (Orts-
-    // wechsel ist "Unterwegs", keine zusammenhängende Wanderung) und
-    // wird verworfen, solange eine Fahrt aktiv ist. Siehe updateWalkingPhase.
+    // M18.72: WALKING-PHASE-Felder (GPS-Pfad der Wanderungs-Erkennung).
+    // Vollständig übernommen aus M18.84 (Orts-Boundaries, Reset-Regeln).
     // ──────────────────────────────────────────────────────────────
     private var walkPhaseStartLat: Double? = null
     private var walkPhaseStartLon: Double? = null
@@ -136,61 +159,61 @@ class DriveDetectionService : Service() {
 
     companion object {
         private const val TAG = "DriveDetectionSvc"
-        private const val CHANNEL_ID = "aevum_drive_detection"
-        private const val NOTIFICATION_ID = 6303
 
-        /** Stream-Intervall: 15s. M18.93v10 (User: "Aevum verbraucht mehr
-         *  Akku — Grund-Funktionalität reicht, nicht Aktivitätsaufzeichnung
-         *  alle 5m"): 5s war Erkennungs-Dichte für Sport-Apps. 15s reicht
-         *  für Fahrt-Erkennung (Speed-Serie braucht nur 2 schnelle Fixes
-         *  über 90s Spread) UND für ungefähre Wege auf der Karte (15s =
-         *  alle ~125m bei 30 km/h — immer noch dicht genug für Kurven).
-         *  Akku: 3x weniger Fixes/Stunde, 3x weniger Location-Wakes. */
-        private const val LOCATION_INTERVAL_MS = 15_000L
-        /** Mindest-Bewegung zwischen zwei Probes (5s Abstand), die als
-         *  "Fahrt lebt" zählt (~7 km/h — deckt Stadtverkehr/Stau ab). */
+        /** M18.104: Aktionen des ereignisgetriebenen Starts. */
+        const val ACTION_CONFIRM = "com.d_drostes_apps.aevum.DETECTION_CONFIRM"
+        const val ACTION_WALKING_CHECK = "com.d_drostes_apps.aevum.DETECTION_WALKING_CHECK"
+        const val ACTION_TRACK_RESTORE = "com.d_drostes_apps.aevum.DETECTION_TRACK_RESTORE"
+
+        /** CONFIRM-Stream: HIGH_ACCURACY 15s — wie der alte Dauer-Stream
+         *  (identische Erkennungs-Dichte: MIN_SPREAD 30s = 3 Fixes,
+         *  2er-Kette, Netto 150m — die Engine merkt keinen Unterschied),
+         *  aber nur für die Dauer des Burst-Fensters statt 24/7. */
+        private const val CONFIRM_INTERVAL_MS = 15_000L
+        /** WALKING-Stream: BALANCED 60s — WLAN/Cell-Fixes statt GPS-Chip-
+         *  Dauerbetrieb. Displacement ≥ 300m braucht keine 15s-Dichte:
+         *  8 Fixes à 60s erfassen 300m bei Geh-Tempo (1,4 m/s) locker. */
+        private const val WALKING_INTERVAL_MS = 60_000L
+        /** TRACK-Stream für Fahrten: 15s HIGH (Strecken-Aufzeichnung,
+         *  TRACK_MIN_MOVEMENT_M = 60m ≈ alle 30s bei 30 km/h). */
+        private const val TRACK_DRIVE_INTERVAL_MS = 15_000L
+        /** TRACK-Stream für Wanderungen: 60s BALANCED — Gehen (1,4 m/s ×
+         *  60s = 84m) überschreitet die 60m-Punkte-Schwelle weiterhin. */
+        private const val TRACK_WALK_INTERVAL_MS = 60_000L
+        /** Mindest-Bewegung zwischen zwei Fixes, die als "Wanderung
+         *  lebt" zählt (~7 km/h — Herzschlag-Refresh bei TRACK_WALK). */
         private const val MIN_PROBE_MOVEMENT_M = 10.0
-        /** M18.71: GPS-Kaltstart-Warmup verkürzt (90s -> 60s). */
+        /** M18.71: GPS-Kaltstart-Warmup (90s → 60s). */
         private const val GPS_WARMUP_MS = 60_000L
-        /** M18.72: Mindest-Netto-Displacement für eine Wanderung (~300 m
-         *  geradlinig). Eine echte Wanderung legt in 5 Minuten 300-500 m
-         *  zurück; Indoor-Drift (10-50 m) und Gehen im Raum scheitern klar. */
+        /** M18.72: Mindest-Netto-Displacement für eine Wanderung. */
         private const val WALKING_MIN_GPS_DISTANCE_M = 300.0
-        /** M18.72: Steht der Standort länger still, wird die Walking-Phase
-         *  verworfen — der 5-Minuten-Zähler startet bei neuer Bewegung neu. */
-        private const val WALKING_PHASE_RESET_MS = 2L * 60 * 1000
 
-        // ── M18.86: Track-Recording-Konstanten (ADR-0030) ──
-        /** Bewegungs-Schwelle für einen Track-Punkt: ≥ 60 m seit dem
-         *  letzten Punkt. M18.93v10 (User: "nicht alle 5m speichern"):
-         *  30 m war überfein — bei 15s-Stream sind das ~2 Punkte/min bei
-         *  30 km/h, die Karte wirkt identisch, die DB schrumpft um die
-         *  Hälfte. 60 m ≈ alle 30-60s ein Punkt bei Stadt-Tempo — genug
-         *  für jede Kurve im Sichtbereich, ohne Aktivitäts-Dichte. */
+        // ── M18.86: Track-Recording-Konstanten (ADR-0030, unverändert) ──
         private const val TRACK_MIN_MOVEMENT_M = 60.0
-        /** Heartbeat: Auch ohne Bewegung alle 5 Min ein Punkt (Ampel/Stau/
-         *  Pause — hält die Zeitachse der Strecke zusammen). */
         private const val TRACK_HEARTBEAT_MS = 5L * 60 * 1000
-        /** Genauigkeits-Gate für Track-Punkte (Indoor-Multipath raus). */
         private const val TRACK_MAX_ACCURACY_M = 50f
-        /** Batch-Flush: spätestens 8 Punkte ... */
         private const val TRACK_FLUSH_BATCH = 8
-        /** ... oder 60 s (auch bei langsamen Punkt-Raten wird zügig
-         *  persistiert, damit ein Prozess-Tod maximal 1 Min Strecke frisst). */
         private const val TRACK_FLUSH_INTERVAL_MS = 60_000L
 
-        // ── M18.89: Pre-Session-Track-Backfill-Konstanten ──
-        /** Pseudo-State-Key der Pre-Session-Sammelphase (Fahrt erkannt,
-         *  Session noch nicht live). */
+        // ── M18.89: Pre-Session-Backfill-Konstanten (unverändert) ──
         private const val PENDING_TRACK_STATE_KEY = "pending"
-        /** Pending-Fixes älter als dieses Fenster sind wertlos (Erkennungs-
-         *  phasen dauern real 2–4 min; 25 min deckt Worst Cases ab). */
         private const val PENDING_TRACK_MAX_AGE_MS = 25L * 60 * 1000
-        /** Obergrenze der Pending-Fixes (5s-Stream × 25 min = 300 → 400). */
         private const val PENDING_TRACK_MAX_POINTS = 400
 
-        fun start(context: Context) {
-            val intent = Intent(context, DriveDetectionService::class.java)
+        /** M18.104: Restore-Warmup. Nach Prozess-Tod (Sticky-Restart,
+         *  ACTION_TRACK_RESTORE) kann die Room-Query der liveSession
+         *  noch laufen → .value wäre trotz laufender Session null
+         *  (gleiche Lektion wie LiveActivityService M18.41: "null ist
+         *  erst nach 3s wirklich null"). Der Restore wartet max. 3s. */
+        private const val RESTORE_WARMUP_MS = 3_000L
+        private const val RESTORE_POLL_MS = 600L
+
+        /** M18.104: Start mit Aktion (von Receivern/Workern/Application).
+         *  startForegroundService ist erlaubt: Alle Aufrufer sind AR-/
+         *  Geofence-Event-Pfade (offizielle Exemptions, Android 12+) oder
+         *  Vordergrund-/FGS-Kontexte (App-Start, laufende Worker). */
+        fun start(context: Context, action: String) {
+            val intent = Intent(context, DriveDetectionService::class.java).setAction(action)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
@@ -198,10 +221,14 @@ class DriveDetectionService : Service() {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Start fehlgeschlagen: ${e.message}")
+                // FGS-Start darf NIE crashen (M18.66-FIX-Muster). Schlägt
+                // er fehl, lebt die Erkennung über die nächsten AR-/
+                // Geofence-Events weiter (jedes startet einen neuen Burst).
+                Log.w(TAG, "Start ($action) fehlgeschlagen: ${e.message}")
             }
         }
 
+        /** Beendet den Service komplett (Settings-Gate OFF). */
         fun stop(context: Context) {
             context.stopService(Intent(context, DriveDetectionService::class.java))
         }
@@ -211,48 +238,33 @@ class DriveDetectionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
     }
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // M18.79: Der Service wird bei JEDEM App-Start neu gestartet
-        // (AevumApplication.onCreate). Ein hier gesetztes serviceStartMs
-        // würde bei jedem App-Start einen 60s-GPS-Kaltstart-Warmup
-        // erzwingen und den laufenden Location-Stream abreißen — der
-        // User, der die App öffnet und direkt losfährt, bliebe blind.
-        // Der Warmup gilt nur für den ERSTEN Start des Service-Prozesses
-        // (echter GPS-Kaltstart); bei Wiederholungs-Starts läuft der
-        // Stream weiter (Recycling unten).
-        if (serviceStartMs == 0L) serviceStartMs = System.currentTimeMillis()
+        val action = intent?.action
+
         if (!hasLocationPermission()) {
-            Log.w(TAG, "Keine Standort-Berechtigung — Autofahrt-Erkennung pausiert")
+            Log.w(TAG, "Keine Standort-Berechtigung — Erkennung pausiert")
             stopSelf()
             return START_NOT_STICKY
         }
-        // M18.66: Gate — Autofahrt-Erkennung in den Trigger-Settings aus?
-        // Dann keinen GPS-Stream halten (Akku), sauber beenden. Der Service
-        // wird vom Gate beim Aktivieren wieder gestartet.
-        // M18.72: Der Service trägt auch die Wanderungs-Erkennung (GPS-
-        // Displacement) — er läuft, solange Autofahrt ODER Walking an ist.
-        if (!bridge.isDrivingEnabled() && !bridge.isWalkingEnabled()) {
-            Log.d(TAG, "Autofahrt- und Walking-Erkennung deaktiviert — Service beendet sich")
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        // Foreground starten (location-Typ). Fehler -> sauber stoppen.
-        // M19: Konsolidierte Hintergrund-Benachrichtigung statt eigener.
-        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
-        val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
+
+        // M18.104: FGS IMMER zuerst starten (idempotent) — Android
+        // verlangt nach JEDEM startForegroundService() ein startForeground()
+        // innerhalb 5s, auch wenn der Service schon läuft (sonst
+        // ForegroundServiceDidNotStartInTimeException auf manchen
+        // OEMs). Lehnt der Start ab einen Modus, beendet sich der
+        // Service unten sofort wieder (Notification-Blitz < 1s, selten).
         try {
             startForeground(
                 com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
-                notification,
+                com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             )
         } catch (e: SecurityException) {
-            Log.e(TAG, "Location-FGS verweigert (Hintergrund ohne Background-Permission)", e)
+            Log.e(TAG, "Location-FGS verweigert (Background-Location fehlt?)", e)
             stopSelf()
             return START_NOT_STICKY
         } catch (e: Exception) {
@@ -261,80 +273,394 @@ class DriveDetectionService : Service() {
             return START_NOT_STICKY
         }
 
-        // M18.79: Stream-Recycling. Ein bereits aktiver Callback wird
-        // NICHT abgerissen und neu angemeldet — das erzeugt sonst bei
-        // jedem App-Start eine Fix-Lücke (GPS-Neuakquise). Nur wenn
-        // kein Stream läuft (erster Start oder Service wurde vom System
-        // gekillt und neu gestartet), wird einer angelegt.
-        if (callback == null) {
-            val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_INTERVAL_MS)
-                .setMinUpdateIntervalMillis(LOCATION_INTERVAL_MS / 2)
-                .setMaxUpdateDelayMillis(LOCATION_INTERVAL_MS * 2)
-                .build()
-            val cb = object : LocationCallback() {
-                override fun onLocationResult(result: LocationResult) {
-                    result.lastLocation?.let { handleFix(it) }
+        when (action) {
+            ACTION_CONFIRM -> {
+                if (bridge.isDrivingEnabled()) {
+                    enterConfirm()
+                } else if (bridge.isWalkingEnabled() && !bridge.isDriveActive()) {
+                    // M18.104: Geofence-EXIT mit deaktivierter Fahr-Erkennung
+                    // ist trotzdem ein Bewegungs-Verdacht → Walking-Check.
+                    enterWalkingCheck()
+                } else {
+                    stopIfIdle("CONFIRM: Fahr- und Walking-Erkennung deaktiviert")
                 }
             }
-            callback = cb
-            try {
-                fusedClient.requestLocationUpdates(req, cb, mainLooper)
-                Log.d(TAG, "Kontinuierlicher Location-Stream aktiv (5s)")
-            } catch (e: Exception) {
-                Log.e(TAG, "requestLocationUpdates fehlgeschlagen", e)
-                stopSelf()
+            ACTION_WALKING_CHECK -> {
+                if (bridge.isWalkingEnabled() && !bridge.isDriveActive()) {
+                    enterWalkingCheck()
+                } else {
+                    stopIfIdle("WALKING_CHECK: Walking aus oder Fahrt aktiv")
+                }
             }
-        } else {
-            Log.d(TAG, "Location-Stream läuft bereits — kein Neustart (App-Start-Recycling)")
+            ACTION_TRACK_RESTORE, null -> {
+                // Restore (Worker nach Session-Start) oder Sticky-Restart
+                // nach Prozess-Tod: Track-Stream wieder aufnehmen, WENN
+                // eine trackbare Session läuft. Der 2-Min-Tick beendet
+                // ihn automatisch, sobald die Session endet.
+                restoreTrackAsync()
+            }
+            else -> stopIfIdle("Unbekannte Aktion: $action")
         }
         return START_STICKY
     }
 
+    /** Service nur beenden, wenn gerade kein anderer Modus läuft (ein
+     *  abgewiesener Request darf einen aktiven Burst nicht töten). */
+    private fun stopIfIdle(reason: String) {
+        if (mode == StreamMode.OFF) {
+            Log.d(TAG, "$reason — Service beendet (idle)")
+            stopSelf()
+        } else {
+            Log.d(TAG, "$reason — aktiver Modus $mode läuft weiter")
+        }
+    }
+
+    /** M18.104: Restore mit Warmup — nach Prozess-Tod liefert
+     *  liveSession.value evtl. noch null, obwohl die Session lebt
+     *  (Room-Query in-flight, M18.41-Lektion). Bis 3s warten. */
+    private fun restoreTrackAsync() {
+        serviceScope.launch {
+            val deadline = System.currentTimeMillis() + RESTORE_WARMUP_MS
+            var session = liveActivityManager.liveSession.value
+            while (session == null && System.currentTimeMillis() < deadline) {
+                delay(RESTORE_POLL_MS)
+                session = liveActivityManager.liveSession.value
+            }
+            val trackable = session != null && session.isRunning && (
+                session.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
+                    session.sourceType == "WALKING_AUTO"
+                )
+            if (trackable) {
+                Log.d(TAG, "Restore: trackbare Session '${session!!.title}' — TRACK aufnehmen")
+                enterTrack(session.sourceType == "ACTIVITY_RECOGNITION_AUTO")
+            } else {
+                Log.d(TAG, "Restore: keine trackbare Session — idle")
+                if (mode == StreamMode.OFF) stopSelf()
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // M18.104: MODUS-ÜBERGÄNGE
+    // ════════════════════════════════════════════════════════════════
+
+    private fun enterConfirm() {
+        val now = System.currentTimeMillis()
+        when (mode) {
+            StreamMode.CONFIRM -> {
+                // Läuft bereits — Fenster auffrischen (REPLACE-Semantik
+                // wie die Worker: ein wiederholtes AR-ENTER ist ein
+                // FRISCHER Verdacht).
+                modeStartMs = now
+                armModeTimer()
+                return
+            }
+            StreamMode.TRACK_DRIVE, StreamMode.TRACK_WALK ->
+                // Session läuft schon — Track hat Vorrang. CONFIRM wäre
+                // redundant (Fixes fließen bereits in dichtester Form).
+                return
+            StreamMode.WALKING -> {
+                // Upgrade: BALANCED 60s → HIGH 15s. Die Walking-Phase
+                // profitiert weiter (mehr Fixes = besseres Displacement),
+                // der Fahrzeug-Verdacht bekommt die nötige Dichte.
+                Log.d(TAG, "Modus-Upgrade: WALKING → CONFIRM (Fahrzeug-Verdacht)")
+            }
+            StreamMode.OFF -> {
+                if (!DetectionBurstPolicy.confirmBurstAllowed(now, lastResultlessConfirmEndMs)) {
+                    Log.d(TAG, "CONFIRM-Burst im Cooldown — verworfen")
+                    stopSelf()
+                    return
+                }
+                Log.d(TAG, "CONFIRM-Burst gestartet (6 Min HIGH_ACCURACY)")
+                // Neue Episode: Verlängerungs-Zähler zurücksetzen (Cap
+                // gilt pro Episode, nicht pro Prozess-Lebensdauer).
+                confirmExtensions = 0
+            }
+        }
+        mode = StreamMode.CONFIRM
+        modeStartMs = now
+        confirmGraceUntilMs = 0L
+        requestStreamForCurrentMode()
+        armModeTimer()
+    }
+
+    private fun enterWalkingCheck() {
+        val now = System.currentTimeMillis()
+        when (mode) {
+            StreamMode.WALKING -> {
+                modeStartMs = now
+                armModeTimer()
+                return
+            }
+            StreamMode.CONFIRM, StreamMode.TRACK_DRIVE, StreamMode.TRACK_WALK ->
+                // Fixes fließen bereits in gleicher oder besserer Dichte —
+                // updateWalkingPhase läuft in handleFix in JEDEM Modus.
+                return
+            StreamMode.OFF -> {
+                if (!DetectionBurstPolicy.walkingBurstAllowed(now, lastResultlessWalkingEndMs)) {
+                    Log.d(TAG, "WALKING-Burst im Cooldown — verworfen")
+                    stopSelf()
+                    return
+                }
+                Log.d(TAG, "WALKING_CHECK-Burst gestartet (8 Min BALANCED)")
+                // Neue Episode: Zähler + Displacement-Referenz zurücksetzen.
+                walkingExtensions = 0
+                lastWalkingNetDisplacementM = 0.0
+            }
+        }
+        mode = StreamMode.WALKING
+        modeStartMs = now
+        requestStreamForCurrentMode()
+        armModeTimer()
+    }
+
+    private fun enterTrack(isDrive: Boolean) {
+        val target = if (isDrive) StreamMode.TRACK_DRIVE else StreamMode.TRACK_WALK
+        if (mode == target) {
+            armModeTimer() // Tick auffrischen (Session lebt nachweislich)
+            return
+        }
+        Log.d(TAG, "TRACK-Modus: ${if (isDrive) "Fahrt" else "Wanderung"} — Stream folgt der Session")
+        mode = target
+        modeStartMs = System.currentTimeMillis()
+        confirmGraceUntilMs = 0L
+        requestStreamForCurrentMode()
+        armModeTimer()
+    }
+
+    /** (Re-)Registriert den Location-Stream mit den Parametern des
+     *  aktuellen Modus. Modus-Parameter unverändert → NICHT abreißen
+     *  (M18.79 Recycling-Lektion: jede Neu-Anmeldung erzeugt eine
+     *  Fix-Lücke durch GPS-Neuakquise). */
+    @SuppressLint("MissingPermission")
+    private fun requestStreamForCurrentMode() {
+        val (priority, intervalMs) = when (mode) {
+            StreamMode.CONFIRM -> Priority.PRIORITY_HIGH_ACCURACY to CONFIRM_INTERVAL_MS
+            StreamMode.TRACK_DRIVE -> Priority.PRIORITY_HIGH_ACCURACY to TRACK_DRIVE_INTERVAL_MS
+            StreamMode.WALKING -> Priority.PRIORITY_BALANCED_POWER_ACCURACY to WALKING_INTERVAL_MS
+            StreamMode.TRACK_WALK -> Priority.PRIORITY_BALANCED_POWER_ACCURACY to TRACK_WALK_INTERVAL_MS
+            StreamMode.OFF -> return
+        }
+        if (callback != null && activePriority == priority && activeIntervalMs == intervalMs) {
+            return
+        }
+        callback?.let { old ->
+            try { fusedClient.removeLocationUpdates(old) } catch (_: Exception) {}
+        }
+        val req = LocationRequest.Builder(priority, intervalMs)
+            .setMinUpdateIntervalMillis(intervalMs / 2)
+            .setMaxUpdateDelayMillis(intervalMs * 2)
+            .build()
+        val cb = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { handleFix(it) }
+            }
+        }
+        callback = cb
+        activePriority = priority
+        activeIntervalMs = intervalMs
+        try {
+            fusedClient.requestLocationUpdates(req, cb, mainLooper)
+            // M18.66-FIX13: Warmup-Referenz = ERSTE erfolgreiche Anmeldung
+            // dieser Prozess-Lebensdauer (echter GPS-Kaltstart).
+            if (streamStartMs == 0L) streamStartMs = System.currentTimeMillis()
+            Log.d(TAG, "Stream aktiv: $mode ($priority, ${intervalMs / 1000}s)")
+        } catch (e: Exception) {
+            Log.e(TAG, "requestLocationUpdates fehlgeschlagen", e)
+            mode = StreamMode.OFF
+            stopSelf()
+        }
+    }
+
+    /** Modus-Fenster/Tick-Timer (Coroutinen-delay im lebenden FGS). */
+    private fun armModeTimer() {
+        modeTimerJob?.cancel()
+        val windowMs = when (mode) {
+            StreamMode.CONFIRM -> DetectionBurstPolicy.CONFIRM_WINDOW_MS
+            StreamMode.WALKING -> DetectionBurstPolicy.WALKING_CHECK_WINDOW_MS
+            StreamMode.TRACK_DRIVE, StreamMode.TRACK_WALK -> DetectionBurstPolicy.TRACK_TICK_MS
+            StreamMode.OFF -> return
+        }
+        modeTimerJob = serviceScope.launch {
+            delay(windowMs)
+            onModeWindowElapsed()
+        }
+    }
+
+    /**
+     * M18.104: Bewegungs-Gate für die CONFIRM-Verlängerung. Prüft die
+     * aktuelle Probe-Serie auf echte Fortbewegung:
+     *   a) Netto-Displacement ≥ 150 m (Engine-Gate-Wert — Indoor-Drift
+     *      springt 10-50 m, echte Fortbewegung verlässt den Bereich),
+     *   b) ODER Durchschnitts-Geschwindigkeit ≥ 2 m/s (7,2 km/h —
+     *      Stau/Kriech-Tempo; weit über Geh-Tempo 1,5 m/s).
+     * Stillstand erfüllt KEINES von beiden → keine Verlängerung.
+     */
+    private fun movementGateFromProbes(
+        probes: List<DriveDetectionEngine.DriveProbe>
+    ): Boolean {
+        val withCoords = probes
+            .filter { it.latitude != null && it.longitude != null }
+        if (withCoords.size < 2) return false
+        val first = withCoords.first()
+        val last = withCoords.last()
+        val net = haversineMeters(
+            first.latitude!!, first.longitude!!,
+            last.latitude!!, last.longitude!!
+        )
+        if (net >= DriveDetectionEngine.MIN_NET_DISPLACEMENT_M) return true
+        val speeds = probes.mapNotNull { it.speedMps }.filter { it <= DriveDetectionEngine.OUTLIER_SPEED_MPS }
+        if (speeds.isNotEmpty() &&
+            speeds.average() >= DetectionBurstPolicy.EXTENSION_MIN_AVG_SPEED_MPS
+        ) return true
+        return false
+    }
+
+    /** Fenster/Tick abgelaufen — zentrale Zustandsübergänge. */
+    private fun onModeWindowElapsed() {
+        val now = System.currentTimeMillis()
+        when (mode) {
+            StreamMode.CONFIRM -> {
+                // Grace: Bestätigung frisch gesetzt, Session-Start des
+                // DriveStartWorker noch in-flight → kurz halten (gleiches
+                // Fenster wie DRIVE_CONFIRM_IN_FLIGHT_MS, M18.79).
+                if (bridge.driveConfirmedAgeMs(now) < DetectionBurstPolicy.GRACE_EXTENSION_MS) {
+                    confirmGraceUntilMs = now + DetectionBurstPolicy.GRACE_EXTENSION_MS
+                }
+                if (now < confirmGraceUntilMs) {
+                    Log.d(TAG, "CONFIRM-Grace: Bestätigung frisch — warte auf Session-Start")
+                    modeTimerJob = serviceScope.launch {
+                        delay(DetectionBurstPolicy.GRACE_EXTENSION_MS)
+                        onModeWindowElapsed()
+                    }
+                    return
+                }
+                // Zwischenzeitlich eine Session gestartet? → TRACK.
+                val session = liveActivityManager.liveSession.value
+                if (session != null && session.isRunning && (
+                    session.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
+                        session.sourceType == "WALKING_AUTO"
+                    )
+                ) {
+                    enterTrack(session.sourceType == "ACTIVITY_RECOGNITION_AUTO")
+                    return
+                }
+                // M18.104 BEWEGUNGS-ERNEUERUNGSGATE: Der Burst lief
+                // ergebnislos ab — ABER die Probe-Serie zeigt echte
+                // Bewegung (Netto ≥ 150 m ODER avg ≥ 2 m/s): Stau/Kriech-
+                // Tempo/Anfahren, das die 8-m/s-Gates der Engine noch
+                // nicht erfüllt. Fenster verlängern statt Stream aus —
+                // sonst würde eine Stockverkehr-Fahrt genau dann erblindet,
+                // wenn die Engine die 2er-Kette gleich schafft. Stillstand
+                // (Indoor-Drift) verlängert NIE: Drift < 150 m, Speed ~ 0.
+                if (confirmExtensions < DetectionBurstPolicy.MAX_CONFIRM_EXTENSIONS &&
+                    movementGateFromProbes(bridge.currentDriveProbes())
+                ) {
+                    confirmExtensions++
+                    Log.d(TAG, "CONFIRM verlängert (Bewegung erkannt, Erneuerung #${confirmExtensions}/${DetectionBurstPolicy.MAX_CONFIRM_EXTENSIONS})")
+                    armModeTimer()
+                    return
+                }
+                // Ergebnislos: Cooldown setzen. Läuft noch eine Walking-
+                // Phase (Displacement am Wachsen), bekommt sie ein
+                // Frisch-Fenster im WALKING-Modus.
+                lastResultlessConfirmEndMs = now
+                if (bridge.isWalkingEnabled() && walkingPhaseStartMs != 0L) {
+                    Log.d(TAG, "CONFIRM ergebnislos, Walking-Phase aktiv → WALKING_CHECK-Fortsetzung")
+                    mode = StreamMode.WALKING
+                    modeStartMs = now
+                    requestStreamForCurrentMode()
+                    armModeTimer()
+                    return
+                }
+                Log.d(TAG, "CONFIRM-Burst ergebnislos beendet — Stream AUS")
+                shutdownStream()
+            }
+            StreamMode.WALKING -> {
+                val session = liveActivityManager.liveSession.value
+                if (session != null && session.isRunning &&
+                    session.sourceType == "WALKING_AUTO"
+                ) {
+                    enterTrack(false)
+                    return
+                }
+                // Bewegungs-Verlängerung analog CONFIRM: Eine Phase, die
+                // am Wachsen ist (Netto-Displacement > letzte Messung),
+                // darf das Fenster einmal erneuern — der Spaziergang,
+                // der nach 7 Min langsam die 300 m erreicht, fällt sonst
+                // durchs Raster. Stillstand verlängert nie.
+                if (walkingExtensions < DetectionBurstPolicy.MAX_WALKING_EXTENSIONS &&
+                    walkingPhaseStartMs != 0L &&
+                    lastWalkingNetDisplacementM > 0.0
+                ) {
+                    walkingExtensions++
+                    Log.d(TAG, "WALKING verlängert (Phase aktiv, Erneuerung #${walkingExtensions}/${DetectionBurstPolicy.MAX_WALKING_EXTENSIONS})")
+                    armModeTimer()
+                    return
+                }
+                lastResultlessWalkingEndMs = now
+                Log.d(TAG, "WALKING-Burst beendet (ergebnislos) — Stream AUS")
+                shutdownStream()
+            }
+            StreamMode.TRACK_DRIVE, StreamMode.TRACK_WALK -> {
+                // 2-Min-Tick: Lebt die trackbare Session noch? Das deckt
+                // ALLE Stop-Pfade ab (Watchdog, Google-EXIT, manueller
+                // Stop, PAUSE-Split) — robust gegen zukünftige Call-Sites.
+                val session = liveActivityManager.liveSession.value
+                val trackable = session != null && session.isRunning && (
+                    session.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
+                        session.sourceType == "WALKING_AUTO"
+                    )
+                if (!trackable) {
+                    Log.d(TAG, "Session beendet — Track-Stream AUS")
+                    shutdownStream()
+                    return
+                }
+                // Session-Typ kann gewechselt haben (Fahrt → Spazieren).
+                enterTrack(session!!.sourceType == "ACTIVITY_RECOGNITION_AUTO")
+            }
+            StreamMode.OFF -> Unit
+        }
+    }
+
+    /** Stream sauber herunterfahren + Service beenden. */
+    private fun shutdownStream() {
+        mode = StreamMode.OFF
+        activePriority = -1
+        activeIntervalMs = -1
+        callback?.let { cb ->
+            try { fusedClient.removeLocationUpdates(cb) } catch (_: Exception) {}
+        }
+        callback = null
+        // Restlichen Track-Puffer flushen (M18.86 onDestroy-Pflicht).
+        flushTrackBuffer()
+        stopSelf()
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // FIX-VERARBEITUNG — vollständige Übernahme der M18.66–M18.103-Logik
+    // ════════════════════════════════════════════════════════════════
+
     private fun handleFix(loc: Location) {
         val now = System.currentTimeMillis()
 
-        // M18.76-BLACKOUT-FIX („Fahrterkennung funktioniert nicht mehr“):
-        // driveActive-Selbstheilung. M18.75 setzte driveActive nur beim
-        // manuellen Dashboard-Stop zurück. Die Session kann aber über
-        // MEHRERE andere Pfade enden, ohne dass das Flag gecleart wird —
-        // dann klassifiziert der Service NIE WIEDER (Blackout bis
-        // App-Neustart):
-        //   • „■ Stoppen“-Button in der Live-Notification
-        //     (LiveActivityService.ACTION_STOP, M18.75 nicht abgedeckt!)
-        //   • manuelles Speichern einer neuen Activity (SaveManualActivityUseCase)
-        //   • Session-Wechsel (DashboardViewModel.switchActivity)
-        //   • forceFinishForAuto (Geofence/Ping/Walking übernehmen die Session)
-        // Der Abgleich mit der realen Live-Session heilt ALLE diese Pfade
-        // inkl. zukünftiger — ohne neue Call-Sites zu vergessen. PAUSED
-        // zählt als live (isLive), damit Pause+Weiter die Erkennung nicht
-        // killt; nur wenn wirklich keine Auto-Session mehr läuft, wird
-        // das Flag zurückgesetzt.
+        // M18.76-BLACKOUT-FIX: driveActive-Selbstheilung — Abgleich mit
+        // der realen Live-Session heilt ALLE Session-Ende-Pfade.
         if (bridge.isDriveActive()) {
             val live = liveActivityManager.liveSession.value
             val autoSessionStillLive = live != null && live.isLive &&
                 live.sourceType == "ACTIVITY_RECOGNITION_AUTO"
             if (!autoSessionStillLive) {
-                // M18.79: healIfOrphaned respektiert das Start-in-flight-
-                // Fenster nach markDriveConfirmed — ein Race zwischen
-                // Bestätigung und asynchronem DriveStartWorker-Lauf killt
-                // die Erkennung nicht mehr (siehe Bridge-Kommentar).
                 if (bridge.healIfOrphaned(now)) {
-                    Log.d(TAG, "M18.76-Selbstheilung: driveActive ohne laufende Auto-Session -> zurückgesetzt (Blackout verhindert)")
+                    Log.d(TAG, "M18.76-Selbstheilung: driveActive ohne laufende Auto-Session -> zurückgesetzt")
                 }
             }
         }
 
-        // M18.66-FIX13: GPS-KALTSTART-WARMUP.
-        // Die ersten 60 Sekunden nach Service-Start werden ignoriert.
-        // In dieser Phase liefert FusedLocationProvider oft falsche
-        // Speed-Werte (10-30 m/s trotz Stillstand) — der Empfänger
-        // sucht Satelliten, position springt, speed wird aus der
-        // Sprungdistanz geschätzt. Das ist exakt das "5 Minuten nach
-        // Update"-Muster: App-Update → Service-Neustart → Kaltstart.
-        // Probes werden in dieser Zeit NICHT gepuffert → Engine kann
-        // sie nicht fälschlich auswerten.
-        if (serviceStartMs == 0L || now - serviceStartMs < GPS_WARMUP_MS) {
-            Log.d(TAG, "GPS-Warmup (Kaltstart) — Probe ignoriert (${(now - serviceStartMs) / 1000}s)")
+        // M18.66-FIX13: GPS-KALTSTART-WARMUP — erste 60s nach der ERSTEN
+        // Stream-Anmeldung dieser Prozess-Lebensdauer ignorieren.
+        if (streamStartMs == 0L || now - streamStartMs < GPS_WARMUP_MS) {
+            Log.d(TAG, "GPS-Warmup (Kaltstart) — Probe ignoriert (${(now - streamStartMs) / 1000}s)")
             return
         }
 
@@ -344,13 +670,7 @@ class DriveDetectionService : Service() {
             haversineMeters(lastLat!!, lastLon!!, loc.latitude, loc.longitude)
         } else null
 
-        // M18.84: GEOFENCE-KONTEXT (lazy, einmal pro Service-Lebensdauer):
-        // Benannte Orte als GeoCircle in die Bridge — Basis für das
-        // classify-Veto (alle Probes in einem Kreis = keine Fahrt) und für
-        // die Walking-Phasen-Ortslogik. Laden bewusst NICHT blockierend im
-        // onStartCommand (Service-Start-Latenz), sondern beim ersten Fix
-        // async — bis dahin klassifiziert die Engine ohne Veto (alter
-        // Zustand, kein False-Negative-Risiko durch fehlenden Kontext).
+        // M18.84: GEOFENCE-KONTEXT (lazy, einmal pro Service-Lebensdauer).
         if (!geofenceContextLoaded) {
             geofenceContextLoaded = true
             serviceScope.launch {
@@ -369,9 +689,6 @@ class DriveDetectionService : Service() {
                     bridge.setGeofenceContext(circles)
                     Log.d(TAG, "M18.84: ${circles.size} Geofence-Kreise geladen (Veto-Kontext)")
                 } catch (e: Exception) {
-                    // Kontext-Laden gescheitert → Veto bleibt aus (konservativ,
-                    // kein Crash des Location-Streams). Nächster Service-
-                    // Restart versucht erneut.
                     Log.w(TAG, "M18.84: Geofence-Kontext laden fehlgeschlagen: ${e.message}")
                 }
             }
@@ -386,82 +703,50 @@ class DriveDetectionService : Service() {
             longitude = loc.longitude
         )
 
-        // M18.66-FIX6: Heartbeat wird NUR bei bestätigter Fahrt refresht.
-        // Vorher: addDriveProbe(refreshHeartbeat=isMoving) refreshte den
-        // Heartbeat bei speed >= 3.0 m/s — aber GPS-Noise kann das
-        // fälschlich liefern → Watchdog läuft nie ab → Session endlos.
-        // Jetzt: Probes werden OHNE Heartbeat gepuffert. Die Klassifikation
-        // entscheidet: classify==Driving → Heartbeat refresht + Watchdog.
-        // classify!=Driving → kein Heartbeat → Watchdog läuft nach 5 Min ab.
-        //
-        // M18.67-FIX3: NACH bestätigter Fahrt wird der Heartbeat JEDEN
-        // Poll refresht, solange speed > 1 m/s ist — egal ob classify
-        // gerade Driving sagt. Die classify()-Re-Evaluation nach
-        // drainDriveProbes() braucht 2 Min Spread (MIN_SPREAD_MS) → in
-        // dieser Zeit würde der Heartbeat nicht refreshed → Watchdog
-        // stoppt die Fahrt nach 5 Min (User: "hört oft nach 5 Minuten auf").
-        // Jetzt: Einmal Driving → kontinuierlich am Leben, bis speed
-        // wirklich < 1 m/s ist (Ampel/Stop-and-Go zählt nicht als Stop).
-        val isReliableFix = accuracy <= 50f
+        // M18.66-FIX6/M18.67-FIX3: Heartbeat NUR bei bestätigter, leben-
+        // der Fahrt (speed >= 2 m/s — M18.71). Vor Bestätigung KEIN
+        // Refresh (Watchdog läuft sonst nie ab).
         bridge.addDriveProbe(probe, refreshHeartbeat = false)
 
         if (bridge.isDriveActive() && speed != null && speed >= 2.0f) {
-            // M18.67-FIX4: Schwelle von 1.0 → 3.0 m/s (10,8 km/h).
-            // Vorher: Gehen (1,0-1,5 m/s) refreshte den Heartbeat →
-            // 3 h zu Fuß = 4 h Autofahrt (User-Bug). 3 m/s schließt
-            // Gehen aus, erfasst aber Stadtverkehr (5-15 m/s).
-            // Ampel-Phasen (speed=0 für <5 Min) deckt der Watchdog.
-            // M18.71: 3.0 -> 2.0 m/s (7,2 km/h). Stop&Go-Stadtverkehr
-            // (Kriech-Tempo 5-10 km/h) fällt sonst unter die Schwelle
-            // und der Watchdog stoppt die Fahrt nach 5 Min, obwohl sie
-            // weiterläuft. 2 m/s bleibt über Geh-Tempo (1,0-1,5 m/s).
             bridge.refreshDriveHeartbeat(now)
             DriveWatchdogWorker.schedule(this)
         }
-
-        // M18.66-FIX5: distance-basierten Heartbeat-Refresh ENTFERNT.
-        // Indoor-GPS-Drift erzeugt 10-20m Springer trotz still sitzendem
-        // User — das refreshte den Heartbeat fälschlich → Watchdog
-        // lief nie ab. Nur Speed >= 3.0 m/s darf den Heartbeat refreshen.
 
         lastLat = loc.latitude
         lastLon = loc.longitude
         lastTsMs = now
 
-        // M18.86: Track-Recording — verdichtet den Fix in die Strecken-
-        // aufzeichnung, wenn eine trackbare Session (Auto/Walking) läuft.
+        // M18.86: Track-Recording (verdichtet den Fix, wenn eine trackbare
+        // Session läuft ODER eine erkannte Fahrt/Walking-Phase vormerkt).
         maybeRecordTrackPoint(loc, now, speed)
 
-        // M18.84: Läuft die Fahrt noch (Herzschlag wurde oben refresht),
-        // ist ein aktiver Restart-Cooldown überholt — er stammt aus einem
-        // verlorenen Stop-Flag (Prozess-Tod) und würde eine REAL laufende
-        // zweite Fahrt nach kurzer Pause blocken. Laufende Fahrt = Fahrt.
+        // M18.104: Laufende Wanderungs-Session → Walking-Herzschlag über
+        // GPS-Bewegung refreshen (≥ 10m zwischen Fixes). Die Track-Fixes
+        // liegen ohnehin an — ein Herzschlag kostet nichts und hält den
+        // WalkingWatchdog am Leben, solange echte Bewegung herrscht.
+        if (mode == StreamMode.TRACK_WALK && distance != null && distance >= MIN_PROBE_MOVEMENT_M) {
+            bridge.markWalkingSignal(now)
+        }
+
+        // M18.84: Cooldown bei laufender Fahrt zurücksetzen (verlorenes
+        // Stop-Flag aus Prozess-Tod darf eine REAL laufende Fahrt nicht
+        // blocken).
         if (bridge.isDriveActive() && bridge.isWithinDriveRestartCooldown(now)) {
             bridge.markDriveStopped(0L)
             Log.d(TAG, "M18.84: Cooldown bei laufender Fahrt zurückgesetzt")
         }
 
-        // Serie klassifizieren — NUR wenn noch keine Fahrt bestätigt ist.
-        // Nach bestätigter Fahrt wird die Fahrt über speed > 1 m/s am
-        // Leben gehalten (siehe oben), nicht über Re-Klassifikation.
-        // M18.84: (a) classify mit GEOFENCE-VETO (Indoor-Multipath im
-        // Gym erfüllt sonst alle Speed-Gates), (b) Inside-Geofence-Cap:
-        // Auch wenn das Veto nicht greift (ein Rand-Fix fiel aus dem
-        // Kreis), startet KEINE Fahrt, deren komplett zurückdatierter
-        // Start innerhalb eines Orts-Kreises liegt — der User war dort
-        // nachweislich anwesend (Gym-Geofence-Session läuft), kein Auto.
-        if (!bridge.isDriveActive()) {
+        // Serie klassifizieren — NUR solange keine Fahrt bestätigt ist
+        // (M18.66-FIX5: danach lebt die Fahrt über den Heartbeat).
+        // M18.104-Gate: Fahr-Erkennung aus → keine Drive-Klassifikation
+        // (WALKING-Bursts dürfen keine Fahrten starten).
+        if (!bridge.isDriveActive() && bridge.isDrivingEnabled()) {
             val circles = bridge.currentGeofenceContext()
             when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now, circles)) {
                 is DriveDetectionEngine.Classification.Driving -> {
-                    // M18.84 INSIDE-GEOFENCE-CAP: Der Cluster-Start, den der
-                    // DriveStartWorker rückdatiert, ist der älteste Probe.
-                    // Liegt DER in einem benannten Orts-Kreis, war der User
-                    // dort nachweislich anwesend (seine Geofence-Session
-                    // läuft) — der "Fahrt-Anfang" ist Indoor-Drift, kein
-                    // Auto. Blockiert selbst dann, wenn das Veto oben nicht
-                    // griff (z. B. weil ein Rand-Fix knapp aus dem Kreis
-                    // fiel, die Serie aber inzwischen km-weit driftete).
+                    // M18.84 INSIDE-GEOFENCE-CAP: Cluster-Start in einem
+                    // benannten Orts-Kreis = Indoor-Drift, kein Auto.
                     val windowProbes = bridge.currentDriveProbes()
                         .filter { now - it.timestampMs <= DriveDetectionEngine.MAX_PROBE_AGE_MS }
                     val oldestWithCoords = windowProbes
@@ -473,66 +758,42 @@ class DriveDetectionService : Service() {
                         )
                     }
                     if (startInsideGeofence) {
-                        Log.d(
-                            TAG,
-                            "M18.84-Cap: Fahrt-Start läge in einem benannten Ort (ältester Probe im Kreis) — Start blockiert"
-                        )
-                        // Probes aus diesem Fenster verwerfen (sie gehören
-                        // zum Ort, nicht zu einer Fahrt) und weiter sammeln.
+                        Log.d(TAG, "M18.84-Cap: Fahrt-Start läge in einem benannten Ort — Start blockiert")
                         bridge.drainDriveProbes()
                     } else {
-                        Log.d(TAG, "Fahrt erkannt (GPS-Stream, conf=${result.confidence}) -> Start")
-                        // M18.66-FIX15: GPS-Bestätigung markieren, BEVOR die Probes
-                        // gedrained werden. Der DriveStartWorker prüft sonst leere
-                        // Probes (classify=InsufficientData) und würde den Start
-                        // trotz bestätigter Fahrt ablehnen.
+                        Log.d(TAG, "Fahrt erkannt (GPS-Burst, conf=${result.confidence}) -> Start")
+                        // M18.66-FIX15: Bestätigung markieren, BEVOR die
+                        // Probes gedrained werden (DriveStartWorker-Gate).
                         bridge.markDriveConfirmed()
-                        bridge.drainDriveProbes()  // alte Probes leeren, nur frische zählen
+                        bridge.drainDriveProbes()
                         DriveStartWorker.schedule(this)
                         DriveWatchdogWorker.schedule(this)
                     }
                 }
                 else -> {
-                    // Noch nicht genug / keine Fahrt — weiter sammeln.
-                    // KEIN Heartbeat-Refresh → Watchdog läuft nach 5 Min ab.
+                    // Noch nicht genug / keine Fahrt — weiter sammeln
+                    // (innerhalb des Burst-Fensters).
                 }
             }
         }
 
-        // M18.72: WANDERUNGS-ERKENNUNG (GPS-Pfad).
-        // Unabhängig von der Autofahrt-Erkennung: Der User kann gehen,
-        // während keine Fahrt aktiv ist. Nur wenn gerade keine andere
-        // Auto-Aufzeichnung läuft (nicht-überlappend, User-Spec).
-        if (!bridge.isWalkingActive() && !bridge.isDriveActive()) {
+        // M18.72: WANDERUNGS-ERKENNUNG (GPS-Pfad) — unabhängig von der
+        // Autofahrt, nur wenn weder Walking-Session noch Fahrt aktiv.
+        // Läuft in JEDEM Modus (CONFIRM-Fixes sind wegen der höheren
+        // Dichte sogar besser fürs Displacement).
+        if (!bridge.isWalkingActive() && !bridge.isDriveActive() && bridge.isWalkingEnabled()) {
             updateWalkingPhase(loc, now)
         }
     }
 
     /**
-     * M18.72: Walking-Phase über Netto-Displacement verfolgen.
-     *
-     * Start: erster Fix mit ausreichender Genauigkeit (≤ 50 m). Bei jedem
-     * Fix wird die geradlinige Distanz zum Phasenstart gemessen. Sind
-     * ≥ 300 m erreicht UND die Engine-Schwelle (5 Minuten) erfüllt, wird
-     * die Wanderung gestartet (WalkingStartWorker prüft zusätzlich, dass
-     * nichts anderes aufzeichnet). Steht die Bewegung länger als
-     * 2 Minuten still, wird die Phase verworfen — der 5-Minuten-Zähler
-     * startet bei neuer Bewegung neu.
-     *
-     * M18.84 ORTS-BOUNDARIES: Die Phase beginnt NEU, wenn der User einen
-     * benannten Orts-Kreis betritt oder verlässt (Ankunft ist "Unterwegs-
-     * Ende", kein Wanderungs-Beginn; ein Ortswechsel über Auto ist keine
-     * Wanderung). Der alte Code startete die Phase beim Parken/Aussteigen
-     * sofort neu und zählte dann die FAHRT-Zeit als Walking-Dauer mit —
-     * inklusive Netto-Displacement (User-Fall: "Spazieren 19:05–19:17"
-     * beim 100-m-Gang zur Wohnung, gemessen ab Gym-Parkplatz).
+     * M18.72/M18.84: Walking-Phase über Netto-Displacement verfolgen —
+     * vollständig übernommen (Orts-Boundaries, Stillstand-Reset,
+     * 5-Min-Schwelle, 300m-Displacement).
      */
     private fun updateWalkingPhase(loc: Location, now: Long) {
-        // Nur brauchbare Fixes zählen (gleiche Genauigkeits-Regel wie
-        // DriveDetectionEngine.MAX_ACCURACY_M).
         if (loc.accuracy > 50f) return
 
-        // M18.84: Orts-Kontext — in welchem benannten Kreis steht der Fix?
         val circles = bridge.currentGeofenceContext()
         val insideCircle = circles.firstOrNull {
             DriveDetectionEngine.isInsideCircle(loc.latitude, loc.longitude, it)
@@ -540,9 +801,7 @@ class DriveDetectionService : Service() {
 
         if (walkingPhaseStartMs == 0L) {
             // M18.84: Phase NICHT starten, während der Fix in einem
-            // benannten Ort liegt — der User ist "da angekommen", nicht
-            // "auf Wanderung". Die Phase beginnt erst mit dem ersten
-            // Fix AUSSERHALB der Orte (echtes Unterwegs).
+            // benannten Ort liegt (Ankunft ≠ Wanderungs-Beginn).
             if (insideCircle != null) {
                 return
             }
@@ -554,12 +813,6 @@ class DriveDetectionService : Service() {
             return
         }
 
-        // M18.84 ORTSWECHSEL-RESET: Betritt der User während einer
-        // laufenden Phase einen benannten Ort, endet das "Unterwegs" hier
-        // (Ankunft) — die Phase wird verworfen, ein neuer Besuch startet
-        // sauber beim nächsten Verlassen. Ohne diesen Reset lief die
-        // Phase über die Ankunft hinaus weiter und akkumulierte die
-        // nächste Fahrt als "Wanderung".
         if (insideCircle != null) {
             Log.d(TAG, "M18.84: Walking-Phase bei Orts-Eintritt ('${insideCircle.name}') verworfen")
             resetWalkingPhase()
@@ -571,8 +824,6 @@ class DriveDetectionService : Service() {
             loc.latitude, loc.longitude
         )
 
-        // Lange Stillstand: Phase verwerfen (Bewegung war nur ein
-        // Raumwechsel / kurzer Weg).
         if (now - walkingPhaseStartMs > WalkingDetectionEngine.WALKING_THRESHOLD_MS &&
             movedSinceLast < 1.0
         ) {
@@ -583,94 +834,48 @@ class DriveDetectionService : Service() {
         walkLastLat = loc.latitude
         walkLastLon = loc.longitude
 
-        // Netto-Displacement vom Phasenstart.
         val startLat = walkPhaseStartLat ?: return
         val startLon = walkPhaseStartLon ?: return
         val net = haversineMeters(startLat, startLon, loc.latitude, loc.longitude)
         val duration = now - walkingPhaseStartMs
 
-        // Erst nach 5 Minuten prüfen (Engine-Schwelle) — aber die Phase
-        // läuft währenddessen weiter (Netto-Displacement wächst).
         if (duration < WalkingDetectionEngine.WALKING_THRESHOLD_MS) return
 
         if (net < WALKING_MIN_GPS_DISTANCE_M) {
-            // Noch nicht weit genug vom Start weg — z. B. Gehen im Park
-            // um den Block. Kein Start, aber Phase läuft weiter.
+            // Noch nicht weit genug — aktuelle Netto-Distanz als
+            // Verlängerungs-Referenz merken (Bewegungs-Gate im
+            // WALKING-Fenster: wachsende Phase verlängert einmal).
+            lastWalkingNetDisplacementM = net
             return
         }
 
         Log.d(TAG, "Wanderung erkannt (GPS-Displacement ${net.toInt()}m in ${duration / 1000}s) -> Start")
-        // Signal in die Bridge: Der WalkingStartWorker prüft die
-        // 5-Minuten-Schwelle und startet mit Vorlaufzeit.
-        // M18.84: Vorlauf-Clamp passiert im WalkingStartWorker (Engine:
-        // recordingStartTime gegen letztes Auto-Ende) — hier läuft die
-        // Phase nach dem Reset ohnehin nur außerhalb von Orten.
         bridge.markWalkingSignal(walkingPhaseStartMs)
-        // Walking-Phase zurücksetzen, damit ein späterer erneuter Start
-        // (nach dem Stopp) frisch beginnt.
         resetWalkingPhase()
         WalkingStartWorker.schedule(this)
     }
 
-    /** M18.84: Walking-Phase-Felder zentral zurücksetzen (alle Reset-Pfade
-     *  — Stillstand, Orts-Eintritt, erkannte Wanderung — teilen ihn). */
     private fun resetWalkingPhase() {
         walkingPhaseStartMs = 0L
         walkPhaseStartLat = null
         walkPhaseStartLon = null
         walkLastLat = null
         walkLastLon = null
+        lastWalkingNetDisplacementM = 0.0
     }
 
     // ──────────────────────────────────────────────────────────────
-    // M18.86: TRACK-RECORDING (Fahrtstrecke für die Orts-Timeline).
-    //
-    // Während einer laufenden Auto-Session (ACTIVITY_RECOGNITION_AUTO)
-    // oder Wanderung (WALKING_AUTO) schreibt der Service verdichtete
-    // GPS-Punkte in location_track_point:
-    //   • BEWEGUNGS-Punkt: ≥ 30 m seit dem letzten Punkt (~alle 25 s
-    //     bei Stadt-Tempo — "nicht jede Kurve, aber alle paar Minuten",
-    //     User-Wortlaut)
-    //   • HEARTBEAT-Punkt: alle 5 Min auch ohne Bewegung (Ampel/Stau —
-    //     sonst klammert die Karte stehende Phasen weg und springt)
-    //   • Genauigkeits-Gate ≤ 50 m wie überall (Indoor-Multipath hat
-    //     hier nichts verloren — ein Track ist Strecken-EVIDENZ)
-    // Der 5-Sekunden-Stream existiert ohnehin (Fahrterkennung) — kein
-    // zusätzlicher Sensor-Burn, nur ~1 Insert je 25 s über den Service-
-    // Scope (gebatcht: insertAll einer Liste, nie pro Fix).
+    // M18.86/M18.89: TRACK-RECORDING + PRE-SESSION-BACKFILL —
+    // vollständig übernommen.
     // ──────────────────────────────────────────────────────────────
     private var trackLastLat: Double? = null
     private var trackLastLon: Double? = null
     private var trackLastPointAtMs: Long = 0L
-    /** M18.86: Session-Id des letzten Track-Punkts — Wechsel = neuer
-     *  Anker-Punkt (jede Strecke beginnt mit EINEM Punkt am Start, auch
-     *  ohne 30-m-Bewegung; sonst klammerte die Karte den Aussteige-/Start-
-     *  Moment weg und die Strecke begähe mitten in der Bewegung).
-     *  M18.89: Sonderwert [PENDING_TRACK_STATE_KEY], solange die Fixe nur
-     *  "vorläufig" (Fahrt erkannt, Session noch nicht live) gesammelt
-     *  werden. */
     private var trackLastSessionId: String? = null
-    private val trackBuffer = java.util.Collections.synchronizedList(mutableListOf<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>())
+    private val trackBuffer = java.util.Collections.synchronizedList(
+        mutableListOf<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>()
+    )
 
-    // ════════════════════════════════════════════════════════════════
-    // M18.89: PRE-SESSION-TRACK-BACKFILL ("halbe Route"-Fix).
-    //
-    // Vorher: maybeRecordTrackPoint schrieb NUR, wenn die trackbare
-    // Session schon live war. Live wird sie aber erst NACH der Erkennung
-    // (classify: 90s-Spread + Worker + Gates ≈ 2–4 min) — und die Session
-    // startet dann RÜCKDATIERT auf den Cluster-Start. Die gesamte Früh-
-    // phase (Anfahren, Verlassen des Geofences) fehlte deshalb in JEDEM
-    // Track: Die Route begann sichtbar erst mittendrin ("Route beginnt
-    // erst ab der Mitte zwischen den beiden Geofences").
-    //
-    // Fix: Solange eine Fahrt ERKANNT ist (bridge.isDriveActive) bzw. eine
-    // Walking-Phase läuft, aber noch keine trackbare Session existiert,
-    // landen die Fixes im pending-Buffer. Sobald die Session live ist,
-    // werden die gesammelten Fixe (rückdatiert, sessionId = live.id) in
-    // den normalen Track-Puffer überführt. Startet KEINE Session (False
-    // Positive, Cooldown-Verwerfen), wird der Puffer verworfen — es
-    // bleibt bei "Evidenz statt Müll".
-    // ════════════════════════════════════════════════════════════════
     private data class PendingTrackFix(
         val recordedAt: Long,
         val latitude: Double,
@@ -682,46 +887,21 @@ class DriveDetectionService : Service() {
         mutableListOf<PendingTrackFix>()
     )
 
-    /** M18.86: Verdichtet den Fix in den Track-Puffer, wenn eine
-     *  trackbare Session läuft — oder (M18.89) eine Fahrt bereits ERKANNT
-     *  ist und die Session in Kürze startet (Backfill der Frühphase).
-     *  Flush passiert batched im selben Lauf. */
     private fun maybeRecordTrackPoint(loc: Location, now: Long, speedMps: Float?) {
         if (loc.accuracy > TRACK_MAX_ACCURACY_M) return
 
-        // Welche Session läuft (und ist damit track-würdig)? Nur Auto-
-        // Fahrten und Wanderungen haben Strecken — Geofence-Besuche sind
-        // Punkte, manuelle Sessions haben keine Location-Evidenz.
-        // M18.94-FIX (User: \"Strecke hört mittendrin auf und beginnt
-        // 100 m später wieder\"): PAUSED-Sessions sind NICHT trackbar.
-        // M18.62 macht Pause = Session-Split (endAt gesetzt, \"Weiter\"
-        // startet eine NEUE Session) — die Pause ist eine bewusste
-        // Unterbrechung der Bewegung, kein GPS-Ausfall. Während der
-        // Pause (User am Handy) schrieb der Service sonst Heartbeat-/
-        // Drift-Punkte weiter, und die >5-Min-Lücke zerschnitt die
-        // Strecke in zwei Teilstücke mit sichtbarer Lücke.
         val live = liveActivityManager.liveSession.value
         val trackable = live != null && live.isRunning && (
             live.sourceType == "ACTIVITY_RECOGNITION_AUTO" ||
                 live.sourceType == "WALKING_AUTO"
             )
 
-        // M18.89: BACKFILL-FALL — Fahrt erkannt (driveActive) oder Walking-
-        // Phase aktiv, aber Session noch nicht live. Fixe für die spätere
-        // Session vormerken.
-        // M18.94-FIX: Eine PAUSED-Session ist KEIN Backfill-Zustand — die
-        // Pause ist eine bewusste Unterbrechung (User steht still, z.B.
-        // am Handy). Ohne den Check würden Pause-Fixes gesammelt und beim
-        // \"Weiter\" (neue Session) als Pre-Session-Backfill in die neue
-        // Strecke migriert — die Karte zeichnete dann Pausen-Stummel.
+        // M18.94-FIX: PAUSED-Sessions sind NICHT trackbar und KEIN
+        // Backfill-Zustand (bewusste Unterbrechung — Pause = Split).
         val pending = !trackable && live?.isPaused != true &&
             (bridge.isDriveActive() || walkingPhaseStartMs != 0L)
 
         if (!trackable && !pending) {
-            // Kein trackbarer Zustand — altes Pending wäre Fehl-Evidenz
-            // (Fahrt wurde doch nicht gestartet / Cooldown-Pfad hat
-            // verworfen): verwerfen, damit die NEUE Fahrt nicht die alten
-            // Punkte erbt.
             if (pendingTrackBuffer.isNotEmpty()) {
                 pendingTrackBuffer.clear()
                 Log.d(TAG, "M18.89: Pending-Track verworfen (kein trackbarer Zustand)")
@@ -729,12 +909,9 @@ class DriveDetectionService : Service() {
             return
         }
 
-        // Session/State-Wechsel: Track-Anker neu setzen (erster Punkt immer).
         val stateKey = if (trackable) live!!.id else PENDING_TRACK_STATE_KEY
         val sessionChanged = trackLastSessionId != stateKey
         if (sessionChanged) {
-            // Übergang pending → live Session: gesammelte Frühphase mit der
-            // REALen sessionId in den normalen Puffer überführen.
             if (trackable && trackLastSessionId == PENDING_TRACK_STATE_KEY) {
                 val migrated = synchronized(pendingTrackBuffer) {
                     val copy = pendingTrackBuffer.toList()
@@ -754,11 +931,9 @@ class DriveDetectionService : Service() {
                 }
                 if (migratedPoints.isNotEmpty()) {
                     trackBuffer.addAll(migratedPoints)
-                    Log.d(TAG, "M18.89: ${migratedPoints.size} Pre-Session-Track-Punkte in Session überführt (Backfill der Frühphase)")
+                    Log.d(TAG, "M18.89: ${migratedPoints.size} Pre-Session-Track-Punkte in Session überführt (Backfill)")
                 }
             } else if (trackLastSessionId == PENDING_TRACK_STATE_KEY) {
-                // Session-Wechsel OHNE gültige neue live-Session (kann nicht
-                // passieren — stateKey pending nur bei pending) — defensiv.
                 pendingTrackBuffer.clear()
             }
             trackLastLat = null
@@ -769,14 +944,12 @@ class DriveDetectionService : Service() {
 
         val movedM = if (trackLastLat != null && trackLastLon != null) {
             haversineMeters(trackLastLat!!, trackLastLon!!, loc.latitude, loc.longitude)
-        } else Double.MAX_VALUE // erster Punkt der Session immer
+        } else Double.MAX_VALUE
 
         val timeForHeartbeat = now - trackLastPointAtMs >= TRACK_HEARTBEAT_MS
         if (movedM < TRACK_MIN_MOVEMENT_M && !timeForHeartbeat) return
 
         if (pending) {
-            // Sammelphase: nur im Speicher, KEIN DB-Write (Room-FK auf
-            // activity_session würde ohne echte Session crashen).
             synchronized(pendingTrackBuffer) {
                 pendingTrackBuffer += PendingTrackFix(
                     recordedAt = now,
@@ -785,8 +958,6 @@ class DriveDetectionService : Service() {
                     accuracyMeters = loc.accuracy,
                     speedMps = speedMps
                 )
-                // Größen-/Alters-Grenze: sehr lange Erkennungsphasen oder
-                // verwaiste Sammelzustände müssen nicht endlos wachsen.
                 while (pendingTrackBuffer.size > PENDING_TRACK_MAX_POINTS) {
                     pendingTrackBuffer.removeAt(0)
                 }
@@ -804,8 +975,6 @@ class DriveDetectionService : Service() {
                 speedMps = speedMps
             )
 
-            // Batch-Flush: alle 8 Punkte ODER alle 60 s — was zuerst kommt.
-            // Bewusst gechunkt statt pro Fix (DB-Write-I/O auf IO-Dispatcher).
             val timeSinceFlush = now - trackLastFlushMs
             if (trackBuffer.size >= TRACK_FLUSH_BATCH || timeSinceFlush >= TRACK_FLUSH_INTERVAL_MS) {
                 flushTrackBuffer()
@@ -818,7 +987,6 @@ class DriveDetectionService : Service() {
 
     private var trackLastFlushMs: Long = 0L
 
-    /** M18.86: Puffer persistieren (IO) und lokal leeren. */
     private fun flushTrackBuffer() {
         if (trackBuffer.isEmpty()) return
         val batch = synchronized(trackBuffer) {
@@ -832,10 +1000,6 @@ class DriveDetectionService : Service() {
                 trackPointRepository.insertAll(batch)
                 Log.d(TAG, "M18.86: ${batch.size} Track-Punkte persistiert (Session ${batch.firstOrNull()?.sessionId?.take(8)})")
             } catch (e: Exception) {
-                // Persistenz-Fehler darf den Location-Stream nie crashen;
-                // Punkte sind Ergänzung, kein kritischer Pfad. Bewusst
-                // KEIN Retrying (Duplikate durch REPLACE-Id-Unfall-Risiko
-                // minimieren — verlorene 8 Punkte sind verkraftbar).
                 Log.w(TAG, "M18.86: Track-Flush fehlgeschlagen: ${e.message}")
             }
         }
@@ -845,48 +1009,15 @@ class DriveDetectionService : Service() {
         ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.service_drive_channel_name),
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = getString(R.string.service_drive_channel_desc)
-            setShowBadge(false)
-        }
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-    }
-
-    private fun buildNotification(): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(getString(R.string.service_drive_title))
-            .setContentText(getString(R.string.service_drive_text))
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setSilent(true)
-            .setShowWhen(false)
-            .build()
-    }
-
     override fun onDestroy() {
-        // M18.86: Restlichen Track-Puffer flushen, bevor der Scope stirbt
-        // (lieber sofort als auf den nächsten Service-Start warten).
+        modeTimerJob?.cancel()
         flushTrackBuffer()
         callback?.let { cb ->
             try { fusedClient.removeLocationUpdates(cb) } catch (_: Exception) {}
         }
         callback = null
-        // M18.84: Service-Scope sauber abbauen (Geofence-Snapshot-Laden
-        // darf nicht über den zerstörten Service hinauslaufen).
         serviceScope.cancel()
-        Log.d(TAG, "Location-Stream gestoppt")
+        Log.d(TAG, "Burst-Service gestoppt, GPS-Stream aus")
         super.onDestroy()
     }
 

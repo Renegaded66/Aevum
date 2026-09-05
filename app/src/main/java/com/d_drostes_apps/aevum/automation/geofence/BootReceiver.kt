@@ -85,5 +85,22 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "InitialActivitySnapshotScheduler schedule failed: ${e.message}")
         }
+        // M18.104 (Akku-Redesign): Nach Boot KEIN Dauer-GPS-Stream mehr —
+        // der Initial-Activity-Snapshot (AR-Sensor, 60s) + die normalen
+        // Transitions übernehmen die Erkennung; GPS-Bursts starten erst
+        // bei echten Verdachts-Momenten. Lief eine Auto-/Wanderungs-
+        // Session über den Reboot (Session lebt in der DB), restauriert
+        // der Restore-Pfad des DriveDetectionService den Track-Stream.
+        try {
+            if (registrar.hasForegroundLocation()) {
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                    context,
+                    com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_TRACK_RESTORE
+                )
+                debugLogger.log("BOOT", "DriveDetectionService TRACK_RESTORE enqueued")
+            }
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "DriveDetectionService restore failed: ${e.message}")
+        }
     }
 }

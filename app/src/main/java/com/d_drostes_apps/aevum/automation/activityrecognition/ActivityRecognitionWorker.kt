@@ -1067,6 +1067,22 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             // Watchdog vorsorglich starten: stoppt die
                             // Session nach 5 Minuten ohne weiteres Signal.
                             DriveWatchdogWorker.schedule(context)
+                            // M18.104 (Akku-Redesign): Ereignisgetriebener
+                            // GPS-Burst — IN_VEHICLE-ENTER ist ein Fahrzeug-
+                            // Verdacht: Der DriveDetectionService startet
+                            // einen 6-Min-CONFIRM-Burst (HIGH 15s), dessen
+                            // Fixes die DriveDetectionEngine klassifiziert
+                            // (Warmup, Netto-Displacement, Geofence-Veto).
+                            // Der 24/7-Dauerstream ist weg — GPS läuft nur
+                            // hier, bei Geofence-EXIT und während Tracks.
+                            // FGS-Start HIER ist erlaubt: Broadcast-Receiver
+                            // mit AR-Event = offizielle Exemption (Android
+                            // 12+, "Restrictions on starting a foreground
+                            // service from the background").
+                            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                                context,
+                                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_CONFIRM
+                            )
                         }
                         hasChange = true
                     }
@@ -1121,6 +1137,19 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                                 // die Engine entscheidet nach 5 Minuten am Stück.
                                 // RUNNING-Events landen auf dem Joggen-Typ.
                                 bridge.markWalkingSignal(now)
+                                // M18.104 (Akku-Redesign): GPS-Burst für die
+                                // Wanderungs-Erkennung — der DriveDetection-
+                                // Service misst 8 Min lang das Netto-Displace-
+                                // ment (BALANCED, 60s-Fixes) als zweiten Pfad
+                                // neben Googles WALKING-Transitions. Der
+                                // 24/7-Stream ist weg. Cooldown (10 Min nach
+                                // ergebnislosem Burst) prüft der Service
+                                // selbst — Raumwechsel-Rauschen startet so
+                                // keine Burst-Kaskade.
+                                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                                    context,
+                                    com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_WALKING_CHECK
+                                )
                                 WalkingStartWorker.schedule(
                                     context,
                                     if (event.activityType == DetectedActivity.RUNNING) "joggen" else "spazieren"

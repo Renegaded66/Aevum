@@ -138,6 +138,13 @@ class WalkingStartWorker(
             Log.d(TAG, "Wanderung gestartet: ${session.id} (start=$startedAt, Vorlauf 5min)")
             // Foreground-Service, damit der Timer im Hintergrund weiterläuft.
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+            // M18.104 (Akku-Redesign): Burst-Service → TRACK_WALK (Stream
+            // folgt der Session, 2-Min-Tick beendet ihn automatisch). No-Op
+            // wenn der Service nicht läuft.
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                applicationContext,
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_TRACK_RESTORE
+            )
             // 5-Minuten-Watchdog: ohne weiteres Walking-Signal stoppt die Session.
             WalkingWatchdogWorker.schedule(applicationContext)
         } catch (e: Exception) {

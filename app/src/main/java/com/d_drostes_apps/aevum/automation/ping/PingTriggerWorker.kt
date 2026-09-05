@@ -67,37 +67,53 @@ class PingTriggerWorker(
 
         val result = try {
             val triggers = pingTriggerRepository.getAllEnabled()
-            if (triggers.isNotEmpty()) {
-                for (trigger in triggers) {
-                    val reachable = isReachable(trigger.ipAddress)
-                    val live = liveActivityManager.liveSession.value
+            // M18.104 (Akku-Redesign): KEINE konfigurierten Ping-Trigger →
+            // Takt ENDE. Vorher plante sich der Worker ewig selbst neu
+            // (288 Netzwerk-Checks/Tag um NICHTS zu prüfen) — der Takt
+            // startet neu, sobald ein Trigger in den Settings angelegt
+            // wird (ViewModel ruft PingTriggerScheduler.schedule()).
+            if (triggers.isEmpty()) {
+                // M18.104-Safety: Läuft noch eine PING_AUTO-Session (Trigger
+                // wurde gelöscht/deaktiviert, während sie lief), JETZT
+                // stoppen — sonst läuft sie endlos (der Takt endet hier).
+                val live = liveActivityManager.liveSession.value
+                if (live != null && live.isLive && live.sourceType == "PING_AUTO") {
+                    liveActivityManager.stop()
+                    com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
+                    android.util.Log.d("PingTriggerWorker", "Letzter Trigger weg → PING-Session beendet")
+                }
+                android.util.Log.d("PingTriggerWorker", "Keine aktiven Ping-Trigger — Selbst-Erneuerung beendet")
+                return Result.success()
+            }
+            for (trigger in triggers) {
+                val reachable = isReachable(trigger.ipAddress)
+                val live = liveActivityManager.liveSession.value
 
-                    if (reachable) {
-                        // Erreichbar → Session starten (falls nicht schon eine
-                        // passende läuft)
-                        val sameSession = live != null && live.isLive &&
-                            live.sourceTriggerId == trigger.id
-                        if (!sameSession) {
-                            // M18.93v10-FIX: forceFinishForAuto() vor
-                            // start() entfernt — start() löst die alte
-                            // Session selbst auf.
-                            val session = liveActivityManager.start(
-                                activityTypeId = trigger.activityTypeId,
-                                title = trigger.name,
-                                sourceType = "PING_AUTO",
-                                sourceTriggerId = trigger.id
-                            )
-                            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
-                            android.util.Log.d("PingTriggerWorker", "Ping OK (${trigger.ipAddress}) → Session gestartet: ${session.title}")
-                        }
-                    } else {
-                        // Nicht erreichbar → Session beenden, wenn sie von
-                        // DIESEM Trigger gestartet wurde
-                        if (live != null && live.isLive && live.sourceTriggerId == trigger.id) {
-                            liveActivityManager.stop()
-                            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
-                            android.util.Log.d("PingTriggerWorker", "Ping verloren (${trigger.ipAddress}) → Session beendet")
-                        }
+                if (reachable) {
+                    // Erreichbar → Session starten (falls nicht schon eine
+                    // passende läuft)
+                    val sameSession = live != null && live.isLive &&
+                        live.sourceTriggerId == trigger.id
+                    if (!sameSession) {
+                        // M18.93v10-FIX: forceFinishForAuto() vor
+                        // start() entfernt — start() löst die alte
+                        // Session selbst auf.
+                        val session = liveActivityManager.start(
+                            activityTypeId = trigger.activityTypeId,
+                            title = trigger.name,
+                            sourceType = "PING_AUTO",
+                            sourceTriggerId = trigger.id
+                        )
+                        com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
+                        android.util.Log.d("PingTriggerWorker", "Ping OK (${trigger.ipAddress}) → Session gestartet: ${session.title}")
+                    }
+                } else {
+                    // Nicht erreichbar → Session beenden, wenn sie von
+                    // DIESEM Trigger gestartet wurde
+                    if (live != null && live.isLive && live.sourceTriggerId == trigger.id) {
+                        liveActivityManager.stop()
+                        com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
+                        android.util.Log.d("PingTriggerWorker", "Ping verloren (${trigger.ipAddress}) → Session beendet")
                     }
                 }
             }

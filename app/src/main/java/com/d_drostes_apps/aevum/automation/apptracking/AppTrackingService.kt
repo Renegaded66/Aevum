@@ -84,6 +84,12 @@ class AppTrackingService : Service() {
         // zuverlässig erkannt (der User bleibt i.d.R. Minuten in einer
         // App), aber mit 3x weniger Wakes/Stunde.
         private const val POLL_INTERVAL_MS = 15_000L
+        // M18.104 (Akku-Redesign): Screen aus → nur alle 10 Min prüfen, ob
+        // der Screen wieder an ist (der Loop muss laufen, um den Zustand
+        // im Auge zu behalten, aber pollForegroundApp() wird übersprun-
+        // gen — UsageStats-I/O fällt weg). 10 Min reichen locker: Der
+        // SCREEN_ON-Broadcast weckt den Sofort-Poll sofort.
+        private const val POLL_INTERVAL_SCREEN_OFF_MS = 10L * 60 * 1000
 
         fun start(context: Context) {
             val intent = Intent(context, AppTrackingService::class.java)
@@ -108,6 +114,9 @@ class AppTrackingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // M18.104: Screen-Receiver sofort registrieren — der FGS lebt
+        // danach evtl. tagelang; der Receiver kostet im Schlaf nichts.
+        registerScreenReceiver()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -158,14 +167,79 @@ class AppTrackingService : Service() {
     private fun startPolling() {
         if (pollingJob?.isActive == true) return
         pollingJob = scope.launch {
+            // M18.104 (Akku-Redesign): Screen-gesteuertes Polling. Vorher
+            // lief der 15s-Loop rund um die Uhr (5.760 UsageStats-Abfragen/
+            // Tag), obwohl nachts niemand Apps wechselt. Jetzt:
+            //   • Screen AN  → normaler 15s-Poll (App-Wechsel-Erkennung
+            //     wie gehabt).
+            //   • Screen AUS → KEIN Poll. Der letzte Vordergrund-Status
+            //     bleibt eingefroren: Die Session der zuletzt genutzten
+            //     getrackten App läuft weiter (korrekt — der User hat die
+            //     App nicht verlassen, er hat nur das Display ausgemacht;
+            //     Android friert die App ein, sie bleibt "im Vordergrund").
+            //     Beim SCREEN_ON-Event läuft der erste Poll sofort wieder
+            //     und verarbeitet die angefallenen Events (processForeground-
+            //     Events fragt seit "letztem Poll" ab — Lücken-los, weil
+            //     das UsageStats-System die Events gepuffert hält).
+            //   • Der Screen-Receiver ist ein System-Broadcast — registriert
+            //     in onCreate des laufenden FGS, null Kosten im Schlaf.
             while (isActive) {
-                try {
-                    pollForegroundApp()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Poll-Fehler", e)
+                val screenOn = screenOn
+                if (screenOn) {
+                    try {
+                        pollForegroundApp()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Poll-Fehler", e)
+                    }
                 }
-                delay(POLL_INTERVAL_MS)
+                delay(if (screenOn) POLL_INTERVAL_MS else POLL_INTERVAL_SCREEN_OFF_MS)
             }
+        }
+    }
+
+    /** M18.104: Screen-Zustand (von ACTION_SCREEN_ON/OFF-Receiver im
+     *  FGS-Kontext gepflegt). Default true — bis zum ersten Broadcast
+     // ist der conservative Status "an" (ein verpasstes Poll-Intervall
+     // ist unkritisch, eine eingefrorene Erkennung schon). */
+    @Volatile private var screenOn: Boolean = true
+    private var screenReceiver: android.content.BroadcastReceiver? = null
+
+    /** M18.104: Screen-Receiver registrieren (im FGS-Kontext — läuft
+     *  solange der Service lebt, null Kosten wenn der Screen aus ist). */
+    private fun registerScreenReceiver() {
+        if (screenReceiver != null) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_SCREEN_ON -> {
+                        screenOn = true
+                        // Sofort-Poll: Nach dem Aufwachen verpasste
+                        // App-Wechsel sofort nachziehen (kein Warten auf
+                        // den nächsten Takt).
+                        if (pollingJob?.isActive == true) {
+                            scope.launch {
+                                try { pollForegroundApp() } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                    Intent.ACTION_SCREEN_OFF -> screenOn = false
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(receiver, filter)
+            }
+            screenReceiver = receiver
+        } catch (e: Exception) {
+            Log.w(TAG, "Screen-Receiver-Registrierung fehlgeschlagen: ${e.message} — Polling läuft dauerhaft weiter")
         }
     }
 
@@ -320,6 +394,11 @@ class AppTrackingService : Service() {
 
     override fun onDestroy() {
         pollingJob?.cancel()
+        // M18.104: Screen-Receiver sauber deregistrieren.
+        screenReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) { /* nie registriert */ }
+        }
+        screenReceiver = null
         scope.cancel()
         super.onDestroy()
     }

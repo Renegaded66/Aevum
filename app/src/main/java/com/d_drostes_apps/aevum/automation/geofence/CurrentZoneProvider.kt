@@ -59,6 +59,22 @@ class CurrentZoneProvider @Inject constructor(
     private val _currentZone = MutableStateFlow<ZoneInfo?>(null)
     val currentZone: StateFlow<ZoneInfo?> = _currentZone
 
+    // M18.104 (Akku-Redesign): Letzter GPS-Fix aus checkNow() — Basis des
+    // Bewegungs-Verdachts-Checks im ProactiveGeofenceCheckWorker (Fix-
+    // Vergleich über Läufe hinweg; der Worker holt KEINEN eigenen Fix).
+    @Volatile private var lastFix: FixSnapshot? = null
+
+    /** M18.104: Snapshot des letzten checkNow()-Fixes (null = keiner da). */
+    fun lastFixSnapshot(): FixSnapshot? = lastFix
+
+    /** M18.104: Position des letzten Geofence-Check-Fixes. */
+    data class FixSnapshot(
+        val latitude: Double,
+        val longitude: Double,
+        val accuracyMeters: Float,
+        val atMs: Long
+    )
+
     // M18.66-FIX7: Debug-Info für den Banner — der User kann sehen,
     // was passiert, und mir die Werte geben.
     private val _debugInfo = MutableStateFlow("")
@@ -112,6 +128,16 @@ class CurrentZoneProvider @Inject constructor(
             Log.w(TAG, "Kein GPS-Fix — Zone bleibt unverändert")
             return _currentZone.value
         }
+
+        // M18.104: Fix für den Bewegungs-Verdachts-Check merken (vor der
+        // Zonen-Auswertung — auch ein Fix ohne Zonen-Treffer ist eine
+        // gültige Bewegungs-Beobachtung).
+        lastFix = FixSnapshot(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            accuracyMeters = location.accuracy,
+            atMs = System.currentTimeMillis()
+        )
 
         val matched = findNearestGeofence(location, geofences)
         val result = if (matched != null) {
@@ -240,6 +266,22 @@ class CurrentZoneProvider @Inject constructor(
                 }
             } else if (previousZoneId != null) {
                 // ═══ EXIT: Zone verlassen ═══
+                // M18.104 (Akku-Redesign): EXIT = der stärkste Bewegungs-
+                // Verdacht außerhalb der AR-Events ("User verlässt Zuhause
+                // → fährt/ geht los"). Startet einen CONFIRM-Burst im
+                // DriveDetectionService (6 Min GPS), der die DriveEngine-
+                // Gates prüft und die Walking-Phase speist — der 24/7-
+                // Dauerstream, der das früher abdeckte, ist weg. Der
+                // Service verwirft den Burst selbst, wenn beide Erkenn-
+                // ungen im Settings-Gate AUS sind.
+                try {
+                    com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.start(
+                        context,
+                        com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.ACTION_CONFIRM
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "M18.104: CONFIRM-Burst nach Geofence-EXIT fehlgeschlagen: ${e.message}")
+                }
                 val prevGf = geofences.find { it.id == previousZoneId }
                 val autoType = prevGf?.autoStartActivityTypeId
                 _debugInfo.value = "EXIT: ${prevGf?.name ?: previousZoneId} | autoStop=$autoType"

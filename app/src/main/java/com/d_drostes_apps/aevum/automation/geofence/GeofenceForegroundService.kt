@@ -1,19 +1,19 @@
 package com.d_drostes_apps.aevum.automation.geofence
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
-import com.d_drostes_apps.aevum.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * Minimal foreground service for geofencing on Android 15+ (SDK 35).
@@ -21,9 +21,18 @@ import com.d_drostes_apps.aevum.MainActivity
  * Android 15 requires a foreground service with type "location"
  * when registering geofences that may fire while the app is in background.
  *
- * This service shows a quiet, non-intrusive notification.
+ * M18.104 (Akku-Redesign): Der Service beendet sich jetzt selbst, wenn er
+ * nicht gebraucht wird — Geofencing-Gate AUS oder keine aktiven Geofences.
+ * Vorher lief er pauschal ab App-Install 24/7 (ein Location-FGS ohne
+ * Geofences hält nur den Prozess wach und erscheint als "Location-App"
+ * in der Akku-Bilanz). Ein Idle-Re-Check alle 12h fängt nachträgliche
+ * Änderungen (Geofence gelöscht, Gate ausgeschaltet) ab.
  */
 class GeofenceForegroundService : Service() {
+
+    /** Service-Scope für Idle-Checks — wird in onDestroy abgebaut. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var idleRecheckJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -58,9 +67,71 @@ class GeofenceForegroundService : Service() {
             // Wenn alles fehlschlägt (z.B. Background-Start-Restriction ohne Exemption),
             // beenden wir uns selbst, um den Crash des Prozesses zu verhindern.
             stopSelf()
+            return START_NOT_STICKY
         }
 
+        // M18.104: Idle-Check sofort + alle 12h neu (siehe Klassen-Doc).
+        checkIdleGate()
+        scheduleIdleRecheck()
+
         return START_STICKY
+    }
+
+    /**
+     * M18.104: Ist der Service noch nötig? Geofencing-Gate AN UND
+     * mindestens ein aktiver (nicht gelöschter) Geofence. Fällt eines
+     * weg, stopSelf — die GMS-Geofence-Registrierung wird beim nächsten
+     * App-Start/Registrar-Refresh nachgezogen (GeofenceRegistrar
+     * deregistriert ohnehin bei Gate-AUS).
+     */
+    private fun checkIdleGate() {
+        scope.launch {
+            try {
+                val deps = dagger.hilt.android.EntryPointAccessors.fromApplication(
+                    applicationContext,
+                    GateDeps::class.java
+                )
+                val geofences = deps.placeGeofenceRepository().getAllEnabled().first()
+                val active = geofences.filter { it.deletedAt == null }
+                val settings = deps.settingsRepository().get().first()
+                val needed = active.isNotEmpty() && settings?.geofencingEnabled != false
+                if (!needed) {
+                    android.util.Log.d(
+                        "GeofenceFGS",
+                        "Idle: kein aktiver Geofence oder Gate AUS (${active.size} Geofences, gate=${settings?.geofencingEnabled}) — Service beendet sich"
+                    )
+                    stopSelf()
+                }
+            } catch (e: Exception) {
+                // Konservativ: Bei DB-Fehlern läuft der Service weiter —
+                // ein FGS zu viel ist besser als Geofence-Trigger tot.
+                android.util.Log.w("GeofenceFGS", "Idle-Check fehlgeschlagen: ${e.message} — Service läuft weiter (konservativ)")
+            }
+        }
+    }
+
+    /** M18.104: Idle-Re-Check alle 12h (Endlosschleife bis onDestroy). */
+    private fun scheduleIdleRecheck() {
+        if (idleRecheckJob?.isActive == true) return
+        idleRecheckJob = scope.launch {
+            while (true) {
+                delay(12L * 60 * 60 * 1000)
+                checkIdleGate()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        idleRecheckJob?.cancel()
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface GateDeps {
+        fun placeGeofenceRepository(): com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
+        fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
     }
 
     companion object {
