@@ -109,32 +109,48 @@ fun AevumMapView(
         // Map
         AndroidView(
             factory = { ctx ->
-                MapView(ctx).also { mapViewRef = it }.apply {
-                    getMapAsync { map ->
-                        map.uiSettings.isAttributionEnabled = true
-                        map.uiSettings.isLogoEnabled = false
-                        map.uiSettings.isRotateGesturesEnabled = true
-                        map.uiSettings.isScrollGesturesEnabled = true
-                        map.uiSettings.isZoomGesturesEnabled = true
+                // M18.102-CRASHFIX: Factory-Guard (v7.1-Ausnahme für
+                // 3rd-party-Native-Init). MapView(ctx) lädt libmaplibre.so —
+                // auf 16-KB-Page-Size-Geräten mit alter Lib ein
+                // UnsatisfiedLinkError (Error, nicht Exception). Statt den
+                // Screen zu crashen: TextView-Platzhalter zeigen; die
+                // update-/onRelease-Pfade sind über (as? MapView) abgesichert.
+                try {
+                    MapView(ctx).also { mapViewRef = it }.apply {
+                        getMapAsync { map ->
+                            map.uiSettings.isAttributionEnabled = true
+                            map.uiSettings.isLogoEnabled = false
+                            map.uiSettings.isRotateGesturesEnabled = true
+                            map.uiSettings.isScrollGesturesEnabled = true
+                            map.uiSettings.isZoomGesturesEnabled = true
 
-                        map.setStyle(Style.Builder().fromJson(rasterStyleJson)) { style ->
-                            addCircleLayer(style, center, radiusMeters.toDouble())
-                        }
+                            map.setStyle(Style.Builder().fromJson(rasterStyleJson)) { style ->
+                                addCircleLayer(style, center, radiusMeters.toDouble())
+                            }
 
-                        map.moveCamera(CameraUpdateFactory.newLatLngZoom(center, 15.0))
+                            map.moveCamera(CameraUpdateFactory.newLatLngZoom(center, 15.0))
 
-                        // M7.1: Use camera IDLE (user stopped moving) — NOT move listener
-                        map.addOnCameraIdleListener {
-                            val target = map.cameraPosition.target
-                            if (target != null) {
-                                onCenterChanged(target.latitude, target.longitude)
+                            // M7.1: Use camera IDLE (user stopped moving) — NOT move listener
+                            map.addOnCameraIdleListener {
+                                val target = map.cameraPosition.target
+                                if (target != null) {
+                                    onCenterChanged(target.latitude, target.longitude)
+                                }
                             }
                         }
+                    }
+                } catch (t: Throwable) {
+                    android.util.Log.e("AevumMapView", "MapView-Init fehlgeschlagen — Platzhalter", t)
+                    android.widget.TextView(ctx).apply {
+                        text = "⚠️ Karte nicht verfügbar"
+                        setTextColor(android.graphics.Color.GRAY)
+                        textSize = 13f
+                        gravity = android.view.Gravity.CENTER
                     }
                 }
             },
             update = { mapView ->
-                mapView.getMapAsync { map ->
+                (mapView as? MapView)?.getMapAsync { map ->
                     // Update circle when radius/lat/lon changed externally
                     val target = LatLng(latitude, longitude)
                     map.style?.let { style ->

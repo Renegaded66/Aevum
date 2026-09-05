@@ -239,7 +239,7 @@ fun TimelineScreen(
                 },
                 label = "day-slide"
             ) { date ->
-                if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()) {
+                if (state.sessions.isEmpty() && state.triggerEvents.isEmpty() && state.durationOnlySessions.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize(),
@@ -255,6 +255,8 @@ fun TimelineScreen(
                 } else {
                     DayCalendarTimeline(
                         sessions = state.sessions,
+                        // M18.102: Nur-Dauer-Sessions für die Listenansicht.
+                        durationOnlySessions = state.durationOnlySessions,
                         triggers = state.triggerEvents,
                         onOpen = onOpenActivity,
                         onEdit = onEditActivity,
@@ -302,12 +304,18 @@ fun TimelineScreen(
     qualityTarget?.let { target ->
         QualityOverrideDialog(
             title = stringResource(R.string.common_adjust_quality),
-            message = stringResource(
-                R.string.timeline_quality_message_range,
-                target.title,
-                target.time,
-                target.range.substringAfter("–")
-            ),
+            // M18.102: Nur-Dauer-Sessions haben keine Uhrzeit — der
+            // Zeitbereich im Dialog entfällt (kein "00:00–02:00"-Quatsch).
+            message = if (target.isDurationOnly) {
+                stringResource(R.string.timeline_quality_message, target.title)
+            } else {
+                stringResource(
+                    R.string.timeline_quality_message_range,
+                    target.title,
+                    target.time,
+                    target.range.substringAfter("–")
+                )
+            },
             initialScore = target.positivityScore,
             hasOverride = target.hasQualityOverride,
             onDismiss = { qualityTarget = null },
@@ -1121,7 +1129,11 @@ fun ActivityDetailScreen(
                 item { DetailHeaderCard(session, state) }
 
                 // Zeit-Range als grosse Monospace-Anzeige
-                item { DetailTimeRangeCard(state.range, session) }
+                // M18.102: Nur-Dauer-Sessions haben keine Uhrzeiten —
+                // die Range-Karte wird übersprungen.
+                if (state.range.isNotEmpty()) {
+                    item { DetailTimeRangeCard(state.range, session) }
+                }
 
                 // Dauer als hervorgehobene Statistik-Karte
                 item { DetailDurationCard(state.duration, state.activityType?.color ?: 0L) }
@@ -1340,6 +1352,10 @@ private fun DetailDurationCard(duration: String, activityColorLong: Long) {
  */
 @Composable
 private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiState) {
+    // M18.102: Nur-Dauer-Sessions haben keine Uhrzeiten — Start/Ende-
+    // Kacheln entfallen (nur Dauer + Quelle bleiben). Die Formatter sind
+    // deshalb nur für Nicht-Dauer-Sessions nötig.
+    val isDurationOnly = session.excludeFromTimeline
     // Formatiere Start- und Endzeit
     val startTimeStr = remember(session.startAt) {
         val lt = Instant.ofEpochMilli(session.startAt)
@@ -1365,21 +1381,25 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-        // Reihe 1: Startzeit und Endzeit
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            DetailStatCard(
-                icon = "\uD83D\uDD51",
-                label = stringResource(R.string.timeline_detail_start),
-                value = startTimeStr,
-                modifier = Modifier.weight(1f)
-            )
-            DetailStatCard(
-                icon = "\uD83D\uDD52",
-                label = if (session.endAt == null) stringResource(R.string.timeline_detail_running)
-                else stringResource(R.string.timeline_detail_end),
-                value = endTimeStr ?: stringResource(R.string.timeline_detail_open),
-                modifier = Modifier.weight(1f)
-            )
+        // M18.102: Nur-Dauer-Sessions haben keine Uhrzeiten — die
+        // Start/Ende-Kacheln entfallen komplett.
+        if (!isDurationOnly) {
+            // Reihe 1: Startzeit und Endzeit
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                DetailStatCard(
+                    icon = "\uD83D\uDD51",
+                    label = stringResource(R.string.timeline_detail_start),
+                    value = startTimeStr,
+                    modifier = Modifier.weight(1f)
+                )
+                DetailStatCard(
+                    icon = "\uD83D\uDD52",
+                    label = if (session.endAt == null) stringResource(R.string.timeline_detail_running)
+                    else stringResource(R.string.timeline_detail_end),
+                    value = endTimeStr ?: stringResource(R.string.timeline_detail_open),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
         // Reihe 2: Dauer und Quelle
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -2089,6 +2109,8 @@ private fun SegmentButton(
 @Composable
 private fun DayCalendarTimeline(
     sessions: List<TimelineSessionUi>,
+    // M18.102: Nur-Dauer-Sessions — nur für die Listenansicht.
+    durationOnlySessions: List<TimelineSessionUi> = emptyList(),
     triggers: List<TriggerEventUi>,
     onOpen: (String) -> Unit,
     onEdit: (String) -> Unit,
@@ -2263,7 +2285,11 @@ private fun DayCalendarTimeline(
                                 .padding(bottom = 88.dp)
                         ) {
                             EventListTimeline(
-                                sessions = sessions,
+                                // M18.102: Dauer-only-Sessions an die Liste
+                                // anhängen — EventListTimeline filtert sie
+                                // selbst nach isDurationOnly und rendert sie
+                                // ganz oben (ohne Uhrzeit).
+                                sessions = sessions + durationOnlySessions,
                                 triggers = triggers,
                                 onOpen = onOpen,
                                 onEdit = onEdit,
@@ -2376,8 +2402,13 @@ private fun EventListTimeline(
     // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
     onAdjustQuality: (TimelineSessionUi) -> Unit = {}
 ) {
-    val merged = remember(sessions, triggers) {
-        (sessions.map { TimelineEntry.Session(it) } + triggers.map { TimelineEntry.Trigger(it) })
+    // M18.102: Nur-Dauer-Sessions erscheinen GANZ OBEN in der Listenansicht
+    // (eigener Block, keine Tagesabschnitt-Zuordnung — sie haben keine
+    // Uhrzeit). Danach folgen die normalen Sessions/Trigger gruppiert.
+    val durationOnly = remember(sessions) { sessions.filter { it.isDurationOnly } }
+    val regular = remember(sessions) { sessions.filterNot { it.isDurationOnly } }
+    val merged = remember(regular, triggers) {
+        (regular.map { TimelineEntry.Session(it) } + triggers.map { TimelineEntry.Trigger(it) })
             .sortedBy { entry ->
                 when (entry) {
                     is TimelineEntry.Session -> entry.session.startMinuteOfDay
@@ -2385,7 +2416,7 @@ private fun EventListTimeline(
                 }
             }
     }
-    if (merged.isEmpty()) {
+    if (merged.isEmpty() && durationOnly.isEmpty()) {
         Text(
             stringResource(R.string.timeline_list_empty),
             fontSize = 13.sp,
@@ -2401,6 +2432,27 @@ private fun EventListTimeline(
     // Bestätigung wird onDeleteSession aufgerufen.
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        // M18.102: Block "Nur Dauer" ganz oben — ohne Uhrzeit-Chip, nur
+        // Titel + Dauer. Löschbar wie alle anderen Einträge.
+        durationOnly.forEach { session ->
+            EventListRow(
+                time = "—",
+                title = session.title,
+                detail = session.duration,
+                accent = if (session.activityColor != 0L) Color(session.activityColor) else positivityColor(session.positivityScore),
+                icon = session.activityIcon,
+                kind = stringResource(R.string.common_captured),
+                qualityBadge = if (session.hasQualityOverride) "${session.positivityScore} ✎" else null,
+                onClick = { onOpen(session.id) },
+                onEdit = { onEdit(session.id) },
+                onDelete = { pendingDeleteId = session.id },
+                onLongPress = { onAdjustQuality(session) }
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f),
+                thickness = 1.dp
+            )
+        }
         grouped.forEach { (part, entries) ->
             // Abschnitts-Header
             Text(
@@ -2470,7 +2522,9 @@ private fun EventListTimeline(
                     stringResource(
                         R.string.timeline_delete_session_message,
                         session?.title ?: stringResource(R.string.timeline_this_activity),
-                        session?.range ?: ""
+                        // M18.102: Dauer-only-Sessions haben keinen
+                        // Zeitbereich — der Dialog zeigt die Dauer.
+                        if (session?.isDurationOnly == true) session.duration else (session?.range ?: "")
                     )
                 )
             },

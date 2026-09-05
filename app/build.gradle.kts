@@ -137,7 +137,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // MapLibre for Geofence Editor Map
-    implementation("org.maplibre.gl:android-sdk:11.4.0")
+    implementation("org.maplibre.gl:android-sdk:11.11.0")
 
     // M8: Health Connect SDK
     implementation("androidx.health.connect:connect-client:1.1.0-alpha07")

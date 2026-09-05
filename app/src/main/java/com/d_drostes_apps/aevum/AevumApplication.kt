@@ -128,10 +128,19 @@ class AevumApplication : Application() {
         // M12.0.2: Defensive Initialisierung — jede Komponente wird einzeln
         // in try-catch gewrappt. Ein Fehler in MapLibre, SleepImport oder
         // GeofenceRefresh darf niemals den App-Start abbrechen.
+        // M18.102-CRASHFIX (User: "The App crashes on opening", SM-S928B,
+        // SDK 36): catch(Throwable) statt catch(Exception) — ein
+        // UnsatisfiedLinkError beim Laden von libmaplibre.so (16-KB-Page-
+        // Size-Geräte mit Android 16, alte Lib mit 4-KB-Alignment) ist ein
+        // java.lang.Error und würde von catch(Exception) NICHT gefangen:
+        // Crash exakt beim App-Öffnen, bevor die UI erscheint. Die Map-
+        // Composable haben ihre eigenen Factory-Guards (v7.1) und zeigen
+        // dann einen Platzhalter statt zu crashen. 3rd-party-Native-Init-
+        // Ausnahme — im Code begründet.
         try {
             MapLibre.getInstance(this)
-        } catch (e: Exception) {
-            Log.e("AevumApplication", "MapLibre init failed — continuing", e)
+        } catch (t: Throwable) {
+            Log.e("AevumApplication", "MapLibre init failed — continuing", t)
         }
 
         // M16.4: ensureDefaultData ZUERST. Wir warten nicht auf das Resultat,
