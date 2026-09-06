@@ -97,15 +97,27 @@ fun SettingsScreen(
             item {
                 val viewModel: SettingsViewModel = hiltViewModel()
                 val currentLanguage by viewModel.language.collectAsState()
+                val currentTheme by viewModel.theme.collectAsState()
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
-                LanguageSettingsSection(
+                AppSettingsSection(
                     currentLanguage = currentLanguage,
-                    onSelect = { lang ->
+                    currentTheme = currentTheme,
+                    onSelectLanguage = { lang ->
                         scope.launch {
                             viewModel.setLanguage(lang)
                             // Activity neu aufbauen, damit alle Ressourcen
                             // sofort in der neuen Sprache geladen werden.
+                            (context as? android.app.Activity)?.recreate()
+                        }
+                    },
+                    onSelectTheme = { theme ->
+                        scope.launch {
+                            // M18.106: Theme persistieren, dann Activity neu
+                            // aufbauen — AevumAppTheme liest beim Rebuild den
+                            // frischen Spiegel (gleicher Mechanismus wie beim
+                            // Sprachwechsel, kein Theme-Flacker).
+                            viewModel.setTheme(theme)
                             (context as? android.app.Activity)?.recreate()
                         }
                     }
@@ -184,22 +196,29 @@ private fun SettingsHero() {
 }
 
 /**
- * App-Einstellungen: Sprachauswahl als Dropdown (Flagge + Text).
- * Optionen sind alphabetisch nach Anzeigename sortiert.
+ * App-Einstellungen: Sprache + Design (M18.106) in EINER Karte.
+ * Sprachauswahl als Dropdown (Flagge + Text, alphabetisch sortiert),
+ * Theme-Auswahl analog (dark = Default).
  */
 @Composable
-private fun LanguageSettingsSection(
+private fun AppSettingsSection(
     currentLanguage: String,
-    onSelect: (String) -> Unit
+    currentTheme: String,
+    onSelectLanguage: (String) -> Unit,
+    onSelectTheme: (String) -> Unit
 ) {
     // Alphabetisch sortiert nach Anzeigename: Deutsch, English, System
-    val options = listOf(
+    val languageOptions = listOf(
         LanguageOption(LanguageRepository.LANGUAGE_DE, "🇩🇪", stringResource(R.string.language_de)),
         LanguageOption(LanguageRepository.LANGUAGE_EN, "🇬🇧", stringResource(R.string.language_en)),
         LanguageOption(LanguageRepository.LANGUAGE_SYSTEM, "🌐", stringResource(R.string.language_system))
     )
-    var expanded by remember { mutableStateOf(false) }
-    val selected = options.firstOrNull { it.code == currentLanguage } ?: options.firstOrNull { it.code == LanguageRepository.LANGUAGE_DEFAULT } ?: options.first()
+    // M18.106: Theme-Optionen — Dark zuerst (Default).
+    val themeOptions = listOf(
+        LanguageOption(com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DARK, "🌙", stringResource(R.string.theme_dark)),
+        LanguageOption(com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_LIGHT, "☀️", stringResource(R.string.theme_light)),
+        LanguageOption(com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_SYSTEM, "🌓", stringResource(R.string.theme_system))
+    )
 
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -209,46 +228,85 @@ private fun LanguageSettingsSection(
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Box {
-                Surface(
-                    onClick = { expanded = true },
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            SettingsPickerRow(
+                options = languageOptions,
+                selectedCode = currentLanguage,
+                fallbackCode = LanguageRepository.LANGUAGE_DEFAULT,
+                onSelect = onSelectLanguage
+            )
+            // M18.106: Design-Zeile.
+            Text(
+                stringResource(R.string.settings_theme),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                stringResource(R.string.settings_theme_desc),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SettingsPickerRow(
+                options = themeOptions,
+                selectedCode = currentTheme,
+                fallbackCode = com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DEFAULT,
+                onSelect = onSelectTheme
+            )
+        }
+    }
+}
+
+/** Wiederverwendbare Dropdown-Zeile (Sprache/Theme teilen sich das Muster). */
+@Composable
+private fun SettingsPickerRow(
+    options: List<LanguageOption>,
+    selectedCode: String,
+    fallbackCode: String,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = options.firstOrNull { it.code == selectedCode }
+        ?: options.firstOrNull { it.code == fallbackCode }
+        ?: options.first()
+
+    Box {
+        Surface(
+            onClick = { expanded = true },
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(selected.flag, fontSize = 18.sp)
+                    Spacer(Modifier.width(AevumSpacing.sm))
+                    Text(selected.label, fontWeight = FontWeight.Medium)
+                }
+                Text("▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(selected.flag, fontSize = 18.sp)
+                            Text(option.flag, fontSize = 18.sp)
                             Spacer(Modifier.width(AevumSpacing.sm))
-                            Text(selected.label, fontWeight = FontWeight.Medium)
+                            Text(option.label)
                         }
-                        Text("▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    onClick = {
+                        expanded = false
+                        if (option.code != selectedCode) onSelect(option.code)
                     }
-                }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    options.forEach { option ->
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(option.flag, fontSize = 18.sp)
-                                    Spacer(Modifier.width(AevumSpacing.sm))
-                                    Text(option.label)
-                                }
-                            },
-                            onClick = {
-                                expanded = false
-                                if (option.code != currentLanguage) onSelect(option.code)
-                            }
-                        )
-                    }
-                }
+                )
             }
         }
     }
@@ -308,7 +366,9 @@ private data class SettingsEntry(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     placeGeofenceRepository: PlaceGeofenceRepository,
-    private val languageRepository: LanguageRepository
+    private val languageRepository: LanguageRepository,
+    // M18.106: Theme-Auswahl (dark/light/system, Default dark).
+    private val themeRepository: com.d_drostes_apps.aevum.data.repository.ThemeRepository
 ) : ViewModel() {
     val geofences: StateFlow<List<PlaceGeofence>> = placeGeofenceRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -317,7 +377,16 @@ class SettingsViewModel @Inject constructor(
     val language: StateFlow<String> = languageRepository.language
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LanguageRepository.LANGUAGE_DEFAULT)
 
+    /** M18.106: Aktuell gewähltes App-Theme ("dark", "light", "system"). Default: dark. */
+    val theme: StateFlow<String> = themeRepository.theme
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DEFAULT)
+
     suspend fun setLanguage(language: String) {
         languageRepository.setLanguage(language)
+    }
+
+    /** M18.106: Theme persistieren (DataStore + synchroner Spiegel). */
+    suspend fun setTheme(theme: String) {
+        themeRepository.setTheme(theme)
     }
 }
