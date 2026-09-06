@@ -221,6 +221,22 @@ class DashboardViewModel @Inject constructor(
     // aktualisiert. Wenn keine Permission oder keine Daten → 0L → UI zeigt "—".
     private val _screenTimeMs = MutableStateFlow(0L)
 
+    // M18.105b (NPE-Fix, aus User-Log verifiziert): Diese Deklaration stand
+    // HINTER dem init-Block unten — der dortige viewModelScope.launch läuft
+    // auf Dispatchers.Main.immediate und führt den Body SYNCHRON im
+    // Konstruktor aus (hasPermission() ist nicht suspend, also keine
+    // Suspension-Zäsur vor der Zuweisung). refreshUsageStats() schrieb
+    // deshalb in _usageStatsGranted.value, während das Feld noch null war:
+    //   NullPointerException: MutableStateFlow.setValue on a null object
+    //   reference (DashboardViewModel.kt:339, gefangen im catch-Block —
+    //   geloggt, nicht fatal, aber die Permission-Anzeige blieb falsch).
+    // Der Bug-Typ war bereits bekannt (Kommentar oben: "Wenn die Properties
+    // dahinter stehen, sind sie noch null") — _topApps/_screenTimeMs wurden
+    // damals vor den init-Block verschoben, _usageStatsGranted übersehen.
+    // Fix: Deklaration VOR jeden init-Block, der das Feld berührt.
+    private val _usageStatsGranted = MutableStateFlow(false)
+    val usageStatsGranted: StateFlow<Boolean> = _usageStatsGranted.asStateFlow()
+
     init {
         // M12.0.2: Defensive Initialisierung — ensureDefaultData darf niemals
         // den Start des DashboardViewModels blockieren. Fehler werden geloggt,
@@ -293,8 +309,8 @@ class DashboardViewModel @Inject constructor(
     // Lösung: eigener Coroutine-Loop, der auf RESUME der Activity horcht
     // (Lifecycle-Process ist im Classpath NICHT garantiert, daher
     // ProcessLifecycleOwner.lightweight Fallback via Flow-Tick).
-    private val _usageStatsGranted = MutableStateFlow(false)
-    val usageStatsGranted: StateFlow<Boolean> = _usageStatsGranted.asStateFlow()
+    // M18.105b: Deklaration nach oben verschoben (vor den ersten init-Block,
+    // der refreshUsageStats startet) — siehe Kommentar bei der Deklaration.
 
     init {
         // M15: Der Permission-State wurde vorher nur einmal beim App-Start
