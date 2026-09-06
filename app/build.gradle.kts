@@ -16,9 +16,10 @@ android {
         applicationId = "com.d_drostes_apps.aevum"
         minSdk = 29
         targetSdk = 36
-        // M18.91: Standardsprache Englisch.
-        versionCode = 4
-        versionName = "1.0.2"
+        // M18.105: Startup-Crash auf frischen Installationen gefixt
+        // (FGS-Vertrag + Permission-Gate, siehe DriveDetectionService).
+        versionCode = 5
+        versionName = "1.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

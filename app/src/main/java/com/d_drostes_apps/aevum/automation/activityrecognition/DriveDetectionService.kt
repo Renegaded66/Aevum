@@ -211,8 +211,36 @@ class DriveDetectionService : Service() {
         /** M18.104: Start mit Aktion (von Receivern/Workern/Application).
          *  startForegroundService ist erlaubt: Alle Aufrufer sind AR-/
          *  Geofence-Event-Pfade (offizielle Exemptions, Android 12+) oder
-         *  Vordergrund-/FGS-Kontexte (App-Start, laufende Worker). */
+         *  Vordergrund-/FGS-Kontexte (App-Start, laufende Worker).
+         *
+         *  M18.105 (Crash-Fix "App stürzt bei frischer Installation ab",
+         *  User-Report Xiaomi SDK 30 + Pixel-5-Emu API 30, reproduziert):
+         *  OHNE Location-Permission wird der Service GAR NICHT gestartet.
+         *  Grund: Nach startForegroundService() verlangt Android ein
+         *  startForeground() binnen 5s — AUCH wenn der Service sich selbst
+         *  sofort beendet (RemoteServiceException: "did not then call
+         *  Service.startForeground()", API 26+, auf API 30 sofortiger
+         *  Prozess-Kill). Jeder Burst-Modus braucht ohnehin Location —
+         *  ein Start ohne Permission wäre sinnlos UND vertragsbrüchig.
+         *  AevumApplication ruft start(TRACK_RESTORE) bei JEDEM App-Start;
+         *  ohne dieses Gate starb die App frischinstallierter Geräte beim
+         *  ERSTEN Start, bevor der Permission-Dialog/ das Dashboard
+         *  sichtbar wurde (der Daily-Tester hatte die Permission längst
+         *  erteilt — deshalb fiel es intern nie auf).
+         *  Sobald der User die Permission erteilt, startet der nächste
+         *  AR-/Geofence-/App-Start-Event den Service normal. */
         fun start(context: Context, action: String) {
+            val locationGranted =
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.ACCESS_FINE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!locationGranted) {
+                Log.w(TAG, "Keine Location-Permission — DriveDetectionService nicht gestartet ($action)")
+                return
+            }
             val intent = Intent(context, DriveDetectionService::class.java).setAction(action)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -239,24 +267,27 @@ class DriveDetectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        // M18.105: Channel sicherstellen (im M18.104-Rewrite verloren
+        // gegangen — fehlt der Channel, zeigt Android die FGS-Notification
+        // STILL nicht an: kein Crash, aber unsichtbarer Dienst + aggressivere
+        // OEM-Battery-Killer. Idempotent, kostet nichts.)
+        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
     }
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
 
-        if (!hasLocationPermission()) {
-            Log.w(TAG, "Keine Standort-Berechtigung — Erkennung pausiert")
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        // M18.104: FGS IMMER zuerst starten (idempotent) — Android
-        // verlangt nach JEDEM startForegroundService() ein startForeground()
-        // innerhalb 5s, auch wenn der Service schon läuft (sonst
-        // ForegroundServiceDidNotStartInTimeException auf manchen
-        // OEMs). Lehnt der Start ab einen Modus, beendet sich der
-        // Service unten sofort wieder (Notification-Blitz < 1s, selten).
+        // M18.105 (Crash-Fix, Root Cause verifiziert aus Stacktrace): Das
+        // FGS-Commitment muss ALS ALLERERSTES erfüllt werden — vor jedem
+        // Gate, jedem Permission-Check, jedem Modus. Android verlangt nach
+        // startForegroundService() ein startForeground() binnen 5s, AUCH
+        // wenn der Service sich danach sofort selbst beendet. Der alte
+        // Pfad (Permission-Gate → stopSelf() VOR startForeground) riss
+        // den Vertrag auf frischen Installationen ohne Location-Permission
+        // → RemoteServiceException → Prozess-Kill beim App-Start (Xiaomi
+        // SDK 30, Pixel-5-Emu API 30; reproduziert). Nach dem Commitment
+        // darf jeder Pfad frei stopSelf() rufen — der Vertrag steht.
         try {
             startForeground(
                 com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
@@ -264,11 +295,31 @@ class DriveDetectionService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             )
         } catch (e: SecurityException) {
-            Log.e(TAG, "Location-FGS verweigert (Background-Location fehlt?)", e)
-            stopSelf()
-            return START_NOT_STICKY
+            // Android 14+ verlangt für FOREGROUND_SERVICE_TYPE_LOCATION
+            // beim Hintergrund-Start zusätzlich ACCESS_BACKGROUND_LOCATION.
+            // Fehlt sie, werfen älterer Code SecurityException — dann Typ 0
+            // (kein location-Typ, aber vertraglich gültiges FGS). Auf
+            // API 29/30 wirft der 3-Arg-Aufruf nichts (Typ dort unkritisch);
+            // notfalls fängt der generische Catch unten.
+            try {
+                startForeground(
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this),
+                    0
+                )
+            } catch (e2: Exception) {
+                Log.e(TAG, "Foreground-Start endgültig fehlgeschlagen", e2)
+                stopSelf()
+                return START_NOT_STICKY
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Foreground-Start fehlgeschlagen", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (!hasLocationPermission()) {
+            Log.w(TAG, "Keine Standort-Berechtigung — Erkennung pausiert (FGS-Vertrag erfüllt, dann Ende)")
             stopSelf()
             return START_NOT_STICKY
         }
