@@ -47,7 +47,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import com.d_drostes_apps.aevum.navigation.AppDestination
 import com.d_drostes_apps.aevum.navigation.AppNavHost
-import com.d_drostes_apps.aevum.ui.theme.AevumTheme
+import com.d_drostes_apps.aevum.ui.theme.AevumAppTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -65,7 +65,10 @@ class MainActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            AevumTheme {
+            // M18.106: AevumAppTheme liest das persistierte Theme
+            // (dark/light/system, Default dark) — der User kann es in
+            // Einstellungen → App Einstellungen → Design umschalten.
+            AevumAppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

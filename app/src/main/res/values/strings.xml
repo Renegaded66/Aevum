@@ -14,6 +14,11 @@
     <string name="settings_app_section">App Einstellungen</string>
     <string name="settings_language">Sprache</string>
     <string name="settings_language_desc">Sprache der App auswählen</string>
+    <string name="settings_theme">Design</string>
+    <string name="settings_theme_desc">Erscheinungsbild der App auswählen</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_system">System</string>
     <string name="settings_hero_subtitle">Automatisierung ist freiwillig, lokal und erklärbar. Du entscheidest, welche Orte Aevum im Hintergrund beobachten darf.</string>
     <string name="settings_section_automation">Automatisierung</string>
     <string name="settings_trigger_detection">Trigger &amp; Erkennung</string>

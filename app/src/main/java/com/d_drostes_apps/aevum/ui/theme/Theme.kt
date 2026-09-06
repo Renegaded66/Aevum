@@ -83,3 +83,50 @@ fun AevumTheme(
         content = content
     )
 }
+
+/**
+ * M18.106: Theme-aus-Settings-Wrapper. Liest das persistierte Theme
+ * (dark/light/system, Default dark) und reicht es an [AevumTheme] weiter.
+ * Ruft der User nichts auf, bleibt alles beim alten Verhalten — die
+ * Previews nutzen direkt AevumTheme(darkTheme = true) weiter.
+ *
+ * Der synchron gespiegelte Wert (SharedPreferences) entscheidet sofort
+ * beim ersten Frame — kein Theme-Flacker beim App-Start.
+ */
+@Composable
+fun AevumAppTheme(content: @Composable () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appContext = context.applicationContext
+    // Synchroner Read im ersten Frame (KEIN State): Das Theme darf beim
+    // Starten nicht asynchron nachziehen, sonst blitzt das falsche Theme.
+    // Änderungen in den Settings lösen recreate() aus (gleiche Methode wie
+    // beim Sprachwechsel) — der Read hier läuft danach mit dem neuen Wert.
+    val theme = rememberThemePreference(appContext)
+    val darkTheme = when (theme) {
+        com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_LIGHT -> false
+        com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_SYSTEM ->
+            androidx.compose.foundation.isSystemInDarkTheme()
+        else -> true // THEME_DARK (Default)
+    }
+    AevumTheme(darkTheme = darkTheme, content = content)
+}
+
+/** Liest das synchron gepiegelte Theme. recreate() (nach Theme-/Sprach-
+ *  Wechsel) baut die Komposition komplett neu auf — der Read läuft
+ *  danach automatisch mit dem frischen Spiegel erneut. */
+@Composable
+private fun rememberThemePreference(appContext: android.content.Context): String {
+    return androidx.compose.runtime.remember {
+        try {
+            appContext.getSharedPreferences(
+                com.d_drostes_apps.aevum.data.repository.ThemeRepository.PREFS_NAME,
+                android.content.Context.MODE_PRIVATE
+            ).getString(
+                com.d_drostes_apps.aevum.data.repository.ThemeRepository.PREFS_KEY,
+                com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DEFAULT
+            ) ?: com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DEFAULT
+        } catch (e: Exception) {
+            com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DEFAULT
+        }
+    }
+}
