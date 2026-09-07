@@ -174,7 +174,29 @@ class GeofenceForegroundService : Service() {
     }
 
     companion object {
+        /** M18.107: Permission-Gate (M18.105-Muster von DriveDetectionService):
+         *  Ohne Location-Permission wird der Service GAR NICHT gestartet.
+         *  Grund 1: Auf Android 14+ wirft startForeground(location) ohne
+         *  Permission SecurityException — der shortService-Fallback hält
+         *  zwar den FGS-Vertrag ein (kein Crash mehr), aber der Service
+         *  wäre trotzdem sinnlos (Geofence-Trigger brauchen Location).
+         *  Grund 2: Kein pointless 3-min-shortService-Service im System.
+         *  Das GMS-Geofencing selbst funktioniert ohne FGS (M18.66-Kommentar)
+         *  — es läuft dann nur im Vordergrund zuverlässig; sobald der User
+         *  die Permission erteilt, startet der nächste App-Start/Registrar-
+         *  Refresh den Service normal. */
         fun start(context: Context) {
+            val locationGranted =
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.ACCESS_FINE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!locationGranted) {
+                android.util.Log.w("GeofenceFGS", "Keine Location-Permission — GeofenceForegroundService nicht gestartet")
+                return
+            }
             val intent = Intent(context, GeofenceForegroundService::class.java)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
