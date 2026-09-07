@@ -9,6 +9,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -88,10 +89,29 @@ class AppBlockService : Service() {
         super.onCreate()
         // M19: Konsolidierte Hintergrund-Benachrichtigung statt eigener.
         com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
-        startForeground(
-            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
-            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
-        )
+        // M18.107-CRASHFIX: startForeground war UNGESCHÜTZT — jede Exception
+        // hier (kaputte Notification auf OEM-ROMs, Restriction-Exceptions)
+        // crashte den ganzen Prozess, obwohl der Service optional ist
+        // (Sperr-Funktion). Zusätzlich: expliziter SPECIAL_USE-Typ erst ab
+        // API 34 (Konstante existiert erst dort); auf 29-33 vertragsgültiger
+        // 2-Arg-Aufruf (Manifest-Typ specialUse).
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                    com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AppBlockSvc", "startForeground fehlgeschlagen — stopSelf", e)
+            stopSelf()
+        }
         // M18.61g-FIX 2: BlockActivity-Broadcasts empfangen
         val filter = android.content.IntentFilter().apply {
             addAction(ACTION_EXTEND)
@@ -406,10 +426,18 @@ class AppBlockService : Service() {
 
         fun start(context: Context) {
             val intent = Intent(context, AppBlockService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                // M18.107: FGS-Start darf NIE crashen (M18.66-Muster) —
+                // ForegroundServiceStartNotAllowedException (Hintergrund-Start,
+                // Android 12+) und OEM-Restriktionen. Der Service holt nach
+                // beim nächsten App-Start / Limit-Change.
+                android.util.Log.w("AppBlockSvc", "Start fehlgeschlagen: ${e.message}")
             }
         }
 
