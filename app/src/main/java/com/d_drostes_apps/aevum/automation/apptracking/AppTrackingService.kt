@@ -149,7 +149,12 @@ class AppTrackingService : Service() {
         com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
         val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // M18.107: SPECIAL_USE existiert erst ab API 34 — der alte
+                // `>= Q`-Check rief die Konstante bereits auf Android 10-13
+                // auf. Mit Manifest-Typ specialUse ist auf 29-33 der
+                // 2-Arg-Aufruf (Manifest-Typ) vertragsgültig; ab 34+ muss
+                // der Typ explizit übergeben werden.
                 startForeground(
                     com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
                     notification,

@@ -142,7 +142,7 @@
         <service
             android:name=".automation.geofence.GeofenceForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|shortService" />
 
         <!-- M18.66: Autofahrt-Erkennung über kontinuierlichen GPS-Stream.
              ForegroundService vom Typ "location" (Pflicht ab Android 14+,
@@ -151,7 +151,7 @@
         <service
             android:name=".automation.activityrecognition.DriveDetectionService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|shortService" />
 
         <!-- M18.67: App-Aufzeichnung — erkennt getrackte Apps über die
              UsageStats-Event-API und startet/stoppt automatisch die

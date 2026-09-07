@@ -295,17 +295,22 @@ class DriveDetectionService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             )
         } catch (e: SecurityException) {
-            // Android 14+ verlangt für FOREGROUND_SERVICE_TYPE_LOCATION
-            // beim Hintergrund-Start zusätzlich ACCESS_BACKGROUND_LOCATION.
-            // Fehlt sie, werfen älterer Code SecurityException — dann Typ 0
-            // (kein location-Typ, aber vertraglich gültiges FGS). Auf
-            // API 29/30 wirft der 3-Arg-Aufruf nichts (Typ dort unkritisch);
-            // notfalls fängt der generische Catch unten.
+            // M18.107: Der alte Fallback startForeground(..., 0) wirft auf
+            // Android 14+ (targetSdk 34+) selbst eine
+            // InvalidForegroundServiceTypeException ("Starting FGS with type
+            // none ... has been prohibited") — er lag im outer
+            // catch(Exception) → stopSelf() ohne erfüllten FGS-Vertrag →
+            // RemoteServiceException → Prozess-Kill (derselbe Mechanismus wie
+            // M18.105, nur im Service statt im Companion). Auf API 34+ ist der
+            // einzige vertragsgültige Notausgang shortService (keine
+            // Runtime-Voraussetzungen, im Manifest mitdeklariert). Auf
+            // API 29-33 wirft der 3-Arg-Aufruf nichts (Typ dort unkritisch)
+            // — notfalls fängt der generische Catch unten.
             try {
                 startForeground(
                     com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
                     com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this),
-                    0
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
                 )
             } catch (e2: Exception) {
                 Log.e(TAG, "Foreground-Start endgültig fehlgeschlagen", e2)

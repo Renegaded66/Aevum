@@ -40,14 +40,38 @@ class GeofenceForegroundService : Service() {
         // M19: Konsolidierte Hintergrund-Benachrichtigung — alle Hintergrund-
         // Services nutzen denselben Channel + dieselbe ID → nur eine Notification
         // im Benachrichtigungsfeld statt drei.
+        // M18.107-CRASHFIX (Startup-Crash auf Android 14+/frischen Installationen):
+        // Der alte SecurityException-Fallback rief startForeground(..., 0) auf.
+        // Auf API 34+ (targetSdk 34+) ist Typ 0 VERBOTEN — Android wirft
+        // InvalidForegroundServiceTypeException ("Starting FGS with type none
+        // ... has been prohibited", offizielle Doku + mehrere Produktionsfälle).
+        // Dieser Aufruf lag im outer try/catch(Exception) → stopSelf() OHNE je
+        // erfüllten FGS-Vertrag → RemoteServiceException ("did not then call
+        // Service.startForeground()") → Prozess-Kill beim App-Start (identischer
+        // Mechanismus wie M18.105/DriveDetectionService, dort bewiesen per
+        // API-30-Emulator-Repro). Frische Installation ohne Location-Permission:
+        // startForeground(location) → SecurityException → Typ-0-Bombe → Crash.
+        // Fix (zwei Schichten):
+        //   1) start()-Companion: Permission-Gate (M18.105-Muster) — ohne
+        //      Location-Permission wird der Service GAR NICHT gestartet
+        //      (Geofencing funktioniert laut M18.66-Kommentar auch ohne FGS).
+        //   2) Hier: Notification-Building in den try-Block, Fallback auf den
+        //      2-Arg-Aufruf (nimmt den Manifest-Typ — kontraktgültig auf allen
+        //      API-Leveln), NIE mehr Typ 0.
         com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
         val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
-
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // M18.45: SecurityException-Schutz für SDK 35. Ein FGS mit Typ "location"
-                // darf im Hintergrund nur starten, wenn die Berechtigungen (Fine/Coarse + Background)
-                // wirklich erteilt sind. Wenn nicht, stürzt die App ab.
+                // M18.45/M18.107: SecurityException-Schutz. Ein FGS mit Typ "location"
+                // darf nur starten, wenn die Location-Berechtigungen tatsächlich
+                // erteilt sind (Vordergrund) bzw. zusätzlich Background-Location
+                // beim Hintergrund-Start. Fehlt sie, wirft der location-Typ
+                // SecurityException — UND der 2-Arg-Aufruf (Manifest-Typ location)
+                // würde dieselbe werfen. Einziger vertragsgültiger Notausgang:
+                // FOREGROUND_SERVICE_TYPE_SHORT_SERVICE (API 34+, keine
+                // Runtime-Voraussetzungen, im Manifest mitdeklariert). Der Vertrag
+                // ("startForeground binnen 5s") bleibt damit ERFÜLLT — der Service
+                // lebt max. ~3min degradiert weiter statt den Prozess zu killen.
                 try {
                     startForeground(
                         com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
@@ -55,17 +79,32 @@ class GeofenceForegroundService : Service() {
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
                     )
                 } catch (e: SecurityException) {
-                    // Fallback: Wenn Location-FGS verweigert wird (z.B. im Hintergrund ohne Background-Permission),
-                    // versuchen wir es als "normalen" Service ohne speziellen Typ (0).
-                    // WICHTIG: 0 übergeben, damit das System nicht den manifest-default (location) nimmt.
-                    startForeground(com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID, notification, 0)
+                    try {
+                        startForeground(
+                            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID,
+                            notification,
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
+                        )
+                    } catch (e2: Exception) {
+                        android.util.Log.e("GeofenceFGS", "startForeground (shortService-Fallback) fehlgeschlagen — stopSelf", e2)
+                        stopSelf()
+                        return START_NOT_STICKY
+                    }
                 }
             } else {
+                // API < 34: 2-Arg-Aufruf = Manifest-Typ. Pre-34 gibt es keine
+                // Typ-Enforcement-Checks (InvalidForegroundServiceTypeException
+                // existiert erst ab API 34) — hier ist der 2-Arg-Aufruf immer
+                // vertragsgültig. Der alte Typ-0-Aufruf war unnötig und auf
+                // 34+ verboten.
                 startForeground(com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
             // Wenn alles fehlschlägt (z.B. Background-Start-Restriction ohne Exemption),
             // beenden wir uns selbst, um den Crash des Prozesses zu verhindern.
+            // (Letzter Rettungsanker — das Start()-Gate verhindert den häufigsten
+            // Fall "keine Permission" bereits VOR dem Start.)
+            android.util.Log.e("GeofenceFGS", "startForeground endgültig fehlgeschlagen — stopSelf", e)
             stopSelf()
             return START_NOT_STICKY
         }
