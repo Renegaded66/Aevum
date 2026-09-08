@@ -1005,6 +1005,26 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
             != PackageManager.PERMISSION_GRANTED) {
             return
         }
+        // M18.108 (Startup-Crash-Härtung): Dieser Receiver ist manifest-
+        // registriert (exported=true, GMS sendet) und läuft auf dem Main-
+        // Thread des App-Prozesses — OHNE goAsync. Eine Exception hier
+        // (Hilt-EntryPoint nicht bereit, GMS-Parsing-Fehler bei
+        // extractResult, Bridge-Fehler) killt den GESAMTEN Prozess,
+        // genau wie die übrigen Receiver-Pfade es vor ihrer Härtung
+        // taten. AR-Transitions feuern häufig genau dann, wenn der User
+        // die App öffnet (Losfahren/Gehen) → uncaught = "App crasht
+        // beim Start" ohne UI-Fehler. Gleiche Ausnahme wie v7.1:
+        // 3rd-party-GMS-Pfad in try/catch, Fehler werden geloggt statt
+        // verschluckt — die Folgeschritte (Bridge-Zugriffe, FGS-Start)
+        // sind bei einer defekten Bridge ohnehin sinnlos.
+        try {
+            dispatchTransition(context, intent)
+        } catch (t: Throwable) {
+            Log.e("ActivityTransitionReceiver", "GMS-Transition-Verarbeitung fehlgeschlagen — Broadcast verworfen (Prozess bleibt stabil)", t)
+        }
+    }
+
+    private fun dispatchTransition(context: Context, intent: Intent) {
         val bridge = EntryPointAccessors.fromApplication(
             context.applicationContext,
             ActivityRecognitionBridgeProvider::class.java

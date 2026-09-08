@@ -35,6 +35,26 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     @Inject lateinit var settingsRepository: com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
 
     override fun onReceive(context: Context, intent: Intent) {
+        try {
+            dispatch(context, intent)
+        } catch (t: Throwable) {
+            // M18.108 (Startup-Crash-Härtung): GMS sendet diesen Broadcast
+            // (exported=true) auf dem Main-Thread des App-Prozesses — ein
+            // uncaught Fehler beim Parsen (GeofencingEvent.fromIntent) oder
+            // beim Hilt-EntryPoint-Zugriff killt den Prozess genau dann,
+            // wenn der User die App nutzt (Geofence-Übergänge passieren
+            // beim Losfahren/Ankommen — das App-Öffnen-Fenster). Gleiche
+            // Ausnahme wie v7.1: 3rd-party-GMS-Pfad in try/catch, Fehler
+            // geloggt statt verschluckt — der Event ist nach einem
+            // Parse-Fehler ohnehin unbrauchbar, die Pipeline retried über
+            // den nächsten Übergang. Bewusst android.util.Log statt
+            // debugLogger: das @Inject-Feld könnte bei einem Hilt-Fehler
+            // selbst null sein → NPE im catch → Prozess-Kill bliebe.
+            android.util.Log.e("GeofenceReceiver", "GMS-Geofence-Broadcast fehlgeschlagen — verworfen", t)
+        }
+    }
+
+    private fun dispatch(context: Context, intent: Intent) {
         debugLogger.log("RECEIVER", "onReceive action=${intent.action}")
         if (intent.action != GeofenceRegistrar.ACTION_GEOFENCE_EVENT) {
             debugLogger.log("RECEIVER", "Ignoriert: falsche Action")
