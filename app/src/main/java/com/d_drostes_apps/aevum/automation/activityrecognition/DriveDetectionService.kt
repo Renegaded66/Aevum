@@ -165,11 +165,10 @@ class DriveDetectionService : Service() {
         const val ACTION_WALKING_CHECK = "com.d_drostes_apps.aevum.DETECTION_WALKING_CHECK"
         const val ACTION_TRACK_RESTORE = "com.d_drostes_apps.aevum.DETECTION_TRACK_RESTORE"
 
-        /** CONFIRM-Stream: HIGH_ACCURACY 15s — wie der alte Dauer-Stream
-         *  (identische Erkennungs-Dichte: MIN_SPREAD 30s = 3 Fixes,
-         *  2er-Kette, Netto 150m — die Engine merkt keinen Unterschied),
-         *  aber nur für die Dauer des Burst-Fensters statt 24/7. */
-        private const val CONFIRM_INTERVAL_MS = 15_000L
+        /** CONFIRM-Stream: HIGH_ACCURACY 20s — M18.111 (Akku-Priorität).
+         *  Erkennungslogik unverändert (2 Probes über 30s Spread nach
+         *  M18.110), aber 25 % weniger Fix-Requests pro Burst. */
+        private const val CONFIRM_INTERVAL_MS = DetectionBurstPolicy.CONFIRM_INTERVAL_MS
         /** WALKING-Stream: BALANCED 60s — WLAN/Cell-Fixes statt GPS-Chip-
          *  Dauerbetrieb. Displacement ≥ 300m braucht keine 15s-Dichte:
          *  8 Fixes à 60s erfassen 300m bei Geh-Tempo (1,4 m/s) locker. */

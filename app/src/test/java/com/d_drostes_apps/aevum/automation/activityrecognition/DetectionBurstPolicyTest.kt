@@ -22,8 +22,13 @@ class DetectionBurstPolicyTest {
     // ── Fenster-Größen ──────────────────────────────────────────────
 
     @Test
-    fun `CONFIRM-Fenster ist begrenzt (6 Min, kein Dauerzustand)`() {
-        assertEquals(6L * 60 * 1000, DetectionBurstPolicy.CONFIRM_WINDOW_MS)
+    fun `CONFIRM-Fenster ist begrenzt (4 Min, kein Dauerzustand, Akku-Prioritaet M18-111)`() {
+        assertEquals(4L * 60 * 1000, DetectionBurstPolicy.CONFIRM_WINDOW_MS)
+    }
+
+    @Test
+    fun `CONFIRM-Intervall ist 20s (Akku-Prioritaet, Logik bleibt M18-110)`() {
+        assertEquals(20_000L, DetectionBurstPolicy.CONFIRM_INTERVAL_MS)
     }
 
     @Test
@@ -39,6 +44,8 @@ class DetectionBurstPolicyTest {
     fun `CONFIRM-Fenster deckt GPS-Warmup plus Engine-Mindestfenster`() {
         // 60s Warmup + MIN_SPREAD (30s) müssen in das CONFIRM-Fenster passen,
         // sonst kann eine Kaltstart-Fahrt nie bestätigt werden.
+        // M18.111: Bei 20s-Intervall (2 Probes für Erkennung) bleibt nach
+        // Warmup noch genug Restfenster für Stau-Anlauf (Extensions).
         assertTrue(
             DetectionBurstPolicy.CONFIRM_WINDOW_MS > 60_000L + DriveDetectionEngine.MIN_SPREAD_MS
         )
