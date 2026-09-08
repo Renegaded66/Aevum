@@ -57,6 +57,9 @@ class AevumApplication : Application() {
         fun ensureDefaultData(): EnsureDefaultDataUseCase
         // M18.86: Track-Punkt-Retention (90 Tage) beim App-Start.
         fun locationTrackPointRepository(): com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
+        // M18.109 (User-Vorgabe): Fail-Fast-DB-Check — die AppDatabase-
+        // Instanz wird beim Start einmalig geöffnet (siehe onCreate).
+        fun database(): com.d_drostes_apps.aevum.data.db.AppDatabase
         // AEVUM-1: Einmaliger Daten-Aufräumlauf beim App-Start — löscht
         // Duplikate (gleiche externalId oder gleicher Typ + zeitliche
         // Überlappung; z.B. der mehrfach gesyncte Garmin-Schlaf).
@@ -125,6 +128,16 @@ class AevumApplication : Application() {
             Log.e("AevumApplication", "DB-Integritätscheck fehlgeschlagen — weiter", e)
         }
         com.d_drostes_apps.aevum.util.CrashLogger.install(this)
+        // M18.109 (User-Vorgabe): Fail-Fast-DB-Check — bewusst OHNE
+        // try/catch. Fehlt eine Room-Migration oder passt das Schema
+        // nicht, wirft das Öffnen eine IllegalStateException → die App
+        // crasht beim Start (Stacktrace landet via CrashLogger in
+        // last-crash.log), statt die Datenbank still zu löschen
+        // (fallbackToDestructiveMigration wurde entfernt). Ein Update
+        // mit der fehlenden Migration repariert die Bestands-DB normal.
+        // Der Check läuft NACH CrashLogger.install, damit der Trace
+        // garantiert geschrieben wird.
+        EntryPointAccessors.fromApplication(this, Deps::class.java).database()
         // M12.0.2: Defensive Initialisierung — jede Komponente wird einzeln
         // in try-catch gewrappt. Ein Fehler in MapLibre, SleepImport oder
         // GeofenceRefresh darf niemals den App-Start abbrechen.
