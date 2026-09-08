@@ -93,6 +93,67 @@ object WalkingDetectionEngine {
         else withLead
     }
 
+    /** M18.110: GPS-Fixes mit Fahrzeug-Tempo sind KEIN Wanderungs-Signal.
+     *
+     *  User-Bug „Spazieren wurde aufgezeichnet, während ich eine Weile
+     *  durch eine 30er-Zone gefahren bin“: Die GPS-Walking-Phase im
+     *  DriveDetectionService misst Netto-Displacement OHNE Tempo-Gate —
+     *  5 Min × 8,3 m/s (30er-Zone) = 2.500 m ≫ 300 m-Gate → die Phase
+     *  qualifizierte Fahrzeug-Bewegung als Wanderung. Ursache: Der
+     *  alte 24/7-Stream (M18.104 davor) lieferte Fix-Raten, bei denen
+     *  Googles WALKING-AR + Tempo-Realität auseinanderliefen; seit dem
+     *  Burst-Redesign läuft der GPS-Pfad additionally in CONFIRM-Bursts
+     *  (Fahrzeug-Verdacht!), wo Fahrzeug-Tempo die häufigste Evidenz ist.
+     *  8 m/s = AUTO_SPEED_MPS: unterhalb beginnt der Radfahr-Bereich —
+     *  Joggen (RUNNING-AR, eigener Typ) liegt real ≤ 5,5 m/s. Ein
+     *  Fahrzeug-Tempo-Fix verwirft die laufende Phase SOFORT (Neustart
+     *  ab 0), statt sie weiterlaufen zu lassen. */
+    const val WALKING_VEHICLE_SPEED_MPS = 8.0f
+
+    /** M18.110: Ist dieser Fix mit Fahrzeug-Tempo behaftet? (null = kein
+     *  Speed-Feld → keine Aussage, Phase bleibt). */
+    fun isVehicleSpeed(speedMps: Float?): Boolean =
+        speedMps != null && speedMps >= WALKING_VEHICLE_SPEED_MPS
+
+    /** M18.110: Displacement-Veto für Fixes OHNE Speed-Feld (BALANCED-
+     *  Walking-Bursts liefern oft kein hasSpeed). Eine Ortsveränderung
+     *  ≥ 350 m zwischen zwei Fixes entspricht ≥ 5,8 m/s Durchschnitt bei
+     *  60s-Intervall — über der Lauf-Obergrenze (WALK_RUN_MAX ≈ 5,5 m/s
+     *  = 330 m), damit schnelles Joggen (eigener "joggen"-Pfad via
+     *  RUNNING-AR) nicht vom Veto getroffen wird. Echte Wanderungs-Fixe
+     *  bleiben ≤ 90-150 m (Geh-Tempo). */
+    const val WALKING_DISPLACEMENT_VETO_M = 350.0
+
+    /** M18.110: Mindest-dt für das Displacement-Veto (kürzere Abstände
+     *  = GPS-Jitter-Sprünge, keine Fortbewegung). */
+    const val WALKING_DISPLACEMENT_VETO_MIN_DT_MS = 30_000L
+
+    /** M18.110: Max-dt für das Displacement-Veto — der Vor-Fix muss zur
+     *  KONTINUIERLICHEN Stream-Serie gehören. Ein älterer Fix (Stream
+     *  war aus, User ist längst woanders hin gegangen) sagt nichts über
+     *  die aktuelle Bewegung aus — sonst würde der 400-m-Gang vom
+     *  20-Min-alten Parkplatz zum Laden fälschlich als Fahrzeug-
+     *  Bewegung verworfen. 2 Min deckt den 15s-Stream (maxUpdateDelay
+     *  2×) und den 60s-BALANCED-Stream ab. */
+    const val WALKING_DISPLACEMENT_VETO_MAX_DT_MS = 2L * 60 * 1000
+
+    /** M18.110: MAX-Gate der GPS-Walking-Phase — die Struktur-Fix für
+     *  „Spazieren während der Fahrt". Eine Wanderung ist per Definition
+     *  ≤ Lauf-Tempo: Netto-Displacement / Phasen-Dauer ≥ 5,0 m/s
+     *  (18 km/h) ist KEIN Spaziergang mehr — egal was die Einzel-Fixe
+     *  für Speed-Felder haben. 5,0 m/s liegt über realen Lauf-Tempo
+     *  (5,5 m/s nur für kurze Sprints — nicht 5 Min am Stück) und weit
+     *  unter Fahrzeug-Tempo (8,3 m/s in der 30er-Zone = 2.500 m in
+     *  5 Min — genau der User-Fall). */
+    const val WALKING_MAX_AVG_SPEED_MPS = 5.0f
+
+    /** M18.110: Überschreitet die Phase das Wanderungs-Tempo? (Struktur-
+     *  Gate am Start-Entscheidungspunkt.) */
+    fun exceedsWalkingSpeed(netMeters: Double, durationMs: Long): Boolean {
+        if (durationMs <= 0L) return false
+        return (netMeters / (durationMs / 1000.0)) >= WALKING_MAX_AVG_SPEED_MPS
+    }
+
     /**
      * Soll die laufende Wanderung gestoppt werden? Erst wenn seit
      * [WALKING_WATCHDOG_NO_SIGNAL_MS] (5 min) kein Walking-Signal mehr

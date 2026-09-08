@@ -1083,6 +1083,19 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             // die Bestätigung (User-Spezifikation: "Sobald
                             // die Autofahrt erkannt wird, soll die Activity
                             // Autofahren gestartet werden").
+                            // M18.110: Der GPS-Cluster (CONFIRM-Burst, 15s-Fixes)
+                            // ist der präzisere Start-Anker — seine Fixes liegen
+                            // typisch VOR dem ENTER. Liefert er hier schon einen
+                            // Cluster (≥ 30s Spread), wird der Session-Start auf
+                            // den ältesten Probe zurückdatiert (M18.110-Cluster-
+                            // Spread); sonst startet die Session bei `now`
+                            // (im Worker-Lauf).
+                            val burstCluster = DriveDetectionEngine.toVehicleCluster(
+                                bridge.currentDriveProbes(), now
+                            )
+                            if (burstCluster != null) {
+                                bridge.addSample(burstCluster.startMs, 75)
+                            }
                             DriveStartWorker.schedule(context)
                             // Watchdog vorsorglich starten: stoppt die
                             // Session nach 5 Minuten ohne weiteres Signal.

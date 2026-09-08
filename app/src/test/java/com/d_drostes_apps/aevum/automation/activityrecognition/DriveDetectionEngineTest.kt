@@ -185,13 +185,40 @@ class DriveDetectionEngineTest {
     }
 
     @Test
-    fun `zu wenige Messungen — keine Entscheidung`() {
-        // Nur 2 Probes: noch keine Fahrt-Bestätigung (Mindestdauer).
+    fun `einzelner Probe — keine Entscheidung`() {
+        // M18.110: MIN_VALID_PROBES = 2 (Burst-Ära, 15s-Fix-Rate —
+        // 3 Probes hätten die erste Klassifikation auf 45s verzögert).
+        // Ein einzelner Probe bleibt unter der Untergrenze.
         val probes = listOf(
-            probe(0, 20.0f, latitude = 50.0, longitude = 8.0),
-            probe(1, 22.0f, latitude = 50.004, longitude = 8.0)
+            probe(0, 20.0f, latitude = 50.0, longitude = 8.0)
         )
-        val result = DriveDetectionEngine.classify(probes, t0 + 2 * 120_000L)
+        val result = DriveDetectionEngine.classify(probes, t0 + 120_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.InsufficientData)
+    }
+
+    @Test
+    fun `zwei schnelle Probes über 30s Spread — Fahrt erkannt (schneller Burst-Start M18-110)`() {
+        // M18.110: Der CONFIRM-Burst liefert 15s-Fixes. 2 schnelle
+        // Probes à 15s + Netto-Displacement ≥ 150 m reichen jetzt —
+        // mit MIN_VALID_PROBES = 3 wäre die erste Entscheidung erst
+        // nach 45s gekommen (Hauptanteil der ~5-Min-Start-Latenz).
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 30_000L, 22.0f, 20f, latitude = 50.009, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 30_000L)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `zwei schnelle Probes unter 30s Spread — weiterhin keine Entscheidung (Burst-Schutz bleibt)`() {
+        // Regression zum M18.95-Burst-Schutz: 2 Fixes in 20s = GPS-Burst,
+        // Spread-Gate (< 30s) fängt es VOR der Anzahl-Änderung.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 20_000L, 22.0f, 20f, latitude = 50.006, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 20_000L)
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.InsufficientData)
     }
 
@@ -564,6 +591,37 @@ class DriveDetectionEngineTest {
         )
         val result = DriveDetectionEngine.classify(probes, t0 + 480_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    // ── M18.110: Cluster-Rückdatierung im Burst-Modus (15s-Fix-Rate) ──
+
+    @Test
+    fun `Cluster bei 30s Spread — 15s-Burst-Fixe liefern einen Start-Anker (M18-110)`() {
+        // M18.104-Burst: CONFIRM-Burst liefert 15s-Fixes. Nach 30s sind
+        // 3 Fixes da — Spread 30s. Mit dem alten 60s-Minimum lieferte
+        // toVehicleCluster NULL → DriveStartWorker startete ohne
+        // Rückdatierung mitten in der Fahrt (User-Bug ~5-Min-Latenz).
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 15_000L, 21.0f, 20f, latitude = 50.0045, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 30_000L, 22.0f, 20f, latitude = 50.009, longitude = 8.000)
+        )
+        val cluster = DriveDetectionEngine.toVehicleCluster(probes, t0 + 30_000L)
+        assertThat(cluster).isNotNull()
+        assertThat(cluster!!.startMs).isEqualTo(t0)
+        assertThat(cluster.endMs).isEqualTo(t0 + 30_000L)
+    }
+
+    @Test
+    fun `Cluster unter 30s Spread — kein Start-Anker (Burst-Schutz bleibt)`() {
+        // Regression: 2 Fixes in 20s sind ein Burst — ohne Cluster
+        // startet die Session bei `now` statt mit falschem Anker.
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 20_000L, 21.0f, 20f, latitude = 50.006, longitude = 8.000)
+        )
+        val cluster = DriveDetectionEngine.toVehicleCluster(probes, t0 + 20_000L)
+        assertThat(cluster).isNull()
     }
 
     @Test

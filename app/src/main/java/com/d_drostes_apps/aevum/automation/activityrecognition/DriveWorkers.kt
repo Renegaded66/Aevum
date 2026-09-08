@@ -715,6 +715,9 @@ class DriveProbeWorker(
                     //    (deckt "Fahrt begann vor der Erkennung" ab).
                     //    Dafür den Cluster in die Bridge legen und die
                     //    Probes leeren (kein erneutes Driving-Melden).
+                    // M18.110: DriveProbeWorker-Takt ist 2 Min — der
+                    // DriveStartWorker brauchte hier bislang ≥ 60s Spread
+                    // im Probe-Fenster, sonst keine Rückdatierung.
                     DriveDetectionEngine.toVehicleCluster(bridge.currentDriveProbes(), now)?.let { cluster ->
                         bridge.addSample(cluster.startMs, 75)
                         bridge.addSample(cluster.endMs, 75)
