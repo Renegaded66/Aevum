@@ -185,18 +185,30 @@ class InitialActivityProbeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (!ActivityRecognitionPermission.isGranted(context)) return
         if (!com.google.android.gms.location.ActivityRecognitionResult.hasResult(intent)) return
-        val result = com.google.android.gms.location.ActivityRecognitionResult.extractResult(intent) ?: return
-        val bridge = EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            ActivityRecognitionBridgeProvider::class.java
-        ).activityRecognitionBridge()
-        val now = System.currentTimeMillis()
-        for (activity in result.probableActivities) {
-            when (activity.type) {
-                DetectedActivity.IN_VEHICLE -> bridge.addSample(now, activity.confidence)
-                // STILL-Cluster interessiert uns hier nicht — die Schlaf-Fusion
-                // läuft separat und der Worker nimmt den Cluster erst ab 4h an.
+        // M18.108 (Startup-Crash-Härtung): Dieser Receiver läuft auf dem
+        // Main-Thread des App-Prozesses (manifest-registriert, exported=false,
+        // PendingIntent vom InitialActivitySnapshotWorker — der 60s nach
+        // JEDEM App-Start feuerte). Ein uncaught Crash hier (Hilt-EntryPoint
+        // nicht bereit, GMS-Missing-Library, Bridge-Defekt) killt den
+        // Prozess genau im App-Öffnen-Fenster. Gleiche Ausnahme wie v7.1:
+        // 3rd-party-GMS-Pfad in try/catch, Fehler geloggt statt verschluckt —
+        // der Probe ist optional (Best-Effort-Erkennung), nie kritisch.
+        try {
+            val result = com.google.android.gms.location.ActivityRecognitionResult.extractResult(intent) ?: return
+            val bridge = EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                ActivityRecognitionBridgeProvider::class.java
+            ).activityRecognitionBridge()
+            val now = System.currentTimeMillis()
+            for (activity in result.probableActivities) {
+                when (activity.type) {
+                    DetectedActivity.IN_VEHICLE -> bridge.addSample(now, activity.confidence)
+                    // STILL-Cluster interessiert uns hier nicht — die Schlaf-Fusion
+                    // läuft separat und der Worker nimmt den Cluster erst ab 4h an.
+                }
             }
+        } catch (t: Throwable) {
+            android.util.Log.e("InitialActivityProbe", "AR-Probe fehlgeschlagen — Broadcast verworfen (Prozess bleibt stabil)", t)
         }
     }
 }

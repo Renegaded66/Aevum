@@ -58,9 +58,13 @@ class GeofenceForegroundService : Service() {
         //   2) Hier: Notification-Building in den try-Block, Fallback auf den
         //      2-Arg-Aufruf (nimmt den Manifest-Typ — kontraktgültig auf allen
         //      API-Leveln), NIE mehr Typ 0.
-        com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
-        val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
+        // M18.108: ensureChannel/buildNotification ebenfalls IN den try-Block
+        // gezogen (M18.24-Lektion aus LiveActivityService: Notification-Building
+        // kann auf OEM-Geraeten werfen; ein uncaught Crash hier beim App-Start
+        // killt den Prozess, bevor die UI erscheint).
         try {
+            com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+            val notification = com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.buildNotification(this)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 // M18.45/M18.107: SecurityException-Schutz. Ein FGS mit Typ "location"
                 // darf nur starten, wenn die Location-Berechtigungen tatsächlich
