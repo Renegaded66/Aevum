@@ -416,10 +416,16 @@ class DriveDetectionService : Service() {
                 // redundant (Fixes fließen bereits in dichtester Form).
                 return
             StreamMode.WALKING -> {
-                // Upgrade: BALANCED 60s → HIGH 15s. Die Walking-Phase
-                // profitiert weiter (mehr Fixes = besseres Displacement),
-                // der Fahrzeug-Verdacht bekommt die nötige Dichte.
+                // Upgrade: BALANCED 60s → HIGH 15s. Der Fahrzeug-Verdacht
+                // bekommt die nötige Dichte.
+                // M18.110: Die fälschlich laufende Walking-Phase wird hier
+                // verworfen — ein Fahrzeug-Verdacht (CONFIRM-Trigger) WIDER-
+                // spricht dem Wanderungs-Verdacht. Ohne Reset klassifizierte
+                // der nächste CONFIRM-Fix (8,3 m/s in der 30er-Zone) die
+                // Fahrt (Gates) und die Phase startete danach sofort ein
+                // "Spazieren" IN die Fahrt hinein.
                 Log.d(TAG, "Modus-Upgrade: WALKING → CONFIRM (Fahrzeug-Verdacht)")
+                resetWalkingPhase()
             }
             StreamMode.OFF -> {
                 if (!DetectionBurstPolicy.confirmBurstAllowed(now, lastResultlessConfirmEndMs)) {
@@ -620,9 +626,15 @@ class DriveDetectionService : Service() {
                 // Ergebnislos: Cooldown setzen. Läuft noch eine Walking-
                 // Phase (Displacement am Wachsen), bekommt sie ein
                 // Frisch-Fenster im WALKING-Modus.
+                // M18.110: Die Phase hier NICHT übernehmen — nach einem
+                // Fahrzeug-Verdacht hat sie im CONFIRM-Burst Fahrzeug-
+                // Tempo gemessen (User-Fall 30er-Zone). Der GPS-Phase-
+                // Zähler startet frisch; die AR-Schwelle (markWalkingSignal
+                // vom ENTER) läuft unabhängig weiter.
                 lastResultlessConfirmEndMs = now
                 if (bridge.isWalkingEnabled() && walkingPhaseStartMs != 0L) {
-                    Log.d(TAG, "CONFIRM ergebnislos, Walking-Phase aktiv → WALKING_CHECK-Fortsetzung")
+                    Log.d(TAG, "CONFIRM ergebnislos: Phase verworfen (M18.110), Frisch-Fenster im WALKING-Modus")
+                    resetWalkingPhase()
                     mode = StreamMode.WALKING
                     modeStartMs = now
                     requestStreamForCurrentMode()
@@ -837,8 +849,10 @@ class DriveDetectionService : Service() {
         // Autofahrt, nur wenn weder Walking-Session noch Fahrt aktiv.
         // Läuft in JEDEM Modus (CONFIRM-Fixes sind wegen der höheren
         // Dichte sogar besser fürs Displacement).
+        // M18.110: Vor-Fix (lastLat/lastTsMs werden unten überschrieben)
+        // für das Displacement-Veto mitgeben.
         if (!bridge.isWalkingActive() && !bridge.isDriveActive() && bridge.isWalkingEnabled()) {
-            updateWalkingPhase(loc, now)
+            updateWalkingPhase(loc, now, lastLat, lastLon, lastTsMs)
         }
     }
 
@@ -847,8 +861,30 @@ class DriveDetectionService : Service() {
      * vollständig übernommen (Orts-Boundaries, Stillstand-Reset,
      * 5-Min-Schwelle, 300m-Displacement).
      */
-    private fun updateWalkingPhase(loc: Location, now: Long) {
+    private fun updateWalkingPhase(
+        loc: Location,
+        now: Long,
+        prevFixLat: Double?,
+        prevFixLon: Double?,
+        prevFixTsMs: Long
+    ) {
         if (loc.accuracy > 50f) return
+
+        // M18.110: Fahrzeug-Tempo verifiziert einen Wanderungs-Verdacht
+        // NEGATIV — die Phase wird SOFORT verworfen, statt die
+        // Fahrzeug-Bewegung als Wanderungs-Displacement zu messen.
+        // (User-Bug „Spazieren während 30er-Zone-Fahrt": 5 Min × 8,3 m/s
+        // = 2.500 m ≫ 300-m-Gate, ohne dieses Gate.)
+        if (WalkingDetectionEngine.isVehicleSpeed(
+                if (loc.hasSpeed()) loc.speed else null
+            )
+        ) {
+            if (walkingPhaseStartMs != 0L) {
+                Log.d(TAG, "M18.110: Fahrzeug-Tempo ${loc.speed} m/s — Walking-Phase verworfen")
+                resetWalkingPhase()
+            }
+            return
+        }
 
         val circles = bridge.currentGeofenceContext()
         val insideCircle = circles.firstOrNull {
@@ -856,6 +892,25 @@ class DriveDetectionService : Service() {
         }
 
         if (walkingPhaseStartMs == 0L) {
+            // M18.110: KEINE neue Phase, wenn die Bewegung zum Vor-Fix
+            // schon Fahrzeug-Niveau hat (Vor-Fix = letzter Stream-Fix
+            // JEDES Modus — BALANCED-Fixes liefern oft KEIN Speed-Feld).
+            // ≥ 250 m zwischen Fixes ≈ ≥ 5 m/s Durchschnitt — nachhaltig
+            // über Geh-Tempo (1,5 m/s = 90 m/Fix). M18.110-Upgrade-Reset:
+            // Auch die AR-seitige Phase (WALKING-ENTER, markWalkingSignal)
+            // endet hier — das Fahrzeug hat sie widerlegt. Sonst startet
+            // WalkingStartWorker nach der (nie bestätigten) Fahrt mit
+            // 5-Min-Vorlauf IN die Fahrt hinein.
+            val displaced = prevFixLat != null && prevFixLon != null && prevFixTsMs > 0 &&
+                (now - prevFixTsMs) in WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MIN_DT_MS..
+                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MAX_DT_MS &&
+                haversineMeters(prevFixLat, prevFixLon, loc.latitude, loc.longitude) >=
+                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_M
+            if (displaced) {
+                bridge.clearWalkingSignal()
+                Log.d(TAG, "M18.110: Kein Speed-Feld, aber ≥ 350 m vom Vor-Fix — keine Walking-Phase (Fahrzeug-Verdacht)")
+                return
+            }
             // M18.84: Phase NICHT starten, während der Fix in einem
             // benannten Ort liegt (Ankunft ≠ Wanderungs-Beginn).
             if (insideCircle != null) {
@@ -896,6 +951,15 @@ class DriveDetectionService : Service() {
         val duration = now - walkingPhaseStartMs
 
         if (duration < WalkingDetectionEngine.WALKING_THRESHOLD_MS) return
+
+        // M18.110: MAX-Gate — Netto-Durchschnitt ≥ 5 m/s ist KEINE
+        // Wanderung (Fahrzeug-Tempo ohne Speed-Feld, genau der User-
+        // Fall „30er-Zone"). Phase verwerfen, nicht verlängern.
+        if (WalkingDetectionEngine.exceedsWalkingSpeed(net, duration)) {
+            Log.d(TAG, "M18.110: Phase-Tempo ${(net / (duration / 1000.0))} m/s über Lauf-Niveau — Phase verworfen")
+            resetWalkingPhase()
+            return
+        }
 
         if (net < WALKING_MIN_GPS_DISTANCE_M) {
             // Noch nicht weit genug — aktuelle Netto-Distanz als

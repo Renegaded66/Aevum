@@ -228,4 +228,61 @@ class WalkingDetectionEngineTest {
             )
         )
     }
+
+    // ── M18.110: Fahrzeug-Gates gegen „Spazieren während der Fahrt" ──
+
+    @Test
+    fun `vehicle speed fix is detected as vehicle`() {
+        assertTrue(WalkingDetectionEngine.isVehicleSpeed(8.3f)) // 30er-Zone
+        assertTrue(WalkingDetectionEngine.isVehicleSpeed(15.0f))
+        assertFalse(WalkingDetectionEngine.isVehicleSpeed(7.9f)) // Fahrrad
+        assertFalse(WalkingDetectionEngine.isVehicleSpeed(1.4f)) // Gehen
+        assertFalse(WalkingDetectionEngine.isVehicleSpeed(null)) // kein Speed-Feld
+    }
+
+    @Test
+    fun `phase exceeding walking speed is rejected — 30kmh car ride`() {
+        // User-Fall: 5 Min durch die 30er-Zone = ~2.500 m Netto.
+        assertTrue(
+            WalkingDetectionEngine.exceedsWalkingSpeed(
+                netMeters = 2500.0,
+                durationMs = WalkingDetectionEngine.WALKING_THRESHOLD_MS
+            )
+        )
+    }
+
+    @Test
+    fun `real walk does not exceed walking speed`() {
+        // 5 Min Gehen ≈ 400-450 m Netto — deutlich unter 5 m/s.
+        assertFalse(
+            WalkingDetectionEngine.exceedsWalkingSpeed(
+                netMeters = 450.0,
+                durationMs = WalkingDetectionEngine.WALKING_THRESHOLD_MS
+            )
+        )
+    }
+
+    @Test
+    fun `displacement veto catches no-speed vehicle fix at walk interval`() {
+        // 60s BALANCED-Fixes, kein hasSpeed: 360 m zwischen Fixes =
+        // 6 m/s Durchschnitt → Fahrzeug-Niveau.
+        assertTrue(
+            360.0 >= WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_M
+        )
+        // Gehen: 90 m/Fix bleibt unter dem Veto.
+        assertFalse(
+            90.0 >= WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_M
+        )
+    }
+
+    @Test
+    fun `veto dt window excludes stale and jitter fixes`() {
+        val minDt = WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MIN_DT_MS
+        val maxDt = WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MAX_DT_MS
+        // Jitter (10s) und Stale (5 Min) liegen außerhalb des Veto-Fensters.
+        assertFalse(minDt <= 10_000L && 10_000L <= maxDt)
+        assertFalse(minDt <= 5 * 60_000L && 5 * 60_000L <= maxDt)
+        // Der 15s-Stream-Fix (30s dt) liegt im Fenster.
+        assertTrue(minDt <= 30_000L && 30_000L <= maxDt)
+    }
 }

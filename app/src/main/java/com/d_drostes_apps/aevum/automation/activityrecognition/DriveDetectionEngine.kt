@@ -61,8 +61,18 @@ object DriveDetectionEngine {
     const val MAX_ACCURACY_M = 50f
     /** Probes älter als 15 Minuten gehören zu einer früheren Fahrt. */
     const val MAX_PROBE_AGE_MS = 15L * 60 * 1000
-    /** Mindestanzahl gültiger Probes für eine Entscheidung. */
-    const val MIN_VALID_PROBES = 3
+    /** Mindestanzahl gültiger Probes für eine Entscheidung.
+     *  M18.110: 3 -> 2. Seit dem M18.104-Burst-Redesign (CONFIRM-Burst,
+     *  15s-Stream) brauchte die erste Klassifikation 3 Fixes = 45s —
+     *  die Engine klassifizierte erst NACH 45s überhaupt, erst danach
+     *  konnte der 30s-Spread erfüllt sein (real ~60s bis zum Start).
+     *  2 Probes sind jetzt die Untergrenze, und die False-Positive-
+     *  Schutz-Landschaft trägt das: MIN_SPREAD_MS = 30s (kein Burst),
+     *  2er-Konsekutiv-Kette, fastCount >= 2, Netto-Displacement >= 150 m
+     *  (kein Drift), Geofence-Veto (kein Indoor), 60s-GPS-Warmup.
+     *  Für einen 2-Probe-Start müssen BEIDE Probes >= 8 m/s sein —
+     *  Radfahrer-Spikes (8.5/5.0 alternierend) scheitern weiterhin. */
+    const val MIN_VALID_PROBES = 2
     /** Mindestens N schnelle Probes (>= [AUTO_SPEED_MPS]) im Fenster —
      *  unabhängig von der Kette. M18.75: Die Erkennung darf nicht an
      *  EINEM einzelnen kaputten Fix hängen (Ampel, Stop&Go, Tunnel,
@@ -513,6 +523,18 @@ object DriveDetectionEngine {
      * 2 Fixes 60s auseinander; wenn der AR-Cluster parallel gedrained
      * wurde, muss daraus trotzdem ein Cluster entstehen, sonst ginge
      * die bestätigte Fahrt verloren.
+     *
+     * M18.110: 60s -> 30s Spread. Seit dem M18.104-Burst-Redesign
+     * liefern CONFIRM-Bursts Fix-Raten von 15s — eine frisch erkannte
+     * Fahrt hat nach 30-45s erst 2-3 Fixes, ihr Spread (30s) blieb
+     * UNTER dem 60s-Minimum → toVehicleCluster lieferte null →
+     * DriveStartWorker startete mit startedAt = JETZT statt mit dem
+     * ältesten Probe (keine Rückdatierung) — Hauptursache des User-Bugs
+     * „Fahrt startet erst nach ~5 Minuten" (Erkennung 30-45s + Worker
+     * + keine Rückdatierung = Start mitten in der Fahrt). 30s ist
+     * weiterhin sicher: Ein GPS-Burst (2-3 Fixes < 30s) scheitert
+     * bereits am 30s-Spread der ENGINE (MIN_SPREAD_MS) — hier zählt
+     * nur, dass die überlebende Serie einen Start-Anker hergibt.
      */
     fun toVehicleCluster(
         probes: List<DriveProbe>,
@@ -523,7 +545,7 @@ object DriveDetectionEngine {
             .filter { it.accuracyMeters <= MAX_ACCURACY_M }
         if (valid.size < 2) return null
         val spread = valid.maxOf { it.timestampMs } - valid.minOf { it.timestampMs }
-        if (spread < 60_000L) return null
+        if (spread < 30_000L) return null
         val start = valid.minOf { it.timestampMs }
         val end = valid.maxOf { it.timestampMs }
         return VehicleCluster(
