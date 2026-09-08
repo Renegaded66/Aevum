@@ -40,7 +40,15 @@ private const val TAG = "ProactiveGeofenceCheck"
 // für den GMS-Geofence-Fallback völlig (Geofence-Trigger mit 5 Min
 // Latenz sind für Zuhause/Gym/Arbeit unsichtbar), spart 60% der
 // Wakes (720 -> 288/Tag).
-private const val CHECK_INTERVAL_MS = 5L * 60 * 1000  // 5 Minuten
+// M18.111 (User: „Akku hat Priorität, lieber weniger exakt"): 5 → 10
+// Min. Presence-/Timeline-Latenz ±5 Min (bewusst in Kauf genommen),
+// Verdachts-Checks seltener, aber die Schwellen (1500 m/200 m in
+// 2–15 Min dt) bleiben mathematisch gültig: 10-Min-dt erfasst Auto
+// (≥ 1500 m = 9 km/h Durchschnitt) und Outdoor-Bewegung (≥ 200 m)
+// weiterhin zuverlässig. 144 Fixes/Tag statt 288. Präzise Zonen-
+// Events liefern weiter die GMS-Geofences — der Worker ist NUR der
+// Fallback-/Verdachts-/Presence-Takt.
+private const val CHECK_INTERVAL_MS = 10L * 60 * 1000  // 10 Minuten
 private const val CHECK_WORK = "aevum.proactive_geofence_check"
 
 class ProactiveGeofenceCheckWorker(

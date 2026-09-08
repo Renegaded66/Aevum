@@ -43,15 +43,22 @@ object DetectionBurstPolicy {
         TRACK
     }
 
-    /** CONFIRM-Burst-Fenster. 6 Min: GPS_WARMUP (60s) + ~5 Min verwertbare
-     *  Fixes. Reicht für DriveDetectionEngine (MIN_SPREAD 30s + 2 schnelle
-     *  Probes + Netto 150m) selbst bei Kaltstart (Assisted GPS 20-60s,
-     *  Cold GPS 60-120s) UND für langsames Losfahren (Stau direkt nach
-     *  Start). Danach endet der Burst ergebnislos — kein Dauerzustand.
-     *  Historischer Vergleich: Der 24/7-Stream brauchte für dieselbe
-     *  Klassifikation ~45-90s WARM-Zeit — der Burst zahlt nur die
-     *  Kaltstart-Minute drauf, spart aber die restlichen 23h53m. */
-    const val CONFIRM_WINDOW_MS = 6L * 60 * 1000
+    /** CONFIRM-Burst-Fenster. M18.111 (User: „Akku hat Priorität, lieber
+     *  etwas weniger exakt"): 6 Min → 4 Min. Seit M18.110 erkennt die
+     *  Engine mit 2 schnellen Probes über 30s Spread — der 4-Min-Burst
+     *  liefert bei 20s-Intervall nach Warmup ~9 Fixes, das reicht für
+     *  Erkennung + Rückdatierung (Cluster-Spread 30s) mit 33 % weniger
+     *  GPS-Zeit pro Verdacht. Grenzfall-Kaltstart (60s Warmup) hat noch
+     *  3 Min verwertbare Fixes. Extensions (MAX_CONFIRM_EXTENSIONS=2)
+     *  decken Stau/Anfahren weiterhin ab. */
+    const val CONFIRM_WINDOW_MS = 4L * 60 * 1000
+
+    /** CONFIRM-Burst-Fix-Intervall. M18.111: 15s → 20s (25 % weniger
+     *  Fix-Requests, gleiche Erkennungslogik: 2 Probes über 30s Spread
+     *  = 2 Intervalle; Anfahr-Erkennung ±10s träger). Die echte
+     *  Aufzeichnung (TRACK_DRIVE) bleibt bei 15s — sie läuft nur
+     *  während bestätigter Fahrten, dort ist die Track-Dichte wichtig. */
+    const val CONFIRM_INTERVAL_MS = 20_000L
 
     /** WALKING_CHECK-Fenster. 8 Min: Die Walking-Schwelle ist 5 Min
      *  Phase + Netto-Displacement ≥ 300 m (WALKING_MIN_GPS_DISTANCE_M).
@@ -122,21 +129,26 @@ object DetectionBurstPolicy {
     // lieferte (M18.64-Root-Cause: "Wenn Google kein IN_VEHICLE-Event
     // liefert (App im Hintergrund, Sensor-Spring)"). Der Verdachts-Check
     // schließt diese Lücke OHNE Dauer-GPS: Er hängt sich an den
-    // bestehenden 5-Min-Geofence-Check (ProactiveGeofenceCheckWorker —
-    // der Fix liegt ohnehin an, NULL zusätzliche GPS-Kosten) und
-    // vergleicht den Standort mit dem Fix von vor ~5 Minuten:
-    //   • ≥ 1500 m Netto (≈ 18 km/h Durchschnitt) → Fahrzeug-Verdacht
-    //     → CONFIRM-Burst (Speed-Gates entscheiden).
+    // bestehenden Fallback-Geofence-Check (ProactiveGeofenceCheckWorker,
+    // M18.111: 10-Min-Takt, BALANCED — der Fix liegt ohnehin an, NULL
+    // zusätzliche GPS-Kosten) und vergleicht den Standort mit dem Fix
+    // von vor ~10 Minuten:
+    //   • ≥ 1500 m Netto (≈ 9 km/h Durchschnitt über 10 Min) → Fahrzeug-
+    //     Verdacht → CONFIRM-Burst (Speed-Gates entscheiden). 30 km/h-
+    //     Stadtfahrt legt 5 km in 10 Min zurück — der Pfad feuert lange,
+    //     bevor die 15-Min-Fallback-Toleranz erreicht ist.
     //   • ≥ 200 m Netto (≈ 2,4 km/h — nachhaltige OUTDOOR-Bewegung;
     //     Indoor-Drift pendelt ±10-50 m um denselben Punkt, Netto ~0)
     //     → WALKING_CHECK-Burst (300m-Displacement-Gate entscheidet).
     // Gehen (0,4 km/5 Min) und Drift lösen den Fahrzeug-Pfad NIE aus;
-    // 200 m Netto in 5 Min ist nachhaltige Ortsveränderung, kein Drift.
+    // 200 m Netto ist nachhaltige Ortsveränderung, kein Drift.
     // Burst-Kaskaden fangen die Cooldowns (3/10 Min) ab.
     const val DRIVE_SUSPICION_MIN_DISPLACEMENT_M = 1500.0
     const val WALK_SUSPICION_MIN_DISPLACEMENT_M = 200.0
     /** Verdachts-Fenster: Beide Fixes müssen 2–15 Min auseinanderliegen
-     *  (zu nah = Positions-Jitter, zu weit = Drift-Baseline veraltet). */
+     *  (zu nah = Positions-Jitter, zu weit = Drift-Baseline veraltet).
+     *  M18.111: Bei 10-Min-Worker-Takt landen die dt typisch bei 8–13
+     *  Min (WorkManager-Jitter) — das Fenster bleibt kompatibel. */
     const val SUSPICION_MIN_DT_MS = 2L * 60 * 1000
     const val SUSPICION_MAX_DT_MS = 15L * 60 * 1000
 

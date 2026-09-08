@@ -113,8 +113,23 @@ class CurrentZoneProvider @Inject constructor(
         }
 
         val location = try {
+            // M18.111 (User: „Akku hat Priorität"): BALANCED statt
+            // HIGH_ACCURACY. Dieser Fix läuft 288×/Tag (alle 5 Min) — er
+            // ist nur der FALLBACK für die GMS-Geofences (der präzise,
+            // OS-managede Dauer-Pfad), die Basis des Presence-Samplers
+            // und der Bewegungs-Verdachts-Vergleich. Ein WLAN/Cell-Fix
+            // (Genauigkeit 20–60 m) reicht für Zonen-Treffer (Radien
+            // typ. ≥ 100 m), Presence-Flackern fängt PRESENCE_CONFIRM_
+            // MISSES = 2 ab, der Verdacht-Vergleich braucht nur Netto-
+            // Distanz (1500/200-m-Schwellen ≫ Fix-Genauigkeit). Echte
+            // Fahrt/Walking-Erkennung hängt NICHT an diesem Fix — sie
+            // läuft über AR-Transitions, Geofence-EXIT-Trigger und
+            // CONFIRM-Bursts. Einzige bewusste Verschlechterung: Indoor-
+            // Fixes können 60-100 m haben → ein Zonen-Rand-Fix kann
+            // flackern; die Presence-Dopplung (2 Misses) und die
+            // Zonenhysterese im GMS-Pfad decken das ab.
             client.getCurrentLocation(
-                Priority.PRIORITY_HIGH_ACCURACY,
+                Priority.PRIORITY_BALANCED_POWER_ACCURACY,
                 null
             ).await()
         } catch (e: Exception) {
