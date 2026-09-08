@@ -160,12 +160,19 @@ class LiveActivityManager @Inject constructor(
             while (true) {
                 try {
                     val session = liveSession.value
-                    _nowMs.value = System.currentTimeMillis()
+                    val now = System.currentTimeMillis()
+                    _nowMs.value = now
                     if (session?.isRunning == true) {
                         _tick.value++
                     }
-                } catch (_: Exception) { }
-                delay(1_000)
+                    // Auf die nächste reale Sekunden-Grenze warten statt eine
+                    // feste Sekunde nach der Arbeit zu schlafen. So bleibt der
+                    // Flip-Timer dauerhaft sekundengenau, auch wenn der
+                    // Coroutine-Dispatcher zwischenzeitlich verzögert wurde.
+                    delay(1_000L - (now % 1_000L))
+                } catch (_: Exception) {
+                    delay(1_000)
+                }
             }
         }
     }
