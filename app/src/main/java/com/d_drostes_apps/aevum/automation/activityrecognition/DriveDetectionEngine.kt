@@ -188,6 +188,24 @@ object DriveDetectionEngine {
      *  kein neues False-Positive-Risiko (Drift ~0,5 m/s). */
     const val MIN_INFERRED_SPEED_MPS = 5.5f
 
+    /**
+     * M18.113 SPEED-ARBITER: Liegt der Fenster-Schnitt UNTER dieser Schwelle,
+     * sind die ≥ 8-m/s-Spikes GPS-Multipath-Artefakte eines Spaziergängers
+     * (Dauertempo 1,2-1,5 m/s) und KEINE Fahrt. Über der Schwelle (≥ 3 m/s
+     * = 10,8 km/h) gilt die bestehende Kette weiter — eine 30er-Fahrt mit
+     * Ampeln schafft ≥ 4,5 m/s und bleibt erkannt.
+     */
+    const val WALK_AVG_VETO_MPS = 3.0f
+
+    /**
+     * M18.113: Mindest-Positionstempo (m/s), das einen schnellen Probe
+     * bestätigt. 2,5 m/s = 9 km/h liegt klar über Geh-Tempo (1,5 m/s)
+     * und unter jeder realen Fahrt (auch Anfahren nach Ampel). Ein
+     * Multipath-Spike im Spaziergang legt zwischen den Fixes real nur
+     * 1,2-1,5 m/s Distanz — der Cross-Check verwirft ihn.
+     */
+    const val MIN_CONFIRMED_POS_SPEED_MPS = 2.5f
+
     // ── M18.79: Start-in-flight-Fenster (Blackout-/Race-Schutz) ────
     /** So lange nach [markDriveConfirmed] darf eine Auto-Session noch
      *  unterwegs sein, ohne dass die Selbstheilung das driveActive-Flag
@@ -409,18 +427,68 @@ object DriveDetectionEngine {
             }
         }
 
-        // 4) Aufeinanderfolgende schnelle Probes + Durchschnitt
+        // M18.113 SPEED-POSITION-KONSISTENZ (User-Bug „Drive aufgezeichnet obwohl
+        // Spaziergang"): Ein GPS-Multipath-Spike behauptet hohe Speed, während die
+        // POSITION zwischen den Fixes nur Geh-Distanz legt. Cross-Check: Ein
+        // schneller Probe (≥ AUTO_SPEED_MPS) zählt nur, wenn die Positions-Distanz
+        // zum vorherigen Koordinaten-Fix mindestens FAHR-tempo belegt —
+        // posSpeed = posDist / dt ≥ MIN_CONFIRMED_POS_SPEED_MPS (2,5 m/s = 9 km/h).
+        //   • Spaziergang + Spike: behauptet 8,5 m/s, Position legt 180 m/2 Min =
+        //     1,5 m/s (Geh-Tempo) → Spike verworfen → Kette bricht → keine Fahrt.
+        //   • Echte Fahrt (auch 500 m/2 Min im Test-Modell = 4,17 m/s): bestätigt.
+        //   • 30er-Zone Stop&Go: Ampel-Speed < 8 → Check greift gar nicht erst.
+        //   • Kurzes dt (< 30 s, CONFIRM-Burst 15s-Fixes): Position zu verrauscht
+        //     für den Check bei kurzen Distanzen — Speed gilt als bestätigt.
+        // Probes ohne Koordinaten (nur Speed) bleiben unbestätigt-frei: Der Check
+        // verlangt beide Endpunkte; fehlt eine Seite, zählt der Speed unverändert
+        // (Jitter-Fixes brechen die Kette nicht — M18.79-Verhalten).
+        val positionConfirmed = mutableSetOf<Int>()
+        var lastCoordsIdx = -1
+        for ((i, p) in filtered.withIndex()) {
+            val claimed = p.speedMps ?: inferredSpeed[p.timestampMs]
+            if (claimed != null && claimed >= AUTO_SPEED_MPS &&
+                p.latitude != null && p.longitude != null
+            ) {
+                if (lastCoordsIdx < 0) {
+                    // Erster Koordinaten-Fix der Serie — kein vorheriger Fix
+                    // zum Gegenprüfen: Speed gilt als bestätigt (Seriencode-Start).
+                    positionConfirmed.add(i)
+                } else {
+                    val prev = filtered[lastCoordsIdx]
+                    if (prev.latitude != null && prev.longitude != null) {
+                        val dtS = (p.timestampMs - prev.timestampMs) / 1000.0
+                        if (dtS >= 30.0) {
+                            val posDist = haversineMeters(
+                                prev.latitude!!, prev.longitude!!, p.latitude!!, p.longitude!!
+                            )
+                            if (posDist / dtS >= MIN_CONFIRMED_POS_SPEED_MPS) {
+                                positionConfirmed.add(i)
+                            }
+                        } else {
+                            // Kurzes dt: Position zu verrauscht für den Cross-Check —
+                            // Speed gilt als bestätigt (Burst-Modus, 15s-Fixes).
+                            positionConfirmed.add(i)
+                        }
+                    }
+                }
+            }
+            if (p.latitude != null && p.longitude != null) {
+                lastCoordsIdx = i
+            }
+        }
+        
+        // 4) Aufeinanderfolgende schnelle Probes (nur positionsbestätigte) + Durchschnitt
         var consecutive = 0
         var maxConsecutive = 0
         var fastCount = 0
         var speedSum = 0f
         var speedCount = 0
-        for (p in filtered) {
+        for ((i, p) in filtered.withIndex()) {
             val s = p.speedMps ?: inferredSpeed[p.timestampMs]
             if (s != null) {
                 speedSum += s
                 speedCount++
-                if (s >= AUTO_SPEED_MPS) {
+                if (s >= AUTO_SPEED_MPS && positionConfirmed.contains(i)) {
                     consecutive++
                     maxConsecutive = maxOf(maxConsecutive, consecutive)
                     fastCount++
@@ -488,6 +556,25 @@ object DriveDetectionEngine {
         // 2er-Konsekutiv-Kette, weil 8,5 m/s nie 2 Fixes am Stück
         // gehalten wird), einzelne GPS-Bursts scheitern an fastCount
         // >= 2, Stillstand/Drift am Netto-Displacement-Gate (>= 150m).
+        // M18.113 SPEED-ARBITER (User-Bug „Drive aufgezeichnet obwohl Spaziergang"):
+        // Ein reiner Spike-Schutz (fastCount + Konsekutiv-Kette) kann von GPS-
+        // Multipath überlistet werden: 2 nacheinanderfolgende ≥ 8-m/s-Spikes
+        // über 30-60s plus 150 m Netto-Displacement erfüllen alle Gates, obwohl
+        // der User im Schnitt GEHT. Die Mitte zwischen „30er-Fahrt muss
+        // erkannt werden" (avg bis 4,5 m/s ok) und „Spaziergang ist keine
+        // Fahrt" liegt in der VERHÄLTNIS-Betrachtung:
+        //   • Ein Spaziergänger erreicht 1,2-1,5 m/s Dauergeschwindigkeit.
+        //     Selbst mit 2 Multipath-Spikes à 8 m/s liegt der 2-Min-Fenster-
+        //     Schnitt weit unter 3 m/s — SOFORT blockiert.
+        //   • Eine echte Fahrt (auch 30er-Zone mit Ampeln) hat über 2 Min
+        //     einen Schnitt ≥ 4,5 m/s — unverändert erkannt.
+        //   • Zwischen 3 und 4,5 m/s (Rennrad, E-Scooter, Joggen-Bus-Mix):
+        //     Grauzone — hier entscheidet weiter die bestehende Kette
+        //     (fastCount + Konsekutiv), bewusst konservativ wie bisher.
+        if (avgSpeed < WALK_AVG_VETO_MPS && fastCount < filtered.size) {
+            // Spike-Minderheit + Geh-Schnitt = Multipath, keine Fahrt.
+            return Classification.NotDriving
+        }
         val driving = fastCount >= MIN_FAST_PROBES &&
             maxConsecutive >= MIN_CONSECUTIVE_FAST &&
             avgSpeed >= 4.5f

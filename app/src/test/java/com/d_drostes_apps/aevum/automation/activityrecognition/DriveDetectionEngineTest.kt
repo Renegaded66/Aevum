@@ -599,12 +599,19 @@ class DriveDetectionEngineTest {
         // MIN_INFERRED_SPEED_MPS werden die Jitter-Ableitungen verworfen:
         // Kette = 8,3 / (verworfen) / 8,3 / (verworfen) / 8,3 →
         // fastCount = 3, maxConsecutive = 2, avgSpeed = 8,3 → Driving.
+        // M18.113: Positions-Schritte an 30er-Fahrt angeglichen (996 m/2 Min
+        // = 0,009° lat ≈ 8,3 m/s) — die alten 0,0022°-Schritte (244 m/2 Min
+        // = 2,04 m/s) widersprachen dem Speed-Feld und fallen jetzt durch
+        // den Speed-Position-Konsistenz-Check (korrektes Verhalten).
+        // Jitter-Fixes (30 m Abweichung) landen AUF der Fahrt-Linie:
+        val base = 0.0090
+        val jitter = 0.0003 // ~33 m GPS-Jitter, bricht die Kette nicht
         val probes = listOf(
             DriveDetectionEngine.DriveProbe(t0, 8.3f, 20f, distanceFromLastM = null, latitude = 50.000, longitude = 8.000),
-            DriveDetectionEngine.DriveProbe(t0 + 120_000L, null, 20f, distanceFromLastM = 30.0, latitude = 50.0022, longitude = 8.000),
-            DriveDetectionEngine.DriveProbe(t0 + 240_000L, 8.3f, 20f, distanceFromLastM = 900.0, latitude = 50.0045, longitude = 8.000),
-            DriveDetectionEngine.DriveProbe(t0 + 360_000L, null, 20f, distanceFromLastM = 30.0, latitude = 50.0067, longitude = 8.000),
-            DriveDetectionEngine.DriveProbe(t0 + 480_000L, 8.3f, 20f, distanceFromLastM = 900.0, latitude = 50.009, longitude = 8.000)
+            DriveDetectionEngine.DriveProbe(t0 + 120_000L, null, 20f, distanceFromLastM = 30.0, latitude = 50.000 + jitter, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 240_000L, 8.3f, 20f, distanceFromLastM = 900.0, latitude = 50.000 + base, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 360_000L, null, 20f, distanceFromLastM = 30.0, latitude = 50.000 + base + jitter, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 480_000L, 8.3f, 20f, distanceFromLastM = 900.0, latitude = 50.000 + 2 * base, longitude = 8.000)
         )
         val result = DriveDetectionEngine.classify(probes, t0 + 480_000L)
         assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
