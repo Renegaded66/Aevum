@@ -27,6 +27,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 /**
@@ -110,11 +111,14 @@ class DriveDetectionService : Service() {
     /** M18.84: Wurde der Geofence-Kontext (Veto-Kreise) bereits geladen? */
     private var geofenceContextLoaded = false
     /** M18.66-FIX13: Beginn des ERSTEN Streams dieser Service-Lebensdauer —
-     *  die ersten 60s werden ignoriert (GPS-Kaltstart: speed oft Müllwerte
-     *  bei scheinbar akzeptabler Genauigkeit). EINMAL pro Prozess — Folge-
-     *  Bursts laufen mit warmem Empfänger; nur der allererste Fix nach
-     *  echtem Kaltstart (Prozess frisch, GPS-Chip im Schlaf) braucht den
-     *  Warmup. Wird erst bei erfolgreicher Stream-Anmeldung gesetzt. */
+     *  die ersten 20s werden ignoriert (GPS-Kaltstart: speed oft Müllwerte
+     *  bei scheinbar akzeptabler Genauigkeit; M18.112: 60s → 20s — der
+     *  60s-Warmup verbrannte bei Kaltstart-Bursts ein Viertel des
+     *  4-Min-Fensters und war der Hauptanteil der ~4-Min-Start-Latenz).
+     *  EINMAL pro Prozess — Folge-Bursts laufen mit warmem Empfänger; nur
+     *  der allererste Fix nach echtem Kaltstart (Prozess frisch, GPS-Chip
+     *  im Schlaf) braucht den Warmup. Wird erst bei erfolgreicher
+     *  Stream-Anmeldung gesetzt. */
     private var streamStartMs: Long = 0L
 
     // ── M18.104: Burst-Zustandsmaschine ──────────────────────────────
@@ -182,8 +186,20 @@ class DriveDetectionService : Service() {
         /** Mindest-Bewegung zwischen zwei Fixes, die als "Wanderung
          *  lebt" zählt (~7 km/h — Herzschlag-Refresh bei TRACK_WALK). */
         private const val MIN_PROBE_MOVEMENT_M = 10.0
-        /** M18.71: GPS-Kaltstart-Warmup (90s → 60s). */
-        private const val GPS_WARMUP_MS = 60_000L
+        /** M18.71: GPS-Kaltstart-Warmup (90s → 60s).
+         *  M18.112 (User: "Aufzeichnung soll wie Life360 nach ein paar
+         *  Sekunden beginnen"): 60s → 20s. Diagnose (M18.112-Session):
+         *  Der Warmup verbrannte bei Kaltstart-Bursts (App-Update/Boot/
+         *  Prozessstart = der TYPISCHE Fahr-Start-Moment) 60s von 240s
+         *  (damit 4-Min-Fenster) → die erste Klassifikation kam erst nach
+         *  ~4 Minuten. Nur die allerersten Fixe nach echtem Kaltstart
+         *  tragen Müll-Speed (Multipath-Anfang); der M18.104-FP-Komplex
+         *  (Netto-Displacement ≥ 150 m, Geofence-Veto, Spread ≥ 30s,
+         *  2er-Kette, Warmup-Kurz-Fenster-Tests) trägt kurze Fix-Serien
+         *  ohne Qualitätsverlust. Kaltstart-Burst-Pfad nach dieser
+         *  Änderung: 20s Warmup + 30s Spread + Anfahren ≈ 45-70s bis zum
+         *  Session-Start (vorher: ~4 Min). */
+        private const val GPS_WARMUP_MS = 20_000L
         /** M18.72: Mindest-Netto-Displacement für eine Wanderung. */
         private const val WALKING_MIN_GPS_DISTANCE_M = 300.0
 
@@ -432,7 +448,7 @@ class DriveDetectionService : Service() {
                     stopSelf()
                     return
                 }
-                Log.d(TAG, "CONFIRM-Burst gestartet (6 Min HIGH_ACCURACY)")
+                Log.d(TAG, "CONFIRM-Burst gestartet (5 Min HIGH_ACCURACY, Intervall 15s, Prime-Fix)")
                 // Neue Episode: Verlängerungs-Zähler zurücksetzen (Cap
                 // gilt pro Episode, nicht pro Prozess-Lebensdauer).
                 confirmExtensions = 0
@@ -443,6 +459,18 @@ class DriveDetectionService : Service() {
         confirmGraceUntilMs = 0L
         requestStreamForCurrentMode()
         armModeTimer()
+        // M18.112: PRIMING-FIX — beim OFF→CONFIRM-Übergang einen sofortigen
+        // getCurrentLocation-Fix holen. Der requestLocationUpdates-Stream
+        // liefert seinen ersten Fix erst nach einem Fix-Intervall (15s) UND
+        // erst nach GPS-Aufwärmphase — das "Anfahren" der Fahrt verpasst
+        // der Burst sonst komplett (die Cluster-Rückdatierung kennt nur
+        // Probes ab dem ersten Stream-Fix). Der Prime-Fix ist derselbe
+        // High-Accuracy-Kontext und landet als vollwertiger Probe in der
+        // Serie. Nur beim OFF→CONFIRM-Übergang (enterConfirm), nicht bei
+        // REPLACE/Walking/Track. Fire-and-Forget — ein fehlgeschlagener
+        // Prime darf den Burst nicht blockieren (der Stream liefert
+        // nachfolgend ohnehin Fixes).
+        primeLocationFixAsync()
     }
 
     private fun enterWalkingCheck() {
@@ -473,6 +501,37 @@ class DriveDetectionService : Service() {
         modeStartMs = now
         requestStreamForCurrentMode()
         armModeTimer()
+    }
+
+    /**
+     * M18.112: Priming-Fix beim OFF→CONFIRM-Übergang (siehe enterConfirm).
+     * Holt einen einzelnen getCurrentLocation-Fix (HIGH_ACCURACY, gleicher
+     * Kontext wie der Stream) und speist ihn via handleFix in die
+     * Probe-Serie — der erste Bewegungs-Fix einer Fahrt ist damit sofort
+     * da, statt erst nach dem ersten Stream-Intervall (+GPS-Aufwärmphase).
+     * Fire-and-Forget: Fehler werden geloggt, nie geworfen. Der Warmup-
+     * Check in handleFix gilt unverändert (der Prime-Fix kann beim echten
+     * Kaltstart noch im 20s-Warmup-Fenster liegen und wird dann verworfen —
+     * korrekt, denn genau dann ist seine Qualität unzuverlässig).
+     */
+    @SuppressLint("MissingPermission")
+    private fun primeLocationFixAsync() {
+        serviceScope.launch {
+            try {
+                val prime = fusedClient.getCurrentLocation(
+                    Priority.PRIORITY_HIGH_ACCURACY,
+                    null
+                ).await()
+                if (prime != null) {
+                    Log.d(TAG, "M18.112: Prime-Fix empfangen (acc=${prime.accuracy.toInt()}m) — vor dem ersten Stream-Fix")
+                    handleFix(prime)
+                } else {
+                    Log.d(TAG, "M18.112: Prime-Fix null — Burst wartet auf den Stream")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "M18.112: Prime-Fix fehlgeschlagen (nicht blockierend): ${e.message}")
+            }
+        }
     }
 
     private fun enterTrack(isDrive: Boolean) {
@@ -724,8 +783,9 @@ class DriveDetectionService : Service() {
             }
         }
 
-        // M18.66-FIX13: GPS-KALTSTART-WARMUP — erste 60s nach der ERSTEN
-        // Stream-Anmeldung dieser Prozess-Lebensdauer ignorieren.
+        // M18.66-FIX13: GPS-KALTSTART-WARMUP — erste 20s nach der ERSTEN
+        // Stream-Anmeldung dieser Prozess-Lebensdauer ignorieren
+        // (M18.112: 60s → 20s, siehe GPS_WARMUP_MS-Kommentar).
         if (streamStartMs == 0L || now - streamStartMs < GPS_WARMUP_MS) {
             Log.d(TAG, "GPS-Warmup (Kaltstart) — Probe ignoriert (${(now - streamStartMs) / 1000}s)")
             return

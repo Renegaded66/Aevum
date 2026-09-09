@@ -85,6 +85,16 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "InitialActivitySnapshotScheduler schedule failed: ${e.message}")
         }
+        // M18.112: Continuous-AR-Samples nach Boot (neu-)registrieren —
+        // Android räumt AR-Registrierungen beim Boot ab (wie Geofences).
+        // Ohne diesen Aufruf wäre der schnelle Verdachts-Pfad erst nach
+        // dem nächsten App-Start wieder aktiv.
+        try {
+            com.d_drostes_apps.aevum.automation.activityrecognition.ActivityContinuousSamplesRequester.register(context)
+            debugLogger.log("BOOT", "ActivityContinuousSamples nach Boot registriert")
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "ActivityContinuousSamples register failed: ${e.message}")
+        }
         // M18.104 (Akku-Redesign): Nach Boot KEIN Dauer-GPS-Stream mehr —
         // der Initial-Activity-Snapshot (AR-Sensor, 60s) + die normalen
         // Transitions übernehmen die Erkennung; GPS-Bursts starten erst

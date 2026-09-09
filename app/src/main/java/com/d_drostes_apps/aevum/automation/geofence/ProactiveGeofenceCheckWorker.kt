@@ -40,15 +40,21 @@ private const val TAG = "ProactiveGeofenceCheck"
 // für den GMS-Geofence-Fallback völlig (Geofence-Trigger mit 5 Min
 // Latenz sind für Zuhause/Gym/Arbeit unsichtbar), spart 60% der
 // Wakes (720 -> 288/Tag).
-// M18.111 (User: „Akku hat Priorität, lieber weniger exakt"): 5 → 10
-// Min. Presence-/Timeline-Latenz ±5 Min (bewusst in Kauf genommen),
-// Verdachts-Checks seltener, aber die Schwellen (1500 m/200 m in
-// 2–15 Min dt) bleiben mathematisch gültig: 10-Min-dt erfasst Auto
-// (≥ 1500 m = 9 km/h Durchschnitt) und Outdoor-Bewegung (≥ 200 m)
-// weiterhin zuverlässig. 144 Fixes/Tag statt 288. Präzise Zonen-
-// Events liefern weiter die GMS-Geofences — der Worker ist NUR der
-// Fallback-/Verdachts-/Presence-Takt.
-private const val CHECK_INTERVAL_MS = 10L * 60 * 1000  // 10 Minuten
+// M18.111 (User: „Akku hat Priorität"): 5 → 10 Min. Presence-/Timeline-
+// Latenz ±5 Min bewusst in Kauf genommen.
+// M18.112 (User: "Aufzeichnung soll wie Life360 nach ein paar Sekunden
+// beginnen"): 10 → 5 Min. Begründung: Dieser Worker ist der EINZIGE
+// zuverlässige Verdachts-Pfad, wenn Google im Hintergrund KEIN
+// IN_VEHICLE-Transition liefert (Doku: "latency might vary by device";
+// M18.64-Root-Cause). Bei 10 Min vergehen im schlechtesten Fall 10 Min
+// bis zum Bewegungs-Verdacht → CONFIRM-Burst — das ist die gefühlte
+// "Autofahrt wird gar nicht aufgezeichnet"-Latenz. 288 Fixe/Tag à
+// BALANCED (WLAN/Cell, kein GPS-Chip) sind der Preis für
+// Life360-Niveau; die AR-Continuous-Samples (M18.112) decken den
+// Bewegungs-Fall schneller ab, der Worker bleibt das Sicherheitsnetz
+// und die Presence-Basis. Zuhause (Stillstand) kostet der BALANCED-Fix
+// praktisch nichts (kein GPS-Chip-Weckvorgang).
+private const val CHECK_INTERVAL_MS = 5L * 60 * 1000  // 5 Minuten
 private const val CHECK_WORK = "aevum.proactive_geofence_check"
 
 class ProactiveGeofenceCheckWorker(

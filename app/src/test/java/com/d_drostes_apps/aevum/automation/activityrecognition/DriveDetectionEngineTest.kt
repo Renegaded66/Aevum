@@ -211,7 +211,7 @@ class DriveDetectionEngineTest {
     }
 
     @Test
-    fun `zwei schnelle Probes unter 30s Spread — weiterhin keine Entscheidung (Burst-Schutz bleibt)`() {
+    fun `20s-Burst bleibt keine Fahrt — Spread-Gate unter 30s`() {
         // Regression zum M18.95-Burst-Schutz: 2 Fixes in 20s = GPS-Burst,
         // Spread-Gate (< 30s) fängt es VOR der Anzahl-Änderung.
         val probes = listOf(
@@ -219,6 +219,23 @@ class DriveDetectionEngineTest {
             DriveDetectionEngine.DriveProbe(t0 + 20_000L, 22.0f, 20f, latitude = 50.006, longitude = 8.000)
         )
         val result = DriveDetectionEngine.classify(probes, t0 + 20_000L)
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.InsufficientData)
+    }
+
+    // ── M18.112: Schnellere Erkennung bei 15s-Fix-Rate ────────────
+
+    @Test
+    fun `Fahrt mit 15s-Fix-Rate wird nach 30s erkannt — zwei schnelle Probes`() {
+        // M18.112: CONFIRM-Intervall 20s -> 15s (Life360-Start-Niveau).
+        // Zwei 15s-Fixes: Spread = 15s < 30s → weiterhin keine Entscheidung
+        // (Burst-Schutz). Erst der dritte Fix (Spread = 30s) erlaubt den
+        // Start — bei 15s-Fix-Rate also ~45s nach dem Anfahren inkl.
+        // Warmup-Kürzung (20s statt 60s).
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(t0, 20.0f, 20f, latitude = 50.000, longitude = 8.000),
+            DriveDetectionEngine.DriveProbe(t0 + 15_000L, 22.0f, 20f, latitude = 50.0045, longitude = 8.000)
+        )
+        val result = DriveDetectionEngine.classify(probes, t0 + 15_000L)
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.InsufficientData)
     }
 
@@ -262,7 +279,7 @@ class DriveDetectionEngineTest {
     }
 
     @Test
-    fun `20s-Burst bleibt keine Fahrt — Spread-Gate unter 30s`() {
+    fun `3 Fixes in 20s bleiben keine Fahrt — Spread-Gate unter 30s`() {
         // Regression: Ein kurzer GPS-Burst (3 schnelle Fixes in 20s,
         // z.B. Kaltstart-Sprung) hat Spread < 30s → weiterhin
         // InsufficientData. Der Burst-Schutz bleibt trotz schnellerem

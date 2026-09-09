@@ -120,6 +120,17 @@
             android:name=".automation.activityrecognition.InitialActivityProbeReceiver"
             android:exported="false" />
 
+        <!-- M18.112: Activity-Continuous-Samples Receiver — empfängt die
+             kontinuierlichen Activity-Samples (requestActivityUpdates,
+             Low-Power-Sensor-Stream, kein GPS) und startet bei IN_VEHICLE/
+             ON_BICYCLE einen GPS-CONFIRM-Burst bzw. bei WALKING/RUNNING
+             einen WALKING_CHECK-Burst. Das ist der schnelle Verdachts-Pfad
+             neben den Transition-Events (die im Hintergrund oft spät oder
+             gar nicht kommen). exported=false: nur lokale PendingIntents. -->
+        <receiver
+            android:name=".automation.activityrecognition.ActivityContinuousSamplesReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".automation.geofence.BootReceiver"
             android:exported="false">
