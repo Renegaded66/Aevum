@@ -61,10 +61,15 @@ class DriveStructuralGatesTest {
             probe(3, 14.0f, latitude = 50.0015)   // ~166 m — Netto ≥ 150 m Gate,
                                              // aber < 250 m Kreis-Radius
         )
-        // Sanity: Ohne Geofence-Kontext wäre das (fälschlich) Driving —
-        // genau der Bug vom 30.08.
+        // M18.113: Der Speed-Position-Konsistenz-Check fängt dieses Phantom
+        // JETZT SCHON OHNE Geofence-Veto ab: Die Indoor-Drift legt nur 55 m
+        // / 120 s = 0,46 m/s zurück — weit unter MIN_CONFIRMED_POS_SPEED_MPS
+        // (2,5 m/s) — also sind die 8-14-m/s-Speed-Spikes positionswidrig
+        // und zählen nicht → NotDriving auch ohne Geofence-Kontext.
+        // (Vor M18.113 war dieser Sanity-Fall fälschlich Driving — genau
+        // der Bug vom 30.08.; das Geofence-Veto war der zweite Schutz.)
         val withoutVeto = DriveDetectionEngine.classify(probes, t0 + 4 * 120_000L)
-        assertThat(withoutVeto).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+        assertThat(withoutVeto).isInstanceOf(DriveDetectionEngine.Classification.NotDriving::class.java)
 
         // MIT Veto: alle Probes innerhalb Gym (250 m) → keine Fahrt.
         val withVeto = DriveDetectionEngine.classify(

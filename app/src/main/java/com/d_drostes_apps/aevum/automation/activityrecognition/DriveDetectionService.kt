@@ -934,14 +934,33 @@ class DriveDetectionService : Service() {
         // Fahrzeug-Bewegung als Wanderungs-Displacement zu messen.
         // (User-Bug „Spazieren während 30er-Zone-Fahrt": 5 Min × 8,3 m/s
         // = 2.500 m ≫ 300-m-Gate, ohne dieses Gate.)
-        if (WalkingDetectionEngine.isVehicleSpeed(
-                if (loc.hasSpeed()) loc.speed else null
-            )
-        ) {
+        // M18.113: Fahrzeug-Veto ERWEITERT — auch abgeleitete Geschwindigkeit
+        // (Vor-Fix-Distanz/Zeit) verifiziert einen Wanderungs-Verdacht NEGATIV.
+        // Root-Cause (User: „Spazieren aufgezeichnet während 30er-Zone-Fahrt"):
+        // Das M18.110-Veto prüfte nur loc.hasSpeed() — im TRACK_WALK-Modus
+        // (60s, BALANCED) liefern viele Fixes KEIN Speed-Feld. Eine 30er-Fahrt
+        // (8,3 m/s) rutschte so UNTER das Veto, die Phase lief weiter und
+        // erfüllte nach 5 Min die Walking-Schwelle mitten in der Fahrt.
+        val hasDirectVehicleSpeed = WalkingDetectionEngine.isVehicleSpeed(
+            if (loc.hasSpeed()) loc.speed else null
+        )
+        // Abgeleitetes Tempo: Distanz zum Vor-Fix / Zeitdifferenz (nur wenn
+        // beide Fix-Zeiten sinnvoll auseinander liegen — 30s..2 Min).
+        val derivedSpeed = if (prevFixLat != null && prevFixLon != null && prevFixTsMs > 0) {
+            val dtMs = now - prevFixTsMs
+            if (dtMs in WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MIN_DT_MS..
+                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MAX_DT_MS) {
+                haversineMeters(prevFixLat, prevFixLon, loc.latitude, loc.longitude) / (dtMs / 1000.0)
+            } else null
+        } else null
+        val derivedIsVehicleSpeed = derivedSpeed != null &&
+            derivedSpeed >= WalkingDetectionEngine.WALKING_VEHICLE_SPEED_MPS
+        if (hasDirectVehicleSpeed || derivedIsVehicleSpeed) {
             if (walkingPhaseStartMs != 0L) {
-                Log.d(TAG, "M18.110: Fahrzeug-Tempo ${loc.speed} m/s — Walking-Phase verworfen")
+                Log.d(TAG, "M18.113: Fahrzeug-Tempo (direct=${if (loc.hasSpeed()) loc.speed else "null"}, derived=$derivedSpeed m/s) — Walking-Phase verworfen")
                 resetWalkingPhase()
             }
+            bridge.clearWalkingSignal()
             return
         }
 
