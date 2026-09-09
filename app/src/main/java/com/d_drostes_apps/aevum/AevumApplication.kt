@@ -361,6 +361,18 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ActivityRecognitionRegistrar failed — continuing", e)
         }
+        // M18.112: Kontinuierliche AR-Samples (requestActivityUpdates, 30s,
+        // Low-Power-Sensor-Stream OHNE GPS-Chip) — der schnelle Verdachts-
+        // Pfad für die Life360-Start-Latenz. Zuhause (STILL) pausiert der
+        // Stream selbst (Doku-belegt), bei Bewegung startet er von selbst
+        // und liefert Sekunden später das erste IN_VEHICLE-Sample →
+        // GPS-CONFIRM-Burst → Engine-Gates → Session. No-Op ohne Permission
+        // (wird nach Permission-Grant in den Settings nachgeholt).
+        try {
+            com.d_drostes_apps.aevum.automation.activityrecognition.ActivityContinuousSamplesRequester.register(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "ActivityContinuousSamples register failed — continuing", e)
+        }
         // M18.104 (Akku-Redesign): Kein 24/7-GPS-Stream mehr beim App-
         // Start. Der DriveDetectionService ist jetzt ereignisgetrieben:
         // AR-Transitions (IN_VEHICLE/WALKING-ENTER) und Geofence-EXITs

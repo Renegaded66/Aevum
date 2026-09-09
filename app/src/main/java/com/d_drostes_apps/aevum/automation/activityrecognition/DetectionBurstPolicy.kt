@@ -43,22 +43,29 @@ object DetectionBurstPolicy {
         TRACK
     }
 
-    /** CONFIRM-Burst-Fenster. M18.111 (User: „Akku hat Priorität, lieber
-     *  etwas weniger exakt"): 6 Min → 4 Min. Seit M18.110 erkennt die
-     *  Engine mit 2 schnellen Probes über 30s Spread — der 4-Min-Burst
-     *  liefert bei 20s-Intervall nach Warmup ~9 Fixes, das reicht für
-     *  Erkennung + Rückdatierung (Cluster-Spread 30s) mit 33 % weniger
-     *  GPS-Zeit pro Verdacht. Grenzfall-Kaltstart (60s Warmup) hat noch
-     *  3 Min verwertbare Fixes. Extensions (MAX_CONFIRM_EXTENSIONS=2)
-     *  decken Stau/Anfahren weiterhin ab. */
-    const val CONFIRM_WINDOW_MS = 4L * 60 * 1000
+    /** CONFIRM-Burst-Fenster. M18.112 (User: "Aufzeichnung soll wie
+     *  Life360 nach ein paar Sekunden beginnen"): 4 Min -> 5 Min. Das
+     *  15s-Intervall (M18.112) senkt die Fix-Latenz, aber das 4-Min-Fenster
+     *  verbrannte bei Kaltstart-Bursts 60s Warmup + ~45s Erkennung → der
+     *  Burst lief 2 Min später ergebnislos ab, bevor der User überhaupt
+     *  beschleunigt hatte (Ampel, Parkplatz-Ausfahrt). 5 Min geben nach
+     *  20s Warmup ~19 Fixes (16 nach Warmup) — genug für Warmup + Anfahren
+     *  + 30s-Spread + Verlängerungen (Stau). Gesamtkosten pro
+     *  Kaltstart-Burst: ~16 Fixes (5 Min) statt ~9 Fixes (4 Min) — der
+     *  Preis für Life360-Niveau ohne 24/7-Stream. */
+    const val CONFIRM_WINDOW_MS = 5L * 60 * 1000
 
-    /** CONFIRM-Burst-Fix-Intervall. M18.111: 15s → 20s (25 % weniger
-     *  Fix-Requests, gleiche Erkennungslogik: 2 Probes über 30s Spread
-     *  = 2 Intervalle; Anfahr-Erkennung ±10s träger). Die echte
-     *  Aufzeichnung (TRACK_DRIVE) bleibt bei 15s — sie läuft nur
-     *  während bestätigter Fahrten, dort ist die Track-Dichte wichtig. */
-    const val CONFIRM_INTERVAL_MS = 20_000L
+    /** CONFIRM-Burst-Fix-Intervall. M18.112 (User: "Aufzeichnung soll wie
+     *  Life360 nach ein paar Sekunden beginnen"): 20s -> 15s. Der
+     *  M18.111-Sparsing-Gewinn (20s) verlangsamte die Erkennung real auf
+     *  40-80s nach dem Warmup (MIN_SPREAD 30s braucht 2 Intervalle) — das
+     *  war der Hauptanteil der gefühlten "Minuten"-Latenz. 15s liefert
+     *  den dritten Fix (Spread = 30s) nach ~45s. GPS-Kosten steigen um
+     *  ~33% NUR während des 4-Min-Bursts (12 statt 9 Fixes/Burst) — im
+     *  Tagesmittel bleibt GPS auf Bursts + Track beschränkt (0 Fixes,
+     *  wenn nichts passiert). Die echte Aufzeichnung (TRACK_DRIVE)
+     *  bleibt bei 15s. */
+    const val CONFIRM_INTERVAL_MS = 15_000L
 
     /** WALKING_CHECK-Fenster. 8 Min: Die Walking-Schwelle ist 5 Min
      *  Phase + Netto-Displacement ≥ 300 m (WALKING_MIN_GPS_DISTANCE_M).

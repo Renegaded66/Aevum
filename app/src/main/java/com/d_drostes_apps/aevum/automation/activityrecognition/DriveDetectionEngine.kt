@@ -69,7 +69,7 @@ object DriveDetectionEngine {
      *  2 Probes sind jetzt die Untergrenze, und die False-Positive-
      *  Schutz-Landschaft trägt das: MIN_SPREAD_MS = 30s (kein Burst),
      *  2er-Konsekutiv-Kette, fastCount >= 2, Netto-Displacement >= 150 m
-     *  (kein Drift), Geofence-Veto (kein Indoor), 60s-GPS-Warmup.
+     *  (kein Drift), Geofence-Veto (kein Indoor), 20s-GPS-Warmup (M18.112).
      *  Für einen 2-Probe-Start müssen BEIDE Probes >= 8 m/s sein —
      *  Radfahrer-Spikes (8.5/5.0 alternierend) scheitern weiterhin. */
     const val MIN_VALID_PROBES = 2

@@ -1090,6 +1090,14 @@ class TriggerSettingsViewModel @Inject constructor(
                 } catch (e: Exception) {
                     Log.e("TriggerSettings", "Activity-Recognition-Registrierung fehlgeschlagen", e)
                 }
+                // M18.112: Continuous-AR-Samples (noch-)mal registrieren —
+                // deckt den Fall "Permission wurde gerade erst erteilt"
+                // ab (App-Start lief in der Zeit ins No-Op).
+                try {
+                    com.d_drostes_apps.aevum.automation.activityrecognition.ActivityContinuousSamplesRequester.register(app)
+                } catch (e: Exception) {
+                    Log.e("TriggerSettings", "Continuous-Samples-Registrierung fehlgeschlagen", e)
+                }
             }
         }
         // M18.104 (Akku-Redesign): Der DriveDetectionService läuft nicht

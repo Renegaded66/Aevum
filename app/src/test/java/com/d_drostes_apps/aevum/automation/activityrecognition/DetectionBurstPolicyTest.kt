@@ -22,13 +22,13 @@ class DetectionBurstPolicyTest {
     // ── Fenster-Größen ──────────────────────────────────────────────
 
     @Test
-    fun `CONFIRM-Fenster ist begrenzt (4 Min, kein Dauerzustand, Akku-Prioritaet M18-111)`() {
-        assertEquals(4L * 60 * 1000, DetectionBurstPolicy.CONFIRM_WINDOW_MS)
+    fun `CONFIRM-Fenster ist begrenzt (5 Min, Life360-Start-Niveau M18-112)`() {
+        assertEquals(5L * 60 * 1000, DetectionBurstPolicy.CONFIRM_WINDOW_MS)
     }
 
     @Test
-    fun `CONFIRM-Intervall ist 20s (Akku-Prioritaet, Logik bleibt M18-110)`() {
-        assertEquals(20_000L, DetectionBurstPolicy.CONFIRM_INTERVAL_MS)
+    fun `CONFIRM-Intervall ist 15s (M18-112, Start-Latenz 20s-Intervall war 40-80s)`() {
+        assertEquals(15_000L, DetectionBurstPolicy.CONFIRM_INTERVAL_MS)
     }
 
     @Test
@@ -46,8 +46,10 @@ class DetectionBurstPolicyTest {
         // sonst kann eine Kaltstart-Fahrt nie bestätigt werden.
         // M18.111: Bei 20s-Intervall (2 Probes für Erkennung) bleibt nach
         // Warmup noch genug Restfenster für Stau-Anlauf (Extensions).
+        // M18.112: Warmup ist 20s — das Fenster (5 Min) braucht die Reserve
+        // für Anfahr-Phase + Extensions, nicht für den Warmup.
         assertTrue(
-            DetectionBurstPolicy.CONFIRM_WINDOW_MS > 60_000L + DriveDetectionEngine.MIN_SPREAD_MS
+            DetectionBurstPolicy.CONFIRM_WINDOW_MS > 20_000L + DriveDetectionEngine.MIN_SPREAD_MS
         )
     }
 
