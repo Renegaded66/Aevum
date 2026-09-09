@@ -32,7 +32,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 
 /**
  * M18.93v6 FLIP-CLOCK: Split-Flap-Ziffer wie bei einer analogen Flip-Clock.
@@ -66,26 +65,22 @@ fun FlipDigit(
 ) {
     var current by remember { mutableStateOf(digit) }
     var flipping by remember { mutableStateOf(false) }
-    var pending by remember { mutableStateOf<Char?>(null) }
     val phase = remember { Animatable(0f) }
 
-    // Eingang: wartet, bis ein laufender Flip fertig ist, dann startet er.
+    // Ein einzelner Effekt verarbeitet jede Änderung. Vorher wartete ein
+    // LaunchedEffect(digit) auf ein zweites LaunchedEffect(flipping). Das
+    // kann bei schneller Rekombination (Sekundenwechsel) konkurrieren und
+    // einzelne Flip-Impulse verlieren. Der nachfolgende Ablauf aktualisiert
+    // die sichtbare Ziffer daher atomar für jeden gelieferten Sekundenwert.
     LaunchedEffect(digit) {
         if (digit == current) return@LaunchedEffect
-        while (flipping) delay(16)
-        pending = digit
+
+        phase.snapTo(0f)
         flipping = true
-    }
-    // Flip-Treiber: Phase 1 hoch → swap → Phase 2 runter → fertig.
-    LaunchedEffect(flipping) {
-        if (!flipping) return@LaunchedEffect
+        phase.animateTo(1f, tween(115))
+        current = digit
         phase.snapTo(0f)
         phase.animateTo(1f, tween(115))
-        current = pending ?: current
-        phase.snapTo(0f)
-        phase.animateTo(1f, tween(115))
-        current = pending ?: current
-        pending = null
         flipping = false
         phase.snapTo(0f)
     }
