@@ -793,6 +793,16 @@ class DriveDetectionService : Service() {
 
         val speed = if (loc.hasSpeed()) loc.speed else null
         val accuracy = loc.accuracy
+        // M18.117: Vor-Fix (lat/lon/ts) VOR dem Überschreiben von
+        // lastLat/lastLon/lastTsMs sichern (Zeilen unten). Der
+        // TRACK_WALK-Heartbeat-Veto und die Walking-Phase brauchen das
+        // dt/die Distanz zum VORHERIGEN Fix — die überschriebenen
+        // Felder wären der aktuelle Fix (dt=0, Distanz=0) und die
+        // M18.110/M18.113-Vetos wären tot (Pre-Existing-Bug, im Audit
+        // docs/activity-detection.md §3.3 als Lücke bestätigt).
+        val prevLat = lastLat
+        val prevLon = lastLon
+        val prevTsMs = lastTsMs
         val distance = if (lastLat != null && lastLon != null) {
             haversineMeters(lastLat!!, lastLon!!, loc.latitude, loc.longitude)
         } else null
@@ -852,8 +862,37 @@ class DriveDetectionService : Service() {
         // GPS-Bewegung refreshen (≥ 10m zwischen Fixes). Die Track-Fixes
         // liegen ohnehin an — ein Herzschlag kostet nichts und hält den
         // WalkingWatchdog am Leben, solange echte Bewegung herrscht.
+        // M18.117 HEARTBEAT-VETO (Audit docs/activity-detection.md §4.2.3,
+        // Fall 3 „Autofahren während laufender Walking-Session"): Der
+        // Refresh darf NUR bei Geh-/Lauf-Tempo passieren. Fahrzeug-Tempo
+        // (direkt ≥ 8 m/s ODER abgeleitet dist/dt ≥ 8 m/s) refresht den
+        // Heartbeat NICHT mehr — sonst hält eine 30er-Zone-Fahrt
+        // (500 m/60 s ≫ 10 m) die Walking-Session am Leben, bis der
+        // 8-Min-Watchdog sie beendet, und die Fahrt wird nie aufgezeichnet.
+        // Bei Fahrzeug-Tempo wird die Session stattdessen sofort beendet
+        // (clearWalkingActive + Stop-Worker) und ein CONFIRM-Burst prüft
+        // die Fahrt aktiv.
         if (mode == StreamMode.TRACK_WALK && distance != null && distance >= MIN_PROBE_MOVEMENT_M) {
-            bridge.markWalkingSignal(now)
+            val directVehicle = WalkingDetectionEngine.isVehicleSpeed(speed)
+            val derivedVehicle = if (prevTsMs > 0L && now - prevTsMs in
+                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MIN_DT_MS..
+                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MAX_DT_MS
+            ) {
+                distance / ((now - prevTsMs) / 1000.0) >= WalkingDetectionEngine.WALKING_VEHICLE_SPEED_MPS
+            } else false
+            if (!directVehicle && !derivedVehicle) {
+                bridge.markWalkingSignal(now)
+            } else {
+                Log.d(TAG, "M18.117: Fahrzeug-Tempo im TRACK_WALK (direct=$speed, derived=${if (derivedVehicle) "≥8 m/s" else "nein"}) — Walking-Heartbeat NICHT refresht, Session beendet")
+                bridge.clearWalkingActive()
+                bridge.clearWalkingSignal()
+                WalkingStopWorker.schedule(this)
+                // Fahrt-Verdacht aktiv prüfen (CONFIRM-Burst, Engine-Gates
+                // entscheiden — kein direkter Session-Start).
+                if (bridge.isDrivingEnabled()) {
+                    start(this, ACTION_CONFIRM)
+                }
+            }
         }
 
         // M18.84: Cooldown bei laufender Fahrt zurücksetzen (verlorenes
@@ -870,7 +909,13 @@ class DriveDetectionService : Service() {
         // (WALKING-Bursts dürfen keine Fahrten starten).
         if (!bridge.isDriveActive() && bridge.isDrivingEnabled()) {
             val circles = bridge.currentGeofenceContext()
-            when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now, circles)) {
+            // M18.117: Motion-Kontext (AR-Typ) an die Engine durchreichen —
+            // ON_FOOT hebt die Auto-Schwelle auf 12 m/s (Joggen-Spikes
+            // zählen nicht mehr als Fahrt), IN_VEHICLE/UNKNOWN behalten
+            // 8 m/s (30er-Zonen-Erkennung bleibt).
+            when (val result = DriveDetectionEngine.classify(
+                bridge.currentDriveProbes(), now, circles, bridge.currentMotionContext()
+            )) {
                 is DriveDetectionEngine.Classification.Driving -> {
                     // M18.84 INSIDE-GEOFENCE-CAP: Cluster-Start in einem
                     // benannten Orts-Kreis = Indoor-Drift, kein Auto.
@@ -910,8 +955,12 @@ class DriveDetectionService : Service() {
         // Dichte sogar besser fürs Displacement).
         // M18.110: Vor-Fix (lastLat/lastTsMs werden unten überschrieben)
         // für das Displacement-Veto mitgeben.
+        // M18.117: prevLat/prevLon/prevTsMs sind der ECHTE Vor-Fix (vor
+        // dem Überschreiben gesichert) — vorher wurden die bereits
+        // überschriebenen Felder übergeben (dt=0, Distanz=0), wodurch
+        // das M18.110/M18.113-Fahrzeug-Veto der Phase nie griff.
         if (!bridge.isWalkingActive() && !bridge.isDriveActive() && bridge.isWalkingEnabled()) {
-            updateWalkingPhase(loc, now, lastLat, lastLon, lastTsMs)
+            updateWalkingPhase(loc, now, prevLat, prevLon, prevTsMs)
         }
     }
 
@@ -980,13 +1029,13 @@ class DriveDetectionService : Service() {
             // WalkingStartWorker nach der (nie bestätigten) Fahrt mit
             // 5-Min-Vorlauf IN die Fahrt hinein.
             val displaced = prevFixLat != null && prevFixLon != null && prevFixTsMs > 0 &&
-                (now - prevFixTsMs) in WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MIN_DT_MS..
-                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_MAX_DT_MS &&
-                haversineMeters(prevFixLat, prevFixLon, loc.latitude, loc.longitude) >=
-                WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_M
+                WalkingDetectionEngine.isVehicleDisplacement(
+                    haversineMeters(prevFixLat, prevFixLon, loc.latitude, loc.longitude),
+                    now - prevFixTsMs
+                )
             if (displaced) {
                 bridge.clearWalkingSignal()
-                Log.d(TAG, "M18.110: Kein Speed-Feld, aber ≥ 350 m vom Vor-Fix — keine Walking-Phase (Fahrzeug-Verdacht)")
+                Log.d(TAG, "M18.117: Kein Speed-Feld, aber Fahrzeug-Tempo vom Vor-Fix (dist/dt ≥ 5 m/s) — keine Walking-Phase (Fahrzeug-Verdacht)")
                 return
             }
             // M18.84: Phase NICHT starten, während der Fix in einem
