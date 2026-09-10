@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 interface PlaceGeofenceRepository {
     fun getAllEnabled(): Flow<List<PlaceGeofence>>
     fun getAll(): Flow<List<PlaceGeofence>>
+    /** M18.114: Alle nicht-gelöschten Geofences (aktiv ODER deaktiviert).
+     *  Basis für den DriveEnd-Re-Enter-Check. */
+    fun getActiveOrDisabled(): Flow<List<PlaceGeofence>>
     fun getDeleted(): Flow<List<PlaceGeofence>>
     fun getById(id: String): Flow<PlaceGeofence?>
     fun getTagIdsForGeofence(geofenceId: String): Flow<List<String>>
