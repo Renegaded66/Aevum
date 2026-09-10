@@ -67,6 +67,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -227,6 +229,19 @@ fun OrbitLauncherSheet(
     var exactHour by remember { mutableStateOf(-1) }
     var exactMinute by remember { mutableStateOf(-1) }
     val query = searchQuery.trim()
+
+    // M18.115: Tastatur ausblenden, sobald eine Aktivität ausgewählt wird
+    // (Planeten-Tap ODER Suchtreffer-Click — derselbe Selection-Pfad).
+    // Sonst bleibt die IME offen, während das Detail-Panel unten erscheint,
+    // und überdeckt es halb (User-Report: "Tastatur soll verschwinden wenn
+    // ich eine Activity anklicke"). Der Fokus-Blur feuert auch beim Dismiss
+    // des Sheets, damit die Tastatur nie ins Dashboard "mitgenommen" wird.
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    fun hideKeyboardAndBlur() {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
 
     val filteredLayout = remember(layout, query) {
         if (query.isEmpty()) layout
@@ -457,7 +472,13 @@ fun OrbitLauncherSheet(
                             if (d < bestDist) { bestDist = d; bestId = item.type.id }
                         }
                         if (bestId != null && bestDist <= planetRa * 1.6f) {
-                            selectedId = if (selectedId == bestId) null else bestId
+                            if (selectedId != bestId) {
+                                selectedId = bestId
+                                // M18.115: Aktivität ausgewählt → Tastatur weg.
+                                hideKeyboardAndBlur()
+                            } else {
+                                selectedId = null
+                            }
                         } else {
                             selectedId = null
                         }
@@ -482,7 +503,12 @@ fun OrbitLauncherSheet(
                         fontSize = 12.sp, color = onColor.copy(alpha = 0.7f),
                     )
                 }
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = {
+                    // M18.115: Beim Schließen des Launchers IME + Fokus lösen,
+                    // damit die Tastatur nicht ins Dashboard "mitgenommen" wird.
+                    hideKeyboardAndBlur()
+                    onDismiss()
+                }) {
                     Icon(Icons.Filled.Close, contentDescription = stringRes(R.string.common_cancel), tint = onColor)
                 }
             }
@@ -525,6 +551,9 @@ fun OrbitLauncherSheet(
                                 // Start-Pfad (Sofort/Vorlaufzeit) bleibt konsistent.
                                 selectedId = item.type.id
                                 showTimeMode = false
+                                // M18.115: Aktivität ausgewählt → Tastatur weg
+                                // (User-Report: IME blieb beim Suchtreffer offen).
+                                hideKeyboardAndBlur()
                             }
                             .padding(horizontal = AevumSpacing.md, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
