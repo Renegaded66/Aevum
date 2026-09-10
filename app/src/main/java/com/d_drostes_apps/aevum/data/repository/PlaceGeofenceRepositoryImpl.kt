@@ -14,6 +14,7 @@ class PlaceGeofenceRepositoryImpl(
 
     override fun getAllEnabled(): Flow<List<PlaceGeofence>> = dao.getEnabled()
     override fun getAll(): Flow<List<PlaceGeofence>> = dao.getAll()
+    override fun getActiveOrDisabled(): Flow<List<PlaceGeofence>> = dao.getAll()
     override fun getDeleted(): Flow<List<PlaceGeofence>> = dao.getDeleted()
     override fun getById(id: String): Flow<PlaceGeofence?> = dao.getById(id)
     override fun getTagIdsForGeofence(geofenceId: String): Flow<List<String>> = dao.getTagIdsForGeofence(geofenceId)

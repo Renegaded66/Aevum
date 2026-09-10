@@ -378,6 +378,13 @@ class DriveStopWorker(
             Log.d(TAG, "Auto-Fahr-Session sofort gestoppt (Google-EXIT)")
             // Watchdog nicht weiterlaufen lassen.
             DriveWatchdogWorker.cancel(applicationContext)
+            // M18.114: Geofence-Re-Enter nach Fahrt-Ende prüfen — liegt der
+            // letzte GPS-Fix in einem Geofence mit autoStartActivityTypeId,
+            // startet die Geofence-Activity automatisch neu (Kanban
+            // t_d6639d07: "geofence activity restarts once the car ride
+            // ends"). Der Resolver stoppt selbst, wenn keine Zone passt
+            // (User weitergefahren) oder eine Session läuft.
+            com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Sofort-Stop fehlgeschlagen", e)
         }
@@ -563,6 +570,10 @@ class DriveWatchdogWorker(
                 )
             )
             Log.d(TAG, "Auto-Fahr-Session gestoppt")
+            // M18.114: Geofence-Re-Enter nach Fahrt-Ende prüfen (gleicher
+            // Pfad wie DriveStopWorker — der Watchdog ist der HAUPT-Stop-Pfad,
+            // Google-EXITs kommen unzuverlässig).
+            com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Stop fehlgeschlagen", e)
         }
