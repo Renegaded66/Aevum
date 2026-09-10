@@ -54,6 +54,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -325,9 +326,11 @@ fun OrbitLauncherSheet(
         val densityScale = planetScaleFactor(filteredLayout.items.size)
         val planetRa = planetR * densityScale
 
-        val positions: Map<String, Offset> = remember(
-            filteredLayout, orbitRot.value.roundToInt(), drift.value, w, h,
-        ) {
+        // M18.116: Positions werden JE Frame neu berechnet (früher
+        // remember-cached auf die Animations-Werte) und dem Tap-Detektor
+        // per rememberUpdatedState frisch geliefert. Der pointerInput-Key
+        // enthaelt dadurch keine Animations-Werte mehr — siehe Tap-Box unten.
+        val positions = run {
             val map = mutableMapOf<String, Offset>()
             for (item in filteredLayout.items) {
                 val r = orbitRs.getOrElse(item.orbit) { orbitRs.last() }
@@ -344,6 +347,10 @@ fun OrbitLauncherSheet(
             }
             map
         }
+        // M18.116: Der Detektor liest die immer-aktuellen Positionen aus
+        // dieser State-Referenz — ohne dass der pointerInput-Block (und
+        // damit laufende Gesten) bei jedem Animations-Frame neu startet.
+        val currentPositions by rememberUpdatedState(positions)
 
         // --- Sky-Canvas -----------------------------------------------------
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -462,8 +469,22 @@ fun OrbitLauncherSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(1f)
-                .pointerInput(filteredLayout, positions) {
+                // M18.116-BUGFIX (User: "+ reagiert nicht, erst nach Suche"):
+                // Der Key war `positions` — eine remember-Map auf die laufenden
+                // Orbit-Rotations-/Drift-Animations-Werte. Im Idle (keine
+                // Auswahl, keine Suche) rotieren+driften die Orbits endlos,
+                // positions bekam dadurch JE Frame eine neue Map-Instanz und
+                // pointerInput startete den Gesten-Detektor ~60x/s NEU — jede
+                // Geste wurde abgebrochen, bevor detectTapGestures sie als
+                // Tap erkennen konnte. Sobald der User suchte, froren die
+                // Animationen ein (interactiveIdle=false), die Key-Werte
+                // stabilisierten sich — und Taps "funktionierten plötzlich".
+                // FIX: Key nur noch auf filteredLayout (Layout-Änderungen);
+                // die immer-aktuellen Positionen liest der Detektor live über
+                // rememberUpdatedState — ohne Gesten-Restart pro Frame.
+                .pointerInput(filteredLayout) {
                     detectTapGestures { tap ->
+                        val positions = currentPositions
                         var bestId: String? = null
                         var bestDist = Float.MAX_VALUE
                         for (item in filteredLayout.items) {
