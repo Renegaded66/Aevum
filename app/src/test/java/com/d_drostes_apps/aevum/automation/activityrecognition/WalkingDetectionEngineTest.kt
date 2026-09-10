@@ -264,14 +264,42 @@ class WalkingDetectionEngineTest {
 
     @Test
     fun `displacement veto catches no-speed vehicle fix at walk interval`() {
-        // 60s BALANCED-Fixes, kein hasSpeed: 360 m zwischen Fixes =
-        // 6 m/s Durchschnitt → Fahrzeug-Niveau.
+        // 60s BALANCED-Fixes, kein hasSpeed: 500 m zwischen Fixes =
+        // 8,3 m/s Durchschnitt → Fahrzeug-Niveau (M18.117: dist/dt ≥ 5 m/s).
         assertTrue(
-            360.0 >= WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_M
+            WalkingDetectionEngine.isVehicleDisplacement(
+                distMeters = 500.0,
+                dtMs = 60_000L
+            )
         )
-        // Gehen: 90 m/Fix bleibt unter dem Veto.
+        // Gehen: 90 m/Fix bleibt unter dem Veto (1,5 m/s).
         assertFalse(
-            90.0 >= WalkingDetectionEngine.WALKING_DISPLACEMENT_VETO_M
+            WalkingDetectionEngine.isVehicleDisplacement(
+                distMeters = 90.0,
+                dtMs = 60_000L
+            )
+        )
+    }
+
+    @Test
+    fun `jogging at 16 kmh with 120s fix gap is NOT vehicle displacement`() {
+        // M18.117 (Audit §3.4): Die fixe 350-m-Schwelle verwarf Joggen
+        // bei 120-s-Fix-Lücken (533 m ≥ 350 m), obwohl 533 m / 120 s =
+        // 4,44 m/s = 16 km/h reines Joggen ist. Das geschwindigkeits-
+        // basierte Veto (5,0 m/s) lässt Joggen durch.
+        assertFalse(
+            WalkingDetectionEngine.isVehicleDisplacement(
+                distMeters = 533.0,
+                dtMs = 120_000L
+            )
+        )
+        // Fahrzeug-Tempo bei gleicher Geometrie (1000 m / 120 s = 8,3 m/s)
+        // wird weiterhin verworfen.
+        assertTrue(
+            WalkingDetectionEngine.isVehicleDisplacement(
+                distMeters = 1000.0,
+                dtMs = 120_000L
+            )
         )
     }
 

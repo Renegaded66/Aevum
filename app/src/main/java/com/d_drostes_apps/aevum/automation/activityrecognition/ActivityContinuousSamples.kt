@@ -108,6 +108,9 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
 
             when (top.type) {
                 DetectedActivity.IN_VEHICLE -> {
+                    // M18.117: Motion-Kontext für das Motion-Gate melden
+                    // (IN_VEHICLE → 8-m/s-Schwelle bleibt).
+                    bridge.updateMotionContext(DriveDetectionEngine.MotionContext.IN_VEHICLE)
                     // Fahrzeug-Sample = Fahrzeug-Verdacht → GPS-CONFIRM-Burst.
                     // Die Engine-Gates entscheiden über den Start (kein
                     // direkter Session-Start hier!).
@@ -119,6 +122,10 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     }
                 }
                 DetectedActivity.WALKING, DetectedActivity.RUNNING -> {
+                    // M18.117: Motion-Kontext für das Motion-Gate melden
+                    // (ON_FOOT → 12-m/s-Schwelle, Joggen-Spikes zählen
+                    // nicht mehr als Fahrt).
+                    bridge.updateMotionContext(DriveDetectionEngine.MotionContext.ON_FOOT)
                     if (bridge.isWalkingEnabled() && !bridge.isDriveActive()) {
                         DriveDetectionService.start(
                             context,
@@ -127,6 +134,11 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     }
                 }
                 DetectedActivity.ON_BICYCLE -> {
+                    // M18.117: ON_BICYCLE ist weder ON_FOOT noch IN_VEHICLE —
+                    // bewusst KEIN updateMotionContext (UNKNOWN-Verhalten,
+                    // 8 m/s): Radfahrer-Spike-Muster scheitert weiterhin an
+                    // der Konsekutiv-Kette; eine reine 12-m/s-Forderung
+                    // wäre für Rennrad-Abfahrten zu streng (Audit §4.5).
                     // Radfahren ist ein Fahr-Verdacht im breitesten Sinn —
                     // der CONFIRM-Burst verwirft ihn über die 8-m/s-Gates
                     // zuverlässig (keine Session, aber schnellste Reaktion

@@ -579,6 +579,48 @@ class ActivityRecognitionBridge @Inject constructor(
         geofenceContext.toList()
 
     // ──────────────────────────────────────────────────────────────
+    // M18.117: MOTION-KONTEXT (AR-Typ) für das Motion-Gate.
+    //
+    // Der zuletzt gemeldete Activity-Recognition-Typ (aus den
+    // kontinuierlichen Samples, Sensor-Hub ~0 Akku, 30-s-Intervall) ist
+    // der Kontext für die kontextabhängige Auto-Schwelle in
+    // DriveDetectionEngine.classify: ON_FOOT (WALKING/RUNNING/ON_FOOT)
+    // hebt die Schwelle auf 12 m/s, IN_VEHICLE/UNKNOWN behalten 8 m/s.
+    // UNKNOWN = kein AR-Signal (Permission fehlt / noch kein Sample) →
+    // Verhalten wie heute (8 m/s), kein neues False-Negative-Risiko.
+    //
+    // 60-s-Hysterese gegen Flapping (Audit docs/activity-detection.md
+    // §4.5): Der Kontext wechselt erst nach 2 AUFEINANDERFOLGENDEN
+    // Samples desselben Typs (30-s-Intervall → ~60 s). Ein einzelnes
+    // WALKING-Sample während Stop&Go-Fahrt flippt den Kontext nicht.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var motionContext: DriveDetectionEngine.MotionContext =
+        DriveDetectionEngine.MotionContext.UNKNOWN
+    @Volatile private var motionContextLast: DriveDetectionEngine.MotionContext =
+        DriveDetectionEngine.MotionContext.UNKNOWN
+    @Volatile private var motionContextStreak = 0
+
+    /** M18.117: Neues AR-Sample melden (vom Continuous-Samples-Receiver).
+     *  Der Kontext wird erst nach 2 aufeinanderfolgenden Samples
+     *  desselben Typs übernommen (Hysterese gegen AR-Flackern). */
+    @Synchronized
+    fun updateMotionContext(context: DriveDetectionEngine.MotionContext) {
+        if (context == motionContextLast) {
+            motionContextStreak++
+        } else {
+            motionContextLast = context
+            motionContextStreak = 1
+        }
+        if (motionContextStreak >= 2) {
+            motionContext = context
+        }
+    }
+
+    /** M18.117: Aktueller Motion-Kontext (Snapshot für classify-Aufrufer). */
+    @Synchronized
+    fun currentMotionContext(): DriveDetectionEngine.MotionContext = motionContext
+
+    // ──────────────────────────────────────────────────────────────
     // M18.72: WALKING-SIGNALE (Wanderungen automatisch aufzeichnen).
     //
     // walkingSinceMs: Beginn der aktuellen ununterbrochenen Walking-

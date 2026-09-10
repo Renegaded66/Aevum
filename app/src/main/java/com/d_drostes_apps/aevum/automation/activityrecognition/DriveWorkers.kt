@@ -152,8 +152,11 @@ class DriveStartWorker(
             DriveDetectionEngine.MAX_PROBE_AGE_MS
         // M18.84: classify mit GEOFENCE-VETO — alle Probes in einem
         // benannten Orts-Kreis = Indoor-Multipath, keine Fahrt.
+        // M18.117: Motion-Kontext (AR-Typ) durchreichen — ON_FOOT hebt
+        // die Auto-Schwelle auf 12 m/s (Joggen-Spikes starten keine Fahrt).
         val gpsOk = DriveDetectionEngine.classify(
-            bridge.currentDriveProbes(), now, bridge.currentGeofenceContext()
+            bridge.currentDriveProbes(), now, bridge.currentGeofenceContext(),
+            bridge.currentMotionContext()
         ) is DriveDetectionEngine.Classification.Driving
         if (!confirmedFresh && !gpsOk) {
             // M18.68-FIX (Detection-Blackout): Das Confirmation-Flag wird
@@ -716,8 +719,12 @@ class DriveProbeWorker(
             bridge.addDriveProbe(probe, refreshHeartbeat = false)
             Log.d(TAG, "Probe: speed=${fix.speedMps?.let { "%.1f".format(it) } ?: "?"} m/s, acc=${fix.accuracyMeters.toInt()}m")
 
-            // 3) Serie klassifizieren.
-            when (val result = DriveDetectionEngine.classify(bridge.currentDriveProbes(), now)) {
+            // 3) Serie klassifizieren. M18.117: Motion-Kontext (AR-Typ)
+            // durchreichen — ON_FOOT hebt die Auto-Schwelle auf 12 m/s
+            // (Joggen-Spikes starten keine Fahrt).
+            when (val result = DriveDetectionEngine.classify(
+                bridge.currentDriveProbes(), now, emptyList(), bridge.currentMotionContext()
+            )) {
                 is DriveDetectionEngine.Classification.Driving -> {
                     Log.d(TAG, "Fahrt per GPS-Geschwindigkeit bestätigt (confidence=${result.confidence})")
                     // 4) M18.66: SOFORT starten — die Speed-Serie ist die
