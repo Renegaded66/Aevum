@@ -349,6 +349,12 @@ class ActivityRecognitionBridge @Inject constructor(
     // Der Receiver fragt pro Event ab, ob die jeweilige Erkennung aktiv ist.
     private val settingsRepository: com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
 ) {
+    /** M18.118: Snapshot-Verfall — 2 Min deckt den 2-Min-Takt des
+     *  DriveProbeWorker ab (der refresht vor jeder Klassifikation) und
+     *  begrenzt das Stale-Veto-Fenster nach Joggen→Auto auf ~2 Min. */
+    companion object {
+        const val CADENCE_SNAPSHOT_MAX_AGE_MS = 2L * 60 * 1000
+    }
     @Volatile private var pending: VehicleCluster? = null
     private val maxGapMs = 5L * 60 * 1000 // 5 Minuten
 
@@ -619,6 +625,58 @@ class ActivityRecognitionBridge @Inject constructor(
     /** M18.117: Aktueller Motion-Kontext (Snapshot für classify-Aufrufer). */
     @Synchronized
     fun currentMotionContext(): DriveDetectionEngine.MotionContext = motionContext
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.118: CADENCE-SNAPSHOT (Schrittfrequenz aus dem Beschleunigungs-
+    // sensor) für das Cadence-Veto in DriveDetectionEngine.classify.
+    //
+    // Der CadenceTracker (pure JVM) wird vom DriveDetectionService im
+    // CONFIRM-Burst und vom DriveProbeWorker bei Fahrt-Verdacht mit
+    // Sensor-Samples gefüttert (NUR in ohnehin aktiven Fenstern — kein
+    // 24/7-Sensor-Stream, M18.104-Akku-Prinzip). Die Bridge hält nur den
+    // letzten stabilen Snapshot; classify-Aufrufer lesen ihn mit.
+    //
+    // STALE-SCHUTZ: Der Snapshot trägt einen Zeitstempel und verfällt
+    // nach [CADENCE_SNAPSHOT_MAX_AGE_MS]. Ohne Verfall würde eine
+    // Jogging-Cadence von vor 10 Minuten eine spätere 30er-Zone-Fahrt
+    // fälschlich vetoieren (der Step-Detector schweigt im Auto — keine
+    // Events, die den Snapshot aktualisieren). Nach dem Verfall ist das
+    // Veto aus, bis ein frisches Sensor-Signal kommt.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var cadenceHzSnapshot: Float? = null
+    @Volatile private var cadenceValidFractionSnapshot: Float = 0f
+    @Volatile private var cadenceSnapshotAtMs: Long = 0L
+
+    /** M18.118: Neuen Cadence-Snapshot übernehmen (vom Sensor-Sampler). */
+    @Synchronized
+    fun updateCadenceSnapshot(cadenceHz: Float?, validFraction: Float) {
+        cadenceHzSnapshot = cadenceHz
+        cadenceValidFractionSnapshot = validFraction
+        cadenceSnapshotAtMs = System.currentTimeMillis()
+    }
+
+    /** M18.118: Aktuelle Schrittfrequenz (Hz) — null, wenn keine stabile
+     *  Messung vorliegt (Stillstand, Auto-Vibration, Sensor fehlt) ODER
+     *  der Snapshot verfallen ist (Stale-Schutz, siehe oben). */
+    @Synchronized
+    fun currentCadenceHz(): Float? {
+        if (cadenceSnapshotAtMs == 0L) return null
+        if (System.currentTimeMillis() - cadenceSnapshotAtMs > CADENCE_SNAPSHOT_MAX_AGE_MS) {
+            return null
+        }
+        return cadenceHzSnapshot
+    }
+
+    /** M18.118: Anteil gültiger Cadence-Fenster (0..1) — 0 bei verfallenem
+     *  Snapshot (kein Veto). */
+    @Synchronized
+    fun currentCadenceValidFraction(): Float {
+        if (cadenceSnapshotAtMs == 0L) return 0f
+        if (System.currentTimeMillis() - cadenceSnapshotAtMs > CADENCE_SNAPSHOT_MAX_AGE_MS) {
+            return 0f
+        }
+        return cadenceValidFractionSnapshot
+    }
 
     // ──────────────────────────────────────────────────────────────
     // M18.72: WALKING-SIGNALE (Wanderungen automatisch aufzeichnen).
