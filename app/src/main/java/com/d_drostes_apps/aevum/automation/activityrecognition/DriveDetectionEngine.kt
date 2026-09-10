@@ -206,6 +206,82 @@ object DriveDetectionEngine {
      */
     const val MIN_CONFIRMED_POS_SPEED_MPS = 2.5f
 
+    // ── M18.117: MOTION-KONTEXT (AR-Typ) + CADENCE (Beschleunigungssensor) ──
+    //
+    // User-Bug (Kanban t_50a4847b): „Joggen 16 km/h wird als Autofahren
+    // aufgezeichnet" + „Spazieren in der 30er-Zone wird als Autofahren
+    // aufgezeichnet". Root-Cause (Audit docs/activity-detection.md): Die
+    // Engine kennt NUR GPS-Speed. Ein Jogger (4,44 m/s) mit 2 GPS-Multipath-
+    // Spikes ≥ 8 m/s erfüllt alle Drive-Gates, weil die Position sich real
+    // mit 4,44 m/s bewegt (M18.113-Arbiter kann Joggen nicht von Fahren
+    // unterscheiden). Das fehlende Signal ist die HANDY-BEWEGUNG: Googles
+    // Activity-Recognition-Typ (Sensor-Hub, ~0 Akku) und die Schrittfrequenz
+    // aus dem Beschleunigungssensor.
+    //
+    // Kernregel: Die Auto-Schwelle wird KONTEXTABHÄNGIG. Meldet das Handy
+    // „zu Fuß" (WALKING/RUNNING/ON_FOOT), ist 8 m/s keine ausreichende
+    // Evidenz für Autofahren — ein Mensch kann 8 m/s nur Sekunden halten,
+    // nie Minuten. Meldet es IN_VEHICLE (oder gar nichts = UNKNOWN), bleibt
+    // die bewährte 8-m/s-Schwelle (30er-Zonen-Erkennung bleibt erhalten).
+    // Zusätzlich blockiert eine Schrittfrequenz im Jogging-Band (2,2–3,2 Hz)
+    // die Drive-Klassifikation UNabhängig vom AR-Kontext — das ist das
+    // „das Handy bewegt sich beim Joggen"-Signal des Users, das auch ohne
+    // AR-Permission funktioniert (Sensor braucht keine Permission).
+
+    /** Kontext des Handys aus Googles Activity-Recognition (Android-frei
+     *  für JVM-Tests). UNKNOWN = kein AR-Signal (Default — Verhalten wie
+     *  heute, 8 m/s). ON_FOOT = AR meldet WALKING/RUNNING/ON_FOOT.
+     *  IN_VEHICLE = AR meldet IN_VEHICLE. */
+    enum class MotionContext {
+        UNKNOWN,
+        ON_FOOT,
+        IN_VEHICLE
+    }
+
+    /** Auto-Schwelle bei ON_FOOT-Kontext: 12 m/s = 43,2 km/h. 43 km/h ist
+     *  von keinem Läufer (Weltrekord-Sprint ~37 km/h über 100 m, nie über
+     *  Minuten) und keinem Radfahrer im Dauerbetrieb erreichbar; jede echte
+     *  Stadt-/Landfahrt erreicht sie. Joggen 16 km/h (4,44 m/s) bleibt mit
+     *  riesigem Abstand darunter. */
+    const val MOTION_GATED_DRIVE_SPEED_MPS = 12.0f
+
+    /** Bei ON_FOOT-Kontext braucht es 3 konsekutive ≥ 12-m/s-Probes
+     *  (45 s bei 15-s-Stream) — ein einzelner GPS-Burst (2 Fixes) reicht
+     *  nicht, auch wenn der Kontext schon IN_VEHICLE war. */
+    const val MOTION_GATED_MIN_CONSECUTIVE_FAST = 3
+
+    /** Fenster-Schnitt bei ON_FOOT: 6 m/s (21,6 km/h) liegt über jedem
+     *  Lauf-/Jogging-Schnitt (4,44 m/s bei 16 km/h) und unter jeder echten
+     *  Fahrt mit 12-m/s-Spitzen. */
+    const val MOTION_GATED_AVG_SPEED_MPS = 6.0f
+
+    /** Untergrenze Joggen-Cadence: 2,2 Hz = 132 Schritte/min (lockeres
+     *  Joggen ~140 spm). */
+    const val JOGGING_CADENCE_MIN_HZ = 2.2f
+
+    /** Obergrenze Joggen-Cadence: 3,2 Hz = 192 spm (schnelles Laufen). */
+    const val JOGGING_CADENCE_MAX_HZ = 3.2f
+
+    /** Mindest-Anteil gültiger Cadence-Fenster (60 %), bevor die Schätzung
+     *  als stabil gilt. */
+    const val CADENCE_MIN_VALID_FRACTION = 0.6f
+
+    /** Cadence-Veto greift nur, wenn die GPS-Speed im Lauf-Bereich liegt
+     *  (2,5–8,0 m/s = 9–29 km/h). Darunter: Stillstand/Jitter (kein Veto
+     *  nötig — die Speed-Gates scheitern ohnehin). Darüber: echte Fahrt —
+     *  ein Auto vibriert hochfrequent (> 10 Hz), erzeugt aber keine
+     *  2,2-Hz-Schrittperiode; die Cadence-Schätzung fällt dort aus dem Band. */
+    const val CADENCE_VETO_MIN_SPEED_MPS = 2.5f
+    const val CADENCE_VETO_MAX_SPEED_MPS = 8.0f
+
+    /** M18.117: Liegt die Schrittfrequenz im Jogging-Band (2,2–3,2 Hz) und
+     *  ist die Schätzung stabil (≥ 60 % gültige Fenster)? Pure Funktion —
+     *  plattformneutral (iOS-Äquivalent: CMMotionActivityManager +
+     *  CMAccelerometerData mit derselben Schätzung). */
+    fun isJoggingCadence(cadenceHz: Float?, validFraction: Float): Boolean =
+        cadenceHz != null && validFraction >= CADENCE_MIN_VALID_FRACTION &&
+            cadenceHz in JOGGING_CADENCE_MIN_HZ..JOGGING_CADENCE_MAX_HZ
+
     // ── M18.79: Start-in-flight-Fenster (Blackout-/Race-Schutz) ────
     /** So lange nach [markDriveConfirmed] darf eine Auto-Session noch
      *  unterwegs sein, ohne dass die Selbstheilung das driveActive-Flag
@@ -319,7 +395,10 @@ object DriveDetectionEngine {
     fun classify(
         probes: List<DriveProbe>,
         nowMs: Long = System.currentTimeMillis(),
-        geofences: List<GeoCircle> = emptyList()
+        geofences: List<GeoCircle> = emptyList(),
+        motionContext: MotionContext = MotionContext.UNKNOWN,
+        cadenceHz: Float? = null,
+        cadenceValidFraction: Float = 0f
     ): Classification {
         // 1) Fenster + Genauigkeit + Geschwindigkeits-Ausreißer
         val valid = probes
@@ -427,10 +506,51 @@ object DriveDetectionEngine {
             }
         }
 
+        // M18.117 CADENCE-VETO (Schrittfrequenz beim Joggen blockiert Drive):
+        // Liegt die Schrittfrequenz im Jogging-Band (2,2–3,2 Hz, stabil ≥ 60 %)
+        // UND der Fenster-Schnitt im Lauf-Bereich (2,5–8,0 m/s), ist die
+        // Bewegung Joggen — kein Auto. Das Veto greift UNabhängig vom
+        // AR-Kontext (der Beschleunigungssensor braucht keine AR-Permission)
+        // und deckt damit auch „Joggen ohne AR-Signal" ab. Fahrzeug-Vibration
+        // (> 10 Hz, niederamplitudig) erzeugt keine 2,2-Hz-Periode und fällt
+        // durch die Schätzung. Der Schnitt wird aus derselben Speed-Quelle
+        // gebildet wie die Kette unten (Speed-Feld oder abgeleitete Speed).
+        var preSum = 0f
+        var preCount = 0
+        for (p in filtered) {
+            val s = p.speedMps ?: inferredSpeed[p.timestampMs]
+            if (s != null) {
+                preSum += s
+                preCount++
+            }
+        }
+        val preAvg = if (preCount > 0) preSum / preCount else 0f
+        if (isJoggingCadence(cadenceHz, cadenceValidFraction) &&
+            preAvg in CADENCE_VETO_MIN_SPEED_MPS..CADENCE_VETO_MAX_SPEED_MPS
+        ) {
+            return Classification.NotDriving
+        }
+
+        // M18.117 KONTEXT-SCHWELLEN (Motion-Gate): Meldet das Handy „zu Fuß"
+        // (WALKING/RUNNING/ON_FOOT), ist 8 m/s keine ausreichende Evidenz
+        // für Autofahren — ein Mensch kann 8 m/s nur Sekunden halten, nie
+        // Minuten. Die Auto-Schwelle steigt auf 12 m/s (43,2 km/h), die
+        // Konsekutiv-Kette auf 3 und der Fenster-Schnitt auf 6 m/s. Joggen
+        // 16 km/h (4,44 m/s) + 2 Multipath-Spikes bleiben damit weit unter
+        // allen Gates. Bei IN_VEHICLE oder UNKNOWN (kein AR-Signal) bleibt
+        // die bewährte 8-m/s-Schwelle — die 30er-Zonen-Erkennung bleibt
+        // erhalten (Regression-Test M18.113).
+        val driveSpeed = if (motionContext == MotionContext.ON_FOOT)
+            MOTION_GATED_DRIVE_SPEED_MPS else AUTO_SPEED_MPS
+        val minConsec = if (motionContext == MotionContext.ON_FOOT)
+            MOTION_GATED_MIN_CONSECUTIVE_FAST else MIN_CONSECUTIVE_FAST
+        val minAvg = if (motionContext == MotionContext.ON_FOOT)
+            MOTION_GATED_AVG_SPEED_MPS else 4.5f
+
         // M18.113 SPEED-POSITION-KONSISTENZ (User-Bug „Drive aufgezeichnet obwohl
         // Spaziergang"): Ein GPS-Multipath-Spike behauptet hohe Speed, während die
         // POSITION zwischen den Fixes nur Geh-Distanz legt. Cross-Check: Ein
-        // schneller Probe (≥ AUTO_SPEED_MPS) zählt nur, wenn die Positions-Distanz
+        // schneller Probe (≥ driveSpeed) zählt nur, wenn die Positions-Distanz
         // zum vorherigen Koordinaten-Fix mindestens FAHR-tempo belegt —
         // posSpeed = posDist / dt ≥ MIN_CONFIRMED_POS_SPEED_MPS (2,5 m/s = 9 km/h).
         //   • Spaziergang + Spike: behauptet 8,5 m/s, Position legt 180 m/2 Min =
@@ -446,7 +566,7 @@ object DriveDetectionEngine {
         var lastCoordsIdx = -1
         for ((i, p) in filtered.withIndex()) {
             val claimed = p.speedMps ?: inferredSpeed[p.timestampMs]
-            if (claimed != null && claimed >= AUTO_SPEED_MPS &&
+            if (claimed != null && claimed >= driveSpeed &&
                 p.latitude != null && p.longitude != null
             ) {
                 if (lastCoordsIdx < 0) {
@@ -488,7 +608,7 @@ object DriveDetectionEngine {
             if (s != null) {
                 speedSum += s
                 speedCount++
-                if (s >= AUTO_SPEED_MPS && positionConfirmed.contains(i)) {
+                if (s >= driveSpeed && positionConfirmed.contains(i)) {
                     consecutive++
                     maxConsecutive = maxOf(maxConsecutive, consecutive)
                     fastCount++
@@ -576,8 +696,8 @@ object DriveDetectionEngine {
             return Classification.NotDriving
         }
         val driving = fastCount >= MIN_FAST_PROBES &&
-            maxConsecutive >= MIN_CONSECUTIVE_FAST &&
-            avgSpeed >= 4.5f
+            maxConsecutive >= minConsec &&
+            avgSpeed >= minAvg
         if (!driving) return Classification.NotDriving
 
         // 5) Konfidenz: Anteil schneller Probes + Geschwindigkeits-Niveau
