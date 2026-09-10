@@ -1,6 +1,10 @@
 package com.d_drostes_apps.aevum.automation.activityrecognition
 
 import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -154,9 +158,12 @@ class DriveStartWorker(
         // benannten Orts-Kreis = Indoor-Multipath, keine Fahrt.
         // M18.117: Motion-Kontext (AR-Typ) durchreichen — ON_FOOT hebt
         // die Auto-Schwelle auf 12 m/s (Joggen-Spikes starten keine Fahrt).
+        // M18.118: Cadence-Snapshot durchreichen — Joggen-Cadence
+        // blockiert die Fahrt auch ohne AR-Signal.
         val gpsOk = DriveDetectionEngine.classify(
             bridge.currentDriveProbes(), now, bridge.currentGeofenceContext(),
-            bridge.currentMotionContext()
+            bridge.currentMotionContext(),
+            bridge.currentCadenceHz(), bridge.currentCadenceValidFraction()
         ) is DriveDetectionEngine.Classification.Driving
         if (!confirmedFresh && !gpsOk) {
             // M18.68-FIX (Detection-Blackout): Das Confirmation-Flag wird
@@ -719,11 +726,22 @@ class DriveProbeWorker(
             bridge.addDriveProbe(probe, refreshHeartbeat = false)
             Log.d(TAG, "Probe: speed=${fix.speedMps?.let { "%.1f".format(it) } ?: "?"} m/s, acc=${fix.accuracyMeters.toInt()}m")
 
+            // M18.118: Kurzes Cadence-Sampling (max. 12 s) — der
+            // DriveProbeWorker ist der Fallback-Pfad OHNE AR-Permission
+            // (dann läuft nie ein CONFIRM-Burst, der Sensor-Snapshot der
+            // Bridge bliebe sonst leer). Der Beschleunigungssensor
+            // braucht keine Permission; 12 s Sampling alle 2 Min ist
+            // akkuvernachlässigbar (M18.104-Prinzip: kein Dauerbetrieb).
+            sampleCadenceForVeto(bridge, now)
+
             // 3) Serie klassifizieren. M18.117: Motion-Kontext (AR-Typ)
             // durchreichen — ON_FOOT hebt die Auto-Schwelle auf 12 m/s
             // (Joggen-Spikes starten keine Fahrt).
+            // M18.118: Cadence-Snapshot durchreichen — Joggen-Cadence
+            // blockiert die Fahrt auch ohne AR-Signal.
             when (val result = DriveDetectionEngine.classify(
-                bridge.currentDriveProbes(), now, emptyList(), bridge.currentMotionContext()
+                bridge.currentDriveProbes(), now, emptyList(), bridge.currentMotionContext(),
+                bridge.currentCadenceHz(), bridge.currentCadenceValidFraction()
             )) {
                 is DriveDetectionEngine.Classification.Driving -> {
                     Log.d(TAG, "Fahrt per GPS-Geschwindigkeit bestätigt (confidence=${result.confidence})")
@@ -767,6 +785,9 @@ class DriveProbeWorker(
     companion object {
         private const val TAG = "DriveProbeWorker"
 
+        /** M18.118: Dauer des kurzen Cadence-Samplings pro Worker-Lauf. */
+        private const val CADENCE_SAMPLE_MS = 12_000L
+
         /** Takt (neu) starten — REPLACE: genau ein Lauf, jeder Start
          *  resetet den Timer. */
         fun schedule(context: Context) {
@@ -785,5 +806,50 @@ class DriveProbeWorker(
         }
 
         private fun scheduleNext(context: Context) = schedule(context)
+    }
+
+    /**
+     * M18.118: Kurzes Cadence-Sampling für das Drive-Veto. Registriert
+     * den Beschleunigungssensor für [CADENCE_SAMPLE_MS], füttert den
+     * CadenceTracker und schreibt den Snapshot in die Bridge. Der
+     * Sensor braucht KEINE Permission — damit funktioniert das
+     * Joggen-Veto auch im AR-losen Fallback-Pfad. Fehlt der Sensor
+     * (Emulator), bleibt der Snapshot unverändert (null = kein Veto).
+     */
+    private suspend fun sampleCadenceForVeto(
+        bridge: ActivityRecognitionBridge,
+        nowMs: Long
+    ) {
+        val sm = applicationContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            ?: return
+        val accel = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
+        val tracker = CadenceTracker()
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val mag = Math.sqrt(
+                    (event.values[0] * event.values[0] +
+                        event.values[1] * event.values[1] +
+                        event.values[2] * event.values[2]).toDouble()
+                ).toFloat()
+                tracker.addSample(event.timestamp / 1_000_000L, mag)
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }
+        try {
+            sm.registerListener(listener, accel, SensorManager.SENSOR_DELAY_GAME)
+        } catch (_: Exception) {
+            return
+        }
+        try {
+            kotlinx.coroutines.delay(CADENCE_SAMPLE_MS)
+        } finally {
+            try { sm.unregisterListener(listener) } catch (_: Exception) {}
+        }
+        bridge.updateCadenceSnapshot(tracker.currentCadenceHz(), tracker.validFraction())
+        Log.d(
+            TAG,
+            "M18.118: Cadence-Sample: ${tracker.currentCadenceHz()?.let { "%.2f Hz".format(it) } ?: "keine"} (valid=${tracker.validFraction()})"
+        )
     }
 }

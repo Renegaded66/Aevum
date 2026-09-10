@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Build
 import android.os.IBinder
@@ -102,6 +106,35 @@ class DriveDetectionService : Service() {
 
     /** M18.84: Beginn der laufenden Walking-Phase (0 = keine). */
     private var walkingPhaseStartMs: Long = 0L
+
+    // ── M18.118: CADENCE-SAMPLING (Schrittfrequenz, Beschleunigungssensor) ──
+    // Der Schrittfrequenz-Schätzer wird NUR in ohnehin aktiven Burst-/
+    // Track-Fenstern gefüttert (M18.104-Akku-Prinzip: kein 24/7-Sensor-
+    // Stream). Der Snapshot landet in der Bridge und fließt als
+    // Cadence-Veto in DriveDetectionEngine.classify — das „das Handy
+    // bewegt sich beim Joggen"-Signal des Users (Kanban t_50a4847b).
+    private var cadenceTracker: CadenceTracker? = null
+    private var stepDetector: Sensor? = null
+    private var stepDetectorRegistered = false
+    private val stepListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            val tracker = cadenceTracker ?: return
+            val mag = Math.sqrt(
+                (event.values[0] * event.values[0] +
+                    event.values[1] * event.values[1] +
+                    event.values[2] * event.values[2]).toDouble()
+            ).toFloat()
+            tracker.addSample(event.timestamp / 1_000_000L, mag)
+            // Snapshot nach jedem Sample aktualisieren — classify liest
+            // den letzten stabilen Wert (billig, kein Lock-Hotspot).
+            bridge.updateCadenceSnapshot(
+                tracker.currentCadenceHz(),
+                tracker.validFraction()
+            )
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    }
 
     private lateinit var fusedClient: FusedLocationProviderClient
     private var callback: LocationCallback? = null
@@ -561,6 +594,10 @@ class DriveDetectionService : Service() {
             StreamMode.TRACK_WALK -> Priority.PRIORITY_BALANCED_POWER_ACCURACY to TRACK_WALK_INTERVAL_MS
             StreamMode.OFF -> return
         }
+        // M18.118: Schrittfrequenz-Sampling in allen aktiven Fenstern —
+        // der Beschleunigungssensor ist der billigste Sensor (kein GPS).
+        // Fehlt der Sensor (Emulator, alte Geräte), läuft alles wie bisher.
+        registerStepDetectorIfAvailable()
         if (callback != null && activePriority == priority && activeIntervalMs == intervalMs) {
             return
         }
@@ -758,9 +795,54 @@ class DriveDetectionService : Service() {
             try { fusedClient.removeLocationUpdates(cb) } catch (_: Exception) {}
         }
         callback = null
+        unregisterStepDetector()
         // Restlichen Track-Puffer flushen (M18.86 onDestroy-Pflicht).
         flushTrackBuffer()
         stopSelf()
+    }
+
+    // ── M18.118: STEP-DETECTOR (Beschleunigungssensor) ─────────────
+    // Registriert den Sensor NUR solange ein Burst-/Track-Fenster läuft
+    // (M18.104-Akku-Prinzip). Der Sensor liefert Events nur bei echter
+    // Bewegung — im Stillstand schweigt er (System-Level-Optimierung).
+    private fun registerStepDetectorIfAvailable() {
+        if (stepDetectorRegistered) return
+        val sm = getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
+        val detector = sm.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        if (detector == null) {
+            // Kein Step-Detector (Emulator/alt) — Fallback: Accelerometer
+            // mit SENSOR_DELAY_GAME (~20 ms) für die Cadence-Schätzung.
+            val accel = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
+            stepDetector = accel
+            try {
+                sm.registerListener(stepListener, accel, SensorManager.SENSOR_DELAY_GAME)
+                stepDetectorRegistered = true
+                cadenceTracker = CadenceTracker()
+            } catch (_: Exception) {
+                stepDetector = null
+            }
+            return
+        }
+        stepDetector = detector
+        try {
+            sm.registerListener(stepListener, detector, SensorManager.SENSOR_DELAY_NORMAL)
+            stepDetectorRegistered = true
+            cadenceTracker = CadenceTracker()
+        } catch (_: Exception) {
+            stepDetector = null
+        }
+    }
+
+    private fun unregisterStepDetector() {
+        if (!stepDetectorRegistered) return
+        try {
+            val sm = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            sm?.unregisterListener(stepListener)
+        } catch (_: Exception) {
+        }
+        stepDetectorRegistered = false
+        stepDetector = null
+        cadenceTracker = null
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -913,8 +995,12 @@ class DriveDetectionService : Service() {
             // ON_FOOT hebt die Auto-Schwelle auf 12 m/s (Joggen-Spikes
             // zählen nicht mehr als Fahrt), IN_VEHICLE/UNKNOWN behalten
             // 8 m/s (30er-Zonen-Erkennung bleibt).
+            // M18.118: Cadence-Snapshot (Schrittfrequenz) durchreichen —
+            // das Cadence-Veto blockiert Joggen auch OHNE AR-Signal
+            // (Sensor braucht keine AR-Permission).
             when (val result = DriveDetectionEngine.classify(
-                bridge.currentDriveProbes(), now, circles, bridge.currentMotionContext()
+                bridge.currentDriveProbes(), now, circles, bridge.currentMotionContext(),
+                bridge.currentCadenceHz(), bridge.currentCadenceValidFraction()
             )) {
                 is DriveDetectionEngine.Classification.Driving -> {
                     // M18.84 INSIDE-GEOFENCE-CAP: Cluster-Start in einem
@@ -1258,6 +1344,7 @@ class DriveDetectionService : Service() {
 
     override fun onDestroy() {
         modeTimerJob?.cancel()
+        unregisterStepDetector()
         flushTrackBuffer()
         callback?.let { cb ->
             try { fusedClient.removeLocationUpdates(cb) } catch (_: Exception) {}
