@@ -328,6 +328,28 @@ class AppUsageAggregator @Inject constructor(
     }
 
     /**
+     * M18.119: Gesamt-Bildschirmzeit an einem BESTIMMTEN Tag via Event-API
+     * (gleiche Phase-Logik wie dailyTotals, inkl. Mitternachts-Clipping
+     * und ohne >1s-Filter — identische Basis wie dailyTotals/heute).
+     * Für die Bildschirmzeit-Kachel im Dashboard: Der Tag-Swipe soll die
+     * Bildschirmzeit des GEWÄHLTEN Tags zeigen, nicht immer die von heute
+     * (todayForegroundTotalMs bleibt für „jetzt"-Sichten bestehen).
+     */
+    suspend fun foregroundTotalForDay(date: LocalDate): Long = withContext(Dispatchers.IO) {
+        try {
+            val zone = ZoneId.systemDefault()
+            val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            // Zukünftige Tage haben (noch) keine Daten:
+            val effectiveEnd = minOf(end, System.currentTimeMillis())
+            if (effectiveEnd <= start) return@withContext 0L
+            foregroundPhases(start, effectiveEnd).sumOf { it.end - it.start }.coerceAtLeast(0L)
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    /**
      * M18.62: Nutzung pro App an einem BESTIMMTEN Tag.
      *
      * Für die App-Liste in Digital Balance, wenn im Balken-Diagramm ein

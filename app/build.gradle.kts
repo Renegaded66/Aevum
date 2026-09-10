@@ -19,8 +19,8 @@ android {
         targetSdk = 36
         // M18.105: Startup-Crash auf frischen Installationen gefixt
         // (FGS-Vertrag + Permission-Gate, siehe DriveDetectionService).
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
