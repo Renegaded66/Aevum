@@ -539,13 +539,28 @@ class DashboardViewModel @Inject constructor(
             val dayEnd = TimeFormatting.endOfDayMillis(day, zoneId)
             val sleepStart = dayStart - 24L * 60 * 60 * 1000
             val sleepEnd = dayEnd + 12L * 60 * 60 * 1000
-            combine(
+            // M18.119-FIX: Bildschirmzeit pro GEWÄHLTEN Tag (nicht fest „heute").
+            // Für HEUTE: der Live-Flow _screenTimeMs (minuteTick aktualisiert ihn
+            // jede Minute — M18.93v7 bleibt erhalten). Für vergangene Tage: der
+            // Tageswert aus der Event-API (Mitternachts-Clipping, keine
+            // >1s-Filter — gleiche Basis wie dailyTotals).
+            val screenTimeForDay: kotlinx.coroutines.flow.Flow<Long> =
+                if (day == LocalDate.now()) {
+                    _screenTimeMs
+                } else {
+                    kotlinx.coroutines.flow.flow {
+                        emit(try {
+                            appUsageAggregator.foregroundTotalForDay(day)
+                        } catch (_: Exception) { 0L })
+                    }
+                }
+            kotlinx.coroutines.flow.combine(
                 activityRepository.getOverlappingRange(dayStart, dayEnd),
                 categoryRepository.getAll(),
                 candidateRepository.getByStatus("PENDING"),
                 activityTypeRepository.getAll(),
                 activityRepository.getOverlappingRange(sleepStart, sleepEnd),
-                _screenTimeMs,
+                screenTimeForDay,
                 dailyAllowanceRepository.getAll(),
                 todoRepository.getAll(),
                 todoRepository.getAllCompletions(),
@@ -669,14 +684,29 @@ class DashboardViewModel @Inject constructor(
                 _qualityTrend.value = trend
             }
         }
-        // M18.58: Garmin-Tageszusammenfassung + Aktivitäten für heute beobachten.
+        // M18.119-FIX (User: „beim Tage-Swipen bleibt der Garmin-Block auf heute"):
+        // Beide Garmin-Flows abonnierten FEST „heute" (LocalDate.now() bzw. die
+        // start/end-Getter) — Room-Flows mit festen Parametern emittieren nur bei
+        // DB-Änderung, ein Tag-Wechsel löste also KEIN neues Abonnement aus →
+        // die Kacheln zeigten beim Swipen weiterhin die heutigen Werte.
+        // Fix: flatMapLatest auf den Tag-Key — bei jedem Tag-Wechsel werden die
+        // Garmin-Flows für den GEWÄHLTEN Tag frisch abonniert (gleiche Technik
+        // wie der uiState-combine, M18.60-FIX 3).
         viewModelScope.launch {
-            garminRepository.getSummaryByDate(LocalDate.now().toString()).collect { summary ->
+            tagKey.flatMapLatest { dayStr ->
+                garminRepository.getSummaryByDate(dayStr)
+            }.collect { summary ->
                 _garminSummary.value = summary
             }
         }
         viewModelScope.launch {
-            garminRepository.getActivitiesByRange(start, end).collect { activities ->
+            tagKey.flatMapLatest { dayStr ->
+                val day = LocalDate.parse(dayStr)
+                garminRepository.getActivitiesByRange(
+                    TimeFormatting.startOfDayMillis(day, zoneId),
+                    TimeFormatting.endOfDayMillis(day, zoneId)
+                )
+            }.collect { activities ->
                 _garminActivities.value = activities
             }
         }
