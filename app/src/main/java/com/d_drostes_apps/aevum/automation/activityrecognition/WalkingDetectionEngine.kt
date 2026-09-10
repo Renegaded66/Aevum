@@ -117,12 +117,27 @@ object WalkingDetectionEngine {
 
     /** M18.110: Displacement-Veto für Fixes OHNE Speed-Feld (BALANCED-
      *  Walking-Bursts liefern oft kein hasSpeed). Eine Ortsveränderung
-     *  ≥ 350 m zwischen zwei Fixes entspricht ≥ 5,8 m/s Durchschnitt bei
-     *  60s-Intervall — über der Lauf-Obergrenze (WALK_RUN_MAX ≈ 5,5 m/s
-     *  = 330 m), damit schnelles Joggen (eigener "joggen"-Pfad via
-     *  RUNNING-AR) nicht vom Veto getroffen wird. Echte Wanderungs-Fixe
-     *  bleiben ≤ 90-150 m (Geh-Tempo). */
-    const val WALKING_DISPLACEMENT_VETO_M = 350.0
+     *  zwischen zwei Fixes wird über dist/dt auf Fahrzeug-Tempo geprüft.
+     *  M18.117: 350 m FIX → 5,0 m/s GESCHWINDIGKEITSBASIERT (Audit
+     *  docs/activity-detection.md §4.2.4). Die fixe 350-m-Schwelle war
+     *  dt-abhängig: Bei 120-s-Fix-Lücken (Doze) legt Joggen 16 km/h
+     *  533 m zurück ≥ 350 m → die Phase wurde fälschlich als Fahrzeug
+     *  verworfen, obwohl der User joggt. 5,0 m/s = WALKING_MAX_AVG_SPEED_MPS
+     *  (eine Quelle): Joggen 16 km/h = 4,44 m/s bleibt darunter — auch
+     *  bei 120-s-Lücken (533 m / 120 s = 4,44 m/s). Fahrzeug-Tempo
+     *  (8,3 m/s in der 30er-Zone) wird weiterhin verworfen. */
+    const val WALKING_DISPLACEMENT_VETO_SPEED_MPS = 5.0f
+
+    /** M18.117: Ist die Bewegung zwischen zwei Fixes Fahrzeug-Niveau?
+     *  dist / dt ≥ 5,0 m/s (dt im Veto-Fenster [MIN_DT, MAX_DT]). Pure
+     *  Funktion — ersetzt den fixen 350-m-Vergleich (dt-abhängig, siehe
+     *  [WALKING_DISPLACEMENT_VETO_SPEED_MPS]). */
+    fun isVehicleDisplacement(distMeters: Double, dtMs: Long): Boolean {
+        if (dtMs < WALKING_DISPLACEMENT_VETO_MIN_DT_MS ||
+            dtMs > WALKING_DISPLACEMENT_VETO_MAX_DT_MS
+        ) return false
+        return distMeters / (dtMs / 1000.0) >= WALKING_DISPLACEMENT_VETO_SPEED_MPS
+    }
 
     /** M18.110: Mindest-dt für das Displacement-Veto (kürzere Abstände
      *  = GPS-Jitter-Sprünge, keine Fortbewegung). */
