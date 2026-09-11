@@ -62,11 +62,17 @@ class AppBlockService : Service() {
     private var ignoredTodayPkg: String? = null
     private val warnedPkgs = HashSet<String>()
     private var lastForegroundPkg: String? = null
-    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
-    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
-    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
-    // StickyGuards.kt.
-    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376): Sticky-
+    // Guard — bricht die System-Wiederbelebung (START_STICKY-Rebirth
+    // nach Crash/Kill), die den "crasht alle paar Sekunden"-Loop
+    // amplifiziert. M18.122 (D2): Zustand PERSISTIERT (SharedPrefs),
+    // damit der Guard nach Prozess-Kill (neue Instanz) den Rebirth
+    // noch erkennt. Siehe StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
+        com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
+            this, "app_block"
+        )
+    )
     private var processStartedAtRealtime = 0L
 
     // M18.61g-FIX 2: Rückkanal von der BlockActivity (Buttons) zum Service.
@@ -139,28 +145,31 @@ class AppBlockService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
-        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
-        // OHNE Action an (START_STICKY). Innerhalb des Cooldown-Fensters
-        // ab dem letzten echten Start ist das ein frischer
-        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
-        // START_NOT_STICKY, statt die Wiederbelebungs-Schleife zu
-        // verlängern (der nächste echte Anlass — App-Start,
-        // Limit-Änderung — startet ihn regulär).
-        if (intent?.action == null) {
-            val nowRealtime = android.os.SystemClock.elapsedRealtime()
-            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
-                android.util.Log.w("AppBlockSvc", "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet")
-                stopSelf()
-                return START_NOT_STICKY
-            }
-        }
-        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
+        // M18.121/M18.122 (t_55c14376): STICKY-GUARD. Der FGS-Vertrag ist
+        // hier bereits in onCreate erfüllt (startForeground, siehe dort) —
+        // der Break unten bricht NUR echte System-Rebirths (action == null;
+        // alle internen Starts tragen seit M18.122 ACTION_INTERNAL_START)
+        // auf Basis des PERSISTIERTEN letzten-Start-Zeitstempels (D2).
+        val stickyRebirthBreak = intent?.action == null && stickyGuard.shouldBreakStickyRebirth(
+            processStartedAtRealtime,
+            android.os.SystemClock.elapsedRealtime()
+        )
         // Neu gestartet (z.B. nach Reboot) → Watchdog neu starten
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
         }
+        // M18.121/M18.122: STICKY-GUARD-BREAK — nach erfülltem
+        // FGS-Vertrag (startForeground in onCreate). Der nächste echte
+        // Anlass (App-Start, Limit-Änderung) startet den Service regulär.
+        if (stickyRebirthBreak) {
+            android.util.Log.w("AppBlockSvc", "M18.122: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz, FGS-Vertrag erfüllt) — Service beendet")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        // M18.122: Echter Start (Action inkl. ACTION_INTERNAL_START) —
+        // Wall-Clock-Zeitstempel persistieren (D2).
+        stickyGuard.markLegitStart()
         return START_STICKY
     }
 
@@ -436,6 +445,10 @@ class AppBlockService : Service() {
         const val ACTION_IGNORE_TODAY = "com.d_drostes_apps.aevum.digitalbalance.IGNORE_TODAY"
         const val ACTION_CLOSE = "com.d_drostes_apps.aevum.digitalbalance.CLOSE"
         const val EXTRA_PKG = "blocked_pkg"
+        // M18.122 (D3): Marker-Action für app-interne Starts — der
+        // Sticky-Guard bricht NUR Intents OHNE Action (System-Rebirth).
+        // JEDER interne Start setzt sie, siehe start().
+        const val ACTION_INTERNAL_START = "com.d_drostes_apps.aevum.APP_BLOCK_INTERNAL_START"
         private const val CHANNEL_ID = "digital_balance_block"
         private const val NOTIFICATION_ID = 9002
         private const val WARNING_NOTIFICATION_ID = 9100
@@ -451,7 +464,11 @@ class AppBlockService : Service() {
         private const val CHECK_INTERVAL_SCREEN_OFF_MS = 10L * 60 * 1000
 
         fun start(context: Context) {
+            // M18.122 (D3): Interne Starts tragen explizit
+            // ACTION_INTERNAL_START — null-Action bleibt damit dem
+            // System-Rebirth vorbehalten (START_STICKY nach Prozess-Kill).
             val intent = Intent(context, AppBlockService::class.java)
+                .setAction(ACTION_INTERNAL_START)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)

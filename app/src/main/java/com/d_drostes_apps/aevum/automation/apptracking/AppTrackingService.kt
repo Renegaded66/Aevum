@@ -58,11 +58,17 @@ class AppTrackingService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: kotlinx.coroutines.Job? = null
-    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
-    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
-    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
-    // StickyGuards.kt.
-    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376): Sticky-
+    // Guard — bricht die System-Wiederbelebung (START_STICKY-Rebirth
+    // nach Crash/Kill), die den "crasht alle paar Sekunden"-Loop
+    // amplifiziert. M18.122 (D2): Zustand PERSISTIERT (SharedPrefs),
+    // damit der Guard nach Prozess-Kill (neue Instanz) den Rebirth
+    // noch erkennt. Siehe StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
+        com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
+            this, "app_tracking"
+        )
+    )
     private var processStartedAtRealtime = 0L
 
     /** Aktuell im Vordergrund befindliche getrackte App (packageName). */
@@ -96,9 +102,17 @@ class AppTrackingService : Service() {
         // gen — UsageStats-I/O fällt weg). 10 Min reichen locker: Der
         // SCREEN_ON-Broadcast weckt den Sofort-Poll sofort.
         private const val POLL_INTERVAL_SCREEN_OFF_MS = 10L * 60 * 1000
+        // M18.122 (D3): Marker-Action für app-interne Starts — der
+        // Sticky-Guard bricht NUR Intents OHNE Action (System-Rebirth).
+        // JEDER interne Start setzt sie, siehe start().
+        const val ACTION_INTERNAL_START = "com.d_drostes_apps.aevum.APP_TRACKING_INTERNAL_START"
 
         fun start(context: Context) {
+            // M18.122 (D3): Interne Starts tragen explizit
+            // ACTION_INTERNAL_START — null-Action bleibt damit dem
+            // System-Rebirth vorbehalten (START_STICKY nach Prozess-Kill).
             val intent = Intent(context, AppTrackingService::class.java)
+                .setAction(ACTION_INTERNAL_START)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
@@ -127,23 +141,19 @@ class AppTrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
-        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
-        // OHNE Action an (START_STICKY, s.u.). Innerhalb des Cooldown-
-        // Fensters ab dem letzten echten Start ist das ein frischer
-        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
-        // START_NOT_STICKY, statt die Wiederbelebungs-Schleife zu
-        // verlängern (der nächste echte Anlass — App-Start, Settings-
-        // Änderung — startet ihn regulär).
-        if (intent?.action == null) {
-            val nowRealtime = android.os.SystemClock.elapsedRealtime()
-            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
-                Log.w(TAG, "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet")
-                stopSelf()
-                return START_NOT_STICKY
-            }
-        }
-        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
+        // M18.121 (t_fe3e99da) / M18.122 (t_55c14376, D1/D2/D3):
+        // STICKY-GUARD. Der Break steht NACH startForegroundCompat() —
+        // der FGS-Vertrag (startForeground binnen 5s auf JEDEM Pfad)
+        // muss zuerst erfüllt sein, ein stopSelf davor wäre
+        // RemoteServiceException → Prozess-Kill (der alte Pfad riss
+        // genau das). Der Break passiert NUR bei action == null (echter
+        // System-Rebirth; alle internen Starts tragen seit M18.122
+        // ACTION_INTERNAL_START) und verlässt sich auf den
+        // PERSISTIERTEN letzten-Start-Zeitstempel (D2).
+        val stickyRebirthBreak = intent?.action == null && stickyGuard.shouldBreakStickyRebirth(
+            processStartedAtRealtime,
+            android.os.SystemClock.elapsedRealtime()
+        )
 
         // WICHTIG: startForeground() MUSS sofort (synchron) aufgerufen
         // werden — Android wirft sonst nach 5s eine
@@ -151,6 +161,20 @@ class AppTrackingService : Service() {
         // (getrackte Apps?) läuft danach in der Coroutine; wenn keine
         // App getrackt ist, beendet sich der Service selbst.
         startForegroundCompat()
+
+        // M18.121/M18.122: STICKY-GUARD-BREAK — NACH erfülltem
+        // FGS-Vertrag. Nur ein echter System-Rebirth (action == null)
+        // innerhalb des Persistenz-Fensters nach einem echten Start
+        // wird gebrochen — der nächste echte Anlass (App-Start,
+        // Settings-Änderung) startet den Service regulär.
+        if (stickyRebirthBreak) {
+            Log.w(TAG, "M18.122: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz, FGS-Vertrag erfüllt) — Service beendet")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        // M18.122: Echter Start (Action inkl. ACTION_INTERNAL_START) —
+        // Wall-Clock-Zeitstempel persistieren (D2).
+        stickyGuard.markLegitStart()
 
         scope.launch {
             val enabled = try {
