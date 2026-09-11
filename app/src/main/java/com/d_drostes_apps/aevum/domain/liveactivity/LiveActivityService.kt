@@ -50,6 +50,12 @@ class LiveActivityService : Service() {
     // existiert). Nach 3s ist die Phase vorbei — dann ist null
     // wirklich "keine Session" und der Service stoppt.
     private var serviceStartTime = 0L
+    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
+    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
+    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
+    // StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    private var processStartedAtRealtime = 0L
 
     companion object {
         // M18.4: NEUE Channel-ID — NotificationChannels sind nach dem ersten
@@ -88,11 +94,34 @@ class LiveActivityService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         serviceStartTime = System.currentTimeMillis()
+
+        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
+        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
+        // OHNE Action an (START_STICKY). Innerhalb des Cooldown-Fensters
+        // ab dem letzten echten Start ist das ein frischer
+        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
+        // START_NOT_STICKY, statt die Wiederbelebungs-Schleife zu
+        // verlängern (der nächste echte Anlass — App-Start, Session,
+        // AR-/Geofence-Event — startet ihn regulär).
+        if (intent?.action == null) {
+            val nowRealtime = android.os.SystemClock.elapsedRealtime()
+            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
+                android.util.Log.w(
+                    "LiveActivitySvc",
+                    "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet"
+                )
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
+
         when (intent?.action) {
             ACTION_PAUSE -> scope.launch { liveActivityManager.pause() }
             ACTION_RESUME -> scope.launch { liveActivityManager.resume() }

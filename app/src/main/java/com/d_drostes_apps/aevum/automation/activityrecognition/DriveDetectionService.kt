@@ -143,6 +143,12 @@ class DriveDetectionService : Service() {
     private var lastTsMs: Long = 0L
     /** M18.84: Wurde der Geofence-Kontext (Veto-Kreise) bereits geladen? */
     private var geofenceContextLoaded = false
+    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
+    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
+    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
+    // StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    private var processStartedAtRealtime = 0L
     /** M18.66-FIX13: Beginn des ERSTEN Streams dieser Service-Lebensdauer —
      *  die ersten 20s werden ignoriert (GPS-Kaltstart: speed oft Müllwerte
      *  bei scheinbar akzeptabler Genauigkeit; M18.112: 60s → 20s — der
@@ -314,6 +320,7 @@ class DriveDetectionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         // M18.105: Channel sicherstellen (im M18.104-Rewrite verloren
         // gegangen — fehlt der Channel, zeigt Android die FGS-Notification
@@ -376,6 +383,26 @@ class DriveDetectionService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+
+        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
+        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
+        // OHNE Action an (START_STICKY, s.u.). Innerhalb des Cooldown-
+        // Fensters ab dem letzten echten Start ist das ein frischer
+        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
+        // START_NOT_STICKY, statt mit dem generischen Restore (der bei
+        // korrumpiertem Session-Zustand erneut die erkennungs-/crash-
+        // treibende Kaskade anstößt) die Schleife zu verlängern. Der
+        // nächste echte Anlass (AR-/Geofence-Event, Worker, App-Start)
+        // startet ihn regulär.
+        if (intent?.action == null) {
+            val nowRealtime = android.os.SystemClock.elapsedRealtime()
+            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
+                Log.w(TAG, "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
 
         when (action) {
             ACTION_CONFIRM -> {

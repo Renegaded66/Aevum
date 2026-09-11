@@ -162,4 +162,13 @@ object RepositoryModule {
     // M18.86: GPS-Streckenpunkte (Orts-Timeline-Karte)
     @Provides
     fun provideLocationTrackPointRepository(dao: LocationTrackPointDao): LocationTrackPointRepository = LocationTrackPointRepositoryImpl(dao)
+
+    // M18.121 (Crash-Loop t_fe3e99da): Singleton-Drossel für den
+    // Geofence-Auto-Re-Start nach Fahrt-Ende. Eine Instanz pro Prozess —
+    // der Worker (DriveEndGeofenceRestarter) und der Test teilen sich
+    // den Zähler; die Drossel bricht das Start/Stop-Flackern, das den
+    // Crash-Loop speist.
+    @Provides @Singleton
+    fun provideGeofenceRestartThrottle(): com.d_drostes_apps.aevum.automation.geofence.GeofenceRestartThrottle =
+        com.d_drostes_apps.aevum.automation.geofence.GeofenceRestartThrottle()
 }
