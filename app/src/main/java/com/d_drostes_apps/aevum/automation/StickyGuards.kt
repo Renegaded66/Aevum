@@ -1,8 +1,9 @@
 package com.d_drostes_apps.aevum.automation
 
 // ══════════════════════════════════════════════════════════════════════
-// M18.121 (Kanban t_fe3e99da): STICKY-GUARDS — Loop-Breaker gegen die
-// START_STICKY-Restart-Amplifikation des Hintergrund-Crash-Loops.
+// M18.121 (Kanban t_fe3e99da) + M18.122 (Kanban t_55c14376):
+// STICKY-GUARDS — Loop-Breaker gegen die START_STICKY-Restart-
+// Amplifikation des Hintergrund-Crash-Loops.
 //
 // PROBLEM (analysiert in t_2edf98d8 §4.2 + Code-Trace): Alle 5
 // Foreground-Services laufen mit START_STICKY. Stirbt der Prozess
@@ -12,112 +13,162 @@ package com.d_drostes_apps.aevum.automation
 // DriveDetectionService ohne trackbare Session, AppTrackingService
 // ohne getrackte Apps, GeofenceFGS ohne aktive Geofences), wird vom
 // System in Sekundenabständen wiederbelebt — "crasht alle paar
-// Sekunden im Hintergrund", ohne dass der eigentliche Auslöser den
-// Prozess je verlassen müsste. Bei einem Crash-Kill (nicht System-
-// Kill) ist der Restart der FGS der ZWEITE Loop-Arm neben den
-// Workers/Receivern, die den Crash erneut auslösen.
+// Sekunden im Hintergrund".
 //
-// LÖSUNG: Sticky-Guards in jedem FGS. Wenn ein Sticky-Restart (kein
-// expliziter Intent mit Action, sondern System-Rebirth nach Kill)
-// innerhalb des Cooldown-Fensters ankommt, wird er NICHT ausgeführt —
-// der Service beendet sich sofort mit START_NOT_STICKY. Das bricht
-// die Wiederbelebungs-Schleife: Der nächste echte Anlass (App-Start,
-// AR-/Geofence-Event, Worker) startet den Service regulär.
+// M18.122-NACHBESSERUNG (Root-Review von e8928e3, 3 Defekte):
+//   D2: Der M18.121-Zustand war ein Instanz-Feld → nach Prozess-Kill
+//       (NEUE Service-Instanz im NEUEN Prozess) war lastCommand=0
+//       und der Kill→Rebirth-Loop wurde NIE gebrochen. Jetzt ist der
+//       Guard-Zustand PERSISTIERT (SharedPreferences, pro Service ein
+//       Key): der Wall-Clock des letzten echten Starts überlebt den
+//       Prozess-Kill. Entscheidung bei null-Action:
+//         · persistierter Eintrag < 5 Min alt UND Prozess frisch
+//           (< 30 s elapsedRealtime-Delta) → Kill-Rebirth → brechen
+//         · kein Eintrag / zu alt → normal starten
+//   D3: App-interne Starts bauen jetzt IMMER einen Action-Intent
+//       (ACTION_INTERNAL_START). Guard-Break NUR bei action == null —
+//       null-Action ist damit wirklich nur System-Rebirth.
 //
-// Reine JVM-Logik (testbar); die Services nutzen sie über die
-// statische [StickyGuardService]-Helper.
+// Reine JVM-Logik (testbar); die Services nutzen sie über
+// [StickyGuardService] + [SharedPrefsStickyGuardPersistence].
 // ══════════════════════════════════════════════════════════════════════
 
+/** Fenster, in dem ein persistierter Start-Eintrag als "frisch" gilt:
+ *  5 Minuten. Ein Rebirth innerhalb dieses Fensters nach einem echten
+ *  Start wird als Kill→Rebirth-Loop gebrochen (wenn der Prozess frisch
+ *  ist). Danach ist jeder Sticky-Restart legitim. */
+const val STICKY_GUARD_BREAK_WINDOW_MS = 5L * 60 * 1000
+
+/** Prozess-Frische-Schwelle: Ein frischer persistierter Eintrag bricht
+ *  NUR, wenn der Prozess jünger als dieser Wert ist (Kill-Rebirth
+ *  geschieht in Sekunden — ein alter Prozess, der erst jetzt einen
+ *  Sticky-Restart bekommt, ist kein Wiederbelebungs-Loop). */
+const val STICKY_GUARD_PROCESS_FRESH_MS = 30_000L
+
 /**
- * Reine Entscheidung: Darf dieser Sticky-Restart ausgeführt werden?
+ * Reine Entscheidung (M18.122, D2): Soll dieser Sticky-Rebirth
+ * (Intent OHNE Action = System-Wiederbelebung nach Prozess-Kill)
+ * gebrochen werden?
  *
- * @param lastCommandReceivedAt Zeitstempel des letzten echten
- *   Service-Starts (expliziter Intent mit Action) — 0 = noch nie.
- *   Wird vom Service bei JEDEM onStartCommand mit Action gesetzt
- *   (auch bei null-Action, wenn der Start von der App selbst kam,
- *   siehe [StickyGuardService]).
+ * @param lastLegitStartWallClockMs Persistierter Wall-Clock
+ *   (System.currentTimeMillis) des letzten ECHTEN Starts (App-intern
+ *   mit Action oder ACTION_INTERNAL_START ausgelöst), 0 = kein
+ *   Eintrag. Überlebt den Prozess-Kill (SharedPreferences).
+ * @param nowWallClockMs aktuelle Wall-Clock-Zeit.
  * @param processStartRealtime Realtime-Millis des Prozess-Starts
- *   (SystemClock.elapsedRealtime() in onCreate erfasst) — der Sticky-
- *   Restart kommt maximal ~Sekunden nach dem Prozess-Start an.
+ *   (SystemClock.elapsedRealtime() in onCreate erfasst).
  * @param nowRealtime aktuelle Realtime-Millis.
- * @param cooldownMs Restart-Cooldown-Fenster.
- * @return true = Sticky-Restart darf laufen (letzter echter Start
- *   liegt lange genug zurück ODER der Prozess läuft schon zu lange,
- *   um ein frischer Kill-Restart zu sein). false = Sticky-Restart
- *   verwerfen (START_NOT_STICKY sofort).
+ * @return true = Kill-Rebirth, brechen (Service beendet sich mit
+ *   START_NOT_STICKY). false = normal starten (kein Eintrag, Eintrag
+ *   zu alt, oder Prozess lebt schon zu lange).
  */
-fun stickyRestartAllowed(
-    lastCommandReceivedAt: Long,
+fun stickyRebirthShouldBreak(
+    lastLegitStartWallClockMs: Long,
+    nowWallClockMs: Long,
     processStartRealtime: Long,
     nowRealtime: Long,
-    cooldownMs: Long = StickyGuardService.DEFAULT_RESTART_COOLDOWN_MS
+    breakWindowMs: Long = STICKY_GUARD_BREAK_WINDOW_MS,
+    processFreshMs: Long = STICKY_GUARD_PROCESS_FRESH_MS
 ): Boolean {
-    // Kein echter Start bekannt (frischer Prozess, alles normal).
-    if (lastCommandReceivedAt <= 0L) return true
-    // Nach dem Cooldown-Fenster ist jeder Sticky-Restart legitim
-    // (z. B. App lief den ganzen Tag, System killte sie einmal).
-    if (nowRealtime - lastCommandReceivedAt >= cooldownMs) return true
-    // Innerhalb des Fensters: Nur brechen, wenn der Prozess gerade
-    // erst gestartet ist (Kill→Sofort-Rebirth-Muster). Ein Prozess,
-    // der schon lange lebt, aber erst jetzt einen Sticky-Restart
-    // bekommt, ist kein Wiederbelebungs-Loop.
-    return nowRealtime - processStartRealtime > RESTART_GUARD_PROCESS_AGE_MS
+    // Kein Eintrag (noch nie echt gestartet) → normal starten.
+    if (lastLegitStartWallClockMs <= 0L) return false
+    // Eintrag älter als das Fenster → kein Loop mehr → normal starten.
+    if (nowWallClockMs - lastLegitStartWallClockMs >= breakWindowMs) return false
+    // Frischer Eintrag: Nur brechen, wenn der Prozess gerade erst
+    // gestartet ist (Kill→Sofort-Rebirth-Muster: neuer Prozess,
+    // Wiederbelebung Sekunden nach dem echten Start). Ein Prozess,
+    // der schon lange lebt, ist kein Wiederbelebungs-Loop.
+    return nowRealtime - processStartRealtime < processFreshMs
 }
 
-/** Prozess-Alters-Schwelle: Ein Sticky-Restart innerhalb des Cooldown-
- *  Fensters bricht NUR, wenn der Prozess jünger als dieser Wert ist
- *  (Kill-Rebirth geschieht in Sekunden). */
-const val RESTART_GUARD_PROCESS_AGE_MS = 30_000L
+/**
+ * Persistenz-Schnittstelle für den Guard-Zustand — Android-frei,
+ * damit die Entscheidungslogik rein JVM-testbar bleibt.
+ *
+ * M18.122 (D2): Der Zustand MUSS Prozess-Kills überleben, sonst
+ * erkennt der Guard den Kill→Rebirth-Loop nie (Instanzfeld wurde im
+ * neuen Prozess immer mit 0 initialisiert).
+ */
+interface StickyGuardPersistence {
+    /** Wall-Clock des letzten echten Starts (0 = noch nie). */
+    fun lastLegitStartMs(): Long
+
+    /** Wall-Clock des letzten echten Starts persistieren. */
+    fun markLegitStart(nowWallClockMs: Long)
+}
 
 /**
- * Helper für die Services: erfasst [lastCommandReceivedAt] und stellt
- * die Sticky-Entscheidung bereit. Bewusst eine kleine, testbare
- * Bausteine-Klasse ohne Android-Abhängigkeiten (die Services reichen
- * SystemClock-Werte von außen herein).
+ * SharedPreferences-Implementierung. Pro Service ein eigener Prefs-Name
+ * → pro Service ein eigener Key (M18.122: "pro Service ein
+ * SharedPreferences-Key"). Schreiben asynchron via apply() (persistiert
+ * garantiert vor dem nächsten Prozess-Kill, der Rebirth liest synchron).
+ */
+class SharedPrefsStickyGuardPersistence(
+    context: android.content.Context,
+    serviceKey: String
+) : StickyGuardPersistence {
+
+    private val prefs =
+        context.getSharedPreferences("sticky_guard_$serviceKey", android.content.Context.MODE_PRIVATE)
+
+    override fun lastLegitStartMs(): Long = prefs.getLong(KEY_LAST_LEGIT_START_MS, 0L)
+
+    override fun markLegitStart(nowWallClockMs: Long) {
+        prefs.edit().putLong(KEY_LAST_LEGIT_START_MS, nowWallClockMs).apply()
+    }
+
+    private companion object {
+        const val KEY_LAST_LEGIT_START_MS = "sticky_guard_last_legit_start_ms"
+    }
+}
+
+/**
+ * Helper für die Services: persistiert den letzten echten Start und
+ * stellt die Sticky-Entscheidung bereit.
  *
  * Verwendung in einem Service:
- *   // Feld:
- *   private val stickyGuard = StickyGuardService()
+ *   // Feld (Kontext ist in Property-Init verfügbar):
+ *   private val stickyGuard = StickyGuardService(
+ *       SharedPrefsStickyGuardPersistence(this, "<serviceKey>")
+ *   )
  *   // onCreate:
  *   processStartedAtRealtime = SystemClock.elapsedRealtime()
- *   // onStartCommand (NACH der Action-Verarbeitung, VOR dem Sticky-
- *   // Return):
- *   val isStickyRebirth = intent?.action == null && stickyGuard.shouldBreakStickyRestart(
- *       SystemClock.elapsedRealtime(), processStartedAtRealtime
- *   )
- *   if (isStickyRebirth) return START_NOT_STICKY
- *   // Bei JEDEM echten Start (egal ob Action oder null vom App-Code):
- *   stickyGuard.markCommandReceived(SystemClock.elapsedRealtime())
+ *   // onStartCommand — REIHENFOLGE (M18.122, D1): ZUERST den
+ *   // FGS-Vertrag erfüllen (startForeground), DANN den Guard-Break,
+ *   // DANN markLegitStart(). Die Break-ENTSCHEIDUNG kann vorher
+ *   // berechnet werden (reiner Lesezugriff), der stopSelf()/Return
+ *   // selbst MUSS aber nach startForeground stehen:
+ *   val isStickyRebirth = intent?.action == null &&
+ *       stickyGuard.shouldBreakStickyRebirth(
+ *           processStartedAtRealtime,
+ *           SystemClock.elapsedRealtime()
+ *       )
+ *   startForeground(...)  // FGS-Vertrag zuerst
+ *   if (isStickyRebirth) { stopSelf(); return START_NOT_STICKY }
+ *   // Bei jedem echten Start (Action oder ACTION_INTERNAL_START):
+ *   stickyGuard.markLegitStart()
  */
-class StickyGuardService {
-    @Volatile
-    private var lastCommandReceivedAtRealtime: Long = 0L
-
-    /** Zeitstempel des letzten echten Starts (Realtime) markieren. */
-    fun markCommandReceived(nowRealtime: Long) {
-        lastCommandReceivedAtRealtime = nowRealtime
+class StickyGuardService(
+    private val persistence: StickyGuardPersistence
+) {
+    /** Wall-Clock des letzten echten Starts persistieren. */
+    fun markLegitStart(nowWallClockMs: Long = System.currentTimeMillis()) {
+        persistence.markLegitStart(nowWallClockMs)
     }
 
     /**
-     * Soll dieser Sticky-Restart (Intent ohne Action) gebrochen werden?
-     * @see [stickyRestartAllowed]
+     * Soll dieser Sticky-Rebirth (Intent ohne Action) gebrochen werden?
+     * @see [stickyRebirthShouldBreak]
      */
-    fun shouldBreakStickyRestart(
-        nowRealtime: Long,
+    fun shouldBreakStickyRebirth(
         processStartedAtRealtime: Long,
-        cooldownMs: Long = DEFAULT_RESTART_COOLDOWN_MS
+        nowRealtime: Long,
+        nowWallClockMs: Long = System.currentTimeMillis()
     ): Boolean =
-        !stickyRestartAllowed(
-            lastCommandReceivedAtRealtime,
-            processStartedAtRealtime,
-            nowRealtime,
-            cooldownMs
+        stickyRebirthShouldBreak(
+            lastLegitStartWallClockMs = persistence.lastLegitStartMs(),
+            nowWallClockMs = nowWallClockMs,
+            processStartRealtime = processStartedAtRealtime,
+            nowRealtime = nowRealtime
         )
-
-    companion object {
-        /** Fenster, in dem Sticky-Restarts als Kill-Rebirth gebrochen
-         *  werden: 5 Minuten ab dem letzten echten Start. Danach ist
-         *  jeder Sticky-Restart legitim (kein Loop mehr). */
-        const val DEFAULT_RESTART_COOLDOWN_MS = 5L * 60 * 1000
-    }
 }

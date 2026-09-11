@@ -143,11 +143,17 @@ class DriveDetectionService : Service() {
     private var lastTsMs: Long = 0L
     /** M18.84: Wurde der Geofence-Kontext (Veto-Kreise) bereits geladen? */
     private var geofenceContextLoaded = false
-    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
-    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
-    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
-    // StickyGuards.kt.
-    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376): Sticky-
+    // Guard — bricht die System-Wiederbelebung (START_STICKY-Rebirth
+    // nach Crash/Kill), die den "crasht alle paar Sekunden"-Loop
+    // amplifiziert. M18.122 (D2): Zustand PERSISTIERT (SharedPrefs),
+    // damit der Guard nach Prozess-Kill (neue Instanz) den Rebirth
+    // noch erkennt. Siehe StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
+        com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
+            this, "drive_detection"
+        )
+    )
     private var processStartedAtRealtime = 0L
     /** M18.66-FIX13: Beginn des ERSTEN Streams dieser Service-Lebensdauer —
      *  die ersten 20s werden ignoriert (GPS-Kaltstart: speed oft Müllwerte
@@ -384,25 +390,29 @@ class DriveDetectionService : Service() {
             return START_NOT_STICKY
         }
 
-        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
-        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
-        // OHNE Action an (START_STICKY, s.u.). Innerhalb des Cooldown-
-        // Fensters ab dem letzten echten Start ist das ein frischer
-        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
-        // START_NOT_STICKY, statt mit dem generischen Restore (der bei
-        // korrumpiertem Session-Zustand erneut die erkennungs-/crash-
-        // treibende Kaskade anstößt) die Schleife zu verlängern. Der
-        // nächste echte Anlass (AR-/Geofence-Event, Worker, App-Start)
-        // startet ihn regulär.
-        if (intent?.action == null) {
-            val nowRealtime = android.os.SystemClock.elapsedRealtime()
-            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
-                Log.w(TAG, "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet")
-                stopSelf()
-                return START_NOT_STICKY
-            }
+        // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376):
+        // STICKY-GUARD — bricht die System-Wiederbelebung. Ein Rebirth
+        // nach Prozess-Kill kommt OHNE Action an (START_STICKY, s.u.).
+        // Innerhalb des Persistenz-Fensters ab dem letzten echten Start
+        // (M18.122 D2: SharedPrefs, überlebt Prozess-Kill) ist das ein
+        // frischer Kill→Sofort-Restart-Loop: Der Service beendet sich
+        // sofort mit START_NOT_STICKY — NACH erfülltem FGS-Vertrag
+        // (startForeground oben), auf jedem Pfad. Der nächste echte
+        // Anlass (AR-/Geofence-Event, Worker, App-Start) startet ihn
+        // regulär. Interne Starts tragen seit M18.122 eine Aktion
+        // (start(action)), der Break gilt nur für action == null.
+        val stickyRebirthBreak = intent?.action == null && stickyGuard.shouldBreakStickyRebirth(
+            processStartedAtRealtime,
+            android.os.SystemClock.elapsedRealtime()
+        )
+        if (stickyRebirthBreak) {
+            Log.w(TAG, "M18.122: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz, FGS-Vertrag erfüllt) — Service beendet")
+            stopSelf()
+            return START_NOT_STICKY
         }
-        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
+        // M18.122: Jeder hier weiterlaufende Start ist echt (Action inkl.
+        // ACTION_TRACK_RESTORE) — Wall-Clock-Zeitstempel persistieren (D2).
+        stickyGuard.markLegitStart()
 
         when (action) {
             ACTION_CONFIRM -> {

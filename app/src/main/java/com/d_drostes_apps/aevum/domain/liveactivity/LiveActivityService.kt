@@ -50,11 +50,17 @@ class LiveActivityService : Service() {
     // existiert). Nach 3s ist die Phase vorbei — dann ist null
     // wirklich "keine Session" und der Service stoppt.
     private var serviceStartTime = 0L
-    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
-    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
-    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
-    // StickyGuards.kt.
-    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376): Sticky-
+    // Guard — bricht die System-Wiederbelebung (START_STICKY-Rebirth
+    // nach Crash/Kill), die den "crasht alle paar Sekunden"-Loop
+    // amplifiziert. M18.122 (D2): Zustand PERSISTIERT (SharedPrefs),
+    // damit der Guard nach Prozess-Kill (neue Instanz) den Rebirth
+    // noch erkennt. Siehe StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
+        com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
+            this, "live_activity"
+        )
+    )
     private var processStartedAtRealtime = 0L
 
     companion object {
@@ -70,9 +76,19 @@ class LiveActivityService : Service() {
         const val ACTION_STOP = "com.d_drostes_apps.aevum.LIVE_STOP"
         // M18.19: Wechseln — öffnet das Popup (SwitchActivity).
         const val ACTION_SWITCH = "com.d_drostes_apps.aevum.LIVE_SWITCH"
+        // M18.122 (Kanban t_55c14376, D3): Marker-Action für app-interne
+        // Starts. Der Sticky-Guard bricht NUR Intents OHNE Action —
+        // die Action unterscheidet den echten (internen) Start vom
+        // System-Rebirth nach Prozess-Kill. JEDER interne Start
+        // (14 Caller) setzt sie, siehe start().
+        const val ACTION_INTERNAL_START = "com.d_drostes_apps.aevum.LIVE_INTERNAL_START"
 
         fun start(context: Context) {
+            // M18.122 (D3): Interne Starts tragen explizit
+            // ACTION_INTERNAL_START — null-Action bleibt damit dem
+            // System-Rebirth vorbehalten (START_STICKY nach Prozess-Kill).
             val intent = Intent(context, LiveActivityService::class.java)
+                .setAction(ACTION_INTERNAL_START)
             try {
                 context.startForegroundService(intent)
             } catch (e: Exception) {
@@ -101,26 +117,21 @@ class LiveActivityService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         serviceStartTime = System.currentTimeMillis()
 
-        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
-        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
-        // OHNE Action an (START_STICKY). Innerhalb des Cooldown-Fensters
-        // ab dem letzten echten Start ist das ein frischer
-        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
-        // START_NOT_STICKY, statt die Wiederbelebungs-Schleife zu
-        // verlängern (der nächste echte Anlass — App-Start, Session,
-        // AR-/Geofence-Event — startet ihn regulär).
-        if (intent?.action == null) {
-            val nowRealtime = android.os.SystemClock.elapsedRealtime()
-            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
-                android.util.Log.w(
-                    "LiveActivitySvc",
-                    "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet"
-                )
-                stopSelf()
-                return START_NOT_STICKY
-            }
-        }
-        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
+        // M18.121 (t_fe3e99da) / M18.122 (t_55c14376, D1/D2/D3):
+        // STICKY-GUARD. Der Break steht NACH dem startForeground() unten
+        // — der FGS-Vertrag (startForeground binnen 5s auf JEDEM Pfad)
+        // muss zuerst erfüllt sein, ein stopSelf davor wäre
+        // RemoteServiceException → Prozess-Kill (der alte Pfad riss
+        // genau das). Der Break passiert NUR bei action == null (echter
+        // System-Rebirth; alle internen Starts tragen seit M18.122
+        // ACTION_INTERNAL_START) und verlässt sich auf den PERSISTIERTEN
+        // letzten-Start-Zeitstempel (SharedPrefs, überlebt Prozess-Kill
+        // — D2). Rebirth innerhalb 5 Min nach echtem Start + Prozess
+        // jünger 30s → START_NOT_STICKY nach erfülltem Vertrag.
+        val stickyRebirthBreak = intent?.action == null && stickyGuard.shouldBreakStickyRebirth(
+            processStartedAtRealtime,
+            android.os.SystemClock.elapsedRealtime()
+        )
 
         when (intent?.action) {
             ACTION_PAUSE -> scope.launch { liveActivityManager.pause() }
@@ -197,6 +208,25 @@ class LiveActivityService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+
+        // M18.121/M18.122: STICKY-GUARD-BREAK — NACH erfülltem
+        // FGS-Vertrag (startForeground oben). Nur ein echter
+        // System-Rebirth (action == null), der innerhalb des
+        // Persistenz-Fensters nach einem echten Start ankommt, wird
+        // gebrochen — der nächste echte Anlass startet den Service
+        // regulär.
+        if (stickyRebirthBreak) {
+            android.util.Log.w(
+                "LiveActivitySvc",
+                "M18.122: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz, FGS-Vertrag erfüllt) — Service beendet"
+            )
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        // M18.122: Jeder hier weiterlaufende Start ist echt (Action inkl.
+        // ACTION_INTERNAL_START) — den Wall-Clock-Zeitstempel persistieren
+        // (D2: überlebt Prozess-Kill, Basis der Rebirth-Erkennung).
+        stickyGuard.markLegitStart()
 
         return START_STICKY
     }
