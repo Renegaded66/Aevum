@@ -126,12 +126,20 @@ class SharedPrefsStickyGuardPersistence(
  * Helper für die Services: persistiert den letzten echten Start und
  * stellt die Sticky-Entscheidung bereit.
  *
- * Verwendung in einem Service:
- *   // Feld (Kontext ist in Property-Init verfügbar):
- *   private val stickyGuard = StickyGuardService(
+ * Verwendung in einem Service — WICHTIG (M18.123-Regression): Die
+ * SharedPrefs-Implementierung NIE in einer Property-Initialisierung
+ * konstruieren! Android erzeugt Service-Instanzen via newInstance()
+ * und ruft attach(context, ...) ERST NACH dem Konstruktor auf — ein
+ * getSharedPreferences(this, ...) im Property-Init crasht mit NPE
+ * (ContextWrapper.mBase == null) in ActivityThread.handleCreateService,
+ * d.h. der Prozess stirbt beim Service-Start (App-Start-Crash).
+ * Stattdessen lateinit-Feld + Init in onCreate (Context ist dort
+ * garantiert attacht):
+ *   private lateinit var stickyGuard: StickyGuardService
+ *   // onCreate:
+ *   stickyGuard = StickyGuardService(
  *       SharedPrefsStickyGuardPersistence(this, "<serviceKey>")
  *   )
- *   // onCreate:
  *   processStartedAtRealtime = SystemClock.elapsedRealtime()
  *   // onStartCommand — REIHENFOLGE (M18.122, D1): ZUERST den
  *   // FGS-Vertrag erfüllen (startForeground), DANN den Guard-Break,

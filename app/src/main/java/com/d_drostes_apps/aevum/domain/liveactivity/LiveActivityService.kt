@@ -56,11 +56,11 @@ class LiveActivityService : Service() {
     // amplifiziert. M18.122 (D2): Zustand PERSISTIERT (SharedPrefs),
     // damit der Guard nach Prozess-Kill (neue Instanz) den Rebirth
     // noch erkennt. Siehe StickyGuards.kt.
-    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
-        com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
-            this, "live_activity"
-        )
-    )
+    // M18.123-CRASHFIX: NIE im Property-Init konstruieren — Android
+    // attacht den Context erst NACH dem Konstruktor (newInstance), ein
+    // getSharedPreferences(this) hier crasht mit NPE und killt den
+    // Prozess beim App-Start. Init in onCreate (s.u.).
+    private lateinit var stickyGuard: com.d_drostes_apps.aevum.automation.StickyGuardService
     private var processStartedAtRealtime = 0L
 
     companion object {
@@ -111,6 +111,14 @@ class LiveActivityService : Service() {
     override fun onCreate() {
         super.onCreate()
         processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
+        // M18.123-CRASHFIX: Guard erst hier konstruieren — ab onCreate
+        // ist der Context garantiert attacht (Property-Init crasht mit
+        // NPE, siehe StickyGuards.kt-Doku).
+        stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
+            com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
+                this, "live_activity"
+            )
+        )
         createNotificationChannel()
     }
 
