@@ -33,10 +33,42 @@ class GeofenceForegroundService : Service() {
     /** Service-Scope für Idle-Checks — wird in onDestroy abgebaut. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var idleRecheckJob: Job? = null
+    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
+    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
+    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
+    // StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    private var processStartedAtRealtime = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
+        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
+        // OHNE Action an (START_STICKY, s.u.). Innerhalb des Cooldown-
+        // Fensters ab dem letzten echten Start ist das ein frischer
+        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
+        // START_NOT_STICKY, statt die Wiederbelebungs-Schleife zu
+        // verlängern (der nächste echte Anlass — App-Start,
+        // GeofenceRefreshWorker, Registrar — startet ihn regulär).
+        if (intent?.action == null) {
+            val nowRealtime = android.os.SystemClock.elapsedRealtime()
+            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
+                android.util.Log.w(
+                    "GeofenceFGS",
+                    "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet"
+                )
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
+
         // M19: Konsolidierte Hintergrund-Benachrichtigung — alle Hintergrund-
         // Services nutzen denselben Channel + dieselbe ID → nur eine Notification
         // im Benachrichtigungsfeld statt drei.

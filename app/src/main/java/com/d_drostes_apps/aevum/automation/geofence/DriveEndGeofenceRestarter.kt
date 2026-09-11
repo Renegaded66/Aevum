@@ -51,6 +51,10 @@ class DriveEndGeofenceRestarter(
         fun activityTypeRepository(): com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
         fun locationProvider(): CurrentLocationProvider
         fun triggerEventRepository(): com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+        // M18.121 (Crash-Loop t_fe3e99da): Singleton-Drossel gegen das
+        // Start/Stop-Flackern des Auto-Re-Starts nach Fahrt-Ende (siehe
+        // GeofenceRestartThrottle).
+        fun geofenceRestartThrottle(): GeofenceRestartThrottle
     }
 
     override suspend fun doWork(): Result {
@@ -60,6 +64,7 @@ class DriveEndGeofenceRestarter(
         val typeRepo = deps.activityTypeRepository()
         val provider = deps.locationProvider()
         val triggerRepo = deps.triggerEventRepository()
+        val throttle = deps.geofenceRestartThrottle()
 
         // 1) Letzter GPS-Fix (kein eigener Stream — ein einzelner
         //    getCurrentLocation-Aufruf, gleiche Quelle wie Watchdog/Probe).
@@ -98,6 +103,26 @@ class DriveEndGeofenceRestarter(
         )
 
         if (decision is GeofenceDriveEndResolver.Decision.Restart) {
+            // M18.121 (Crash-Loop t_fe3e99da): DROSSEL — bricht das
+            // Start/Stop-Ping-Pong. Der Worker wird von JEDEM Drive-Stop-
+            // Pfad geschedult (Watchdog 5-Min-Regel + Google-EXIT + erneut
+            // nach jedem Geofence-Stop). Läuft die Kaskade (Resolver sagt
+            // Restart → Session startet → nächste Automatik stoppt sie →
+            // nächster Stop-Pfad feuert erneut), explodiert die Zahl der
+            // Session-Starts/Stops in Minuten — das Flackern, das den
+            // LiveActivityService-Restore-Race und damit den Crash-Loop
+            // anheizt. Die Drossel erlaubt pro Geofence maximal 2 Starts
+            // im 10-Min-Fenster und pausiert danach 30 Minuten — lange
+            // genug, dass die Erkennungs-Cooldowns (M18.84) den Zustand
+            // beruhigen, kurz genug, dass ein echter Folgebesuch normal
+            // registriert wird.
+            if (!throttle.allowRestart(decision.geofenceId)) {
+                Log.d(
+                    TAG,
+                    "M18.121: Geofence-Re-Start gedrosselt (${decision.geofenceId}) — Flacker-Schutz aktiv, kein erneuter Start"
+                )
+                return Result.success()
+            }
             try {
                 // M18.114: Titel = ActivityType-Name (M18.66-FIX9-Konvention
                 // des ENTER-Pfads), sourceType GEOFENCE_AUTO — die Session

@@ -62,6 +62,12 @@ class AppBlockService : Service() {
     private var ignoredTodayPkg: String? = null
     private val warnedPkgs = HashSet<String>()
     private var lastForegroundPkg: String? = null
+    // M18.121 (Crash-Loop t_fe3e99da): Sticky-Guard — bricht die
+    // System-Wiederbelebung (START_STICKY-Rebirth nach Crash/Kill),
+    // die den "crasht alle paar Sekunden"-Loop amplifiziert. Siehe
+    // StickyGuards.kt.
+    private val stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService()
+    private var processStartedAtRealtime = 0L
 
     // M18.61g-FIX 2: Rückkanal von der BlockActivity (Buttons) zum Service.
     private val blockActionReceiver = object : android.content.BroadcastReceiver() {
@@ -112,7 +118,10 @@ class AppBlockService : Service() {
             android.util.Log.e("AppBlockSvc", "startForeground fehlgeschlagen — stopSelf", e)
             stopSelf()
         }
-        // M18.61g-FIX 2: BlockActivity-Broadcasts empfangen
+        // M18.61g: BlockActivity-Broadcasts empfangen
+        // M18.121 (Crash-Loop t_fe3e99da): processStartedAtRealtime für den
+        // Sticky-Guard (onStartCommand, s.u.).
+        processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
         val filter = android.content.IntentFilter().apply {
             addAction(ACTION_EXTEND)
             addAction(ACTION_IGNORE_TODAY)
@@ -130,6 +139,23 @@ class AppBlockService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // M18.121 (Crash-Loop t_fe3e99da): STICKY-GUARD — bricht die
+        // System-Wiederbelebung. Ein Rebirth nach Prozess-Kill kommt
+        // OHNE Action an (START_STICKY). Innerhalb des Cooldown-Fensters
+        // ab dem letzten echten Start ist das ein frischer
+        // Kill→Sofort-Restart-Loop: Der Service beendet sich sofort mit
+        // START_NOT_STICKY, statt die Wiederbelebungs-Schleife zu
+        // verlängern (der nächste echte Anlass — App-Start,
+        // Limit-Änderung — startet ihn regulär).
+        if (intent?.action == null) {
+            val nowRealtime = android.os.SystemClock.elapsedRealtime()
+            if (stickyGuard.shouldBreakStickyRestart(nowRealtime, processStartedAtRealtime)) {
+                android.util.Log.w("AppBlockSvc", "M18.121: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz) — Service beendet")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        stickyGuard.markCommandReceived(android.os.SystemClock.elapsedRealtime())
         // Neu gestartet (z.B. nach Reboot) → Watchdog neu starten
         if (intent?.action == ACTION_STOP) {
             stopSelf()
