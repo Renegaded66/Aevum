@@ -200,26 +200,27 @@ class DriveStartWorker(
         // Minuten. Cluster-Start = ältestes Signal (deckt "Fahrt begann
         // vor der Erkennung" ab).
         val cluster = bridge.drainVehicleCluster()
-        var startedAt = cluster?.startMs ?: System.currentTimeMillis()
-
-        // M18.80: NICHT-ÜBERLAPPUNGS-GUARD für rückwirkende Starts.
-        // User-Bug (lange Autofahrt mit Stau): Der Watchdog stoppt die
-        // Fahrt nach 5 Minuten ohne Signal (Stauende 13:00). Die Engine
-        // puffert aber weiter GPS-Probes (15-Minuten-Fenster,
-        // MAX_PROBE_AGE_MS) und erkennt kurz darauf wieder "Driving" —
-        // der Cluster-Start liegt dann bis zu 15 Minuten ZURÜCK (12:55)
-        // und die neue Session überlappt die gerade beendete (12:30–13:00).
-        // trimOverlappingForNewSession greift nur bei NOCH LIVE Sessions;
-        // die alte ist aber schon FINISHED. Lösung: Der rückwirkende
-        // Start wird auf das Ende der letzten beendeten Auto-Session
-        // angehoben. Die Lücke (13:00–13:05) bleibt als Pause sichtbar,
-        // die Timeline zeigt keine Überlappung mehr.
+        // M18.120 (F-2): Start-Anker über resolveDriveStart — inklusive
+        // M18.80-Nicht-Überlappungs-Guard, JETZT mit Frischegrenze:
+        // Ein Cluster-Start älter als das Erkennungsfenster
+        // (MAX_PROBE_AGE_MS = 15 Min) ist STALE (z. B. Hinfahrt-Cluster,
+        // den ein Stop-Pfad nicht geleert hat) und startet bei `now` —
+        // vorher hob der Guard den Start ohne jede Frischegrenze auf das
+        // Ende der letzten Auto-Session an (= Gym-Ankunft) und erzeugte
+        // den 1,5-h-Vorlauf der Rückfahrt.
         val lastFinishedEnd = try {
             live.lastAutoSessionEndMs()
         } catch (_: Exception) { null }
-        if (lastFinishedEnd != null && startedAt < lastFinishedEnd) {
-            Log.d(TAG, "M18.80-Überlappungs-Guard: Cluster-Start $startedAt vor letztem Auto-Ende $lastFinishedEnd -> auf Ende angehoben")
-            startedAt = lastFinishedEnd
+        val startedAt = DriveDetectionEngine.resolveDriveStart(
+            clusterStartMs = cluster?.startMs,
+            nowMs = now,
+            lastAutoSessionEndMs = lastFinishedEnd
+        )
+        if (cluster != null && startedAt != cluster.startMs) {
+            Log.d(
+                TAG,
+                "M18.120-Start-Anker: Cluster-Start ${cluster.startMs} korrigiert auf $startedAt (Frischegrenze 15 Min / letztes Auto-Ende $lastFinishedEnd)"
+            )
         }
 
         // M18.66: Gate — Autofahren in den Trigger-Settings aus?
@@ -369,8 +370,12 @@ class DriveStopWorker(
             // Signal-Phase beenden (Google meldet beim Aussteigen WALKING
             // — ohne Reset startete die 5-Min-Schwelle mit voller Vorlauf-
             // Zeit in die bereits beendete Fahrt hinein).
+            // M18.120 (F-1): AUCH den IN_VEHICLE-Cluster-Buffer leeren —
+            // vorher überlebte der Hinfahrt-Cluster die Pause und lieferte
+            // der Rückfahrt ihren Start-Anker (Gym-Ankunft → 1,5-h-Vorlauf).
             bridge.markDriveStopped(System.currentTimeMillis())
             bridge.drainDriveProbes()
+            bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
             live.stop()
             triggerRepo.insert(
@@ -563,8 +568,11 @@ class DriveWatchdogWorker(
             // Fahrt klassifizieren (User-Fall: Auto 19:00–19:10 nach der
             // echten Heimfahrt + Spazieren 19:05–19:17 beim 100-m-Gang
             // zur Wohnung).
+            // M18.120 (F-1): AUCH den IN_VEHICLE-Cluster-Buffer leeren
+            // (gleiche Lücke wie im DriveStopWorker — siehe dort).
             bridge.markDriveStopped(now)
             bridge.drainDriveProbes()
+            bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
             live.stop()
             triggerRepo.insert(

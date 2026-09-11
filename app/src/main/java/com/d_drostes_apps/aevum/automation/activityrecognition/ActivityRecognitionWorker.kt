@@ -739,7 +739,12 @@ class ActivityRecognitionBridge @Inject constructor(
     fun addSample(epochMs: Long, confidence: Int) {
         // M18.45: Herzschlag für den DriveWatchdog — jedes IN_VEHICLE-
         // Signal bestätigt, dass die Fahrt noch läuft.
-        lastVehicleSampleMs = epochMs
+        // M18.121 (F-4): NUR Vorwärts-Progression — ein Backfill mit
+        // älterem Zeitstempel (Receiver: addSample(now) → danach
+        // addSample(burstCluster.startMs)) darf den Herzschlag nicht in
+        // die Vergangenheit ziehen, sonst beendet der Watchdog eine
+        // laufende Fahrt.
+        if (epochMs > lastVehicleSampleMs) lastVehicleSampleMs = epochMs
         val c = pending
         if (c == null || epochMs - c.lastMs > maxGapMs) {
             // Neuer Cluster
@@ -750,10 +755,20 @@ class ActivityRecognitionBridge @Inject constructor(
                 sampleCount = 1,
                 peakConfidence = confidence
             )
-        } else {
+        } else if (epochMs >= c.lastMs) {
             pending = c.copy(
                 endMs = epochMs,
                 lastMs = epochMs,
+                sampleCount = c.sampleCount + 1,
+                peakConfidence = maxOf(c.peakConfidence, confidence)
+            )
+        } else {
+            // M18.121 (F-4): Backfill mit älterem Zeitstempel — nur
+            // startMs zurückziehen (Start-Anker), endMs/lastMs bleiben
+            // beim Maximum. Vorher regredierte endMs/lastMs, durationMs
+            // wurde negativ und der Cluster-Anker wanderte rückwärts.
+            pending = c.copy(
+                startMs = epochMs,
                 sampleCount = c.sampleCount + 1,
                 peakConfidence = maxOf(c.peakConfidence, confidence)
             )
