@@ -319,6 +319,17 @@ object DriveDetectionEngine {
      *  Folgefahrten (Rückweg nach >3 Min Pause) zu blocken. */
     const val DRIVE_RESTART_COOLDOWN_MS: Long = 3L * 60 * 1000
 
+    /** M18.120 (F-3): Mindest-Geschwindigkeit eines Probes, damit er als
+     *  Bewegungs-Anker für den toVehicleCluster-Start zählt (0,5 m/s =
+     *  1,8 km/h — deutlich unter Geh-Tempo, aber über GPS-Stillstands-
+     *  Jitter). Probes ohne Speed-, aber mit Distanz- zum Vorgänger-
+     *  Probe zählen über die Distanz-Schwelle. */
+    const val MIN_ANCHOR_MOTION_MPS = 0.5f
+    /** M18.120 (F-3): Mindest-Distanz zum Vorgänger-Probe (m) für die
+     *  Bewegungs-Evidenz. GPS-Jitter um den Standort liegt typisch
+     *  < 15 m; die 10-m-Schwelle verlangt echte Ortsveränderung. */
+    const val MIN_ANCHOR_MOTION_M = 10.0
+
     /** M18.84: Ein benannter Ort als Kreis (aus PlaceGeofence abgeleitet).
      *  Pure data class — bewusst Android-frei für JVM-Tests. */
     data class GeoCircle(
@@ -341,6 +352,36 @@ object DriveDetectionEngine {
     fun isWithinCooldown(nowMs: Long, lastDriveEndMs: Long?): Boolean {
         if (lastDriveEndMs == null) return false
         return nowMs - lastDriveEndMs < DRIVE_RESTART_COOLDOWN_MS
+    }
+
+    /** M18.120 (F-2): Start-Anker für eine neue Auto-Session — pure und
+     *  JVM-testbar (der DriveStartWorker und der AR-Worker rufen genau
+     *  diese Funktion).
+     *
+     *  Regeln:
+     *   1. Kein Cluster → Start = nowMs.
+     *   2. Cluster-Start älter als [MAX_PROBE_AGE_MS] (15 Min, das
+     *      Erkennungsfenster) → STALE: Der Cluster stammt aus einer
+     *      früheren Fahrt (z. B. Hinfahrt, dessen Buffer ein Stop-Pfad
+     *      nicht geleert hat). Start = nowMs — sonst entsteht der
+     *      1,5-h-Vorlauf (Rückfahrt startet mit der Gym-Ankunftszeit).
+     *   3. Frischer Cluster-Start VOR dem Ende der letzten beendeten
+     *      Auto-Session → auf deren Ende anheben (M18.80-Nicht-
+     *      Überlappungs-Guard, Stau-Muster: Watchdog-Stop 13:00, neuer
+     *      Cluster-Start 12:55 → Überlappung in der Timeline vermeiden).
+     *      Die Frischegrenze aus Regel 2 stellt sicher, dass der Guard
+     *      NIE auf ein beliebig altes Auto-Session-Ende anhebt.
+     */
+    fun resolveDriveStart(
+        clusterStartMs: Long?,
+        nowMs: Long,
+        lastAutoSessionEndMs: Long?
+    ): Long {
+        val stale = clusterStartMs != null && nowMs - clusterStartMs > MAX_PROBE_AGE_MS
+        var start = if (stale) nowMs else (clusterStartMs ?: nowMs)
+        val end = lastAutoSessionEndMs
+        if (end != null && start < end) start = end
+        return start
     }
 
     /** Ein einzelner Geschwindigkeits-Probe. */
@@ -750,6 +791,16 @@ object DriveDetectionEngine {
         val valid = probes
             .filter { nowMs - it.timestampMs <= MAX_PROBE_AGE_MS }
             .filter { it.accuracyMeters <= MAX_ACCURACY_M }
+            // M18.120 (F-3): Der Start-Anker darf NUR auf Bewegungsevidenz
+            // liegen. Stillstands-Probes (speed ≈ 0 / null UND keine
+            // Distanz zum Vorgänger) aus der Pause zogen den Cluster-Start
+            // bis 15 Min in die Vergangenheit (Gym-Fall: Rückfahrt startete
+            // mitten in der Gym-Zeit). Ein Probe ohne Geschwindigkeits- UND
+            // Distanz-Evidenz beweist keine Fahrt.
+            .filter {
+                (it.speedMps != null && it.speedMps >= MIN_ANCHOR_MOTION_MPS) ||
+                    (it.distanceFromLastM != null && it.distanceFromLastM >= MIN_ANCHOR_MOTION_M)
+            }
         if (valid.size < 2) return null
         val spread = valid.maxOf { it.timestampMs } - valid.minOf { it.timestampMs }
         if (spread < 30_000L) return null
