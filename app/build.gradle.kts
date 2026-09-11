@@ -19,8 +19,10 @@ android {
         targetSdk = 36
         // M18.105: Startup-Crash auf frischen Installationen gefixt
         // (FGS-Vertrag + Permission-Gate, siehe DriveDetectionService).
-        versionCode = 9
-        versionName = "1.0.8"
+        // M18.123: App-Start-Crash (M18.122) gefixt — StickyGuard-SharedPrefs
+        // aus Property-Init nach onCreate verlagert (NPE vor Context-Attach).
+        versionCode = 10
+        versionName = "1.0.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
