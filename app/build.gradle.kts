@@ -21,8 +21,8 @@ android {
         // (FGS-Vertrag + Permission-Gate, siehe DriveDetectionService).
         // M18.123: App-Start-Crash (M18.122) gefixt — StickyGuard-SharedPrefs
         // aus Property-Init nach onCreate verlagert (NPE vor Context-Attach).
-        versionCode = 10
-        versionName = "1.0.9"
+        versionCode = 11
+        versionName = "1.0.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

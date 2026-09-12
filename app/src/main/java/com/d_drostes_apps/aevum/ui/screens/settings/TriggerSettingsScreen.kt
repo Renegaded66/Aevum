@@ -1098,6 +1098,18 @@ class TriggerSettingsViewModel @Inject constructor(
                 } catch (e: Exception) {
                     Log.e("TriggerSettings", "Continuous-Samples-Registrierung fehlgeschlagen", e)
                 }
+                // M18.124 (User: "Autofahrt-Aufzeichnung startet erst nach
+                // ca. 5 Minuten"): DriveProbeWorker-Takt beim Aktivieren
+                // (neu-)starten — deckt den Fall "Permission/Location wurde
+                // gerade erst erteilt" ab (App-Start lief ins No-Op, siehe
+                // AevumApplication). Der Worker plant sich selbst weiter,
+                // sein eigenes Gate (isDrivingEnabled) stoppt den Takt bei
+                // Deaktivierung — kein explizites cancel nötig.
+                try {
+                    com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.schedule(app)
+                } catch (e: Exception) {
+                    Log.e("TriggerSettings", "DriveProbeWorker-Schedule fehlgeschlagen", e)
+                }
             }
         }
         // M18.104 (Akku-Redesign): Der DriveDetectionService läuft nicht
@@ -1111,6 +1123,10 @@ class TriggerSettingsViewModel @Inject constructor(
         try {
             if (!enabled) {
                 com.d_drostes_apps.aevum.automation.activityrecognition.DriveDetectionService.stop(app)
+                // M18.124: 2-Min-GPS-Fallback-Takt beim Deaktivieren
+                // stoppen (der Worker würde sonst bis zum nächsten Lauf
+                // weiterlaufen und erst dann über sein Gate enden).
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.cancel(app)
             }
         } catch (e: Exception) {
             Log.e("TriggerSettings", "DriveDetectionService sync fehlgeschlagen", e)
