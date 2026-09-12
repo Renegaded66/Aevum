@@ -378,6 +378,14 @@ class DriveStopWorker(
             bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
             live.stop()
+            // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
+            // nicht mehr automatisch entfernt"): Die Live-Notification muss
+            // beim Fahrt-Ende SOFORT weg — der Tick des LiveActivityService
+            // (bis 10s bei Screen aus, gar nicht mehr nach Prozess-Kill)
+            // ist kein verlässlicher Entfernungs-Pfad. Der explizite Stop
+            // ist idempotent: läuft der Service nicht (keine Session),
+            // ist stopService ein No-Op.
+            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
             triggerRepo.insert(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(
                     id = java.util.UUID.randomUUID().toString(),
@@ -575,6 +583,10 @@ class DriveWatchdogWorker(
             bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
             live.stop()
+            // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
+            // nicht mehr automatisch entfernt"): Live-Notification sofort
+            // entfernen (siehe DriveStopWorker — gleicher Grund).
+            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
             triggerRepo.insert(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(
                     id = java.util.UUID.randomUUID().toString(),

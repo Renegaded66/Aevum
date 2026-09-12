@@ -254,6 +254,24 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ProactiveGeofenceCheck start failed — continuing", e)
         }
+        // M18.124 (User: "Autofahrt-Aufzeichnung startet erst nach ca.
+        // 5 Minuten"): Der DriveProbeWorker — der unabhängige 2-Min-GPS-
+        // Geschwindigkeits-Fallback (M18.64) — wurde im M18.104-Redesign
+        // nie wieder aktiviert (der 24/7-Stream wurde entfernt, der
+        // ProbeWorker-Takt blieb toter Code). Ohne AR-Events (Permission
+        // fehlt / Google liefert nichts) greift seither NUR der 5-Min-
+        // ProactiveGeofenceCheckWorker → die gefühlte Start-Latenz.
+        // Jetzt: 2-Min-Takt aktivieren. Der Worker trägt sein eigenes
+        // Gate (isDrivingEnabled) und plant sich selbst nicht weiter,
+        // wenn die Fahr-Erkennung deaktiviert ist. BALANCED-Fixes
+        // (WLAN/Cell statt GPS-Chip, M18.111-Akkuprinzip) kosten im
+        // Stillstand praktisch nichts — gleiche Begründung wie beim
+        // 5-Min-ProactiveCheck.
+        try {
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "DriveProbeWorker start failed — continuing", e)
+        }
         // M18.61e-SELBSTHEILUNG: Wenn Geofences existieren, aber das
         // Geofencing-Gate (noch) aus ist, wird es aktiviert. Root Cause
         // "kein einziger Trigger": Der Geofence-Editor setzte das Gate

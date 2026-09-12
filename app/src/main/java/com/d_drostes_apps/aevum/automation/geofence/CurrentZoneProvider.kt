@@ -309,6 +309,11 @@ class CurrentZoneProvider @Inject constructor(
                             existing.sourceType == "GEOFENCE_AUTO"
                         ) {
                             liveActivityManager.stop()
+                            // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
+                            // nicht mehr automatisch entfernt"): Live-Notification beim
+                            // Auto-Stop sofort entfernen (idempotent — läuft kein
+                            // Service, ist stopService ein No-Op).
+                            LiveActivityService.stop(context)
                             Log.d(TAG, "✅ Auto-Stop: ${prevGf?.name} → Session beendet")
 
                             triggerRepository.insert(

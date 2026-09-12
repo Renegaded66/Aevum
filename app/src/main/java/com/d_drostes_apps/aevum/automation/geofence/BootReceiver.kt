@@ -101,5 +101,17 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "DriveDetectionService restore failed: ${e.message}")
         }
+        // M18.124 (User: "Autofahrt-Aufzeichnung startet erst nach ca.
+        // 5 Minuten"): DriveProbeWorker-Takt nach Boot (neu-)starten —
+        // WorkManager-Räumungen beim Boot töten sonst den 2-Min-GPS-
+        // Fallback genauso wie die AR-Samples (gleiche Lektion wie oben).
+        // Der Worker plant sich selbst weiter und stoppt bei deaktivierter
+        // Fahr-Erkennung (Gate im doWork).
+        try {
+            com.d_drostes_apps.aevum.automation.activityrecognition.DriveProbeWorker.schedule(context)
+            debugLogger.log("BOOT", "DriveProbeWorker nach Boot enqueued")
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "DriveProbeWorker schedule failed: ${e.message}")
+        }
     }
 }

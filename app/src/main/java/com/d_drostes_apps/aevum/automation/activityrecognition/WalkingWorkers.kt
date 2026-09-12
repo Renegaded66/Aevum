@@ -207,6 +207,10 @@ class WalkingStopWorker(
             // 5-Minuten-Zähler neu.
             deps.activityRecognitionBridge().clearWalkingActive()
             live.stop()
+            // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
+            // nicht mehr automatisch entfernt"): Live-Notification beim
+            // Walking-Stop sofort entfernen (idempotent).
+            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
             WalkingWatchdogWorker.cancel(applicationContext)
             Log.d(TAG, "Walking-Session sofort gestoppt (EXIT)")
         } catch (e: Exception) {
