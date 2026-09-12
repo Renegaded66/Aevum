@@ -316,6 +316,11 @@ class WalkingWatchdogWorker(
         try {
             bridge.clearWalkingActive()
             live.stop()
+            // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
+            // nicht mehr automatisch entfernt"): Live-Notification beim
+            // Watchdog-Stop sofort entfernen (idempotent — der Watchdog
+            // ist der HAUPT-Stop-Pfad für Wanderungen, 5-Min-Regel).
+            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
             Log.d(TAG, "Walking-Session gestoppt (5 min ohne Signal)")
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Stop fehlgeschlagen", e)
