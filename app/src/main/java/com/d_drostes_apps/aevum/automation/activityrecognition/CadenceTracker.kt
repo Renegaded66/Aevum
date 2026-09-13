@@ -41,6 +41,23 @@ class CadenceTracker(
     private var lastSign = 0
     private var lastSampleTsMs: Long? = null
     private var windowStartMs: Long? = null
+    // M18.126 (Crash t_9b1a4b9a): Einzel-Schritt-Zähler für den
+    // STEP_DETECTOR-Pfad (Hardware zählt, Magnitude unbrauchbar).
+    // addSample() (Accelerometer) speist das High-Pass-Verfahren,
+    // addStep() (Step-Detector) zählt direkt. Beide füttern dieselbe
+    // stepTimes/Fenster-Basis — die Cadence-Auswertung ist identisch.
+    /** Artefakt-Schutz (M18.126): Ein Schritt-Detektor, dessen Zählrate
+     *  dauerhaft über der physiologischen Obergrenze liegt (> 3,5 Hz —
+     *  bewusst über dem Jogging-Band 3,2 Hz, damit die 2,2-3,2-Hz-
+     *  Auswertung unberührt bleibt), ist defekt oder zählt Vibration
+     *  als Schritte — die Log-Crash-Zeitpunkte lagen mehrheitlich in
+     *  Fahrten (Vibrations-Fehltrigger sind belegt). Nur KONSISTENTE
+     *  Überschreitung (3 aufeinanderfolgende Fenster) verwirft die
+     *  Messung — ein einzelnes Zähl-Fenster (harter Schritt + Echo)
+     *  darf die Schätzung nicht killen. Verworfen wird durch
+     *  Zurücksetzen der stepTimes; der Snapshot bleibt beim letzten
+     *  validen Wert stehen (kein Veto-Ausfall durch null). */
+    private var artifactRuns: Int = 0
 
     /** Beschleunigungs-Betrag (sqrt(x²+y²+z²)) in m/s² füttern. */
     fun addSample(timestampMs: Long, magnitude: Float) {
@@ -63,7 +80,25 @@ class CadenceTracker(
             stepTimes.addLast(timestampMs)
         }
         if (sign != 0) lastSign = sign
+        addSampleToWindow(timestampMs)
+    }
 
+    /**
+     * M18.126: EINEN Schritt melden (TYPE_STEP_DETECTOR-Event).
+     *
+     * Android-Garantie: Ein Step-Detector-Event bedeutet GENAU EINEN
+     * Schritt — die Magnitude (event.values) ist beim Step-Detector
+     * unbrauchbar (values.length == 1, Konfidenz 0..1). Der
+     * Accelerometer-Fallback (addSample) bleibt für Geräte ohne
+     * Step-Detector unverändert.
+     */
+    fun addStep(timestampMs: Long) {
+        stepTimes.addLast(timestampMs)
+        addSampleToWindow(timestampMs)
+    }
+
+    /** Gemeinsame Fenster-Buchführung für beide Futter-Pfade. */
+    private fun addSampleToWindow(timestampMs: Long) {
         while (stepTimes.isNotEmpty() && timestampMs - stepTimes.first() > windowMs) {
             stepTimes.removeFirst()
         }
@@ -72,9 +107,24 @@ class CadenceTracker(
         if (ws == null) {
             windowStartMs = timestampMs
         } else if (timestampMs - ws >= windowMs) {
-            val cadence = stepTimes.size / (windowMs / 1000.0)
-            windowCadences.addLast(cadence.toFloat())
-            while (windowCadences.size > historyWindows) windowCadences.removeFirst()
+            val rawHz = stepTimes.size / (windowMs / 1000.0)
+            val plausible = rawHz <= MAX_PLAUSIBLE_HZ
+            artifactRuns = if (plausible) 0 else artifactRuns + 1
+            if (artifactRuns >= ARTIFACT_RUNS_TO_DISCARD) {
+                // Defekter Detektor: Messung (+ Historie) verwerfen,
+                // stepTimes leeren. Der Zähler bleibt hoch — ein einmal
+                // als defekt erkannter Detektor wird ab jetzt in JEDEM
+                // Fenster verworfen (sonst oszilliert die Historie
+                // zwischen 2 Artefakt-Fenstern und Leere). Erst ein
+                // plausibles Fenster rehabilitiert ihn (art=0 im
+                // plausiblen Zweig).
+                stepTimes.clear()
+                windowCadences.clear()
+            } else {
+                val cadence = rawHz.toFloat()
+                windowCadences.addLast(cadence)
+                while (windowCadences.size > historyWindows) windowCadences.removeFirst()
+            }
             windowStartMs = timestampMs
         }
     }
@@ -93,5 +143,18 @@ class CadenceTracker(
     fun validFraction(): Float {
         if (windowCadences.isEmpty()) return 0f
         return windowCadences.count { it >= minCadenceHz } / windowCadences.size.toFloat()
+    }
+
+    private companion object {
+        /** M18.126: Physiologische Obergrenze der Schrittfrequenz (Sprint
+         *  ≈ 3,1 Hz; 3,5 Hz liegt bewusst ÜBER dem Jogging-Band 3,2 Hz,
+         *  damit die 2,2-3,2-Hz-Auswertung unberührt bleibt). Alles darüber
+         *  ist kein menschlicher Schritt-Rhythmus. */
+        const val MAX_PLAUSIBLE_HZ = 3.5
+
+        /** M18.126: So viele aufeinanderfolgende Fenster über der
+         *  Plausibilitätsgrenze, bis die Messung als defekt verworfen
+         *  wird (Konsistenz statt Einzel-Fenster-Reaktion). */
+        const val ARTIFACT_RUNS_TO_DISCARD = 3
     }
 }

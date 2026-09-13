@@ -116,9 +116,35 @@ class DriveDetectionService : Service() {
     private var cadenceTracker: CadenceTracker? = null
     private var stepDetector: Sensor? = null
     private var stepDetectorRegistered = false
+    // M18.126 (Crash t_9b1a4b9a): ZWEI Listener statt einem. Der
+    // TYPE_STEP_DETECTOR liefert pro Event GENAU einen Schritt mit
+    // values.length == 1 (Konfidenz 0..1) — die Magnitude-Formel
+    // event.values[0..2] crashte dort mit
+    // ArrayIndexOutOfBoundsException (length=1; index=1) auf JEDEM
+    // Schritt-Event -> Prozess-Kill im Hintergrund (Fahrt + Zuhause),
+    // danach START_STICKY-Rebirth -> Track-Restore -> Sensor an ->
+    // nächster Schritt -> Crash-Loop. Der Accelerometer-Fallback
+    // (Geräte ohne Step-Detector) braucht weiterhin die Magnitude.
+    // Beide Listener füttern denselben CadenceTracker.
+    private val stepDetectorListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            val tracker = cadenceTracker ?: return
+            // Step-Detector: Event = genau ein Schritt; values[0] ist eine
+            // Konfidenz (0..1), KEINE Magnitude — nur die Zeit zählt.
+            tracker.addStep(event.timestamp / 1_000_000L)
+            bridge.updateCadenceSnapshot(
+                tracker.currentCadenceHz(),
+                tracker.validFraction()
+            )
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    }
     private val stepListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             val tracker = cadenceTracker ?: return
+            // Accelerometer-Fallback: 3-Achsen-Magnitude (values.length
+            // == 3 laut Sensor-Vertrag) — High-Pass-Verfahren im Tracker.
             val mag = Math.sqrt(
                 (event.values[0] * event.values[0] +
                     event.values[1] * event.values[1] +
@@ -870,7 +896,9 @@ class DriveDetectionService : Service() {
         }
         stepDetector = detector
         try {
-            sm.registerListener(stepListener, detector, SensorManager.SENSOR_DELAY_NORMAL)
+            // M18.126: Step-Detector-Listener statt Magnitude-Listener —
+            // SENSOR_DELAY_NORMAL reicht (Events = Schritte, keine Achsen).
+            sm.registerListener(stepDetectorListener, detector, SensorManager.SENSOR_DELAY_NORMAL)
             stepDetectorRegistered = true
             cadenceTracker = CadenceTracker()
         } catch (_: Exception) {
@@ -882,7 +910,10 @@ class DriveDetectionService : Service() {
         if (!stepDetectorRegistered) return
         try {
             val sm = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            // M18.126: Beide Listener abmelden (der registrierte hängt vom
+            // Sensor-Typ ab — unregisterListener ist pro Listener idempotent).
             sm?.unregisterListener(stepListener)
+            sm?.unregisterListener(stepDetectorListener)
         } catch (_: Exception) {
         }
         stepDetectorRegistered = false
