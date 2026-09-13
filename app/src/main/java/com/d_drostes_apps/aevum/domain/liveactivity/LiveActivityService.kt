@@ -251,6 +251,11 @@ class LiveActivityService : Service() {
 
     override fun onDestroy() {
         updateJob?.cancel()
+        // M18.125: Bitmaps aus dem Ping-Pong-Pool freigeben (Service-Ende).
+        recycleBitmap(livePatternBitmap)
+        recycleBitmap(liveLargeIcon)
+        livePatternBitmap = null
+        liveLargeIcon = null
         // M18.104: Screen-Receiver sauber deregistrieren.
         screenStateReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) { /* nie registriert */ }
@@ -311,7 +316,7 @@ class LiveActivityService : Service() {
             return
         }
         // M18.104 (Akku-Redesign): Tick nur bei sichtbarem Sekunden-
-        // Umschlag. Ein 1s-delay-Loop weckt die CPU JEDER Sekunde
+        // Umschlag. Ein 1s-delay-Loop weckte die CPU JEDER Sekunde
         // (86.400 Wakes/Tag, davon lief buildNotification() inkl. 800×400-
         // Bitmap-Rendering). Notification-Zeit = mm:ss — ein Update ist
         // erst nötig, wenn die angezeigte Sekunde wechselt. Bei PAUSED
@@ -328,13 +333,48 @@ class LiveActivityService : Service() {
         if (shownSecond == lastShownSecond) return
         lastShownSecond = shownSecond
         val manager = getSystemService(NotificationManager::class.java)
+
+        // M18.125 (fahrt-gekoppelter OOM-Kandidat): buildNotification()
+        // allokiert bei JEDEM Tick zwei neue Bitmaps (96×96-LargeIcon +
+        // 800×400-Pattern ≈ 1,3 MB). Ohne Recycle wächst der Heap während
+        // einer laufenden Session (typisch Autofahrt) jede Sekunde um
+        // ~1,3 MB — outOfMemoryError ist NICHT von den try/catch-Blöcken
+        // abgedeckt (die fangen Exception, nicht Error). Fix: Ping-Pong-
+        // Pool — die beim VORHERIGEN Tick erzeugten Bitmaps werden direkt
+        // nach dem notify() recycelt (notify ist ein synchroner
+        // Binder-Call; danach besitzt der System-Prozess die Daten).
+        // Es leben maximal 2 Bitmap-Generationen statt einer pro Sekunde.
+        val previousPattern = livePatternBitmap
+        val previousIcon = liveLargeIcon
         manager.notify(NOTIFICATION_ID, buildNotification())
+        recycleBitmap(previousPattern)
+        recycleBitmap(previousIcon)
+    }
+
+    /** M18.125: Bitmap nach dem notify() freigeben (Binder-synchron
+     *  kopiert, App-Kopie danach frei). isRecycled-Guard für die
+     *  Ping-Pong-Wechsel (die aktuelle bleibt bis zum nächsten Tick). */
+    private fun recycleBitmap(bitmap: android.graphics.Bitmap?) {
+        if (bitmap != null && !bitmap.isRecycled) {
+            bitmap.recycle()
+        }
     }
 
     /** M18.104: Sekunde, die die Notification zuletzt anzeigte — verhindert
      *  redundante notify()-Calls (Bitmap-Rendering war der heimliche
      *  CPU-Fresser des 1s-Loops). */
     private var lastShownSecond: Long = -1L
+
+    // M18.125 (fahrt-gekoppelter OOM-Kandidat): Die zuletzt an die
+    // Notification übergebenen Bitmaps (LargeIcon 96×96 + Pattern 800×400,
+    // zusammen ≈ 1,3 MB). updateNotification() recycelt die VORHERIGE
+    // Generation nach jedem notify() (Binder-synchron kopiert; App-Kopie
+    // danach frei) — statt pro Sekunde ~1,3 MB Heap-Anstieg während einer
+    // laufenden Session (typisch Autofahrt: Screen aus = 10s-Tick, Screen
+    // an = 1s-Tick). outOfMemoryError ist KEIN Exception — die try/catch-
+    // Blöcke der Notification-Pfade fangen ihn nicht.
+    private var liveLargeIcon: android.graphics.Bitmap? = null
+    private var livePatternBitmap: android.graphics.Bitmap? = null
 
     /** M18.104: Screen-Zustand (ACTION_SCREEN_ON/OFF). */
     @Volatile private var screenOn: Boolean = true
@@ -461,11 +501,17 @@ class LiveActivityService : Service() {
         // gezeichnet. setLargeIcon ist eine STANDARD-Notification-Methode —
         // kein RemoteViews (das hat in M18.25 gecrasht). So entsteht ein
         // markantes, bildhaftes Icon auf jedem Gerät.
-        val largeIcon = buildActivityIcon(activityIcon, accentColor)
+        // M18.125: Bitmaps in Service-Feldern halten — updateNotification()
+        // recycelt die VORHERIGE Generation nach dem notify() (OOM-Fix,
+        // fahrt-gekoppelter Heap-Anstieg ~1,3 MB/Sekunde). In der
+        // Vordergrund-Notification ist die Aktualität NICHT kritisch — beim
+        // nächsten Tick wird neu gezeichnet.
+        val largeIcon = buildActivityIcon(activityIcon, accentColor).also { liveLargeIcon = it }
         // M18.49 (User: "fancy Muster als Hintergrund statt einer Farbe"):
         // Die aufgeklappte Notification zeigt ein generiertes 2:1-Bild mit
         // Farbverlauf + Punkte-Muster (Duolingo-artig) statt flacher Farbe.
         val patternBitmap = buildPatternBackground(activityIcon, accentColor, title, timeStr)
+            .also { livePatternBitmap = it }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)

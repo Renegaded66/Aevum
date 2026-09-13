@@ -21,8 +21,10 @@ android {
         // (FGS-Vertrag + Permission-Gate, siehe DriveDetectionService).
         // M18.123: App-Start-Crash (M18.122) gefixt — StickyGuard-SharedPrefs
         // aus Property-Init nach onCreate verlagert (NPE vor Context-Attach).
-        versionCode = 11
-        versionName = "1.0.10"
+        // M18.125: Notification-Bitmap-Recycling (fahrt-gekoppelter OOM —
+        // ~1,3 MB/Tick ohne Recycle) + Crash-Log-Spiegel nach Downloads/Aevum.
+        versionCode = 12
+        versionName = "1.0.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
