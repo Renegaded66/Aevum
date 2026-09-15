@@ -687,23 +687,38 @@ fun OrbitLauncherSheet(
         }
 
         // --- Vorlaufzeit-Panel ------------------------------------------------
+        // M18.120 (User-Report: "Suchleiste liegt ueber der Uhr-Ansicht, Klicks
+        // auf die Uhr treffen das Sonnensystem"): Das Panel lag OHNE align und
+        // OHNE zIndex in der BoxWithConstraints — also bei TopStart (ueberlappte
+        // Header/Suchleiste, die mit zIndex(2f) drueber zeichneten) und HINTER
+        // der Orbit-Tap-Box (zIndex 1f): Taps auf die Uhr fielen an deren
+        // Planeten-Detektor durch. Fix: BottomCenter wie das Detail-Panel und
+        // zIndex(4f) ueber allen Sky-Layern; die Panel-Flaeche schluckt ihre
+        // Taps selbst (siehe RetroactiveRingPanel), nichts sickert zur
+        // Orbit-Tap-Box durch.
         if (selected != null && showTimeMode && !inSearchMode) {
-            RetroactiveRingPanel(
-                accent = accentFor(selected!!.type),
-                minutes = retroMinutes,
-                onMinutesChange = { retroMinutes = it },
-                onExactTime = {
-                    val cal = java.util.Calendar.getInstance()
-                    exactHour = cal.get(java.util.Calendar.HOUR_OF_DAY)
-                    exactMinute = cal.get(java.util.Calendar.MINUTE)
-                },
-                onStart = { m ->
-                    val startMs = System.currentTimeMillis() - m * 60_000L
-                    onStartWithTime(selected!!.type.id, null, startMs)
-                    onDismiss()
-                },
-                onBack = { showTimeMode = false },
-            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(4f),
+            ) {
+                RetroactiveRingPanel(
+                    accent = accentFor(selected!!.type),
+                    minutes = retroMinutes,
+                    onMinutesChange = { retroMinutes = it },
+                    onExactTime = {
+                        val cal = java.util.Calendar.getInstance()
+                        exactHour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                        exactMinute = cal.get(java.util.Calendar.MINUTE)
+                    },
+                    onStart = { m ->
+                        val startMs = System.currentTimeMillis() - m * 60_000L
+                        onStartWithTime(selected!!.type.id, null, startMs)
+                        onDismiss()
+                    },
+                    onBack = { showTimeMode = false },
+                )
+            }
         }
 
         // --- Exakte Uhrzeit-Dialog (bestehender AevumTimePicker) ---------------
@@ -798,6 +813,13 @@ private fun RetroactiveRingPanel(
             .padding(bottom = AevumSpacing.lg)
             .clip(RoundedCornerShape(22.dp))
             .background(scheme.surface.copy(alpha = 0.97f))
+            // M18.120: Die Panel-Flaeche verbraucht ALLE Taps (leerer
+            // detectTapGestures-Handler = bekannte Compose-Idiom zum
+            // Schlucken). Ohne das waeren Taps auf Titel/Abstaende zur
+            // Orbit-Tap-Box (zIndex 1f) durchgesickert und haetten dort
+            // Planeten selektiert/deselektiert — genau der User-Report
+            // ("Klicks auf die Uhr treffen das Sonnensystem").
+            .pointerInput(Unit) { detectTapGestures { } }
             .padding(AevumSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(AevumSpacing.md),
     ) {
