@@ -266,6 +266,10 @@ class DriveStartWorker(
             // ENTER (Aussteigen) sofort eine "Spazieren"-Session mit
             // Vorlauf IN die Fahrt hinein gestartet (User-Fall 19:05–19:17).
             bridge.clearWalkingSignal()
+            // M18.127: Auch die Walk-Stop-Evidenz gehört nicht in die neue
+            // Fahrt hinein — ein Geh-Sample kurz vor dem Start (Losgehen →
+            // Auto) darf den neuen Stop-Mechanismus nicht sofort auslösen.
+            bridge.resetWalkStopEvidence()
             // Foreground-Service, damit der Timer im Hintergrund weiterläuft.
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
             // M18.104 (Akku-Redesign): Der Burst-Service muss vom CONFIRM-
@@ -377,6 +381,10 @@ class DriveStopWorker(
             bridge.drainDriveProbes()
             bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
+            // M18.127: Walk-Stop-Evidenz beim Stop verwerfen — die
+            // Geh-Samples beim Aussteigen haben ihren Zweck erfüllt und
+            // dürfen die NÄCHSTE Fahrt nicht anschieben.
+            bridge.resetWalkStopEvidence()
             live.stop()
             // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
             // nicht mehr automatisch entfernt"): Die Live-Notification muss
@@ -582,6 +590,9 @@ class DriveWatchdogWorker(
             bridge.drainDriveProbes()
             bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
+            // M18.127: Walk-Stop-Evidenz beim Stop verwerfen (siehe
+            // DriveStopWorker — gleicher Grund).
+            bridge.resetWalkStopEvidence()
             live.stop()
             // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
             // nicht mehr automatisch entfernt"): Live-Notification sofort

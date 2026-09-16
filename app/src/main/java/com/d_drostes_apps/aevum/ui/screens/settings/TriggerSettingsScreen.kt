@@ -1362,14 +1362,39 @@ class TriggerSettingsViewModel @Inject constructor(
 
     private fun upsert(transform: (AutomationSettings) -> AutomationSettings) {
         val current = uiState.value.settings
+        val next = transform(current)
         viewModelScope.launch {
             try {
-                settingsRepository.upsert(transform(current).copy(updatedAt = System.currentTimeMillis()))
+                settingsRepository.upsert(next.copy(updatedAt = System.currentTimeMillis()))
             } catch (e: Exception) {
                 // M18.56: Fehler sichtbar machen statt schlucken — vorher
                 // sprangen Toggles stillschweigend zurück, weil DB-Exceptions
                 // von viewModelScope.launch verschluckt wurden.
                 Log.e("TriggerSettings", "upsert fehlgeschlagen", e)
+            }
+            // M18.127: Continuous-Sample-Stream (30s, AR-Sensor-Hub) an den
+            // AR-Toggle-Zustand koppeln. Nur synchronisieren, wenn sich ein
+            // AR-Schalter geändert hat (kein GMS-Call bei Ping-/Schlaf-/
+            // Geofence-Upserts):
+            //  - mindestens eine Erkennung an (driving/walking/bicycle)
+            //    → registrieren (idempotent, gleiche PendingIntent-Identity —
+            //    M18.112), deckt auch „nur Walking wieder an" nach dem
+            //    Alles-Aus-Fall ab.
+            //  - ALLE drei aus → sauber beenden (API-Vertrag: removeActivity-
+            //    Updates, wenn nicht mehr gebraucht).
+            val arChanged = current.drivingDetectionEnabled != next.drivingDetectionEnabled ||
+                current.walkingDetectionEnabled != next.walkingDetectionEnabled ||
+                current.bicycleDetectionEnabled != next.bicycleDetectionEnabled
+            if (arChanged) {
+                try {
+                    if (next.drivingDetectionEnabled || next.walkingDetectionEnabled || next.bicycleDetectionEnabled) {
+                        com.d_drostes_apps.aevum.automation.activityrecognition.ActivityContinuousSamplesRequester.register(app)
+                    } else {
+                        com.d_drostes_apps.aevum.automation.activityrecognition.ActivityContinuousSamplesRequester.unregister(app)
+                    }
+                } catch (e: Exception) {
+                    Log.e("TriggerSettings", "Continuous-Samples-Sync fehlgeschlagen", e)
+                }
             }
         }
     }

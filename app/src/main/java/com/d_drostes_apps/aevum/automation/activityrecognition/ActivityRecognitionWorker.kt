@@ -380,6 +380,37 @@ class ActivityRecognitionBridge @Inject constructor(
     fun lastVehicleSample(): Long = lastVehicleSampleMs
 
     // ──────────────────────────────────────────────────────────────
+    // M18.127: WALK-STOP-DETECTOR (Autofahrt → „Gehen erkannt" → Stop).
+    //
+    // Singleton-Instanz der puren Logik (WalkStopDetector.kt): Die
+    // Evidenz (2 konsekutive WALKING/RUNNING/ON_FOOT-Samples mit
+    // Confidence ≥ 60 innerhalb ~75 s, widerlegt durch frisches
+    // Fahrzeug-Tempo) überlebt damit die flüchtigen Receiver-Instanzen
+    // des Broadcast-Systems. Session-Grenzen setzen die Evidenz über
+    // [resetWalkStopEvidence] zurück (DriveStartWorker beim Start,
+    // DriveStopWorker/Watchdog beim Stop), damit sie nie in die
+    // nächste Fahrt hinüberlebt.
+    // ──────────────────────────────────────────────────────────────
+    private val walkStopDetector = WalkStopDetector()
+
+    /** M18.127: Ein AR-Sample in den Walk-Stop-Detector füttern
+     *  (Typ + Confidence vom Receiver, GPS-Probes liest die Bridge).
+     *  true = STOPP-Signal: die laufende Auto-Session sofort beenden. */
+    @Synchronized
+    fun onWalkStopSample(
+        type: Int,
+        confidence: Int,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean = walkStopDetector.onSample(type, confidence, nowMs, currentDriveProbes())
+
+    /** M18.127: Walk-Stop-Evidenz über Session-Grenzen hinweg verwerfen
+     *  (Session-Start und jeder Stop-Pfad). */
+    @Synchronized
+    fun resetWalkStopEvidence() {
+        walkStopDetector.reset()
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // M18.64: GPS-GESCHWINDIGKEITS-PROBES (DriveProbeWorker).
     //
     // Unabhängiger Erkennungspfad neben Googles IN_VEHICLE-Transitions:
