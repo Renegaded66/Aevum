@@ -23,8 +23,8 @@ android {
         // aus Property-Init nach onCreate verlagert (NPE vor Context-Attach).
         // M18.125: Notification-Bitmap-Recycling (fahrt-gekoppelter OOM —
         // ~1,3 MB/Tick ohne Recycle) + Crash-Log-Spiegel nach Downloads/Aevum.
-        versionCode = 13
-        versionName = "1.0.12"
+        versionCode = 14
+        versionName = "1.0.13"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
