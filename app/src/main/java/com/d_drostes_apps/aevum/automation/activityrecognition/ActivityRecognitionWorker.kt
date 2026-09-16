@@ -411,6 +411,64 @@ class ActivityRecognitionBridge @Inject constructor(
     }
 
     // ──────────────────────────────────────────────────────────────
+    // M18.128: VEHICLE-EVIDENCE (Fast-Start-Gate, Design t_bea94587 §6.1).
+    //
+    // Ein EINZELNES IN_VEHICLE-Sample ist zu schwach für einen Start
+    // (M18.66-FIX15: Googles AR liefert bei Sensorrauschen regelmäßig
+    // IN_VEHICLE-False-Positives) — aber als QUALIFIKATOR für den
+    // schnellen Pfad reicht es: Der Fast-Start verlangt zusätzlich 2
+    // konsekutive ≥-8-m/s-Fixes + Netto ≥ 100 m (GPS-Bestätigung).
+    // Die Bridge hält nur den letzten IN_VEHICLE-Sample-Zeitstempel +
+    // Confidence; die Frische-/Schwellen-Entscheidung liegt in der
+    // puren Funktion DriveDetectionEngine.shouldFastStart.
+    //
+    // ON_BICYCLE widerlegt die Evidence (Konkurrenz-Klassifikation des
+    // Sensor-Hubs — symmetrisch zu WalkStop-Regel 1); ON_FOOT fasst sie
+    // NICHT an (ein einzelnes WALKING im Stop&Go darf die schnelle
+    // Erkennung nicht dauerhaft blockieren, M18.84-Lektion). Session-
+    // Grenzen setzen sie über [resetVehicleEvidence] zurück (M18.127-
+    // Muster) — Evidence überlebt keine Session-Grenze.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var vehicleSampleAtMs: Long = 0L
+    @Volatile private var vehicleSampleConfidence: Int = 0
+
+    /** M18.128: Neues IN_VEHICLE-Sample registrieren (vom Continuous-
+     *  Samples-Receiver, IN_VEHICLE-Zweig). */
+    @Synchronized
+    fun onVehicleSample(confidence: Int, nowMs: Long = System.currentTimeMillis()) {
+        vehicleSampleAtMs = nowMs
+        vehicleSampleConfidence = confidence
+    }
+
+    /** M18.128: Frisches ON_BICYCLE-Sample widerlegt die Fahrzeug-
+     *  Evidence (V1-Konkurrenz: der Sensor-Hub meldet den Aktivitäts-
+     *  Wechsel). */
+    @Synchronized
+    fun onBicycleSample() {
+        vehicleSampleAtMs = 0L
+        vehicleSampleConfidence = 0
+    }
+
+    /** M18.128: Evidence an Session-Grenzen verwerfen (Start + jeder
+     *  Stop-Pfad — M18.127-Muster). */
+    @Synchronized
+    fun resetVehicleEvidence() {
+        vehicleSampleAtMs = 0L
+        vehicleSampleConfidence = 0
+    }
+
+    /** M18.128: Aktuelle Evidence als Value-Objekt für die pure Funktion
+     *  (null = keine Evidence). */
+    @Synchronized
+    fun vehicleEvidence(): DriveDetectionEngine.VehicleEvidence? {
+        if (vehicleSampleAtMs == 0L) return null
+        return DriveDetectionEngine.VehicleEvidence(
+            atMs = vehicleSampleAtMs,
+            confidence = vehicleSampleConfidence
+        )
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // M18.64: GPS-GESCHWINDIGKEITS-PROBES (DriveProbeWorker).
     //
     // Unabhängiger Erkennungspfad neben Googles IN_VEHICLE-Transitions:

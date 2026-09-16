@@ -266,6 +266,11 @@ class DriveStartWorker(
             // ENTER (Aussteigen) sofort eine "Spazieren"-Session mit
             // Vorlauf IN die Fahrt hinein gestartet (User-Fall 19:05–19:17).
             bridge.clearWalkingSignal()
+            // M18.128: Die IN_VEHICLE-Evidence des Fast-Start-Gates ist
+            // mit dem Session-Start verbraucht — sie darf die NÄCHSTE
+            // Fahrt nicht mehr qualifizieren (M18.127-Muster an
+            // Session-Grenzen).
+            bridge.resetVehicleEvidence()
             // M18.127: Auch die Walk-Stop-Evidenz gehört nicht in die neue
             // Fahrt hinein — ein Geh-Sample kurz vor dem Start (Losgehen →
             // Auto) darf den neuen Stop-Mechanismus nicht sofort auslösen.
@@ -381,6 +386,11 @@ class DriveStopWorker(
             bridge.drainDriveProbes()
             bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
+            // M18.128: Auch die IN_VEHICLE-Evidence des Fast-Start-Gates
+            // endet mit der Fahrt (M18.127-Muster an Session-Grenzen) —
+            // sonst qualifizierte ein Sample der alten Fahrt den
+            // Park-Drift nach dem Stopp für einen Fast-Start.
+            bridge.resetVehicleEvidence()
             // M18.127: Walk-Stop-Evidenz beim Stop verwerfen — die
             // Geh-Samples beim Aussteigen haben ihren Zweck erfüllt und
             // dürfen die NÄCHSTE Fahrt nicht anschieben.
@@ -590,6 +600,10 @@ class DriveWatchdogWorker(
             bridge.drainDriveProbes()
             bridge.drainVehicleCluster()
             bridge.clearWalkingSignal()
+            // M18.128: IN_VEHICLE-Evidence an der Session-Grenze verwerfen
+            // (siehe DriveStopWorker — gleicher Grund: der Watchdog ist
+            // der HAUPT-Stop-Pfad).
+            bridge.resetVehicleEvidence()
             // M18.127: Walk-Stop-Evidenz beim Stop verwerfen (siehe
             // DriveStopWorker — gleicher Grund).
             bridge.resetWalkStopEvidence()

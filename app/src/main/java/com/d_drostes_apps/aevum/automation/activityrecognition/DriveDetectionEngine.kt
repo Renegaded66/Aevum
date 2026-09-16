@@ -282,6 +282,51 @@ object DriveDetectionEngine {
         cadenceHz != null && validFraction >= CADENCE_MIN_VALID_FRACTION &&
             cadenceHz in JOGGING_CADENCE_MIN_HZ..JOGGING_CADENCE_MAX_HZ
 
+    // ── M18.128: FAST-START-GATE (Design t_bea94587) ────────────────
+    //
+    // User (Root t_1c59e5f2): „Die Fahrtaufzeichnung kann ruhig früher
+    // beginnen — anhand Geschwindigkeit schon nach einigen Sekunden,
+    // vorausgesetzt die Activity-Erkennung erkennt nicht, dass ich
+    // jogge.“ Der Normalpfad (classify, 30-s-Spread) startet real erst
+    // ~45–70 s nach Fahrtbeginn. Der Fast-Pfad senkt NUR die zeitlichen
+    // Gates (2 konsekutive Fixes statt 30-s-Spread, Netto ≥ 100 m statt
+    // 150 m), verlangt dafür aber ein starkes Vorab-Signal, das der
+    // Normalpfad nicht hat: ein FRISCHES AR-IN_VEHICLE-Sample mit
+    // Confidence (Sensor-Hub, ~0 Akku, 30-s-Stream M18.112).
+    //
+    // Asymmetrie ist der Kern: Joggen (bis 20 km/h = 5,6 m/s) erreicht
+    // die 8-m/s-Schwelle nie UND liefert kein IN_VEHICLE-Sample (Google
+    // meldet RUNNING/ON_FOOT) — der Fast-Pfad kann beim Joggen also
+    // nicht feuern. ON_FOOT-Samples fassen die Evidence NICHT an (ein
+    // einzelnes WALKING im Stop&Go darf die schnelle Erkennung nicht
+    // dauerhaft blockieren, M18.84-Lektion); frisches ON_BICYCLE
+    // widerlegt sie (Konkurrenz-Klassifikation des Sensor-Hubs).
+    //
+    // V7 (Restart-Cooldown) prüft der AUFRUFER (handleFix), nicht diese
+    // Funktion — die reine Funktion kennt die Bridge nicht.
+
+    /** Mindest-Confidence der IN_VEHICLE-Evidence. Gleicher Wert wie
+     *  WalkStopDetector.WALK_STOP_CONFIDENCE (60): klar über Rauschen,
+     *  Google liefert bei echtem Fahrzeug typisch 70–100. */
+    const val FAST_START_CONFIDENCE = 60
+
+    /** Frische-Fenster der IN_VEHICLE-Evidence: ≤ 90 s. Ein Sample
+     *  älter als ein Burst-Fenster gehört nicht mehr zur aktuellen
+     *  Fahrt (gleiche Größenordnung wie WALK_STOP_VETO_PROBE_AGE_MS). */
+    const val FAST_START_EVIDENCE_MAX_AGE_MS = 90_000L
+
+    /** Mindest-Hysterese zwischen den beiden schnellen Fixes: ≥ 10 s.
+     *  Bei 15-s-Stream-Fixes ist die Bedingung automatisch erfüllt;
+     *  die Untergrenze ist der explizite Puffer gegen Prime-Fix +
+     *  Sofort-Fix-Sprünge (2 Fixes < 10 s auseinander = kein Start). */
+    const val FAST_START_MIN_HYSTERESIS_MS = 10_000L
+
+    /** Mindest-Netto-Displacement der zwei Fixes: ≥ 100 m (ersetzt die
+     *  150 m des Normalpfads — durch die IN_VEHICLE-Evidence kompen-
+     *  siert). 100 m Netto in ≥ 10 s = ≥ 36 km/h Ortsveränderung —
+     *  Indoor-Drift springt 10–50 m und scheitert hier. */
+    const val FAST_START_MIN_NET_DISPLACEMENT_M = 100.0
+
     // ── M18.79: Start-in-flight-Fenster (Blackout-/Race-Schutz) ────
     /** So lange nach [markDriveConfirmed] darf eine Auto-Session noch
      *  unterwegs sein, ohne dass die Selbstheilung das driveActive-Flag
@@ -338,6 +383,16 @@ object DriveDetectionEngine {
         val latitude: Double,
         val longitude: Double,
         val radiusMeters: Double
+    )
+
+    /** M18.128: Fahrzeug-Evidence aus dem AR-Continuous-Sampling (Design
+     *  t_bea94587 §6.1). Pure data class — bewusst Android-frei für
+     *  JVM-Tests (die Bridge hält die Felder und baut die Instanz). */
+    data class VehicleEvidence(
+        /** Zeitstempel des letzten IN_VEHICLE-Samples (Frische-Basis). */
+        val atMs: Long,
+        /** DetectedActivity.getConfidence() (0–100). */
+        val confidence: Int
     )
 
     /** M18.84: Liegt der Punkt im Kreis? (Haversine, gleiche Formel wie
@@ -748,6 +803,88 @@ object DriveDetectionEngine {
         return Classification.Driving(confidence)
     }
 
+    /**
+     * M18.128: FAST-START-GATE (Design t_bea94587 §6.2) — pure, Android-
+     * frei (JVM-Tests). Startet die Session SOFORT (ohne 30-s-Spread),
+     * sobald frische IN_VEHICLE-Evidence + 2 konsekutive schnelle Fixes
+     * die Fahrt bestätigen.
+     *
+     * Regeln (alle V1–V8 müssen gelten):
+     *   V1  vehicleEvidence != null, confidence ≥ [FAST_START_CONFIDENCE],
+     *       frisch (≤ [FAST_START_EVIDENCE_MAX_AGE_MS]).
+     *       → Joggen hat KEIN IN_VEHICLE-Sample: der Fast-Pfad feuert
+     *         dort nie (Root-Anforderung „nie beim Joggen“ — zusätzlich
+     *         scheitert Joggen 5,6 m/s an V3).
+     *   V2  ≥ 2 gültige Probes im Fenster (Frische ≤ [MAX_PROBE_AGE_MS],
+     *       Accuracy ≤ [MAX_ACCURACY_M], Speed ≤ [OUTLIER_SPEED_MPS]).
+     *   V3  Die LETZTEN 2 gültigen Fixes BEIDE ≥ [AUTO_SPEED_MPS] (8 m/s
+     *       = 28,8 km/h). Ein dazwischenliegender langsamer Fix bricht
+     *       die Konsekutiv-Kette.
+     *   V4  Hysterese: letzter − vorletzter Fix ≥ [FAST_START_MIN_HYSTERESIS_MS]
+     *       (≥ 10 s) — Puffer gegen Prime-/Sofort-Fix-Sprünge.
+     *   V5  Netto-Displacement der zwei Fixes ≥ [FAST_START_MIN_NET_DISPLACEMENT_M]
+     *       (100 m in ≥ 10 s = ≥ 36 km/h Ortsveränderung — Indoor-Drift
+     *       springt 10–50 m und scheitert).
+     *   V6  Geofence-Veto: NICHT ALLE Fixes innerhalb EINES benannten
+     *       Orts-Kreises (M18.84: Indoor-Multipath). Leere Geofence-
+     *       Liste = kein Veto (Ort unbekannt).
+     *   V8  Cadence-Veto im Lauf-Speed-Band (M18.117/118) — greift
+     *       unabhängig vom AR-Kontext.
+     *   V7  Restart-Cooldown prüft der AUFRUFER vorab (handleFix), die
+     *       reine Funktion kennt die Bridge nicht.
+     */
+    fun shouldFastStart(
+        probes: List<DriveProbe>,
+        evidence: VehicleEvidence?,
+        nowMs: Long,
+        geofences: List<GeoCircle>,
+        cadenceHz: Float? = null,
+        cadenceValidFraction: Float = 0f
+    ): Boolean {
+        // V1: frische IN_VEHICLE-Evidence mit Confidence.
+        if (evidence == null) return false
+        if (evidence.confidence < FAST_START_CONFIDENCE) return false
+        if (nowMs - evidence.atMs > FAST_START_EVIDENCE_MAX_AGE_MS) return false
+
+        // V2: mindestens 2 gültige Probes im Erkennungsfenster.
+        val valid = probes
+            .filter { nowMs - it.timestampMs <= MAX_PROBE_AGE_MS }
+            .filter { it.accuracyMeters <= MAX_ACCURACY_M }
+            .filter { it.speedMps != null && it.speedMps <= OUTLIER_SPEED_MPS }
+        if (valid.size < 2) return false
+
+        // V3 + V4: die letzten 2 Fixes konsekutiv ≥ 8 m/s mit ≥ 10 s
+        // Hysterese (2er-Kette — ein langsamer Fix dazwischen bricht sie).
+        val a = valid[valid.size - 2]
+        val b = valid[valid.size - 1]
+        if (a.speedMps!! < AUTO_SPEED_MPS || b.speedMps!! < AUTO_SPEED_MPS) return false
+        if (b.timestampMs - a.timestampMs < FAST_START_MIN_HYSTERESIS_MS) return false
+
+        // V5: Netto-Displacement der zwei Fixes (Stillstands-/Drift-Filter).
+        if (netDisplacement(a, b) < FAST_START_MIN_NET_DISPLACEMENT_M) return false
+
+        // V6: Geofence-Veto — beide Fixes innerhalb EINES benannten Orts
+        // = Indoor-Multipath, keine Fahrt (M18.84).
+        val insideOnePlace = a.latitude != null && a.longitude != null &&
+            b.latitude != null && b.longitude != null &&
+            geofences.any { g ->
+                isInsideCircle(a.latitude!!, a.longitude!!, g) &&
+                    isInsideCircle(b.latitude!!, b.longitude!!, g)
+            }
+        if (geofences.isNotEmpty() && insideOnePlace) return false
+
+        // V8: Cadence-Veto — Jogging-Schrittfrequenz im Lauf-Speed-Band
+        // blockiert auch den Fast-Pfad (kostenloser Zusatzschutz).
+        val avg = (a.speedMps!! + b.speedMps!!) / 2f
+        if (isJoggingCadence(cadenceHz, cadenceValidFraction) &&
+            avg in CADENCE_VETO_MIN_SPEED_MPS..CADENCE_VETO_MAX_SPEED_MPS
+        ) {
+            return false
+        }
+
+        return true
+    }
+
     /** M18.66-FIX13: Haversine-Distanz in Metern (für Netto-Displacement-Gate). */
     private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val r = 6371000.0
@@ -757,6 +894,18 @@ object DriveDetectionEngine {
             Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2)
         return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    }
+
+    /** M18.128: Geradlinige Distanz zwischen zwei Probes (m) für das
+     *  Fast-Start-Netto-Displacement. Fehlen Koordinaten, ist keine
+     *  Ortsveränderung belegbar → 0.0 (konservativ: kein Fast-Start). */
+    private fun netDisplacement(a: DriveProbe, b: DriveProbe): Double {
+        if (a.latitude == null || a.longitude == null ||
+            b.latitude == null || b.longitude == null
+        ) {
+            return 0.0
+        }
+        return haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude)
     }
 
     /**
