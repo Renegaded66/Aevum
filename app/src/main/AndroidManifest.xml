@@ -24,6 +24,15 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
+        M18.129: Kalender-Integration — lesender Zugriff auf die Termine.
+        READ_CALENDAR ist eine dangerous-Permission und wird zur Laufzeit
+        angefragt (CalendarRulesScreen, 4-State-Flow mit Settings-Deep-Link).
+        Die App liest den Kalender ausschließlich lokal; sie schreibt
+        niemals Termine (kein WRITE_CALENDAR).
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!--
         M12.2: PACKAGE_USAGE_STATS is a "protected permission" — it cannot be granted
         at runtime via requestPermissions(). The user must enable it manually in
         Settings → Apps → Special access → Usage access. Declaring the permission

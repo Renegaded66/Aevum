@@ -47,6 +47,8 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     DigitalBalance("digital_balance", R.string.digital_balance_title),
     // M18.67: App-Aufzeichnung (Apps → Activity automatisch)
     AppTracking("app_tracking", R.string.app_tracking_title),
+    // M18.129: Kalender-Integration (Regeln + Sync)
+    CalendarRules("calendar_rules", R.string.calendar_rules_title),
     // M18.30: Todos
     Todos("todos", R.string.todos_title),
     TodoCreate("todo/new", R.string.todo_create_title),

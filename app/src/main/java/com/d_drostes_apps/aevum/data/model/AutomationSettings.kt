@@ -33,5 +33,21 @@ data class AutomationSettings(
     @ColumnInfo(name = "sleep_source", defaultValue = "screen") val sleepSource: String = "screen",
     // M18.70: Bildschirm-Aufzeichnung — Vorlauf in Minuten.
     // 0 = sofort bei Screen-ON, 1..10 = Vorlauf, -1 = deaktiviert (Slider rechts).
-    @ColumnInfo(name = "screen_recording_minutes", defaultValue = "5") val screenRecordingMinutes: Int = 5
+    @ColumnInfo(name = "screen_recording_minutes", defaultValue = "5") val screenRecordingMinutes: Int = 5,
+    // M18.129: Kalender-Integration.
+    // Master-Schalter: Kalender überhaupt lesen (Timeline-Vorschau der
+    // geplanten Blöcke). Default AUS — READ_CALENDAR ist eine
+    // dangerous-Permission, die der Nutzer bewusst erteilen muss.
+    @ColumnInfo(name = "calendar_sync_enabled", defaultValue = "0") val calendarSyncEnabled: Boolean = false,
+    // Separat schaltbar: automatisch aufzeichnen (Start/Stop an
+    // Termingrenzen). Der Nutzer kann den Kalender bewusst nur LESEN
+    // (Vorschau) und trotzdem nicht automatisch aufzeichnen lassen —
+    // das ist eine eigenständige Entscheidung.
+    @ColumnInfo(name = "calendar_auto_tracking_enabled", defaultValue = "0") val calendarAutoTrackingEnabled: Boolean = false,
+    // Zeitstempel des letzten erfolgreichen Syncs (0 = nie).
+    @ColumnInfo(name = "calendar_last_sync_at", defaultValue = "0") val calendarLastSyncAt: Long = 0L,
+    // Sync-Takt in Stunden. Default 6 — Kalender ändern sich selten,
+    // 4 Syncs/Tag sind reichlich und akku-schonend (M18.104-Muster:
+    // teure Operationen selten, nicht im Dauertakt).
+    @ColumnInfo(name = "calendar_sync_interval_hours", defaultValue = "6") val calendarSyncIntervalHours: Int = 6
 ) : Serializable

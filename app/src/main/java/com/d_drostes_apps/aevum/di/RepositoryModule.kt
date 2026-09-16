@@ -79,6 +79,14 @@ import com.d_drostes_apps.aevum.data.repository.GarminRepository
 import com.d_drostes_apps.aevum.data.repository.GarminRepositoryImpl
 import com.d_drostes_apps.aevum.data.db.GarminDao
 import com.d_drostes_apps.aevum.data.db.LocationTrackPointDao
+// M18.129: Kalender-Integration
+import com.d_drostes_apps.aevum.data.db.CalendarRuleDao
+import com.d_drostes_apps.aevum.data.db.CalendarEventCacheDao
+// M18.129: AppDatabase für die neuen DAO-Provider — in dieser Datei
+// bisher nicht referenziert (alle anderen Provider bekommen DAOs direkt
+// von Hilt), daher fehlte der Import und kapt brach mit
+// "AppDatabase could not be resolved" ab.
+import com.d_drostes_apps.aevum.data.db.AppDatabase
 import javax.inject.Singleton
 
 @Module
@@ -171,4 +179,22 @@ object RepositoryModule {
     @Provides @Singleton
     fun provideGeofenceRestartThrottle(): com.d_drostes_apps.aevum.automation.geofence.GeofenceRestartThrottle =
         com.d_drostes_apps.aevum.automation.geofence.GeofenceRestartThrottle()
+
+    // M18.129: Kalender-Integration (Regeln + Termin-Cache).
+    // Neue DAOs brauchen IMMER einen expliziten Provider hier — sonst
+    // bricht kapt mit "InjectProcessingStep was unable to process"
+    // (M18.30-Lektion, wiederholt in M18.61).
+    @Provides @Singleton
+    fun provideCalendarRuleDao(database: AppDatabase): CalendarRuleDao = database.calendarRuleDao()
+
+    @Provides @Singleton
+    fun provideCalendarEventCacheDao(database: AppDatabase): CalendarEventCacheDao = database.calendarEventCacheDao()
+
+    @Provides @Singleton
+    fun provideCalendarRepository(
+        ruleDao: CalendarRuleDao,
+        eventDao: CalendarEventCacheDao,
+        settingsDao: AutomationSettingsDao
+    ): com.d_drostes_apps.aevum.data.repository.CalendarRepository =
+        com.d_drostes_apps.aevum.data.repository.CalendarRepositoryImpl(ruleDao, eventDao, settingsDao)
 }

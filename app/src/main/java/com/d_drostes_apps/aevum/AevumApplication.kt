@@ -39,6 +39,8 @@ class AevumApplication : Application() {
     @Inject lateinit var midnightAllowanceScheduler: MidnightAllowanceScheduler
     // M18.9: Garantierter Morgen-Trigger für die Schlaf-Fusion.
     @Inject lateinit var sleepFusionMorningScheduler: SleepFusionMorningScheduler
+    // M18.129: Kalender-Integration — periodischer Sync.
+    @Inject lateinit var calendarSyncScheduler: com.d_drostes_apps.aevum.automation.calendar.CalendarSyncScheduler
 
     /**
      * M12.1.1: Hilt EntryPoint, damit AevumApplication (kein @AndroidEntryPoint)
@@ -331,6 +333,36 @@ class AevumApplication : Application() {
             garminSyncScheduler.schedule()
         } catch (e: Exception) {
             Log.e("AevumApplication", "GarminSyncScheduler failed — continuing", e)
+        }
+        // M18.129: Kalender-Integration.
+        // Periodischer Sync (Default 6 h, nur bei ausreichend Akku) +
+        // Auto-Start/Stop-Takt (selbst-erneuernd, liest nur den Cache).
+        //
+        // Beide Schritte prüfen ihre Gates SELBST (Feature-Schalter,
+        // Berechtigung, Regeln vorhanden) — hier wird nur angestoßen, damit
+        // ein Update oder ein Neustart die Planung nicht verliert
+        // (M18.61e-Lektion: Mechanismen müssen beim App-Start neu
+        // angestoßen werden, nicht nur beim Toggle).
+        try {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    calendarSyncScheduler.schedule()
+                    // Deps lokal holen — der umgebende Scope hat keine
+                    // `deps`-Variable (jeder Init-Block erzeugt seine eigene).
+                    val calDeps = EntryPointAccessors.fromApplication(
+                        this@AevumApplication, Deps::class.java
+                    )
+                    val settings = calDeps.settingsRepository().get().first()
+                    if (settings?.calendarSyncEnabled == true) {
+                        com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                            .restartNow(this@AevumApplication)
+                    }
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "Calendar-Scheduler failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Calendar-Scheduler init failed — continuing", e)
         }
         // M18.66-FIX14: ProfileScheduleWorker — prüft alle 15 Min ob ein
         // Digital-Balance-Profil nach Zeitplan aktiviert/deaktiviert werden muss.

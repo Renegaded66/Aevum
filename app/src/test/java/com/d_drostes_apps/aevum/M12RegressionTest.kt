@@ -35,7 +35,9 @@ class M12RegressionTest {
             "HEALTH_SLEEP_AUTO",
             "ACTIVITY_RECOGNITION_AUTO",
             // M18.72: Wanderungen automatisch aufgezeichnet
-            "WALKING_AUTO"
+            "WALKING_AUTO",
+            // M18.129: Kalender-gesteuerte Aufzeichnungen (Termin-Start/-Ende)
+            "CALENDAR_AUTO"
         )
     }
 
