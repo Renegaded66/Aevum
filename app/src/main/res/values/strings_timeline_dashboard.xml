@@ -96,6 +96,10 @@
     <string name="timeline_detail_source_geofence">Geofence</string>
     <string name="timeline_detail_source_sleep_auto">Schlaf (Auto)</string>
     <string name="timeline_detail_source_movement_auto">Bewegung (Auto)</string>
+    <!-- M18.129: Wanderung wurde bisher nicht gelabelt (fiel auf den rohen
+         SourceType zurück) — hier nachgezogen, zusammen mit Kalender. -->
+    <string name="timeline_detail_source_walking_auto">Wanderung (Auto)</string>
+    <string name="timeline_detail_source_calendar_auto">Kalender (Auto)</string>
     <string name="timeline_detail_positivity">Positivität</string>
     <string name="timeline_detail_description">Beschreibung</string>
     <string name="timeline_quick_start">Start %1$s</string>

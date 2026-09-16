@@ -34,4 +34,9 @@
     <string name="export_title">Export</string>
     <string name="backup_title">Backup</string>
     <string name="fitness_trackers_title">Fitness Trackers</string>
+
+    <!-- M18.129: Calendar integration -->
+    <string name="calendar_rules_title">Calendar</string>
+    <string name="calendar_rules_desc">Record calendar events as activities automatically</string>
+    <string name="settings_calendar_section">Calendar</string>
 </resources>

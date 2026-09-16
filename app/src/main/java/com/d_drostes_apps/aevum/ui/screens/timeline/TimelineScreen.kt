@@ -282,6 +282,9 @@ fun TimelineScreen(
                         weekSessions = state.weekSessions,
                         onSetWeekView = viewModel::setWeekView,
                         onSelectDay = viewModel::selectDate,
+                        // M18.129: Geplante Blöcke aus Kalender-Regeln.
+                        plannedSessions = state.plannedSessions,
+                        plannedNext7Days = state.plannedNext7Days,
                         // M18.83: Zoom aus dem ViewModel (SharedPreferences-persistiert).
                         // Slider + Pinch-to-Zoom schreiben zurück → der Zoom
                         // überlebt Ansichtwechsel (Liste↔Tag↔Woche) und App-Restarts.
@@ -1401,6 +1404,9 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
         "GEOFENCE_AUTO" -> "\uD83D\uDCCD" to stringResource(R.string.timeline_detail_source_geofence)
         "HEALTH_SLEEP_AUTO" -> "\uD83D\uDE34" to stringResource(R.string.timeline_detail_source_sleep_auto)
         "ACTIVITY_RECOGNITION_AUTO" -> "\uD83D\uDEB4" to stringResource(R.string.timeline_detail_source_movement_auto)
+        "WALKING_AUTO" -> "\uD83D\uDEB6" to stringResource(R.string.timeline_detail_source_walking_auto)
+        // M18.129: Kalender-gesteuerte Aufzeichnung (Termin-Start/-Ende)
+        "CALENDAR_AUTO" -> "\uD83D\uDCC5" to stringResource(R.string.timeline_detail_source_calendar_auto)
         else -> "\uD83D\uDCE5" to session.sourceType
     }
 
@@ -2150,6 +2156,11 @@ private fun DayCalendarTimeline(
     weekSessions: Map<LocalDate, List<TimelineSessionUi>>,
     onSetWeekView: (Boolean) -> Unit,
     onSelectDay: (LocalDate) -> Unit,
+    // M18.129: Geplante Kalender-Blöcke (diagonal gestrichelt) —
+    // 7-Tage-Vorausschau für die Wochenansicht UND die Blöcke des
+    // gewählten Tages für die Tagesansicht.
+    plannedSessions: List<PlannedSessionUi> = emptyList(),
+    plannedNext7Days: Map<LocalDate, List<PlannedSessionUi>> = emptyMap(),
     // M18.83: Zoom-Persistierung — pixelsPerHour lebt im ViewModel (SharedPreferences-
     // persistiert). Vorher hielt dieses Composable den Zoom in einem lokalen
     // remember { mutableStateOf } → beim Ansichtwechsel (Liste↔Tag, Wochenansicht,
@@ -2357,7 +2368,10 @@ private fun DayCalendarTimeline(
                             // M18.98: Tap auf einen Session-Block in der
                             // Wochenansicht öffnet DIREKT die Detailansicht
                             // der Aufzeichnung (vorher: erst Tagesansicht).
-                            onSessionTap = onOpen
+                            onSessionTap = onOpen,
+                            // M18.129: Geplante Kalender-Blöcke auch in der
+                            // Wochenansicht (diagonal gestrichelt).
+                            plannedByDay = plannedNext7Days
                         )
                     } else {
                         ZoomableDayTimeline(
@@ -2369,7 +2383,9 @@ private fun DayCalendarTimeline(
                             onOpen = onOpen,
                             onEdit = onEdit,
                             onAdjustQuality = onAdjustQuality,
-                            onCreateAt = onCreateAt
+                            onCreateAt = onCreateAt,
+                            // M18.129: geplante Kalender-Blöcke
+                            plannedSessions = plannedSessions
                         )
                     }
                 }
@@ -2808,7 +2824,11 @@ private fun ZoomableDayTimeline(
     onEdit: (String) -> Unit,
     // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
     onAdjustQuality: (TimelineSessionUi) -> Unit,
-    onCreateAt: (Int) -> Unit
+    onCreateAt: (Int) -> Unit,
+    // M18.129: Geplante Kalender-Blöcke — diagonal gestrichelt, in
+    // Aktivitätsfarbe + Icon. Bewusst OHNE Tap-Ziel: ein Plan ist keine
+    // Session und darf nicht den Editor öffnen.
+    plannedSessions: List<PlannedSessionUi> = emptyList()
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
     val scrollState = androidx.compose.foundation.rememberScrollState()
@@ -3056,6 +3076,75 @@ private fun ZoomableDayTimeline(
                             )
                         }
                     }
+                    // M18.129: GEPLANTE Kalender-Blöcke — diagonal gestrichelt.
+                    // BEWUSST NACH den Sessions gezeichnet: ein Plan liegt
+                    // "über" der Vergangenheit, ist aber optisch klar
+                    // unterscheidbar (Textur statt Vollfläche).
+                    // Gleiche Koordinaten-Formeln wie die Session-Schleife
+                    // (M18.66-FIX17/21: Zeichnung und Geometrie müssen
+                    // identisch sein) — nur ein anderer Brush und keine Lane:
+                    // Pläne überlappen echte Aufzeichnungen seltener und
+                    // sollen die Lane-Aufteilung nicht verzerren.
+                    plannedSessions.forEach { planned ->
+                        val pStart = planned.startMinuteOfDay.coerceIn(0, 1440)
+                        val pRawEnd = planned.endMinuteOfDay
+                        val pEnd = when {
+                            pRawEnd <= 0 -> pStart + 1
+                            pRawEnd < pStart + 1 -> pStart + 1
+                            pRawEnd > 1440 -> 1440
+                            else -> pRawEnd
+                        }
+                        val pTopY = (pStart / 60f) * pxHour
+                        val pBottomY = (pEnd / 60f) * pxHour
+                        val pHeight = (pBottomY - pTopY).coerceAtLeast(14.dp.toPx())
+                        val pColor = if (planned.activityColor != 0L) {
+                            Color(planned.activityColor)
+                        } else {
+                            categoryColor(planned.activityTypeName)
+                        }
+
+                        // Textur-Fläche (Diagonal-Streifen).
+                        drawRoundRect(
+                            brush = com.d_drostes_apps.aevum.ui.theme.PlannedBlockTexture.brush(pColor),
+                            topLeft = Offset(blockXLocal, pTopY),
+                            size = Size(blockWidth, pHeight),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+                        )
+                        // Gestrichelte Kontur ("vorläufig, noch nicht real").
+                        drawRoundRect(
+                            color = pColor.copy(alpha = com.d_drostes_apps.aevum.ui.theme.PlannedBlockTexture.borderAlpha()),
+                            topLeft = Offset(blockXLocal, pTopY),
+                            size = Size(blockWidth, pHeight),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = 1.5.dp.toPx(),
+                                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                                    floatArrayOf(9f, 7f), 0f
+                                )
+                            )
+                        )
+                        // Icon wie bei echten Blöcken (Zuordnung erkennbar).
+                        if (pHeight >= 18.dp.toPx() && planned.activityIcon.isNotBlank() && planned.activityIcon != "•") {
+                            val iconSize = 14.dp.toPx()
+                            val pillW = 24.dp.toPx()
+                            val pillH = (iconSize + 4.dp.toPx())
+                            val iconX = blockXLocal + 6.dp.toPx()
+                            val iconY = pTopY + (pHeight - pillH) / 2f
+                            drawRoundRect(
+                                color = Color.White.copy(alpha = 0.20f),
+                                topLeft = Offset(iconX, iconY),
+                                size = Size(pillW, pillH),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(pillH / 2f, pillH / 2f)
+                            )
+                            drawText(
+                                textMeasurer = textMeasurer,
+                                text = planned.activityIcon,
+                                topLeft = Offset(iconX + 3.dp.toPx(), iconY + (pillH - iconSize) / 2f),
+                                style = TextStyle(fontSize = 14.sp)
+                            )
+                        }
+                    }
+
                     // Now line
                     if (nowMinute in 0..1440) {
                         val nowY = (nowMinute / 60f) * pxHour
@@ -3140,6 +3229,40 @@ private fun ZoomableDayTimeline(
                         }
                     }
                 }
+
+                // M18.129: Labels für GEPLANTE Blöcke — dezent und als
+                // Prognose gekennzeichnet ("⋯"). Bewusst NICHT klickbar: ein
+                // Plan ist keine Aufzeichnung, der Editor darf sich hier
+                // nicht öffnen (kein pointerInput = die Tap-Fläche der
+                // echten Sessions bleibt unberührt).
+                plannedSessions.forEach { planned ->
+                    val pStart = planned.startMinuteOfDay.coerceIn(0, 1440)
+                    val pRawEnd = planned.endMinuteOfDay
+                    val pEnd = when {
+                        pRawEnd <= 0 -> pStart + 1
+                        pRawEnd < pStart + 1 -> pStart + 1
+                        pRawEnd > 1440 -> 1440
+                        else -> pRawEnd
+                    }
+                    val pTopY = (pStart / 60f) * pixelsPerHour
+                    val pHeightPx = ((pEnd / 60f - pStart / 60f) * pixelsPerHour)
+                        .coerceAtLeast(with(LocalDensity.current) { 14.dp.toPx() })
+                    if (pHeightPx >= minLabelHeightPx) {
+                        Box(
+                            modifier = Modifier.padding(start = blockX, top = pTopY.dp)
+                        ) {
+                            Text(
+                                text = "\u22EF ${planned.title} · ${planned.timeRange}",
+                                fontSize = 11.sp,
+                                // Geringere Deckkraft als echte Sessions —
+                                // die Textur-Ebene ist erkennbar "geplant".
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
 
             // Pinch-Indikator + Zoom-Slider ist bereits in DayCalendarTimeline
@@ -3176,7 +3299,9 @@ private fun WeekTimeline(
     pixelsPerHour: Float,
     onColumnTap: (LocalDate) -> Unit,
     // M18.98: Tap auf einen Session-Block → Detailansicht direkt.
-    onSessionTap: (String) -> Unit
+    onSessionTap: (String) -> Unit,
+    // M18.129: Geplante Kalender-Blöcke pro Tag (diagonal gestrichelt).
+    plannedByDay: Map<LocalDate, List<PlannedSessionUi>> = emptyMap()
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
     val scrollState = androidx.compose.foundation.rememberScrollState()
@@ -3278,6 +3403,8 @@ private fun WeekTimeline(
                             nowMinute = if (isToday) nowMinute else -1,
                             onSessionTap = onSessionTap,
                             onColumnTap = { onColumnTap(day) },
+                            // M18.129: geplante Blöcke dieser Spalte
+                            plannedSessions = plannedByDay[day].orEmpty(),
                             modifier = Modifier
                                 .weight(1f)
                         )
@@ -3302,6 +3429,8 @@ private fun WeekColumn(
     // M18.98: Tap auf einen Session-Block → Detailansicht direkt.
     onSessionTap: (String) -> Unit,
     onColumnTap: () -> Unit,
+    // M18.129: geplante Kalender-Blöcke dieser Spalte (diagonal gestrichelt).
+    plannedSessions: List<PlannedSessionUi> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val totalHeight = (24 * pixelsPerHour).dp
@@ -3439,6 +3568,70 @@ private fun WeekColumn(
                 end = Offset(w, nowY),
                 strokeWidth = 1.5f
             )
+        }
+
+        // M18.129: GEPLANTE Kalender-Blöcke — diagonal gestrichelt.
+        // Bewusst NACH allen Sessions und der Jetzt-Linie: die Textur ist
+        // eine Prognose-Ebene und soll die echten Aufzeichnungen nicht
+        // verdecken. Identische Geometrie wie die Blöcke darüber.
+        plannedSessions.forEach { planned ->
+            val pStart = planned.startMinuteOfDay.coerceIn(0, 1440)
+            val pRawEnd = planned.endMinuteOfDay
+            val pEnd = when {
+                pRawEnd <= 0 -> pStart + 1
+                pRawEnd < pStart + 1 -> pStart + 1
+                pRawEnd > 1440 -> 1440
+                else -> pRawEnd
+            }
+            val pTopY = (pStart / 60f) * pxHour
+            val pBottomY = (pEnd / 60f) * pxHour
+            val pBlockH = (pBottomY - pTopY).coerceAtLeast(3f)
+            val pBlockW = (w - 2f).coerceAtLeast(0f)
+            val pColor = if (planned.activityColor != 0L) {
+                Color(planned.activityColor)
+            } else {
+                categoryColor(planned.activityTypeName)
+            }
+            // Textur + gestrichelte Kontur (identisch zur Tagesansicht).
+            drawRoundRect(
+                brush = com.d_drostes_apps.aevum.ui.theme.PlannedBlockTexture.brush(pColor),
+                topLeft = Offset(1f, pTopY),
+                size = Size(pBlockW, pBlockH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
+            )
+            drawRoundRect(
+                color = pColor.copy(alpha = com.d_drostes_apps.aevum.ui.theme.PlannedBlockTexture.borderAlpha()),
+                topLeft = Offset(1f, pTopY),
+                size = Size(pBlockW, pBlockH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 1.dp.toPx(),
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(6f, 5f), 0f
+                    )
+                )
+            )
+            // Icon (nur wenn der Block hoch genug ist — wie bei Sessions).
+            if (pBlockH >= minIconHeightPx &&
+                planned.activityIcon.isNotBlank() && planned.activityIcon != "•"
+            ) {
+                val iconX = 5.dp.toPx()
+                val iconY = pTopY + (pBlockH - pillH) / 2f
+                if (pillW <= w - 4.dp.toPx()) {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.20f),
+                        topLeft = Offset(iconX, iconY),
+                        size = Size(pillW, pillH),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(pillH / 2f, pillH / 2f)
+                    )
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = planned.activityIcon,
+                        topLeft = Offset(iconX + 2.dp.toPx(), iconY + (pillH - iconSize) / 2f),
+                        style = TextStyle(fontSize = 12.sp)
+                    )
+                }
+            }
         }
     }
 }

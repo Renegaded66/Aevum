@@ -206,6 +206,8 @@ fun AppNavHost(
                 onOpenBackup = { navController.navigate(AppDestination.Backup.route) },
                 // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
                 onOpenFitnessTrackers = { navController.navigate(AppDestination.FitnessTrackers.route) },
+                // M18.129: Kalender-Integration
+                onOpenCalendarRules = { navController.navigate(AppDestination.CalendarRules.route) },
                 // M18.83: Orts-Timeline — eigener Punkt unter Einstellungen
                 onOpenPlaceTimeline = { navController.navigate(AppDestination.PlaceTimeline.route) }
             )
@@ -213,6 +215,12 @@ fun AppNavHost(
         // M18.59: Fitness-Tracker — eigene Seite (Garmin Login + Sync)
         composable(AppDestination.FitnessTrackers.route) {
             FitnessTrackersScreen(onBack = { navController.popBackStack() })
+        }
+        // M18.129: Kalender-Integration — Regeln, Sync, Berechtigung
+        composable(AppDestination.CalendarRules.route) {
+            com.d_drostes_apps.aevum.ui.screens.calendar.CalendarRulesScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
         // M18.83: Orts-Timeline — Google-Maps-artige Tag-Story der besuchten Orte
         composable(AppDestination.PlaceTimeline.route) {

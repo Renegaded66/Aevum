@@ -380,3 +380,57 @@ Semantik (Trigger sind Diagnose-Events, keine Geometrie); (b) nur Start/Ende
 der Fahrt — ergibt keine Strecke; (c) Google-Maps-SDK — API-Key, Kosten,
 Datenschutz (ADR-0024); (d) MapLibre-Vektor-Tiles — OSM-Raster reicht für
 Strecken, kein neuer Tile-Provider.
+
+
+## ADR-0031 — M18.129: Kalender-Integration über explizite Regeln
+
+**Kontext.** Der Kalender liefert nur Titel + Beschreibung, Aevum zeichnet
+Activity-Types auf. Der Auftrag verlangt automatisches Starten/Stoppen an
+Termingrenzen plus eine 7-Tage-Vorausschau der geplanten Blöcke.
+
+**Entscheidung 1 — Explizite Regeln statt Fuzzy-Matching.**
+Eine Regel ist *Bedingung → Aktion* ("Titel enthält Vorlesung/Übung →
+Activity Studium"). Fuzzy-Matching (Termin-Titel → Activity-Name) wurde
+verworfen: Es scheitert bei "Vorlesung Analysis" und zwingt den Nutzer,
+seine Kalender-Titel umzubenennen. Regeln sind erklärbar, vorhersagbar und
+in der Timeline ehrlich darstellbar.
+
+**Entscheidung 2 — Lokaler Termin-Cache statt direkter Provider-Zugriffe.**
+Der `ContentResolver` ist teuer. SyncWorker liest ihn alle 6 h und schreibt
+in `calendar_event_cache`; der Auto-Run-Worker liest nur den Cache
+(eine indizierte Room-Query). M18.104-Lektion: teure IO in seltenen Bursts.
+Nebeneffekt: Die Timeline-Vorausschau ist ein reaktiver Room-Flow, kein
+Netzwerk-/IO-Pfad.
+
+**Entscheidung 3 — Kein exakter Alarm.**
+`SCHEDULE_EXACT_ALARM` ist ab Android 14 nicht mehr automatisch erteilt.
+Ein selbst-erneuernder `OneTimeWorkRequest` (Muster `PingTriggerWorker`,
+M18.62-FIX) plant stattdessen den nächsten Lauf **auf die nächste
+Termingrenze** (≤ 15 min). Das ist pünktlicher als blindes 15-Minuten-Polling
+und braucht keine Zusatzberechtigung.
+
+**Entscheidung 4 — Geplante Blöcke sind ein eigener Typ.**
+`PlannedSessionUi` ist bewusst NICHT `TimelineSessionUi`: Ein Plan darf nie
+in Summen, Insights oder Statistiken einfließen. Die Trennung ist
+typ-sicher verankert, nicht durch Konvention. Darstellung: Diagonal-Textur
+(`PlannedBlockTexture`, `TileMode.Repeated`) + gestrichelte Kontur, in
+Aktivitätsfarbe und mit Icon — klar unterscheidbar von echten Aufzeichnungen.
+
+**Entscheidung 5 — Zwei getrennte Schalter.**
+"Kalender lesen" (Vorschau) und "Automatisch aufzeichnen" sind unabhängig.
+Wer die Vorschau will, aber keine automatischen Aufzeichnungen, kann das
+ohne Workaround einstellen.
+
+**Entscheidung 6 — Kollisionsschutz.**
+Der Kalender-Worker stoppt nur Sessions mit `sourceType == "CALENDAR_AUTO"`
+(Muster `AppTrackingService`). Fremde Automatiken (Geofence, Fahrt,
+Wanderung, App-Tracking, Bildschirm) bleiben unangetastet. Zusätzlich ist
+pro Regel wählbar, ob ein Termin eine laufende Aufzeichnung übernehmen darf
+(`OVERRIDE`, Default) oder nur startet, wenn nichts läuft (`ONLY_IF_IDLE`).
+
+**Verworfene Alternativen:** (a) `Events`-Table statt `Instances` — bei
+wiederkehrenden Terminen gäbe es nur EINE Zeile, die wöchentliche Vorlesung
+wäre unsichtbar; (b) Aufzeichnung pausieren statt beenden — bricht das
+Aevum-Session-Modell (jeder Termin ist ein eigener Block); (c) Kalender-
+Benachrichtigungen spiegeln — dupliziert, was der Kalender schon tut;
+(d) exakter Alarm — Berechtigungsaufwand ohne Mehrwert.

@@ -81,7 +81,9 @@ fun SettingsScreen(
     onOpenExport: () -> Unit = {},
     onOpenBackup: () -> Unit = {},
     // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
-    onOpenFitnessTrackers: () -> Unit = {}
+    onOpenFitnessTrackers: () -> Unit = {},
+    // M18.129: Kalender-Integration (Regeln + Sync + Berechtigung)
+    onOpenCalendarRules: () -> Unit = {}
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -175,6 +177,10 @@ fun SettingsScreen(
             // M18.59: Fitness-Tracker — Garmin Connect Login + Sync
             item { SettingsSection(stringResource(R.string.settings_fitness_trackers), listOf(
                 SettingsEntry(stringResource(R.string.settings_garmin_connect), stringResource(R.string.settings_garmin_connect_desc), onOpenFitnessTrackers)
+            )) }
+            // M18.129: Kalender-Integration — Regeln, Auto-Aufzeichnung, Sync
+            item { SettingsSection(stringResource(R.string.settings_calendar_section), listOf(
+                SettingsEntry(stringResource(R.string.calendar_rules_title), stringResource(R.string.calendar_rules_desc), onOpenCalendarRules)
             )) }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }

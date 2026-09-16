@@ -113,5 +113,43 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "DriveProbeWorker schedule failed: ${e.message}")
         }
+        // M18.129: Kalender-Sync + Auto-Start-Takt nach Boot neu anstoßen.
+        // WorkManager räumt beim Boot geplante Arbeiten ab — ohne diesen
+        // Aufruf liefe der Kalender-Sync erst nach dem nächsten App-Start
+        // wieder (gleiche Lektion wie DriveProbeWorker/AR-Samples oben).
+        // Beide Scheduler prüfen ihre Gates selbst (Feature-Schalter,
+        // Berechtigung) — der Aufruf hier ist immer sicher.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val deps = dagger.hilt.android.EntryPointAccessors.fromApplication(
+                    context.applicationContext, CalendarBootDeps::class.java
+                )
+                deps.calendarSyncScheduler().schedule()
+                val settings = deps.automationSettingsDao().getSettingsSync()
+                val enabled = settings?.calendarSyncEnabled == true
+                if (enabled) {
+                    com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                        .scheduleNext(context)
+                }
+                debugLogger.log("BOOT", "Kalender-Sync nach Boot geplant (Auto-Takt: $enabled)")
+            } catch (e: Exception) {
+                debugLogger.log("BOOT", "Kalender-Scheduler failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * M18.129: Hilt-Zugang für den Boot-Pfad.
+     *
+     * Der BootReceiver ist @AndroidEntryPoint, aber dieses Coroutine-
+     * Lambda braucht die Abhängigkeiten außerhalb des Injektions-Scopes —
+     * der EntryPoint ist der saubere Weg (Muster von DriveStartWorker,
+     * M18.62-FIX).
+     */
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface CalendarBootDeps {
+        fun calendarSyncScheduler(): com.d_drostes_apps.aevum.automation.calendar.CalendarSyncScheduler
+        fun automationSettingsDao(): com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
     }
 }

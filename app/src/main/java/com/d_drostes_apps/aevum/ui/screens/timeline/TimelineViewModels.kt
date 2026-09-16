@@ -9,6 +9,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
+import com.d_drostes_apps.aevum.data.model.CalendarEventCache
+import com.d_drostes_apps.aevum.data.model.CalendarRule
 import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.data.model.Tag
 import com.d_drostes_apps.aevum.data.model.TriggerEvent
@@ -62,7 +64,10 @@ class TimelineViewModel @Inject constructor(
     private val ensureDefaultData: EnsureDefaultDataUseCase,
     // L10N-RUNTIME-FIX: Sprach-Repo — bei Sprachwechsel zur Laufzeit wird
     // die Timeline (inkl. application.getString-Labels) neu gebaut.
-    private val languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
+    private val languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository,
+    // M18.129: Kalender-Integration — Regeln + Termin-Cache für die
+    // Vorausschau geplanter Blöcke (7 Tage).
+    private val calendarRepository: com.d_drostes_apps.aevum.data.repository.CalendarRepository
 ) : ViewModel() {
     // M18.44: Als Property gehalten, damit Quick-Create die Aktivität laden kann.
     private val activityTypeRepository: ActivityTypeRepository = activityTypeRepository
@@ -118,6 +123,26 @@ class TimelineViewModel @Inject constructor(
     private val _weekView = MutableStateFlow(timelinePrefs.getBoolean(KEY_WEEK_VIEW, false))
     val weekView: StateFlow<Boolean> = _weekView
 
+    // M18.129: Kalender-Daten für die Vorausschau.
+    //
+    // EIN eigener Flow statt eines 6. combine-Zweigs: die typisierte
+    // combine-Variante endet bei 5 Flows (M18.66-FIX14-Lektion:
+    // „Compose combine-Limit 5"). Hier werden Regeln, Termin-Cache,
+    // ActivityTypes und der Feature-Schalter zusammengeführt; der
+    // Ergebnis-UiState wird anschließend in einem zweiten combine-Schritt
+    // mit dem bestehenden Zustand verrechnet.
+    //
+    // ActivityTypeRepository ist bereits als Property gehalten
+    // (activityTypeRepository), daher hier direkt nutzbar.
+    private val calendarFlow: kotlinx.coroutines.flow.Flow<CalendarTimelineData> = kotlinx.coroutines.flow.combine(
+        calendarRepository.getRules(),
+        calendarRepository.getEvents(),
+        activityTypeRepository.getAll(),
+        calendarRepository.ruleCount()
+    ) { rules: List<CalendarRule>, events: List<CalendarEventCache>, types: List<ActivityType>, _: Int ->
+        CalendarTimelineData(rules.filter { it.enabled }, events, types)
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<TimelineUiState> = languageFlow
         .flatMapLatest { _ ->
@@ -142,6 +167,41 @@ class TimelineViewModel @Inject constructor(
                 // New-Recording-Dialog (Plus-Button).
                 activityGroups = groupedActivities(categories, types)
             )
+            }
+            // M18.129: Geplante Blöcke aus Kalender-Regeln anhängen.
+            // applyPlanned setzt BEIDE Felder: die 7-Tage-Vorausschau
+            // (Auftragsanforderung) und die Blöcke des gewählten Tages.
+            .combine(calendarFlow) { state, cal ->
+                val today = LocalDate.now()
+                val planned7 = buildPlannedSessionsForWeek(
+                    startDate = today,
+                    days = PLANNED_FORECAST_DAYS,
+                    events = cal.events,
+                    rules = cal.rules,
+                    types = cal.types,
+                    zone = zoneId
+                )
+                // Der Nutzer kann in der Timeline weiter als 7 Tage
+                // vorausblättern. Dann ist die Karte leer — statt die
+                // Anzeige stillschweigend leer zu lassen, wird der
+                // gewählte Tag direkt berechnet (dieselbe Engine, also
+                // garantiert konsistent mit der Vorschau).
+                val selected = planned7[state.selectedDate]
+                    ?: if (state.selectedDate.isAfter(today) || state.selectedDate.isBefore(today)) {
+                        buildPlannedSessionsForDay(
+                            date = state.selectedDate,
+                            events = cal.events,
+                            rules = cal.rules,
+                            types = cal.types,
+                            zone = zoneId
+                        )
+                    } else {
+                        emptyList()
+                    }
+                state.copy(
+                    plannedSessions = selected,
+                    plannedNext7Days = planned7
+                )
             }
         }
         .catch { e ->
@@ -1272,6 +1332,27 @@ data class TimelineBase(
     val triggers: List<TriggerEvent>
 )
 
+/**
+ * M18.129: Kalender-Daten für die Vorausschau — Ergebnis des
+ * [TimelineViewModel.calendarFlow]. Bündelt die drei Quellen, die die
+ * geplanten Blöcke brauchen.
+ */
+private data class CalendarTimelineData(
+    val rules: List<CalendarRule>,
+    val events: List<CalendarEventCache>,
+    val types: List<ActivityType>
+)
+
+/**
+ * M18.129: Anzahl der Tage für die Vorausschau geplanter Blöcke.
+ *
+ * 7 Tage laut Auftrag: "Ich möchte, dass dort schon für die nächsten
+ * 7 Tage alle Termine drin stehen, die aufgezeichnet werden würden."
+ * Der Sync-Cache deckt 8 Tage in die Zukunft ab (siehe CalendarReader),
+ * sodass die 7-Tage-Vorausschau immer vollständig gefüllt ist.
+ */
+const val PLANNED_FORECAST_DAYS = 7
+
 data class EditorBase(
     val form: ActivityEditorForm,
     val categories: List<Category>,
@@ -1300,6 +1381,15 @@ data class TimelineUiState(
     // M18.66-FIX14: Wochenansicht — 7 Tage (Mo–So) nebeneinander.
     // Jeder Tag enthält die auf diesen Tag geclippten Sessions.
     val weekSessions: Map<LocalDate, List<TimelineSessionUi>> = emptyMap(),
+    // M18.129: GEPLANTE Blöcke aus Kalender-Regeln.
+    // BEWUSST GETRENNT von `sessions`: ein Plan ist keine Aufzeichnung und
+    // darf nie in Summen/Statistiken/Insights einfließen. Die UI zeichnet
+    // sie diagonal gestrichelt (PlannedBlockTexture) in Aktivitätsfarbe,
+    // damit klar ist: "das WÜRDE aufgezeichnet werden".
+    val plannedSessions: List<PlannedSessionUi> = emptyList(),
+    // M18.129: Vorausschau der nächsten 7 Tage (Tag → geplante Blöcke) —
+    // genau die Termine, die die eigenen Regeln erfassen würden.
+    val plannedNext7Days: Map<LocalDate, List<PlannedSessionUi>> = emptyMap(),
     // M12.2: Stufenloser Pinch-to-Zoom.
     // pixelsPerHour ist die einzige Quelle der Wahrheit für die Timeline-Höhe.
     // Statt eines enum-basierten 3-Stufen-Modells wird ein Float gespeichert,
@@ -1329,7 +1419,11 @@ val AUTO_SOURCES: Set<String> = setOf(
     "ACTIVITY_RECOGNITION_AUTO",
     // M18.72: Wanderungen automatisch aufgezeichnet (5-Minuten-Schwelle +
     // Vorlauf) — gleiche Auto-Markierung wie die anderen Auto-Quellen.
-    "WALKING_AUTO"
+    "WALKING_AUTO",
+    // M18.129: Kalender-gesteuerte Aufzeichnungen (Termin-Start/-Ende).
+    // Gleiche Auto-Markierung — die Timeline zeigt sie mit dem Auto-Hinweis,
+    // und das Dashboard behandelt sie wie jede andere automatische Quelle.
+    "CALENDAR_AUTO"
 )
 
 data class TriggerEventUi(

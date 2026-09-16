@@ -96,6 +96,10 @@
     <string name="timeline_detail_source_geofence">Geofence</string>
     <string name="timeline_detail_source_sleep_auto">Sleep (auto)</string>
     <string name="timeline_detail_source_movement_auto">Movement (auto)</string>
+    <!-- M18.129: Walking was previously unlabeled (fell back to the raw
+         source type) — added here together with calendar. -->
+    <string name="timeline_detail_source_walking_auto">Walking (auto)</string>
+    <string name="timeline_detail_source_calendar_auto">Calendar (auto)</string>
     <string name="timeline_detail_positivity">Positivity</string>
     <string name="timeline_detail_description">Description</string>
     <string name="timeline_quick_start">Start %1$s</string>

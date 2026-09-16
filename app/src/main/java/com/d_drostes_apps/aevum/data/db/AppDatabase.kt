@@ -55,7 +55,10 @@ import com.d_drostes_apps.aevum.data.model.*
         // M18.67: App-Aufzeichnung (App → Activity automatisch)
         AppTrackingEntry::class,
         // M18.86: GPS-Streckenpunkte pro Session (Orts-Timeline-Karte)
-        LocationTrackPoint::class
+        LocationTrackPoint::class,
+        // M18.129: Kalender-Integration (Regeln + Termin-Cache)
+        CalendarRule::class,
+        CalendarEventCache::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
@@ -79,7 +82,10 @@ import com.d_drostes_apps.aevum.data.model.*
     // pro Session für die Orts-Timeline-Karte, ADR-0030). FK auf
     // activity_session mit CASCADE — Hard-Delete der Session entfernt
     // den Track mit, Soft-Delete (deleted_at) erhält ihn.
-    version = 40,
+    // M18.129: v41 — calendar_rule + calendar_event_cache (Kalender-
+    // Integration: Regeln + Termin-Cache) und vier neue Spalten in
+    // automation_settings für den Sync-Zustand.
+    version = 41,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -117,6 +123,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun garminDao(): GarminDao
     // M18.86: GPS-Streckenpunkte (Orts-Timeline-Karte)
     abstract fun locationTrackPointDao(): LocationTrackPointDao
+    // M18.129: Kalender-Integration
+    abstract fun calendarRuleDao(): CalendarRuleDao
+    abstract fun calendarEventCacheDao(): CalendarEventCacheDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1452,6 +1461,73 @@ abstract class AppDatabase : RoomDatabase() {
                 """.trimIndent())
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_location_track_point_session_id` ON `location_track_point` (`session_id`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_location_track_point_recorded_at` ON `location_track_point` (`recorded_at`)")
+            }
+        }
+
+        // M18.129: v40→v41 — KALENDER-INTEGRATION.
+        //
+        // Drei Teile, alle spiegelbildlich zu den Entitäten deklariert
+        // (M18.40/41-Lektion: Room validiert das Schema zur RUNTIME —
+        // jede Abweichung bei Spaltennamen, NOT NULL, Defaults oder
+        // Indices wirft eine IllegalStateException beim DB-Öffnen, und
+        // fallbackToDestructiveMigration ist seit M18.109 entfernt).
+        //
+        // 1. calendar_rule — Regeln (Termin-Bedingung → Activity).
+        //    Index auf activity_type_id ist PFLICHT (FK-Spalte).
+        // 2. calendar_event_cache — lokaler Termin-Spiegel.
+        //    Kein Index (Primärschlüssel-Queries + Bereichsscan auf
+        //    einer Handvoll Zeilen; ein Index wäre nur Mismatch-Fläche).
+        // 3. automation_settings — vier Spalten für den Sync-Zustand.
+        //    ALTER TABLE ADD COLUMN mit NOT NULL DEFAULT ist bei SQLite
+        //    zulässig und füllt Bestandszeilen mit dem Default.
+        val MIGRATION_40_41 = object : Migration(40, 41) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `calendar_rule` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `enabled` INTEGER NOT NULL DEFAULT 1,
+                        `match_type` TEXT NOT NULL DEFAULT 'ANY_FIELD_CONTAINS',
+                        `match_value` TEXT NOT NULL DEFAULT '',
+                        `match_calendar_ids` TEXT,
+                        `case_sensitive` INTEGER NOT NULL DEFAULT 0,
+                        `require_all_words` INTEGER NOT NULL DEFAULT 0,
+                        `title_only` INTEGER NOT NULL DEFAULT 0,
+                        `activity_type_id` TEXT,
+                        `default_title` TEXT,
+                        `min_duration_minutes` INTEGER NOT NULL DEFAULT 0,
+                        `window_start_minute` INTEGER NOT NULL DEFAULT -1,
+                        `window_end_minute` INTEGER NOT NULL DEFAULT -1,
+                        `weekday_mask` INTEGER NOT NULL DEFAULT 127,
+                        `overlap_policy` TEXT NOT NULL DEFAULT 'OVERRIDE',
+                        `priority` INTEGER NOT NULL DEFAULT 0,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`activity_type_id`) REFERENCES `activity_type`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_calendar_rule_activity_type_id` ON `calendar_rule` (`activity_type_id`)")
+
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `calendar_event_cache` (
+                        `event_id` TEXT PRIMARY KEY NOT NULL,
+                        `calendar_id` TEXT NOT NULL,
+                        `calendar_name` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `description` TEXT,
+                        `location` TEXT,
+                        `start_at` INTEGER NOT NULL,
+                        `end_at` INTEGER NOT NULL,
+                        `all_day` INTEGER NOT NULL DEFAULT 0,
+                        `attendees` TEXT,
+                        `synced_at` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_sync_enabled INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_auto_tracking_enabled INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_last_sync_at INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_sync_interval_hours INTEGER NOT NULL DEFAULT 6")
             }
         }
     }
