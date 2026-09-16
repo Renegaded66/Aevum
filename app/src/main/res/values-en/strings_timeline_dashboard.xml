@@ -100,6 +100,11 @@
          source type) — added here together with calendar. -->
     <string name="timeline_detail_source_walking_auto">Walking (auto)</string>
     <string name="timeline_detail_source_calendar_auto">Calendar (auto)</string>
+    <!-- M18.129-FIX: label for planned blocks in the list view -->
+    <string name="timeline_kind_planned">Planned</string>
+    <!-- M18.129-FIX: hint when a day contains only planned blocks -->
+    <string name="timeline_planned_only_title">Planned events</string>
+    <string name="timeline_planned_only_message">%1$d calendar event(s) will likely be recorded. Striped blocks are forecasts and do not count towards statistics.</string>
     <string name="timeline_detail_positivity">Positivity</string>
     <string name="timeline_detail_description">Description</string>
     <string name="timeline_quick_start">Start %1$s</string>

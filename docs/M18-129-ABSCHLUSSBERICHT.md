@@ -334,3 +334,74 @@ Batterieoptimierung), wirkt die Streifen-Textur optisch wie beabsichtigt.
 **7. Aufwand / Umfang?**
 17 neue Dateien, 14 geänderte, 69 neue Tests, DB-Migration v40→v41,
 3 Docs (Design, Features, ADR-0031).
+
+---
+
+## 7. NACHTRAG — Bugfix Tagesansicht (Devon-Report)
+
+**Meldung:** „Ja für die Wochenansicht in der Timeline klappt das
+hervorragend, allerdings noch nicht für die Tagesansicht, dort steht an den
+jeweiligen Tagen weiterhin nur ‚Noch keine Aktivitäten'."
+
+### Root Cause (gefunden, nicht vermutet)
+
+Der Empty-State-Guard der Tagesansicht in `TimelineScreen.kt`:
+
+```kotlin
+if (state.sessions.isEmpty() && state.triggerEvents.isEmpty()
+        && state.durationOnlySessions.isEmpty()) {
+    EmptyState("Noch keine Aktivitäten", …)      // ← gewann immer
+} else {
+    DayCalendarTimeline(…)                        // ← nie erreicht
+}
+```
+
+Die Bedingung prüfte **drei** Inhaltsquellen und kannte die M18.129
+geplanten Kalender-Blöcke (`state.plannedSessions`) **nicht**. Ein Tag ohne
+echte Aufzeichnung, aber mit passenden Terminen, fiel deshalb in den
+Empty-State — und `DayCalendarTimeline` wurde nie aufgerufen, die
+Zeichenlogik lief also gar nicht erst. Die Wochenansicht ist über einen
+anderen Pfad an diesen Guard vorbei gerendert, weshalb sie korrekt
+funktionierte: **ein Guard, der eine Inhaltsquelle vergisst, schlägt genau
+dort zu, wo er greift.**
+
+### Fix (drei Ebenen, nicht nur die Symptomzeile)
+
+1. **Guard korrigiert.** Die Bedingung ist in die reine, testbare Funktion
+   `TimelineEmptyState.hasDayContent(…)` extrahiert — sie nimmt jetzt alle
+   vier Quellen (Sessions, Nur-Dauer, Trigger, **geplante Blöcke**). Die
+   Logik liegt bewusst nicht mehr inline im Composable: dort war sie in
+   einem tief verschachtelten `AnimatedContent`-Lambda versteckt und leicht
+   zu übersehen.
+2. **Listenansicht mitgezogen** (`EventListTimeline`). Dort lauerte
+   derselbe Bug: `merged.isEmpty()` kannte die Pläne ebenfalls nicht und
+   hätte „Keine Ereignisse" gezeigt. Geplante Blöcke sind jetzt ein eigener
+   `TimelineEntry.Planned` (mit Sortierung nach Startzeit und
+   Tagesabschnitt-Zuordnung), gerendert als Zeile mit ⋯-Präfix, Label
+   „Geplant", Aktivitätsfarbe und Icon — konsistent zur gestrichelten
+   Darstellung in Tag- und Wochenansicht, aber ohne Bearbeiten/Löschen
+   (ein Plan ist keine Aufzeichnung; geändert wird die Regel).
+3. **Hinweis für reine Plan-Tage** (`PlannedOnlyHint`). Zeigt an Tagen
+   ohne echte Aufzeichnung einen Satz: „N Termin(e) werden voraussichtlich
+   aufgezeichnet. Gestrichelte Blöcke sind Prognosen und zählen nicht in
+   die Statistik." Verhindert die Fehlannahme, die Aufzeichnung laufe
+   schon oder die Anzeige sei kaputt.
+
+### Verifikation
+
+- **11 neue Regressionstests** (`TimelineEmptyStateTest`), die genau den
+  gemeldeten Fall festhalten: „Tag mit NUR geplanten Blöcken hat Inhalt" —
+  plus je ein Test pro Inhaltsquelle, damit dieser Bug bei der nächsten
+  Erweiterung nicht zurückkommt.
+- **585 Tests grün** (vorher 574; +11).
+- Systematische Prüfung auf weitere vergessene Pfade: alle Vorkommen von
+  `sessions.isEmpty()` / `triggerEvents.isEmpty()` / `merged.isEmpty()`
+  gegreppt — nur die zwei gefundenen Stellen existierten, beide gefixt.
+- Alle 22 Verwendungsstellen von `plannedSessions` / `plannedNext7Days` /
+  `plannedByDay` kartiert: Canvas-Zeichnung (Tag), Labels (Tag),
+  Listenansicht, Wochenansicht (Zeichnung + Spalten) — vollständig
+  verdrahtet.
+
+**Ehrliche Trennung:** Gebaut, code-reviewed und durch Regressionstests
+abgesichert; die optische Bestätigung am Gerät steht weiterhin aus
+(kein Gerät in dieser Umgebung).

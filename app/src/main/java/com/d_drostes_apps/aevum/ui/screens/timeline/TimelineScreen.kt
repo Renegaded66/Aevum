@@ -191,6 +191,20 @@ fun TimelineScreen(
                 onOpenCalendar = onOpenCalendar
             )
             SummaryCard(state)
+            // M18.129-FIX: Hinweis für Tage mit AUSSCHLIESSLICH geplanten
+            // Blöcken. Ohne ihn könnten die gestrichelten Flächen wie ein
+            // Darstellungsfehler wirken oder mit echten Aufzeichnungen
+            // verwechselt werden — besonders wichtig, weil die Tagesansicht
+            // für solche Tage früher fälschlich "Noch keine Aktivitäten"
+            // zeigte (jetzt zeigt sie die Pläne, aber ohne Zählung).
+            if (TimelineEmptyState.isPlanOnlyDay(
+                    sessions = state.sessions,
+                    durationOnlySessions = state.durationOnlySessions,
+                    plannedSessions = state.plannedSessions
+                ) && state.triggerEvents.isEmpty()
+            ) {
+                PlannedOnlyHint(plannedCount = state.plannedSessions.size)
+            }
             if (state.candidates.isNotEmpty()) {
                 CandidateReviewCard(
                     candidates = state.candidates,
@@ -239,7 +253,19 @@ fun TimelineScreen(
                 },
                 label = "day-slide"
             ) { date ->
-                if (state.sessions.isEmpty() && state.triggerEvents.isEmpty() && state.durationOnlySessions.isEmpty()) {
+                // M18.129-FIX: Der Empty-State darf NUR erscheinen, wenn es
+                // wirklich keinen Inhalt gibt. Die vorherige Inline-Prüfung
+                // kannte die geplanten Kalender-Blöcke nicht — dadurch zeigte
+                // die Tagesansicht "Noch keine Aktivitäten", obwohl für den
+                // Tag Termine geplant waren (die Wochenansicht war nicht
+                // betroffen, weil sie ohne diesen Guard rendert).
+                val hasContent = TimelineEmptyState.hasDayContent(
+                    sessions = state.sessions,
+                    durationOnlySessions = state.durationOnlySessions,
+                    triggers = state.triggerEvents,
+                    plannedSessions = state.plannedSessions
+                )
+                if (!hasContent) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize(),
@@ -2328,9 +2354,13 @@ private fun DayCalendarTimeline(
                                 triggers = triggers,
                                 onOpen = onOpen,
                                 onEdit = onEdit,
+                                // M18.129-FIX: geplante Kalender-Blöcke auch
+                                // in der Liste (sonst "Keine Ereignisse" an
+                                // Tagen mit ausschließlich geplanten Terminen).
                                 onDeleteTrigger = onDeleteTrigger,
                                 onDeleteSession = onDeleteSession,
-                                onAdjustQuality = onAdjustQuality
+                                onAdjustQuality = onAdjustQuality,
+                                plannedSessions = plannedSessions
                             )
                         }
                         // M18.23: Sichtbarer Scrollbar-Thumb rechts neben der Liste.
@@ -2394,6 +2424,39 @@ private fun DayCalendarTimeline(
     }
 }
 
+/**
+ * M18.129-FIX: Hinweis-Banner für Tage, an denen es nur geplante Blöcke gibt.
+ *
+ * Der Nutzer sieht gestrichelte Flächen, aber keine Zahl in der
+ * Tageszusammenfassung (Pläne zählen bewusst nirgends mit). Dieser Hinweis
+ * erklärt den Unterschied in einem Satz — verhindert die Fehlannahme,
+ * die Aufzeichnung laufe schon oder die Anzeige sei kaputt.
+ */
+@Composable
+private fun PlannedOnlyHint(plannedCount: Int) {
+    AevumCard(variant = CardVariant.Outlined) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            Text("\uD83D\uDCC5", fontSize = 18.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.timeline_planned_only_title),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    stringResource(R.string.timeline_planned_only_message, plannedCount),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ModeToggleButton(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
@@ -2440,19 +2503,26 @@ private fun EventListTimeline(
     // M18.48: Löschen einer Session aus der Liste (mit Bestätigungsdialog).
     onDeleteSession: (String) -> Unit = {},
     // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
-    onAdjustQuality: (TimelineSessionUi) -> Unit = {}
+    onAdjustQuality: (TimelineSessionUi) -> Unit = {},
+    // M18.129-FIX: Geplante Kalender-Blöcke. Auch die LISTENANSICHT muss sie
+    // zeigen — sonst widerspricht sie der Tages- und Wochenansicht, und ein
+    // Tag mit ausschließlich geplanten Terminen wirkte "leer".
+    plannedSessions: List<PlannedSessionUi> = emptyList()
 ) {
     // M18.102: Nur-Dauer-Sessions erscheinen GANZ OBEN in der Listenansicht
     // (eigener Block, keine Tagesabschnitt-Zuordnung — sie haben keine
     // Uhrzeit). Danach folgen die normalen Sessions/Trigger gruppiert.
     val durationOnly = remember(sessions) { sessions.filter { it.isDurationOnly } }
     val regular = remember(sessions) { sessions.filterNot { it.isDurationOnly } }
-    val merged = remember(regular, triggers) {
-        (regular.map { TimelineEntry.Session(it) } + triggers.map { TimelineEntry.Trigger(it) })
+    val merged = remember(regular, triggers, plannedSessions) {
+        (regular.map { TimelineEntry.Session(it) } +
+            triggers.map { TimelineEntry.Trigger(it) } +
+            plannedSessions.map { TimelineEntry.Planned(it) })
             .sortedBy { entry ->
                 when (entry) {
                     is TimelineEntry.Session -> entry.session.startMinuteOfDay
                     is TimelineEntry.Trigger -> entry.trigger.minuteOfDay
+                    is TimelineEntry.Planned -> entry.planned.startMinuteOfDay
                 }
             }
     }
@@ -2541,6 +2611,30 @@ private fun EventListTimeline(
                             onDelete = { onDeleteTrigger(entry.trigger.id) }
                         )
                     }
+                    is TimelineEntry.Planned -> {
+                        // M18.129-FIX: Geplanter Kalender-Block in der Liste.
+                        // Optisch als PROGNOSE markiert (⋯-Präfix + Label
+                        // "Geplant"), in Aktivitätsfarbe mit Icon — konsistent
+                        // zur gestrichelten Darstellung in Tag- und
+                        // Wochenansicht. BEWUSST ohne Bearbeiten/Löschen:
+                        // ein Plan ist keine Aufzeichnung; geändert wird die
+                        // REGEL (Einstellungen → Kalender), nicht der Termin.
+                        EventListRow(
+                            time = entry.planned.timeRange.substringBefore("–"),
+                            title = "\u22EF ${entry.planned.title}",
+                            detail = "${entry.planned.timeRange} · ${entry.planned.durationMinutes} min",
+                            accent = if (entry.planned.activityColor != 0L) {
+                                Color(entry.planned.activityColor)
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                            icon = entry.planned.activityIcon,
+                            kind = stringResource(R.string.timeline_kind_planned),
+                            // Kein Ziel: Ein Plan hat keine Detailseite.
+                            onClick = {},
+                            onEdit = {}
+                        )
+                    }
                 }
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f),
@@ -2605,6 +2699,8 @@ private fun groupByDayPart(
         val minute = when (entry) {
             is TimelineEntry.Session -> entry.session.startMinuteOfDay
             is TimelineEntry.Trigger -> entry.trigger.minuteOfDay
+            // M18.129-FIX: geplante Blöcke nach ihrer Startzeit einordnen.
+            is TimelineEntry.Planned -> entry.planned.startMinuteOfDay
         }
         DayPart.of(minute)
     }.toList().sortedBy { it.first.startMin }
@@ -2613,6 +2709,14 @@ private fun groupByDayPart(
 private sealed class TimelineEntry {
     data class Session(val session: TimelineSessionUi) : TimelineEntry()
     data class Trigger(val trigger: TriggerEventUi) : TimelineEntry()
+    /**
+     * M18.129-FIX: Geplanter Kalender-Block.
+     *
+     * Ohne diesen Eintrag zeigte die LISTENANSICHT "Keine Ereignisse",
+     * obwohl der Tag geplante Termine hatte (der Empty-Guard kannte sie
+     * nicht) — derselbe Bug wie in der Tagesansicht, nur anderer Render-Pfad.
+     */
+    data class Planned(val planned: PlannedSessionUi) : TimelineEntry()
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)

@@ -100,6 +100,11 @@
          SourceType zurück) — hier nachgezogen, zusammen mit Kalender. -->
     <string name="timeline_detail_source_walking_auto">Wanderung (Auto)</string>
     <string name="timeline_detail_source_calendar_auto">Kalender (Auto)</string>
+    <!-- M18.129-FIX: Label für geplante Blöcke in der Listenansicht -->
+    <string name="timeline_kind_planned">Geplant</string>
+    <!-- M18.129-FIX: Hinweis, wenn ein Tag nur geplante Blöcke enthält -->
+    <string name="timeline_planned_only_title">Geplante Termine</string>
+    <string name="timeline_planned_only_message">%1$d Kalender-Termin(e) werden voraussichtlich aufgezeichnet. Gestrichelte Blöcke sind Prognosen und zählen nicht in die Statistik.</string>
     <string name="timeline_detail_positivity">Positivität</string>
     <string name="timeline_detail_description">Beschreibung</string>
     <string name="timeline_quick_start">Start %1$s</string>
