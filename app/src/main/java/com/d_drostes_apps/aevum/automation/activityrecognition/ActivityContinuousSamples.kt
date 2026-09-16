@@ -136,6 +136,10 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     // M18.117: Motion-Kontext für das Motion-Gate melden
                     // (IN_VEHICLE → 8-m/s-Schwelle bleibt).
                     bridge.updateMotionContext(DriveDetectionEngine.MotionContext.IN_VEHICLE)
+                    // M18.128: Fahrzeug-Evidence für das Fast-Start-Gate
+                    // registrieren (Confidence + Frische entscheidet die
+                    // pure Funktion — einzeln nie ein Start-Beweis).
+                    bridge.onVehicleSample(top.confidence)
                     // M18.127: Fahrzeug-Sample bestätigt die Fahrt →
                     // Walk-Stop-Evidenz verwerfen (M18.84: Google meldet
                     // WALKING auch während Stop&Go-Fahrten).
@@ -182,6 +186,9 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     }
                 }
                 DetectedActivity.ON_BICYCLE -> {
+                    // M18.128: Radfahren widerlegt die Fahrzeug-Evidence
+                    // (V1-Konkurrenz: frisches Rad-Signal des Sensor-Hubs).
+                    bridge.onBicycleSample()
                     // M18.127: Radfahren ist kein Gehen — Fahrt lebt.
                     bridge.resetWalkStopEvidence()
                     // M18.117: ON_BICYCLE ist weder ON_FOOT noch IN_VEHICLE —

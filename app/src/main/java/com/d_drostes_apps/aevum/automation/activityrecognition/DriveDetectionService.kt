@@ -1067,6 +1067,54 @@ class DriveDetectionService : Service() {
         // (WALKING-Bursts dürfen keine Fahrten starten).
         if (!bridge.isDriveActive() && bridge.isDrivingEnabled()) {
             val circles = bridge.currentGeofenceContext()
+
+            // ── M18.128: FAST-START-GATE (Design t_bea94587 §6/§7) ────
+            // Vor dem Normalpfad: Startet die Session SOFORT (ohne den
+            // 30-s-Spread), sobald frische IN_VEHICLE-Evidence (Confidence
+            // ≥ 60, ≤ 90 s) UND 2 konsekutive ≥-8-m/s-Fixes (Hysterese
+            // ≥ 10 s, Netto ≥ 100 m) die Fahrt bestätigen. Der Normalpfad
+            // bleibt als konservativer Fallback unverändert.
+            // V7 (Restart-Cooldown) prüft der Aufrufer VORAB — die reine
+            // Funktion kennt die Bridge nicht (Design-Hinweis §7).
+            val withinCooldown = bridge.isWithinDriveRestartCooldown(now)
+            if (!withinCooldown &&
+                DriveDetectionEngine.shouldFastStart(
+                    bridge.currentDriveProbes(),
+                    bridge.vehicleEvidence(),
+                    now,
+                    circles,
+                    bridge.currentCadenceHz(),
+                    bridge.currentCadenceValidFraction()
+                )
+            ) {
+                Log.d(TAG, "M18.128: Fast-Start-Gate erfüllt (frische IN_VEHICLE-Evidence + 2x ≥ 8 m/s, Netto ≥ 100 m) -> sofortiger Start")
+                // Rückdatierung OHNE toVehicleCluster: dessen 30-s-
+                // Spread-Anforderung erfüllt das 15-s-Fast-Paar nie →
+                // Cluster-Start wäre now statt erster schneller Fix.
+                // addSample(epochMs, conf) zieht startMs per M18.121-F-4-
+                // Backfill zurück (endMs/lastMs bleiben beim Maximum,
+                // Heartbeat nur vorwärts) und ergänzt den evtl. schon
+                // vom AR-Sample angelegten Cluster um den echten
+                // Fahrtbeginn.
+                val fastPair = bridge.currentDriveProbes()
+                    .filter { now - it.timestampMs <= DriveDetectionEngine.MAX_PROBE_AGE_MS }
+                    .takeLast(2)
+                if (fastPair.size == 2) {
+                    val older = fastPair.first()
+                    val newer = fastPair.last()
+                    bridge.addSample(older.timestampMs, 80)
+                    bridge.addSample(newer.timestampMs, 80)
+                }
+                // Bestätigung markieren, BEVOR die Probes gedrained
+                // werden (M18.66-FIX15-Gate des DriveStartWorker).
+                bridge.markDriveConfirmed()
+                bridge.drainDriveProbes()
+                bridge.resetVehicleEvidence()
+                DriveStartWorker.schedule(this)
+                DriveWatchdogWorker.schedule(this)
+                return
+            }
+
             // M18.117: Motion-Kontext (AR-Typ) an die Engine durchreichen —
             // ON_FOOT hebt die Auto-Schwelle auf 12 m/s (Joggen-Spikes
             // zählen nicht mehr als Fahrt), IN_VEHICLE/UNKNOWN behalten
