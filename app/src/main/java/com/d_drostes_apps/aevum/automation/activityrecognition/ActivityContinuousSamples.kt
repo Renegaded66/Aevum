@@ -78,6 +78,31 @@ object ActivityContinuousSamplesRequester {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
+
+    /** M18.127: Continuous-Stream sauber beenden (removeActivityUpdates) —
+     *  API-Vertrag: „make sure to call removeActivityUpdates when you no
+     *  longer need it“. Aufgerufen vom Trigger-Settings-Screen, wenn ALLE
+     *  AR-abhängigen Automatisierungen (driving + walking + bicycle)
+     *  deaktiviert sind. Idempotent: GMS toleriert Remove ohne aktive
+     *  Registrierung; ohne Permission No-Op (nie registriert). */
+    fun unregister(context: Context) {
+        if (!ActivityRecognitionPermission.isGranted(context)) {
+            Log.d(TAG, "ACTIVITY_RECOGNITION nicht gewährt — Continuous-Samples nicht registriert, Remove übersprungen")
+            return
+        }
+        // Identity des Remove-PendingIntents muss exakt der Registrierung
+        // entsprechen (RequestCode + Intent + Component), sonst entfernt
+        // GMS nichts. getBroadcast ist hier nur eine Identitäts-Fabrik —
+        // kein Broadcast wird gesendet, kein Sender-Empfänger-Problem.
+        val pendingIntent = continuousPendingIntent(context)
+        try {
+            ActivityRecognition.getClient(context)
+                .removeActivityUpdates(pendingIntent)
+            Log.d(TAG, "Continuous-AR-Samples entfernt")
+        } catch (e: Exception) {
+            Log.w(TAG, "removeActivityUpdates fehlgeschlagen: ${e.message}")
+        }
+    }
 }
 
 /**
@@ -111,6 +136,10 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     // M18.117: Motion-Kontext für das Motion-Gate melden
                     // (IN_VEHICLE → 8-m/s-Schwelle bleibt).
                     bridge.updateMotionContext(DriveDetectionEngine.MotionContext.IN_VEHICLE)
+                    // M18.127: Fahrzeug-Sample bestätigt die Fahrt →
+                    // Walk-Stop-Evidenz verwerfen (M18.84: Google meldet
+                    // WALKING auch während Stop&Go-Fahrten).
+                    bridge.resetWalkStopEvidence()
                     // Fahrzeug-Sample = Fahrzeug-Verdacht → GPS-CONFIRM-Burst.
                     // Die Engine-Gates entscheiden über den Start (kein
                     // direkter Session-Start hier!).
@@ -126,7 +155,26 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     // (ON_FOOT → 12-m/s-Schwelle, Joggen-Spikes zählen
                     // nicht mehr als Fahrt).
                     bridge.updateMotionContext(DriveDetectionEngine.MotionContext.ON_FOOT)
-                    if (bridge.isWalkingEnabled() && !bridge.isDriveActive()) {
+                    // M18.127: Läuft gerade eine Auto-Session, wird dieses
+                    // Geh-Sample zur WALK-STOP-Evidenz: 2 Samples à 30 s
+                    // (Confidence ≥ 60, ~75 s Gnadenfrist, widerlegt durch
+                    // frisches Fahrzeug-Tempo via GPS-Probes) → sofortiger
+                    // Session-Stop über den bestehenden DriveStopWorker.
+                    // VORHER (die Lücke): Walking während aktiver Fahrt
+                    // wurde ignoriert — die Session endete erst nach 5
+                    // Minuten ohne Signal.
+                    if (bridge.isDriveActive()) {
+                        if (bridge.onWalkStopSample(top.type, top.confidence)) {
+                            Log.i(
+                                "ArContinuousSamples",
+                                "WalkStop-Detector: Gehen ≥ ${WalkStopDetector.WALK_STOP_CONFIDENCE} " +
+                                    "für ≥ ${WalkStopDetector.WALK_STOP_GRACE_MS / 1000}s " +
+                                    "während Auto-Session → sofortiger Stop"
+                            )
+                            bridge.resetWalkStopEvidence()
+                            DriveStopWorker.schedule(context)
+                        }
+                    } else if (bridge.isWalkingEnabled()) {
                         DriveDetectionService.start(
                             context,
                             DriveDetectionService.ACTION_WALKING_CHECK
@@ -134,6 +182,8 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     }
                 }
                 DetectedActivity.ON_BICYCLE -> {
+                    // M18.127: Radfahren ist kein Gehen — Fahrt lebt.
+                    bridge.resetWalkStopEvidence()
                     // M18.117: ON_BICYCLE ist weder ON_FOOT noch IN_VEHICLE —
                     // bewusst KEIN updateMotionContext (UNKNOWN-Verhalten,
                     // 8 m/s): Radfahrer-Spike-Muster scheitert weiterhin an
