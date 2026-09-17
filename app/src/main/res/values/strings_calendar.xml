@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M18.129: Kalender-Integration — Einstellungsseite (CalendarRulesScreen),
+         Regel-Editor (CalendarRuleEditorDialog), Timeline-Planblöcke und Reader.
+         Werden von CalendarRulesScreen.kt, CalendarRuleEditorDialog.kt,
+         PlannedSessions.kt und CalendarReader.kt referenziert. -->
+
+    <!-- Kopfzeile der Kalender-Einstellungsseite -->
+    <string name="calendar_rules_header">Kalender</string>
+    <string name="calendar_rules_header_subtitle">Termine automatisch als Aktivitäten aufzeichnen</string>
+
+    <!-- Integration: Feature-Schalter -->
+    <string name="calendar_rules_section_integration">Kalender-Integration</string>
+    <string name="calendar_rules_toggle_read">Kalender lesen</string>
+    <string name="calendar_rules_toggle_read_desc_granted">Termine werden lokal ausgelesen und für die Vorschau genutzt.</string>
+    <string name="calendar_rules_toggle_read_desc_locked">Berechtigung erforderlich — siehe Hinweis oben.</string>
+    <string name="calendar_rules_toggle_autotrack">Automatisch aufzeichnen</string>
+    <string name="calendar_rules_toggle_autotrack_desc">Startet und stoppt Aktivitäten an Termingrenzen.</string>
+    <string name="calendar_rules_autotrack_needs_read">Zum Aufzeichnen zuerst „Kalender lesen“ aktivieren.</string>
+
+    <!-- Synchronisierung -->
+    <string name="calendar_rules_section_sync">Synchronisierung</string>
+    <string name="calendar_rules_cached_none">Keine Termine im Synchronisierungsfenster.</string>
+    <string name="calendar_rules_cached_one">1 Termin zwischengespeichert.</string>
+    <string name="calendar_rules_cached_many">%1$d Termine zwischengespeichert.</string>
+    <string name="calendar_rules_sync_running">Synchronisiere…</string>
+    <string name="calendar_rules_sync_now">Jetzt synchronisieren</string>
+    <string name="calendar_rules_sync_result_ok">Synchronisiert: %1$d Termine.</string>
+    <string name="calendar_rules_sync_result_permission">Berechtigung fehlt — bitte erneut erteilen.</string>
+    <string name="calendar_rules_sync_result_failed">Synchronisierung fehlgeschlagen.</string>
+    <string name="calendar_rules_sync_interval_label">Automatischer Sync alle:</string>
+    <string name="calendar_rules_sync_interval_day">1 Tag</string>
+    <string name="calendar_rules_sync_interval_hours">%1$d h</string>
+    <string name="calendar_rules_sync_battery_note">Synchronisiert nur bei ausreichend Akku — kein 24/7-Zugriff.</string>
+    <string name="calendar_rules_last_sync_never">Zuletzt synchronisiert: noch nie</string>
+    <string name="calendar_rules_last_sync_today">Zuletzt synchronisiert: heute %1$s</string>
+    <string name="calendar_rules_last_sync_yesterday">Zuletzt synchronisiert: gestern %1$s</string>
+    <string name="calendar_rules_last_sync_date">Zuletzt synchronisiert: %1$s %2$s</string>
+
+    <!-- Regel-Liste -->
+    <string name="calendar_rules_section_rules">Regeln</string>
+    <string name="calendar_rules_empty">Noch keine Regeln. Beispiel: „Enthält Vorlesung oder Übung → Activity Studium“.</string>
+    <string name="calendar_rules_add">Regel hinzufügen</string>
+    <string name="calendar_rules_add_needs_permission">Regeln lassen sich nach dem Erteilen der Berechtigung anlegen.</string>
+    <string name="calendar_rules_rule_activity_missing">→ Aktivität fehlt (bitte neu wählen)</string>
+    <string name="calendar_rules_delete_title">Regel löschen?</string>
+    <string name="calendar_rules_delete_message">„%1$s“ wird entfernt. Bereits aufgezeichnete Aktivitäten bleiben erhalten.</string>
+
+    <!-- Erklär-Karte -->
+    <string name="calendar_rules_how_it_works_title">So funktioniert es</string>
+    <string name="calendar_rules_how_it_works_body">• Trifft ein Termin auf eine Regel, startet die Aufzeichnung zum Terminbeginn und endet mit dem Terminende.\n• In der Timeline erscheinen die kommenden 7 Tage bereits vorab — diagonal gestrichelt, damit Pläne und echte Aufzeichnungen unterscheidbar bleiben.\n• Aevum liest den Kalender nur. Es werden niemals Termine angelegt oder verändert.</string>
+
+    <!-- Permission-Banner (4-State) -->
+    <string name="calendar_rules_permission_title">Kalender verbinden</string>
+    <string name="calendar_rules_permission_body_blocked">Die Berechtigung ist gesperrt. Öffne die App-Einstellungen und erlaube „Kalender“ unter Berechtigungen.</string>
+    <string name="calendar_rules_permission_body_denied">Ohne Kalender-Zugriff kann Aevum keine Termine erkennen. Die Berechtigung ist jederzeit in den System-Einstellungen widerrufbar.</string>
+    <string name="calendar_rules_permission_body_notasked">Aevum liest deine Termine ausschließlich lokal auf diesem Gerät, um Aktivitäten zum richtigen Zeitpunkt aufzuzeichnen. Es werden keine Termine angelegt oder verändert.</string>
+    <string name="calendar_rules_permission_open_settings">App-Einstellungen öffnen</string>
+    <string name="calendar_rules_permission_retry">Erneut versuchen</string>
+    <string name="calendar_rules_permission_later">Später</string>
+    <string name="calendar_rules_permission_allow">Zugriff erlauben</string>
+    <string name="calendar_rules_permission_skip">Erstmal ohne</string>
+
+    <!-- Regel-Zusammenfassung (Klartext der Bedingung) -->
+    <string name="calendar_rules_summary_title_contains">Titel enthält „%1$s“</string>
+    <string name="calendar_rules_summary_desc_contains">Beschreibung enthält „%1$s“</string>
+    <string name="calendar_rules_summary_title_regex">Titel passt auf /%1$s/</string>
+    <string name="calendar_rules_summary_anyfield_contains">Titel/Beschreibung enthält „%1$s“</string>
+    <string name="calendar_rules_summary_attendee_contains">Teilnehmer enthält „%1$s“</string>
+    <string name="calendar_rules_summary_all_day_only">Nur ganztägige Termine</string>
+    <string name="calendar_rules_summary_all_calendars">Alle Kalender</string>
+    <string name="calendar_rules_summary_calendars_selected">%1$d Kalender ausgewählt</string>
+    <string name="calendar_rules_summary_extra_all_words">alle Wörter</string>
+    <string name="calendar_rules_summary_extra_case">Groß/Klein</string>
+    <string name="calendar_rules_summary_extra_weekdays">bestimmte Tage</string>
+    <string name="calendar_rules_summary_extra_min_duration">≥ %1$d min</string>
+
+    <!-- Regel-Editor: Kopf + Validierung -->
+    <string name="calendar_editor_title_new">Neue Kalender-Regel</string>
+    <string name="calendar_editor_title_edit">Regel bearbeiten</string>
+    <string name="calendar_editor_error_no_name">Bitte gib der Regel einen Namen.</string>
+    <string name="calendar_editor_error_no_activity">Bitte wähle die Aktivität, die aufgezeichnet werden soll.</string>
+    <string name="calendar_editor_error_no_term">Bitte gib den Suchbegriff ein.</string>
+
+    <!-- Regel-Editor: Name -->
+    <string name="calendar_editor_name_label">Name der Regel</string>
+    <string name="calendar_editor_name_placeholder">z.B. Studium aus Kalender</string>
+
+    <!-- Regel-Editor: Bedingung -->
+    <string name="calendar_editor_section_condition">Bedingung</string>
+    <string name="calendar_editor_calendar_pick_hint">Kalender auswählen (keine Auswahl = alle Kalender)</string>
+    <string name="calendar_editor_calendar_none">Keine Kalender gefunden — Berechtigung prüfen.</string>
+    <string name="calendar_editor_allday_hint">Trifft nur ganztägige Termine (z.B. Urlaub, Feiertage).</string>
+    <string name="calendar_editor_regex_label">Regulärer Ausdruck (Titel)</string>
+    <string name="calendar_editor_regex_placeholder">^VL\\s+\\d+</string>
+    <string name="calendar_editor_regex_hint">Erweitert: nur nutzen, wenn einfache Wörter nicht reichen.</string>
+    <string name="calendar_editor_field_words_title">Wörter im Titel</string>
+    <string name="calendar_editor_field_words_description">Wörter in der Beschreibung</string>
+    <string name="calendar_editor_field_attendee">Teilnehmer enthält</string>
+    <string name="calendar_editor_field_words_any">Wörter (Titel oder Beschreibung)</string>
+    <string name="calendar_editor_words_placeholder">Vorlesung, Übung</string>
+    <string name="calendar_editor_words_hint">Mehrere Wörter mit Komma trennen.</string>
+    <string name="calendar_editor_toggle_all_words">Alle Wörter müssen vorkommen</string>
+    <string name="calendar_editor_toggle_all_words_desc">Aus: ein Treffer genügt (ODER). An: alle Wörter nötig (UND).</string>
+    <string name="calendar_editor_toggle_case">Groß-/Kleinschreibung beachten</string>
+    <string name="calendar_editor_toggle_case_desc">Aus: „vorlesung“ findet auch „Vorlesung“.</string>
+
+    <!-- Regel-Editor: Aktion -->
+    <string name="calendar_editor_section_action">Aktion</string>
+    <string name="calendar_editor_activity_placeholder">Aktivität wählen…</string>
+    <string name="calendar_editor_custom_title_label">Eigener Titel (optional)</string>
+    <string name="calendar_editor_custom_title_placeholder">Leer = Name der Aktivität</string>
+    <string name="calendar_editor_toggle_stop_running">Laufende Aufzeichnung beenden</string>
+    <string name="calendar_editor_toggle_stop_running_desc">An: der Termin übernimmt (Standard). Aus: nur starten, wenn nichts läuft.</string>
+
+    <!-- Regel-Editor: Filter -->
+    <string name="calendar_editor_section_filter">Filter (optional)</string>
+    <string name="calendar_editor_min_duration_label">Mindestdauer in Minuten (0 = egal)</string>
+    <string name="calendar_editor_toggle_time_window">Nur zu bestimmten Zeiten</string>
+    <string name="calendar_editor_toggle_time_window_desc">Termine außerhalb dieses Fensters werden ignoriert.</string>
+    <string name="calendar_editor_window_from">Von</string>
+    <string name="calendar_editor_window_to">Bis</string>
+    <string name="calendar_editor_weekdays_label">Wochentage</string>
+
+    <!-- Regel-Editor: Bedienelemente -->
+    <string name="calendar_editor_confirm_add">Hinzufügen</string>
+    <string name="calendar_editor_dropdown_open">Auswahl öffnen</string>
+
+    <!-- Regel-Editor: Typ-Labels -->
+    <string name="calendar_editor_type_any_field">Wort in Titel oder Beschreibung</string>
+    <string name="calendar_editor_type_title">Wort nur im Titel</string>
+    <string name="calendar_editor_type_description">Wort nur in der Beschreibung</string>
+    <string name="calendar_editor_type_regex">Regulärer Ausdruck im Titel</string>
+    <string name="calendar_editor_type_calendars">Bestimmte Kalender</string>
+    <string name="calendar_editor_type_attendee">Teilnehmer enthält</string>
+    <string name="calendar_editor_type_allday">Nur ganztägige Termine</string>
+    <string name="calendar_editor_type_unknown">Unbekannt</string>
+
+    <!-- Fallback-Texte (Reader / Timeline-Planblöcke) -->
+    <string name="calendar_rules_unnamed_calendar">Kalender</string>
+    <string name="calendar_plan_event_fallback_title">Termin</string>
+</resources>

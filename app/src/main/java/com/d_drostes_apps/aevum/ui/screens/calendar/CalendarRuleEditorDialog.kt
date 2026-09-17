@@ -35,11 +35,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarOverlapPolicy
 import com.d_drostes_apps.aevum.data.model.CalendarRule
@@ -61,6 +63,10 @@ import java.util.UUID
  *
  * ALLE Bedingungen sind sichtbar und in Klartext beschriftet. Nichts ist
  * versteckt oder still vorbelegt.
+ *
+ * M18.129-i18n: Alle sichtbaren Texte kommen aus `strings_calendar.xml`.
+ * Der Validierungsfehler wird als Ressourcen-ID gehalten (nicht als
+ * fertiger String), weil `save()` keine Composable-Funktion ist.
  */
 @Composable
 fun CalendarRuleEditorDialog(
@@ -99,26 +105,28 @@ fun CalendarRuleEditorDialog(
     }
     var typeDropdownOpen by remember { mutableStateOf(false) }
     var activityDropdownOpen by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // M18.129-i18n: Fehler als Ressourcen-ID — die Auflösung passiert im
+    // Text-Aufruf (stringResource), `save()` bleibt damit nicht-composable.
+    var errorRes by remember { mutableStateOf<Int?>(null) }
 
     fun save() {
         // Validierung — ehrlich und konkret, kein stilles Ignorieren.
         if (name.isBlank()) {
-            error = "Bitte gib der Regel einen Namen."
+            errorRes = R.string.calendar_editor_error_no_name
             return
         }
         if (activityTypeId == null) {
-            error = "Bitte wähle die Aktivität, die aufgezeichnet werden soll."
+            errorRes = R.string.calendar_editor_error_no_activity
             return
         }
         if (CalendarRuleType.needsMatchValue(matchType) && matchValue.isBlank()) {
-            error = "Bitte gib den Suchbegriff ein."
+            errorRes = R.string.calendar_editor_error_no_term
             return
         }
         if (matchType == CalendarRuleType.CALENDAR_IS && selectedCalendarIds.isEmpty()) {
             // Leere Auswahl bedeutet "alle Kalender" — das ist gültig,
             // aber wir machen es transparent statt still.
-            error = null
+            errorRes = null
         }
         val rule = CalendarRule(
             id = existing?.id ?: UUID.randomUUID().toString(),
@@ -150,7 +158,10 @@ fun CalendarRuleEditorDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (isNew) "Neue Kalender-Regel" else "Regel bearbeiten",
+                stringResource(
+                    if (isNew) R.string.calendar_editor_title_new
+                    else R.string.calendar_editor_title_edit
+                ),
                 fontWeight = FontWeight.Bold
             )
         },
@@ -164,15 +175,15 @@ fun CalendarRuleEditorDialog(
                 // ── 1. Name ───────────────────────────────────────────
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it; error = null },
-                    label = { Text("Name der Regel") },
-                    placeholder = { Text("z.B. Studium aus Kalender") },
+                    onValueChange = { name = it; errorRes = null },
+                    label = { Text(stringResource(R.string.calendar_editor_name_label)) },
+                    placeholder = { Text(stringResource(R.string.calendar_editor_name_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
 
                 // ── 2. Bedingung: Typ ─────────────────────────────────
-                SectionLabel("Bedingung")
+                SectionLabel(stringResource(R.string.calendar_editor_section_condition))
                 Box {
                     OutlinedRow(
                         text = ruleTypeLabel(matchType),
@@ -188,7 +199,7 @@ fun CalendarRuleEditorDialog(
                                 onClick = {
                                     matchType = type
                                     typeDropdownOpen = false
-                                    error = null
+                                    errorRes = null
                                 }
                             )
                         }
@@ -199,13 +210,13 @@ fun CalendarRuleEditorDialog(
                 when (matchType) {
                     CalendarRuleType.CALENDAR_IS -> {
                         Text(
-                            "Kalender auswählen (keine Auswahl = alle Kalender)",
+                            stringResource(R.string.calendar_editor_calendar_pick_hint),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (calendars.isEmpty()) {
                             Text(
-                                "Keine Kalender gefunden — Berechtigung prüfen.",
+                                stringResource(R.string.calendar_editor_calendar_none),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -249,7 +260,7 @@ fun CalendarRuleEditorDialog(
 
                     CalendarRuleType.ALL_DAY_ONLY -> {
                         Text(
-                            "Trifft nur ganztägige Termine (z.B. Urlaub, Feiertage).",
+                            stringResource(R.string.calendar_editor_allday_hint),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -258,14 +269,14 @@ fun CalendarRuleEditorDialog(
                     CalendarRuleType.TITLE_REGEX -> {
                         OutlinedTextField(
                             value = matchValue,
-                            onValueChange = { matchValue = it; error = null },
-                            label = { Text("Regulärer Ausdruck (Titel)") },
-                            placeholder = { Text("^VL\\s+\\d+") },
+                            onValueChange = { matchValue = it; errorRes = null },
+                            label = { Text(stringResource(R.string.calendar_editor_regex_label)) },
+                            placeholder = { Text(stringResource(R.string.calendar_editor_regex_placeholder)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
                         Text(
-                            "Erweitert: nur nutzen, wenn einfache Wörter nicht reichen.",
+                            stringResource(R.string.calendar_editor_regex_hint),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -274,23 +285,27 @@ fun CalendarRuleEditorDialog(
                     else -> {
                         OutlinedTextField(
                             value = matchValue,
-                            onValueChange = { matchValue = it; error = null },
+                            onValueChange = { matchValue = it; errorRes = null },
                             label = {
                                 Text(
                                     when (matchType) {
-                                        CalendarRuleType.TITLE_CONTAINS -> "Wörter im Titel"
-                                        CalendarRuleType.DESCRIPTION_CONTAINS -> "Wörter in der Beschreibung"
-                                        CalendarRuleType.ATTENDEE_CONTAINS -> "Teilnehmer enthält"
-                                        else -> "Wörter (Titel oder Beschreibung)"
+                                        CalendarRuleType.TITLE_CONTAINS ->
+                                            stringResource(R.string.calendar_editor_field_words_title)
+                                        CalendarRuleType.DESCRIPTION_CONTAINS ->
+                                            stringResource(R.string.calendar_editor_field_words_description)
+                                        CalendarRuleType.ATTENDEE_CONTAINS ->
+                                            stringResource(R.string.calendar_editor_field_attendee)
+                                        else ->
+                                            stringResource(R.string.calendar_editor_field_words_any)
                                     }
                                 )
                             },
-                            placeholder = { Text("Vorlesung, Übung") },
+                            placeholder = { Text(stringResource(R.string.calendar_editor_words_placeholder)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
                         Text(
-                            "Mehrere Wörter mit Komma trennen.",
+                            stringResource(R.string.calendar_editor_words_hint),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -303,28 +318,28 @@ fun CalendarRuleEditorDialog(
                     matchType == CalendarRuleType.DESCRIPTION_CONTAINS
                 ) {
                     ToggleRow(
-                        title = "Alle Wörter müssen vorkommen",
-                        subtitle = "Aus: ein Treffer genügt (ODER). An: alle Wörter nötig (UND).",
+                        title = stringResource(R.string.calendar_editor_toggle_all_words),
+                        subtitle = stringResource(R.string.calendar_editor_toggle_all_words_desc),
                         checked = requireAllWords,
                         onCheckedChange = { requireAllWords = it }
                     )
                 }
                 if (matchType == CalendarRuleType.ANY_FIELD_CONTAINS && !titleOnly) {
                     ToggleRow(
-                        title = "Groß-/Kleinschreibung beachten",
-                        subtitle = "Aus: „vorlesung“ findet auch „Vorlesung“.",
+                        title = stringResource(R.string.calendar_editor_toggle_case),
+                        subtitle = stringResource(R.string.calendar_editor_toggle_case_desc),
                         checked = caseSensitive,
                         onCheckedChange = { caseSensitive = it }
                     )
                 }
 
                 // ── 5. Aktion: Aktivität ──────────────────────────────
-                SectionLabel("Aktion")
+                SectionLabel(stringResource(R.string.calendar_editor_section_action))
                 Box {
                     OutlinedRow(
                         text = activityTypes.firstOrNull { it.id == activityTypeId }
                             ?.let { "${it.icon} ${it.name}" }
-                            ?: "Aktivität wählen…",
+                            ?: stringResource(R.string.calendar_editor_activity_placeholder),
                         onClick = { activityDropdownOpen = true }
                     )
                     androidx.compose.material3.DropdownMenu(
@@ -337,7 +352,7 @@ fun CalendarRuleEditorDialog(
                                 onClick = {
                                     activityTypeId = type.id
                                     activityDropdownOpen = false
-                                    error = null
+                                    errorRes = null
                                 }
                             )
                         }
@@ -347,16 +362,16 @@ fun CalendarRuleEditorDialog(
                 OutlinedTextField(
                     value = defaultTitle,
                     onValueChange = { defaultTitle = it },
-                    label = { Text("Eigener Titel (optional)") },
-                    placeholder = { Text("Leer = Name der Aktivität") },
+                    label = { Text(stringResource(R.string.calendar_editor_custom_title_label)) },
+                    placeholder = { Text(stringResource(R.string.calendar_editor_custom_title_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
 
                 // ── 6. Verhalten bei Überschneidung ───────────────────
                 ToggleRow(
-                    title = "Laufende Aufzeichnung beenden",
-                    subtitle = "An: der Termin übernimmt (Standard). Aus: nur starten, wenn nichts läuft.",
+                    title = stringResource(R.string.calendar_editor_toggle_stop_running),
+                    subtitle = stringResource(R.string.calendar_editor_toggle_stop_running_desc),
                     checked = overlapPolicy == CalendarOverlapPolicy.OVERRIDE,
                     onCheckedChange = {
                         overlapPolicy = if (it) CalendarOverlapPolicy.OVERRIDE else CalendarOverlapPolicy.ONLY_IF_IDLE
@@ -364,19 +379,19 @@ fun CalendarRuleEditorDialog(
                 )
 
                 // ── 7. Filter ─────────────────────────────────────────
-                SectionLabel("Filter (optional)")
+                SectionLabel(stringResource(R.string.calendar_editor_section_filter))
 
                 OutlinedTextField(
                     value = minDuration,
                     onValueChange = { minDuration = it.filter { c -> c.isDigit() } },
-                    label = { Text("Mindestdauer in Minuten (0 = egal)") },
+                    label = { Text(stringResource(R.string.calendar_editor_min_duration_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
 
                 ToggleRow(
-                    title = "Nur zu bestimmten Zeiten",
-                    subtitle = "Termine außerhalb dieses Fensters werden ignoriert.",
+                    title = stringResource(R.string.calendar_editor_toggle_time_window),
+                    subtitle = stringResource(R.string.calendar_editor_toggle_time_window_desc),
                     checked = windowEnabled,
                     onCheckedChange = { windowEnabled = it }
                 )
@@ -388,7 +403,7 @@ fun CalendarRuleEditorDialog(
                         OutlinedTextField(
                             value = windowStart,
                             onValueChange = { windowStart = it },
-                            label = { Text("Von") },
+                            label = { Text(stringResource(R.string.calendar_editor_window_from)) },
                             placeholder = { Text("06:00") },
                             modifier = Modifier.weight(1f),
                             singleLine = true
@@ -396,7 +411,7 @@ fun CalendarRuleEditorDialog(
                         OutlinedTextField(
                             value = windowEnd,
                             onValueChange = { windowEnd = it },
-                            label = { Text("Bis") },
+                            label = { Text(stringResource(R.string.calendar_editor_window_to)) },
                             placeholder = { Text("22:00") },
                             modifier = Modifier.weight(1f),
                             singleLine = true
@@ -404,25 +419,36 @@ fun CalendarRuleEditorDialog(
                     }
                 }
 
-                Text("Wochentage", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(R.string.calendar_editor_weekdays_label),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
                 WeekdayChips(
                     mask = weekdayMask,
                     onChange = { weekdayMask = it }
                 )
 
-                error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                errorRes?.let {
+                    Text(stringResource(it), color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 }
                 Spacer(Modifier.height(AevumSpacing.xs))
             }
         },
         confirmButton = {
             TextButton(onClick = { save() }) {
-                Text(if (isNew) "Hinzufügen" else "Speichern", fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(
+                        if (isNew) R.string.calendar_editor_confirm_add else R.string.common_save
+                    ),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
         }
     )
 }
@@ -449,7 +475,10 @@ private fun OutlinedRow(text: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text, modifier = Modifier.weight(1f), fontSize = 15.sp)
-        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Auswahl öffnen")
+        Icon(
+            Icons.Filled.ArrowDropDown,
+            contentDescription = stringResource(R.string.calendar_editor_dropdown_open)
+        )
     }
 }
 
@@ -476,11 +505,25 @@ private fun ToggleRow(
     }
 }
 
-/** Wochentags-Auswahl als Bitmaske (Mo=1 … So=64). */
+/**
+ * Wochentags-Auswahl als Bitmaske (Mo=1 … So=64).
+ *
+ * M18.129-i18n: Die Kürzel kommen aus `common_monday`…`common_sunday`
+ * (DE „Mo"…„So", EN „Mon"…„Sun") — vorher war hier eine deutsche Liste
+ * hartkodiert, die im englischen Locale deutsch blieb.
+ */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun WeekdayChips(mask: Int, onChange: (Int) -> Unit) {
-    val labels = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+    val labels = listOf(
+        stringResource(R.string.common_monday),
+        stringResource(R.string.common_tuesday),
+        stringResource(R.string.common_wednesday),
+        stringResource(R.string.common_thursday),
+        stringResource(R.string.common_friday),
+        stringResource(R.string.common_saturday),
+        stringResource(R.string.common_sunday)
+    )
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         labels.forEachIndexed { index, label ->
             val bit = 1 shl index
@@ -507,16 +550,22 @@ private fun WeekdayChips(mask: Int, onChange: (Int) -> Unit) {
     }
 }
 
-/** Klartext-Label für einen Regeltyp. */
-fun ruleTypeLabel(type: String): String = when (type) {
-    CalendarRuleType.ANY_FIELD_CONTAINS -> "Wort in Titel oder Beschreibung"
-    CalendarRuleType.TITLE_CONTAINS -> "Wort nur im Titel"
-    CalendarRuleType.DESCRIPTION_CONTAINS -> "Wort nur in der Beschreibung"
-    CalendarRuleType.TITLE_REGEX -> "Regulärer Ausdruck im Titel"
-    CalendarRuleType.CALENDAR_IS -> "Bestimmte Kalender"
-    CalendarRuleType.ATTENDEE_CONTAINS -> "Teilnehmer enthält"
-    CalendarRuleType.ALL_DAY_ONLY -> "Nur ganztägige Termine"
-    else -> "Unbekannt"
+/**
+ * Klartext-Label für einen Regeltyp.
+ *
+ * M18.129-i18n: `@Composable`, weil die Labels aus Ressourcen kommen.
+ * Aufgerufen ausschließlich als Argument von `Text(...)`.
+ */
+@Composable
+private fun ruleTypeLabel(type: String): String = when (type) {
+    CalendarRuleType.ANY_FIELD_CONTAINS -> stringResource(R.string.calendar_editor_type_any_field)
+    CalendarRuleType.TITLE_CONTAINS -> stringResource(R.string.calendar_editor_type_title)
+    CalendarRuleType.DESCRIPTION_CONTAINS -> stringResource(R.string.calendar_editor_type_description)
+    CalendarRuleType.TITLE_REGEX -> stringResource(R.string.calendar_editor_type_regex)
+    CalendarRuleType.CALENDAR_IS -> stringResource(R.string.calendar_editor_type_calendars)
+    CalendarRuleType.ATTENDEE_CONTAINS -> stringResource(R.string.calendar_editor_type_attendee)
+    CalendarRuleType.ALL_DAY_ONLY -> stringResource(R.string.calendar_editor_type_allday)
+    else -> stringResource(R.string.calendar_editor_type_unknown)
 }
 
 /** "06:30" → 390 Minuten seit Mitternacht. Ungültiges → -1. */

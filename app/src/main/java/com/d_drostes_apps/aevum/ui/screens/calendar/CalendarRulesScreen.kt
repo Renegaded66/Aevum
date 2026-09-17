@@ -50,21 +50,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarRule
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import com.d_drostes_apps.aevum.util.AppLocale
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /** M18.129: Erlaubte Sync-Takte (Stunden) für die Auswahl. */
 private val SYNC_INTERVALS = listOf(1, 3, 6, 12, 24)
@@ -81,6 +85,10 @@ private val SYNC_INTERVALS = listOf(1, 3, 6, 12, 24)
  *
  * Die Trennung von Lesen und Aufzeichnen ist Absicht: der Nutzer kann die
  * Vorschau wollen, ohne dass sein Kalender die Aufzeichnung steuert.
+ *
+ * M18.129-i18n: Alle sichtbaren Texte kommen aus `strings_calendar.xml`
+ * (DE in `values/`, EN in `values-en/`). Kein deutscher Literaltext mehr
+ * im Composable-Code.
  */
 @Composable
 fun CalendarRulesScreen(
@@ -138,9 +146,13 @@ fun CalendarRulesScreen(
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("←") }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Kalender", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "Termine automatisch als Aktivitäten aufzeichnen",
+                    stringResource(R.string.calendar_rules_header),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    stringResource(R.string.calendar_rules_header_subtitle),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -160,14 +172,18 @@ fun CalendarRulesScreen(
         // ── 2. Feature-Schalter ───────────────────────────────────────
         AevumCard {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                Text("Kalender-Integration", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(R.string.calendar_rules_section_integration),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
 
                 ToggleLine(
-                    title = "Kalender lesen",
+                    title = stringResource(R.string.calendar_rules_toggle_read),
                     subtitle = if (permission.isGranted) {
-                        "Termine werden lokal ausgelesen und für die Vorschau genutzt."
+                        stringResource(R.string.calendar_rules_toggle_read_desc_granted)
                     } else {
-                        "Berechtigung erforderlich — siehe Hinweis oben."
+                        stringResource(R.string.calendar_rules_toggle_read_desc_locked)
                     },
                     checked = state.syncEnabled,
                     enabled = permission.isGranted,
@@ -175,8 +191,8 @@ fun CalendarRulesScreen(
                 )
 
                 ToggleLine(
-                    title = "Automatisch aufzeichnen",
-                    subtitle = "Startet und stoppt Aktivitäten an Termingrenzen.",
+                    title = stringResource(R.string.calendar_rules_toggle_autotrack),
+                    subtitle = stringResource(R.string.calendar_rules_toggle_autotrack_desc),
                     checked = state.autoTrackingEnabled,
                     // Auto-Aufzeichnung ohne Lesezugriff wäre sinnlos —
                     // der Schalter ist deshalb gekoppelt (ehrliche UI,
@@ -187,7 +203,7 @@ fun CalendarRulesScreen(
 
                 if (permission.isGranted && !state.syncEnabled) {
                     Text(
-                        "Zum Aufzeichnen zuerst „Kalender lesen“ aktivieren.",
+                        stringResource(R.string.calendar_rules_autotrack_needs_read),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -199,7 +215,11 @@ fun CalendarRulesScreen(
         if (state.syncEnabled && permission.isGranted) {
             AevumCard {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                    Text("Synchronisierung", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stringResource(R.string.calendar_rules_section_sync),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
                     // Zeitstempel des letzten Syncs (Auftragsanforderung).
                     Text(
@@ -208,10 +228,13 @@ fun CalendarRulesScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = when {
-                            state.cachedEventCount == 0 -> "Keine Termine im Synchronisierungsfenster."
-                            state.cachedEventCount == 1 -> "1 Termin zwischengespeichert."
-                            else -> "${state.cachedEventCount} Termine zwischengespeichert."
+                        text = when (state.cachedEventCount) {
+                            0 -> stringResource(R.string.calendar_rules_cached_none)
+                            1 -> stringResource(R.string.calendar_rules_cached_one)
+                            else -> stringResource(
+                                R.string.calendar_rules_cached_many,
+                                state.cachedEventCount
+                            )
                         },
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -239,17 +262,35 @@ fun CalendarRulesScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                             }
-                            Text(if (syncing) "Synchronisiere…" else "Jetzt synchronisieren")
+                            Text(
+                                if (syncing) {
+                                    stringResource(R.string.calendar_rules_sync_running)
+                                } else {
+                                    stringResource(R.string.calendar_rules_sync_now)
+                                }
+                            )
                         }
                     }
 
-                    // Ergebnis-Feedback (transient).
+                    // Ergebnis-Feedback (transient). Der ViewModel-State hält
+                    // weiterhin technische Codes (sync_ok_<n>/sync_failed*);
+                    // nur die Auflösung in Text ist hier lokalisiert.
                     syncMessage?.let { msg ->
                         val text = when {
-                            msg.startsWith("sync_ok_") ->
-                                "Synchronisiert: ${msg.removePrefix("sync_ok_")} Termine."
-                            msg == "sync_failed_permission" -> "Berechtigung fehlt — bitte erneut erteilen."
-                            else -> "Synchronisierung fehlgeschlagen."
+                            msg.startsWith("sync_ok_") -> {
+                                // Ehrlich bleiben: ein unparsebarer Zähler
+                                // darf nicht stillschweigend als "0" erscheinen.
+                                val count = msg.removePrefix("sync_ok_").toIntOrNull()
+                                if (count == null) {
+                                    stringResource(R.string.calendar_rules_sync_result_failed)
+                                } else {
+                                    stringResource(R.string.calendar_rules_sync_result_ok, count)
+                                }
+                            }
+                            msg == "sync_failed_permission" ->
+                                stringResource(R.string.calendar_rules_sync_result_permission)
+                            else ->
+                                stringResource(R.string.calendar_rules_sync_result_failed)
                         }
                         Text(
                             text,
@@ -263,7 +304,10 @@ fun CalendarRulesScreen(
                     }
 
                     Spacer(Modifier.height(2.dp))
-                    Text("Automatischer Sync alle:", fontSize = 13.sp)
+                    Text(
+                        stringResource(R.string.calendar_rules_sync_interval_label),
+                        fontSize = 13.sp
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         SYNC_INTERVALS.forEach { hours ->
                             val selected = state.syncIntervalHours == hours
@@ -278,7 +322,11 @@ fun CalendarRulesScreen(
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    if (hours == 24) "1 Tag" else "${hours} h",
+                                    if (hours == 24) {
+                                        stringResource(R.string.calendar_rules_sync_interval_day)
+                                    } else {
+                                        stringResource(R.string.calendar_rules_sync_interval_hours, hours)
+                                    },
                                     fontSize = 12.sp,
                                     color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -286,7 +334,7 @@ fun CalendarRulesScreen(
                         }
                     }
                     Text(
-                        "Synchronisiert nur bei ausreichend Akku — kein 24/7-Zugriff.",
+                        stringResource(R.string.calendar_rules_sync_battery_note),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -302,7 +350,7 @@ fun CalendarRulesScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Regeln",
+                        stringResource(R.string.calendar_rules_section_rules),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
@@ -312,7 +360,7 @@ fun CalendarRulesScreen(
 
                 if (state.rules.isEmpty()) {
                     Text(
-                        "Noch keine Regeln. Beispiel: „Enthält Vorlesung oder Übung → Activity Studium“.",
+                        stringResource(R.string.calendar_rules_empty),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -336,11 +384,11 @@ fun CalendarRulesScreen(
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Regel hinzufügen")
+                    Text(stringResource(R.string.calendar_rules_add))
                 }
                 if (!permission.isGranted) {
                     Text(
-                        "Regeln lassen sich nach dem Erteilen der Berechtigung anlegen.",
+                        stringResource(R.string.calendar_rules_add_needs_permission),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -351,15 +399,13 @@ fun CalendarRulesScreen(
         // ── Erklär-Karte ──────────────────────────────────────────────
         AevumCard(variant = CardVariant.Outlined) {
             Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
-                Text("So funktioniert es", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "• Trifft ein Termin auf eine Regel, startet die Aufzeichnung " +
-                        "zum Terminbeginn und endet mit dem Terminende.\n" +
-                        "• In der Timeline erscheinen die kommenden 7 Tage bereits " +
-                        "vorab — diagonal gestrichelt, damit Pläne und echte " +
-                        "Aufzeichnungen unterscheidbar bleiben.\n" +
-                        "• Aevum liest den Kalender nur. Es werden niemals Termine " +
-                        "angelegt oder verändert.",
+                    stringResource(R.string.calendar_rules_how_it_works_title),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    stringResource(R.string.calendar_rules_how_it_works_body),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -387,16 +433,20 @@ fun CalendarRulesScreen(
     pendingDelete?.let { rule ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Regel löschen?") },
-            text = { Text("„${rule.name}“ wird entfernt. Bereits aufgezeichnete Aktivitäten bleiben erhalten.") },
+            title = { Text(stringResource(R.string.calendar_rules_delete_title)) },
+            text = {
+                Text(stringResource(R.string.calendar_rules_delete_message, rule.name))
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteRule(rule.id)
                     pendingDelete = null
-                }) { Text("Löschen") }
+                }) { Text(stringResource(R.string.common_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Abbrechen") }
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
             }
         )
     }
@@ -418,34 +468,44 @@ private fun PermissionBanner(
 ) {
     AevumCard(variant = CardVariant.Gradient) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Text("Kalender verbinden", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.calendar_rules_permission_title),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold
+            )
             Text(
                 text = when (permission) {
                     is CalendarPermissionState.PermanentlyDenied ->
-                        "Die Berechtigung ist gesperrt. Öffne die App-Einstellungen und erlaube " +
-                            "„Kalender“ unter Berechtigungen."
+                        stringResource(R.string.calendar_rules_permission_body_blocked)
                     is CalendarPermissionState.Denied ->
-                        "Ohne Kalender-Zugriff kann Aevum keine Termine erkennen. " +
-                            "Die Berechtigung ist jederzeit in den System-Einstellungen widerrufbar."
+                        stringResource(R.string.calendar_rules_permission_body_denied)
                     else ->
-                        "Aevum liest deine Termine ausschließlich lokal auf diesem Gerät, " +
-                            "um Aktivitäten zum richtigen Zeitpunkt aufzuzeichnen. " +
-                            "Es werden keine Termine angelegt oder verändert."
+                        stringResource(R.string.calendar_rules_permission_body_notasked)
                 },
                 fontSize = 13.sp
             )
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 when (permission) {
                     is CalendarPermissionState.PermanentlyDenied -> {
-                        Button(onClick = onOpenSettings) { Text("App-Einstellungen öffnen") }
+                        Button(onClick = onOpenSettings) {
+                            Text(stringResource(R.string.calendar_rules_permission_open_settings))
+                        }
                     }
                     is CalendarPermissionState.Denied -> {
-                        Button(onClick = onRequest) { Text("Erneut versuchen") }
-                        TextButton(onClick = onDismiss) { Text("Später") }
+                        Button(onClick = onRequest) {
+                            Text(stringResource(R.string.calendar_rules_permission_retry))
+                        }
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.calendar_rules_permission_later))
+                        }
                     }
                     else -> {
-                        Button(onClick = onRequest) { Text("Zugriff erlauben") }
-                        TextButton(onClick = onDismiss) { Text("Erstmal ohne") }
+                        Button(onClick = onRequest) {
+                            Text(stringResource(R.string.calendar_rules_permission_allow))
+                        }
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.calendar_rules_permission_skip))
+                        }
                     }
                 }
             }
@@ -488,7 +548,7 @@ private fun RuleRow(
                     // Ehrlicher Hinweis statt stiller Nicht-Ausführung
                     // (die Aktivität kann gelöscht worden sein —
                     // ON DELETE SET NULL).
-                    "→ Aktivität fehlt (bitte neu wählen)"
+                    stringResource(R.string.calendar_rules_rule_activity_missing)
                 },
                 fontSize = 11.sp,
                 color = if (activityType != null) {
@@ -499,10 +559,18 @@ private fun RuleRow(
             )
         }
         IconButton(onClick = onEdit) {
-            Icon(Icons.Filled.Edit, contentDescription = "Bearbeiten", modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = stringResource(R.string.common_edit),
+                modifier = Modifier.size(18.dp)
+            )
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "Löschen", modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = stringResource(R.string.common_delete),
+                modifier = Modifier.size(18.dp)
+            )
         }
         Switch(checked = rule.enabled, onCheckedChange = onToggle)
     }
@@ -534,32 +602,50 @@ private fun ToggleLine(
     }
 }
 
-/** Kompakte, lesbare Zusammenfassung der Regel-Bedingung. */
+/**
+ * Kompakte, lesbare Zusammenfassung der Regel-Bedingung.
+ *
+ * M18.129-i18n: `@Composable`, weil die Bausteine aus Ressourcen kommen.
+ * Wird ausschließlich innerhalb von `Text(...)` aufgerufen — das ist
+ * erlaubt und hält die Lokalisierung an einer Stelle.
+ */
+@Composable
 private fun ruleConditionSummary(rule: CalendarRule): String {
     val base = when (rule.matchType) {
         com.d_drostes_apps.aevum.data.model.CalendarRuleType.TITLE_CONTAINS ->
-            "Titel enthält „${rule.matchValue}“"
+            stringResource(R.string.calendar_rules_summary_title_contains, rule.matchValue)
         com.d_drostes_apps.aevum.data.model.CalendarRuleType.DESCRIPTION_CONTAINS ->
-            "Beschreibung enthält „${rule.matchValue}“"
+            stringResource(R.string.calendar_rules_summary_desc_contains, rule.matchValue)
         com.d_drostes_apps.aevum.data.model.CalendarRuleType.TITLE_REGEX ->
-            "Titel passt auf /${rule.matchValue}/"
+            stringResource(R.string.calendar_rules_summary_title_regex, rule.matchValue)
         com.d_drostes_apps.aevum.data.model.CalendarRuleType.CALENDAR_IS -> {
             val n = com.d_drostes_apps.aevum.domain.calendar.CalendarMatchEngine
                 .parseIds(rule.matchCalendarIds).size
-            if (n == 0) "Alle Kalender" else "$n Kalender ausgewählt"
+            if (n == 0) {
+                stringResource(R.string.calendar_rules_summary_all_calendars)
+            } else {
+                stringResource(R.string.calendar_rules_summary_calendars_selected, n)
+            }
         }
         com.d_drostes_apps.aevum.data.model.CalendarRuleType.ATTENDEE_CONTAINS ->
-            "Teilnehmer enthält „${rule.matchValue}“"
+            stringResource(R.string.calendar_rules_summary_attendee_contains, rule.matchValue)
         com.d_drostes_apps.aevum.data.model.CalendarRuleType.ALL_DAY_ONLY ->
-            "Nur ganztägige Termine"
+            stringResource(R.string.calendar_rules_summary_all_day_only)
         else ->
-            "Titel/Beschreibung enthält „${rule.matchValue}“"
+            stringResource(R.string.calendar_rules_summary_anyfield_contains, rule.matchValue)
     }
     val extras = mutableListOf<String>()
-    if (rule.requireAllWords) extras += "alle Wörter"
-    if (rule.caseSensitive) extras += "Groß/Klein"
-    if (rule.minDurationMinutes > 0) extras += "≥ ${rule.minDurationMinutes} min"
-    if (rule.weekdayMask != 0x7F) extras += "bestimmte Tage"
+    if (rule.requireAllWords) extras += stringResource(R.string.calendar_rules_summary_extra_all_words)
+    if (rule.caseSensitive) extras += stringResource(R.string.calendar_rules_summary_extra_case)
+    if (rule.minDurationMinutes > 0) {
+        extras += stringResource(
+            R.string.calendar_rules_summary_extra_min_duration,
+            rule.minDurationMinutes
+        )
+    }
+    if (rule.weekdayMask != 0x7F) {
+        extras += stringResource(R.string.calendar_rules_summary_extra_weekdays)
+    }
     if (rule.windowStartMinute >= 0 || rule.windowEndMinute >= 0) {
         val from = rule.windowStartMinute.takeIf { it >= 0 }?.let { "%02d:%02d".format(it / 60, it % 60) }
         val to = rule.windowEndMinute.takeIf { it >= 0 }?.let { "%02d:%02d".format(it / 60, it % 60) }
@@ -568,16 +654,29 @@ private fun ruleConditionSummary(rule: CalendarRule): String {
     return if (extras.isEmpty()) base else "$base · ${extras.joinToString(", ")}"
 }
 
-/** „Zuletzt synchronisiert: heute 14:23" / „noch nie". */
+/**
+ * „Zuletzt synchronisiert: heute 14:23" / „noch nie".
+ *
+ * Das Zeitformat (HH:mm) ist sprachneutral. Das DATUM wird lokalisiert
+ * formatiert — auf Deutsch bleibt es beim projektweit üblichen
+ * `dd.MM.yyyy`, auf Englisch wird daraus z. B. „Sep 14, 2026" (ein
+ * deutsches Datumsmuster wäre für englische Nutzer irreführend).
+ */
+@Composable
 private fun formatLastSync(lastSyncAt: Long): String {
-    if (lastSyncAt <= 0L) return "Zuletzt synchronisiert: noch nie"
+    if (lastSyncAt <= 0L) return stringResource(R.string.calendar_rules_last_sync_never)
     val zone = ZoneId.systemDefault()
     val dt = Instant.ofEpochMilli(lastSyncAt).atZone(zone)
     val today = java.time.LocalDate.now(zone)
     val time = dt.format(DateTimeFormatter.ofPattern("HH:mm"))
     return when (dt.toLocalDate()) {
-        today -> "Zuletzt synchronisiert: heute $time"
-        today.minusDays(1) -> "Zuletzt synchronisiert: gestern $time"
-        else -> "Zuletzt synchronisiert: ${dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))} $time"
+        today -> stringResource(R.string.calendar_rules_last_sync_today, time)
+        today.minusDays(1) -> stringResource(R.string.calendar_rules_last_sync_yesterday, time)
+        else -> {
+            val date = dt.format(
+                DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(AppLocale.current)
+            )
+            stringResource(R.string.calendar_rules_last_sync_date, date, time)
+        }
     }
 }
