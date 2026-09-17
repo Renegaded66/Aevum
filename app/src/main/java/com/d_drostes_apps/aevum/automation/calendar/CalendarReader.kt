@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
@@ -237,7 +238,8 @@ class CalendarReader @Inject constructor(
                 while (c.moveToNext()) {
                     out += Triple(
                         c.getLong(idxId).toString(),
-                        c.getString(idxName) ?: "Kalender",
+                        c.getString(idxName)
+                            ?: context.getString(R.string.calendar_rules_unnamed_calendar),
                         c.getString(idxAccount) ?: ""
                     )
                 }

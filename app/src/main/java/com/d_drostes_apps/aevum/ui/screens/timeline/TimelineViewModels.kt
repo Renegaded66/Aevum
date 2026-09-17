@@ -179,7 +179,10 @@ class TimelineViewModel @Inject constructor(
                     events = cal.events,
                     rules = cal.rules,
                     types = cal.types,
-                    zone = zoneId
+                    zone = zoneId,
+                    // M18.129-i18n: application als Context für den
+                    // lokalisierten Fallback-Titel („Termin"/„Event").
+                    context = application
                 )
                 // Der Nutzer kann in der Timeline weiter als 7 Tage
                 // vorausblättern. Dann ist die Karte leer — statt die
@@ -193,7 +196,8 @@ class TimelineViewModel @Inject constructor(
                             events = cal.events,
                             rules = cal.rules,
                             types = cal.types,
-                            zone = zoneId
+                            zone = zoneId,
+                            context = application
                         )
                     } else {
                         emptyList()

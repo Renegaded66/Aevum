@@ -1,5 +1,7 @@
 package com.d_drostes_apps.aevum.ui.screens.timeline
 
+import android.content.Context
+import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
 import com.d_drostes_apps.aevum.data.model.CalendarRule
@@ -61,7 +63,14 @@ fun buildPlannedSessionsForDay(
     events: List<CalendarEventCache>,
     rules: List<CalendarRule>,
     types: List<ActivityType>,
-    zone: ZoneId = ZoneId.systemDefault()
+    zone: ZoneId = ZoneId.systemDefault(),
+    /**
+     * M18.129-i18n: Optionaler Context — liefert den lokalisierten
+     * Fallback-Titel für Termine ohne eigenen Titel („Termin"/„Event").
+     * Ohne Context (reine JVM-Aufrufe, Unit-Tests) gilt der deutsche
+     * Quelltext — gleiche Konvention wie [com.d_drostes_apps.aevum.domain.time.TimeFormatting].
+     */
+    context: Context? = null
 ): List<PlannedSessionUi> {
     if (rules.isEmpty() || events.isEmpty()) return emptyList()
 
@@ -69,6 +78,7 @@ fun buildPlannedSessionsForDay(
     val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
     val typeById = types.associateBy { it.id }
     val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+    val fallbackTitle = context?.getString(R.string.calendar_plan_event_fallback_title) ?: "Termin"
 
     return CalendarMatchEngine.evaluate(rules, events, zone)
         .mapNotNull { match ->
@@ -91,7 +101,7 @@ fun buildPlannedSessionsForDay(
                     id = "planned_${event.eventId}_$dayStart",
                     title = match.sessionTitle
                         ?: type?.name
-                        ?: event.title.ifBlank { "Termin" },
+                        ?: event.title.ifBlank { fallbackTitle },
                     activityTypeId = match.rule.activityTypeId,
                     activityTypeName = type?.name ?: "?",
                     activityIcon = type?.icon ?: "•",
@@ -121,7 +131,9 @@ fun buildPlannedSessionsForWeek(
     events: List<CalendarEventCache>,
     rules: List<CalendarRule>,
     types: List<ActivityType>,
-    zone: ZoneId = ZoneId.systemDefault()
+    zone: ZoneId = ZoneId.systemDefault(),
+    /** M18.129-i18n: siehe [buildPlannedSessionsForDay]. */
+    context: Context? = null
 ): Map<LocalDate, List<PlannedSessionUi>> {
     if (rules.isEmpty()) return emptyMap()
     // EINE Auswertung für alle Tage (die Engine prüft Regeln pro Termin,
@@ -129,7 +141,7 @@ fun buildPlannedSessionsForWeek(
     val byDay = mutableMapOf<LocalDate, MutableList<PlannedSessionUi>>()
     for (i in 0 until days) {
         val date = startDate.plusDays(i.toLong())
-        val planned = buildPlannedSessionsForDay(date, events, rules, types, zone)
+        val planned = buildPlannedSessionsForDay(date, events, rules, types, zone, context)
         if (planned.isNotEmpty()) byDay[date] = planned.toMutableList()
     }
     return byDay

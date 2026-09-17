@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M18.129: Calendar integration — settings page (CalendarRulesScreen),
+         rule editor (CalendarRuleEditorDialog), timeline plan blocks, reader.
+         Referenced by CalendarRulesScreen.kt, CalendarRuleEditorDialog.kt,
+         PlannedSessions.kt and CalendarReader.kt. -->
+
+    <!-- Header of the calendar settings page -->
+    <string name="calendar_rules_header">Calendar</string>
+    <string name="calendar_rules_header_subtitle">Record calendar events as activities automatically</string>
+
+    <!-- Integration: feature toggles -->
+    <string name="calendar_rules_section_integration">Calendar integration</string>
+    <string name="calendar_rules_toggle_read">Read calendar</string>
+    <string name="calendar_rules_toggle_read_desc_granted">Events are read locally and used for the preview.</string>
+    <string name="calendar_rules_toggle_read_desc_locked">Permission required — see the notice above.</string>
+    <string name="calendar_rules_toggle_autotrack">Record automatically</string>
+    <string name="calendar_rules_toggle_autotrack_desc">Starts and stops activities at event boundaries.</string>
+    <string name="calendar_rules_autotrack_needs_read">To record, enable “Read calendar” first.</string>
+
+    <!-- Synchronization -->
+    <string name="calendar_rules_section_sync">Synchronization</string>
+    <string name="calendar_rules_cached_none">No events in the sync window.</string>
+    <string name="calendar_rules_cached_one">1 event cached.</string>
+    <string name="calendar_rules_cached_many">%1$d events cached.</string>
+    <string name="calendar_rules_sync_running">Syncing…</string>
+    <string name="calendar_rules_sync_now">Sync now</string>
+    <string name="calendar_rules_sync_result_ok">Synced: %1$d events.</string>
+    <string name="calendar_rules_sync_result_permission">Permission missing — please grant it again.</string>
+    <string name="calendar_rules_sync_result_failed">Synchronization failed.</string>
+    <string name="calendar_rules_sync_interval_label">Automatic sync every:</string>
+    <string name="calendar_rules_sync_interval_day">1 day</string>
+    <string name="calendar_rules_sync_interval_hours">%1$d h</string>
+    <string name="calendar_rules_sync_battery_note">Syncs only with sufficient battery — no 24/7 access.</string>
+    <string name="calendar_rules_last_sync_never">Last synced: never</string>
+    <string name="calendar_rules_last_sync_today">Last synced: today %1$s</string>
+    <string name="calendar_rules_last_sync_yesterday">Last synced: yesterday %1$s</string>
+    <string name="calendar_rules_last_sync_date">Last synced: %1$s %2$s</string>
+
+    <!-- Rule list -->
+    <string name="calendar_rules_section_rules">Rules</string>
+    <string name="calendar_rules_empty">No rules yet. Example: “Contains lecture or exercise → Activity Study”.</string>
+    <string name="calendar_rules_add">Add rule</string>
+    <string name="calendar_rules_add_needs_permission">Rules can be created once the permission is granted.</string>
+    <string name="calendar_rules_rule_activity_missing">→ Activity missing (please choose again)</string>
+    <string name="calendar_rules_delete_title">Delete rule?</string>
+    <string name="calendar_rules_delete_message">“%1$s” will be removed. Already recorded activities are kept.</string>
+
+    <!-- Explainer card -->
+    <string name="calendar_rules_how_it_works_title">How it works</string>
+    <string name="calendar_rules_how_it_works_body">• When an event matches a rule, recording starts at the event start and ends with the event end.\n• The timeline already shows the next 7 days in advance — diagonally striped so plans and real recordings stay distinguishable.\n• Aevum only reads the calendar. Events are never created or modified.</string>
+
+    <!-- Permission banner (4 states) -->
+    <string name="calendar_rules_permission_title">Connect calendar</string>
+    <string name="calendar_rules_permission_body_blocked">The permission is blocked. Open the app settings and allow “Calendar” under permissions.</string>
+    <string name="calendar_rules_permission_body_denied">Without calendar access Aevum cannot detect any events. The permission can be revoked in the system settings at any time.</string>
+    <string name="calendar_rules_permission_body_notasked">Aevum reads your events exclusively on this device to record activities at the right moment. No events are created or changed.</string>
+    <string name="calendar_rules_permission_open_settings">Open app settings</string>
+    <string name="calendar_rules_permission_retry">Try again</string>
+    <string name="calendar_rules_permission_later">Later</string>
+    <string name="calendar_rules_permission_allow">Allow access</string>
+    <string name="calendar_rules_permission_skip">Not now</string>
+
+    <!-- Rule summary (plain-text condition) -->
+    <string name="calendar_rules_summary_title_contains">Title contains “%1$s”</string>
+    <string name="calendar_rules_summary_desc_contains">Description contains “%1$s”</string>
+    <string name="calendar_rules_summary_title_regex">Title matches /%1$s/</string>
+    <string name="calendar_rules_summary_anyfield_contains">Title/description contains “%1$s”</string>
+    <string name="calendar_rules_summary_attendee_contains">Attendee contains “%1$s”</string>
+    <string name="calendar_rules_summary_all_day_only">All-day events only</string>
+    <string name="calendar_rules_summary_all_calendars">All calendars</string>
+    <string name="calendar_rules_summary_calendars_selected">%1$d calendars selected</string>
+    <string name="calendar_rules_summary_extra_all_words">all words</string>
+    <string name="calendar_rules_summary_extra_case">case-sensitive</string>
+    <string name="calendar_rules_summary_extra_weekdays">selected days</string>
+    <string name="calendar_rules_summary_extra_min_duration">≥ %1$d min</string>
+
+    <!-- Rule editor: title + validation -->
+    <string name="calendar_editor_title_new">New calendar rule</string>
+    <string name="calendar_editor_title_edit">Edit rule</string>
+    <string name="calendar_editor_error_no_name">Please give the rule a name.</string>
+    <string name="calendar_editor_error_no_activity">Please choose the activity to be recorded.</string>
+    <string name="calendar_editor_error_no_term">Please enter the search term.</string>
+
+    <!-- Rule editor: name -->
+    <string name="calendar_editor_name_label">Rule name</string>
+    <string name="calendar_editor_name_placeholder">e.g. Study from calendar</string>
+
+    <!-- Rule editor: condition -->
+    <string name="calendar_editor_section_condition">Condition</string>
+    <string name="calendar_editor_calendar_pick_hint">Select calendars (no selection = all calendars)</string>
+    <string name="calendar_editor_calendar_none">No calendars found — check the permission.</string>
+    <string name="calendar_editor_allday_hint">Matches all-day events only (e.g. vacation, public holidays).</string>
+    <string name="calendar_editor_regex_label">Regular expression (title)</string>
+    <string name="calendar_editor_regex_placeholder">^VL\\s+\\d+</string>
+    <string name="calendar_editor_regex_hint">Advanced: use only when simple words are not enough.</string>
+    <string name="calendar_editor_field_words_title">Words in title</string>
+    <string name="calendar_editor_field_words_description">Words in description</string>
+    <string name="calendar_editor_field_attendee">Attendee contains</string>
+    <string name="calendar_editor_field_words_any">Words (title or description)</string>
+    <string name="calendar_editor_words_placeholder">Lecture, exercise</string>
+    <string name="calendar_editor_words_hint">Separate multiple words with commas.</string>
+    <string name="calendar_editor_toggle_all_words">All words must be present</string>
+    <string name="calendar_editor_toggle_all_words_desc">Off: one match is enough (OR). On: all words required (AND).</string>
+    <string name="calendar_editor_toggle_case">Match case</string>
+    <string name="calendar_editor_toggle_case_desc">Off: “lecture” also finds “Lecture”.</string>
+
+    <!-- Rule editor: action -->
+    <string name="calendar_editor_section_action">Action</string>
+    <string name="calendar_editor_activity_placeholder">Choose activity…</string>
+    <string name="calendar_editor_custom_title_label">Custom title (optional)</string>
+    <string name="calendar_editor_custom_title_placeholder">Empty = name of the activity</string>
+    <string name="calendar_editor_toggle_stop_running">End running recording</string>
+    <string name="calendar_editor_toggle_stop_running_desc">On: the event takes over (default). Off: only start if nothing is running.</string>
+
+    <!-- Rule editor: filter -->
+    <string name="calendar_editor_section_filter">Filter (optional)</string>
+    <string name="calendar_editor_min_duration_label">Minimum duration in minutes (0 = any)</string>
+    <string name="calendar_editor_toggle_time_window">Only at certain times</string>
+    <string name="calendar_editor_toggle_time_window_desc">Events outside this window are ignored.</string>
+    <string name="calendar_editor_window_from">From</string>
+    <string name="calendar_editor_window_to">To</string>
+    <string name="calendar_editor_weekdays_label">Weekdays</string>
+
+    <!-- Rule editor: controls -->
+    <string name="calendar_editor_confirm_add">Add</string>
+    <string name="calendar_editor_dropdown_open">Open selection</string>
+
+    <!-- Rule editor: type labels -->
+    <string name="calendar_editor_type_any_field">Word in title or description</string>
+    <string name="calendar_editor_type_title">Word in title only</string>
+    <string name="calendar_editor_type_description">Word in description only</string>
+    <string name="calendar_editor_type_regex">Regular expression in title</string>
+    <string name="calendar_editor_type_calendars">Specific calendars</string>
+    <string name="calendar_editor_type_attendee">Attendee contains</string>
+    <string name="calendar_editor_type_allday">All-day events only</string>
+    <string name="calendar_editor_type_unknown">Unknown</string>
+
+    <!-- Fallback texts (reader / timeline plan blocks) -->
+    <string name="calendar_rules_unnamed_calendar">Calendar</string>
+    <string name="calendar_plan_event_fallback_title">Event</string>
+</resources>
