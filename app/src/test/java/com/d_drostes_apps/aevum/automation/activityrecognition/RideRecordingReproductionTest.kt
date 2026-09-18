@@ -428,6 +428,53 @@ class RideRecordingReproductionTest {
         assertThat(session!!.startAt - t0).isGreaterThan(3L * 60_000L)
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // WELT F: MOTORRAD-AR als ON_BICYCLE (die Zweirad-Klasse der AR-API;
+    // Motorräder landen real regelmäßig in ON_BICYCLE). ON_BICYCLE-
+    // Samples widerlegen alle 30s die Fahrzeug-Evidence (Fast-Pfad tot),
+    // lassen den Motion-Kontext aber UNKNOWN (8-m/s-Schwelle) und
+    // starten den 15s-CONFIRM-Burst. Ergebnis: 30er-Phase (8,33 m/s)
+    // erreicht die 8-m/s-Schwelle → Start nach ~45-60s — das HISTORISCHE
+    // „zu spät"-Verhalten.
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `Welt F - Motorrad-AR als ON_BICYCLE - historisches zu-spaet-Verhalten (45-60s)`() = runTest {
+        val bridge = bridge()
+        val repo = FakeActivityRepository()
+        val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+
+        var session: ActivitySession? = null
+        val log = StringBuilder()
+        var positionM = 0.0
+
+        for (t in 0L..600_000L step 15_000L) {
+            val now = t0 + t
+            // AR-Sample alle 30s: IMMER ON_BICYCLE (Zweirad-Klassifikation).
+            if (t % 30_000L == 0L) {
+                bridge.onBicycleSample() // Evidence-Reset (kein Fast-Start)
+                log.append("t=${t / 1000}s AR=ON_BICYCLE -> Evidence-Reset\n")
+            }
+            // CONFIRM-Burst-Fixes (15s, HIGH) — saubere Fixes.
+            val speed = if (t < 3 * 60_000L) KMH_30.toFloat() else KMH_70.toFloat()
+            positionM += speed * 15.0
+            bridge.addDriveProbe(
+                probe(now, speed, 10f, speed * 15.0, latFor(positionM)), false
+            )
+            val (decision, reason) = handleFixDecision(bridge, now)
+            if (decision > 0) {
+                log.append("t=${t / 1000}s START (${if (decision == 1) "FAST" else "NORMAL"}): $reason\n")
+                session = commitStart(bridge, manager, now, "f")
+                break
+            }
+        }
+        println("=== WELT F (ON_BICYCLE-dominant): ${if (session != null) "AUFGEZEICHNET @ ${(session!!.startAt - t0) / 1000}s" else "NICHTS"} ===")
+        print(log)
+        assertThat(session).isNotNull()
+        // Historisch: spät, aber auf jeden Fall — hier 45-60s nach Fahrtbeginn.
+        assertThat(session!!.startAt - t0).isLessThan(3L * 60_000L)
+    }
+
     // ── Fakes (Muster: DriveLeadTimeReproductionTest) ────────────────
 
     private class FakeActivityRepository : ActivityRepository {
