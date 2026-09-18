@@ -49,6 +49,8 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     AppTracking("app_tracking", R.string.app_tracking_title),
     // M18.129: Kalender-Integration (Regeln + Sync)
     CalendarRules("calendar_rules", R.string.calendar_rules_title),
+    // M18.131: Termin-Auswahl — einzelne Kalender-Termine einer Activity zuordnen
+    CalendarEventPicker("calendar_events", R.string.calendar_picker_title),
     // M18.30: Todos
     Todos("todos", R.string.todos_title),
     TodoCreate("todo/new", R.string.todo_create_title),

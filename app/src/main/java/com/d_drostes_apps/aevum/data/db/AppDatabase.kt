@@ -58,7 +58,9 @@ import com.d_drostes_apps.aevum.data.model.*
         LocationTrackPoint::class,
         // M18.129: Kalender-Integration (Regeln + Termin-Cache)
         CalendarRule::class,
-        CalendarEventCache::class
+        CalendarEventCache::class,
+        // M18.131: manuell markierte Einzel-Termine (Kalender → Activity)
+        CalendarEventPin::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
@@ -85,7 +87,13 @@ import com.d_drostes_apps.aevum.data.model.*
     // M18.129: v41 — calendar_rule + calendar_event_cache (Kalender-
     // Integration: Regeln + Termin-Cache) und vier neue Spalten in
     // automation_settings für den Sync-Zustand.
-    version = 41,
+    // M18.131: v42 — calendar_event_pin (vom Nutzer einzeln markierte
+    // Termine → Activity). Eigene Tabelle statt Regeln, weil eine
+    // Markierung an der Termin-INSTANZ hängt (Instanz-Schlüssel enthält
+    // den Startzeitpunkt) und damit genau ein Vorkommen trifft — auch bei
+    // wiederkehrenden Terminen. FK auf activity_type mit SET NULL, damit
+    // das Löschen einer Aktivität die Markierung nicht mitreißt.
+    version = 42,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -126,6 +134,8 @@ abstract class AppDatabase : RoomDatabase() {
     // M18.129: Kalender-Integration
     abstract fun calendarRuleDao(): CalendarRuleDao
     abstract fun calendarEventCacheDao(): CalendarEventCacheDao
+    // M18.131: manuell markierte Einzel-Termine
+    abstract fun calendarEventPinDao(): CalendarEventPinDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1528,6 +1538,46 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_auto_tracking_enabled INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_last_sync_at INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("ALTER TABLE automation_settings ADD COLUMN calendar_sync_interval_hours INTEGER NOT NULL DEFAULT 6")
+            }
+        }
+
+        // M18.131: v41→v42 — calendar_event_pin.
+        //
+        // Vom Nutzer einzeln markierte Kalender-Termine, die als Activity
+        // aufgezeichnet werden sollen. Spiegelbildlich zur Entität
+        // deklariert (M18.40/41-Lektion: Room validiert das Schema zur
+        // RUNTIME — jede Abweichung bei Spaltennamen, NOT NULL, Defaults
+        // oder Indices wirft eine IllegalStateException beim DB-Öffnen,
+        // und fallbackToDestructiveMigration ist seit M18.109 entfernt).
+        //
+        // Die drei Indices sind exakt die der Entität:
+        //  - activity_type_id: FK-Spalte (Room-Pflicht)
+        //  - event_start_at: für das Aufräumen abgelaufener Markierungen
+        //  - event_id UNIQUE: Instanz-Schlüssel, verhindert Doppel-Pins
+        //
+        // BEWUSST KEIN FK auf calendar_event_cache: der Cache wird bei
+        // jedem Sync geleert und neu befüllt — ein CASCADE würde die
+        // Nutzer-Markierung bei jedem Sync mitlöschen.
+        val MIGRATION_41_42 = object : Migration(41, 42) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `calendar_event_pin` (
+                        `event_id` TEXT PRIMARY KEY NOT NULL,
+                        `activity_type_id` TEXT,
+                        `default_title` TEXT,
+                        `event_start_at` INTEGER NOT NULL,
+                        `event_end_at` INTEGER NOT NULL,
+                        `event_title` TEXT NOT NULL,
+                        `calendar_name` TEXT NOT NULL DEFAULT '',
+                        `overlap_policy` TEXT NOT NULL DEFAULT 'OVERRIDE',
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`activity_type_id`) REFERENCES `activity_type`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_calendar_event_pin_activity_type_id` ON `calendar_event_pin` (`activity_type_id`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_calendar_event_pin_event_start_at` ON `calendar_event_pin` (`event_start_at`)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_calendar_event_pin_event_id` ON `calendar_event_pin` (`event_id`)")
             }
         }
     }

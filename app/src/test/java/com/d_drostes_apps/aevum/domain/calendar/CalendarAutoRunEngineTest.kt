@@ -48,6 +48,23 @@ class CalendarAutoRunEngineTest {
         rule = CalendarRule(id = "r1", name = "Studium", activityTypeId = activityTypeId, priority = priority)
     )
 
+    /** M18.131: Match aus einer manuellen Markierung (ohne Regel). */
+    private fun pinnedMatch(
+        startAt: Long,
+        endAt: Long,
+        id: String = "e1",
+        activityTypeId: String = "fitness"
+    ) = CalendarMatch(
+        event = event(startAt, endAt, id),
+        pin = com.d_drostes_apps.aevum.data.model.CalendarEventPin(
+            eventId = event(startAt, endAt, id).eventId,
+            activityTypeId = activityTypeId,
+            eventStartAt = startAt,
+            eventEndAt = endAt,
+            eventTitle = "Termin"
+        )
+    )
+
     // ── shouldStart ───────────────────────────────────────────────────
 
     @Test
@@ -197,5 +214,49 @@ class CalendarAutoRunEngineTest {
     @Test
     fun `leere Liste ergibt keinen Kandidaten`() {
         assertThat(CalendarAutoRunEngine.pickStartCandidate(emptyList(), base, null)).isNull()
+    }
+
+    // ── M18.131: manuelle Markierung gewinnt beim Doppel-Start ────────
+
+    /**
+     * Zwei Termine sind gleichzeitig fällig: einer per Regel, einer vom
+     * Nutzer markiert. Der markierte MUSS gewinnen — auch wenn die Regel
+     * eine höhere Priorität trägt. Der Auftrag verlangt den Vorrang des
+     * Benutzerdefinierten; ohne diese Zusicherung wäre er beim
+     * Doppel-Start-Fall wieder verloren.
+     */
+    @Test
+    fun `manuell markierter Termin gewinnt gegen Regel mit hoeherer Prioritaet`() {
+        val now = base + minute
+        val ruleMatch = match(base, base + 60 * minute, priority = 10, id = "regel")
+        val pinMatch = pinnedMatch(base, base + 60 * minute, id = "markiert")
+        val picked = CalendarAutoRunEngine.pickStartCandidate(listOf(ruleMatch, pinMatch), now, null)
+        assertThat(picked?.event?.eventId).isEqualTo("markiert")
+        assertThat(picked?.isUserPinned).isTrue()
+    }
+
+    @Test
+    fun `manuell markierter Termin gewinnt auch bei gleichem Beginn`() {
+        val now = base + 5 * minute
+        // Der Regel-Termin beginnt SPÄTER — nach der alten Regel „späterer
+        // Beginn gewinnt" hätte er den markierten verdrängt.
+        val ruleMatch = match(base + 3 * minute, base + 60 * minute, priority = 0, id = "regel")
+        val pinMatch = pinnedMatch(base, base + 60 * minute, id = "markiert")
+        val picked = CalendarAutoRunEngine.pickStartCandidate(listOf(ruleMatch, pinMatch), now, null)
+        assertThat(picked?.event?.eventId).isEqualTo("markiert")
+    }
+
+    /**
+     * Gegenprobe: ohne Markierung funktioniert die alte Prioritäts-Ordnung
+     * unverändert (die Anpassung hat das Bestandsverhalten nicht gekippt).
+     */
+    @Test
+    fun `ohne Markierung ordnen Regeln weiter nach Prioritaet`() {
+        val now = base + minute
+        val low = match(base, base + 60 * minute, priority = 0, id = "low")
+        val high = match(base, base + 60 * minute, priority = 10, id = "high")
+        val picked = CalendarAutoRunEngine.pickStartCandidate(listOf(low, high), now, null)
+        assertThat(picked?.event?.eventId).isEqualTo("high")
+        assertThat(picked?.isUserPinned).isFalse()
     }
 }

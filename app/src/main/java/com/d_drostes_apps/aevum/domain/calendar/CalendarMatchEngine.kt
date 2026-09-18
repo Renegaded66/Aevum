@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum.domain.calendar
 
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
+import com.d_drostes_apps.aevum.data.model.CalendarEventPin
 import com.d_drostes_apps.aevum.data.model.CalendarOverlapPolicy
 import com.d_drostes_apps.aevum.data.model.CalendarRule
 import com.d_drostes_apps.aevum.data.model.CalendarRuleType
@@ -241,24 +242,126 @@ object CalendarMatchEngine {
         events.mapNotNull { event ->
             findRule(rules, event, zone)?.let { CalendarMatch(event, it) }
         }
+
+    /**
+     * M18.131: Auflösung MIT den manuell markierten Einzel-Terminen.
+     *
+     * DAS VORRANG-PRINZIP (Auftrag: „Dann sollte das benutzerdefinierte
+     * überwiegen über die Regel"):
+     *
+     *  1. Ist der Termin manuell markiert, gewinnt IMMER die Markierung —
+     *     unabhängig davon, ob eine Regel ebenfalls passt und unabhängig
+     *     von deren [CalendarRule.priority]. Die Priorität ordnet nur
+     *     Regeln untereinander; eine ausdrückliche Nutzer-Entscheidung zu
+     *     EINEM Termin kann durch keine Regel-Metrik überstimmt werden.
+     *  2. Ohne Markierung gilt die Regel mit der höchsten Priorität
+     *     ([findRule]) — unverändertes Bestandsverhalten.
+     *  3. Passt nichts, wird der Termin nicht aufgezeichnet.
+     *
+     * Bewusst EINE Funktion für beide Quellen: der Auto-Start-Worker und
+     * die Timeline-Vorschau rufen ausschließlich diese Variante auf. Damit
+     * kann die Vorschau nicht von dem abweichen, was tatsächlich passiert
+     * (dieselbe Begründung wie bei [evaluate]).
+     *
+     * Die Markierung wird über den Instanz-Schlüssel des Termins gesucht —
+     * bei einem wiederkehrenden Termin trifft sie also genau das eine
+     * Vorkommen, nicht die ganze Serie.
+     *
+     * @param pins Manuell markierte Termine ([CalendarEventPin.eventId]
+     *        entspricht [CalendarEventCache.eventId]).
+     */
+    fun evaluateWithPins(
+        rules: List<CalendarRule>,
+        pins: List<CalendarEventPin>,
+        events: List<CalendarEventCache>,
+        zone: ZoneId = ZoneId.systemDefault()
+    ): List<CalendarMatch> {
+        if (rules.isEmpty() && pins.isEmpty()) return emptyList()
+        val pinByEventId = pins.associateBy { it.eventId }
+        return events.mapNotNull { event ->
+            val pin = pinByEventId[event.eventId]
+            if (pin != null) {
+                // Markierung gewinnt — auch gegen eine passende Regel.
+                CalendarMatch(event, pin = pin)
+            } else {
+                findRule(rules, event, zone)?.let { CalendarMatch(event, it) }
+            }
+        }
+    }
 }
 
 /**
- * M18.129: Ein Termin, der von einer Regel erfasst wird.
+ * M18.129/M18.131: Ein Termin, der aufgezeichnet werden soll.
  * Basis für Auto-Start UND Timeline-Vorschau.
+ *
+ * M18.131: Die Quelle ist entweder eine [rule] (Muster-Match) ODER ein
+ * [pin] (vom Nutzer einzeln markierter Termin). Genau eine der beiden ist
+ * gesetzt — das stellt [CalendarMatchEngine.evaluateWithPins] sicher.
+ * Beide Fälle werden über DIESELBE Klasse geführt, damit Auto-Start,
+ * Stop-Watchdog und Timeline-Vorschau nicht zwei Codepfade brauchen, die
+ * auseinanderdriften könnten.
  */
 data class CalendarMatch(
     val event: CalendarEventCache,
-    val rule: CalendarRule
+    /** Gesetzt, wenn eine Regel den Termin erfasst hat. */
+    val rule: CalendarRule? = null,
+    /** Gesetzt, wenn der Nutzer DIESEN Termin einzeln markiert hat. */
+    val pin: CalendarEventPin? = null
 ) {
+    init {
+        require((rule != null) != (pin != null)) {
+            "CalendarMatch braucht genau eine Quelle (Regel ODER Markierung)"
+        }
+    }
+
     /**
-     * Der Titel der späteren Aufzeichnung: [CalendarRule.defaultTitle]
-     * falls gesetzt, sonst null — dann entscheidet der LiveActivityManager
-     * (er nimmt den Namen des ActivityType, M18.66-FIX9-Muster:
-     * die Session heißt wie die Aktivität, nicht wie der Termin).
+     * Der Titel der späteren Aufzeichnung: eigener Titel falls gesetzt,
+     * sonst null — dann entscheidet der LiveActivityManager (er nimmt den
+     * Namen des ActivityType, M18.66-FIX9-Muster: die Session heißt wie
+     * die Aktivität, nicht wie der Termin).
      */
-    val sessionTitle: String? get() = rule.defaultTitle?.takeIf { it.isNotBlank() }
+    val sessionTitle: String? get() =
+        (pin?.defaultTitle ?: rule?.defaultTitle)?.takeIf { it.isNotBlank() }
+
+    /** Die aufzuzeichnende Aktivität (aus Markierung oder Regel). */
+    val activityTypeId: String? get() = pin?.activityTypeId ?: rule?.activityTypeId
 
     val shouldOverrideRunning: Boolean
-        get() = rule.overlapPolicy == CalendarOverlapPolicy.OVERRIDE
+        get() = (pin?.overlapPolicy ?: rule?.overlapPolicy ?: CalendarOverlapPolicy.OVERRIDE) ==
+            CalendarOverlapPolicy.OVERRIDE
+
+    /** true = manuell markierter Einzel-Termin (UI kennzeichnet das). */
+    val isUserPinned: Boolean get() = pin != null
+
+    /**
+     * M18.131: Sortier-Priorität für den Fall, dass MEHRERE Termine
+     * gleichzeitig fällig sind (überlappende Termine, verspäteter
+     * Worker-Lauf).
+     *
+     * Eine manuelle Markierung bekommt einen Wert oberhalb JEDER
+     * Regel-Priorität: der Nutzer kann eine Regel mit beliebiger Priorität
+     * anlegen, aber seine ausdrückliche Zusage zu einem konkreten Termin
+     * darf davon nicht verdrängt werden. Der Wert ist bewusst NICHT
+     * `Int.MAX_VALUE`, um bei einem späteren Rechenfehler (Addition) nicht
+     * überzulaufen — [PIN_SORT_PRIORITY] liegt hoch genug über allem, was
+     * die UI an Prioritäten zulässt.
+     */
+    val effectivePriority: Int
+        get() = if (pin != null) PIN_SORT_PRIORITY else (rule?.priority ?: 0)
+
+    companion object {
+        /**
+         * Sortier-Priorität einer manuellen Markierung. Die Regel-UI lässt
+         * Prioritäten im niedrigen Bereich zu; 100.000 liegt weit darüber
+         * und lässt trotzdem Raum, ohne in die Nähe von Int.MAX_VALUE zu
+         * kommen.
+         */
+        const val PIN_SORT_PRIORITY = 100_000
+    }
+
+    /**
+     * Anzeigename der Quelle für Vorschau/Tooltip: der Regel-Name oder ein
+     * Hinweis auf die manuelle Markierung.
+     */
+    val sourceLabel: String get() = pin?.let { "pin" } ?: rule?.name.orEmpty()
 }

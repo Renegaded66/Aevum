@@ -23,8 +23,12 @@ android {
         // aus Property-Init nach onCreate verlagert (NPE vor Context-Attach).
         // M18.125: Notification-Bitmap-Recycling (fahrt-gekoppelter OOM —
         // ~1,3 MB/Tick ohne Recycle) + Crash-Log-Spiegel nach Downloads/Aevum.
-        versionCode = 14
-        versionName = "1.0.13"
+        // M18.131: Timeline-Mitternachts-Blockfix (Minuten-Offset statt
+        // Uhrzeit), Limit-Vorwarnung 5 min (Channel war seit M19 tot +
+        // Warnung war nicht persistent), Termin-Auswahl (calendar_event_pin,
+        // DB v42).
+        versionCode = 15
+        versionName = "1.0.14"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

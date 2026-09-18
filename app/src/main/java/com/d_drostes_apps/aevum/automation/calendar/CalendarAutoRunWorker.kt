@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
+import com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepository
 import com.d_drostes_apps.aevum.data.repository.CalendarRepository
 import com.d_drostes_apps.aevum.domain.calendar.CalendarAutoRunEngine
 import com.d_drostes_apps.aevum.domain.calendar.CalendarMatchEngine
@@ -59,6 +60,8 @@ class CalendarAutoRunWorker(
         fun automationSettingsDao(): AutomationSettingsDao
         fun calendarRepository(): CalendarRepository
         fun liveActivityManager(): LiveActivityManager
+        /** M18.131: manuell markierte Einzel-Termine. */
+        fun calendarEventPinRepository(): CalendarEventPinRepository
     }
 
     override suspend fun doWork(): Result {
@@ -80,17 +83,19 @@ class CalendarAutoRunWorker(
 
         val repo = deps.calendarRepository()
         val live = deps.liveActivityManager()
+        val pinRepo = deps.calendarEventPinRepository()
 
-        // ── GATE 2: Regeln vorhanden? ────────────────────────────────
+        // ── GATE 2: Gibt es überhaupt etwas zu tun? ──────────────────
+        // M18.131-ANPASSUNG: Früher brach der Lauf ab, wenn keine REGEL
+        // existierte. Jetzt genügt eine manuell markierte Aufzeichnung —
+        // sonst würde ein einzelner markierter Termin nie starten, solange
+        // keine Regel angelegt ist (der häufigste Anwendungsfall des
+        // Features: „ich will nur diesen einen Termin, keine Regel").
         val rules = try {
             repo.getEnabledRulesOnce()
         } catch (e: Exception) {
             Log.e(TAG, "Regeln nicht lesbar", e)
             return reschedule(applicationContext, DEFAULT_MAX_DELAY_MS)
-        }
-        if (rules.isEmpty()) {
-            Log.d(TAG, "Keine aktiven Regeln — kein Reschedule")
-            return Result.success()
         }
 
         // ── Termine aus dem CACHE (kein ContentResolver) ─────────────
@@ -103,7 +108,22 @@ class CalendarAutoRunWorker(
             return reschedule(applicationContext, DEFAULT_MAX_DELAY_MS)
         }
 
-        val matches = CalendarMatchEngine.evaluate(rules, events)
+        // M18.131: Markierungen aus demselben Fenster. Ein Fehler hier darf
+        // den Lauf nicht sprengen — dann greifen eben nur die Regeln.
+        val pins = try {
+            pinRepo.getInWindowOnce(now - CACHE_LOOKBACK_MS, horizonEnd)
+        } catch (e: Exception) {
+            Log.e(TAG, "Markierte Termine nicht lesbar", e)
+            emptyList()
+        }
+
+        if (rules.isEmpty() && pins.isEmpty()) {
+            Log.d(TAG, "Keine aktiven Regeln und keine markierten Termine — kein Reschedule")
+            return Result.success()
+        }
+
+        // EINE Auflösung für beide Quellen (Markierung schlägt Regel).
+        val matches = CalendarMatchEngine.evaluateWithPins(rules, pins, events)
 
         // ── SCHRITT 1: Laufende Kalender-Session ggf. stoppen ────────
         // WICHTIG: VOR dem Start prüfen — sonst würde ein gerade
@@ -158,7 +178,10 @@ class CalendarAutoRunWorker(
         if (session.sourceType != SOURCE_CALENDAR) return
 
         val relatedMatch = matches.firstOrNull { m ->
-            val sameType = m.rule.activityTypeId != null && m.rule.activityTypeId == session.activityTypeId
+            // M18.131: activityTypeId kommt aus der Match-Quelle (Regel ODER
+            // manuelle Markierung) — der direkte Zugriff auf m.rule würde
+            // bei einer Markierung mit NPE abstürzen.
+            val sameType = m.activityTypeId != null && m.activityTypeId == session.activityTypeId
             val sameTitle = m.sessionTitle != null && m.sessionTitle == session.title
             sameType || sameTitle
         }
@@ -188,8 +211,12 @@ class CalendarAutoRunWorker(
         candidate: com.d_drostes_apps.aevum.domain.calendar.CalendarMatch,
         currentLive: com.d_drostes_apps.aevum.data.model.ActivitySession?
     ) {
-        val typeId = candidate.rule.activityTypeId ?: run {
-            Log.w(TAG, "Regel ohne Aktivität — übersprungen")
+        val typeId = candidate.activityTypeId ?: run {
+            // M18.131: Gilt für beide Quellen — eine Regel mit gelöschter
+            // Aktivität (ON DELETE SET NULL) genauso wie eine Markierung,
+            // deren Aktivität entfernt wurde. Beide werden übersprungen
+            // statt zu crashen (M18.51-Muster).
+            Log.w(TAG, "Keine Aktivität zugeordnet (Regel oder Markierung) — übersprungen")
             return
         }
 
@@ -248,8 +275,8 @@ class CalendarAutoRunWorker(
     ): Boolean {
         if (currentLive == null || !currentLive.isLive) return false
         if (currentLive.sourceType != SOURCE_CALENDAR) return false
-        val typeMatches = candidate.rule.activityTypeId != null &&
-            currentLive.activityTypeId == candidate.rule.activityTypeId
+        val typeMatches = candidate.activityTypeId != null &&
+            currentLive.activityTypeId == candidate.activityTypeId
         if (!typeMatches) return false
         // Gehört der Session-Start zu DIESEM Termin? (Startzeit der
         // Session wird beim Auto-Start auf den Termin-Beginn gesetzt.)

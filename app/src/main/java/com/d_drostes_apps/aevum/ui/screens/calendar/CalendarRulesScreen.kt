@@ -93,6 +93,8 @@ private val SYNC_INTERVALS = listOf(1, 3, 6, 12, 24)
 @Composable
 fun CalendarRulesScreen(
     onBack: () -> Unit,
+    /** M18.131: öffnet die Termin-Auswahl (einzelne Termine zuordnen). */
+    onOpenEventPicker: () -> Unit = {},
     viewModel: CalendarRulesViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -156,6 +158,42 @@ fun CalendarRulesScreen(
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        // ── 0. Termin-Auswahl (M18.131) ───────────────────────────────
+        // BEWUSST GANZ OBEN: Das ist der direkte Weg („ich will diesen
+        // Termin aufzeichnen") — die Regeln darunter sind das mächtigere,
+        // aber erklärungsbedürftigere Werkzeug. Der Nutzer soll erst den
+        // einfachen Weg sehen.
+        if (permission.isGranted) {
+            AevumCard(variant = CardVariant.Gradient) {
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    Text(
+                        stringResource(R.string.calendar_picker_title),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        stringResource(R.string.calendar_picker_subtitle),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onOpenEventPicker,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state.syncEnabled
+                    ) {
+                        Text(stringResource(R.string.calendar_picker_open))
+                    }
+                    if (!state.syncEnabled) {
+                        Text(
+                            stringResource(R.string.calendar_rules_autotrack_needs_read),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
 

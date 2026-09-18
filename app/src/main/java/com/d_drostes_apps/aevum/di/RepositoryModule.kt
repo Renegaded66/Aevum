@@ -82,6 +82,7 @@ import com.d_drostes_apps.aevum.data.db.LocationTrackPointDao
 // M18.129: Kalender-Integration
 import com.d_drostes_apps.aevum.data.db.CalendarRuleDao
 import com.d_drostes_apps.aevum.data.db.CalendarEventCacheDao
+import com.d_drostes_apps.aevum.data.db.CalendarEventPinDao
 // M18.129: AppDatabase für die neuen DAO-Provider — in dieser Datei
 // bisher nicht referenziert (alle anderen Provider bekommen DAOs direkt
 // von Hilt), daher fehlte der Import und kapt brach mit
@@ -197,4 +198,18 @@ object RepositoryModule {
         settingsDao: AutomationSettingsDao
     ): com.d_drostes_apps.aevum.data.repository.CalendarRepository =
         com.d_drostes_apps.aevum.data.repository.CalendarRepositoryImpl(ruleDao, eventDao, settingsDao)
+
+    // M18.131: manuell markierte Einzel-Termine (Kalender → Activity).
+    // Eigene DAO + eigenes Repository: eine Markierung ist eine ausdrückliche
+    // Nutzer-Entscheidung zu EINER Termin-Instanz und hat eine andere
+    // Lebensdauer als Regeln (überlebt Cache-Syncs und Regel-Änderungen).
+    @Provides @Singleton
+    fun provideCalendarEventPinDao(database: AppDatabase): CalendarEventPinDao =
+        database.calendarEventPinDao()
+
+    @Provides @Singleton
+    fun provideCalendarEventPinRepository(
+        dao: CalendarEventPinDao
+    ): com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepository =
+        com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepositoryImpl(dao)
 }

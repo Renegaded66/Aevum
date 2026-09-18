@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
+import com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepository
 import com.d_drostes_apps.aevum.data.repository.CalendarRepository
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -43,6 +44,8 @@ class CalendarSyncWorker(
         fun automationSettingsDao(): AutomationSettingsDao
         fun calendarRepository(): CalendarRepository
         fun calendarReader(): CalendarReader
+        /** M18.131: Aufräumen verwaister Termin-Markierungen. */
+        fun calendarEventPinRepository(): CalendarEventPinRepository
     }
 
     override suspend fun doWork(): Result {
@@ -75,6 +78,24 @@ class CalendarSyncWorker(
                     val repo = deps.calendarRepository()
                     repo.replaceWindow(result.events, pruneBefore = from)
                     repo.markSynced(System.currentTimeMillis())
+                    // M18.131: Markierungen aufräumen, deren Termin nicht
+                    // mehr existiert (im Kalender gelöscht oder verschoben).
+                    // HIER ist der richtige Ort: nur unmittelbar nach einem
+                    // erfolgreichen Sync ist die Schlüssel-Liste vollständig
+                    // und aktuell — der Auto-Start-Worker würde bei einem
+                    // Fehler im Sync sonst Markierungen für Termine löschen,
+                    // die es in Wahrheit noch gibt.
+                    try {
+                        deps.calendarEventPinRepository().pruneOrphans(
+                            validEventIds = result.events.map { it.eventId },
+                            now = System.currentTimeMillis()
+                        )
+                    } catch (e: Exception) {
+                        // Aufräumen ist Hygiene, nicht kritisch — ein Fehler
+                        // hier darf den Sync-Erfolg nicht in einen Retry
+                        // verwandeln (die Termine SIND geschrieben).
+                        Log.w(TAG, "Aufräumen der Termin-Markierungen fehlgeschlagen: ${e.message}")
+                    }
                     Log.i(TAG, "Kalender-Sync ok: ${result.events.size} Termine im Cache")
                     Result.success()
                 } catch (e: Exception) {

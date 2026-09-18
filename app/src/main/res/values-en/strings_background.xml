@@ -27,11 +27,14 @@
 
     <!-- Digital balance block (AppBlockService) -->
     <string name="notif_block_channel_name">Digital Balance block</string>
-    <string name="notif_block_channel_desc">Monitors app limits</string>
+    <string name="notif_block_channel_desc">Monitors app limits and warns before an app is blocked</string>
     <string name="notif_block_active_title">Digital Balance active</string>
     <string name="notif_block_active_text">App limits are being monitored</string>
-    <string name="notif_block_warning_title">Almost at the limit: %1$s</string>
-    <string name="notif_block_warning_text">%1$d minutes left — limit is %2$d min</string>
+    <!-- M18.131: pre-warning 5 minutes before the limit. "with continued
+         use" is deliberate: the block kicks in once the limit is reached,
+         not after a fixed countdown. -->
+    <string name="notif_block_warning_title">%1$s will be blocked soon</string>
+    <string name="notif_block_warning_text">About %1$d minutes left with continued use — then today\'s %2$d min limit applies.</string>
 
     <!-- Drive detection (DriveDetectionService) -->
     <string name="service_drive_channel_name">Drive detection</string>

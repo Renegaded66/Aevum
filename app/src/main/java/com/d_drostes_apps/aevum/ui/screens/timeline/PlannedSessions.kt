@@ -4,6 +4,7 @@ import android.content.Context
 import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
+import com.d_drostes_apps.aevum.data.model.CalendarEventPin
 import com.d_drostes_apps.aevum.data.model.CalendarRule
 import com.d_drostes_apps.aevum.domain.calendar.CalendarMatchEngine
 import java.time.Instant
@@ -35,7 +36,14 @@ data class PlannedSessionUi(
     val timeRange: String,
     val durationMinutes: Int,
     /** true = ganztägiger Termin (Urlaub/Feiertag). */
-    val allDay: Boolean = false
+    val allDay: Boolean = false,
+    /**
+     * M18.131: true = der Nutzer hat DIESEN Termin einzeln zur Aufzeichnung
+     * freigegeben (statt ihn einer Regel zu überlassen). Die UI kann das
+     * unterscheiden — eine manuelle Zusage ist belastbarer als eine
+     * regel-basierte Schätzung.
+     */
+    val isUserPinned: Boolean = false
 )
 
 /**
@@ -70,9 +78,17 @@ fun buildPlannedSessionsForDay(
      * Ohne Context (reine JVM-Aufrufe, Unit-Tests) gilt der deutsche
      * Quelltext — gleiche Konvention wie [com.d_drostes_apps.aevum.domain.time.TimeFormatting].
      */
-    context: Context? = null
+    context: Context? = null,
+    /**
+     * M18.131: Vom Nutzer einzeln markierte Termine. Sie haben Vorrang vor
+     * den Regeln — dieselbe Auflösung, die der Auto-Start-Worker nutzt.
+     * Ohne sie würde die Timeline einen markierten Termin als „nicht
+     * geplant" zeigen, obwohl er aufgezeichnet wird.
+     */
+    pins: List<CalendarEventPin> = emptyList()
 ): List<PlannedSessionUi> {
-    if (rules.isEmpty() || events.isEmpty()) return emptyList()
+    if (rules.isEmpty() && pins.isEmpty()) return emptyList()
+    if (events.isEmpty()) return emptyList()
 
     val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
     val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -80,7 +96,7 @@ fun buildPlannedSessionsForDay(
     val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     val fallbackTitle = context?.getString(R.string.calendar_plan_event_fallback_title) ?: "Termin"
 
-    return CalendarMatchEngine.evaluate(rules, events, zone)
+    return CalendarMatchEngine.evaluateWithPins(rules, pins, events, zone)
         .mapNotNull { match ->
             val event = match.event
             // Echter Overlap: der Termin schneidet diesen Tag.
@@ -92,7 +108,7 @@ fun buildPlannedSessionsForDay(
                 val clipEnd = event.endAt.coerceAtMost(dayEnd)
                 val startMin = ((clipStart - dayStart) / 60_000L).toInt().coerceIn(0, 1440)
                 val endMin = ((clipEnd - dayStart) / 60_000L).toInt().coerceIn(0, 1440)
-                val type = match.rule.activityTypeId?.let { typeById[it] }
+                val type = match.activityTypeId?.let { typeById[it] }
                 val startLocal = Instant.ofEpochMilli(event.startAt).atZone(zone)
                 val endLocal = Instant.ofEpochMilli(event.endAt).atZone(zone)
                 PlannedSessionUi(
@@ -102,16 +118,19 @@ fun buildPlannedSessionsForDay(
                     title = match.sessionTitle
                         ?: type?.name
                         ?: event.title.ifBlank { fallbackTitle },
-                    activityTypeId = match.rule.activityTypeId,
+                    activityTypeId = match.activityTypeId,
                     activityTypeName = type?.name ?: "?",
                     activityIcon = type?.icon ?: "•",
                     activityColor = type?.color ?: 0L,
-                    ruleName = match.rule.name,
+                    ruleName = match.sourceLabel,
                     startMinuteOfDay = startMin,
                     endMinuteOfDay = endMin.coerceAtLeast(startMin + 1),
                     timeRange = "${startLocal.format(timeFmt)}–${endLocal.format(timeFmt)}",
                     durationMinutes = ((clipEnd - clipStart) / 60_000L).toInt(),
-                    allDay = event.allDay
+                    allDay = event.allDay,
+                    // M18.131: Die UI kennzeichnet manuell markierte Termine
+                    // (sie sind zugesagt, nicht nur regel-basiert geschätzt).
+                    isUserPinned = match.isUserPinned
                 )
             }
         }
@@ -133,15 +152,17 @@ fun buildPlannedSessionsForWeek(
     types: List<ActivityType>,
     zone: ZoneId = ZoneId.systemDefault(),
     /** M18.129-i18n: siehe [buildPlannedSessionsForDay]. */
-    context: Context? = null
+    context: Context? = null,
+    /** M18.131: markierte Einzel-Termine — siehe [buildPlannedSessionsForDay]. */
+    pins: List<CalendarEventPin> = emptyList()
 ): Map<LocalDate, List<PlannedSessionUi>> {
-    if (rules.isEmpty()) return emptyMap()
+    if (rules.isEmpty() && pins.isEmpty()) return emptyMap()
     // EINE Auswertung für alle Tage (die Engine prüft Regeln pro Termin,
     // nicht pro Tag) — die Tages-Zuordnung passiert danach im Speicher.
     val byDay = mutableMapOf<LocalDate, MutableList<PlannedSessionUi>>()
     for (i in 0 until days) {
         val date = startDate.plusDays(i.toLong())
-        val planned = buildPlannedSessionsForDay(date, events, rules, types, zone, context)
+        val planned = buildPlannedSessionsForDay(date, events, rules, types, zone, context, pins)
         if (planned.isNotEmpty()) byDay[date] = planned.toMutableList()
     }
     return byDay

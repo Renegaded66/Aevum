@@ -219,6 +219,20 @@ fun AppNavHost(
         // M18.129: Kalender-Integration — Regeln, Sync, Berechtigung
         composable(AppDestination.CalendarRules.route) {
             com.d_drostes_apps.aevum.ui.screens.calendar.CalendarRulesScreen(
+                onBack = { navController.popBackStack() },
+                // M18.131: Einstieg in die Termin-Auswahl. Sie liegt
+                // bewusst HIER — funktional gehört sie zum Kalender-Feature,
+                // und der Nutzer findet „Kalender" an genau einer Stelle.
+                onOpenEventPicker = {
+                    navController.navigate(AppDestination.CalendarEventPicker.route)
+                }
+            )
+        }
+        // M18.131: Termin-Auswahl — EINZELNE Termine einer Activity zuordnen
+        // (im Unterschied zu den Regeln, die Textmuster über alle
+        // Vorkommen hinweg erfassen).
+        composable(AppDestination.CalendarEventPicker.route) {
+            com.d_drostes_apps.aevum.ui.screens.calendar.CalendarEventPickerScreen(
                 onBack = { navController.popBackStack() }
             )
         }
