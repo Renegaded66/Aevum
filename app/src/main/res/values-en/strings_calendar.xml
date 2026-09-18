@@ -139,4 +139,48 @@
     <!-- Fallback texts (reader / timeline plan blocks) -->
     <string name="calendar_rules_unnamed_calendar">Calendar</string>
     <string name="calendar_plan_event_fallback_title">Event</string>
+
+    <!-- M18.131: event picker (calendar event -> activity, single event) -->
+    <string name="calendar_picker_title">Record events</string>
+    <string name="calendar_picker_subtitle">Pick single events and assign an activity</string>
+    <string name="calendar_picker_open">Pick events</string>
+
+    <string name="calendar_picker_prev_day">Previous day</string>
+    <string name="calendar_picker_next_day">Next day</string>
+    <string name="calendar_picker_today">Today</string>
+    <string name="calendar_picker_day_label">Events on %1$s</string>
+
+    <string name="calendar_picker_empty">There are no events in your calendar on this day.</string>
+    <string name="calendar_picker_empty_no_permission">Without calendar access no events can be shown.</string>
+    <string name="calendar_picker_empty_no_sync">Enable \"Read calendar\" and sync so events show up here.</string>
+    <string name="calendar_picker_all_day">All day</string>
+    <string name="calendar_picker_no_title">(No title)</string>
+    <string name="calendar_picker_running_now">running now</string>
+    <string name="calendar_picker_past">past</string>
+
+    <string name="calendar_picker_status_pinned">Being recorded</string>
+    <string name="calendar_picker_status_rule">Captured by a rule</string>
+    <string name="calendar_picker_status_none">Tap to record</string>
+    <string name="calendar_picker_status_activity_missing">Activity missing — please pick again</string>
+
+    <string name="calendar_picker_dialog_title">Record event</string>
+    <string name="calendar_picker_dialog_activity_label">Choose activity</string>
+    <string name="calendar_picker_dialog_custom_title_label">Custom title (optional)</string>
+    <string name="calendar_picker_dialog_custom_title_placeholder">Empty = activity name</string>
+    <string name="calendar_picker_dialog_info">Aevum records from %1$s to %2$s — only for this event, not for its repetitions.</string>
+    <string name="calendar_picker_dialog_info_running">This event is already running. Saving starts the recording immediately.</string>
+    <string name="calendar_picker_dialog_info_past">This event is over. You can still mark it (for example for recurring events).</string>
+    <string name="calendar_picker_dialog_save">Record</string>
+    <string name="calendar_picker_dialog_remove">Remove recording</string>
+    <string name="calendar_picker_dialog_error_no_activity">Please choose the activity to record.</string>
+
+    <string name="calendar_picker_msg_saved">Event will be recorded.</string>
+    <string name="calendar_picker_msg_removed">Recording for this event removed.</string>
+
+    <string name="calendar_picker_how_it_works_title">How it works</string>
+    <string name="calendar_picker_how_it_works_body">• Tap an event and choose the activity — Aevum records from the event start to its end.\n• The assignment applies to this one event only. Recurring events are not picked up automatically — use rules for that.\n• If the event is deleted or moved in the calendar, the recording ends or the assignment no longer applies.\n• If something is already being recorded when the event starts, the event takes over (configurable per event).</string>
+
+    <string name="calendar_picker_summary_one">1 event marked</string>
+    <string name="calendar_picker_summary_many">%1$d events marked</string>
+    <string name="calendar_picker_summary_none">No event marked yet</string>
 </resources>

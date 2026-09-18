@@ -27,11 +27,14 @@
 
     <!-- Digital-Balance-Sperre (AppBlockService) -->
     <string name="notif_block_channel_name">Digital Balance Sperre</string>
-    <string name="notif_block_channel_desc">Überwacht App-Limits</string>
+    <string name="notif_block_channel_desc">Überwacht App-Limits und warnt, bevor eine App gesperrt wird</string>
     <string name="notif_block_active_title">Digital Balance aktiv</string>
     <string name="notif_block_active_text">App-Limits werden überwacht</string>
-    <string name="notif_block_warning_title">Fast am Limit: %1$s</string>
-    <string name="notif_block_warning_text">Noch %1$d Minuten — Limit ist %2$d min</string>
+    <!-- M18.131: Vorwarnung 5 Minuten vor dem Limit. "bei weiterer Nutzung"
+         ist bewusst Teil des Textes: die Sperre greift, sobald das Limit
+         erreicht ist — nicht nach Ablauf einer Uhr. -->
+    <string name="notif_block_warning_title">%1$s wird bald gesperrt</string>
+    <string name="notif_block_warning_text">Noch etwa %1$d Minuten bei weiterer Nutzung — dann greift das Limit von %2$d min heute.</string>
 
     <!-- Drive-Erkennung (DriveDetectionService) -->
     <string name="service_drive_channel_name">Autofahrt-Erkennung</string>

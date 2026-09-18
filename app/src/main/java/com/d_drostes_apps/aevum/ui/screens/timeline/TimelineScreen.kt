@@ -2621,7 +2621,14 @@ private fun EventListTimeline(
                         // REGEL (Einstellungen → Kalender), nicht der Termin.
                         EventListRow(
                             time = entry.planned.timeRange.substringBefore("–"),
-                            title = "\u22EF ${entry.planned.title}",
+                            // M18.131: ✓ = vom Nutzer für genau diesen Termin
+                            // zugesagt (Kalender-Einstellungen → Termine
+                            // auswählen), ⋯ = nur per Regel erfasst.
+                            title = if (entry.planned.isUserPinned) {
+                                "\u2713 ${entry.planned.title}"
+                            } else {
+                                "\u22EF ${entry.planned.title}"
+                            },
                             detail = "${entry.planned.timeRange} · ${entry.planned.durationMinutes} min",
                             accent = if (entry.planned.activityColor != 0L) {
                                 Color(entry.planned.activityColor)
@@ -3356,7 +3363,15 @@ private fun ZoomableDayTimeline(
                             modifier = Modifier.padding(start = blockX, top = pTopY.dp)
                         ) {
                             Text(
-                                text = "\u22EF ${planned.title} · ${planned.timeRange}",
+                                // M18.131: Eine manuell markierte Aufzeichnung wird
+                            // mit ✓ statt ⋯ gekennzeichnet — sie ist zugesagt,
+                            // nicht nur regelbasiert geschätzt. Der Nutzer
+                            // erkennt seine eigene Entscheidung wieder.
+                            text = if (planned.isUserPinned) {
+                                "\u2713 ${planned.title} · ${planned.timeRange}"
+                            } else {
+                                "\u22EF ${planned.title} · ${planned.timeRange}"
+                            },
                                 fontSize = 11.sp,
                                 // Geringere Deckkraft als echte Sessions —
                                 // die Textur-Ebene ist erkennbar "geplant".

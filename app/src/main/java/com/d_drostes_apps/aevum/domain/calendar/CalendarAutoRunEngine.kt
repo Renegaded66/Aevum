@@ -129,6 +129,18 @@ object CalendarAutoRunEngine {
     ): CalendarMatch? =
         matches.asSequence()
             .filter { shouldStart(it.event, now, lastStartedEventId) }
-            .sortedWith(compareByDescending<CalendarMatch> { it.rule.priority }.thenByDescending { it.event.startAt })
+            // M18.131: Sortierung über die Match-Auflöser statt direkt über
+            // rule.priority — ein Match kann aus einer manuellen Markierung
+            // stammen und hat dann gar keine Regel (null). Markierungen
+            // bekommen die höchste Priorität, weil eine ausdrückliche
+            // Nutzer-Entscheidung über jeder Regel steht (siehe
+            // CalendarMatchEngine.evaluateWithPins). Ohne diese Anpassung
+            // hätte ein markierter Termin gegen einen gleichzeitig
+            // anstehenden Regel-Termin verloren — genau der Vorrang, den
+            // der Auftrag verlangt, wäre beim Doppel-Start verloren gegangen.
+            .sortedWith(
+                compareByDescending<CalendarMatch> { it.effectivePriority }
+                    .thenByDescending { it.event.startAt }
+            )
             .firstOrNull()
 }

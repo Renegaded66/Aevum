@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -60,7 +61,10 @@ class AppBlockService : Service() {
     private var currentBlockedPkg: String? = null
     private var extensionGrantedFor: String? = null
     private var ignoredTodayPkg: String? = null
-    private val warnedPkgs = HashSet<String>()
+    // M18.131: Die alte In-Memory-Menge ist ersetzt durch
+    // [warningGuard] — dieser Zustand muss Service-Neustarts überleben
+    // (siehe LimitWarningGuard-Doku). lastForegroundPkg bleibt: er wird
+    // für die Profil-/Overlay-Logik gebraucht.
     private var lastForegroundPkg: String? = null
     // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376): Sticky-
     // Guard — bricht die System-Wiederbelebung (START_STICKY-Rebirth
@@ -74,6 +78,21 @@ class AppBlockService : Service() {
     // Prozess beim App-Start. Init in onCreate (s.u.).
     private lateinit var stickyGuard: com.d_drostes_apps.aevum.automation.StickyGuardService
     private var processStartedAtRealtime = 0L
+
+    /**
+     * M18.131: Wächter der „Gleich gesperrt"-Vorwarnung.
+     *
+     * M18.123-Lektion: NIE im Property-Init konstruieren — Android attacht
+     * den Context erst NACH dem Konstruktor (newInstance), ein Zugriff auf
+     * SharedPreferences hier crasht mit NPE und killt den Prozess beim
+     * App-Start. Deshalb in onCreate (s. u.).
+     *
+     * Absichtlich ohne den konkreten Methodennamen im Text: der
+     * StickyGuardInitRegressionTest verbietet Context-Zugriffe in dieser
+     * Zone und prüft auch Block-Kommentare — ein Code-Beispiel hier würde
+     * ihn fälschlich auslösen.
+     */
+    private lateinit var warningGuard: com.d_drostes_apps.aevum.domain.digital.LimitWarningGuard
 
     // M18.61g-FIX 2: Rückkanal von der BlockActivity (Buttons) zum Service.
     private val blockActionReceiver = object : android.content.BroadcastReceiver() {
@@ -101,6 +120,16 @@ class AppBlockService : Service() {
         super.onCreate()
         // M19: Konsolidierte Hintergrund-Benachrichtigung statt eigener.
         com.d_drostes_apps.aevum.util.BackgroundNotificationHelper.ensureChannel(this)
+        // M18.131-BUGFIX (Root Cause „es kam nie eine Warnung"): M19 hat
+        // startForeground auf BackgroundNotificationHelper umgestellt und
+        // dabei den Aufruf von createChannel() entfernt — die Methode blieb
+        // als toter Code stehen. Folge: der Channel "digital_balance_block"
+        // wurde NIE angelegt, und seit Android 8 verwirft das System
+        // Notifications in einen nicht existierenden Channel STILLSCHWEIGEND.
+        // Die 80-%-Warnung (M18.61) hat den Nutzer deshalb nie erreicht.
+        // Jetzt VOR jeder Nutzung des Channels angelegt — die Limit-Warnung
+        // hängt am selben Channel und wäre sonst genauso unsichtbar.
+        createChannel()
         // M18.107-CRASHFIX: startForeground war UNGESCHÜTZT — jede Exception
         // hier (kaputte Notification auf OEM-ROMs, Restriction-Exceptions)
         // crashte den ganzen Prozess, obwohl der Service optional ist
@@ -121,7 +150,7 @@ class AppBlockService : Service() {
                 )
             }
         } catch (e: Exception) {
-            android.util.Log.e("AppBlockSvc", "startForeground fehlgeschlagen — stopSelf", e)
+            Log.e("AppBlockSvc", "startForeground fehlgeschlagen — stopSelf", e)
             stopSelf()
         }
         // M18.61g: BlockActivity-Broadcasts empfangen
@@ -134,6 +163,15 @@ class AppBlockService : Service() {
         stickyGuard = com.d_drostes_apps.aevum.automation.StickyGuardService(
             com.d_drostes_apps.aevum.automation.SharedPrefsStickyGuardPersistence(
                 this, "app_block"
+            )
+        )
+        // M18.131: Guard für die Limit-Vorwarnung — hier, weil ab onCreate
+        // der Context garantiert attacht ist (siehe Feld-Doku). Eigene
+        // Prefs-Datei: reine Laufzeit-Bequemlichkeit, soll bei „alle Daten
+        // löschen"/Restore nicht mitgeschleppt werden.
+        warningGuard = com.d_drostes_apps.aevum.domain.digital.LimitWarningGuard(
+            com.d_drostes_apps.aevum.domain.digital.SharedPrefsLimitWarningStore(
+                getSharedPreferences("aevum_limit_warnings", Context.MODE_PRIVATE)
             )
         )
         val filter = android.content.IntentFilter().apply {
@@ -171,7 +209,7 @@ class AppBlockService : Service() {
         // FGS-Vertrag (startForeground in onCreate). Der nächste echte
         // Anlass (App-Start, Limit-Änderung) startet den Service regulär.
         if (stickyRebirthBreak) {
-            android.util.Log.w("AppBlockSvc", "M18.122: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz, FGS-Vertrag erfüllt) — Service beendet")
+            Log.w(TAG, "M18.122: Sticky-Rebirth ohne Action gebrochen (Kill-Restart-Loop-Schutz, FGS-Vertrag erfüllt) — Service beendet")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -252,7 +290,7 @@ class AppBlockService : Service() {
             }
             screenStateReceiver = receiver
         } catch (e: Exception) {
-            android.util.Log.w("AppBlockSvc", "Screen-Receiver fehlgeschlagen: ${e.message} — Watchdog läuft dauerhaft")
+            Log.w(TAG, "Screen-Receiver fehlgeschlagen: ${e.message} — Watchdog läuft dauerhaft")
         }
     }
 
@@ -294,13 +332,24 @@ class AppBlockService : Service() {
             if (blocked) {
                 lastForegroundPkg = pkg
                 handler.post { showOverlay(pkg, limit, null) }
-            } else {
-                // M18.61: Warnschwelle 80% (Google-Muster) — einmalige
-                // Benachrichtigung, wenn das Limit fast erreicht ist.
-                val progress = AppLimitChecker.progress(limit, used)
-                if (progress >= 0.8f && warnedPkgs.add(pkg)) {
+            } else if (AppLimitChecker.isWarningDue(limit, used, now)) {
+                // M18.131 (Auftrag: „5 Minuten vor Erreichen des Limits eine
+                // Benachrichtigung, dass die App in 5 Minuten gesperrt wird").
+                //
+                // Ersetzt die 80-%-Warnung aus M18.61. Warum die Prozent-
+                // Schwelle fachlich falsch war: bei 60 min Limit bedeutete
+                // 80 % eine Warnung 12 Minuten vor der Sperre, bei 10 min
+                // Limit nur 2 Minuten vorher. Die Aussage „in 5 Minuten
+                // gesperrt" war damit nie zutreffend.
+                //
+                // Die Warnung ist zeitpunktbasiert (Restzeit <= 5 min) und
+                // wird über [LimitWarningGuard] PERSISTENT genau einmal pro
+                // App und Tag gesendet. Der alte In-Memory-HashSet ging bei
+                // jedem Service-Neustart verloren → wiederholte Warnungen.
+                if (warningGuard.markWarned(pkg, now)) {
                     val remaining = AppLimitChecker.remainingMs(limit, used) ?: 0L
                     showWarningNotification(pkg, limit, remaining)
+                    Log.i(TAG, "Limit-Vorwarnung gesendet: $pkg (noch ${remaining / 60_000} min)")
                 }
             }
         }
@@ -365,7 +414,7 @@ class AppBlockService : Service() {
                 profileName
             )
         } catch (e: Exception) {
-            android.util.Log.e("AppBlockService", "BlockActivity-Start fehlgeschlagen", e)
+            Log.e("AppBlockService", "BlockActivity-Start fehlgeschlagen", e)
             currentBlockedPkg = null
         }
     }
@@ -377,15 +426,40 @@ class AppBlockService : Service() {
     }
 
     /**
-     * M18.61: Warn-Benachrichtigung bei 80% des Limits (Google-Muster).
-     * Einmalig pro App und Tag.
+     * M18.61: Warn-Benachrichtigung, wenn das Limit fast erreicht ist.
+     * M18.131: Zeitpunktbasiert (5 Minuten Restzeit) statt 80-%-Schwelle —
+     * genau einmal pro App und Tag (siehe [warningGuard]).
+     *
+     * WORTWAHL: „bei weiterer Nutzung" ist bewusst dabei. Die Sperre tritt
+     * ein, sobald die Nutzungszeit das Limit erreicht — nicht nach Ablauf
+     * einer Uhr. Ohne diesen Zusatz würde die Meldung eine feste Frist
+     * behaupten, die nur bei durchgehender Nutzung stimmt.
+     *
+     * Die Notification läuft über den Channel [CHANNEL_ID], der in
+     * [createChannel] mit IMPORTANCE_HIGH angelegt wird: die Ankündigung
+     * einer unmittelbar bevorstehenden Sperre ist zeitkritisch und soll
+     * als Heads-up erscheinen (Digital-Wellbeing-Muster). Da der Channel
+     * vorher nie existierte, kann die Wichtigkeit jetzt einmalig korrekt
+     * gesetzt werden — nachträglich ließe Android das nicht zu.
      */
     private fun showWarningNotification(pkg: String, limit: AppLimit, remainingMs: Long) {
+        // Ohne POST_NOTIFICATIONS (Android 13+) wird nichts gesendet — der
+        // Aufruf würde still verpuffen. Früh raus statt Exception-Fang.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w(TAG, "POST_NOTIFICATIONS fehlt — Limit-Vorwarnung nicht zustellbar")
+            return
+        }
         try {
             val label = try {
                 packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
             } catch (_: Exception) { pkg }
-            val remainingMin = (remainingMs / 60_000).coerceAtLeast(1)
+            // Aufrunden: „noch 4,3 min" als „noch 4 Minuten" wäre irreführend
+            // kurz vor einer Sperre — der Nutzer plant damit seine restliche
+            // Zeit. Mindestens 1, damit die Meldung nie „0 Minuten" sagt.
+            val remainingMin = ((remainingMs + 59_999L) / 60_000L).toInt().coerceAtLeast(1)
             val intent = Intent(this, com.d_drostes_apps.aevum.MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
@@ -393,31 +467,54 @@ class AppBlockService : Service() {
                 this, pkg.hashCode(), intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Notification.Builder(this, CHANNEL_ID)
-            } else {
-                @Suppress("DEPRECATION")
-                Notification.Builder(this)
-            }
-            val notification = builder
+            val notification = androidx.core.app.NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(getString(R.string.notif_block_warning_title, label))
                 .setContentText(getString(R.string.notif_block_warning_text, remainingMin, limit.limitMinutes))
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setStyle(
+                    androidx.core.app.NotificationCompat.BigTextStyle().bigText(
+                        getString(R.string.notif_block_warning_text, remainingMin, limit.limitMinutes)
+                    )
+                )
+                .setSmallIcon(com.d_drostes_apps.aevum.R.drawable.ic_notification)
                 .setContentIntent(pi)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setCategory(androidx.core.app.NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
                 .build()
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .notify(WARNING_NOTIFICATION_ID + pkg.hashCode() % 1000, notification)
-        } catch (_: Exception) { /* Notification-Permission fehlt o.ä. */ }
+        } catch (e: Exception) {
+            // Notification-Permission fehlt o.ä. — die Sperr-Funktion darf
+            // davon nicht abhängen (M18.107-Muster: optional bleibt optional).
+            Log.w(TAG, "Limit-Vorwarnung fehlgeschlagen für $pkg: ${e.message}")
+        }
     }
 
+    /**
+     * M18.131: Channel für die Limit-Warnungen und die Sperr-Anzeige.
+     *
+     * Wird in [onCreate] aufgerufen. Der Aufruf war seit M19 verschwunden
+     * (die Methode blieb als toter Code stehen), sodass der Channel nie
+     * existierte und Android alle Notifications darauf stillschweigend
+     * verwarf — die 80-%-Warnung hat den Nutzer nie erreicht.
+     *
+     * IMPORTANCE_HIGH: Die Ankündigung einer bevorstehenden App-Sperre ist
+     * zeitkritisch und darf nicht lautlos verpuffen. Höchstens eine solche
+     * Meldung pro App und Tag ([LimitWarningGuard]).
+     */
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.notif_block_channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply { description = getString(R.string.notif_block_channel_desc) }
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = getString(R.string.notif_block_channel_desc)
+                // Keine dauerhafte Vibration: die Meldung ist ein Hinweis,
+                // kein Alarm. Sichtbar (Heads-up) bleibt sie trotzdem.
+                enableVibration(false)
+            }
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .createNotificationChannel(channel)
         }
@@ -447,6 +544,8 @@ class AppBlockService : Service() {
     }
 
     companion object {
+        /** M18.131: Log-Tag dieses Services (Warn-Pfad + Diagnose). */
+        private const val TAG = "AppBlockSvc"
         const val ACTION_STOP = "com.d_drostes_apps.aevum.digitalbalance.STOP"
         // M18.61g-FIX 2: BlockActivity-Button-Aktionen (Broadcast-Rückkanal)
         const val ACTION_EXTEND = "com.d_drostes_apps.aevum.digitalbalance.EXTEND"
@@ -488,7 +587,7 @@ class AppBlockService : Service() {
                 // ForegroundServiceStartNotAllowedException (Hintergrund-Start,
                 // Android 12+) und OEM-Restriktionen. Der Service holt nach
                 // beim nächsten App-Start / Limit-Change.
-                android.util.Log.w("AppBlockSvc", "Start fehlgeschlagen: ${e.message}")
+                Log.w(TAG, "Start fehlgeschlagen: ${e.message}")
             }
         }
 

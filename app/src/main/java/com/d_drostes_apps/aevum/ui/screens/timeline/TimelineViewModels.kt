@@ -10,6 +10,7 @@ import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
+import com.d_drostes_apps.aevum.data.model.CalendarEventPin
 import com.d_drostes_apps.aevum.data.model.CalendarRule
 import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.data.model.Tag
@@ -67,7 +68,9 @@ class TimelineViewModel @Inject constructor(
     private val languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository,
     // M18.129: Kalender-Integration — Regeln + Termin-Cache für die
     // Vorausschau geplanter Blöcke (7 Tage).
-    private val calendarRepository: com.d_drostes_apps.aevum.data.repository.CalendarRepository
+    private val calendarRepository: com.d_drostes_apps.aevum.data.repository.CalendarRepository,
+    // M18.131: manuell markierte Einzel-Termine (Vorrang vor Regeln).
+    private val calendarEventPinRepository: com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepository
 ) : ViewModel() {
     // M18.44: Als Property gehalten, damit Quick-Create die Aktivität laden kann.
     private val activityTypeRepository: ActivityTypeRepository = activityTypeRepository
@@ -138,9 +141,15 @@ class TimelineViewModel @Inject constructor(
         calendarRepository.getRules(),
         calendarRepository.getEvents(),
         activityTypeRepository.getAll(),
-        calendarRepository.ruleCount()
-    ) { rules: List<CalendarRule>, events: List<CalendarEventCache>, types: List<ActivityType>, _: Int ->
-        CalendarTimelineData(rules.filter { it.enabled }, events, types)
+        calendarRepository.ruleCount(),
+        // M18.131: markierte Einzel-Termine. Sie haben Vorrang vor Regeln —
+        // ohne sie würde die Vorschau einen markierten Termin als "nicht
+        // geplant" zeigen, obwohl er aufgezeichnet wird.
+        calendarEventPinRepository.getAll()
+    ) { rules: List<CalendarRule>, events: List<CalendarEventCache>, types: List<ActivityType>, _: Int, pins: List<CalendarEventPin> ->
+        // Typisierte 5-Flow-Variante (kein Array-Cast — M18.66-FIX14-Lektion
+        // „combine-Limit 5"): genau fünf Quellen, deshalb passt sie hier.
+        CalendarTimelineData(rules.filter { it.enabled }, events, types, pins)
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -182,7 +191,9 @@ class TimelineViewModel @Inject constructor(
                     zone = zoneId,
                     // M18.129-i18n: application als Context für den
                     // lokalisierten Fallback-Titel („Termin"/„Event").
-                    context = application
+                    context = application,
+                    // M18.131: markierte Einzel-Termine (Vorrang vor Regeln).
+                    pins = cal.pins
                 )
                 // Der Nutzer kann in der Timeline weiter als 7 Tage
                 // vorausblättern. Dann ist die Karte leer — statt die
@@ -197,7 +208,8 @@ class TimelineViewModel @Inject constructor(
                             rules = cal.rules,
                             types = cal.types,
                             zone = zoneId,
-                            context = application
+                            context = application,
+                            pins = cal.pins
                         )
                     } else {
                         emptyList()
@@ -682,8 +694,25 @@ class TimelineViewModel @Inject constructor(
             // M16.5: Minuten werden aus den clipped Werten berechnet, damit
             // eine Mitternacht-Session im Starttag als 23:30–24:00 und im
             // Folgetag als 00:00–08:30 erscheint (nicht 23:30–08:30).
-            val clippedStartMin = TimeFormatting.minutesOfDay(clip.clippedStartMs, zoneId)
-            val clippedEndMin = TimeFormatting.minutesOfDay(clip.clippedEndMs, zoneId)
+            //
+            // M18.131-BUGFIX (User: "In der Timeline bei tagesübergreifenden
+            // Aufzeichnungen wird die vom Vortag nicht ganz angezeigt, nur ein
+            // kleiner Strich vom Startzeitpunkt"): ROOT CAUSE — hier stand
+            // TimeFormatting.minutesOfDay(), also die UHRZEIT im Tag. Für das
+            // auf dayEnd geclippte Ende einer Mitternachts-Session ist das
+            // 00:00 des Folgetags → 0 Minuten. Der Renderer liest rawEnd <= 0
+            // als "ungültig" und zeichnet startMin + 1 — genau der
+            // Ein-Minuten-Strich am Startzeitpunkt (23:00–23:01 statt
+            // 23:00–24:00). Am Folgetag trat der Fehler nicht auf, weil dort
+            // clippedStart = 0 UND ein echtes Ende in der Zukunft liegt.
+            //
+            // Fix: Der Minutenwert ist ein OFFSET AB TAGESBEGINN, nicht die
+            // Uhrzeit. dayEnd ergibt damit korrekt 1440 (= 24:00) und der
+            // Block reicht bis zum unteren Rand des Tages — dieselbe
+            // Berechnung, die geplante Kalender-Blöcke schon immer nutzen
+            // (PlannedSessions.kt), weshalb dort nie ein Strich auftrat.
+            val clippedStartMin = clippedMinuteOffset(clip.clippedStartMs, dayStart)
+            val clippedEndMin = clippedMinuteOffset(clip.clippedEndMs, dayStart)
             // M18.62-FIX: Pausen abziehen — vorher wurde die volle
             // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
             val visibleDurationMs = session.activeDurationInWindow(dayStart, dayEnd, nowMs)
@@ -852,8 +881,11 @@ class TimelineViewModel @Inject constructor(
             val rows = daySessions.map { session ->
                 val clippedStart = maxOf(session.startAt, dayStart)
                 val clippedEnd = minOf(session.endAt ?: nowMs, dayEnd)
-                val clippedStartMin = TimeFormatting.minutesOfDay(clippedStart, zoneId)
-                val clippedEndMin = TimeFormatting.minutesOfDay(clippedEnd, zoneId)
+                // M18.131-BUGFIX: Offset ab Tagesbeginn statt Uhrzeit — sonst
+                // kollabiert das auf Mitternacht geclippte Ende auf 0 (siehe
+                // die ausführliche Begründung in buildTimelineState).
+                val clippedStartMin = clippedMinuteOffset(clippedStart, dayStart)
+                val clippedEndMin = clippedMinuteOffset(clippedEnd, dayStart)
                 val effectiveCategoryId = session.categoryId
                     ?: typeMap[session.activityTypeId]?.defaultCategoryId
                 TimelineSessionUi(
@@ -1344,7 +1376,9 @@ data class TimelineBase(
 private data class CalendarTimelineData(
     val rules: List<CalendarRule>,
     val events: List<CalendarEventCache>,
-    val types: List<ActivityType>
+    val types: List<ActivityType>,
+    /** M18.131: markierte Einzel-Termine (Vorrang vor Regeln). */
+    val pins: List<CalendarEventPin>
 )
 
 /**

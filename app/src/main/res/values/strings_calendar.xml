@@ -139,4 +139,59 @@
     <!-- Fallback-Texte (Reader / Timeline-Planblöcke) -->
     <string name="calendar_rules_unnamed_calendar">Kalender</string>
     <string name="calendar_plan_event_fallback_title">Termin</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         M18.131: Termin-Auswahl (Kalender → Activity für EINEN Termin)
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- Kopfzeile -->
+    <string name="calendar_picker_title">Termine aufzeichnen</string>
+    <string name="calendar_picker_subtitle">Einzelne Termine auswählen und einer Aktivität zuordnen</string>
+    <string name="calendar_picker_open">Termine auswählen</string>
+
+    <!-- Tages-Navigation -->
+    <string name="calendar_picker_prev_day">Vorheriger Tag</string>
+    <string name="calendar_picker_next_day">Nächster Tag</string>
+    <string name="calendar_picker_today">Heute</string>
+    <string name="calendar_picker_day_label">Termine am %1$s</string>
+
+    <!-- Liste -->
+    <string name="calendar_picker_empty">An diesem Tag sind keine Termine im Kalender.</string>
+    <string name="calendar_picker_empty_no_permission">Ohne Kalender-Zugriff lassen sich keine Termine anzeigen.</string>
+    <string name="calendar_picker_empty_no_sync">Aktiviere „Kalender lesen" und synchronisiere, damit hier Termine erscheinen.</string>
+    <string name="calendar_picker_all_day">Ganztägig</string>
+    <string name="calendar_picker_no_title">(Ohne Titel)</string>
+    <string name="calendar_picker_running_now">läuft gerade</string>
+    <string name="calendar_picker_past">vorbei</string>
+
+    <!-- Status eines Termins -->
+    <string name="calendar_picker_status_pinned">Wird aufgezeichnet</string>
+    <string name="calendar_picker_status_rule">Per Regel erfasst</string>
+    <string name="calendar_picker_status_none">Tippen, um aufzuzeichnen</string>
+    <string name="calendar_picker_status_activity_missing">Aktivität fehlt — bitte neu wählen</string>
+
+    <!-- Dialog: Aktivität wählen -->
+    <string name="calendar_picker_dialog_title">Termin aufzeichnen</string>
+    <string name="calendar_picker_dialog_activity_label">Aktivität wählen</string>
+    <string name="calendar_picker_dialog_custom_title_label">Eigener Titel (optional)</string>
+    <string name="calendar_picker_dialog_custom_title_placeholder">Leer = Name der Aktivität</string>
+    <string name="calendar_picker_dialog_info">Aevum zeichnet von %1$s bis %2$s auf — nur an diesem Termin, nicht bei Wiederholungen.</string>
+    <string name="calendar_picker_dialog_info_running">Der Termin läuft bereits. Mit dem Speichern startet die Aufzeichnung sofort.</string>
+    <string name="calendar_picker_dialog_info_past">Dieser Termin ist vorbei. Eine Markierung ist trotzdem möglich (z. B. für wiederkehrende Termine).</string>
+    <string name="calendar_picker_dialog_save">Aufzeichnen</string>
+    <string name="calendar_picker_dialog_remove">Aufzeichnung entfernen</string>
+    <string name="calendar_picker_dialog_error_no_activity">Bitte wähle die Aktivität, die aufgezeichnet werden soll.</string>
+
+    <!-- Rückmeldungen -->
+    <string name="calendar_picker_msg_saved">Termin wird aufgezeichnet.</string>
+    <string name="calendar_picker_msg_removed">Aufzeichnung für den Termin entfernt.</string>
+
+    <!-- Erklär-Karte -->
+    <string name="calendar_picker_how_it_works_title">So funktioniert es</string>
+    <string name="calendar_picker_how_it_works_body">• Tippe einen Termin an und wähle die Aktivität — Aevum zeichnet von Terminbeginn bis Terminende auf.\n• Die Zuordnung gilt nur für diesen einen Termin. Wiederkehrende Termine werden nicht automatisch miterfasst — dafür sind die Regeln da.\n• Wird der Termin im Kalender gelöscht oder verschoben, endet die Aufzeichnung bzw. die Zuordnung entfällt.\n• Läuft beim Terminbeginn schon eine Aufzeichnung, übernimmt der Termin (einstellbar pro Termin).</string>
+
+    <!-- Zähler -->
+    <string name="calendar_picker_summary_one">1 Termin markiert</string>
+    <string name="calendar_picker_summary_many">%1$d Termine markiert</string>
+    <string name="calendar_picker_summary_none">Noch kein Termin markiert</string>
 </resources>
