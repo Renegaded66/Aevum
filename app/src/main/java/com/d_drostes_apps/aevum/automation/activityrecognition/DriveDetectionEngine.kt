@@ -255,6 +255,39 @@ object DriveDetectionEngine {
      *  Fahrt mit 12-m/s-Spitzen. */
     const val MOTION_GATED_AVG_SPEED_MPS = 6.0f
 
+    /** M18.130 (Motorrad-Fix, t_3ac05e06): Permanentes ON_FOOT über
+     *  STUNDEN ist auf Zweirädern der Regelfall (Google-AR klassifiziert
+     *  Motorrad/Handy-in-Jacke persistent als WALKING/RUNNING — die
+     *  M18.117-Annahme „die Fahrt heilt der nächste IN_VEHICLE-Sample"
+     *  greift dort nie). Das ON_FOOT-Gate darf deshalb NUR greifen,
+     *  solange die Probe-Serie mit Fußgänger-Physik vereinbar ist:
+     *  Ein Mensch hält 8 m/s nur Sekunden (M18.117-Argument), nie über
+     *  eine Minute. Eine Serie aus ≥ [VEHICLE_PACE_MIN_FAST_PROBES]
+     *  schnellen Probes (≥ [AUTO_SPEED_MPS]) über ≥
+     *  [VEHICLE_PACE_MIN_SPREAD_MS] mit Schnitt ≥
+     *  [VEHICLE_PACE_MIN_AVG_SPEED_MPS] ist damit NICHT mit Gehen/
+     *  Joggen vereinbar → ON_FOOT wird widerlegt und die bewährte
+     *  8-m/s-Schwelle (30er-Zonen-Erkennung) gilt. Einzelne Spikes,
+     *  2-Fix-Bursts und kurze 8-m/s-Sprints (Radfahrer, Jogger mit
+     *  Multipath) bleiben unter der Schwelle — der Joggen-/Rad-Schutz
+     *  von M18.117 ist unverändert. Das Cadence-Veto greift unabhängig
+     *  davon weiter (Schrittfrequenz im Jogging-Band blockiert auch
+     *  bei UNKNOWN-Kontext). */
+    const val VEHICLE_PACE_MIN_FAST_PROBES = 3
+
+    /** Zeitliche Streuung der schnellen Probes für die ON_FOOT-
+     *  Widerlegung: 60 s sind 15 s länger als das historisch geforderte
+     *  30-s-Minimum — ein Jogger/Radfahrer kann 2 Spikes 60 s
+     *  auseinander halten, NIE aber 3 echte 8-m/s-Probes. */
+    const val VEHICLE_PACE_MIN_SPREAD_MS = 60_000L
+
+    /** Fenster-Schnitt für die ON_FOOT-Widerlegung: 6 m/s liegen über
+     *  jedem menschlichen Dauer-Schnitt (Joggen 16 km/h = 4,44 m/s;
+     *  Rad-Spike-Muster 8,5/5,0/8,5 = 6,75, scheitert aber an der
+     *  3er-Kette des Speed-Felds) — identische Begründung wie
+     *  [MOTION_GATED_AVG_SPEED_MPS]. */
+    const val VEHICLE_PACE_MIN_AVG_SPEED_MPS = 6.0f
+
     /** Untergrenze Joggen-Cadence: 2,2 Hz = 132 Schritte/min (lockeres
      *  Joggen ~140 spm). */
     const val JOGGING_CADENCE_MIN_HZ = 2.2f
@@ -627,20 +660,48 @@ object DriveDetectionEngine {
             return Classification.NotDriving
         }
 
-        // M18.117 KONTEXT-SCHWELLEN (Motion-Gate): Meldet das Handy „zu Fuß"
-        // (WALKING/RUNNING/ON_FOOT), ist 8 m/s keine ausreichende Evidenz
-        // für Autofahren — ein Mensch kann 8 m/s nur Sekunden halten, nie
-        // Minuten. Die Auto-Schwelle steigt auf 12 m/s (43,2 km/h), die
-        // Konsekutiv-Kette auf 3 und der Fenster-Schnitt auf 6 m/s. Joggen
-        // 16 km/h (4,44 m/s) + 2 Multipath-Spikes bleiben damit weit unter
-        // allen Gates. Bei IN_VEHICLE oder UNKNOWN (kein AR-Signal) bleibt
-        // die bewährte 8-m/s-Schwelle — die 30er-Zonen-Erkennung bleibt
-        // erhalten (Regression-Test M18.113).
-        val driveSpeed = if (motionContext == MotionContext.ON_FOOT)
+        // M18.130 (Motorrad-Fix, t_3ac05e06): VEHICLE-PACE-OVERRIDE —
+        // Permanentes ON_FOOT (Google-AR auf Zweirädern) darf die
+        // Erkennung nicht dauerhaft blockieren, wenn die GPS-Serie
+        // physikalisch NICHT mit einem Menschen vereinbar ist.
+        // Ein Mensch hält 8 m/s nur Sekunden (M18.117-Argument), nie
+        // über eine Minute. Erfüllt die Serie ≥ 3 schnelle Probes
+        // (≥ 8 m/s) mit ≥ 60 s Streuung und Schnitt ≥ 6 m/s, ist
+        // „der User geht/joggt" WIDERLEGT — die bewährte 8-m/s-
+        // Schwelle (30er-Zonen-Erkennung) gilt wieder. Einzelne
+        // Spikes, 2-Fix-Bursts und Jogger-Multipath bleiben unter
+        // der Schwelle → M18.117-Joggen-Schutz unverändert. Das
+        // Cadence-Veto oben greift unabhängig davon weiter.
+        //
+        // WICHTIG: Diese Zählung nutzt die ROHEN Speed-Werte (Speed-
+        // Feld oder M18.77-Ableitung) VOR dem M18.113-Positions-Check
+        // unten — die Schwelle prüft, ob die Serie als GANZES mit
+        // Fußgänger-Physik vereinbar ist. Der Positions-Check bleibt
+        // das letzte Gate (ein Spaziergänger mit 3 Multipath-Spikes
+        // erfüllt den Roh-Zähler, scheitert aber am Cross-Check).
+        val vehiclePace = if (motionContext == MotionContext.ON_FOOT) {
+            var paceFast = 0
+            var paceFirst = Long.MAX_VALUE
+            var paceLast = Long.MIN_VALUE
+            for (p in filtered) {
+                val s = p.speedMps ?: inferredSpeed[p.timestampMs]
+                if (s != null && s >= AUTO_SPEED_MPS) {
+                    paceFast++
+                    paceFirst = minOf(paceFirst, p.timestampMs)
+                    paceLast = maxOf(paceLast, p.timestampMs)
+                }
+            }
+            val paceSpread = if (paceLast >= paceFirst) paceLast - paceFirst else 0L
+            paceFast >= VEHICLE_PACE_MIN_FAST_PROBES &&
+                paceSpread >= VEHICLE_PACE_MIN_SPREAD_MS &&
+                preAvg >= VEHICLE_PACE_MIN_AVG_SPEED_MPS
+        } else false
+        val motionGated = motionContext == MotionContext.ON_FOOT && !vehiclePace
+        val driveSpeed = if (motionGated)
             MOTION_GATED_DRIVE_SPEED_MPS else AUTO_SPEED_MPS
-        val minConsec = if (motionContext == MotionContext.ON_FOOT)
+        val minConsec = if (motionGated)
             MOTION_GATED_MIN_CONSECUTIVE_FAST else MIN_CONSECUTIVE_FAST
-        val minAvg = if (motionContext == MotionContext.ON_FOOT)
+        val minAvg = if (motionGated)
             MOTION_GATED_AVG_SPEED_MPS else 4.5f
 
         // M18.113 SPEED-POSITION-KONSISTENZ (User-Bug „Drive aufgezeichnet obwohl

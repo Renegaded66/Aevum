@@ -67,29 +67,60 @@ class ProactiveGeofenceCheckWorker(
     interface Deps {
         fun currentZoneProvider(): CurrentZoneProvider
         fun settingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+        // M18.130 (t_3ac05e06): Fallback-Fix-Quelle für den Bewegungs-
+        // Verdacht, wenn checkNow() keinen Fix liefert (User ohne
+        // Geofences: checkNow() kehrt vor der Fix-Akquise zurück).
+        fun locationProvider(): com.d_drostes_apps.aevum.automation.location.CurrentLocationProvider
+    }
+
+    /** M18.104: Bewegungs-Verdacht + Geofence-Zonen-Check — der Worker
+     *  dient ZWEI Zwecken mit UNTERSCHIEDLICHEN Gates:
+     *
+     *  a) ZONEN-CHECK (nur wenn Geofencing aktiv): checkNow() —
+     *     Zonenerkennung, Auto-Start/Stop, Presence-Sampling.
+     *  b) BEWEGUNGS-VERDACHT (M18.104, IMMER wenn Auto- oder Walking-
+     *     Erkennung aktiv): Der einzige AR-unabhängige CONFIRM-Burst-
+     *     Trigger. Hängt er am Geofencing-Gate, stirbt die Fahrt-
+     *     Erkennung für alle User ohne Geofences (geofencingEnabled
+     *     Default FALSE — M18.130/t_3ac05e06: Motorrad-Totalausfall).
+     *
+     * Gate: Geofencing ODER Auto-Erkennung ODER Walking-Erkennung.
+     * Nur wenn ALLE drei aus sind, ist der Worker sinnlos. Die pure
+     * Entscheidung ist als [shouldRunCheck] im Companion JVM-testbar
+     * (ProactiveGeofenceCheckGateTest). */
+    private suspend fun shouldRun(
+        settingsRepo: com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+    ): Boolean? {
+        // null = keine Settings geladen → konservativ laufen lassen.
+        try {
+            val settings = settingsRepo.get().first()
+                ?: return true
+            return shouldRunCheck(
+                settings.geofencingEnabled,
+                settings.drivingDetectionEnabled,
+                settings.walkingDetectionEnabled
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Settings-Check fehlgeschlagen: ${e.message} — führe Check konservativ aus")
+            return null
+        }
     }
 
     override suspend fun doWork(): Result {
         val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
         val zoneProvider = deps.currentZoneProvider()
         val settingsRepo = deps.settingsRepository()
-
-        // Gate: Geofencing in den Trigger-Settings deaktiviert?
-        try {
-            val settings = settingsRepo.get().first()
-            if (settings?.geofencingEnabled == false) {
-                Log.d(TAG, "Geofencing deaktiviert — überspringe Check")
-                scheduleNext(applicationContext)
-                return Result.success()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Settings-Check fehlgeschlagen: ${e.message} — führe Check konservativ aus")
+        val settings = shouldRun(settingsRepo)
+        if (settings != null && !settings) {
+            Log.d(TAG, "Geofencing, Auto- und Walking-Erkennung deaktiviert — überspringe Check")
+            scheduleNext(applicationContext)
+            return Result.success()
         }
 
         // M18.66-FIX8: Einziger Pfad ist checkNow() — er übernimmt
         // Zonenerkennung, Zonenwechsel-Erkennung, direkten Auto-Start,
-        // Trigger-Erzeugung und Auto-Stop. Kein processor, keine separaten
-        // SharedPreferences mehr.
+        // Trigger-Erzeugung und Auto-Stop. Für den Bewegungs-Verdacht
+        // unten ist der Fix (lastFixSnapshot) die entscheidende Quelle.
         try {
             zoneProvider.checkNow()
         } catch (e: Exception) {
@@ -109,8 +140,33 @@ class ProactiveGeofenceCheckWorker(
         // ~0), Gehen schafft in 5 Min ~400 m — der Fahrzeug-Pfad bleibt
         // exklusiv für schnelle Ortsveränderung. Burst-Kaskaden fangen
         // die Cooldowns im Service ab.
+        //
+        // M18.130 (t_3ac05e06): Der Fix darf NICHT von checkNow() abhängen.
+        // User ohne Geofences haben eine leere DB → checkNow() kehrt VOR
+        // der Fix-Akquise zurück (Z.109-113) → lastFixSnapshot() bleibt
+        // null → der Verdacht (einziger AR-unabhängiger CONFIRM-Trigger)
+        // liefe nie. Fallback: eigener BALANCED-Fix über den
+        // CurrentLocationProvider, nur wenn checkNow() keinen geliefert
+        // hat — und auch bei Geofence-Usern bleibt der Verdacht bei einem
+        // fehlgeschlagenen checkNow() am Leben.
         try {
-            val fix = zoneProvider.lastFixSnapshot()
+            var fix = zoneProvider.lastFixSnapshot()
+            if (fix == null) {
+                try {
+                    val loc = deps.locationProvider().getCurrentLocation()
+                    if (loc is com.d_drostes_apps.aevum.automation.location.CurrentLocationResult.Success) {
+                        fix = CurrentZoneProvider.FixSnapshot(
+                            latitude = loc.latitude,
+                            longitude = loc.longitude,
+                            accuracyMeters = loc.accuracyMeters,
+                            atMs = System.currentTimeMillis()
+                        )
+                        Log.d(TAG, "M18.130: Verdachts-Fix selbst akquiriert (checkNow lieferte keinen)")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "M18.130: Fallback-Verdachts-Fix fehlgeschlagen: ${e.message}")
+                }
+            }
             if (fix != null) {
                 suspicionCheck(applicationContext, fix)
             }
@@ -181,6 +237,14 @@ class ProactiveGeofenceCheckWorker(
         private const val KEY_FIX_AT = "fix_at"
         private const val KEY_FIX_LAT = "fix_lat"
         private const val KEY_FIX_LON = "fix_lon"
+
+        /** M18.130 (t_3ac05e06): Gate-Entscheidung als pure Funktion für
+         *  JVM-Tests (ProactiveGeofenceCheckGateTest). */
+        fun shouldRunCheck(
+            geofencingEnabled: Boolean,
+            drivingEnabled: Boolean,
+            walkingEnabled: Boolean
+        ): Boolean = geofencingEnabled || drivingEnabled || walkingEnabled
 
         fun schedule(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(

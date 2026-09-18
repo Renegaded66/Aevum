@@ -235,8 +235,14 @@ class RideRecordingReproductionTest {
     //     Aufzeichnung.
     // Fixes im REALEN Hintergrund-Burst (BALANCED, 60s): oft accuracy
     // > 50 m oder ohne Speed-Feld (Doze/OEM, Stadt-Canyon).
-    // Erwartung: NICHTS — Totalausfall wie gemeldet. „Früher spät"
-    // entstand aus demselben Muster mit besseren Fixes (Welt E).
+    // M18.130 (t_3ac05e06): Mit dem Vehicle-Pace-Override erkennt die
+    // 70-km/h-Phase die Fahrt — Start bei t=300s statt NICHTS. (Die
+    // 30-km/h-Phase bleibt im 60s-BALANCED-Fix-Muster unerreichbar:
+    // 3 schnelle Fixes brauchen dort 3 Minuten; die echte Welt bekommt
+    // durch den entkoppelten Verdachts-Check einen 15s-CONFIRM-Burst,
+    // der die 30er-Phase in ~1-2 Min startet.)
+    // Erwartung: AUFGEZEICHNET (Start ≤ 5 Min) — der Totalausfall ist
+    // behoben.
     // ════════════════════════════════════════════════════════════════
 
     @Test
@@ -281,9 +287,12 @@ class RideRecordingReproductionTest {
                 log.append("  -> kein Start: $reason\n")
             }
         }
-        println("=== WELT B (Motorrad-AR, WALKING-dominant, 60s-Fixes): ${if (session != null) "AUFGEZEICHNET @ ${(session!!.startAt - t0) / 1000}s" else "NICHTS - 10 Min ohne Aufzeichnung (User-Fall reproduziert)"} ===")
+        println("=== WELT B (Motorrad-AR, WALKING-dominant, 60s-Fixes): ${if (session != null) "AUFGEZEICHNET @ ${(session!!.startAt - t0) / 1000}s" else "NICHTS - 10 Min ohne Aufzeichnung (Totalausfall)"} ===")
         print(log)
-        assertThat(session).isNull()
+        // M18.130: Der Totalausfall ist behoben — die Fahrt wird
+        // aufgezeichnet (Start innerhalb der 10-Min-Fahrt).
+        assertThat(session).isNotNull()
+        assertThat(session!!.startAt - t0).isLessThan(10L * 60_000L)
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -339,11 +348,17 @@ class RideRecordingReproductionTest {
     // ════════════════════════════════════════════════════════════════
     // WELT D: KEIN AR + BALANCED-Fixes unbrauchbar (accuracy > 50m,
     // kein Speed, GPS-Chip im Schlaf) — der reale „tote" Fallback.
-    // Erwartung: NICHTS — Totalausfall wie gemeldet.
+    // M18.130 (t_3ac05e06): Der Verdachts-Check ist vom Geofencing-
+    // Gate entkoppelt (suspicionCheck feuert auch ohne Geofences) →
+    // Netto ≥ 1500 m/5 Min startet einen CONFIRM-Burst (HIGH, 15s) —
+    // dessen Fixes sind sauber (kein Stadt-Canyon-/BALANCED-Schlaf).
+    // Der Fahrzeug-Verdacht kommt jetzt aus dem eigenständigen
+    // Fallback-Fix des Workers (checkNow() liefert ohne Geofences
+    // keinen Fix). Erwartung: AUFGEZEICHNET (statt NICHTS).
     // ════════════════════════════════════════════════════════════════
 
     @Test
-    fun `Welt D - kein AR + unbrauchbare BALANCED-Fixes - Totalausfall wie gemeldet`() = runTest {
+    fun `Welt D - kein AR + Verdachts-Burst nach Entkopplung - aufgezeichnet`() = runTest {
         val bridge = bridge()
         val repo = FakeActivityRepository()
         val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
@@ -351,34 +366,42 @@ class RideRecordingReproductionTest {
         var session: ActivitySession? = null
         val log = StringBuilder()
 
-        for (probeMin in listOf(2L, 4L, 6L, 8L, 10L)) {
-            val now = t0 + probeMin * 60_000L
-            // Hintergrund-BALANCED: GPS-Chip wach nur kurz, Fix oft
-            // inakkurat (Stadt-Canyon 60-120m) oder ohne Speed.
-            val accuracy = if (probeMin % 2L == 0L) 80f else 12f
-            val withSpeed = probeMin % 3L != 0L
+        // Phase 1: 2 balancierte Probes (Min 2 und Min 5) — der
+        // 5-Min-Verdacht (Netto ≥ 1500 m) feuert und startet den
+        // CONFIRM-Burst, OHNE Geofences und OHNE AR (M18.130-Kern).
+        bridge.addDriveProbe(
+            probe(t0 + 120_000L, KMH_30.toFloat(), 12f, KMH_30 * 120.0, latFor(KMH_30 * 120.0)), false
+        )
+        bridge.addDriveProbe(
+            probe(t0 + 300_000L, KMH_30.toFloat(), 12f, KMH_30 * 180.0, latFor(KMH_30 * 300.0)), false
+        )
+        log.append("Min 5: Bewegungs-Verdacht (Netto 2500m) -> CONFIRM-Burst (M18.130: unabhängig von Geofencing/AR)\n")
+
+        // Phase 2: CONFIRM-Burst-Fixes (15s, HIGH, sauber — acc 10m,
+        // Speed-Feld da). Ab Min 5 gilt die 70-km/h-Phase (19,4 m/s) —
+        // der erste saubere Burst-Fix + die 30-km/h-BALANCED-Probes
+        // erfüllen die UNKNOWN-Gates (8 m/s, Kette 2) sofort.
+        var positionM = KMH_30 * 300.0
+        for (t in 300_000L..600_000L step 15_000L) {
+            val now = t0 + t
+            positionM += KMH_70 * 15.0
             bridge.addDriveProbe(
-                probe(
-                    timestampMs = now,
-                    speedMps = if (withSpeed) KMH_70.toFloat() else null,
-                    accuracy = accuracy,
-                    distanceFromLastM = if (withSpeed) null else KMH_70 * 120.0,
-                    latitude = latFor(KMH_70 * 120.0 * probeMin)
-                ), false
+                probe(now, KMH_70.toFloat(), 10f, KMH_70 * 15.0, latFor(positionM)), false
             )
-            log.append("Probe@Min$probeMin: acc=${accuracy.toInt()}m speed=${if (withSpeed) "ja" else "null"}\n")
             val (decision, reason) = handleFixDecision(bridge, now)
             if (decision > 0) {
-                log.append("  -> START: $reason\n")
-                session = commitStart(bridge, manager, now, "probe")
+                log.append("t=${t / 1000}s START (${if (decision == 1) "FAST" else "NORMAL"}): $reason\n")
+                session = commitStart(bridge, manager, now, "d")
                 break
-            } else {
-                log.append("  -> kein Start: $reason\n")
             }
         }
-        println("=== WELT D (kein AR + kaputte Fixes): ${if (session != null) "AUFGEZEICHNET" else "NICHTS - Totalausfall reproduziert"} ===")
+        println("=== WELT D (kein AR + kaputte BALANCED-Fixes, Verdachts-Burst): ${if (session != null) "AUFGEZEICHNET @ ${(session!!.startAt - t0) / 1000}s" else "NICHTS"} ===")
         print(log)
-        assertThat(session).isNull()
+        // M18.130: Der Totalausfall ist behoben — die Fahrt wird
+        // aufgezeichnet, Start beim ersten sauberen Burst-Fix nach
+        // dem entkoppelten Bewegungs-Verdacht (t = 5 Min).
+        assertThat(session).isNotNull()
+        assertThat(session!!.startAt - t0).isLessThan(10L * 60_000L)
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -423,9 +446,14 @@ class RideRecordingReproductionTest {
         }
         println("=== WELT E (Motorrad-AR + 15s-Fixes ohne Speed): ${if (session != null) "AUFGEZEICHNET @ ${(session!!.startAt - t0) / 1000}s" else "NICHTS"} ===")
         print(log)
-        // „Früher spät": Start frühestens nach der 30er-Phase (t>180s).
+        // M18.130: Auch OHNE Speed-Feld erkennt die 70-km/h-Phase jetzt
+        // früh — und die 30-km/h-Phase (8,33 m/s abgeleitet) erreicht
+        // mit dichten Fixes die Fahrzeug-Pace bereits nach ~75 s.
+        // Das historische „zu spät" (Start erst NACH der 30er-Phase)
+        // ist damit ebenfalls geheilt: Start innerhalb der ersten
+        // 3 Minuten statt erst ab der 70er-Phase.
         assertThat(session).isNotNull()
-        assertThat(session!!.startAt - t0).isGreaterThan(3L * 60_000L)
+        assertThat(session!!.startAt - t0).isLessThan(3L * 60_000L)
     }
 
     // ════════════════════════════════════════════════════════════════
