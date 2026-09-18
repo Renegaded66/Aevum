@@ -134,7 +134,16 @@ class CalendarReader @Inject constructor(
             projection,
             // Nur nicht-abgesagte, sichtbare Termine. Der Status-Filter
             // verhindert, dass eine abgesagte Vorlesung aufgezeichnet wird.
-            "${CalendarContract.Instances.STATUS} != ?",
+            //
+            // M18.132-FIX: `STATUS IS NULL` muss EXPLIZIT erlaubt sein.
+            // Viele Provider (lokale Kalender, einige Sync-Backends)
+            // speichern keinen Status — die Spalte ist dann NULL. In
+            // SQL ist `NULL != 1` aber nicht TRUE, sondern NULL, d. h.
+            // die Zeile fällt aus dem Ergebnis: ALLE Termine solcher
+            // Kalender waren unsichtbar (Symptom: „meine echten Termine
+            // werden gar nicht angezeigt"). Die Null-Fassung zuerst,
+            // damit der Index-freundliche Ungleich-Vergleich bleibt.
+            "(${CalendarContract.Instances.STATUS} IS NULL OR ${CalendarContract.Instances.STATUS} != ?)",
             arrayOf(CalendarContract.Instances.STATUS_CANCELED.toString()),
             "${CalendarContract.Instances.BEGIN} ASC"
         )?.use { cursor ->

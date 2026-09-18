@@ -87,16 +87,49 @@ class CalendarRepositoryImpl @Inject constructor(
     /**
      * M18.129: Cache-Aktualisierung.
      *
-     * Reihenfolge ist wichtig: erst die abgelaufenen Termine entfernen,
-     * dann die frischen einfügen (UPSERT). So bleibt der Cache konsistent,
-     * auch wenn der Kalender einen Termin gelöscht hat — die neue Liste
-     * enthält ihn nicht mehr, und er verschwindet durch das Pruning.
+     * M18.132 — DER GHOST-TERMIN-FIX (Symptom: „Termin steht im Picker,
+     * aber nicht im Kalender"):
+     * Bis M18.131 war replaceWindow = deleteEndedBefore(pruneBefore) +
+     * upsertAll. Der Delete betraf nur Termine, die VOR dem Sync-Fenster
+     * enden — ein Termin, der IM KALENDER GELÖSCHT wurde (oder in einen
+     * nicht mehr synchronisierten Kalender verschoben), blieb also bis zu
+     * 9 Tage als Ghost im Cache, sichtbar in Picker und Vorschau. Das
+     * ist genau der gemeldete „halluzinierte" Termin.
      *
-     * `pruneBefore` = Sync-Fensterbeginn: alles, was VOR dem Fenster endet,
-     * ist für Vorschau und Auto-Start irrelevant.
+     * Neu: der Cache wird pro Sync-Fenster zum SPIEGEL des Kalenders —
+     * alles im Fenster, das der aktuelle Lesevorgang nicht mehr liefert,
+     * wird GELÖSCHT. Da der Reader IMMER das komplette Fenster liest
+     * (DAYS_BACK..DAYS_FORWARD) und replaceWindow nur vom Sync-Worker
+     * und vom manuellen Sync (beide lesen dasselbe Fenster) aufgerufen
+     * wird, ist die neue Liste vollständig: fehlt ein Termin darin,
+     * existiert er im Kalender nicht mehr.
+     *
+     * Reihenfolge ist wichtig: erst pruning, dann UPSERT — sonst könnte
+     * ein wiedergekehrter Termin (löschen + wieder anlegen) vom Delete
+     * erfasst werden.
      */
     override suspend fun replaceWindow(events: List<CalendarEventCache>, pruneBefore: Long) {
+        // 1. Termine entfernen, die vor dem Fenster enden (altes Verhalten,
+        //    hält den Cache klein).
         eventDao.deleteEndedBefore(pruneBefore)
+        // 2. M18.132 GHOST-FIX: Alles, was im Fenster noch relevant ist,
+        //    aber nicht mehr gelesen wurde, ist im Kalender gelöscht oder
+        //    verschoben worden — es hat im Cache nichts verloren. Die
+        //    Aufrufer (SyncWorker, manueller Sync) rufen replaceWindow
+        //    NUR nach einem erfolgreichen Lesevorgang auf — eine leere
+        //    Liste heißt hier also wirklich „Kalender im Fenster leer",
+        //    und dann ist auch das Ghost-Löschen korrekt (im Gegensatz
+        //    zu pruneOrphans, wo ein MISSLINGENDER Sync leer liefern
+        //    kann und die Markierungen deshalb geschützt sind).
+        //    Gestückelt (500 pro Batch): SQLite-Variable-Limit (999)
+        //    darf bei großen geteilten Kalendern nie zuschlagen.
+        val keptIds = events.map { it.eventId }.toSet()
+        val inWindow = eventDao.getIdsEndingAfter(pruneBefore)
+        val ghosts = inWindow.filter { it !in keptIds }
+        if (ghosts.isNotEmpty()) {
+            ghosts.chunked(500).forEach { chunk -> eventDao.deleteByIds(chunk) }
+        }
+        // 3. Frische Termine einfügen (UPSERT).
         if (events.isNotEmpty()) {
             eventDao.upsertAll(events)
         }

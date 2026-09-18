@@ -138,10 +138,26 @@ object CalendarRuleType {
     fun needsMatchValue(type: String): Boolean = type != ALL_DAY_ONLY && type != CALENDAR_IS
 }
 
-/** M18.129: Was passiert, wenn beim Termin-Start schon etwas läuft. */
+/**
+ * M18.129: Was passiert, wenn beim Termin-Start schon etwas läuft.
+ *
+ * M18.132: QUEUE_IF_BUSY ergänzt — die dritte, vom Auftrag geforderte
+ * Option („beginnt, sobald keine Aufzeichnung mehr läuft"). Sie wird
+ * als Wert in derselben String-Spalte gespeichert wie die anderen —
+ * kein Schema-Eingriff, Bestands-Zeilen bleiben unverändert gültig.
+ */
 object CalendarOverlapPolicy {
     /** Beendet die laufende Session (Aevum-Standard bei Auto-Triggern). */
     const val OVERRIDE = "OVERRIDE"
     /** Startet nur, wenn gerade nichts aufgezeichnet wird. */
     const val ONLY_IF_IDLE = "ONLY_IF_IDLE"
+    /**
+     * M18.132: Startet den Termin nach, sobald keine Aufzeichnung mehr
+     * läuft — auch noch mitten im Termin („Warteschlange"). Eine
+     * laufende Fremd-Session wird dabei NIE angetastet.
+     */
+    const val QUEUE_IF_BUSY = "QUEUE_IF_BUSY"
+
+    /** Alle gültigen Werte (für Validierung und UI-Reihenfolge). */
+    val ALL: List<String> = listOf(OVERRIDE, ONLY_IF_IDLE, QUEUE_IF_BUSY)
 }

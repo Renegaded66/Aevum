@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum.ui.screens.calendar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,10 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,6 +61,7 @@ import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -92,7 +94,16 @@ fun CalendarEventPickerScreen(
     val editing by viewModel.editingEvent.collectAsStateWithLifecycle()
     val editingPin by viewModel.editingPin.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     val zone = remember { ZoneId.systemDefault() }
+
+    // M18.132: Beim Öffnen der Seite den Kalender-Sync anstoßen, wenn der
+    // Cache leer oder älter als 15 Minuten ist — der Nutzer sieht dann
+    // seine frisch angelegten Termine sofort statt erst beim nächsten
+    // periodischen Sync (Default alle 6 Stunden).
+    LaunchedEffect(Unit) {
+        viewModel.refreshFromCalendar()
+    }
 
     // Meldung nach kurzer Zeit verwerfen (Muster aus CalendarRulesScreen).
     LaunchedEffect(message) {
@@ -127,88 +138,67 @@ fun CalendarEventPickerScreen(
             }
         }
 
-        // ── Tages-Navigation ──────────────────────────────────────────
+        // ── Zusammenfassung (markierte Termine) ──────────────────────
         AevumCard(variant = CardVariant.Gradient) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(AevumSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = viewModel::previousDay) { Text("‹", fontSize = 22.sp) }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val label = state.selectedDate.format(
-                            DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)
-                                .withLocale(AppLocale.current)
-                        )
-                        Text(
-                            label.replaceFirstChar { it.uppercase() },
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    TextButton(onClick = viewModel::nextDay) { Text("›", fontSize = 22.sp) }
+                val summary = when (state.pinnedCount) {
+                    0 -> stringResource(R.string.calendar_picker_summary_none)
+                    1 -> stringResource(R.string.calendar_picker_summary_one)
+                    else -> stringResource(R.string.calendar_picker_summary_many, state.pinnedCount)
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val summary = when (state.pinnedCount) {
-                        0 -> stringResource(R.string.calendar_picker_summary_none)
-                        1 -> stringResource(R.string.calendar_picker_summary_one)
-                        else -> stringResource(R.string.calendar_picker_summary_many, state.pinnedCount)
-                    }
-                    Text(
-                        summary,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        stringResource(R.string.calendar_picker_today),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(AevumRadius.full))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
-                            .clickable(onClick = viewModel::today)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                Text(
+                    summary,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace
+                )
             }
         }
 
-        // ── Termin-Liste ──────────────────────────────────────────────
+        // ── 7-Tage-Kalender ───────────────────────────────────────────
+        // Eine Liste von Tages-Sektionen: jeder Tag hat seinen Header
+        // („Donnerstag, 18. September" — heute hervorgehoben) und darunter
+        // alle Termine dieses Tags. Der Auftrag will genau das: eine
+        // Kalender-Ansicht der nächsten 7 Tage, in der jeder Termin
+        // einzeln antippbar ist.
         AevumCard {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(AevumSpacing.md),
-                verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
             ) {
-                if (state.events.isEmpty()) {
+                // M18.132: Transienter Hinweis, WÄHREND der Öffnungs-Sync
+                // läuft — sonst wirkt eine kurz leere Liste wie ein Fehler.
+                if (syncing) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            stringResource(R.string.calendar_picker_syncing),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (state.totalEventsInCache == 0 && !syncing) {
                     Text(
-                        // Ehrliche Ursache statt „nichts da": eine leere Liste
-                        // hat drei sehr verschiedene Gründe.
-                        text = if (state.totalEventsInCache == 0) {
-                            stringResource(R.string.calendar_picker_empty_no_sync)
-                        } else {
-                            stringResource(R.string.calendar_picker_empty)
-                        },
+                        stringResource(R.string.calendar_picker_empty_no_sync),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                state.events.forEach { row ->
-                    EventRow(
-                        row = row,
+                state.days.forEach { day ->
+                    DaySection(
+                        day = day,
                         zone = zone,
-                        // Der Termin reist im Zustand mit — kein
-                        // Rekonstruieren aus Einzelfeldern.
-                        onClick = { viewModel.openEvent(row.event) }
+                        onEventClick = { event -> viewModel.openEvent(event) }
                     )
                 }
             }
@@ -248,6 +238,99 @@ fun CalendarEventPickerScreen(
             },
             onRemove = { viewModel.unpinEvent(event.eventId) }
         )
+    }
+}
+
+/**
+ * M18.132: Eine Tages-Sektion der 7-Tage-Ansicht.
+ *
+ * Aufbau: Tages-Header („Heute · Donnerstag, 18. September" bzw. das
+ * Datum der Folgetage) plus die Termine dieses Tags. Ein Tag OHNE
+ * Termine zeigt den Header mit dem dezenten Hinweis „Keine Termine" —
+ * ein Google-Kalender zeigt leere Tage auch als leere Tage, nicht als
+ * Nichts (sonst würde die Seite den Eindruck machen, dort endete der
+ * Kalender).
+ */
+@Composable
+private fun DaySection(
+    day: CalendarDaySectionUi,
+    zone: ZoneId,
+    onEventClick: (CalendarEventCache) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+        // ── Tages-Header ─────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            // Tages-Kürzel im Kreis (Google-Kalender-Stil): Wochentag
+            // über der Tageszahl, heute in der Akzentfarbe.
+            val dayOfWeekLabel = day.date.dayOfWeek.getDisplayName(
+                java.time.format.TextStyle.SHORT,
+                AppLocale.current
+            )
+            val accent = if (day.isToday) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (day.isToday) accent.copy(alpha = 0.16f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        dayOfWeekLabel,
+                        fontSize = 9.sp,
+                        color = accent,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "${day.date.dayOfMonth}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (day.isToday) accent
+                            else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            Text(
+                text = when {
+                    day.isToday -> stringResource(R.string.calendar_picker_day_today)
+                    day.date == LocalDate.now().plusDays(1) ->
+                        stringResource(R.string.calendar_picker_day_tomorrow)
+                    else -> day.date.format(
+                        DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(AppLocale.current)
+                    )
+                }.replaceFirstChar { it.uppercase() },
+                fontSize = 14.sp,
+                fontWeight = if (day.isToday) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (day.isToday) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        // ── Termine des Tages ───────────────────────────────────────
+        if (day.events.isEmpty()) {
+            Text(
+                stringResource(R.string.calendar_picker_day_empty),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 46.dp)
+            )
+        } else {
+            day.events.forEach { row ->
+                EventRow(
+                    row = row,
+                    zone = zone,
+                    onClick = { onEventClick(row.event) }
+                )
+            }
+        }
     }
 }
 
@@ -387,8 +470,15 @@ private fun EventPinDialog(
     var customTitle by remember(event.eventId) {
         mutableStateOf(existingPin?.defaultTitle.orEmpty())
     }
-    var overrideRunning by remember(event.eventId) {
-        mutableStateOf(existingPin?.overlapPolicy != CalendarOverlapPolicy.ONLY_IF_IDLE)
+    // M18.132: Drei-Optionen-Auswahl statt Toggle — der Auftrag verlangt
+    // explizit „startet, sobald keine Aufzeichnung mehr läuft" als dritte
+    // Wahl. Ein PIN aus einer ÄLTEREN App-Version mit nur-if-idle wird
+    // korrekt vorausgewählt.
+    var overlapPolicy by remember(event.eventId) {
+        mutableStateOf(
+            existingPin?.overlapPolicy
+                ?: CalendarOverlapPolicy.OVERRIDE
+        )
     }
     var errorShown by remember(event.eventId) { mutableStateOf(false) }
 
@@ -497,23 +587,81 @@ private fun EventPinDialog(
                     singleLine = true
                 )
 
-                // Overlap-Verhalten (nur relevant, wenn etwas läuft)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.calendar_editor_toggle_stop_running),
-                        fontSize = 13.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(checked = overrideRunning, onCheckedChange = { overrideRunning = it })
-                }
+                // Overlap-Verhalten (M18.132: drei Optionen statt Toggle —
+                // der Auftrag verlangt explizit auch „startet, sobald keine
+                // Aufzeichnung mehr läuft"). Radio-Zeilen, damit alle drei
+                // sichtbar sind; die gewählte Option wird markiert.
                 Text(
-                    stringResource(R.string.calendar_editor_toggle_stop_running_desc),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    stringResource(R.string.calendar_picker_dialog_overlap_label),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
+                val overlapOptions = listOf(
+                    Triple(
+                        CalendarOverlapPolicy.OVERRIDE,
+                        stringResource(R.string.calendar_picker_dialog_overlap_override),
+                        stringResource(R.string.calendar_picker_dialog_overlap_override_desc)
+                    ),
+                    Triple(
+                        CalendarOverlapPolicy.ONLY_IF_IDLE,
+                        stringResource(R.string.calendar_picker_dialog_overlap_idle),
+                        stringResource(R.string.calendar_picker_dialog_overlap_idle_desc)
+                    ),
+                    Triple(
+                        CalendarOverlapPolicy.QUEUE_IF_BUSY,
+                        stringResource(R.string.calendar_picker_dialog_overlap_queue),
+                        stringResource(R.string.calendar_picker_dialog_overlap_queue_desc)
+                    )
+                )
+                overlapOptions.forEach { (policy, label, desc) ->
+                    val selected = overlapPolicy == policy
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.sm))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                else Color.Transparent
+                            )
+                            .clickable { overlapPolicy = policy }
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else Color.Transparent
+                                )
+                                .border(
+                                    width = if (selected) 0.dp else 1.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.onPrimary)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                desc,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -522,12 +670,7 @@ private fun EventPinDialog(
                 if (id == null) {
                     errorShown = true
                 } else {
-                    onSave(
-                        id,
-                        customTitle.takeIf { it.isNotBlank() },
-                        if (overrideRunning) CalendarOverlapPolicy.OVERRIDE
-                        else CalendarOverlapPolicy.ONLY_IF_IDLE
-                    )
+                    onSave(id, customTitle.takeIf { it.isNotBlank() }, overlapPolicy)
                 }
             }) {
                 Text(stringResource(R.string.calendar_picker_dialog_save))
