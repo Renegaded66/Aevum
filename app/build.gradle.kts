@@ -27,8 +27,12 @@ android {
         // Uhrzeit), Limit-Vorwarnung 5 min (Channel war seit M19 tot +
         // Warnung war nicht persistent), Termin-Auswahl (calendar_event_pin,
         // DB v42).
-        versionCode = 15
-        versionName = "1.0.14"
+        // M18.132: Kalender-Termin-Auswahl 7-Tage-Ansicht, Ghost-Termin-Fix
+        // (gelöschte Termine verschwinden aus dem Cache), STATUS-NULL-Fix
+        // (Termine ohne Status waren unsichtbar), Öffnungs-Sync, QUEUE-
+        // Overlap-Policy (startet, sobald nichts mehr läuft).
+        versionCode = 16
+        versionName = "1.0.15"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

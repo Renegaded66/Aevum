@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.ui.screens.calendar
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.d_drostes_apps.aevum.automation.calendar.CalendarReader
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
 import com.d_drostes_apps.aevum.data.model.CalendarEventPin
@@ -11,13 +12,14 @@ import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepository
 import com.d_drostes_apps.aevum.data.repository.CalendarRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Instant
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
@@ -40,20 +42,62 @@ import javax.inject.Inject
  * Die Seite ist bewusst NUR die Auswahl: das Aufzeichnen selbst macht der
  * bestehende [com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunWorker].
  * So gibt es genau eine Stelle, die Aufzeichnungen startet und stoppt.
+ *
+ * M18.132: [refreshFromCalendar] hält den Cache beim Öffnen frisch —
+ * vorher konnte die Liste stundenalt sein (periodischer Sync: 6 h),
+ * was als „meine Termine fehlen" wahrgenommen wurde.
  */
 @HiltViewModel
 class CalendarEventPickerViewModel @Inject constructor(
     application: Application,
     private val calendarRepository: CalendarRepository,
     private val pinRepository: CalendarEventPinRepository,
-    private val activityTypeRepository: ActivityTypeRepository
+    private val activityTypeRepository: ActivityTypeRepository,
+    /** M18.132: für den Öffnungs-Sync (Feature-Schalter lesen). */
+    private val settingsDao: com.d_drostes_apps.aevum.data.db.AutomationSettingsDao,
+    /** M18.132: für den Öffnungs-Sync (Kalender lesen). */
+    private val calendarReader: com.d_drostes_apps.aevum.automation.calendar.CalendarReader
 ) : AndroidViewModel(application) {
+
+    companion object {
+        /**
+         * M18.132: Ein Cache, der jünger ist, wird beim Öffnen NICHT neu
+         * gelesen. 15 Minuten decken den Praxisfall ab („gerade im Handy
+         * angelegt → App öffnen → soll da sein"), ohne bei jedem Öffnen
+         * den ContentResolver zu bemühen.
+         */
+        const val STALE_AFTER_MS = 15L * 60 * 1000
+
+        /**
+         * M18.132: Länge der Termin-Auswahl-Ansicht — der Auftrag:
+         * „eine Kalender-Ansicht ab dem aktuellen Zeitpunkt für die
+         * nächsten 7 Tage". Der Sync des Readers liefert 9 Tage Fenster
+         * (heute−1 bis heute+8), deckelt die Ansicht also zu jedem
+         * Zeitpunkt vollständig.
+         */
+        const val DAYS_TO_SHOW = 7
+    }
 
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
-    /** Gewählter Tag (Tages-Navigation). */
-    private val _selectedDate = MutableStateFlow(LocalDate.now())
-    val selectedDate: StateFlow<LocalDate> = _selectedDate
+    /**
+     * M18.132: Anker der 7-Tage-Ansicht — der Tag, an dem die Seite
+     * geöffnet wurde.
+     *
+     * WARUM ANKER STATT TAGES-NAVIGATION: Der Auftrag will „eine
+     * Kalender-Ansicht ab dem aktuellen Zeitpunkt für die nächsten 7
+     * Tage" — alle Termine der Woche untereinander, anklickbar, wie ein
+     * Google-Kalender. Vor-/Zurück-Navigation einzelner Tage wäre ein
+     * anderes (umständlicheres) Bedienmodell.
+     *
+     * WARUM NICHT LocalDate.now() BEI JEDER BEREchnung: sitzt die Seite
+     * über Mitternacht offen, würde sich die Liste unter dem Nutzer
+     * verschieben (Tag 7 fällt hinten raus, „heute" wandert). Der
+     * Anker friert die Sicht ein; beim nächsten Öffnen wird er neu
+     * gesetzt (das ViewModel gehört zum Navigation-Eintrag und wird
+     * mit jedem Öffnen neu erstellt).
+     */
+    private val _anchorDate = MutableStateFlow(LocalDate.now())
 
     /** Aktuell geöffneter Termin (Dialog). null = geschlossen. */
     private val _editingEvent = MutableStateFlow<CalendarEventCache?>(null)
@@ -76,24 +120,84 @@ class CalendarEventPickerViewModel @Inject constructor(
     private val _message = MutableStateFlow<PickerMessage?>(null)
     val message: StateFlow<PickerMessage?> = _message
 
+    /**
+     * M18.132: Sync-Status für die Kopfzeile („Termine werden synchroni-
+     * siert …"), damit der Nutzer versteht, warum die Liste kurz leer ist.
+     */
+    private val _syncing = MutableStateFlow(false)
+    val syncing: StateFlow<Boolean> = _syncing
+
+    /**
+     * M18.132: Wird beim Öffnen der Seite gestartet — hält den Cache
+     * FRISCH, ohne einen Button zu brauchen.
+     *
+     * WARUM DAS NÖTIG IST: Der Picker liest nur den Cache. Der periodische
+     * Sync läuft nur alle 6 h (Default) — nach einem Termin, der gerade
+     * erst im Handy-Kalender angelegt wurde, hätte die Liste ihn erst
+     * Stunden später gezeigt (Symptom: „meine echten Termine werden gar
+     * nicht angezeigt"). Ein Sync beim Öffnen schließt diese Lücke, ohne
+     * den Akku zu belasten: EIN Lesen pro Seitenöffnung, nicht im Takt.
+     *
+     * GATES (bewusst alle in der Reihenfolge): Feature aktiviert?
+     * Permission? Cache überhaupt da / älter als [STALE_AFTER_MS]?
+     * Sonst wird das Lesen gespart — ein frischer Cache (z. B. durch
+     * den manuellen Sync auf der Einstellungs-Seite) bleibt unangetastet.
+     */
+    fun refreshFromCalendar() {
+        if (_syncing.value) return
+        viewModelScope.launch {
+            // Gate 1: Feature-Schalter — ist der Kalender aus, hat der
+            // Nutzer hier nichts zu suchen und die Seite zeigt ihren
+            // Aktivierungs-Hinweis.
+            val settings = try {
+                settingsDao.getSettingsSync()
+            } catch (e: Exception) {
+                null
+            }
+            if (settings?.calendarSyncEnabled != true) return@launch
+            // Gate 2: Permission (Widerruf jederzeit möglich).
+            if (!calendarReader.hasPermission()) return@launch
+            // Gate 3: Nur wenn nötig — Cache leer oder älter als 5 min.
+            // Die UI ist reaktiv: sobald der Sync schreibt, erscheinen
+            // die Termine von selbst.
+            val lastSync = try {
+                calendarRepository.getLastSyncedAt()
+            } catch (e: Exception) {
+                null
+            }
+            val stale = lastSync == null || System.currentTimeMillis() - lastSync > STALE_AFTER_MS
+            if (!stale) return@launch
+
+            _syncing.value = true
+            try {
+                val result = withContext(Dispatchers.IO) { calendarReader.readEvents() }
+                if (result is CalendarReader.CalendarReadResult.Success) {
+                    val (from, _) = calendarReader.window()
+                    calendarRepository.replaceWindow(result.events, pruneBefore = from)
+                    calendarRepository.markSynced(System.currentTimeMillis())
+                }
+            } catch (e: Exception) {
+                // Der Cache bleibt, was er ist — die Seite funktioniert
+                // weiter, nur eben mit altem Stand. Kein Crash.
+                android.util.Log.w("CalendarEventPickerVM", "Auto-Sync fehlgeschlagen: ${e.message}")
+            } finally {
+                _syncing.value = false
+            }
+        }
+    }
+
     val uiState: StateFlow<CalendarEventPickerUiState> = combine(
-        _selectedDate,
+        _anchorDate,
         calendarRepository.getEvents(),
         pinRepository.getAll(),
         activityTypeRepository.getAll()
-    ) { date: LocalDate, events: List<CalendarEventCache>, pins: List<CalendarEventPin>, types: List<ActivityType> ->
-        buildState(date, events, pins, types)
+    ) { anchor: LocalDate, events: List<CalendarEventCache>, pins: List<CalendarEventPin>, types: List<ActivityType> ->
+        buildState(anchor, events, pins, types)
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         CalendarEventPickerUiState()
     )
-
-    fun previousDay() { _selectedDate.value = _selectedDate.value.minusDays(1) }
-    fun nextDay() { _selectedDate.value = _selectedDate.value.plusDays(1) }
-    fun today() { _selectedDate.value = LocalDate.now() }
-    fun selectDate(date: LocalDate) { _selectedDate.value = date }
-
     /**
      * Öffnet den Dialog für einen Termin und lädt eine eventuell
      * vorhandene Markierung als Vorbelegung.
@@ -172,77 +276,94 @@ class CalendarEventPickerViewModel @Inject constructor(
     fun consumeMessage() { _message.value = null }
 
     /**
-     * Baut den Anzeigezustand für einen Tag.
+     * Baut den Anzeigezustand für die 7-Tage-Ansicht ab dem Anker-Tag.
      *
-     * Die Termine werden auf den gewählten Tag gefiltert (echter Overlap,
-     * damit ein über Mitternacht laufender Termin an beiden Tagen sichtbar
-     * ist) und mit ihrer Markierung zusammengeführt. Reine Funktion im
-     * Hinblick auf die Eingaben — dadurch ist die Zuordnung testbar, ohne
-     * Android zu brauchen.
+     * Die Termine werden pro Tag gefiltert (echter Overlap, damit ein
+     * über Mitternacht laufender Termin an beiden Tagen sichtbar ist)
+     * und mit ihrer Markierung zusammengeführt. Reine Funktion im
+     * Hinblick auf die Eingaben — dadurch ist die Zuordnung testbar,
+     * ohne Android zu brauchen.
      */
     private fun buildState(
-        date: LocalDate,
+        anchor: LocalDate,
         events: List<CalendarEventCache>,
         pins: List<CalendarEventPin>,
         types: List<ActivityType>
     ): CalendarEventPickerUiState {
-        val dayStart = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val dayEnd = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
         val pinByEventId = pins.associateBy { it.eventId }
         val typeById = types.associateBy { it.id }
         val now = System.currentTimeMillis()
 
-        val dayEvents = events
-            .filter { it.startAt < dayEnd && it.endAt > dayStart }
-            .sortedBy { it.startAt }
-            .map { event ->
-                val pin = pinByEventId[event.eventId]
-                val type = pin?.activityTypeId?.let { typeById[it] }
-                CalendarEventRowUi(
-                    eventId = event.eventId,
-                    title = event.title.ifBlank { "" },
-                    calendarName = event.calendarName,
-                    startAt = event.startAt,
-                    endAt = event.endAt,
-                    allDay = event.allDay,
-                    isPinned = pin != null,
-                    pinnedActivityName = type?.name,
-                    pinnedActivityIcon = type?.icon,
-                    pinnedActivityColor = type?.color ?: 0L,
-                    // Eine Markierung, deren Aktivität gelöscht wurde, ist
-                    // inert — die UI muss das ehrlich zeigen statt eine
-                    // Aufzeichnung zu suggerieren, die nicht stattfindet.
-                    pinActivityMissing = pin != null && pin.activityTypeId == null,
-                    isPast = event.endAt <= now,
-                    isRunning = event.startAt <= now && event.endAt > now,
-                    // Der Dialog braucht den vollständigen Termin (Titel,
-                    // Kalendername, Zeitraum) — deshalb reist er mit. So
-                    // muss die UI ihn nicht aus Einzelfeldern rekonstruieren.
-                    event = event
-                )
-            }
+        fun rowFor(event: CalendarEventCache): CalendarEventRowUi {
+            val pin = pinByEventId[event.eventId]
+            val type = pin?.activityTypeId?.let { typeById[it] }
+            return CalendarEventRowUi(
+                eventId = event.eventId,
+                title = event.title.ifBlank { "" },
+                calendarName = event.calendarName,
+                startAt = event.startAt,
+                endAt = event.endAt,
+                allDay = event.allDay,
+                isPinned = pin != null,
+                pinnedActivityName = type?.name,
+                pinnedActivityIcon = type?.icon,
+                pinnedActivityColor = type?.color ?: 0L,
+                // Eine Markierung, deren Aktivität gelöscht wurde, ist
+                // inert — die UI muss das ehrlich zeigen statt eine
+                // Aufzeichnung zu suggerieren, die nicht stattfindet.
+                pinActivityMissing = pin != null && pin.activityTypeId == null,
+                isPast = event.endAt <= now,
+                isRunning = event.startAt <= now && event.endAt > now,
+                // Der Dialog braucht den vollständigen Termin (Titel,
+                // Kalendername, Zeitraum) — deshalb reist er mit. So
+                // muss die UI ihn nicht aus Einzelfeldern rekonstruieren.
+                event = event
+            )
+        }
+
+        val days = (0 until DAYS_TO_SHOW).map { offset ->
+            val date = anchor.plusDays(offset.toLong())
+            val dayStart = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val dayEnd = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            CalendarDaySectionUi(
+                date = date,
+                isToday = date == LocalDate.now(zoneId),
+                events = events
+                    .filter { it.startAt < dayEnd && it.endAt > dayStart }
+                    .sortedBy { it.startAt }
+                    .map(::rowFor)
+            )
+        }
 
         return CalendarEventPickerUiState(
-            selectedDate = date,
-            events = dayEvents,
+            anchorDate = anchor,
+            days = days,
             activityTypes = types.sortedBy { it.name.lowercase() },
             totalEventsInCache = events.size,
-            pinnedCount = pins.size,
-            dayStartMs = dayStart,
-            dayEndMs = dayEnd
+            pinnedCount = pins.size
         )
     }
 }
 
-/** M18.131: Zustand der Termin-Auswahl-Seite. */
+/** M18.132: Zustand der Termin-Auswahl-Seite (7-Tage-Ansicht ab heute). */
 data class CalendarEventPickerUiState(
-    val selectedDate: LocalDate = LocalDate.now(),
-    val events: List<CalendarEventRowUi> = emptyList(),
+    val anchorDate: LocalDate = LocalDate.now(),
+    /** Die 7 Tages-Sektionen ab dem Anker-Tag (inkl. heute). */
+    val days: List<CalendarDaySectionUi> = emptyList(),
     val activityTypes: List<ActivityType> = emptyList(),
     val totalEventsInCache: Int = 0,
-    val pinnedCount: Int = 0,
-    val dayStartMs: Long = 0L,
-    val dayEndMs: Long = 0L
+    val pinnedCount: Int = 0
+)
+
+/**
+ * M18.132: Eine Tages-Sektion in der 7-Tage-Ansicht — der Kalender-
+ * Header (Datum) plus alle Termine dieses Tags (echter Overlap).
+ */
+data class CalendarDaySectionUi(
+    val date: LocalDate,
+    /** true = dieser Abschnitt ist „heute" (visuell hervorgehoben). */
+    val isToday: Boolean,
+    val events: List<CalendarEventRowUi>
 )
 
 /** M18.131: Ein Termin in der Liste, mit seiner Markierung (falls vorhanden). */
@@ -285,7 +406,3 @@ enum class PickerMessage {
  */
 val DEFAULT_PIN_OVERLAP_POLICY: String = CalendarOverlapPolicy.OVERRIDE
 
-/** M18.131: Millisekunden eines Zeitpunkts für die Anzeige (nur Formatierung). */
-internal fun pickerIsSameDay(millis: Long, other: Long, zone: ZoneId = ZoneId.systemDefault()): Boolean =
-    Instant.ofEpochMilli(millis).atZone(zone).toLocalDate() ==
-        Instant.ofEpochMilli(other).atZone(zone).toLocalDate()

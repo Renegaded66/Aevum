@@ -330,6 +330,14 @@ data class CalendarMatch(
         get() = (pin?.overlapPolicy ?: rule?.overlapPolicy ?: CalendarOverlapPolicy.OVERRIDE) ==
             CalendarOverlapPolicy.OVERRIDE
 
+    /**
+     * M18.132: true = der Termin wartet und startet nach, sobald keine
+     * Aufzeichnung mehr läuft. Die Policy wird aus Markierung oder Regel
+     * gelesen (Markierung gewinnt, wie überall).
+     */
+    val shouldQueueWhenBusy: Boolean
+        get() = (pin?.overlapPolicy ?: rule?.overlapPolicy) == CalendarOverlapPolicy.QUEUE_IF_BUSY
+
     /** true = manuell markierter Einzel-Termin (UI kennzeichnet das). */
     val isUserPinned: Boolean get() = pin != null
 

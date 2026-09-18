@@ -133,20 +133,17 @@ class CalendarAutoRunWorker(
         // ── SCHRITT 2: Fälligen Termin starten ───────────────────────
         val currentLive = live.liveSession.value
 
-        // Doppelstart-Schutz: Läuft bereits eine Kalender-Session für
-        // GENAU diesen Termin, ist nichts zu tun. Der Schutz läuft über
-        // die Startzeit der Session, weil die Session selbst die
-        // eventId nicht speichert (kein Schema-Eingriff in
-        // activity_session nötig): eine laufende Kalender-Session, die
-        // zu einem fälligen Termin passt, „konsumiert" ihn.
+        // Doppelstart-Schutz: Läuft bereits eine Kalender-Session, die
+        // zu DIESEM Termin gehört (ihre Startzeit liegt in seinem
+        // Fenster, siehe findRelatedMatch), ist nichts zu tun.
         val candidate = CalendarAutoRunEngine.pickStartCandidate(
             matches = matches,
             now = now,
             lastStartedEventId = null
-        )?.takeIf { c -> !isAlreadyRunningFor(currentLive, c) }
+        )?.takeIf { c -> !isAlreadyRunningFor(currentLive, c, matches) }
 
         if (candidate != null) {
-            startSession(live, candidate, currentLive)
+            startSession(live, candidate, currentLive, now)
         }
 
         // ── SCHRITT 3: Nächsten Lauf auf die nächste Termingrenze legen
@@ -159,9 +156,13 @@ class CalendarAutoRunWorker(
     /**
      * Stoppt die eigene Kalender-Session, wenn ihr Termin vorbei ist.
      *
-     * Es wird der Termin gesucht, der ZUR LAUFENDEN SESSION gehört (über
-     * den Titel/Typ), nicht irgendeiner — sonst könnte ein beliebiger
-     * abgelaufener Termin die Session vorzeitig beenden.
+     * M18.132: Der zugehörige Termin wird über DIESEIN-Funktion
+     * gefunden — die Session-Startzeit muss im [startAt, endAt]-Fenster
+     * des Termins liegen (plus Typ). Die BIS M18.131 genutzte Suche über
+     * Typ/Titel hatte einen echten Bug: Gehören zwei Terminen dieselbe
+     * Aktivität (z. B. „Soziales" für Großeltern 15–18 und Kino 20–22),
+     * ordnete `firstOrNull` die laufende Session dem ERSTEN Treffer zu
+     * und stoppte sie am Ende des FALSCHEN Termins (12:00 statt 18:00).
      *
      * Fallback (Watchdog): Findet sich kein passender Termin mehr (z. B.
      * Termin wurde im Kalender gelöscht), wird anhand der Session-Laufzeit
@@ -177,14 +178,11 @@ class CalendarAutoRunWorker(
         // Nur eigene Sessions — fremde Automatiken werden nie angefasst.
         if (session.sourceType != SOURCE_CALENDAR) return
 
-        val relatedMatch = matches.firstOrNull { m ->
-            // M18.131: activityTypeId kommt aus der Match-Quelle (Regel ODER
-            // manuelle Markierung) — der direkte Zugriff auf m.rule würde
-            // bei einer Markierung mit NPE abstürzen.
-            val sameType = m.activityTypeId != null && m.activityTypeId == session.activityTypeId
-            val sameTitle = m.sessionTitle != null && m.sessionTitle == session.title
-            sameType || sameTitle
-        }
+        val relatedMatch = CalendarAutoRunEngine.findRelatedMatch(
+            matches = matches,
+            sessionStartAt = session.startAt,
+            activityTypeId = session.activityTypeId
+        )
 
         val shouldStop = if (relatedMatch != null) {
             CalendarAutoRunEngine.shouldStop(relatedMatch.event, now)
@@ -209,7 +207,8 @@ class CalendarAutoRunWorker(
     private suspend fun startSession(
         live: LiveActivityManager,
         candidate: com.d_drostes_apps.aevum.domain.calendar.CalendarMatch,
-        currentLive: com.d_drostes_apps.aevum.data.model.ActivitySession?
+        currentLive: com.d_drostes_apps.aevum.data.model.ActivitySession?,
+        now: Long
     ) {
         val typeId = candidate.activityTypeId ?: run {
             // M18.131: Gilt für beide Quellen — eine Regel mit gelöschter
@@ -220,19 +219,40 @@ class CalendarAutoRunWorker(
             return
         }
 
-        // Kollisions-Regel: läuft etwas Fremdes und die Regel ist
-        // konservativ, wird NICHT gestartet.
         val foreignRunning = currentLive != null &&
             currentLive.isLive &&
             currentLive.sourceType != SOURCE_CALENDAR
-        if (foreignRunning && !candidate.shouldOverrideRunning) {
-            Log.d(TAG, "Fremde Session läuft (${currentLive?.sourceType}) — Regel ist ONLY_IF_IDLE, kein Start")
-            return
+
+        if (foreignRunning) {
+            // M18.132: QUEUE_IF_BUSY — der Termin wartet, bis die fremde
+            // Session endet (der Worker läuft ja im 15-Min-Takt wieder
+            // und pickStartCandidate holt ihn nach, solange der Termin
+            // läuft). Fremde Sessions werden NIE angetastet.
+            if (candidate.shouldQueueWhenBusy) {
+                Log.d(TAG, "Fremde Session läuft (${currentLive?.sourceType}) — QUEUE-Termin '${candidate.event.title}' wartet")
+                return
+            }
+            // M18.129: OVERRIDE/ONLY_IF_IDLE-Verhalten unverändert.
+            if (!candidate.shouldOverrideRunning) {
+                Log.d(TAG, "Fremde Session läuft (${currentLive?.sourceType}) — Regel ist ONLY_IF_IDLE, kein Start")
+                return
+            }
+            Log.i(TAG, "Fremde Session läuft (${currentLive?.sourceType}) — OVERRIDE beendet sie zum Termin-Beginn")
         }
-        // Auch die eigene Session nicht doppelt starten.
+
+        // Auch die eigene Session nicht doppelt starten. Ausnahme
+        // (M18.132): Der Kandidat ist ein ANDERER Termin als der, für den
+        // die eigene Session läuft (isAlreadyRunningFor hat ihn durch-
+        // gelassen), und seine Policy sagt OVERRIDE — dann übernimmt der
+        // neue Termin. Beim Start trimmt LiveActivityManager die laufende
+        // Session ohnehin bis zur neuen Startzeit zurück (M18.71), also
+        // ist die Reihenfolge Stop→Start durch dasselbe System garantiert.
         if (currentLive != null && currentLive.isLive && currentLive.sourceType == SOURCE_CALENDAR) {
-            Log.d(TAG, "Eigene Kalender-Session läuft bereits — kein Doppelstart")
-            return
+            if (!candidate.shouldOverrideRunning) {
+                Log.d(TAG, "Eigene Kalender-Session läuft bereits — kein Doppelstart")
+                return
+            }
+            Log.i(TAG, "Eigene Kalender-Session läuft für anderen Termin — OVERRIDE wechselt zum neuen Termin '${candidate.event.title}'")
         }
 
         try {
@@ -240,12 +260,27 @@ class CalendarAutoRunWorker(
             // Worker läuft evtl. ein paar Minuten verspätet, und der
             // Nutzer erwartet den Block ab 10:15 (M18.70-Muster:
             // rückwirkende Startzeit bei Vorlauf).
+            //
+            // M18.132-AUSNAHME: Ein QUEUE-Nachholer, der erst nach Ablauf
+            // der regulären Start-Toleranz drankommt, startet bei JETZT —
+            // nicht rückwirkend zum Termin-Beginn. Grund: in der Zeit vor
+            // dem Freiwerden lief eine andere Aufzeichnung; eine rückwirkende
+            // Startzeit würde die eigene Timeline belügen (Zeit doppelt
+            // erfasst). Ehrlichkeit der Daten > optische Termin-Treue.
+            val sessionStart =
+                if (candidate.shouldQueueWhenBusy &&
+                    now - candidate.event.startAt > CalendarAutoRunEngine.START_TOLERANCE_MS
+                ) {
+                    System.currentTimeMillis()
+                } else {
+                    candidate.event.startAt
+                }
             val session = live.start(
                 activityTypeId = typeId,
                 title = candidate.sessionTitle,
                 note = null,
                 sourceType = SOURCE_CALENDAR,
-                startedAt = candidate.event.startAt
+                startedAt = sessionStart
             )
             // Foreground-Service: der Timer muss im Hintergrund laufen
             // (Muster aller Auto-Quellen).
@@ -258,30 +293,30 @@ class CalendarAutoRunWorker(
 
     /**
      * Doppelstart-Schutz: Läuft bereits eine Kalender-Session, die zu
-     * diesem Termin gehört?
+     * DIESEM Termin gehört?
      *
-     * Kriterien (beide tolerant, weil die Session keine eventId speichert):
-     *  - gleicher ActivityType wie die Regel, UND
-     *  - der Session-Start liegt innerhalb des Start-Fensters des Termins
-     *    (also nicht früher als der Termin minus Toleranz).
-     *
-     * Damit wird derselbe Termin beim nächsten Worker-Lauf (≤ 15 min
-     * später) nicht erneut gestartet, ohne dass ein Schema-Feld in
-     * `activity_session` nötig wäre.
+     * M18.132: DIESELBE Zuordnungsregel wie der Stop-Pfad — die Session-
+     * Startzeit liegt im Terminfenster des Kandidaten ([findRelatedMatch]).
+     * Das ersetzt die alte Heuristik (Typ gleich UND |start-Abstand| < 5
+     * min): Letztere hätte einen QUEUE-Nachholer (gestartet zur
+     * Freiwerdezeit, z. B. 16:30 statt 15:00) fälschlich als NEUEN
+     * Termin eingestuft und doppelt gestartet.
      */
     private fun isAlreadyRunningFor(
         currentLive: com.d_drostes_apps.aevum.data.model.ActivitySession?,
-        candidate: com.d_drostes_apps.aevum.domain.calendar.CalendarMatch
+        candidate: com.d_drostes_apps.aevum.domain.calendar.CalendarMatch,
+        matches: List<com.d_drostes_apps.aevum.domain.calendar.CalendarMatch>
     ): Boolean {
         if (currentLive == null || !currentLive.isLive) return false
         if (currentLive.sourceType != SOURCE_CALENDAR) return false
-        val typeMatches = candidate.activityTypeId != null &&
-            currentLive.activityTypeId == candidate.activityTypeId
-        if (!typeMatches) return false
-        // Gehört der Session-Start zu DIESEM Termin? (Startzeit der
-        // Session wird beim Auto-Start auf den Termin-Beginn gesetzt.)
-        val delta = kotlin.math.abs(currentLive.startAt - candidate.event.startAt)
-        return delta < 5L * 60 * 1000
+        // Gehört die laufende Session zu DIESEM Kandidaten? Dann ist der
+        // Kandidat bereits bedient. (Ein ANDERER, ebenfalls fälliger
+        // Termin fällt hier nicht durch — für ihn ist das Ergebnis false,
+        // und die OVERRIDE-Logik in startSession regelt den Wechsel.)
+        val related = CalendarAutoRunEngine.findRelatedMatch(
+            matches, currentLive.startAt, currentLive.activityTypeId
+        )
+        return related != null && related.event.eventId == candidate.event.eventId
     }
 
     /** Plant den nächsten Lauf (Selbst-Erneuerung). */

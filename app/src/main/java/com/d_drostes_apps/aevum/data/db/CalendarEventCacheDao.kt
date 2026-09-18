@@ -60,6 +60,19 @@ interface CalendarEventCacheDao {
     @Query("DELETE FROM calendar_event_cache WHERE end_at < :before")
     suspend fun deleteEndedBefore(before: Long)
 
+    /**
+     * M18.132: Alle Cache-Schlüssel, die im Fenster noch relevant sind
+     * (Ende >= Fensterbeginn) — Grundlage des Ghost-Termin-Fix: alles
+     * daraus, was der Reader nicht mehr liefert, existiert im Kalender
+     * nicht mehr.
+     */
+    @Query("SELECT event_id FROM calendar_event_cache WHERE end_at >= :from")
+    suspend fun getIdsEndingAfter(from: Long): List<String>
+
+    /** M18.132: Löscht konkrete Cache-Zeilen (Ghost-Aufräumen, gestückelt). */
+    @Query("DELETE FROM calendar_event_cache WHERE event_id IN (:eventIds)")
+    suspend fun deleteByIds(eventIds: List<String>)
+
     @Query("DELETE FROM calendar_event_cache")
     suspend fun clear()
 }

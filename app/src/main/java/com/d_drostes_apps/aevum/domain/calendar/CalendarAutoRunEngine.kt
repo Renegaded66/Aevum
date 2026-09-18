@@ -72,6 +72,83 @@ object CalendarAutoRunEngine {
     }
 
     /**
+     * M18.132: Soll ein QUEUE_IF_BUSY-Termin JETZT nachgestartet werden?
+     *
+     * WARUM EINE EIGENE FUNKTION STATT shouldStart: Der QUEUE-Termin
+     * wartet, bis nichts mehr aufgezeichnet wird. Das kann Minuten oder
+     * Stunden nach dem Termin-Beginn sein — die [START_TOLERANCE_MS]
+     * (20 min) der regulären Start-Regel wäre für den Nachholer tödlich:
+     * er wäre nach 20 Minuten „zu spät" und würde für immer nicht
+     * gestartet, obwohl sein Termin noch läuft. Der Nachholer braucht
+     * also keine Begin-Toleranz, sondern nur die zwei harten Grenzen:
+     *  - Termin hat begonnen,
+     *  - Termin ist noch nicht vorbei (ein Nachholen nach Terminende
+     *    wäre eine Aufzeichnung ohne Terminkontext — nicht gewollt).
+     */
+    fun shouldStartQueued(event: CalendarEventCache, now: Long): Boolean =
+        now >= event.startAt && now < event.endAt
+
+    /**
+     * M18.132: Findet den Match, zu dem die LAUFENDE Kalender-Session
+     * gehört — einheitlich für den Stop-Pfad und den Doppelstart-Schutz.
+     *
+     * BIS M18.131 (zwei Alt-Fehler, beide gefunden, weil der QUEUE-Nachholer
+     * sie offengelegt hat):
+     *  1. Der Stop-Pfad suchte den „zugehörigen" Termin über Aktivitäts-Typ
+     *     ODER Session-Titel und stoppte den ERSTEN Treffer. Gehören zwei
+     *     Terminen dieselbe Aktivität („Soziales" für Grosseltern 15-18 UND
+     *     für Kino 20-22), wurde die laufende Session am Ende des FALSCHEN
+     *     Termins gestoppt.
+     *  2. Der QUEUE-Nachholer startet zum Freiwerde-Zeitpunkt (z. B. 16:30),
+     *     nicht zum Termin-Beginn (15:00) — die alte Zuordnung über
+     *     Typ/Titel hätte ihn gefunden, aber die Zeitfenster-Prüfung im
+     *     Doppelstart-Schutz (delta < 5 min zum Termin-Beginn) hätte ihn
+     *     fälschlich als NEU eingestuft.
+     *
+     * DIE REGEL: Erst alle Matches sammeln, in deren [startAt, endAt]-Fenster
+     * die Session-Startzeit liegt (das deckt pünktliche Starts, verspätete
+     * Worker-Läufe UND QUEUE-Nachholer ab). Liegen MEHRERE im Fenster
+     * (überlappende Termine), gewinnt der mit dem nächsten Termin-Beginn
+     * zur Session-Startzeit — der pünktlich gestartete Termin hat exakt
+     * delta 0; ein nachträglicher Nachbar hat immer ein größeres Delta.
+     * Bei exakt gleichem Beginn (wirklich ununterscheidbar) gewinnt das
+     * SPÄTERE Termin-Ende: ein zu früher Stop schneidet Daten ab (die
+     * schlimmere Fehlerrichtung, siehe STOP_GRACE_MS).
+     *
+     * @param sessionStartAt Die Startzeit der laufenden Session (Auto-Starts
+     *        setzen sie auf Termin-Beginn; QUEUE-Nachholer auf den
+     *        Freiwerde-Zeitpunkt — beides liegt im Terminfenster).
+     * @param activityTypeId Typ der laufenden Session — zusätzliche
+     *        Absicherung gegen Fehl-Zuordnung. Null auf EINER Seite
+     *        überspringt den Typ-Vergleich (gelöschte Aktivität mitten in
+     *        der Aufzeichnung darf den Auto-Stop nicht verhindern — sonst
+     *        liefe die Session bis zum 8-Stunden-Watchdog).
+     */
+    fun findRelatedMatch(
+        matches: List<CalendarMatch>,
+        sessionStartAt: Long,
+        activityTypeId: String?
+    ): CalendarMatch? {
+        val inWindow = matches.filter { m ->
+            m.event.startAt <= sessionStartAt && sessionStartAt < m.event.endAt &&
+                (m.activityTypeId == null || activityTypeId == null ||
+                    m.activityTypeId == activityTypeId)
+        }
+        if (inWindow.isEmpty()) return null
+        return inWindow.minByOrNull { kotlin.math.abs(sessionStartAt - it.event.startAt) }
+            ?.let { closest ->
+                // Gleichstand mehrerer Starts (selbe Beginnzeit): das
+                // spätere Ende gewinnen lassen — Datenabzug ist schlimmer
+                // als ein paar Minuten Nachlauf.
+                val sameStart = inWindow.filter {
+                    kotlin.math.abs(sessionStartAt - it.event.startAt) ==
+                        kotlin.math.abs(sessionStartAt - closest.event.startAt)
+                }
+                sameStart.maxByOrNull { it.event.endAt } ?: closest
+            }
+    }
+
+    /**
      * Soll die laufende Session JETZT gestoppt werden?
      *
      * Bedingung: der zugehörige Termin hat geendet. Bewusst OHNE Vorlauf
@@ -116,31 +193,67 @@ object CalendarAutoRunEngine {
     }
 
     /**
-     * Wählt unter mehreren fälligen Terminen den „richtigen" Start.
+     * M18.129: Wählt unter mehreren fälligen Terminen den „richtigen" Start.
      *
-     * Bei überlappenden Terminen (z. B. „Übung" 10–12 und „Vorlesung"
-     * 11–13) entscheidet die Regel-Priorität, sonst der spätere Beginn
-     * (der spezifischere, gerade angefangene Termin).
+     * M18.132: Drei Erweiterungen, alle aus der QUEUE-Policy begründet:
+     *
+     *  1. TOTER MATCH-FILTER: Matches ohne Aktivität (Aktivität gelöscht,
+     *     ON DELETE SET NULL) werden übersprungen statt zu gewinnen —
+     *     vorher konnte ein toter Match das Feld blockieren und einen
+     *     startbaren Termin verdrängen.
+     *
+     *  2. QUEUE-KANDIDATEN: Ein QUEUE_IF_BUSY-Termin, dessen Beginn länger
+     *     als die 20-Minuten-Toleranz zurückliegt, ist über [shouldStart]
+     *     unerreichbar — aber genau dann soll er ja erst recht starten
+     *     können, sobald nichts mehr läuft. Die Fälligkeit läuft deshalb
+     *     über [shouldStartQueued].
+     *
+     *  3. VORRANG REGULÄR VOR WARTESCHLANGE: Sind ein regulärer
+     *     (OVERRIDE/ONLY_IF_IDLE) und ein wartender QUEUE-Kandidat
+     *     gleichzeitig startbar, gewinnt der reguläre — dessen
+     *     20-Minuten-Fenster schließt sich, die Warteschlange hat Zeit.
+     *     Erst danach folgen die QUEUE-Kandidaten (FIFO: längste
+     *     Wartezeit zuerst).
+     *
+     * NACHHOL-SEMANTIK (ergibt sich aus 2 + 3, bewusst so): Wird ein
+     * QUEUE-Termin von einem OVERRIDE-Termin verdrängt, startet er
+     * automatisch NACH, sobald die Übernahme endet und der Termin noch
+     * läuft — „beginnt, sobald keine Aufzeichnung mehr läuft" gilt damit
+     * auch mitten im Termin. Ein OVERRIDE-Termin dagegen wird nach
+     * Verdrängung NICHT nachgeholt (seine Policy sagt: übernehmen, nicht
+     * warten).
      */
     fun pickStartCandidate(
         matches: List<CalendarMatch>,
         now: Long,
         lastStartedEventId: String?
-    ): CalendarMatch? =
-        matches.asSequence()
-            .filter { shouldStart(it.event, now, lastStartedEventId) }
-            // M18.131: Sortierung über die Match-Auflöser statt direkt über
-            // rule.priority — ein Match kann aus einer manuellen Markierung
-            // stammen und hat dann gar keine Regel (null). Markierungen
-            // bekommen die höchste Priorität, weil eine ausdrückliche
-            // Nutzer-Entscheidung über jeder Regel steht (siehe
-            // CalendarMatchEngine.evaluateWithPins). Ohne diese Anpassung
-            // hätte ein markierter Termin gegen einen gleichzeitig
-            // anstehenden Regel-Termin verloren — genau der Vorrang, den
-            // der Auftrag verlangt, wäre beim Doppel-Start verloren gegangen.
-            .sortedWith(
-                compareByDescending<CalendarMatch> { it.effectivePriority }
-                    .thenByDescending { it.event.startAt }
+    ): CalendarMatch? {
+        val due = matches.asSequence()
+            // M18.132: Tote Matches (Aktivität gelöscht) können nichts
+            // starten und dürfen nichts blockieren.
+            .filter { it.activityTypeId != null }
+            .filter { m ->
+                shouldStart(m.event, now, lastStartedEventId) ||
+                    (m.shouldQueueWhenBusy && shouldStartQueued(m.event, now))
+            }
+            .toList()
+
+        val regular = due.filter { !it.shouldQueueWhenBusy }
+        return if (regular.isNotEmpty()) {
+            // M18.129/M18.131-Ordnung: höchste Priorität, bei Gleichstand
+            // der spätere Beginn (der spezifischere, gerade angefangene
+            // Termin).
+            regular.maxWithOrNull(
+                compareBy<CalendarMatch> { it.effectivePriority }
+                    .thenBy { it.event.startAt }
             )
-            .firstOrNull()
+        } else {
+            // M18.132: Warteschlange — FIFO innerhalb gleicher Priorität
+            // (frühester wartender Termin zuerst, gerecht statt zufällig).
+            due.maxWithOrNull(
+                compareBy<CalendarMatch> { it.effectivePriority }
+                    .thenBy { -it.event.startAt }
+            )
+        }
+    }
 }
