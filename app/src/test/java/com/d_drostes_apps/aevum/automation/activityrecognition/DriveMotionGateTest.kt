@@ -125,11 +125,14 @@ class DriveMotionGateTest {
     }
 
     @Test
-    fun `30er-Zone-Fahrt mit ON_FOOT-Kontext (AR-Flackern) ist KEINE Fahrt`() {
-        // Audit §4.5: Google meldet WALKING während Stop&Go-Fahrten.
-        // ON_FOOT → 12-m/s-Schwelle → 8,3 m/s zählt nicht → NotDriving.
-        // Trade-off akzeptiert: False-Positive (Joggen als Fahrt) ist der
-        // gemeldete Bug; die Fahrt heilt der nächste IN_VEHICLE-Sample.
+    fun `30er-Zone-Fahrt mit ON_FOOT-Kontext und anhaltender Fahrzeug-Pace wird erkannt`() {
+        // M18.130 (t_3ac05e06, Motorrad-Fix): Früher eingefrorener
+        // Trade-off „ON_FOOT → 12 m/s → 30er-Zone NIE erkannt" — die
+        // Annahme „die Fahrt heilt der nächste IN_VEHICLE-Sample" greift
+        // auf Zweirädern nie (Google-AR meldet persistent ON_FOOT).
+        // Jetzt: ≥ 3 schnelle Probes (≥ 8 m/s) über ≥ 60 s mit Schnitt
+        // ≥ 6 m/s widerlegen ON_FOOT physikalisch (kein Mensch hält
+        // 8 m/s Minuten) → die 8-m/s-Schwelle gilt → 30er-Zone erkannt.
         val driveStep = 0.009
         val probes = listOf(
             probe(0, 3.0f, latitude = 50.0),
@@ -137,6 +140,32 @@ class DriveMotionGateTest {
             probe(2, 8.3f, latitude = 50.0 + 2 * driveStep),
             probe(3, 11.1f, latitude = 50.0 + 3 * driveStep),
             probe(4, 8.3f, latitude = 50.0 + 4 * driveStep)
+        )
+        val result = DriveDetectionEngine.classify(
+            probes, t0 + 16L * 60 * 1000,
+            motionContext = DriveDetectionEngine.MotionContext.ON_FOOT
+        )
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `ON_FOOT mit 3 Spikes aber ohne Fahrzeug-Pace bleibt NotDriving`() {
+        // M18.130-Schutz: Der Override braucht ≥ 3 schnelle Probes UND
+        // einen Schnitt ≥ 6 m/s. Ein Spaziergänger in der 30er-Zone mit
+        // 3 Multipath-Spikes (Position legt Geh-Distanz): Schnitt
+        // (6×1,4 + 3×8,5)/9 = 3,77 < 6 → ON_FOOT-Gate bleibt → 12 m/s →
+        // NotDriving. Der M18.117-Joggen-/Gehen-Schutz ist unverändert.
+        val walkStep = 0.00075
+        val probes = listOf(
+            probe(0, 1.4f, latitude = 50.0),
+            probe(1, 8.5f, latitude = 50.0 + walkStep),      // SPIKE
+            probe(2, 8.5f, latitude = 50.0 + 2 * walkStep), // SPIKE
+            probe(3, 8.5f, latitude = 50.0 + 3 * walkStep), // SPIKE
+            probe(4, 1.4f, latitude = 50.0 + 4 * walkStep),
+            probe(5, 1.4f, latitude = 50.0 + 5 * walkStep),
+            probe(6, 1.4f, latitude = 50.0 + 6 * walkStep),
+            probe(7, 1.4f, latitude = 50.0 + 7 * walkStep),
+            probe(8, 1.4f, latitude = 50.0 + 8 * walkStep)
         )
         val result = DriveDetectionEngine.classify(
             probes, t0 + 16L * 60 * 1000,
@@ -195,6 +224,82 @@ class DriveMotionGateTest {
             motionContext = DriveDetectionEngine.MotionContext.ON_FOOT
         )
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
+
+    // ── M18.130: VEHICLE-PACE-OVERRIDE (Motorrad-Fix t_3ac05e06) ──
+    // Das ON_FOOT-Gate (12 m/s) darf nur greifen, solange die Serie
+    // mit Fußgänger-Physik vereinbar ist. ≥ 3 schnelle Probes
+    // (≥ 8 m/s) über ≥ 60 s mit Schnitt ≥ 6 m/s widerlegen ON_FOOT.
+
+    @Test
+    fun `ON_FOOT mit nur 2 schnellen Probes bleibt gated - keine Widerlegung`() {
+        // 2-Fix-Burst (Radfahrer/Jogger-Spikes) überschreitet die
+        // 3-Probe-Schwelle nicht → ON_FOOT-Gate bleibt (12 m/s) →
+        // 8,3 m/s zählt nicht → NotDriving.
+        val driveStep = 0.009
+        val probes = listOf(
+            probe(0, 3.0f, latitude = 50.0),
+            probe(1, 8.3f, latitude = 50.0 + driveStep),
+            probe(2, 8.3f, latitude = 50.0 + 2 * driveStep),
+            probe(3, 3.0f, latitude = 50.0 + 3 * driveStep)
+        )
+        val result = DriveDetectionEngine.classify(
+            probes, t0 + 16L * 60 * 1000,
+            motionContext = DriveDetectionEngine.MotionContext.ON_FOOT
+        )
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
+
+    @Test
+    fun `ON_FOOT mit 3 schnellen Probes unter 60s Spread bleibt gated`() {
+        // 3 schnelle Fixes in 45 s (Spike-Burst) — die Serie darf
+        // ON_FOOT nur über ZEIT widerlegen (Spread < 60 s) → 12-m/s-
+        // Gate bleibt → NotDriving.
+        val nowMs = t0 + 5L * 60 * 1000
+        val probes = listOf(
+            DriveDetectionEngine.DriveProbe(nowMs - 45_000L, 8.3f, 20f, null, 50.0, 8.0),
+            DriveDetectionEngine.DriveProbe(nowMs - 15_000L, 8.3f, 20f, null, 50.002, 8.0),
+            DriveDetectionEngine.DriveProbe(nowMs - 0L, 8.3f, 20f, null, 50.004, 8.0)
+        )
+        val result = DriveDetectionEngine.classify(
+            probes, nowMs,
+            motionContext = DriveDetectionEngine.MotionContext.ON_FOOT
+        )
+        assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+    }
+
+    @Test
+    fun `Joggen-Cadence vetoiert die Fahrt auch bei erfuellter Fahrzeug-Pace`() {
+        // Sicherheitsnetz: Selbst wenn die Geo-Pace das ON_FOOT-Gate
+        // widerlegen würde (5 Fixes à 8,0 m/s, Spread 480 s, Schnitt
+        // 8,0 m/s), blockiert eine stabile Jogging-Schrittfrequenz im
+        // Veto-Band (2,5–8,0 m/s) die Fahrt — das Cadence-Veto läuft
+        // VOR dem Pace-Override in classify.
+        val zoneStep = 0.0043
+        val probes = (0..5).map { probe(it, 8.0f, latitude = 50.0 + it * zoneStep) }
+        assertThat(
+            DriveDetectionEngine.classify(
+                probes, t0 + 16L * 60 * 1000,
+                motionContext = DriveDetectionEngine.MotionContext.ON_FOOT,
+                cadenceHz = 2.4f,
+                cadenceValidFraction = 0.8f
+            )
+        ).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+        // Ohne Cadence ist dieselbe Serie eine (Grenz-)Fahrt: 8,0 m/s
+        // erfüllt die Fahrzeug-Pace, das ON_FOOT-Gate fällt.
+        assertThat(
+            DriveDetectionEngine.classify(
+                probes, t0 + 16L * 60 * 1000,
+                motionContext = DriveDetectionEngine.MotionContext.ON_FOOT
+            )
+        ).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `Pace-Override-Konstanten entsprechen dem Design`() {
+        assertThat(DriveDetectionEngine.VEHICLE_PACE_MIN_FAST_PROBES).isEqualTo(3)
+        assertThat(DriveDetectionEngine.VEHICLE_PACE_MIN_SPREAD_MS).isEqualTo(60_000L)
+        assertThat(DriveDetectionEngine.VEHICLE_PACE_MIN_AVG_SPEED_MPS).isEqualTo(6.0f)
     }
 
     // ── Cadence-Veto (pure Funktion) ───────────────────────────────

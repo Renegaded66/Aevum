@@ -173,12 +173,23 @@ class ActivityFieldTest {
     }
 
     @Test
-    fun `S2 30er-Zone mit AR-Flackern WALKING wird nicht als Fahrt erkannt`() {
-        // Google meldet WALKING während Stop&Go (Anfahren/Kriechen) →
-        // ON_FOOT → 12-m/s-Schwelle → 8,3 m/s zählt nicht → NotDriving.
-        // Dokumentierter Trade-off (Audit §4.5): der nächste IN_VEHICLE-
-        // Sample heilt die Erkennung.
+    fun `S2 30er-Zone mit AR-Flackern WALKING und anhaltender Fahrzeug-Pace wird erkannt`() {
+        // M18.130 (t_3ac05e06, Motorrad-Fix): Google meldet WALKING
+        // während Stop&Go — früher dokumentierter Trade-off (12-m/s-
+        // Schwelle → 8,3 m/s zählt nicht). Jetzt widerlegen ≥ 3
+        // schnelle Probes (≥ 8 m/s) über ≥ 60 s mit Schnitt ≥ 6 m/s
+        // den ON_FOOT-Kontext physikalisch → 30er-Zone wird erkannt.
         val probes = (0 until 6).map { fix(it, 8.3f, latStep = 0.00449) }
+        val result = classify(probes, DriveDetectionEngine.MotionContext.ON_FOOT)
+        assertThat(result).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `S2 Joggen 16 kmh trotz ON_FOOT-Pace-Pruefung bleibt NotDriving`() {
+        // M18.130-Schutz: 8 Fixes à 4,44 m/s (Joggen) — der Pace-
+        // Zähler (< 8 m/s) kommt nie auf 3 → ON_FOOT-Gate (12 m/s)
+        // bleibt → NotDriving. Der Override ändert nichts am Joggen.
+        val probes = (0 until 8).map { fix(it, 4.44f, latStep = 0.00239) }
         val result = classify(probes, DriveDetectionEngine.MotionContext.ON_FOOT)
         assertThat(result).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
     }
