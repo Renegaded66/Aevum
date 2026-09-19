@@ -31,8 +31,8 @@ android {
         // (gelöschte Termine verschwinden aus dem Cache), STATUS-NULL-Fix
         // (Termine ohne Status waren unsichtbar), Öffnungs-Sync, QUEUE-
         // Overlap-Policy (startet, sobald nichts mehr läuft).
-        versionCode = 16
-        versionName = "1.0.15"
+        versionCode = 17
+        versionName = "1.0.16"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

@@ -126,11 +126,28 @@ class DriveDetectionService : Service() {
     // nächster Schritt -> Crash-Loop. Der Accelerometer-Fallback
     // (Geräte ohne Step-Detector) braucht weiterhin die Magnitude.
     // Beide Listener füttern denselben CadenceTracker.
+    //
+    // M18.133: Der Step-Detector-Listener hat jetzt ZWEI Aufgaben:
+    //  1. Cadence-Snapshot (M18.118, Joggen-Veto beim START).
+    //  2. Step-Walk-Stop (M18.133, STOP einer laufenden Fahrt): Echte
+    //     Schritte gibt es im Fahrzeug nicht — sie sind das physikalische
+    //     Ausstiegs-Signal ("ausgestiegen und geht" = nicht mehr
+    //     Autofahren). Der Aufruf steht VOR dem Cadence-Tracker, damit er
+    //     auch greift, wenn der Tracker (noch) nicht existiert.
     private val stepDetectorListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
+            // M18.133: Wall-Clock-Zeit (nicht event.timestamp — der basiert
+            // auf elapsedRealtimeNanos und ist mit den Probe-Zeitstempeln
+            // der Bridge NICHT vergleichbar; ein Mix würde die 90-s-Fenster
+            // des Vetos und der Geh-Kette sinnlos machen).
+            val nowMs = System.currentTimeMillis()
+            // M18.133: Ausstiegs-Prüfung zuerst (unabhängig vom Tracker).
+            onStepForWalkStop(nowMs)
             val tracker = cadenceTracker ?: return
             // Step-Detector: Event = genau ein Schritt; values[0] ist eine
             // Konfidenz (0..1), KEINE Magnitude — nur die Zeit zählt.
+            // Für die Cadence ist die monotone Sensor-Zeit die bessere
+            // Quelle (frei von NTP-Sprüngen) — sie bleibt hier unverändert.
             tracker.addStep(event.timestamp / 1_000_000L)
             bridge.updateCadenceSnapshot(
                 tracker.currentCadenceHz(),
@@ -880,9 +897,26 @@ class DriveDetectionService : Service() {
         if (stepDetectorRegistered) return
         val sm = getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
         val detector = sm.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
-        if (detector == null) {
-            // Kein Step-Detector (Emulator/alt) — Fallback: Accelerometer
-            // mit SENSOR_DELAY_GAME (~20 ms) für die Cadence-Schätzung.
+        // M18.133: TYPE_STEP_DETECTOR ist seit API 29 an ACTIVITY_RECOGNITION
+        // gebunden. Ohne Grant liefert der Sensor keine Events — die
+        // Registrierung wäre ein stiller Blindgänger, und der Step-Walk-Stop
+        // würde nie feuern. Die Trigger-Settings zeigen dieses Gate an
+        // („Stopp beim Gehen").
+        // WICHTIG: Der Ausstieg gilt NUR für den Step-Detector, NICHT für
+        // den Beschleunigungs-Fallback — der ist permissionfrei und trägt
+        // weiterhin das Cadence-Veto (M18.118: „Der Sensor braucht KEINE
+        // Permission — damit funktioniert das Joggen-Veto auch im
+        // AR-losen Fallback-Pfad"). Der Accelerometer kann Schritte nur
+        // SCHÄTZEN (Magnitude-Nulldurchgänge), keine garantieren — für das
+        // Ausstiegs-Signal ist er deshalb bewusst NICHT die Quelle.
+        val stepDetectorUsable = detector != null && ActivityRecognitionPermission.isGranted(this)
+        if (detector != null && !stepDetectorUsable) {
+            Log.d(TAG, "M18.133: ACTIVITY_RECOGNITION fehlt — Step-Detector nicht registriert (Step-Walk-Stop inaktiv), Accelerometer-Fallback für Cadence läuft weiter")
+        }
+        if (detector == null || !stepDetectorUsable) {
+            // Kein (nutzbarer) Step-Detector (Emulator/alt/kein Grant) —
+            // Fallback: Accelerometer mit SENSOR_DELAY_GAME (~20 ms) für
+            // die Cadence-Schätzung.
             val accel = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
             stepDetector = accel
             try {
@@ -919,6 +953,50 @@ class DriveDetectionService : Service() {
         stepDetectorRegistered = false
         stepDetector = null
         cadenceTracker = null
+    }
+
+    // ── M18.133: STEP-WALK-STOP (Ausstiegs-Signal aus Hardware-Schritten) ──
+    //
+    // User-Spezifikation: "Sobald ich aus dem Auto aussteige und gehe, bin
+    // ich offensichtlich nicht mehr am Autofahren — die Aufzeichnung kann
+    // gestoppt werden. Falls die Berechtigung erteilt ist, soll die
+    // Aufzeichnung automatisch stoppen, sobald Schritte bzw. Gehen erkannt
+    // wird."
+    //
+    // Der Step-Detector läuft im TRACK_DRIVE-Modus ohnehin (M18.118, für
+    // das Cadence-Veto). Sein Event-Strom ist damit KOSTENLOS für den Stop
+    // nutzbar — kein zusätzlicher Sensor, kein zusätzliches GPS.
+    //
+    // WICHTIG (M18.126-Lehre): Dieser Listener läuft auf dem Main-Thread
+    // des Sensor-Systems. Er darf NIE werfen. Deshalb: kompletter Körper in
+    // einem try/catch, und der Stop läuft über den BEWÄHRTEN DriveStopWorker
+    // (eigener Thread, konsumiert EXIT/Probe-Cluster/Walking-Phase korrekt)
+    // statt direkt im Callback.
+    private fun onStepForWalkStop(eventMs: Long) {
+        try {
+            // Nur während einer bestätigten Fahrt + nur bei aktivem Setting.
+            // Außerhalb einer Fahrt ist der Detektor ein No-Op (der
+            // Step-Stream läuft nur im TRACK_DRIVE-Fenster, aber der
+            // Service kann in einen anderen Modus wechseln, während das
+            // Sensor-Event in-flight ist).
+            if (!bridge.isDriveActive()) return
+            if (!bridge.isStepWalkStopEnabled()) return
+            val now = System.currentTimeMillis()
+            val shouldStop = bridge.onStepWalkStopStep(now)
+            if (!shouldStop) return
+            Log.i(
+                TAG,
+                "M18.133: Gehen erkannt (${bridge.stepsInWalkStopWindow(now)} Schritte / " +
+                    "${StepWalkStopDetector.STEP_WINDOW_MS / 1000}s während aktiver Fahrt) " +
+                    "-> sofortiger Fahrt-Stopp"
+            )
+            // Evidenz verbrauchen (wie im AR-Walk-Stop-Pfad: kein Doppel-Feuer).
+            bridge.resetWalkStopEvidence()
+            DriveStopWorker.schedule(this)
+        } catch (e: Exception) {
+            // NIE werfen: Der Listener läuft im Sensor-System-Callback.
+            Log.w(TAG, "M18.133: Step-Walk-Stop-Prüfung fehlgeschlagen: ${e.message}")
+        }
     }
 
     // ════════════════════════════════════════════════════════════════

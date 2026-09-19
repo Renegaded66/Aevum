@@ -54,7 +54,18 @@ private const val DRIVE_WATCHDOG_NO_SIGNAL_MS = 5L * 60 * 1000
  *  Stopps legt im 2-Minuten-Fenster oft nur 200-300 m zurück (Anfahren
  *  + Bremsen + Warten). 200 m / 2 Min = 1,67 m/s = 6 km/h Durchschnitt
  *  entspricht exakt der Heartbeat-Schwelle des DriveDetectionService
- *  (speed >= 2 m/s) und bleibt über Geh-Tempo (max 1,5 m/s = 180 m). */
+ *  (speed >= 2 m/s) und bleibt über Geh-Tempo (max 1,5 m/s = 180 m).
+ *
+ *  M18.133-KORREKTUR (User: "Die Aufzeichnung läuft nach dem Ende der
+ *  Autofahrt noch ~10 Minuten weiter"): Die Annahme "bleibt über
+ *  Geh-Tempo" war ein RECHENFEHLER. 200 m / 120 s = 1,67 m/s = 6,0 km/h
+ *  — ein zügiger Fußgänger (1,5-1,8 m/s) und ein Kind mit Roller
+ *  überschreiten diese Schwelle physikalisch. Nach dem Parken wanderte
+ *  die Session deshalb über den GPS-Check weiter, und der Watchdog
+ *  verlängerte sich um jeweils 5 Minuten — die beobachtete Latenz.
+ *  Der Wert bleibt als GROBE Plausibilität (Kriechverkehr/Kriechstau)
+ *  bestehen, ist aber nicht mehr das alleinige Kriterium: Schritte aus
+ *  dem Hardware-Step-Detector entscheiden (siehe unten). */
 private const val DRIVE_MIN_PROBE_MOVEMENT_M = 200.0
 /** Work-Name (UniqueWork für REPLACE-Semantik). */
 private const val DRIVE_WATCHDOG_WORK = "aevum.drive_watchdog"
@@ -561,11 +572,40 @@ class DriveWatchdogWorker(
                     second.latitude, second.longitude
                 )
                 if (distance >= DRIVE_MIN_PROBE_MOVEMENT_M) {
-                    Log.d(TAG, "Standort bewegt sich (${distance.toInt()}m/2min) -> Fahrt läuft weiter, Watchdog verlängert")
-                    schedule(applicationContext)
-                    return Result.success()
+                    // M18.133 (User: "Aufzeichnung läuft nach Fahrt-Ende
+                    // ~10 Minuten weiter"): 200 m in 2 Min sind 6 km/h —
+                    // ein zügiger Fußgänger schafft das. Die Bewegung allein
+                    // ist deshalb KEIN Beweis für eine Fahrt mehr. Entscheidend
+                    // ist, WIE die Bewegung entsteht:
+                    //   • Hardware-Schritte erkannt → der User GEHT. Stop.
+                    //   • Keine Schritte + Fahrzeug-Tempo im Fix → es rollt
+                    //     noch (Parkhaus/Kriechstau). Fahrt lebt.
+                    // Das ist evidenzbasiert (Step-Detector-Events sind
+                    // Android-garantiert echte Schritte) und schließt genau
+                    // die Lücke, die den Nachlauf erzeugt hat.
+                    val walked = bridge.hasStepWalkingEvidence(now)
+                    val vehiclePace = hasFreshVehiclePace(bridge.currentDriveProbes(), now)
+                    if (walked && !vehiclePace) {
+                        Log.d(
+                            TAG,
+                            "M18.133: ${distance.toInt()}m/2min MIT Schritten " +
+                                "(${bridge.stepsInWalkStopWindow(now)} Schritte/15s, kein Fahrzeug-Tempo) " +
+                                "-> Gehen erkannt, Fahrt beenden"
+                        )
+                    } else {
+                        Log.d(
+                            TAG,
+                            "Standort bewegt sich (${distance.toInt()}m/2min" +
+                                (if (vehiclePace) ", Fahrzeug-Tempo" else "") +
+                                (if (walked) ", Schritte erkannt" else "") +
+                                ") -> Fahrt läuft weiter, Watchdog verlängert"
+                        )
+                        schedule(applicationContext)
+                        return Result.success()
+                    }
+                } else {
+                    Log.d(TAG, "Standort steht (${distance.toInt()}m/2min) -> Fahrt beenden")
                 }
-                Log.d(TAG, "Standort steht (${distance.toInt()}m/2min) -> Fahrt beenden")
             } else {
                 Log.d(TAG, "Kein zweiter GPS-Fix -> Fahrt konservativ beenden")
             }
@@ -675,6 +715,52 @@ private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): D
         sin(dLon / 2) * sin(dLon / 2)
     return r * 2 * atan2(sqrt(a), sqrt(1 - a))
 }
+
+/**
+ * M18.133: Zeigt ein frischer, genauer GPS-Probe FAHRZEUG-Tempo?
+ *
+ * Unterscheidet beim GPS-Bewegungs-Check des [DriveWatchdogWorker]
+ * „Kriechstau/Parkhaus rollt noch" von „der User geht". Semantik
+ * identisch zum Veto des [StepWalkStopDetector] (≥ 8 m/s direkt ODER
+ * aus Distanz/Zeit abgeleitet, Accuracy ≤ 50 m, kein Ausreißer).
+ *
+ * Bewusst OHNE die 15-Min-Frische der Probes: Es zählt nur, ob die
+ * BEWEGUNG Fahrzeug-Charakter hatte — genau die Evidenz der 2-Minuten-
+ * Fixe, die den Check gerade ausgelöst haben.
+ */
+private fun hasFreshVehiclePace(
+    probes: List<DriveDetectionEngine.DriveProbe>,
+    nowMs: Long
+): Boolean {
+    var prev: DriveDetectionEngine.DriveProbe? = null
+    for (p in probes) {
+        val fresh = p.timestampMs <= nowMs && nowMs - p.timestampMs <= STEP_WALK_STOP_PROBE_AGE_MS
+        if (fresh && p.accuracyMeters <= DriveDetectionEngine.MAX_ACCURACY_M) {
+            val speed = p.speedMps
+            if (speed != null) {
+                if (speed <= DriveDetectionEngine.OUTLIER_SPEED_MPS &&
+                    speed >= DriveDetectionEngine.AUTO_SPEED_MPS
+                ) {
+                    return true
+                }
+            } else if (p.distanceFromLastM != null && prev != null) {
+                val dtMs = p.timestampMs - prev.timestampMs
+                if (dtMs >= DriveDetectionEngine.MIN_INFERRED_DT_MS &&
+                    dtMs <= DriveDetectionEngine.MAX_INFERRED_DT_MS
+                ) {
+                    val derived = (p.distanceFromLastM / (dtMs / 1000.0)).toFloat()
+                    if (derived >= DriveDetectionEngine.AUTO_SPEED_MPS) return true
+                }
+            }
+            prev = p
+        }
+    }
+    return false
+}
+
+/** M18.133: Frische-Grenze für die Fahrzeug-Tempo-Prüfung im Watchdog
+ *  (identisch zum StepWalkStopDetector.VETO_PROBE_AGE_MS). */
+private const val STEP_WALK_STOP_PROBE_AGE_MS = 90_000L
 
 // ══════════════════════════════════════════════════════════════════════
 // M18.64: GPS-GESCHWINDIGKEITS-PFAD (DriveProbeWorker)

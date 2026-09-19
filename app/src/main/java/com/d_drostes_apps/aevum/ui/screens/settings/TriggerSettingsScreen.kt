@@ -209,6 +209,9 @@ fun TriggerSettingsScreen(
                 "driving" -> viewModel.setDriving(true)
                 "walking" -> viewModel.setWalking(true)
                 "bicycle" -> viewModel.setBicycle(true)
+                // M18.133: Fahrt-Stopp beim Gehen — nach dem Grant aktivieren
+                // (sonst bliebe die Berechtigungs-Anfrage wirkungslos).
+                "step_walk_stop" -> viewModel.setStepWalkStop(true)
                 // M18.58: "sleep" nicht mehr — die Schlaf-Quelle wird über
                 // die SleepSourceCard (sleepSource) gewählt, nicht über
                 // einen AR-Permission-Trigger.
@@ -366,6 +369,25 @@ fun TriggerSettingsScreen(
                             onCheckedChange = viewModel::setBicycle,
                             onRequestPermission = {
                                 pendingTrigger = "bicycle"
+                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                            }
+                        ),
+                        // M18.133: Fahrt-Stopp beim Gehen. Der Step-Detector
+                        // (TYPE_STEP_DETECTOR) ist seit API 29 an
+                        // ACTIVITY_RECOGNITION gebunden — deshalb dasselbe
+                        // Permission-Gate wie die anderen Bewegungs-Trigger:
+                        // Ohne Grant leitet der Toggle in den Permission-Dialog
+                        // statt still zu bleiben (Skill-Regel: kein Silent-Fail).
+                        TriggerToggle(
+                            icon = "🚶‍♂️",
+                            title = stringResource(R.string.settings_triggers_step_walk_stop),
+                            description = stringResource(R.string.settings_triggers_step_walk_stop_desc),
+                            accent = Color(0xFFF97316),
+                            checked = state.settings.walkStopOnStepsEnabled,
+                            permissionGranted = !arBlocked,
+                            onCheckedChange = viewModel::setStepWalkStop,
+                            onRequestPermission = {
+                                pendingTrigger = "step_walk_stop"
                                 activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                             }
                         )
@@ -1134,6 +1156,22 @@ class TriggerSettingsViewModel @Inject constructor(
     }
     fun setWalking(enabled: Boolean) = upsert { it.copy(walkingDetectionEnabled = enabled) }
     fun setBicycle(enabled: Boolean) = upsert { it.copy(bicycleDetectionEnabled = enabled) }
+
+    /**
+     * M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte).
+     *
+     * User-Spezifikation: „Sobald ich aus dem Auto aussteige und gehe, bin
+     * ich offensichtlich nicht mehr am Autofahren — die Aufzeichnung kann
+     * gestoppt werden. Falls die Berechtigung erteilt ist, soll die
+     * Aufzeichnung automatisch stoppen, sobald Schritte bzw. Gehen erkannt
+     * wird."
+     *
+     * Das Gate (`ACTIVITY_RECOGNITION`) zeigt die UI an: Der Step-Detector
+     * ist seit API 29 an diese Berechtigung gebunden. Beim Aktivieren ohne
+     * Grant fragt die UI die Berechtigung an (Toggle-Pattern wie driving/
+     * walking/bicycle) — hier wird nur der Wert geschrieben.
+     */
+    fun setStepWalkStop(enabled: Boolean) = upsert { it.copy(walkStopOnStepsEnabled = enabled) }
 
     fun setSleepFusion(enabled: Boolean) {
         upsert { it.copy(sleepFusionEnabled = enabled) }

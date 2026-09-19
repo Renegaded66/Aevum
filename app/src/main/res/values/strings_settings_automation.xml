@@ -68,6 +68,9 @@
     <string name="settings_triggers_walking_desc">Trigger erst nach 5 Minuten am Stück (kein False-Trigger bei kurzen Wegen)</string>
     <string name="settings_triggers_bicycle">Radfahren</string>
     <string name="settings_triggers_bicycle_desc">Sofort-Trigger bei erkannten Fahrrad-Fahrten</string>
+    <!-- M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte) -->
+    <string name="settings_triggers_step_walk_stop">Stopp beim Gehen</string>
+    <string name="settings_triggers_step_walk_stop_desc">Beendet die Fahrt-Aufzeichnung sofort, sobald du aussteigst und ein paar Schritte gehst — statt erst nach Minuten.</string>
     <string name="settings_triggers_permission_granted">✓ Berechtigung erteilt</string>
     <string name="settings_triggers_permission_missing">⚠ Berechtigung noch nicht erteilt — tippen zum Erteilen</string>
     <string name="settings_triggers_permission_granted_status">✓ Erteilt</string>

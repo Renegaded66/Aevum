@@ -49,5 +49,15 @@ data class AutomationSettings(
     // Sync-Takt in Stunden. Default 6 — Kalender ändern sich selten,
     // 4 Syncs/Tag sind reichlich und akku-schonend (M18.104-Muster:
     // teure Operationen selten, nicht im Dauertakt).
-    @ColumnInfo(name = "calendar_sync_interval_hours", defaultValue = "6") val calendarSyncIntervalHours: Int = 6
+    @ColumnInfo(name = "calendar_sync_interval_hours", defaultValue = "6") val calendarSyncIntervalHours: Int = 6,
+    // M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte).
+    // User-Spezifikation: "Sobald ich aus dem Auto aussteige und gehe, bin
+    // ich offensichtlich nicht mehr am Autofahren — die Aufzeichnung kann
+    // gestoppt werden. Falls die Berechtigung erteilt ist, soll die
+    // Aufzeichnung automatisch stoppen, sobald Schritte bzw. Gehen
+    // erkannt wird."
+    // Default AN: Es ist die vom User gewünschte Sofort-Reaktion; die
+    // Wirksamkeit hängt ohnehin an der ACTIVITY_RECOGNITION-Berechtigung
+    // (Step-Detector, API 29+), die die UI als Gate anzeigt.
+    @ColumnInfo(name = "walk_stop_on_steps_enabled", defaultValue = "1") val walkStopOnStepsEnabled: Boolean = true
 ) : Serializable
