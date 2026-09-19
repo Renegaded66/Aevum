@@ -68,6 +68,9 @@
     <string name="settings_triggers_walking_desc">Trigger only after 5 consecutive minutes (no false triggers on short trips)</string>
     <string name="settings_triggers_bicycle">Cycling</string>
     <string name="settings_triggers_bicycle_desc">Instant trigger when bike rides are detected</string>
+    <!-- M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte) -->
+    <string name="settings_triggers_step_walk_stop">Stop when walking</string>
+    <string name="settings_triggers_step_walk_stop_desc">Ends the drive recording right away once you get out and take a few steps — instead of minutes later.</string>
     <string name="settings_triggers_permission_granted">✓ Permission granted</string>
     <string name="settings_triggers_permission_missing">⚠ Permission not granted yet — tap to grant</string>
     <string name="settings_triggers_permission_granted_status">✓ Granted</string>

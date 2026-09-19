@@ -408,7 +408,60 @@ class ActivityRecognitionBridge @Inject constructor(
     @Synchronized
     fun resetWalkStopEvidence() {
         walkStopDetector.reset()
+        stepWalkStopDetector.reset()
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.133: STEP-WALK-STOP (Hardware-Schritte als Ausstiegs-Signal).
+    //
+    // User-Spezifikation: "Sobald ich aus dem Auto aussteige und gehe,
+    // bin ich offensichtlich nicht mehr am Autofahren und die Aufzeichnung
+    // kann gestoppt werden."
+    //
+    // Der [WalkStopDetector] (M18.127) hängt ausschließlich an Googles
+    // AR-Samples — die im Hintergrund oft ausbleiben. Der
+    // [StepWalkStopDetector] nutzt stattdessen den HARDWARE-Step-Detector
+    // (TYPE_STEP_DETECTOR), der im TRACK-Modus ohnehin für die Cadence
+    // läuft (M18.118/M18.126). Schritte gibt es im Fahrzeug nicht — sie
+    // sind ein physikalisches, Google-unabhängiges Ausstiegs-Signal.
+    //
+    // Beide Detektoren teilen sich die Session-Grenzen-Resets
+    // ([resetWalkStopEvidence]): Evidenz darf nie über eine Fahrt hinaus
+    // leben (M18.127-Muster).
+    // ──────────────────────────────────────────────────────────────
+    private val stepWalkStopDetector = StepWalkStopDetector()
+
+    /** M18.133: Ein Step-Detector-Event in den Step-Walk-Stop-Detector
+     *  füttern (Sensor-Event, GPS-Probes + Fahrt-Herzschlag liest die Bridge).
+     *  true = STOPP-Signal: die laufende Auto-Session sofort beenden.
+     *
+     *  Der Herzschlag (`lastVehicleSampleMs`) ist der zentrale Veto-Anker:
+     *  Er wird im TRACK-Stream alle 15 s erneuert, solange der Fix ≥ 2 m/s
+     *  zeigt — ein fahrendes Auto hat also immer einen frischen Herzschlag,
+     *  ein Fußgänger (1,4 m/s) nie. Damit sind Vibrations-Fehlzählungen
+     *  (M18.126) während der Fahrt ausgefiltert, ohne dass ein AR-Kontext
+     *  nötig wäre (der nach dem Parken oft minutenlang IN_VEHICLE bleibt —
+     *  genau der ~10-Minuten-Nachlauf). */
+    @Synchronized
+    fun onStepWalkStopStep(
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val heartbeatFresh = lastVehicleSampleMs > 0L &&
+            nowMs - lastVehicleSampleMs < StepWalkStopDetector.VEHICLE_HEARTBEAT_VETO_MS
+        return stepWalkStopDetector.onStep(nowMs, heartbeatFresh, currentDriveProbes())
+    }
+
+    /** M18.133: Liegt Geh-Evidenz aus Hardware-Schritten vor? Der
+     *  DriveWatchdogWorker nutzt das beim GPS-Bewegungs-Check: 200 m in
+     *  2 Min können Gehen ODER Kriechverkehr sein — Schritte entscheiden. */
+    @Synchronized
+    fun hasStepWalkingEvidence(nowMs: Long = System.currentTimeMillis()): Boolean =
+        stepWalkStopDetector.hasWalkingEvidence(nowMs)
+
+    /** M18.133: Anzahl Schritte im aktuellen Fenster (Log/Diagnose). */
+    @Synchronized
+    fun stepsInWalkStopWindow(nowMs: Long = System.currentTimeMillis()): Int =
+        stepWalkStopDetector.stepsInWindow(nowMs)
 
     // ──────────────────────────────────────────────────────────────
     // M18.128: VEHICLE-EVIDENCE (Fast-Start-Gate, Design t_bea94587 §6.1).
@@ -874,6 +927,11 @@ class ActivityRecognitionBridge @Inject constructor(
     @Volatile private var cachedDriving = true
     @Volatile private var cachedWalking = true
     @Volatile private var cachedBicycle = true
+    // M18.133: Step-Walk-Stop (Ausstiegs-Signal) — Default AN, damit die
+    // Aufzeichnung nach dem Aussteigen sofort endet, sobald die
+    // Aktivitätserkennung erteilt ist. Der Nutzer kann es in den
+    // Trigger-Settings abschalten (Setting + Permission-Gate in der UI).
+    @Volatile private var cachedStepWalkStop = true
     @Volatile private var settingsLoadedAt = 0L
 
     @Synchronized
@@ -894,6 +952,13 @@ class ActivityRecognitionBridge @Inject constructor(
         return cachedBicycle
     }
 
+    /** M18.133: Ist der Schritt-basierte Fahrt-Stopp aktiv? */
+    @Synchronized
+    fun isStepWalkStopEnabled(): Boolean {
+        refreshCacheIfStale()
+        return cachedStepWalkStop
+    }
+
     /** Settings max. 30s cachen — die DB-Query ist sonst pro Event zu teuer. */
     private fun refreshCacheIfStale() {
         val now = System.currentTimeMillis()
@@ -904,6 +969,7 @@ class ActivityRecognitionBridge @Inject constructor(
                 cachedDriving = settings?.drivingDetectionEnabled ?: true
                 cachedWalking = settings?.walkingDetectionEnabled ?: true
                 cachedBicycle = settings?.bicycleDetectionEnabled ?: true
+                cachedStepWalkStop = settings?.walkStopOnStepsEnabled ?: true
             } catch (_: Exception) {
                 // Cache behalten (Default an) — nie den Receiver crashen.
             }

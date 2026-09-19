@@ -93,7 +93,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // den Startzeitpunkt) und damit genau ein Vorkommen trifft — auch bei
     // wiederkehrenden Terminen. FK auf activity_type mit SET NULL, damit
     // das Löschen einer Aktivität die Markierung nicht mitreißt.
-    version = 42,
+    version = 43,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1578,6 +1578,22 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_calendar_event_pin_activity_type_id` ON `calendar_event_pin` (`activity_type_id`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_calendar_event_pin_event_start_at` ON `calendar_event_pin` (`event_start_at`)")
                 database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_calendar_event_pin_event_id` ON `calendar_event_pin` (`event_id`)")
+            }
+        }
+
+        // M18.133: v43 — Fahrt-Stopp beim Gehen (Hardware-Schritte).
+        //
+        // ADD COLUMN mit NOT NULL DEFAULT: Der Default-Wert ist Pflicht,
+        // sonst schlägt die Migration auf Bestands-Zeilen fehl (SQLite
+        // verlangt für NOT NULL einen Default). Default 1 = AN — die
+        // gewünschte Sofort-Reaktion nach dem Aussteigen; die Wirksamkeit
+        // hängt an der ACTIVITY_RECOGNITION-Berechtigung (Step-Detector,
+        // API 29+), die die UI als Gate anzeigt.
+        val MIGRATION_42_43 = object : Migration(42, 43) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `automation_settings` ADD COLUMN `walk_stop_on_steps_enabled` INTEGER NOT NULL DEFAULT 1"
+                )
             }
         }
     }
