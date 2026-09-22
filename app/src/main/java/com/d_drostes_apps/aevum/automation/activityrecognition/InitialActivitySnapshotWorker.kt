@@ -203,6 +203,16 @@ class InitialActivityProbeReceiver : BroadcastReceiver() {
             for (activity in result.probableActivities) {
                 when (activity.type) {
                     DetectedActivity.IN_VEHICLE -> bridge.addSample(now, activity.confidence)
+                    // M18.134: Ein laufendes ON_BICYCLE direkt nach dem Boot
+                    // setzt den Rad-Kontext + die Rad-Evidence — sonst gilt
+                    // nach einem Neustart mitten in der Radfahrt die
+                    // 8-m/s-Schwelle (der User-Bug: 25 km/h → Autofahrt).
+                    DetectedActivity.ON_BICYCLE -> {
+                        bridge.updateMotionContext(
+                            DriveDetectionEngine.MotionContext.ON_BICYCLE
+                        )
+                        bridge.onBicycleSampleWithConfidence(activity.confidence, now)
+                    }
                     // STILL-Cluster interessiert uns hier nicht — die Schlaf-Fusion
                     // läuft separat und der Worker nimmt den Cluster erst ab 4h an.
                 }

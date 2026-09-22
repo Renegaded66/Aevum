@@ -467,14 +467,21 @@ class DriveDetectionService : Service() {
 
         when (action) {
             ACTION_CONFIRM -> {
-                if (bridge.isDrivingEnabled()) {
+                if (bridge.isDrivingEnabled() || bridge.isBicycleEnabled()) {
+                    // M18.134: Der CONFIRM-Burst ist auch der GPS-Stream,
+                    // auf dem die Rad-Erkennung rechnet (detectBikeRide
+                    // liest die Probe-Serie des Services) — er läuft
+                    // deshalb, solange Fahr- ODER Rad-Erkennung an ist.
+                    // Der Modus selbst ist bei Rad-Verdacht derselbe
+                    // (HIGH 15s): die Dichte braucht die Rad-Erkennung
+                    // genauso wie die Fahrt-Erkennung.
                     enterConfirm()
                 } else if (bridge.isWalkingEnabled() && !bridge.isDriveActive()) {
                     // M18.104: Geofence-EXIT mit deaktivierter Fahr-Erkennung
                     // ist trotzdem ein Bewegungs-Verdacht → Walking-Check.
                     enterWalkingCheck()
                 } else {
-                    stopIfIdle("CONFIRM: Fahr- und Walking-Erkennung deaktiviert")
+                    stopIfIdle("CONFIRM: Fahr-, Rad- und Walking-Erkennung deaktiviert")
                 }
             }
             ACTION_WALKING_CHECK -> {
@@ -999,6 +1006,54 @@ class DriveDetectionService : Service() {
         }
     }
 
+    /**
+     * M18.134: Läuft gerade eine Rad-Session (radfahren, automatisch)?
+     * Wird für Herzschlag/Track/Phasen-Gates gebraucht — als DIREKTE
+     * Live-Session-Abfrage, nicht als Bridge-Flag (M18.75/M18.76-Lehre:
+     * ein Flag, das einen Stop-Pfad verpasst, blockiert die Erkennung
+     * dauerhaft; die Session-Abfrage heilt sich selbst).
+     */
+    private fun hasLiveBikeSession(): Boolean {
+        val session = liveActivityManager.liveSession.value ?: return false
+        return session.isLive &&
+            session.activityTypeId == "radfahren" &&
+            session.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+    }
+
+    /**
+     * M18.134: Rad-Start-Prüfung (Kanban t_a860c07f) — pure Entscheidung
+     * in der Engine, Orchestrierung hier.
+     *
+     * Läuft, wenn eine Probe-Serie NICHT als Fahrt klassifiziert wurde.
+     * Liegen ein belastbares ON_BICYCLE-Signal (frisch, Confidence ≥
+     * [DriveDetectionEngine.BIKE_CONTEXT_MIN_CONFIDENCE]) UND eine per
+     * [DriveDetectionEngine.detectBikeRide] belegte Radfahrt vor, wird
+     * der [BicycleStartWorker] enqueued — der User bekommt eine
+     * `radfahren`-Session statt „nichts" (Verlustfreiheit für die
+     * Fälle, die das ON_BICYCLE-Gate zu Recht blockiert).
+     *
+     * Der Worker rechnet dieselbe Entscheidung noch einmal gegen die
+     * dann aktuellen Bridge-Daten — dieser Aufruf ist der Trigger, nicht
+     * die Wahrheit (WorkManager-Latenz).
+     */
+    private fun scheduleBicycleStartIfRideDetected(
+        now: Long,
+        circles: List<DriveDetectionEngine.GeoCircle>
+    ) {
+        if (!bridge.isBicycleEnabled()) return
+        if (bridge.isDriveActive()) return
+        if (!DriveDetectionEngine.isReliableBicycleSignal(bridge.bicycleEvidence(), now)) return
+        val ride = DriveDetectionEngine.detectBikeRide(
+            bridge.currentDriveProbes(), now, circles
+        ) ?: return
+        Log.d(
+            TAG,
+            "M18.134: Radfahrt belegt (avg=${"%.1f".format(ride.avgSpeedMps)} m/s, " +
+                "${ride.sampleCount} Probes) -> Rad-Session"
+        )
+        BicycleStartWorker.schedule(this)
+    }
+
     // ════════════════════════════════════════════════════════════════
     // FIX-VERARBEITUNG — vollständige Übernahme der M18.66–M18.103-Logik
     // ════════════════════════════════════════════════════════════════
@@ -1081,7 +1136,15 @@ class DriveDetectionService : Service() {
         // Refresh (Watchdog läuft sonst nie ab).
         bridge.addDriveProbe(probe, refreshHeartbeat = false)
 
-        if (bridge.isDriveActive() && speed != null && speed >= 2.0f) {
+        // M18.134: Eine laufende Rad-Session lebt genauso über diesen
+        // Herzschlag — der DriveWatchdogWorker stoppt sie sonst nach
+        // 5 Minuten ohne Signal (sein Session-Match umfasst seit
+        // M18.134 auch `radfahren`). Bewusst OHNE Flag in der Bridge:
+        // der Zustand wird direkt aus der Live-Session gelesen (die
+        // M18.75/M18.76-Lektion — ein zweites Flag kann desynchron
+        // werden und die Erkennung dauerhaft blockieren).
+        val bikeSessionLive = hasLiveBikeSession()
+        if ((bridge.isDriveActive() || bikeSessionLive) && speed != null && speed >= 2.0f) {
             bridge.refreshDriveHeartbeat(now)
             DriveWatchdogWorker.schedule(this)
         }
@@ -1125,7 +1188,10 @@ class DriveDetectionService : Service() {
                 WalkingStopWorker.schedule(this)
                 // Fahrt-Verdacht aktiv prüfen (CONFIRM-Burst, Engine-Gates
                 // entscheiden — kein direkter Session-Start).
-                if (bridge.isDrivingEnabled()) {
+                // M18.134: Der Burst ist auch der Rad-Pfad (detectBikeRide
+                // liest seine Probe-Serie) — deshalb bei Fahr- ODER
+                // Rad-Erkennung.
+                if (bridge.isDrivingEnabled() || bridge.isBicycleEnabled()) {
                     start(this, ACTION_CONFIRM)
                 }
             }
@@ -1233,6 +1299,14 @@ class DriveDetectionService : Service() {
                 else -> {
                     // Noch nicht genug / keine Fahrt — weiter sammeln
                     // (innerhalb des Burst-Fensters).
+                    // M18.134: Kein Fahrzeug-Tempo ist bei einem
+                    // belastbaren ON_BICYCLE-Signal noch KEINE
+                    // Entwarnung: Radfahren liegt genau zwischen
+                    // „kein Auto" und „schnell unterwegs" — die
+                    // Rad-Erkennung entscheidet (Verlustfreiheit,
+                    // auch für Motorrad/Auto 30-40 km/h, die Google
+                    // als Zweiräder meldet).
+                    scheduleBicycleStartIfRideDetected(now, circles)
                 }
             }
         }
@@ -1247,7 +1321,14 @@ class DriveDetectionService : Service() {
         // dem Überschreiben gesichert) — vorher wurden die bereits
         // überschriebenen Felder übergeben (dt=0, Distanz=0), wodurch
         // das M18.110/M18.113-Fahrzeug-Veto der Phase nie griff.
-        if (!bridge.isWalkingActive() && !bridge.isDriveActive() && bridge.isWalkingEnabled()) {
+        // M18.134: Auch eine laufende RAD-Session unterdrückt die
+        // Walking-Phase — ein Radfahrer legt in 5 Minuten Kilometer
+        // zurück (unter dem 5,0-m/s-Max-Gate der Phase), ohne dass
+        // irgendetwas die Phase stoppt: sonst startete nach 5 Minuten
+        // zusätzlich eine „Spazieren"-Session ÜBER der Radfahrt.
+        if (!bridge.isWalkingActive() && !bridge.isDriveActive() &&
+            !hasLiveBikeSession() && bridge.isWalkingEnabled()
+        ) {
             updateWalkingPhase(loc, now, prevLat, prevLon, prevTsMs)
         }
     }
