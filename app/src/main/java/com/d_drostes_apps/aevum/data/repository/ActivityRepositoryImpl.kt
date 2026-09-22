@@ -34,6 +34,19 @@ class ActivityRepositoryImpl(
     override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = activityDao.getBySourceType(sourceType)
     override suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession? =
         activityDao.getLastFinishedBySourceType(sourceType)
+    // M18.134: Resume-Evidenz bei mehreren Konflikten (siehe DAO).
+    override suspend fun getRecentFinishedBySourceType(sourceType: String, limit: Int): List<ActivitySession> =
+        activityDao.getRecentFinishedBySourceType(sourceType, limit)
+    // M18.134: Verdrängungs-Beweis (siehe DAO/Interface).
+    override suspend fun hasForeignSessionStartingNear(
+        calendarSource: String,
+        atMs: Long,
+        toleranceMs: Long
+    ): Boolean = activityDao.countForeignSessionsStartingBetween(
+        calendarSource,
+        atMs - toleranceMs,
+        atMs + toleranceMs
+    ) > 0
     override fun getCurrentActiveSession(): Flow<ActivitySession?> = activityDao.getCurrentActiveSession()
     // M9: Live Activity
     override fun getLiveSession(): Flow<ActivitySession?> = activityDao.getLiveSession()

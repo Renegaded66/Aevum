@@ -80,6 +80,10 @@ class PingTriggerWorker(
                 if (live != null && live.isLive && live.sourceType == "PING_AUTO") {
                     liveActivityManager.stop()
                     com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
+                    // M18.134 (Kanban t_0bf5541e): Kalender-Wiedereinstieg
+                    // sofort prüfen (Ping-Start hat ggf. einen Termin verdrängt).
+                    com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                        .restartNow(applicationContext)
                     android.util.Log.d("PingTriggerWorker", "Letzter Trigger weg → PING-Session beendet")
                 }
                 android.util.Log.d("PingTriggerWorker", "Keine aktiven Ping-Trigger — Selbst-Erneuerung beendet")
@@ -113,6 +117,10 @@ class PingTriggerWorker(
                     if (live != null && live.isLive && live.sourceTriggerId == trigger.id) {
                         liveActivityManager.stop()
                         com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
+                        // M18.134 (Kanban t_0bf5541e): Kalender-Wiedereinstieg
+                        // sofort prüfen (siehe PingTriggerWorker — gleiche Welle).
+                        com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                            .restartNow(applicationContext)
                         android.util.Log.d("PingTriggerWorker", "Ping verloren (${trigger.ipAddress}) → Session beendet")
                     }
                 }

@@ -31,8 +31,13 @@ android {
         // (gelöschte Termine verschwinden aus dem Cache), STATUS-NULL-Fix
         // (Termine ohne Status waren unsichtbar), Öffnungs-Sync, QUEUE-
         // Overlap-Policy (startet, sobald nichts mehr läuft).
-        versionCode = 17
-        versionName = "1.0.16"
+        // M18.134 (Kanban t_0bf5541e): Kalender-Aufzeichnung als FALLBACK —
+        // ein Termin wird nach einer Verdrängung (Auto-Fahrt, Wanderung,
+        // Geofence, App-Tracking, Screen) wieder aufgenommen, solange er
+        // läuft und nichts anderes aufzeichnet; die Stop-Pfade stoßen den
+        // Kalender-Lauf sofort an statt erst beim 15-Minuten-Takt.
+        versionCode = 18
+        versionName = "1.0.17"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

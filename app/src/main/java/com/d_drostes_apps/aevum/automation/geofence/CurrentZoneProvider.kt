@@ -314,6 +314,11 @@ class CurrentZoneProvider @Inject constructor(
                             // Auto-Stop sofort entfernen (idempotent — läuft kein
                             // Service, ist stopService ein No-Op).
                             LiveActivityService.stop(context)
+                            // M18.134 (Kanban t_0bf5541e): Auto-Stop einer
+                            // Geofence-Session — Kalender-Wiedereinstieg
+                            // sofort prüfen (siehe GeofenceTransitionProcessor).
+                            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                                .restartNow(context)
                             Log.d(TAG, "✅ Auto-Stop: ${prevGf?.name} → Session beendet")
 
                             triggerRepository.insert(

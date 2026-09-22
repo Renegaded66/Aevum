@@ -212,6 +212,12 @@ class WalkingStopWorker(
             // Walking-Stop sofort entfernen (idempotent).
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
             WalkingWatchdogWorker.cancel(applicationContext)
+            // M18.134 (Kanban t_0bf5541e): Ein Wander-Ende kann einen
+            // Kalender-Termin verdrängt haben (Walking-Start trimmt die
+            // laufende CALENDAR_AUTO-Session) — Wiedereinstieg sofort
+            // prüfen statt bis zu 15 Minuten zu warten.
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
             Log.d(TAG, "Walking-Session sofort gestoppt (EXIT)")
         } catch (e: Exception) {
             Log.e(TAG, "Sofort-Stop fehlgeschlagen", e)
@@ -321,6 +327,11 @@ class WalkingWatchdogWorker(
             // Watchdog-Stop sofort entfernen (idempotent — der Watchdog
             // ist der HAUPT-Stop-Pfad für Wanderungen, 5-Min-Regel).
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(applicationContext)
+            // M18.134 (Kanban t_0bf5541e): Kalender-Wiedereinstieg sofort
+            // prüfen (gleicher Grund wie im WalkingStopWorker — dies ist
+            // der Haupt-Stop-Pfad der Wanderung).
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
             Log.d(TAG, "Walking-Session gestoppt (5 min ohne Signal)")
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Stop fehlgeschlagen", e)
