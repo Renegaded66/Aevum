@@ -14,6 +14,7 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 - **Schlaf-Erkennung** — heuristische + fusionierte Erkennung aus Bildschirm-Nutzung und Health Connect, mit Schutzwällen gegen False-Positives
 - **Trigger-Paare** — „Wegzeit“ zwischen Orten (z. B. Arbeitsweg, Einkauf) wird automatisch als Kandidat vorgeschlagen
 - **Confidence-basiert** — nur sichere Erkennungen werden automatisch übernommen, alles andere landet in der Review-Inbox
+- **Kalender-Fallback** — Termine aus deinem Handy-Kalender werden über eigene Regeln automatisch aufgezeichnet; sie laufen, solange nichts anderes aufzeichnet, und setzen nach einer automatischen Verdrängung (z. B. Autofahrt) fort, solange der Termin noch läuft
 
 ### ⏱ Manuelles Tracking
 - **Live-Session** mit Pause/Resume, Live-Timer und laufender Benachrichtigung
