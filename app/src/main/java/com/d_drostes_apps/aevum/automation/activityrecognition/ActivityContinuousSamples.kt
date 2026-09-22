@@ -189,18 +189,44 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     // M18.128: Radfahren widerlegt die Fahrzeug-Evidence
                     // (V1-Konkurrenz: frisches Rad-Signal des Sensor-Hubs).
                     bridge.onBicycleSample()
+                    // M18.134 (Kanban t_a860c07f): Rad-Evidence MIT
+                    // Confidence registrieren — sie qualifiziert die
+                    // radfahren-Session, wenn das ON_BICYCLE-Gate der
+                    // Engine den Auto-Start blockiert (Radfahren IST
+                    // die Aktivität, die der User will).
+                    bridge.onBicycleSampleWithConfidence(top.confidence)
                     // M18.127: Radfahren ist kein Gehen — Fahrt lebt.
                     bridge.resetWalkStopEvidence()
-                    // M18.117: ON_BICYCLE ist weder ON_FOOT noch IN_VEHICLE —
-                    // bewusst KEIN updateMotionContext (UNKNOWN-Verhalten,
-                    // 8 m/s): Radfahrer-Spike-Muster scheitert weiterhin an
-                    // der Konsekutiv-Kette; eine reine 12-m/s-Forderung
-                    // wäre für Rennrad-Abfahrten zu streng (Audit §4.5).
-                    // Radfahren ist ein Fahr-Verdacht im breitesten Sinn —
-                    // der CONFIRM-Burst verwirft ihn über die 8-m/s-Gates
-                    // zuverlässig (keine Session, aber schnellste Reaktion
-                    // für den Fall, dass der Speed-Sensor doch Auto sieht).
-                    if (bridge.isDrivingEnabled() && !bridge.isDriveActive()) {
+                    // M18.134: Motion-Kontext ON_BICYCLE melden — das
+                    // M18.117-Gate gilt bisher nur für ON_FOOT/IN_VEHICLE.
+                    // VORHER (der User-Bug): „bewusst KEIN
+                    // updateMotionContext (UNKNOWN-Verhalten, 8 m/s)" —
+                    // damit war 28,8 km/h die Fahrtschwelle, und jede
+                    // Radfahrt mit 25-km/h-Schnitt (Antritte/Gefälle
+                    // über 28,8 km/h) wurde als Autofahrt aufgezeichnet
+                    // (gemessen: 29 km/h → Driving 500/500, 25 km/h +
+                    // 30-s-Antritte → Driving 300/300).
+                    // JETZT: ON_BICYCLE hebt die Auto-Schwelle auf
+                    // 12 m/s (43,2 km/h) — rad-unmöglich, motorisiert
+                    // ab 50 km/h unverändert erkannt. Die Confidence
+                    // wird NICHT hier geprüft (der Kontext hat eine
+                    // eigene 2-Sample-Hysterese in der Bridge); sie
+                    // entscheidet über die Rad-Session im Start-Pfad.
+                    // BEWUSST TOGGLE-FREI: Auch mit ausgeschalteter
+                    // Rad-Erkennung darf 25 km/h Radfahren nicht als
+                    // Autofahrt gelten (der Toggle steuert die Session,
+                    // nicht die Klassifikations-Korrektheit).
+                    bridge.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+                    // M18.134: Rad-Setting-Gate (wie der Transition-
+                    // Receiver) — der UI-Toggle „Radfahren" muss auch
+                    // hier wirken, nicht nur dort.
+                    // Der CONFIRM-Burst ist der GPS-Stream, auf dem die
+                    // Rad-Erkennung rechnet (detectBikeRide liest die
+                    // Probe-Serie des Services) — er läuft deshalb,
+                    // solange Fahr- ODER Rad-Erkennung an ist.
+                    if ((bridge.isDrivingEnabled() || bridge.isBicycleEnabled()) &&
+                        !bridge.isDriveActive()
+                    ) {
                         DriveDetectionService.start(
                             context,
                             DriveDetectionService.ACTION_CONFIRM

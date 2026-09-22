@@ -261,7 +261,7 @@ classify(probes, now, geofences, motionContext, cadence):
 |---|---|
 | AR-Permission fehlt / kein AR-Signal | `motionContext = UNKNOWN` → heutiges Verhalten (8 m/s). Kein neues False-Negative |
 | Fahrgast im Bus/Zug (AR = IN_VEHICLE, 30er-Zone) | 8-m/s-Schwelle wie heute — bewusst unverändert (Mobilität wird als Autofahren-Typ aufgezeichnet, User kann Kategorie wechseln; kein neues Risiko) |
-| Rennrad-Abfahrt (AR = ON_BICYCLE) | ON_BICYCLE ist weder ON_FOOT noch IN_VEHICLE → UNKNOWN-Verhalten (8 m/s). Radfahrer-Spike-Muster scheitert weiterhin an der Konsekutiv-Kette; reine 12-m/s-Forderung wäre hier zu streng — bewusste Entscheidung, ON_BICYCLE nicht in ON_FOOT zu zwingen |
+| Rennrad-Abfahrt (AR = ON_BICYCLE) | **M18.134:** `motionContext = ON_BICYCLE` → eigener Schwellenblock (12 m/s, Kette 3, Schnitt 12 m/s, OHNE Vehicle-Pace-Override). Rad-Profile 25-35 km/h sind damit blockiert (gemessen), Motorrad/Auto ≥ 50 km/h startet unverändert. Blockierte Starts werden als `radfahren`-Session geführt (Verlustfreiheit) |
 | Joggen ohne AR-Signal (Permission fehlt) | Cadence-Veto greift (Sensor braucht keine AR-Permission) — der wichtigste Fall ist damit auch ohne AR abgedeckt |
 | Stop&Go-Fahrt, AR flackert WALKING | Kontext-Wechsel ON_FOOT → 12 m/s: Bei Stop&Go erreicht die Fahrt selten 43 km/h → Fahrt wird evtl. später erkannt (wenn IN_VEHICLE wieder meldet). Trade-off akzeptiert: False-Positive (Joggen als Fahrt) ist der gemeldete User-Bug; False-Negative heilt der nächste IN_VEHICLE-ENTER. Zusätzlich: AR-Kontext mit 60-s-Hysterese (Kontext wechselt erst nach 2 aufeinanderfolgenden Samples) gegen Flapping |
 | Walking-Session live, User steigt ins Auto | Heartbeat-Veto (4.2.3) beendet die Session sofort + CONFIRM-Burst prüft die Fahrt |
