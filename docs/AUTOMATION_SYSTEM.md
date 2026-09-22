@@ -23,6 +23,7 @@ SignalSource
 | Activity Recognition | Bewegung/Autofahren | Mittel-Hoch | Transition API bevorzugt |
 | Health Connect | Schlaf | Hoch wenn Daten vorhanden | Primärquelle für Schlaf |
 | UsageStats | Smartphone-Nutzung | Hoch für App-Nutzung | Sonderberechtigung |
+| Kalender | Termine (lokal gecacht) | Hoch (Termin = Absicht) | Fallback-Quelle mit Wiedereinstieg: läuft, solange nichts anderes aufzeichnet, und setzt nach Verdrängung fort |
 | Manuell | alles | Hoch | Nutzerwahrheit |
 
 ## Classification Pipeline

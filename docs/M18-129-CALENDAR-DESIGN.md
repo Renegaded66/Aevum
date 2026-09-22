@@ -169,7 +169,46 @@ gedeckelt, wenn keine Nacht-Regeln existieren. Zusätzlich prüft der Worker
 zuerst den **lokalen Cache** — der `ContentResolver` wird nur vom Sync-Worker
 angefasst (nicht alle 15 min).
 
-### 2.7 Was explizit **nicht** passiert (Anti-Features)
+### 2.7 Der Kalender als Fallback — Wiedereinstieg nach Verdrängung (M18.134)
+
+Ab M18.134 gilt: **Kalender-Termine sind Fallback-Aufzeichnungen mit
+Wiedereinstieg.** Ein Termin ist damit mehr als „Start/Stop an den
+Termingrenzen" — er hat eine Wächter-Rolle über seinen ganzen
+Termin-Zeitraum:
+
+- **Läuft nichts anderes** (keine fremde Session live), startet der Termin
+  (regulär, als QUEUE-Nachholer oder als Wiedereinstieg) — und läuft bis zum
+  Terminende.
+- **Beginnt eine andere automatische Aufzeichnung** (Fahrt, Wanderung,
+  Geofence, App-Tracking, Ping, Screen), tritt sie vor; der
+  `LiveActivityManager` trimmt den Kalender-Block exakt an ihre Startzeit
+  (keine Überlappung).
+- **Endet die verdrängende Aufzeichnung**, stößt ihr Stop-Pfad
+  `CalendarAutoRunScheduler.restartNow(...)` sofort an (idempotent,
+  `ExistingWorkPolicy.REPLACE`) — der Wiedereinstieg wartet nicht auf den
+  nächsten 15-Minuten-Takt.
+
+**Der Verdrängungs-Beweis (zweistufig):** Ein abgeschnittener Kalender-Block
+allein ist noch kein Beweis — derselbe Zustand entsteht durch einen
+manuellen Stop. Wiedereingestiegen wird nur, wenn (1) eine beendete
+Kalender-Session existiert, die **vor** ihrem Termin-Ende endete
+(`displacedMarkers`, Zuordnung über `findRelatedMatch`) und (2) an genau
+dieser Schnittstelle eine **fremde** Session begann
+(`hasForeignSessionStartingNear`, Toleranz 2 s). Nur wer beide Stufen
+besteht, kommt zurück; ein manueller Stop wird **nie** umgedreht.
+
+**Startzeit-Anker:** Der Wiedereinstieg beginnt bei JETZT — nicht
+rückdatiert. Eine Rückdatierung auf den Terminbeginn würde die Zeit der
+verdrängenden Session ein zweites Mal belegen (Überlappung, doppelte
+Erfassung). Die Lücke bleibt ehrlich leer.
+
+**Keine Konfiguration:** Das Fallback-Verhalten ist die Semantik der
+Kalender-Aufzeichnung, kein Schalter. Die Overlap-Policies (OVERRIDE /
+ONLY_IF_IDLE / QUEUE_IF_BUSY) regeln unverändert nur, wer eine **laufende**
+fremde Aufzeichnung übernehmen darf; der Wiedereinstieg greift ausschließlich
+bei `currentLive == null || !isLive`, also wenn tatsächlich nichts läuft.
+
+### 2.8 Was explizit **nicht** passiert (Anti-Features)
 
 - **Kein exakter Alarm**, keine `SCHEDULE_EXACT_ALARM`-Permission.
 - **Kein Schreiben in den Kalender** — nur Lesen. Die App ist nie Autor
@@ -208,6 +247,11 @@ laufende **fremde** Session blind beendet, zerstört Daten.
   (`sourceType == "CALENDAR_AUTO"` + gemerkte Session-ID) — exakt das
   Schutz-Muster von `AppTrackingService`.
 - Jeder Stop-Pfad ruft `cancelAutoDiscardForSession` auf (M18.66-FIX21).
+- **M18.134 (Fallback/Wiedereinstieg):** Der Wiedereinstieg liefert **leer,
+  solange irgendeine Session live ist** — er startet nur bei
+  `currentLive == null || !isLive`. So entsteht kein Start/Stop-Ping-Pong
+  gegen die verdrängende Aufzeichnung; die Override-Semantik bleibt dem
+  regulären Termin-Start (OVERRIDE-Policy) vorbehalten.
 
 ### Risiko 3 — Endlos-Session / verpasstes Ende
 Findet der Worker das Ende nicht (Termin verschoben, Permission entzogen,
