@@ -133,17 +133,23 @@ class CalendarAutoRunWorker(
         // ── SCHRITT 2: Fälligen Termin starten ───────────────────────
         val currentLive = live.liveSession.value
 
+        // M18.134: Wiedereinstiegs-Evidenz — wurde ein Termin von einer
+        // fremden Aufzeichnung abgeschnitten? Nur dann darf die
+        // 20-Minuten-Start-Toleranz fallen (siehe displacedEventIds).
+        val displacedEventIds = resumeEvidence(live, matches, currentLive)
+
         // Doppelstart-Schutz: Läuft bereits eine Kalender-Session, die
         // zu DIESEM Termin gehört (ihre Startzeit liegt in seinem
         // Fenster, siehe findRelatedMatch), ist nichts zu tun.
         val candidate = CalendarAutoRunEngine.pickStartCandidate(
             matches = matches,
             now = now,
-            lastStartedEventId = null
+            lastStartedEventId = null,
+            displacedEventIds = displacedEventIds
         )?.takeIf { c -> !isAlreadyRunningFor(currentLive, c, matches) }
 
         if (candidate != null) {
-            startSession(live, candidate, currentLive, now)
+            startSession(live, candidate, currentLive, now, displacedEventIds)
         }
 
         // ── SCHRITT 3: Nächsten Lauf auf die nächste Termingrenze legen
@@ -203,12 +209,79 @@ class CalendarAutoRunWorker(
         }
     }
 
+    /**
+     * M18.134: Wiedereinstiegs-Evidenz — die `eventId`s der Termine, deren
+     * Kalender-Session nachweislich von einer FREMDEN Aufzeichnung
+     * abgeschnitten wurde (oder leer).
+     *
+     * ZWEI STUFEN, und die zweite ist der eigentliche Trick:
+     *  1. Ein Kandidat muss eine abgeschnittene Kalender-Session haben
+     *     ([CalendarAutoRunEngine.displacedMarkers]).
+     *  2. Für diesen Schnittpunkt muss eine FREMDE Session existieren, die
+     *     genau dort begann ([witnessesDisplacement]).
+     *
+     * Ohne Stufe 2 würde JEDER abgeschnittene Block eine Wiederaufnahme
+     * auslösen — auch wenn der NUTZER selbst gestoppt, pausiert oder die
+     * Aktivität gewechselt hat. Ein manueller Stop ist eine Entscheidung;
+     * sie darf nicht 15 Minuten später von einem Worker umgedreht werden.
+     * Der Auto-Trim schreibt dagegen das Ende der verdrängten Session exakt
+     * auf die Startzeit der übernehmenden (M18.71) — dieser Fingerabdruck
+     * ist der Beweis.
+     *
+     * Diese Funktion ist der EINZIGE Ort, an dem die Evidenz beschafft wird.
+     * Sie liefert absichtlich leer, wenn gerade eine Session läuft: der
+     * Wiedereinstieg ist ein FALLBACK („läuft, wenn nichts anderes läuft").
+     *
+     * Fehler dürfen den Lauf nicht sprengen: Ist eine Query nicht lesbar,
+     * bleibt es beim Bestandsverhalten (kein Wiedereinstieg).
+     */
+    private suspend fun resumeEvidence(
+        live: LiveActivityManager,
+        matches: List<com.d_drostes_apps.aevum.domain.calendar.CalendarMatch>,
+        currentLive: com.d_drostes_apps.aevum.data.model.ActivitySession?
+    ): List<String> {
+        if (currentLive != null && currentLive.isLive) return emptyList()
+        val recent = try {
+            live.recentFinishedSessionsBySourceType(
+                CalendarAutoRunEngine.SOURCE_CALENDAR,
+                RESUME_EVIDENCE_LOOKBACK
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Resume-Evidenz nicht lesbar", e)
+            emptyList()
+        }
+        val markers = CalendarAutoRunEngine.displacedMarkers(matches, recent)
+        if (markers.isEmpty()) return emptyList()
+
+        val witnessed = markers.filter { marker ->
+            try {
+                live.hasForeignSessionStartingNear(
+                    calendarSource = CalendarAutoRunEngine.SOURCE_CALENDAR,
+                    atMs = marker.cutAtMs,
+                    toleranceMs = CalendarAutoRunEngine.DISPLACEMENT_WITNESS_TOLERANCE_MS
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Verdrängungs-Nachweis fehlgeschlagen", e)
+                false
+            }
+        }
+        if (witnessed.isNotEmpty()) {
+            Log.i(TAG, "Wiedereinstieg erkannt: verdrängte Termine ${witnessed.map { it.eventId }}")
+        } else if (markers.isNotEmpty()) {
+            // Wichtig fürs Debugging: abgeschnitten, aber ohne Fremd-Session
+            // an der Schnittstelle → wahrscheinlich ein manueller Stop.
+            Log.i(TAG, "Abgeschnittene Termine ohne Verdrängungs-Nachweis (kein Wiedereinstieg): ${markers.map { it.eventId }}")
+        }
+        return witnessed.map { it.eventId }
+    }
+
     /** Startet die Session für den fälligen Termin. */
     private suspend fun startSession(
         live: LiveActivityManager,
         candidate: com.d_drostes_apps.aevum.domain.calendar.CalendarMatch,
         currentLive: com.d_drostes_apps.aevum.data.model.ActivitySession?,
-        now: Long
+        now: Long,
+        displacedEventIds: Collection<String> = emptyList()
     ) {
         val typeId = candidate.activityTypeId ?: run {
             // M18.131: Gilt für beide Quellen — eine Regel mit gelöschter
@@ -267,14 +340,18 @@ class CalendarAutoRunWorker(
             // dem Freiwerden lief eine andere Aufzeichnung; eine rückwirkende
             // Startzeit würde die eigene Timeline belügen (Zeit doppelt
             // erfasst). Ehrlichkeit der Daten > optische Termin-Treue.
-            val sessionStart =
-                if (candidate.shouldQueueWhenBusy &&
-                    now - candidate.event.startAt > CalendarAutoRunEngine.START_TOLERANCE_MS
-                ) {
-                    System.currentTimeMillis()
-                } else {
-                    candidate.event.startAt
-                }
+            //
+            // M18.134: Dasselbe gilt für den WIEDEREINSTIEG nach einer
+            // abgeschnittenen Session (startAnchorMs) — in der Lücke lief
+            // die fremde Aufzeichnung, eine Rückdatierung würde sie
+            // überlappen. Beide Anker-Regeln liegen in der Engine, damit
+            // sie testbar sind und nicht an zwei Stellen driften.
+            val displaced = candidate.event.eventId in displacedEventIds
+            val sessionStart = CalendarAutoRunEngine.startAnchorMs(
+                match = candidate,
+                now = now,
+                displaced = displaced
+            )
             val session = live.start(
                 activityTypeId = typeId,
                 title = candidate.sessionTitle,
@@ -345,10 +422,24 @@ class CalendarAutoRunWorker(
         const val ORPHAN_MAX_DURATION_MS = 8L * 60 * 60 * 1000
 
         /**
-         * SourceType aller vom Kalender gestarteten Sessions. Wird in
-         * AUTO_SOURCES aufgenommen, damit die Timeline sie als
-         * automatische Aufzeichnung markiert.
+         * M18.134: Wie viele beendete Kalender-Sessions für die
+         * Wiedereinstiegs-Evidenz betrachtet werden.
+         *
+         * Warum mehr als eine: Bei mehreren Konflikten hintereinander
+         * (Fahrt → Wanderung → Fahrt) liegen mehrere abgeschnittene
+         * Sessions im Verlauf, und die jüngste kann zu einem bereits
+         * beendeten Termin gehören. 8 deckt einen realistischen Tag ab
+         * (eine Query über den Index source_type+start_at, kein Scan).
          */
-        const val SOURCE_CALENDAR = "CALENDAR_AUTO"
+        const val RESUME_EVIDENCE_LOOKBACK = 8
+
+        /**
+         * M18.134: SourceType aller vom Kalender gestarteten Sessions.
+         *
+         * Verweis auf die Engine-Konstante — die Evidenz-Logik
+         * ([CalendarAutoRunEngine.displacedEventIds]) vergleicht die
+         * Quelle, und beide Stellen müssen denselben Wert nutzen.
+         */
+        const val SOURCE_CALENDAR = CalendarAutoRunEngine.SOURCE_CALENDAR
     }
 }

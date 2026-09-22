@@ -416,6 +416,13 @@ class AppTrackingService : Service() {
         if (live != null && live.id == sessionId) {
             try {
                 liveActivityManager.stop()
+                // M18.134 (Kanban t_0bf5541e): Ein App-Tracking-Ende kann
+                // einen Kalender-Termin verdrängt haben (jeder Auto-Start
+                // trimmt die laufende CALENDAR_AUTO-Session) — Termin-
+                // Wiedereinstieg sofort prüfen („läuft immer, wenn nichts
+                // anderes läuft"), nicht erst beim 15-Minuten-Takt.
+                com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                    .restartNow(applicationContext)
                 Log.d(TAG, "Auto-Stop: Session $sessionId")
             } catch (e: Exception) {
                 Log.e(TAG, "Auto-Stop fehlgeschlagen", e)

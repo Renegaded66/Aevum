@@ -443,11 +443,23 @@ class DriveStopWorker(
             // t_d6639d07: "geofence activity restarts once the car ride
             // ends"). Der Resolver stoppt selbst, wenn keine Zone passt
             // (User weitergefahren) oder eine Session läuft.
-            // M18.134: NICHT nach einer Radfahrt (gleicher Grund wie im
-            // Watchdog — der Re-Enter ist ein Fahrt-Feature).
+            // M18.134 (t_a860c07f): NICHT nach einer Radfahrt (gleicher Grund
+            // wie im Watchdog — der Re-Enter ist ein Fahrt-Feature).
             if (!isBikeRide) {
                 com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
             }
+            // M18.134 (Kanban t_0bf5541e): Hatte diese Fahrt eine
+            // Kalender-Aufzeichnung verdrängt (Drive-Start trimmt die
+            // laufende CALENDAR_AUTO-Session exakt bis zum Fahrt-Beginn),
+            // muss der Termin JETZT wieder einsteigen können — nicht erst
+            // beim nächsten 15-Minuten-Takt des Kalender-Workers (genau
+            // das war der gemeldete Fehler: „nach der Autofahrt nicht
+            // wieder weitergeführt"). REPLACE-Semantik, Gating macht der
+            // Worker selbst (Feature-Schalter), idempotent bei jedem Stop.
+            // Gilt auch nach Radfahrten — auch sie verdrängen einen
+            // laufenden Kalender-Lauf (M18.134-Root-Integration).
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Sofort-Stop fehlgeschlagen", e)
         }
@@ -688,11 +700,20 @@ class DriveWatchdogWorker(
             // M18.114: Geofence-Re-Enter nach Fahrt-Ende prüfen (gleicher
             // Pfad wie DriveStopWorker — der Watchdog ist der HAUPT-Stop-Pfad,
             // Google-EXITs kommen unzuverlässig).
-            // M18.134: NICHT nach einer Radfahrt — der Re-Enter startet
-            // eine Geofence-Activity, die für eine Fahrt gedacht ist.
+            // M18.134 (t_a860c07f): NICHT nach einer Radfahrt — der
+            // Re-Enter startet eine Geofence-Activity, die für eine
+            // Fahrt gedacht ist.
             if (!isBikeRide) {
                 com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
             }
+            // M18.134 (Kanban t_0bf5541e): Kalender-Resume sofort prüfen —
+            // gleicher Grund wie im DriveStopWorker (dieser Pfad ist der
+            // HAUPT-Stop-Pfad der Fahrt, ohne den Anstoß käme der
+            // Wiedereinstieg erst beim nächsten 15-Minuten-Takt).
+            // Gilt auch nach Radfahrten — auch sie verdrängen einen
+            // laufenden Kalender-Lauf (M18.134-Root-Integration).
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Stop fehlgeschlagen", e)
         }

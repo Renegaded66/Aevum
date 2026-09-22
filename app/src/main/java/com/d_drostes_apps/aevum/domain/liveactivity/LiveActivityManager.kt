@@ -321,6 +321,34 @@ class LiveActivityManager @Inject constructor(
             ?.endAt
 
     /**
+     * M18.134: Die letzten N beendeten Sessions eines Quelltyps.
+     *
+     * Der Kalender-Worker braucht genau diese Frage für die Resume-Evidenz
+     * („hatte dieser Termin schon eine Session, die abgeschnitten wurde?").
+     * Bewusst generisch (Quelle als Parameter) statt einer eigenen
+     * Kalender-Methode — dasselbe Muster wie [lastAutoSessionEndMs], ohne
+     * dass das Live-Paket den Kalender kennen muss (Schichtrichtung
+     * domain.liveactivity ↛ domain.calendar).
+     *
+     * @param sourceType Quelle der gesuchten Sessions (z. B.
+     *        [com.d_drostes_apps.aevum.domain.calendar.CalendarAutoRunEngine.SOURCE_CALENDAR]).
+     */
+    suspend fun recentFinishedSessionsBySourceType(sourceType: String, limit: Int): List<ActivitySession> =
+        activityRepository.getRecentFinishedBySourceType(sourceType, limit)
+
+    /**
+     * M18.134: Verdrängungs-Beweis — begann an [atMs] eine Fremd-Session?
+     *
+     * Siehe [ActivityRepository.hasForeignSessionStartingNear]. Der Kalender
+     * nutzt das, um „vom Auto übernommen" von „selbst gestoppt" zu trennen.
+     */
+    suspend fun hasForeignSessionStartingNear(
+        calendarSource: String,
+        atMs: Long,
+        toleranceMs: Long
+    ): Boolean = activityRepository.hasForeignSessionStartingNear(calendarSource, atMs, toleranceMs)
+
+    /**
      * M18.71: Überlappende Aktivitäten — nur die Überlappungszeit
      * überschreiben (Regeln a/b/c: kürzen, splitten, nie löschen).
      *

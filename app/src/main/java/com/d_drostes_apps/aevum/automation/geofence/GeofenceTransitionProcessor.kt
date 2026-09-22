@@ -361,6 +361,12 @@ class GeofenceTransitionProcessor @Inject constructor(
                             liveActivityManager.stop()
                             // M18.19: Notification beim Auto-Stop entfernen.
                             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(context)
+                            // M18.134 (Kanban t_0bf5541e): Geofence-Session
+                            // beendet — ein Kalender-Termin, den ihr Start
+                            // verdrängt hat, darf jetzt wieder einsteigen
+                            // („läuft immer, wenn nichts anderes läuft").
+                            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                                .restartNow(context)
                             debugLogger.log("PROCESSOR", "  M17 Auto-Stop: ${existing.title} beendet (sourceTriggerId=${existing.sourceTriggerId})")
                         } else {
                             debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: Session ${existing.id} ist manuell (sourceType=${existing.sourceType})")
