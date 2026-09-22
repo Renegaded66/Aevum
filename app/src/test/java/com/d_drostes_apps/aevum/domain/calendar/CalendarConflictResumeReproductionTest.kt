@@ -67,7 +67,39 @@ class CalendarConflictResumeReproductionTest {
         override fun getByCategoryAndDateRange(categoryId: String, start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getByActivityTypeAndDateRange(typeId: String, start: Long, end: Long): Flow<List<ActivitySession>> = flowOf(emptyList())
         override fun getBySourceType(sourceType: String): Flow<List<ActivitySession>> = flowOf(emptyList())
-        override suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession? = null
+        /**
+         * M18.134: Echte DAO-Semantik — `WHERE source_type = :t AND
+         * session_status = 'FINISHED' AND end_at IS NOT NULL ORDER BY
+         * end_at DESC LIMIT 1`. Wichtig für die Resume-Evidenz: die
+         * Fakes halten Objekte zum INSERT-Zeitpunkt (endAt == null),
+         * spätere Trims stehen nur in [finished] — deshalb wird hier das
+         * (id, endAt)-Paar zurück auf die Session gelegt.
+         */
+        override suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession? {
+            val byId = inserted.associateBy { it.id }
+            return finished
+                .mapNotNull { (id, endAt) -> byId[id]?.copy(endAt = endAt, sessionStatus = "FINISHED") }
+                .filter { it.sourceType == sourceType }
+                .maxByOrNull { it.endAt ?: Long.MIN_VALUE }
+        }
+        /** M18.134: Verlauf statt Einzeleintrag — für die Evidenz bei mehreren Konflikten. */
+        override suspend fun getRecentFinishedBySourceType(sourceType: String, limit: Int): List<ActivitySession> {
+            val byId = inserted.associateBy { it.id }
+            return finished
+                .mapNotNull { (id, endAt) -> byId[id]?.copy(endAt = endAt, sessionStatus = "FINISHED") }
+                .filter { it.sourceType == sourceType }
+                .sortedByDescending { it.endAt ?: Long.MIN_VALUE }
+                .take(limit)
+        }
+        /** M18.134: Verdrängungs-Beweis — Fremd-Session am Schnittpunkt. */
+        override suspend fun hasForeignSessionStartingNear(
+            calendarSource: String,
+            atMs: Long,
+            toleranceMs: Long
+        ): Boolean = inserted.any {
+            it.sourceType != calendarSource &&
+                it.startAt in (atMs - toleranceMs)..(atMs + toleranceMs)
+        }
         override fun getCurrentActiveSession(): Flow<ActivitySession?> = flowOf(null)
         override fun getLiveSession(): Flow<ActivitySession?> = live
         override suspend fun updateStatus(id: String, status: String) {}
@@ -172,8 +204,8 @@ class CalendarConflictResumeReproductionTest {
 
     /**
      * Spiegel von CalendarAutoRunWorker.doWork() (Schritt 1–2):
-     * Stop-Pfad → Kandidat wählen (Doppelstart-Schutz) → starten.
-     * Rückgabe: die gestartete Session oder null (= kein Start).
+     * Stop-Pfad → Resume-Evidenz → Kandidat wählen (Doppelstart-Schutz) →
+     * starten. Rückgabe: die gestartete Session oder null (= kein Start).
      */
     private suspend fun calendarWorkerTick(
         live: LiveActivityManager,
@@ -196,10 +228,32 @@ class CalendarConflictResumeReproductionTest {
             }
         }
 
-        // SCHRITT 2: Kandidat + Doppelstart-Schutz (isAlreadyRunningFor).
+        // SCHRITT 2: Resume-Evidenz (resumeEvidence) — nur wenn nichts läuft.
+        // Nutzt den ECHTEN LiveActivityManager-Zugang (M18.134) statt einer
+        // Test-Kopie: der Datenweg DAO → Manager → Engine ist damit mitgetestet.
+        // Zweistufig: (1) abgeschnittener Block, (2) Fremd-Session am Schnitt.
         val currentLive = live.liveSession.value
+        val displacedEventIds = if (currentLive != null && currentLive.isLive) {
+            emptyList()
+        } else {
+            CalendarAutoRunEngine.displacedMarkers(
+                matches,
+                live.recentFinishedSessionsBySourceType(
+                    "CALENDAR_AUTO",
+                    CalendarAutoRunEngine.RESUME_EVIDENCE_LOOKBACK
+                )
+            ).filter { marker ->
+                live.hasForeignSessionStartingNear(
+                    calendarSource = "CALENDAR_AUTO",
+                    atMs = marker.cutAtMs,
+                    toleranceMs = CalendarAutoRunEngine.DISPLACEMENT_WITNESS_TOLERANCE_MS
+                )
+            }.map { it.eventId }
+        }
+
+        // SCHRITT 2b: Kandidat + Doppelstart-Schutz (isAlreadyRunningFor).
         val candidate = CalendarAutoRunEngine
-            .pickStartCandidate(matches, now, lastStartedEventId = null)
+            .pickStartCandidate(matches, now, lastStartedEventId = null, displacedEventIds = displacedEventIds)
             ?.takeIf { c ->
                 val related = currentLive?.let {
                     CalendarAutoRunEngine.findRelatedMatch(matches, it.startAt, it.activityTypeId)
@@ -213,10 +267,9 @@ class CalendarConflictResumeReproductionTest {
             !candidate.shouldQueueWhenBusy && !candidate.shouldOverrideRunning
         ) return null
 
-        // Startzeit-Regel aus startSession() (M18.132).
-        val sessionStart = if (candidate.shouldQueueWhenBusy &&
-            now - candidate.event.startAt > CalendarAutoRunEngine.START_TOLERANCE_MS
-        ) now else candidate.event.startAt
+        // Startzeit-Regel aus startSession() (M18.132 + M18.134).
+        val displaced = candidate.event.eventId in displacedEventIds
+        val sessionStart = CalendarAutoRunEngine.startAnchorMs(candidate, now, displaced)
         val started = live.start(
             activityTypeId = candidate.activityTypeId ?: return null,
             title = candidate.sessionTitle,
@@ -240,10 +293,11 @@ class CalendarConflictResumeReproductionTest {
     // ────────────────────────────────────────────────────────────────────
     // SZENARIO 1 — der gemeldete Fall (OVERRIDE, Standard-Policy)
     // Termin 15:00–18:00; Fahrt 15:40–16:05; Termin läuft noch.
+    // M18.134: Der Termin MUSS wieder einsteigen (vorher: kein Resume).
     // ────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `S1 Kalender-Session wird vom Fahrt-Start abgeschnitten (kein Resume)`() = runTest {
+    fun `S1 Kalender-Session wird vom Fahrt-Start abgeschnitten und nach der Fahrt wieder aufgenommen`() = runTest {
         val repo = FakeActivityRepository()
         val live = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
 
@@ -263,23 +317,33 @@ class CalendarConflictResumeReproductionTest {
         live.stop()
         awaitLive(live, null)
 
-        // Nächster Kalender-Worker-Lauf (spätestens 15 Min später): Termin
-        // läuft noch, aber KEIN Neustart — die 20-Minuten-Start-Toleranz
-        // verwirft ihn.
+        // Der Stop-Pfad stößt den Kalender-Lauf an (S3b) → Lauf JETZT:
+        // Termin läuft noch und wurde nachweislich abgeschnitten → Resume.
         val resumed = calendarWorkerTick(live, listOf(ruleMatch()), at(16, 5), repo)
-        assertThat(resumed).isNull()
-        assertThat(live.liveSession.value).isNull()
-        // Die Aufzeichnung ist für den Rest des Termins verloren.
-        assertThat(repo.inserted.filter { it.sourceType == "CALENDAR_AUTO" }).hasSize(1)
+        assertThat(resumed).isNotNull()
+        assertThat(resumed!!.sourceType).isEqualTo("CALENDAR_AUTO")
+        assertThat(resumed.activityTypeId).isEqualTo("studium")
+        // Ehrlichkeit der Daten: Der Wiedereinstieg startet bei JETZT —
+        // in der Lücke lief die Fahrt, eine Rückdatierung würde sie
+        // überlappen (M18.134-Anker-Regel).
+        assertThat(resumed.startAt).isEqualTo(at(16, 5))
+        // Keine Überlappung: der neue Block beginnt nach dem Fahrt-Beginn
+        // und nach dem Ende des abgeschnittenen Blocks.
+        assertThat(resumed.startAt).isAtLeast(at(15, 37))
+        assertThat(repo.inserted.count { it.sourceType == "CALENDAR_AUTO" }).isEqualTo(2)
+        // Der Termin ist jetzt bis 18:00 versorgt (Ende kommt vom Stop-Pfad).
+        assertThat(live.liveSession.value?.id).isEqualTo(resumed.id)
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // SZENARIO 2 — der Diskriminator: NUR innerhalb der 20-Min-Toleranz
-    // (Fahrt früh im Termin) greift der Neustart überhaupt.
+    // SZENARIO 2 — der Diskriminator: Die 20-Minuten-Toleranz fällt NUR
+    // bei nachgewiesener Verdrängung, nicht für einen nie gestarteten
+    // Termin („Handy war aus").
     // ────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `S2 Nur ein Fahrt-Ende INNERHALB der 20-Min-Toleranz resumed`() = runTest {
+    fun `S2 Toleranz faellt nur bei Verdraengung - sonst kein Resume mitten im Termin`() = runTest {
+        // (a) VERDRÄNGT: Termin lief schon, Fahrt schnitt ihn ab.
         val repo = FakeActivityRepository()
         val live = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
 
@@ -288,17 +352,23 @@ class CalendarConflictResumeReproductionTest {
         live.stop()
         awaitLive(live, null)
 
-        // 15:15 — 15 Min nach Termin-Beginn, Termin läuft → Kandidat fällig.
-        val early = calendarWorkerTick(live, listOf(ruleMatch()), at(15, 15), repo)
-        assertThat(early).isNotNull()
-        assertThat(early!!.activityTypeId).isEqualTo("studium")
-        assertThat(early.startAt).isEqualTo(eventStart) // rückdatiert (kein QUEUE)
+        // 15:25 — 25 Min nach Termin-Beginn (Toleranz vorbei), aber die
+        // Vorgänger-Session endete um 15:02 < 18:00 → abgeschnitten.
+        val resumed = calendarWorkerTick(live, listOf(ruleMatch()), at(15, 25), repo)
+        assertThat(resumed).isNotNull()
+        assertThat(resumed!!.startAt).isEqualTo(at(15, 25))
 
-        // Gegenprobe 15:25 — 25 Min nach Termin-Beginn (Toleranz vorbei).
-        live.stop()
-        awaitLive(live, null)
-        val late = calendarWorkerTick(live, listOf(ruleMatch()), at(15, 25), repo)
-        assertThat(late).isNull()
+        // (b) NIE GESTARTET: kein Wiedereinstieg mitten im Termin. Ohne
+        // jede Vorgänger-Session ist „mehr als 20 Min nach Beginn" das
+        // Signal für „Handy war aus / Termin verpasst" — unverändert
+        // kein nachträglicher Start.
+        val fresh = FakeActivityRepository()
+        val liveFresh = LiveActivityManager(fresh, FakeTypeRepository(), FakeTriggerRepository())
+        assertThat(calendarWorkerTick(liveFresh, listOf(ruleMatch()), at(15, 25), fresh)).isNull()
+        assertThat(liveFresh.liveSession.value).isNull()
+        // Gegenprobe innerhalb der Toleranz: der reguläre Start greift
+        // weiterhin (Bestandsverhalten unverändert).
+        assertThat(calendarWorkerTick(liveFresh, listOf(ruleMatch()), at(15, 15), fresh)).isNotNull()
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -334,17 +404,21 @@ class CalendarConflictResumeReproductionTest {
     }
 
     @Test
-    fun `S3b Beim Fahrt-Ende selbst laeuft KEIN Kalender-Lauf (struktureller Befund)`() {
-        // DriveStopWorker/DriveWatchdogWorker schedulen nach dem Stop nur
-        // DriveEndGeofenceRestarter (Geofence-Re-Enter) — der Kalender-
-        // Worker wird nicht angestoßen. Belegt durch Quelltext-Scan:
+    fun `S3b Beim Fahrt-Ende selbst stoesst der Stop-Pfad den Kalender-Lauf an`() {
+        // M18.134: Der Befund aus t_61143053 war, dass DriveStopWorker/
+        // DriveWatchdogWorker nach dem Stop nur DriveEndGeofenceRestarter
+        // schedulen — der Kalender-Worker wurde nie angestoßen (Resume
+        // erst beim nächsten 15-Min-Takt). Der Fix verlangt den Anstoß:
+        // beide Stop-Pfade rufen jetzt CalendarAutoRunScheduler.restartNow.
         val worker = java.io.File(
             "src/main/java/com/d_drostes_apps/aevum/automation/activityrecognition/DriveWorkers.kt"
         )
         if (!worker.exists()) return // Test läuft aus dem App-Modul
         val src = worker.readText()
         assertThat(src).contains("DriveEndGeofenceRestarter.schedule")
-        assertThat(src).doesNotContain("CalendarAutoRunScheduler")
+        assertThat(src).contains("CalendarAutoRunScheduler")
+        // Beide Stop-Pfade (Google-EXIT + Watchdog) — nicht nur einer.
+        assertThat(src.split("CalendarAutoRunScheduler").size - 1).isAtLeast(2)
     }
 
     // ────────────────────────────────────────────────────────────────────

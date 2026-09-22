@@ -23,6 +23,33 @@ interface ActivityRepository {
     // M18.80: Letzte beendete Session eines Auto-Quelltyps (für den
     // Nicht-Überlappungs-Guard bei rückwirkenden Starts).
     suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession?
+    /**
+     * M18.134: Die letzten N beendeten Sessions eines Quelltyps — für die
+     * Resume-Evidenz bei MEHREREN Konflikten hintereinander.
+     *
+     * WARUM MIT DEFAULT-BODY: Die Interface-Methode wird nur vom
+     * Kalender-Resume gebraucht. Ein Default erspart es, jede der (acht)
+     * Test-Fakes anzufassen — sie erben die Ein-Element-Fassung und damit
+     * genau das Bestandsverhalten, während die Produktion die echte
+     * History-Query nutzt.
+     */
+    suspend fun getRecentFinishedBySourceType(sourceType: String, limit: Int): List<ActivitySession> =
+        listOfNotNull(getLastFinishedBySourceType(sourceType)).take(limit)
+
+    /**
+     * M18.134: Verdrängungs-BEWEIS — begann an [atMs] eine Session, die NICHT
+     * vom Kalender stammt?
+     *
+     * Der Kalender-Trim (M18.71) setzt das Ende der verdrängten Session exakt
+     * auf die Startzeit der übernehmenden. Ein manueller Stop tut das nicht.
+     * Default-Body (false), damit die bestehenden Test-Fakes unverändert
+     * bleiben — sie prüfen diesen Pfad nicht.
+     */
+    suspend fun hasForeignSessionStartingNear(
+        calendarSource: String,
+        atMs: Long,
+        toleranceMs: Long
+    ): Boolean = false
     fun getCurrentActiveSession(): Flow<ActivitySession?>
     // M9: Live Activity
     fun getLiveSession(): Flow<ActivitySession?>

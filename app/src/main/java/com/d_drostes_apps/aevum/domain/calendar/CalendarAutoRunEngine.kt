@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.domain.calendar
 
+import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.CalendarEventCache
 
 /**
@@ -19,6 +20,56 @@ import com.d_drostes_apps.aevum.data.model.CalendarEventCache
  * gibt es die Rückwärts-Grenze.
  */
 object CalendarAutoRunEngine {
+
+    /**
+     * M18.134: SourceType aller vom Kalender gestarteten Sessions.
+     *
+     * Liegt seit dieser Welle hier (domain) statt nur im Worker: die
+     * Resume-Prüfung [wasDisplacedByForeignSession] vergleicht die Quelle
+     * der Vorgänger-Session, und die Engine ist ein reines JVM-Objekt —
+     * ein Import aus `automation` würde die Schichtung brechen.
+     * [com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunWorker]
+     * verweist auf dieselbe Konstante.
+     */
+    const val SOURCE_CALENDAR = "CALENDAR_AUTO"
+
+    /**
+     * M18.134: Wie viele beendete Kalender-Sessions für die
+     * Wiedereinstiegs-Evidenz betrachtet werden ([displacedEventIds]).
+     *
+     * Warum mehr als eine: Bei mehreren Konflikten hintereinander
+     * (Fahrt → Wanderung → Fahrt) liegen mehrere abgeschnittene Sessions
+     * im Verlauf, und die jüngste kann zu einem bereits beendeten Termin
+     * gehören. 8 deckt einen realistischen Tag ab (eine Query über den
+     * Index `source_type+start_at`, kein Tabellen-Scan). Liegt hier statt
+     * im Worker, weil der Datenbedarf zur Evidenz-Logik gehört und so
+     * auch aus JVM-Tests ohne Android-Paket nutzbar ist.
+     */
+    const val RESUME_EVIDENCE_LOOKBACK = 8
+
+    /**
+     * M18.134: Toleranz beim Verdrängungs-Beweis.
+     *
+     * Der Trim in [com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager]
+     * schreibt das Ende der verdrängten Session exakt auf die Startzeit der
+     * übernehmenden Session (`endAt = newStart`). Der Beweis lautet deshalb:
+     * es gibt eine fremde Session, die genau dort begann. Ein paar
+     * Millisekunden Spielraum decken getrennte `System.currentTimeMillis()`-
+     * Aufrufe ab; mehr wäre unscharf (ein manueller Stop und ein Minuten
+     * späterer Auto-Start sind zwei verschiedene Ereignisse).
+     */
+    const val DISPLACEMENT_WITNESS_TOLERANCE_MS = 2_000L
+
+    /**
+     * M18.134: Ein abgeschnittener Termin als KANDIDAT der Wiederaufnahme.
+     *
+     * [cutAtMs] ist der Zeitpunkt, an dem die Kalender-Session endete — also
+     * die Stelle, an der eine fremde Session übernommen haben MUSS, wenn es
+     * eine Verdrängung war. Der Nachweis selbst braucht die Datenbank
+     * (`DISPLACEMENT_WITNESS_TOLERANCE_MS`) und bleibt beim Aufrufer; diese
+     * Struktur ist das reine, testbare Zwischenergebnis.
+     */
+    data class DisplacedMarker(val eventId: String, val cutAtMs: Long)
 
     /**
      * Wie weit NACH dem Termin-Start ein Start noch zulässig ist.
@@ -87,6 +138,185 @@ object CalendarAutoRunEngine {
      */
     fun shouldStartQueued(event: CalendarEventCache, now: Long): Boolean =
         now >= event.startAt && now < event.endAt
+
+    /**
+     * M18.134: Soll ein Termin nach einer VERDRÄNGUNG wieder aufgenommen
+     * werden? (Kanban t_0bf5541e — gemeldeter Fall: „Während dem
+     * Kalendereintrag Auto gefahren → Kalendereintrag gestoppt, danach
+     * nicht wieder weitergeführt, obwohl der Termin noch lief.")
+     *
+     * DIE REGEL DES NUTZERS wörtlich: „der Kalendereintrag soll immer
+     * laufen, wenn nichts anderes läuft". Für einen Termin, der bereits
+     * aufgezeichnet wurde und dann von einer Fremd-Session abgeschnitten
+     * wurde, ist das ein Wiedereinstieg — und der ist nur an zwei harten
+     * Grenzen zu messen:
+     *  - der Termin hat begonnen,
+     *  - der Termin ist noch nicht vorbei.
+     *
+     * WARUM NICHT [shouldStart] (die 20-Minuten-Toleranz)? Die Toleranz
+     * beantwortet eine ANDERE Frage: „war der Nutzer zum Terminbeginn
+     * überhaupt da?" (Handy aus, verspäteter Worker-Lauf). Nach einer
+     * Verdrängung ist diese Frage bereits beantwortet — es GIBT eine
+     * Session für diesen Termin, sie wurde nur abgeschnitten. Ohne dieses
+     * eigene Prädikat wäre ein Wiedereinstieg nach 20 Minuten Terminlauf
+     * grundsätzlich unmöglich (genau der gemeldete Fehler).
+     *
+     * WARUM NICHT EINFACH [shouldStartQueued]? Weil „verdrängt" bewiesen
+     * sein muss. QUEUE_IF_BUSY gilt für Termine, deren Warteschlangen-
+     * Semantik der Nutzer ausdrücklich gewählt hat. Ein OVERRIDE-Termin
+     * (Standard) sagt: „übernimm, warte NICHT". Ihm die Warteschlange
+     * anzudichten, würde jeden 8-Stunden-Termin beim Einschalten des
+     * Handys mitten am Nachmittag starten — eine Aufzeichnung ohne
+     * Anlass. Der Unterschied ist [displaced]: nur wer nachweislich
+     * aufgezeichnet und dann abgeschnitten wurde, darf nachholen.
+     *
+     * @param displaced true, wenn dieser Termin bereits eine Kalender-
+     *        Session hatte, die von einer anderen Session abgeschnitten
+     *        wurde (Evidenz über [wasDisplacedByForeignSession]).
+     */
+    fun shouldResumeAfterDisplacement(
+        event: CalendarEventCache,
+        now: Long,
+        displaced: Boolean
+    ): Boolean = displaced && now >= event.startAt && now < event.endAt
+
+    /**
+     * M18.134: Wurde ein Termin verdrängt — und WELCHER? Liefert die
+     * `eventId` des Termins, dessen Kalender-Session abgeschnitten wurde,
+     * oder null (keine Evidenz).
+     *
+     * Das ist die fehlende Evidenz, die „Resume" von „Handy war aus"
+     * trennt (Root-Cause-Report t_61143053, Integrationspunkt A). Ein
+     * Wiedereinstieg ist nur dann gerechtfertigt, wenn für DENSELBEN
+     * Termin schon eine Kalender-Session existierte und diese NICHT an
+     * ihrem natürlichen Terminende endete:
+     *
+     *  - Die beendete Session gehört zu einem der Matches — geprüft über
+     *    [findRelatedMatch], also EXAKT dieselbe Zuordnungsregel wie im
+     *    Stop-Pfad und im Doppelstart-Schutz (keine zweite Wahrheit).
+     *  - Ihr Ende liegt VOR dem Termin-Ende → sie wurde abgeschnitten.
+     *    Hätte sie bis zum Ende laufen dürfen, wäre sie vom Kalender-Stop
+     *    dort beendet worden („Auto-Start impliziert Auto-Stop") und der
+     *    Termin wäre vollständig. Der Kalender stoppt seine eigene Session
+     *    nie vorzeitig (STOP_GRACE_MS = 0) — ein früheres Ende stammt also
+     *    von einer fremden Übernahme (der Drive-Start trimmt die laufende
+     *    Session exakt bis zu seinem Start, siehe LiveActivityManager).
+     *
+     * WICHTIG — Fehlerrichtung: Ein fälschlich angenommenes „verdrängt"
+     * startet eine Aufzeichnung mitten im Termin (störend, aber harmlos
+     * und durch Doppelstart-Schutz/Trimming gegen Überlappung gesichert).
+     * Ein fälschlich verneintes „verdrängt" lässt den Termin leer — genau
+     * der gemeldete Fehler. Die Prüfung ist deshalb großzügig in Richtung
+     * „verdrängt", aber nie ohne eine echte, zum Termin gehörende
+     * Vorgänger-Session.
+     *
+     * @param lastFinishedSession Letzte BEENDETE Kalender-Session
+     *        (`getLastFinishedBySourceType(SOURCE_CALENDAR)`).
+     *        Null = es gab nie eine → nichts wiederaufzunehmen.
+     */
+    fun displacedEventId(
+        matches: List<CalendarMatch>,
+        lastFinishedSession: ActivitySession?
+    ): String? = displacedEventIds(matches, listOfNotNull(lastFinishedSession)).firstOrNull()
+
+    /**
+     * M18.134: Wie [displacedEventId], aber über einen VERLAUF beendeter
+     * Sessions — für den Fall mehrerer Konflikte hintereinander.
+     *
+     * Warum der Verlauf nötig ist: Bei „Fahrt → Wanderung → Fahrt" liegen
+     * mehrere abgeschnittene Kalender-Sessions hintereinander. Die jeweils
+     * JÜNGSTE kann zu einem bereits beendeten Termin gehören; wird nur sie
+     * betrachtet, bliebe ein ÄLTERER, noch laufender Termin unversorgt.
+     * Geliefert wird deshalb ALLE abgeschnittenen Events, jüngste zuerst.
+     *
+     * ACHTUNG — nur KANDIDATEN: „abgeschnitten" allein beweist noch keine
+     * Verdrängung. Ein ABGESCHNITTENER Block entsteht auch, wenn der Nutzer
+     * selbst stoppt, pausiert oder die Aktivität wechselt. Der positive
+     * Nachweis (eine fremde Session begann exakt an der Schnittstelle) ist
+     * [DisplacedMarker] + `DISPLACEMENT_WITNESS_TOLERANCE_MS` und wird vom
+     * Aufrufer geführt (er braucht dafür die Datenbank).
+     */
+    fun displacedEventIds(
+        matches: List<CalendarMatch>,
+        recentFinishedSessions: List<ActivitySession>
+    ): List<String> = displacedMarkers(matches, recentFinishedSessions).map { it.eventId }
+
+    /**
+     * M18.134: Die abgeschnittenen Termine samt Schnittstelle — Grundlage
+     * für den Verdrängungs-Beweis.
+     *
+     * @see displacedEventIds
+     */
+    fun displacedMarkers(
+        matches: List<CalendarMatch>,
+        recentFinishedSessions: List<ActivitySession>
+    ): List<DisplacedMarker> =
+        recentFinishedSessions
+            .asSequence()
+            .filter { it.sourceType == SOURCE_CALENDAR }
+            .filter { it.endAt != null }
+            .mapNotNull { session ->
+                val related = findRelatedMatch(matches, session.startAt, session.activityTypeId)
+                    ?: return@mapNotNull null
+                // Wurde sie abgeschnitten? (Ende vor dem Termin-Ende.)
+                related.event.eventId
+                    .takeIf { session.endAt!! < related.event.endAt }
+                    ?.let { DisplacedMarker(it, session.endAt!!) }
+            }
+            .distinctBy { it.eventId }
+            .toList()
+
+    /**
+     * M18.134: Ist der Termin JETZT als „Fallback" fällig — d. h. er darf
+     * starten, sobald nichts anderes läuft?
+     *
+     * Diese Zusammenfassung ist die einzige Stelle, an der die drei
+     * Fälligkeits-Gründe zusammenlaufen: regulär ([shouldStart]),
+     * Warteschlange ([shouldStartQueued]) und Wiedereinstieg nach
+     * Verdrängung ([shouldResumeAfterDisplacement]). Der Worker und
+     * [pickStartCandidate] rufen nur noch hier an — die Policy-Logik
+     * ([CalendarMatch.shouldQueueWhenBusy]) bleibt unangetastet.
+     *
+     * WICHTIG: [displacedEventIds] ist eine Liste von EVENT-IDs, kein Bool.
+     * Bei überlappenden Terminen („multiple conflicting recordings") darf
+     * der Wiedereinstieg nur Termine treffen, die nachweislich
+     * abgeschnitten wurden — sonst würde ein Nachbartermin mitgerissen,
+     * für den jede Evidenz fehlt.
+     */
+    fun isFallbackDue(
+        match: CalendarMatch,
+        now: Long,
+        displacedEventIds: Collection<String>
+    ): Boolean {
+        if (match.shouldQueueWhenBusy) return shouldStartQueued(match.event, now)
+        val displaced = match.event.eventId in displacedEventIds
+        return shouldResumeAfterDisplacement(match.event, now, displaced)
+    }
+
+    /**
+     * M18.134: Mit welcher Startzeit beginnt die Session für diesen Match?
+     *
+     * DIE REGEL (bewusst nur zwei Fälle):
+     *  - **Wiedereinstieg** ([displaced]): Startzeit = JETZT. In der Zeit
+     *    vor dem Wiedereinstieg lief nachweislich eine andere Aufzeichnung
+     *    (die verdrängende Session — und davor der abgeschnittene
+     *    Kalender-Block). Eine Rückdatierung auf den Terminbeginn würde
+     *    dieselbe Zeit ein zweites Mal belegen und die Timeline belügen
+     *    (M18.132-Lektion „Ehrlichkeit der Daten > optische Termin-Treue",
+     *    hier verschärft: es entstünde eine echte Überlappung).
+     *  - **Alles andere**: unverändert der Termin-Beginn (M18.70-Muster
+     *    „rückwirkende Startzeit bei Vorlauf"), außer beim QUEUE-Nachholer
+     *    nach Ablauf der Start-Toleranz → JETZT (M18.132).
+     */
+    fun startAnchorMs(
+        match: CalendarMatch,
+        now: Long,
+        displaced: Boolean
+    ): Long = when {
+        displaced -> now
+        match.shouldQueueWhenBusy && now - match.event.startAt > START_TOLERANCE_MS -> now
+        else -> match.event.startAt
+    }
 
     /**
      * M18.132: Findet den Match, zu dem die LAUFENDE Kalender-Session
@@ -222,11 +452,26 @@ object CalendarAutoRunEngine {
      * auch mitten im Termin. Ein OVERRIDE-Termin dagegen wird nach
      * Verdrängung NICHT nachgeholt (seine Policy sagt: übernehmen, nicht
      * warten).
+     *
+     * M18.134 (Kanban t_0bf5541e) — DIE AUSNAHME ZU DIESEM SATZ: Ein
+     * OVERRIDE/ONLY_IF_IDLE-Termin, der nachweislich SCHON AUFGEZEICHNET
+     * und dann abgeschnitten wurde, wird sehr wohl nachgeholt
+     * ([isFallbackDue] + [displacedEventId]). „Nicht warten" verbietet
+     * nicht das Wiederaufnehmen einer eigenen, zerstörten Aufzeichnung —
+     * es verbietet nur, auf eine FREMDE Session zu warten, die noch läuft.
+     * Genau diese Semantik hat der Nutzer für den Kalender gefordert:
+     * der Termin läuft immer, wenn nichts anderes läuft.
+     *
+     * @param displacedEventIds Termine, deren Session nachweislich
+     *        abgeschnitten wurde ([displacedEventIds]) — nur SIE dürfen den
+     *        Wiedereinstieg nutzen, damit ein Nachbartermin bei
+     *        überlappenden Terminen nicht mitgerissen wird.
      */
     fun pickStartCandidate(
         matches: List<CalendarMatch>,
         now: Long,
-        lastStartedEventId: String?
+        lastStartedEventId: String?,
+        displacedEventIds: Collection<String> = emptyList()
     ): CalendarMatch? {
         val due = matches.asSequence()
             // M18.132: Tote Matches (Aktivität gelöscht) können nichts
@@ -234,7 +479,7 @@ object CalendarAutoRunEngine {
             .filter { it.activityTypeId != null }
             .filter { m ->
                 shouldStart(m.event, now, lastStartedEventId) ||
-                    (m.shouldQueueWhenBusy && shouldStartQueued(m.event, now))
+                    isFallbackDue(m, now, displacedEventIds)
             }
             .toList()
 

@@ -72,6 +72,12 @@ class ScreenOffStopWorker(
 
             deps.liveActivityManager().stop()
             LiveActivityService.stop(applicationContext)
+            // M18.134 (Kanban t_0bf5541e): Kalender-Wiedereinstieg sofort
+            // prüfen — der Screen-Start hat eine Kalender-Session verdrängt
+            // (start() trimmt sie), also darf der Termin nach diesem Stop
+            // wieder einsteigen, statt bis zu 15 Minuten zu warten.
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
             Log.d(TAG, "Screen-Aufzeichnung gestoppt (Screen ${ScreenRecordingEngine.SCREEN_OFF_STOP_DELAY_MS / 1000}s aus)")
             Result.success()
         } catch (e: Exception) {

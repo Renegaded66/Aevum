@@ -437,6 +437,16 @@ class DriveStopWorker(
             // ends"). Der Resolver stoppt selbst, wenn keine Zone passt
             // (User weitergefahren) oder eine Session läuft.
             com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
+            // M18.134 (Kanban t_0bf5541e): Hatte diese Fahrt eine
+            // Kalender-Aufzeichnung verdrängt (Drive-Start trimmt die
+            // laufende CALENDAR_AUTO-Session exakt bis zum Fahrt-Beginn),
+            // muss der Termin JETZT wieder einsteigen können — nicht erst
+            // beim nächsten 15-Minuten-Takt des Kalender-Workers (genau
+            // das war der gemeldete Fehler: „nach der Autofahrt nicht
+            // wieder weitergeführt"). REPLACE-Semantik, Gating macht der
+            // Worker selbst (Feature-Schalter), idempotent bei jedem Stop.
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Sofort-Stop fehlgeschlagen", e)
         }
@@ -669,6 +679,12 @@ class DriveWatchdogWorker(
             // Pfad wie DriveStopWorker — der Watchdog ist der HAUPT-Stop-Pfad,
             // Google-EXITs kommen unzuverlässig).
             com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
+            // M18.134 (Kanban t_0bf5541e): Kalender-Resume sofort prüfen —
+            // gleicher Grund wie im DriveStopWorker (dieser Pfad ist der
+            // HAUPT-Stop-Pfad der Fahrt, ohne den Anstoß käme der
+            // Wiedereinstieg erst beim nächsten 15-Minuten-Takt).
+            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                .restartNow(applicationContext)
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Stop fehlgeschlagen", e)
         }
