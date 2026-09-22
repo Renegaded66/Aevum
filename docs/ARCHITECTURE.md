@@ -66,7 +66,8 @@ Adapter kapseln Quellen:
 - `ActivityRecognitionSignalSource`
 - `UsageStatsSignalSource`
 - `HealthConnectSleepSource`
-- später: `WearOsSignalSource`, `CalendarSignalSource`, `ImportSignalSource`
+- `CalendarAutoRunWorker` (Kalender-Regeln → `CALENDAR_AUTO`-Sessions; Fallback-Quelle mit Wiedereinstieg)
+- später: `WearOsSignalSource`, `ImportSignalSource`
 
 Sie schreiben keine finalen Sessions direkt. Quellen liefern Raw Events oder Importintervalle, die über die Pipeline normalisiert werden.
 

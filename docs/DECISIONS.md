@@ -428,6 +428,27 @@ Wanderung, App-Tracking, Bildschirm) bleiben unangetastet. Zusätzlich ist
 pro Regel wählbar, ob ein Termin eine laufende Aufzeichnung übernehmen darf
 (`OVERRIDE`, Default) oder nur startet, wenn nichts läuft (`ONLY_IF_IDLE`).
 
+**Entscheidung 7 — M18.134: Der Kalender ist ein Fallback mit
+Wiedereinstieg (nur bei nachgewiesener Verdrängung).**
+Ein Kalender-Termin zeichnet auf, solange nichts anderes läuft, und kehrt
+nach jeder automatisch erkannten Verdrängung zurück, solange der Termin
+läuft. Der Wiedereinstieg ist an einen **zweistufigen Beweis** gebunden:
+(1) eine beendete Kalender-Session endete vor ihrem Termin-Ende
+(`displacedMarkers`, Zuordnung exakt wie im Stop-Pfad via
+`findRelatedMatch`) und (2) an genau dieser Schnittstelle begann eine
+**fremde** Session (`hasForeignSessionStartingNear`, Toleranz 2 s — der
+M18.71-Trim-Fingerabdruck). Damit wird ein **manueller Stop nie umgedreht**
+(mutationstest-geprüft); die 20-Minuten-Start-Toleranz entfällt nur für
+nachweislich verdrängte Termine, nicht für „nie gestartet". Der
+Wiedereinstieg beginnt bei **JETZT** (keine Rückdatierung — sonst würde die
+verdrängende Session doppelt erfasst, M18.132-Lektion). Alle automatischen
+Stop-Pfade stoßen `CalendarAutoRunScheduler.restartNow()` sofort an
+(idempotent, REPLACE), statt auf den 15-Minuten-Takt zu warten. Es gibt
+**keine Konfiguration**: Das Fallback-Verhalten ist die gewünschte Semantik
+(„läuft immer, wenn nichts anderes läuft"), kein Schalter; die Overlap-
+Policies regeln weiterhin nur Übernahme vs. Warten bei laufender fremder
+Aufzeichnung.
+
 **Verworfene Alternativen:** (a) `Events`-Table statt `Instances` — bei
 wiederkehrenden Terminen gäbe es nur EINE Zeile, die wöchentliche Vorlesung
 wäre unsichtbar; (b) Aufzeichnung pausieren statt beenden — bricht das
