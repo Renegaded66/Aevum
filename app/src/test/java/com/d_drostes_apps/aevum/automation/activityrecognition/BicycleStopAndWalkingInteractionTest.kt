@@ -263,17 +263,101 @@ class BicycleStopAndWalkingInteractionTest {
     }
 
     @Test
-    fun `GEMESSEN - das Walk-Stop-Trigger-Gate haengt an isDriveActive - Rad-Session ist davon nicht erfasst`() = runTest {
-        // EHRLICHE ABGRENZUNG (Follow-up-Karte): Die Detektoren feuern
-        // (Tests oben), aber die Trigger-Gates im Receiver
-        // (ActivityContinuousSamples.kt, `if (bridge.isDriveActive())`)
-        // und im Service (DriveDetectionService.kt, onStepForWalkStop,
-        // `if (!bridge.isDriveActive()) return`) prüfen isDriveActive.
-        // Für eine automatisch gestartete RAD-Session ist isDriveActive
-        // false (es wird nur von markDriveConfirmed gesetzt — dem
-        // Fahrzeug-Start-Pfad). Der Abstell-/Ausstiegs-Trigger erreicht
-        // die Rad-Session daher nicht; sie endet über den Watchdog-Match
-        // (Punkt 1) — spätestens 5 Minuten nach dem letzten Signal.
+    fun `ABSTELLEN beendet die Rad-Session ueber den echten Trigger - nicht erst der 5-Min-Watchdog`() = runTest {
+        // Abnahmekriterium 3 (M18.135): „Das Abstellen der Radfahrt
+        // (Gehen/Schritte erkannt) beendet die Rad-Session über einen
+        // echten Trigger, nicht erst über den 5-Minuten-Watchdog."
+        //
+        // Der Kettenschluss wird hier vollständig durchgefahren:
+        //   1. Rad-Session läuft, Rad-Tempo (25 km/h = 6,9 m/s).
+        //   2. Der AR-Walk-Stop-DETEKTOR feuert nach der 75-s-Gnadenfrist
+        //      (2 WALKING-Samples ≥ 60) — 25 km/h ist KEIN Fahrzeug-Tempo,
+        //      das Veto greift also nicht.
+        //   3. Das TRIGGER-Gate (Produktionscode: `isDriveActive() ||
+        //      isLiveAutoTrackedSession(liveSession)`) steht für die
+        //      Rad-Session offen — der Stop-Worker wird enqueued.
+        //   4. Der Stop-Worker-Pfad beendet die Session: sein Gate
+        //      (`isAutoTrackedSession`, Reflection auf den echten
+        //      Produktionscode) matcht die Rad-Session, `live.stop()`
+        //      beendet sie SOFORT.
+        // Ohne den M18.135-Fix wäre Schritt 3 geschlossen (isDriveActive
+        // ist für die Rad-Session false) und die Session liefe bis zum
+        // 5-Minuten-Watchdog.
+        val repo = FakeActivityRepository()
+        val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+        val b = bridge()
+
+        val bike = manager.start(
+            activityTypeId = "radfahren", title = "Radfahren",
+            sourceType = "ACTIVITY_RECOGNITION_AUTO", startedAt = t0
+        )
+        awaitLive(manager, bike.id)
+
+        // Rad-Tempo in den Probes (25 km/h — unter dem 8-m/s-Veto).
+        b.addDriveProbe(probe(t0, kmh(25.0), 100.0), false)
+        b.addDriveProbe(probe(t0 + 15_000L, kmh(25.0), 200.0), false)
+
+        // 2. Detektor: 2 WALKING-Samples → nach der Gnadenfrist STOPP.
+        assertThat(b.onWalkStopSample(WalkStopDetector.TYPE_WALKING, 80, t0)).isFalse()
+        assertThat(b.onWalkStopSample(WalkStopDetector.TYPE_WALKING, 80, t0 + 30_000L)).isFalse()
+        assertThat(b.onWalkStopSample(WalkStopDetector.TYPE_WALKING, 80, t0 + 80_000L)).isTrue()
+
+        // 3. Trigger-Gate (Produktions-Ausdruck).
+        val autoSession = manager.liveSession.value
+        assertWithMessage("Das Trigger-Gate muss für die Rad-Session offen sein")
+            .that(b.isDriveActive() || isLiveAutoTrackedSession(autoSession)).isTrue()
+
+        // 4. Stop-Pfad: das Gate des DriveStopWorkers matcht, der Stop
+        //    beendet die Session (der Worker ruft genau `live.stop()`).
+        assertThat(isAutoTrackedSession(manager.liveSession.value)).isTrue()
+        manager.stop()
+        awaitStopped(manager)
+        assertThat(manager.liveSession.value).isNull()
+    }
+
+    @Test
+    fun `ABSTELLEN per Schritten beendet die Rad-Session ebenfalls ueber den Trigger`() = runTest {
+        // Der zweite Ausstiegs-Pfad (M18.133, Hardware-Schritte): 10
+        // Schritte im 15-s-Fenster ohne Fahrzeug-Herzschlag und ohne
+        // Fahrzeug-Tempo = Gehen erkannt → DriveStopWorker.
+        val repo = FakeActivityRepository()
+        val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+        val b = bridge()
+
+        val bike = manager.start(
+            activityTypeId = "radfahren", title = "Radfahren",
+            sourceType = "ACTIVITY_RECOGNITION_AUTO", startedAt = t0
+        )
+        awaitLive(manager, bike.id)
+        // Rad steht (Rad-Tempo in der Vergangenheit, kein frischer Herzschlag).
+        b.addDriveProbe(probe(t0, kmh(25.0), 100.0), false)
+
+        var stopped = false
+        for (i in 0 until 10) {
+            if (b.onStepWalkStopStep(t0 + 120_000L + i * 1400L)) stopped = true
+        }
+        assertThat(stopped).isTrue()
+        // Trigger-Gate + Stop-Match (wie oben).
+        assertThat(b.isDriveActive() || isLiveAutoTrackedSession(manager.liveSession.value)).isTrue()
+        assertThat(isAutoTrackedSession(manager.liveSession.value)).isTrue()
+        manager.stop()
+        awaitStopped(manager)
+        assertThat(manager.liveSession.value).isNull()
+    }
+
+    @Test
+    fun `FIX - das Walk-Stop-Trigger-Gate liest die Live-Session - auch fuer die Rad-Session`() = runTest {
+        // M18.135 (vormals „GEMESSEN - das Gate hängt an isDriveActive"):
+        // Die Trigger-Gates in ActivityContinuousSamples.kt
+        // (`if (bridge.isDriveActive() || isLiveAutoTrackedSession(autoSession))`)
+        // und in DriveDetectionService.onStepForWalkStop
+        // (`if (!bridge.isDriveActive() && !isLiveAutoTrackedSession(autoSession)) return`)
+        // lesen jetzt den LIVE-SESSION-ZUSTAND. Für eine automatisch
+        // gestartete Rad-Session ist isDriveActive false (es wird nur von
+        // markDriveConfirmed gesetzt — dem Fahrzeug-Start-Pfad) — deshalb
+        // war der Trigger vorher geschlossen, obwohl der Detektor feuerte:
+        // Die Radfahrt endete nur über den 5-Minuten-Watchdog, nicht über
+        // „abgestellt + geht".
         val repo = FakeActivityRepository()
         val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
         val b = bridge()
@@ -295,9 +379,18 @@ class BicycleStopAndWalkingInteractionTest {
         }
         assertThat(detectorFired).isTrue()
 
-        // … aber das Trigger-Gate, das der Receiver dafür prüft, ist für
-        // die Rad-Session geschlossen.
+        // … und das Session-Gate ist für die Rad-Session jetzt OFFEN: die
+        // Live-Session-Prüfung liefert true (der Produktionscode nutzt
+        // genau diese Funktion, s. Struktur-Test in
+        // WalkStopStopPathRegressionTest).
         assertThat(b.isDriveActive()).isFalse()
+        assertThat(isLiveAutoTrackedSession(manager.liveSession.value)).isTrue()
+
+        // Gegenprobe: Eine beendete Session schließt das Gate wieder —
+        // dann darf kein Stop-Trigger mehr feuern.
+        val finished = manager.liveSession.value!!.copy(sessionStatus = "FINISHED")
+        assertThat(isLiveAutoTrackedSession(finished)).isFalse()
+        assertThat(isLiveAutoTrackedSession(null)).isFalse()
     }
 
     @Test
@@ -368,6 +461,16 @@ class BicycleStopAndWalkingInteractionTest {
         }
     }
 
+    /** M18.135: Warten, bis die Live-Session-Flow das Finish gesehen hat
+     *  (StateFlow ist asynchron — Manager.stop() gibt die gefinishte
+     *  Session zurück, der Flow zieht nach). */
+    private suspend fun awaitStopped(manager: LiveActivityManager) {
+        repeat(200) {
+            if (manager.liveSession.value == null) return
+            delay(10)
+        }
+    }
+
     private class FakeActivityRepository : ActivityRepository {
         val live = MutableStateFlow<ActivitySession?>(null)
         override fun getAll(): Flow<List<ActivitySession>> = flowOf(emptyList())
@@ -380,9 +483,15 @@ class BicycleStopAndWalkingInteractionTest {
         override fun getCurrentActiveSession(): Flow<ActivitySession?> = flowOf(null)
         override fun getLiveSession(): Flow<ActivitySession?> = live
         override suspend fun updateStatus(id: String, status: String) {}
-        override suspend fun updatePauseState(id: String, status: String, pausedAt: Long?) {}
+        override suspend fun updatePauseState(id: String, status: String, pauseStartedAt: Long?) {}
         override suspend fun pauseSession(id: String, endAt: Long) {}
-        override suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?) {}
+        // M18.135: Der Fake spiegelt die Room-Realität — `getLiveSession()`
+        // liefert nach dem Finish keine Live-Session mehr (sonst könnte der
+        // Test den vom Stop-Pfad ausgelösten Session-Ende-Effekt nicht
+        // beobachten).
+        override suspend fun finishSession(id: String, endAt: Long, totalPausedMs: Long, pauseSegmentsJson: String?) {
+            if (live.value?.id == id) live.value = null
+        }
         override suspend fun updatePauseData(id: String, totalPausedMs: Long, pauseSegmentsJson: String?) {}
         override fun getBySourceCandidateId(candidateId: String): Flow<ActivitySession?> = flowOf(null)
         override fun getById(id: String): Flow<ActivitySession?> = flowOf(live.value?.takeIf { it.id == id })

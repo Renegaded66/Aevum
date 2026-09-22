@@ -486,11 +486,17 @@ class ActivityRecognitionBridge @Inject constructor(
     @Volatile private var vehicleSampleConfidence: Int = 0
 
     /** M18.128: Neues IN_VEHICLE-Sample registrieren (vom Continuous-
-     *  Samples-Receiver, IN_VEHICLE-Zweig). */
+     *  Samples-Receiver, IN_VEHICLE-Zweig).
+     *
+     *  M18.135: Ein BESTÄTIGTES Fahrzeug-Sample widerlegt zusätzlich das
+     *  Zweirad-Gate ([BikeContextGuard]) — „Rad abgestellt, ins Auto
+     *  gestiegen" ist der legitime Übergang und darf nicht 90 s lang
+     *  blockiert bleiben (M18.130-Bestandsschutz). */
     @Synchronized
     fun onVehicleSample(confidence: Int, nowMs: Long = System.currentTimeMillis()) {
         vehicleSampleAtMs = nowMs
         vehicleSampleConfidence = confidence
+        bikeContextGuard.onVehicleSample(nowMs, confidence)
     }
 
     /** M18.128: Frisches ON_BICYCLE-Sample widerlegt die Fahrzeug-
@@ -525,12 +531,59 @@ class ActivityRecognitionBridge @Inject constructor(
      *  (Continuous-Samples-Receiver + Transition-Receiver). Setzt die
      *  RAD-Evidence; die Widerlegung der Fahrzeug-Evidence macht der
      *  Aufrufer separat über [onBicycleSample] (M18.128-Semantik bleibt
-     *  damit unverändert und einzeln testbar). */
+     *  damit unverändert und einzeln testbar).
+     *
+     *  M18.135: Zusätzlich setzt ein BESTÄTIGTES Sample die Frische des
+     *  [BikeContextGuard] — das 12-m/s-Gate bleibt damit auch dann scharf,
+     *  wenn ein EXIT-Artefakt den rohen Kontext auf UNKNOWN zurückgenommen
+     *  hat (genau das war die gemessene Lücke: 29 km/h → Auto-Session
+     *  15 s nach dem EXIT). */
     @Synchronized
     fun onBicycleSampleWithConfidence(confidence: Int, nowMs: Long = System.currentTimeMillis()) {
         bicycleSampleAtMs = nowMs
         bicycleSampleConfidence = confidence
+        bikeContextGuard.onBicycleSample(nowMs, confidence)
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // M18.135: ZWEIRAD-KONTEXT-GATE (Kanban t_8e2889cd).
+    //
+    // Der rohe Motion-Kontext (M18.117) wechselt mit 2-Sample-Hysterese.
+    // Ein ON_BICYCLE-EXIT setzt ihn deshalb nach 2 UNKNOWN-Samples zurück —
+    // obwohl der User weiterfahren kann (EXIT-Artefakt, M18.93v9-Klasse).
+    // Dieses Gate hält das 12-m/s-Gate über die FRISCHE eines bestätigten
+    // Rad-Samples offen und fällt erst, wenn die Samples ausbleiben oder
+    // ein bestätigtes IN_VEHICLE-Sample den Kontext widerlegt. Pure Logik
+    // in [BikeContextGuard]; die Bridge hält nur den Zustand (er überlebt
+    // die flüchtigen Receiver-Instanzen des Broadcast-Systems).
+    // ──────────────────────────────────────────────────────────────
+    private val bikeContextGuard = BikeContextGuard()
+
+    /** M18.135: Ein ON_BICYCLE-EXIT wurde gemeldet (Transition-Receiver).
+     *  Der rohe Kontext wird dort weiterhin auf UNKNOWN zurückgenommen
+     *  (M18.117-Hysterese, Bestand) — für die KLASSIFIKATION hält das Gate
+     *  den Rad-Kontext aber, solange ein bestätigtes Rad-Sample frisch ist.
+     *
+     *  Bewusst OHNE Log (JVM-Tests fahren diese Bridge direkt —
+     *  `android.util.Log` ist dort nicht gemockt; die Bridge loggt
+     *  nirgends, das ist Bestand). */
+    @Synchronized
+    fun onBicycleExit(nowMs: Long = System.currentTimeMillis()) {
+        bikeContextGuard.onBicycleExit(nowMs)
+    }
+
+    /** M18.135: Ist das Zweirad-Gate gerade scharf? (Frisches bestätigtes
+     *  Rad-Sample oder roher Kontext ON_BICYCLE.) Für den Start-Pfad:
+     *  kein Auto-Start über eine laufende Rad-Session, solange das Gate
+     *  scharf ist. */
+    @Synchronized
+    fun isBikeGateActive(nowMs: Long = System.currentTimeMillis()): Boolean =
+        bikeContextGuard.isBikeGateActive(nowMs, motionContext)
+
+    /** M18.135: Zeitpunkt des letzten bestätigten Rad-Samples (0 = keins).
+     *  Diagnose/Tests. */
+    @Synchronized
+    fun lastConfirmedBikeSampleMs(): Long = bikeContextGuard.lastConfirmedBikeSampleMs
 
     /** M18.134: Rad-Evidence an Session-Grenzen verwerfen. */
     @Synchronized
@@ -811,9 +864,26 @@ class ActivityRecognitionBridge @Inject constructor(
         }
     }
 
-    /** M18.117: Aktueller Motion-Kontext (Snapshot für classify-Aufrufer). */
+    /** M18.117: Aktueller Motion-Kontext (Snapshot für classify-Aufrufer).
+     *
+     *  M18.135: Liefert den EFFEKTIVEN Kontext — inklusive des
+     *  Zweirad-Gates ([BikeContextGuard]). Ist der rohe Kontext ON_BICYCLE
+     *  oder liegt ein frisches bestätigtes Rad-Sample vor (≤ 90 s), ist
+     *  das Ergebnis ON_BICYCLE. Damit gilt die 12-m/s-Schwelle auch über
+     *  ein EXIT-Artefakt hinweg: Der EXIT nimmt nur den ROHEN Kontext
+     *  zurück (M18.117-Hysterese, Bestand), das Gate aber hält, solange
+     *  der AR-Stream weiter Rad-Samples liefert. Läuft die Frische ab
+     *  (Samples bleiben aus = Radfahrt wirklich vorbei), ist das Ergebnis
+     *  wieder der rohe Kontext — die 8-m/s-Schwelle kehrt von selbst
+     *  zurück (M18.75/M18.76-Lehre: Abfrage statt Flag). */
     @Synchronized
-    fun currentMotionContext(): DriveDetectionEngine.MotionContext = motionContext
+    fun currentMotionContext(): DriveDetectionEngine.MotionContext =
+        bikeContextGuard.effectiveContext(System.currentTimeMillis(), motionContext)
+
+    /** M18.135: Der ROHE Kontext ohne das Zweirad-Gate — Diagnose/Tests
+     *  (die M18.117-Hysterese selbst bleibt hier sichtbar). */
+    @Synchronized
+    fun rawMotionContext(): DriveDetectionEngine.MotionContext = motionContext
 
     // ──────────────────────────────────────────────────────────────
     // M18.118: CADENCE-SNAPSHOT (Schrittfrequenz aus dem Beschleunigungs-
@@ -1507,6 +1577,24 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                                 // 8-m/s-Schwelle (30er-Zonen-Erkennung)
                                 // wieder gilt. Zwei Samples für die
                                 // Bridge-Hysterese.
+                                //
+                                // M18.135 (Kanban t_8e2889cd): Der EXIT ist
+                                // ein VERDACHT, kein Beweis. Google liefert
+                                // auf dem Rad regelmäßig EXIT-Artefakte
+                                // (M18.93v9-Klasse: Stop&Go, Schieben an der
+                                // Ampel, Ampelstopp) — gemessen öffnete genau
+                                // das 60 s lang die 8-m/s-Schwelle und eine
+                                // 29-km/h-Radfahrt wurde zur Autofahrt.
+                                // Deshalb setzt der Receiver zusätzlich den
+                                // EXIT-Marker des Zweirad-Gates: Die
+                                // KLASSIFIKATION liest den effektiven
+                                // Kontext (bridge.currentMotionContext())
+                                // und der bleibt ON_BICYCLE (12-m/s),
+                                // solange ein bestätigtes Rad-Sample < 90 s
+                                // frisch ist. Der ROH-Kontext bleibt wie
+                                // bisher hysteresegeführt — die
+                                // M18.117-Semantik ist unverändert.
+                                bridge.onBicycleExit(now)
                                 bridge.updateMotionContext(
                                     DriveDetectionEngine.MotionContext.UNKNOWN
                                 )
@@ -1632,6 +1720,12 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
 @InstallIn(SingletonComponent::class)
 interface ActivityRecognitionBridgeProvider {
     fun activityRecognitionBridge(): ActivityRecognitionBridge
+    /** M18.135 (Kanban t_8e2889cd): Die Live-Session wird von den
+     *  Walk-/Step-Stop-TRIGGERN direkt gelesen (`isLiveAutoTrackedSession`)
+     *  statt über das Fahrzeug-Flag `isDriveActive()` — bei einer
+     *  Rad-Session ist dieses Flag false, der Trigger wäre also
+     *  geschlossen, obwohl der Detektor feuert. */
+    fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 }
 
 /**

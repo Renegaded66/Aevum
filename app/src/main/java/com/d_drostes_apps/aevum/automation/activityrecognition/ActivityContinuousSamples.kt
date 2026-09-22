@@ -130,6 +130,12 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                 context.applicationContext,
                 ActivityRecognitionBridgeProvider::class.java
             ).activityRecognitionBridge()
+            // M18.135: Die Live-Session für die Stop-Trigger-Gates (siehe
+            // WALKING/RUNNING-Zweig) — dieselbe Quelle wie im Service.
+            val liveActivityManager = EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                ActivityRecognitionBridgeProvider::class.java
+            ).liveActivityManager()
 
             when (top.type) {
                 DetectedActivity.IN_VEHICLE -> {
@@ -160,20 +166,32 @@ class ActivityContinuousSamplesReceiver : BroadcastReceiver() {
                     // nicht mehr als Fahrt).
                     bridge.updateMotionContext(DriveDetectionEngine.MotionContext.ON_FOOT)
                     // M18.127: Läuft gerade eine Auto-Session, wird dieses
-                    // Geh-Sample zur WALK-STOP-Evidenz: 2 Samples à 30 s
+                    // Geh-Sample zur WALK-STOP-EVIDENZ: 2 Samples à 30 s
                     // (Confidence ≥ 60, ~75 s Gnadenfrist, widerlegt durch
                     // frisches Fahrzeug-Tempo via GPS-Probes) → sofortiger
                     // Session-Stop über den bestehenden DriveStopWorker.
                     // VORHER (die Lücke): Walking während aktiver Fahrt
                     // wurde ignoriert — die Session endete erst nach 5
                     // Minuten ohne Signal.
-                    if (bridge.isDriveActive()) {
+                    //
+                    // M18.135 (Kanban t_8e2889cd): Das Gate liest jetzt die
+                    // LIVE-SESSION (Fahrt ODER automatische Radfahrt),
+                    // nicht mehr nur `isDriveActive()`. Für eine
+                    // radfahren-Session ist dieses Flag false (nur
+                    // markDriveConfirmed setzt es) — der Walk-Stop-Trigger
+                    // war deshalb geschlossen, obwohl der DETEKTOR korrekt
+                    // feuerte: Eine Radfahrt endete nur über den
+                    // 5-Minuten-Watchdog, nicht über „abgestellt + geht".
+                    // M18.75/M18.76-Lehre: Session-Zustand direkt lesen,
+                    // kein zweites Flag pflegen.
+                    val autoSession = liveActivityManager.liveSession.value
+                    if (bridge.isDriveActive() || isLiveAutoTrackedSession(autoSession)) {
                         if (bridge.onWalkStopSample(top.type, top.confidence)) {
                             Log.i(
                                 "ArContinuousSamples",
                                 "WalkStop-Detector: Gehen ≥ ${WalkStopDetector.WALK_STOP_CONFIDENCE} " +
                                     "für ≥ ${WalkStopDetector.WALK_STOP_GRACE_MS / 1000}s " +
-                                    "während Auto-Session → sofortiger Stop"
+                                    "während Auto-/Rad-Session → sofortiger Stop"
                             )
                             bridge.resetWalkStopEvidence()
                             DriveStopWorker.schedule(context)

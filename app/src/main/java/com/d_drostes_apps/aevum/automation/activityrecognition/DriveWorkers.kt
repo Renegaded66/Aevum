@@ -144,10 +144,14 @@ class DriveStartWorker(
         // dieser Lauf nur der Herzschlag-Refresh) und kein Cooldown nach
         // Prozessstart (driveStoppedAtMs == 0 → isWithinCooldown false).
         val liveSessionForCooldown = live.liveSession.value
-        val alreadyRunningAutoSession = liveSessionForCooldown != null &&
-            liveSessionForCooldown.isLive &&
-            liveSessionForCooldown.activityTypeId == "driving" &&
-            liveSessionForCooldown.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        // M18.135 (Kanban t_8e2889cd): EINE Session, egal ob Auto oder Rad.
+        // Der Duplikat-Schutz unten prüft `driving` — eine laufende
+        // `radfahren`-Session wurde dadurch NICHT als „es läuft schon eine
+        // Session" erkannt (gemessene Lücke: 29 km/h → Auto-Session über
+        // der Radfahrt, `trimOverlappingForNewSession` beendete sie).
+        // Hier zählt deshalb beides: isAutoTrackedSession matcht `driving`
+        // UND `radfahren` (ACTIVITY_RECOGNITION_AUTO).
+        val alreadyRunningAutoSession = isAutoTrackedSession(liveSessionForCooldown)
         if (!alreadyRunningAutoSession && bridge.isWithinDriveRestartCooldown(now)) {
             Log.d(
                 TAG,
@@ -252,6 +256,57 @@ class DriveStartWorker(
             DriveWatchdogWorker.schedule(applicationContext)
             Log.d(TAG, "Auto-Session läuft bereits — Watchdog refresht")
             return Result.success()
+        }
+
+        // M18.135 (Kanban t_8e2889cd): KEIN Auto-Start über eine laufende
+        // RAD-Session — die zweite, session-seitige Hälfte des Fixes.
+        //
+        // Warum überhaupt nötig, wenn das Zweirad-Gate den Kontext hält?
+        // Die beiden Schutzebenen decken verschiedene Ausgänge des
+        // gemessenen Falls ab:
+        //  • Das Zweirad-Gate (BikeContextGuard → currentMotionContext)
+        //    hält die 12-m/s-Schwelle, solange bestätigte Rad-Samples
+        //    frisch sind. Es fällt aber nach 90 s ohne Samples — genau
+        //    dann, wenn der AR-Stream verstummt (Doze) und der User
+        //    WEITERFÄHRT: der 8-m/s-Fix-Puffer klassifiziert dann wieder
+        //    als Driving, obwohl die Rad-Session noch live ist.
+        //  • Dieser Guard liest den LIVE-SESSION-ZUSTAND und schließt
+        //    genau diese Restlücke: Solange eine automatische Rad-Session
+        //    läuft, entsteht KEINE Auto-Session darüber.
+        // Kein Bridge-Flag, sondern die Session selbst — M18.75/M18.76-
+        // Lehre: ein Flag, das einen Stop-Pfad verpasst, blockiert die
+        // Erkennung dauerhaft; die Session-Abfrage heilt sich selbst.
+        //
+        // AUSNAHME (M18.130-Bestandsschutz, Abnahmekriterium 4): Bewegung
+        // auf FAHRZEUG-Niveau löst die Rad-Session ab — geprüft mit den
+        // 12-m/s-Gates des Rad-Kontexts. Das ist genau die Grenze, die
+        // beide Seiten trennt:
+        //  • Motorrad/Auto ≥ 50 km/h erfüllt sie (M18.130, gemessen) —
+        //    die Fahrt entsteht wie bisher.
+        //  • Die 29–32-km/h-Radfahrten des gemessenen Bugs erfüllen sie
+        //    NIE: Sie waren nur unter der degradierten 8-m/s-Schwelle
+        //    „Driving". Die 30–40-km/h-Motorrad-Stadtphase bleibt bewusst
+        //    Rad-Session (dokumentierter Trade-off aus M18.134) — sie wird
+        //    über ihren eigenen Pfad beendet, danach greift der normale
+        //    Auto-Start wieder (Kriterium 4 zweiter Teil).
+        if (isAutoTrackedSession(liveSession) && liveSession!!.activityTypeId == "radfahren") {
+            val vehicleLevel = DriveDetectionEngine.isVehicleLevelMovement(
+                bridge.currentDriveProbes(), now, bridge.currentGeofenceContext(),
+                bridge.currentCadenceHz(), bridge.currentCadenceValidFraction()
+            )
+            if (!vehicleLevel) {
+                Log.d(
+                    TAG,
+                    "M18.135: laufende Rad-Session (${liveSession.id}) — kein Auto-Start darüber " +
+                        "(Fahrzeug-Niveau=$vehicleLevel; Radfahrt wird über ihren eigenen Pfad beendet)"
+                )
+                return Result.success()
+            }
+            Log.d(
+                TAG,
+                "M18.135: laufende Rad-Session (${liveSession.id}), aber Bewegung auf " +
+                    "Fahrzeug-Niveau (12-m/s-Gate) — Auto-Session löst ab (M18.130)"
+            )
         }
 
         try {
@@ -746,6 +801,30 @@ private fun isAutoTrackedSession(
 ): Boolean = session != null && session.isLive &&
     session.sourceType == "ACTIVITY_RECOGNITION_AUTO" &&
     (session.activityTypeId == "driving" || session.activityTypeId == "radfahren")
+
+/**
+ * M18.135 (Kanban t_8e2889cd): Läuft eine automatisch aufgezeichnete
+ * Fahr- ODER Rad-Session? — öffentliche Fassung von
+ * [isAutoTrackedSession] für Pfade AUSSERHALB dieser Datei.
+ *
+ * Gebraucht von den Walk-/Step-Stop-*Triggern* ([ActivityContinuousSamples]
+ * und [DriveDetectionService.onStepForWalkStop]): Deren Gates hingen an
+ * `isDriveActive()` — einem Fahrzeug-Flag, das für eine Rad-Session false
+ * ist (nur `markDriveConfirmed` setzt es). Die Detektoren feuerten bei einer
+ * Radfahrt korrekt, der Trigger war aber geschlossen: Die Radfahrt endete
+ * deshalb nur über den 5-Minuten-Watchdog, nicht über „abgestellt + geht".
+ *
+ * BEWUSST KEIN Bridge-Flag, sondern die Live-Session selbst gelesen
+ * (M18.75/M18.76-Lehre: ein Flag, das einen Stop-Pfad verpasst, blockiert
+ * die Erkennung dauerhaft; die Session-Abfrage heilt sich selbst).
+ *
+ * Die private Fassung in dieser Datei bleibt unverändert bestehen — sie ist
+ * über ihren Namen an Regressionstests gebunden (Reflection auf
+ * `DriveWorkersKt.isAutoTrackedSession`).
+ */
+fun isLiveAutoTrackedSession(
+    candidate: com.d_drostes_apps.aevum.data.model.ActivitySession?
+): Boolean = isAutoTrackedSession(candidate)
 
 /** Haversine-Distanz in Metern (gleiche Formel wie Geofence-Checks). */
 private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
