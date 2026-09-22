@@ -163,6 +163,14 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.truth:truth:1.4.4")
+    // M18.135 (Kanban t_f15f4443): Robolectric + echte Room-In-Memory-DB fuer
+    // die Kalender-Resume-INTEGRATIONSTESTS. Die Wiedereinstiegs-Evidenz haengt
+    // an zwei echten SQL-Queries (getRecentFinishedBySourceType,
+    // countForeignSessionsStartingBetween) — handgeschriebene Repository-Fakes
+    // koennen von deren Semantik abweichen (deleted_at, Status-Filter,
+    // ORDER BY/LIMIT, BETWEEN-Grenzen). Nur eine echte DB beweist die SQL-Seite.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core:1.6.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("androidx.room:room-testing:2.8.4")
