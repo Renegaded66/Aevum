@@ -371,13 +371,16 @@ class DriveStopWorker(
         val bridge = deps.activityRecognitionBridge()
 
         val session = live.liveSession.value
-        val isDrivingSession = session != null && session.isLive &&
-            session.activityTypeId == "driving" &&
-            session.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        // M18.134: Erweitert um die radfahren-Session — der Walk-Stop-
+        // Detector (M18.127) und der Step-Walk-Stop (M18.133) rufen
+        // diesen Worker; bei einer Radfahrt ist „User geht zu Fuß"
+        // ebenfalls das Ende-Signal (Rad wird geschoben/abgestellt).
+        val isDrivingSession = isAutoTrackedSession(session)
         if (!isDrivingSession) {
-            Log.d(TAG, "Keine laufende Auto-Fahr-Session -> DriveStop No-Op")
+            Log.d(TAG, "Keine laufende Auto-/Rad-Session -> DriveStop No-Op")
             return Result.success()
         }
+        val isBikeRide = session!!.activityTypeId == "radfahren"
 
         try {
             // M18.67-FIX4: driveActive zurücksetzen, sonst refresht der
@@ -419,15 +422,19 @@ class DriveStopWorker(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(
                     id = java.util.UUID.randomUUID().toString(),
                     occurredAt = System.currentTimeMillis(),
-                    type = "DRIVING_ENDED",
+                    type = if (isBikeRide) TRIGGER_BICYCLE_ENDED else "DRIVING_ENDED",
                     source = "activity_recognition",
-                    confidence = 0.9f,
+                    confidence = if (isBikeRide) 0.8f else 0.9f,
                     detectionEventId = null,
                     metadataJson = "{\"reason\":\"google_exit\"}",
-                    anchorQuality = "HIGH"
+                    anchorQuality = if (isBikeRide) "MEDIUM" else "HIGH"
                 )
             )
-            Log.d(TAG, "Auto-Fahr-Session sofort gestoppt (Google-EXIT)")
+            Log.d(
+                TAG,
+                if (isBikeRide) "Rad-Session sofort gestoppt (Ausstieg erkannt)"
+                else "Auto-Fahr-Session sofort gestoppt (Google-EXIT)"
+            )
             // Watchdog nicht weiterlaufen lassen.
             DriveWatchdogWorker.cancel(applicationContext)
             // M18.114: Geofence-Re-Enter nach Fahrt-Ende prüfen — liegt der
@@ -436,7 +443,11 @@ class DriveStopWorker(
             // t_d6639d07: "geofence activity restarts once the car ride
             // ends"). Der Resolver stoppt selbst, wenn keine Zone passt
             // (User weitergefahren) oder eine Session läuft.
-            com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
+            // M18.134: NICHT nach einer Radfahrt (gleicher Grund wie im
+            // Watchdog — der Re-Enter ist ein Fahrt-Feature).
+            if (!isBikeRide) {
+                com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Sofort-Stop fehlgeschlagen", e)
         }
@@ -505,15 +516,18 @@ class DriveWatchdogWorker(
         // steht er, wird gestoppt (echtes Parken).
         val exited = bridge.consumeVehicleExited()
 
-        // Läuft überhaupt eine Auto-Fahr-Session?
+        // Läuft überhaupt eine Auto-Fahr- ODER Rad-Session?
+        // M18.134: Auch die radfahren-Session wird von diesem Watchdog
+        // betreut — ihr Session-Match ist deshalb erweitert (sonst liefe
+        // sie endlos, weil KEIN Stop-Pfad sie kannte: der gemeldete
+        // Rad-Bug hätte sonst eine Session erzeugt, die nie endet).
         val session = live.liveSession.value
-        val isDrivingSession = session != null && session.isLive &&
-            session.activityTypeId == "driving" &&
-            session.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        val isDrivingSession = isAutoTrackedSession(session)
         if (!isDrivingSession) {
-            Log.d(TAG, "Keine laufende Auto-Fahr-Session -> Watchdog No-Op")
+            Log.d(TAG, "Keine laufende Auto-/Rad-Session -> Watchdog No-Op")
             return Result.success()
         }
+        val isBikeRide = session!!.activityTypeId == "radfahren"
 
         if (exited != null) {
             Log.d(TAG, "IN_VEHICLE-EXIT gemeldet -> GPS-Check entscheidet (M18.93v9, kein Sofort-Stop)")
@@ -612,15 +626,18 @@ class DriveWatchdogWorker(
         }
 
         // 3) Fahrt beenden: Session stoppen + Trigger für die Timeline.
-        stopDrivingSession(live, triggerRepo, now)
+        stopDrivingSession(live, triggerRepo, now, isBikeRide)
         return Result.success()
     }
 
-    /** M18.66: Auto-Fahr-Session beenden + Trigger schreiben. */
+    /** M18.66: Auto-Fahr-Session beenden + Trigger schreiben.
+     *  M18.134: [isBikeRide] unterscheidet die Rad-Session — sie bekommt
+     *  den BICYCLE_ENDED-Marker und KEINEN Geofence-Re-Enter. */
     private suspend fun stopDrivingSession(
         live: com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager,
         triggerRepo: com.d_drostes_apps.aevum.data.repository.TriggerEventRepository,
-        now: Long
+        now: Long,
+        isBikeRide: Boolean = false
     ) {
         try {
             // M18.67-FIX3: driveActive zurücksetzen, damit der
@@ -647,6 +664,9 @@ class DriveWatchdogWorker(
             // M18.127: Walk-Stop-Evidenz beim Stop verwerfen (siehe
             // DriveStopWorker — gleicher Grund).
             bridge.resetWalkStopEvidence()
+            // M18.134: Auch die Rad-Evidence endet mit der Session (sie
+            // darf die nächste Radfahrt nicht anschieben).
+            bridge.resetBicycleEvidence()
             live.stop()
             // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
             // nicht mehr automatisch entfernt"): Live-Notification sofort
@@ -656,19 +676,23 @@ class DriveWatchdogWorker(
                 com.d_drostes_apps.aevum.data.model.TriggerEvent(
                     id = java.util.UUID.randomUUID().toString(),
                     occurredAt = now,
-                    type = "DRIVING_ENDED",
+                    type = if (isBikeRide) TRIGGER_BICYCLE_ENDED else "DRIVING_ENDED",
                     source = "activity_recognition",
-                    confidence = 0.9f,
+                    confidence = if (isBikeRide) 0.8f else 0.9f,
                     detectionEventId = null,
                     metadataJson = "{\"reason\":\"watchdog_5min_or_exit\"}",
-                    anchorQuality = "HIGH"
+                    anchorQuality = if (isBikeRide) "MEDIUM" else "HIGH"
                 )
             )
-            Log.d(TAG, "Auto-Fahr-Session gestoppt")
+            Log.d(TAG, if (isBikeRide) "Rad-Session gestoppt" else "Auto-Fahr-Session gestoppt")
             // M18.114: Geofence-Re-Enter nach Fahrt-Ende prüfen (gleicher
             // Pfad wie DriveStopWorker — der Watchdog ist der HAUPT-Stop-Pfad,
             // Google-EXITs kommen unzuverlässig).
-            com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
+            // M18.134: NICHT nach einer Radfahrt — der Re-Enter startet
+            // eine Geofence-Activity, die für eine Fahrt gedacht ist.
+            if (!isBikeRide) {
+                com.d_drostes_apps.aevum.automation.geofence.DriveEndGeofenceRestarter.schedule(applicationContext)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Stop fehlgeschlagen", e)
         }
@@ -704,6 +728,24 @@ class DriveWatchdogWorker(
         }
     }
 }
+
+/**
+ * M18.134: Ist diese Session eine vom System betreute Fahr-/Rad-Session?
+ *
+ * `driving` = Autofahrt (ACTIVITY_RECOGNITION_AUTO). `radfahren` = die
+ * seit M18.134 automatisch aufgezeichnete Radfahrt — sie teilt sich
+ * Start-Anker, Herzschlag und Watchdog mit der Fahrt, darf aber NICHT
+ * als Fahrt gestartet werden (das war der gemeldete Bug). Beide
+ * benutzen denselben sourceType: die Timeline zeigt damit denselben
+ * Auto-Hinweis, und alle Stop-/Herzschlag-Pfade greifen ohne
+ * Sonderlocke — außer dort, wo explizit auf `driving` geprüft wird
+ * (DriveStartWorker-Duplikat, DriveStop-End-Grenzen).
+ */
+private fun isAutoTrackedSession(
+    session: com.d_drostes_apps.aevum.data.model.ActivitySession?
+): Boolean = session != null && session.isLive &&
+    session.sourceType == "ACTIVITY_RECOGNITION_AUTO" &&
+    (session.activityTypeId == "driving" || session.activityTypeId == "radfahren")
 
 /** Haversine-Distanz in Metern (gleiche Formel wie Geofence-Checks). */
 private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -819,9 +861,12 @@ class DriveProbeWorker(
 
         // Gate: Autofahrt-Erkennung in den Trigger-Settings aus?
         // (Cache in der Bridge — kein DB-Zugriff pro Lauf nötig.)
-        if (!bridge.isDrivingEnabled()) {
+        // M18.134: Der Takt läuft auch für die Rad-Erkennung — er ist der
+        // AR-unabhängige GPS-Pfad, auf dem eine Radfahrt ohne
+        // AR-Transition ebenfalls bestätigt werden kann.
+        if (!bridge.isDrivingEnabled() && !bridge.isBicycleEnabled()) {
             // Takt NICHT weiterplanen — der Scheduler startet ihn neu,
-            // sobald das Gate wieder an ist (App-Start / Settings-Änderung).
+            // sobald ein Gate wieder an ist (App-Start / Settings-Änderung).
             return Result.success()
         }
 
@@ -899,6 +944,14 @@ class DriveProbeWorker(
                 }
                 is DriveDetectionEngine.Classification.NotDriving -> {
                     Log.d(TAG, "Keine Fahrt (Probes=${bridge.currentDriveProbes().size})")
+                    // M18.134: Kein Fahrzeug-Tempo + belastbares
+                    // ON_BICYCLE-Signal → Radfahrt prüfen (Verlustfreiheit;
+                    // der Worker rechnet die Entscheidung selbst neu).
+                    if (bridge.isBicycleEnabled() &&
+                        DriveDetectionEngine.isReliableBicycleSignal(bridge.bicycleEvidence(), now)
+                    ) {
+                        BicycleStartWorker.schedule(applicationContext)
+                    }
                 }
                 DriveDetectionEngine.Classification.InsufficientData -> {
                     Log.d(TAG, "Zu wenige Probes für eine Entscheidung (${bridge.currentDriveProbes().size})")

@@ -502,6 +502,53 @@ class ActivityRecognitionBridge @Inject constructor(
         vehicleSampleConfidence = 0
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // M18.134: BICYCLE-EVIDENCE (Rad-Session statt „nichts", Kanban
+    // t_a860c07f).
+    //
+    // Das ON_BICYCLE-Gate der Engine (12 m/s) blockiert Radfahrten
+    // korrekt — es blockiert aber auch Motorrad/Auto im Stadtverkehr
+    // 30-40 km/h, die Google als Zweiräder klassifiziert (ON_BICYCLE
+    // ist die einzige Zweirad-Klasse der API). Statt die Fahrt zu
+    // verwerfen, führt der Start-Pfad sie als radfahren-Session bzw.
+    // als Review-Kandidat — der User behält seine Zeit (Verlustfreiheit).
+    //
+    // Die Evidence ist das Qualifikations-Signal dafür: frisches
+    // ON_BICYCLE-Sample mit Confidence ≥ BIKE_CONTEXT_MIN_CONFIDENCE.
+    // Die Frische-/Schwellen-Entscheidung liegt in der puren Funktion
+    // DriveDetectionEngine.isReliableBicycleSignal.
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var bicycleSampleAtMs: Long = 0L
+    @Volatile private var bicycleSampleConfidence: Int = 0
+
+    /** M18.134: Neues ON_BICYCLE-Sample MIT Confidence registrieren
+     *  (Continuous-Samples-Receiver + Transition-Receiver). Setzt die
+     *  RAD-Evidence; die Widerlegung der Fahrzeug-Evidence macht der
+     *  Aufrufer separat über [onBicycleSample] (M18.128-Semantik bleibt
+     *  damit unverändert und einzeln testbar). */
+    @Synchronized
+    fun onBicycleSampleWithConfidence(confidence: Int, nowMs: Long = System.currentTimeMillis()) {
+        bicycleSampleAtMs = nowMs
+        bicycleSampleConfidence = confidence
+    }
+
+    /** M18.134: Rad-Evidence an Session-Grenzen verwerfen. */
+    @Synchronized
+    fun resetBicycleEvidence() {
+        bicycleSampleAtMs = 0L
+        bicycleSampleConfidence = 0
+    }
+
+    /** M18.134: Aktuelle Rad-Evidence (null = keine). */
+    @Synchronized
+    fun bicycleEvidence(): DriveDetectionEngine.BicycleEvidence? {
+        if (bicycleSampleAtMs == 0L) return null
+        return DriveDetectionEngine.BicycleEvidence(
+            atMs = bicycleSampleAtMs,
+            confidence = bicycleSampleConfidence
+        )
+    }
+
     /** M18.128: Evidence an Session-Grenzen verwerfen (Start + jeder
      *  Stop-Pfad — M18.127-Muster). */
     @Synchronized
@@ -1404,21 +1451,76 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                         // M18.44: Gates — Walking/Rad-Erkennung aus den
                         // Trigger-Settings. Deaktiviert = Event ignorieren
                         // (auch Timer nicht starten/canceln).
+                        // M18.134: Eine Ausnahme: Das ON_BICYCLE-SIGNAL
+                        // wird auch bei ausgeschaltetem Rad-Toggle
+                        // verarbeitet — der Kontext (12-m/s-Gate) muss
+                        // immer gesetzt werden, sonst bliebe die
+                        // 8-m/s-Schwelle aktiv und der gemeldete Bug
+                        // (25 km/h Rad → Autofahrt) träte genau für User
+                        // mit deaktivierter Rad-Erkennung wieder auf.
+                        // Der Toggle steuert nur, WAS daraus entsteht:
+                        // Session und Timeline-Marker gibt es nur bei
+                        // aktivierter Rad-Erkennung.
                         val walkingOk = event.activityType == DetectedActivity.WALKING && bridge.isWalkingEnabled()
                         val runningOk = event.activityType == DetectedActivity.RUNNING && bridge.isWalkingEnabled()
-                        val bicycleOk = event.activityType == DetectedActivity.ON_BICYCLE && bridge.isBicycleEnabled()
-                        if (!walkingOk && !runningOk && !bicycleOk) {
+                        val bicycleSignal = event.activityType == DetectedActivity.ON_BICYCLE
+                        val bicycleOk = bicycleSignal && bridge.isBicycleEnabled()
+                        if (!walkingOk && !runningOk && !bicycleSignal) {
                             hasChange = false
                             continue
                         }
                         // M18.72: WALKING/RUNNING starten die Wanderungs-
                         // Aufzeichnung automatisch (5-Minuten-Schwelle +
                         // Vorlauf regeln Engine/Worker — Muster M18.70).
-                        // ON_BICYCLE bleibt beim Trigger-Marker (M15:
-                        // zu unzuverlässig für Auto-Start).
+                        // M18.134: ON_BICYCLE setzt jetzt den Motion-Kontext
+                        // (ON_BICYCLE-Gate der Engine) und registriert die
+                        // Rad-Evidence — sonst hätte ein User ohne
+                        // Continuous-Stream (Intervall/Doze) nie einen
+                        // Rad-Kontext, und die 8-m/s-Schwelle bliebe aktiv.
+                        // Der Trigger-Marker (M15) läuft unverändert weiter.
                         val transitionType = getTransitionInt(event)
                         if (event.activityType == DetectedActivity.ON_BICYCLE) {
-                            enqueueTriggerWorker(context, event.activityType, transitionType)
+                            val isEnter = transitionType ==
+                                com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER
+                            if (isEnter) {
+                                // Transition-Events liefern KEINE echte
+                                // Confidence (M18.27) — der Platzhalter 75
+                                // liegt über BIKE_CONTEXT_MIN_CONFIDENCE:
+                                // die Transitions-API umzäunt Flackern
+                                // selbst (Google filtert die Grenzen), ein
+                                // ENTER ist damit ein bestätigtes Signal.
+                                bridge.onBicycleSampleWithConfidence(75, now)
+                                bridge.updateMotionContext(
+                                    DriveDetectionEngine.MotionContext.ON_BICYCLE
+                                )
+                                bridge.resetWalkStopEvidence()
+                                // M18.134: Session + Marker NUR bei
+                                // aktivierter Rad-Erkennung — das
+                                // Kontext-Setzen oben ist toggle-frei
+                                // (Klassifikations-Korrektheit).
+                                if (bicycleOk) {
+                                    BicycleStartWorker.schedule(context)
+                                }
+                            } else {
+                                // EXIT: Fahrrad-Phase vorbei — Kontext auf
+                                // UNKNOWN zurücknehmen, damit die
+                                // 8-m/s-Schwelle (30er-Zonen-Erkennung)
+                                // wieder gilt. Zwei Samples für die
+                                // Bridge-Hysterese.
+                                bridge.updateMotionContext(
+                                    DriveDetectionEngine.MotionContext.UNKNOWN
+                                )
+                                bridge.updateMotionContext(
+                                    DriveDetectionEngine.MotionContext.UNKNOWN
+                                )
+                            }
+                            // M18.44/M15: Der Timeline-Marker unterliegt
+                            // dem Setting weiterhin (Toggle aus = kein
+                            // Marker in der Timeline).
+                            if (bicycleOk) {
+                                enqueueTriggerWorker(context, event.activityType, transitionType)
+                            }
+                            hasChange = true
                         } else {
                             val isEnter = transitionType ==
                                 com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER

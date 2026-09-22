@@ -67,7 +67,10 @@
     <string name="settings_triggers_walking">Walking &amp; Laufen</string>
     <string name="settings_triggers_walking_desc">Trigger erst nach 5 Minuten am Stück (kein False-Trigger bei kurzen Wegen)</string>
     <string name="settings_triggers_bicycle">Radfahren</string>
-    <string name="settings_triggers_bicycle_desc">Sofort-Trigger bei erkannten Fahrrad-Fahrten</string>
+    <!-- M18.134: Die Beschreibung nennt jetzt das echte Verhalten (vorher
+         nur "Sofort-Trigger"): Erkennung über Android Activity Recognition,
+         Rad-Tempo ab 14 km/h, Aufzeichnung als "Radfahren" statt "Autofahren". -->
+    <string name="settings_triggers_bicycle_desc">Erkennt Radfahrten automatisch und zeichnet sie als &quot;Radfahren&quot; auf — auch bei 25 km/h Durchschnitt</string>
     <!-- M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte) -->
     <string name="settings_triggers_step_walk_stop">Stopp beim Gehen</string>
     <string name="settings_triggers_step_walk_stop_desc">Beendet die Fahrt-Aufzeichnung sofort, sobald du aussteigst und ein paar Schritte gehst — statt erst nach Minuten.</string>

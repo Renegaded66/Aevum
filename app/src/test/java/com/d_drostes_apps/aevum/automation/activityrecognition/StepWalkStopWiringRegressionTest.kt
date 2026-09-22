@@ -182,7 +182,9 @@ class StepWalkStopWiringRegressionTest {
         assertWithMessage("GPS-Bewegungs-Check nicht gefunden").that(idx).isAtLeast(0)
         // Blockende = der Stop-Aufruf, der NACH dem Check folgt (robust
         // gegen Längenänderungen der Log-Strings).
-        val stopIdx = src.indexOf("stopDrivingSession(live, triggerRepo, now)", idx)
+        // M18.134: Der Aufruf trägt jetzt zusätzlich isBikeRide — das
+        // Fenster wird deshalb über den Funktionsnamen gesucht.
+        val stopIdx = src.indexOf("stopDrivingSession(live, triggerRepo, now", idx)
         assertWithMessage("stopDrivingSession-Aufruf nach dem Check nicht gefunden")
             .that(stopIdx).isAtLeast(0)
         val block = src.substring(idx, stopIdx)

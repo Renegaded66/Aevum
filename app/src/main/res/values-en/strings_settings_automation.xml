@@ -67,7 +67,10 @@
     <string name="settings_triggers_walking">Walking &amp; running</string>
     <string name="settings_triggers_walking_desc">Trigger only after 5 consecutive minutes (no false triggers on short trips)</string>
     <string name="settings_triggers_bicycle">Cycling</string>
-    <string name="settings_triggers_bicycle_desc">Instant trigger when bike rides are detected</string>
+    <!-- M18.134: Description now states the real behaviour (was only
+         "instant trigger"): Android Activity Recognition detection,
+         bike pace from ~14 km/h, recorded as "Cycling" not "Driving". -->
+    <string name="settings_triggers_bicycle_desc">Detects bike rides automatically and records them as &quot;Cycling&quot; — even at a 25 km/h average</string>
     <!-- M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte) -->
     <string name="settings_triggers_step_walk_stop">Stop when walking</string>
     <string name="settings_triggers_step_walk_stop_desc">Ends the drive recording right away once you get out and take a few steps — instead of minutes later.</string>
