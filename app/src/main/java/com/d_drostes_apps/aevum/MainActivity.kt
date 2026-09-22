@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -168,9 +170,41 @@ private fun AevumMainApp() {
             }
         }
     ) { innerPadding: PaddingValues ->
+        // M18.136: Randlose Anzeige — Insets korrekt verteilen.
+        //
+        // Vorher stand hier nur `Modifier.padding(innerPadding)`. Das war
+        // unter der erzwungenen Randlosigkeit (targetSdk 36 / Android 15+)
+        // doppelt falsch:
+        //
+        //  1) Modifier.padding(PaddingValues) konsumiert KEINE Window-Insets
+        //     (der Padding-Modifier rechnet nur mit den PaddingValues).
+        //     Die 12 Screens, die selbst `statusBarsPadding()` setzen,
+        //     addierten deshalb ihren Statusbar-Abstand ZUSÄTZLICH zum
+        //     Scaffold-Padding → doppelter Abstand oben (und unten).
+        //     Auf API < 35 fiel das nicht auf: dort war das Fenster durch
+        //     `setDecorFitsSystemWindows(true)` schon verkleinert, die
+        //     Insets waren also 0 und die Screen-Aufrufe No-Ops.
+        //     `consumeWindowInsets(innerPadding)` nach dem padding
+        //     markiert den verbrauchten Bereich → die Screen-Aufrufe
+        //     ergeben 0 und es bleibt bei genau einem Abstand.
+        //
+        //  2) Die Tastatur. enableEdgeToEdge() setzt intern
+        //     setDecorFitsSystemWindows(false); damit verschiebt das
+        //     Framework die Inhalte bei `adjustResize` NICHT mehr selbst
+        //     (Android-15-Verhalten, gilt jetzt auf allen API-Leveln).
+        //     Ohne imePadding() lägen fokussierte Textfelder hinter der
+        //     Tastatur — Aevum hat 12 Screens mit Eingabefeldern
+        //     (Timeline-Editor, Geofence-Dialoge, Trigger-Settings,
+        //     Goals, Todos, Kalender-Regeln …).
+        //     `imePadding()` am NavHost-Wurzelmodifier stellt das
+        //     adjustResize-Verhalten für ALLE Screens zentral wieder her —
+        //     eine Lösung an einer Stelle statt in jedem Screen.
         AppNavHost(
             navController = navController,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
         )
     }
 }

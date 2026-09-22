@@ -39,8 +39,11 @@ android {
         // M18.135 (Kanban t_099f1911): Radfahren wird nicht mehr als
         // Autofahrt aufgezeichnet — ON_BICYCLE als eigener Motion-Kontext
         // (12-m/s-Gate), Rad-Sessions als eigener Session-Typ, Testmatrix.
-        versionCode = 19
-        versionName = "1.0.18"
+        // M18.136 (Kanban t_099f1911, Play-Console-Auflagen): R8 aktiviert
+        // (Verschleierung war 0 %) + randlose Anzeige abwärtskompatibel.
+        // Siehe proguard-rules.pro und LocalizedActivity.enableEdgeToEdge.
+        versionCode = 20
+        versionName = "1.0.19"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
@@ -78,7 +81,27 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
-            isMinifyEnabled = false
+            // M18.136: R8 aktiviert (Play-Console-Auflage "DEX-Codeoptimierung
+            // liegt unter unserem Grenzwert — Verschleierung 0 %"). Vorher
+            // stand hier isMinifyEnabled = false — damit blieb der komplette
+            // Code im Klartext im DEX (34,6 MB base/dex/classes*.dex) und
+            // Play meldete 0 % Verschleierung in allen drei Kategorien.
+            //
+            // isShrinkResources entfernt zusätzlich ungenutzte Ressourcen
+            // (Referenz-Graph wird zusammen mit dem Code ausgewertet).
+            //
+            // Die Keep-Regeln in proguard-rules.pro sind aus einem Audit
+            // der Reflection-Stellen abgeleitet (WorkManager-Worker,
+            // MapLibre-JNI, Hilt-EntryPoints, Enum-valueOf, Manifest-
+            // Komponenten) — KEIN pauschaler Keep auf das App-Package.
+            //
+            // android.r8.strictFullModeForKeepRules=false (gradle.properties)
+            // bleibt gesetzt: Keep-Regeln werden in der relaxierten
+            // Legacy-Semantik angewandt = konservativer (mehr Code bleibt),
+            // was das Risiko für die 25 CoroutineWorker und die
+            // Background-Services senkt.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
