@@ -72,6 +72,16 @@ class CalendarResumeRoomIntegrationTest {
     private val MIN = 60_000L
     private val SEC = 1_000L
 
+    /**
+     * Granularität der Wanduhr-Stempel, siehe [assertNoOverlap].
+     *
+     * 50 ms ist bewusst KLEIN gegen die geprüfte Fehlerrichtung (Minuten)
+     * und groß genug, dass die Millisekunden-Stempel von `stop()`/
+     * `forceFinish` nicht zufällig aus der Reihe fallen. Der Wert ist der
+     * einzige Kompromiss dieser Suite und steht deshalb hier oben sichtbar.
+     */
+    private val WALLCLOCK_STAMP_TOLERANCE_MS = 50L
+
     /** Simulations-„JETZT" = reale Wanduhr (siehe Klassenkommentar). */
     private fun realNow(): Long = System.currentTimeMillis()
 
@@ -267,19 +277,30 @@ class CalendarResumeRoomIntegrationTest {
     /**
      * Überlappungsfreiheit über alle Blöcke.
      *
-     * [toleranceMs] ist standardmäßig 0: für Kalender-Blöcke GEGEN Kalender-
-     * Blöcke gilt die Zusicherung exakt. Die 1-ms-Ausnahme betrifft nur
-     * Kalender-Block → Fremd-Start und ist ein Artefakt der Produktionslogik,
-     * nicht des Tests: [com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityOverlapResolver]
-     * wertet `newStart == existingEnd` ausdrücklich als KEINE Überlappung
-     * („nahtloser Wechsel", Resolver-Doku). In diesem Zweig greift
-     * `forceFinish`, und das stempelt `endAt = System.currentTimeMillis()` —
-     * also die Wanduhr, die eine Millisekunde NACH dem Start der neuen
-     * Session liegen kann. Die 1 ms ist damit erklärbar und in der Timeline
-     * ohne jede Wirkung; die geprüfte Aussage (keine echten Überlappungen)
-     * bleibt vollständig erhalten.
+     * ZWEI STUFEN, weil zwei verschiedene Zusicherungen zu prüfen sind:
+     *
+     *  - Kalender-Block gegen Kalender-Block: EXAKT (Toleranz 0),
+     *    siehe [assertCalendarBlocksDoNotOverlap].
+     *  - Über die ganze Sequenz hinweg: mit [WALLCLOCK_STAMP_TOLERANCE_MS].
+     *    Die Toleranz ist KEINE Verschleierung, sondern die Granularität der
+     *    Wanduhr-Stempel: `live.stop()` und der `forceFinish` im nahtlosen
+     *    Wechsel ([LiveActivityOverlapResolver] wertet `newStart == existingEnd`
+     *    ausdrücklich als KEINE Überlappung) stempeln
+     *    `endAt = System.currentTimeMillis()`, während der Start der nächsten
+     *    Session ein vom AUFRUFER gelesener Wert ist. Beide liegen dann
+     *    wenige Millisekunden auseinander und können sich um genau diese
+     *    Millisekunden überholen.
+     *
+     * Warum die Toleranz die Prüfung nicht entwertet: echte Regressionen sind
+     * um GRÖSSENORDNUNGEN größer. Der Wiedereinstieg, der statt bei JETZT beim
+     * Termin-Beginn ankert (die zentrale Fehlerrichtung dieses Auftrags),
+     * erzeugt eine Überlappung von MINUTEN — das ist per Mutationstest belegt
+     * (siehe Bericht) und wird von dieser Prüfung weiterhin gefangen.
      */
-    private fun assertNoOverlap(blocks: List<Pair<Long, Long>>, toleranceMs: Long = 0L) {
+    private fun assertNoOverlap(
+        blocks: List<Pair<Long, Long>>,
+        toleranceMs: Long = WALLCLOCK_STAMP_TOLERANCE_MS
+    ) {
         blocks.zipWithNext().forEach { (a, b) ->
             assertWithMessage("Überlappung zwischen $a und $b (Toleranz ${toleranceMs}ms)")
                 .that(b.first).isAtLeast(a.second - toleranceMs)
@@ -291,7 +312,7 @@ class CalendarResumeRoomIntegrationTest {
         calendarSessions()
             .mapNotNull { s -> s.endAt?.let { s.startAt to it } }
             .sortedBy { it.first }
-            .let { assertNoOverlap(it) }
+            .let { assertNoOverlap(it, toleranceMs = 0L) }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -354,7 +375,7 @@ class CalendarResumeRoomIntegrationTest {
         // Genau ZWEI Kalender-Sessions — kein Duplikat.
         assertThat(calendarSessions()).hasSize(2)
         assertCalendarBlocksDoNotOverlap()
-        assertNoOverlap(allBlocks(), toleranceMs = 1L)
+        assertNoOverlap(allBlocks())
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -434,9 +455,9 @@ class CalendarResumeRoomIntegrationTest {
 
         // Keine Überlappung: Kalender-Blöcke untereinander EXAKT …
         assertCalendarBlocksDoNotOverlap()
-        // … und über alle Sessions hinweg (1 ms Toleranz für den
-        // nahtlosen Kalender→Fremd-Wechsel, siehe [assertNoOverlap]).
-        assertNoOverlap(allBlocks(), toleranceMs = 1L)
+        // … und über alle Sessions hinweg (Wanduhr-Stempel-Granularität,
+        // siehe [assertNoOverlap] und [WALLCLOCK_STAMP_TOLERANCE_MS]).
+        assertNoOverlap(allBlocks())
 
         // LIVE-Aussage aus dem StateFlow (nicht aus `inserted`).
         assertThat(live.liveSession.value?.id).isEqualTo(blocks[3]!!.id)
@@ -476,7 +497,7 @@ class CalendarResumeRoomIntegrationTest {
         assertThat(sessions[1].startAt).isEqualTo(resumeNow)
 
         assertCalendarBlocksDoNotOverlap()
-        assertNoOverlap(allBlocks(), toleranceMs = 1L)
+        assertNoOverlap(allBlocks())
     }
 
     // ════════════════════════════════════════════════════════════════════
