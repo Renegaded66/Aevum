@@ -36,8 +36,11 @@ android {
         // Geofence, App-Tracking, Screen) wieder aufgenommen, solange er
         // läuft und nichts anderes aufzeichnet; die Stop-Pfade stoßen den
         // Kalender-Lauf sofort an statt erst beim 15-Minuten-Takt.
-        versionCode = 18
-        versionName = "1.0.17"
+        // M18.135 (Kanban t_099f1911): Radfahren wird nicht mehr als
+        // Autofahrt aufgezeichnet — ON_BICYCLE als eigener Motion-Kontext
+        // (12-m/s-Gate), Rad-Sessions als eigener Session-Typ, Testmatrix.
+        versionCode = 19
+        versionName = "1.0.18"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
