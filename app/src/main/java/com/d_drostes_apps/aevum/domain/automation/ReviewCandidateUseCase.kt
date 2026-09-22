@@ -217,6 +217,10 @@ class ReviewCandidateUseCase @Inject constructor(
     private fun sourceTypeForActivityType(activityTypeId: String?): String? = when (activityTypeId) {
         "sleep" -> "HEALTH_SLEEP_AUTO"
         "driving" -> "ACTIVITY_RECOGNITION_AUTO"
+        // M18.134: Die automatisch erkannte Radfahrt läuft über denselben
+        // SourceType — Timeline/Dashboard markieren sie damit als
+        // automatisch erkannt (AUTO_SOURCES), genau wie die Fahrt.
+        "radfahren" -> "ACTIVITY_RECOGNITION_AUTO"
         else -> null
     }
 

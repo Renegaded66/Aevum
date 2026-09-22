@@ -231,11 +231,13 @@ object DriveDetectionEngine {
     /** Kontext des Handys aus Googles Activity-Recognition (Android-frei
      *  für JVM-Tests). UNKNOWN = kein AR-Signal (Default — Verhalten wie
      *  heute, 8 m/s). ON_FOOT = AR meldet WALKING/RUNNING/ON_FOOT.
-     *  IN_VEHICLE = AR meldet IN_VEHICLE. */
+     *  IN_VEHICLE = AR meldet IN_VEHICLE. ON_BICYCLE = AR meldet
+     *  ON_BICYCLE (M18.134, Kanban t_a860c07f). */
     enum class MotionContext {
         UNKNOWN,
         ON_FOOT,
-        IN_VEHICLE
+        IN_VEHICLE,
+        ON_BICYCLE
     }
 
     /** Auto-Schwelle bei ON_FOOT-Kontext: 12 m/s = 43,2 km/h. 43 km/h ist
@@ -254,6 +256,73 @@ object DriveDetectionEngine {
      *  Lauf-/Jogging-Schnitt (4,44 m/s bei 16 km/h) und unter jeder echten
      *  Fahrt mit 12-m/s-Spitzen. */
     const val MOTION_GATED_AVG_SPEED_MPS = 6.0f
+
+    // ── M18.134: ON_BICYCLE-KONTEXT (Radfahren ist kein Auto) ───────
+    //
+    // User-Bug (Kanban t_a860c07f, Root t_099f1911): „Ich war Fahrrad
+    // fahren, dabei hatte ich natürlich auch so 25 km/h drauf — und dann
+    // wurde Autofahrt aufgezeichnet." Root-Cause (gemessen, t_fd1ec671):
+    // Der ON_BICYCLE-Zweig des Continuous-Receivers setzte bewusst KEINEN
+    // Motion-Kontext → Kontext blieb UNKNOWN → es galt die 8-m/s-Schwelle
+    // (28,8 km/h). Ein Radfahrer-Schnitt von 25 km/h enthält zwangsläufig
+    // Passagen über 28,8 km/h (Antritte, Gefälle, Pedelec) — gemessen:
+    // 29 km/h konstant → Driving 500/500, 25-km/h-Schnitt mit 30-s-
+    // Antritten → Driving 300/300.
+    //
+    // Die AR-Klasse ON_BICYCLE ist die EINZIGE Zweirad-Klasse der API
+    // (Google unterscheidet Auto und Motorrad nicht — beide IN_VEHICLE;
+    // Motorräder landen dagegen regelmäßig in ON_BICYCLE, belegt in
+    // RideRecordingReproductionTest „Welt F"). Deshalb ist ON_BICYCLE
+    // ein eigenes Gate — NICHT ON_FOOT: der M18.130-Vehicle-Pace-
+    // Override (unten) würde unter ON_BICYCLE genau das Rad-Loch wieder
+    // öffnen (gemessen: 100 % Driving für 25-km/h-Profile mit Antritten,
+    // weil der Override die 12-m/s-Schwelle auf 8 m/s zurücknimmt).
+
+    /** Auto-Schwelle bei ON_BICYCLE-Kontext: 12 m/s = 43,2 km/h.
+     *
+     *  Rad-unmögliches Tempo: Ein Mensch hält 43 km/h auf dem Rad nur in
+     *  Abfahrten von Sekunden — nie über [BIKE_MIN_CONSECUTIVE_FAST]
+     *  Probes am Stück. Damit ist JEDE realistische Radfahrt (25-35 km/h,
+     *  auch mit Antritten und Gefällen) unter dem Gate, während Motorrad/
+     *  Auto ab 50 km/h unverändert erkannt werden (gemessen: Start
+     *  weiterhin @ median 60 s).
+     *
+     *  Der Wert ist identisch zu [MOTION_GATED_DRIVE_SPEED_MPS] — die
+     *  Konstante bleibt trotzdem eigenständig, weil die Begründung eine
+     *  andere ist (Rad vs. Läufer) und die beiden Schwellen unabhängig
+     *  justiert werden dürfen. */
+    const val BIKE_DRIVE_SPEED_MPS = 12.0f
+
+    /** Konsekutiv-Kette bei ON_BICYCLE: 3 Probes ≥ 12 m/s am Stück
+     *  (45 s bei 15-s-Fixes). Ein einzelner GPS-Burst oder eine
+     *  Rennrad-Abfahrt von 20 s erreicht das nicht. */
+    const val BIKE_MIN_CONSECUTIVE_FAST = 3
+
+    /** Fenster-Schnitt bei ON_BICYCLE: 12 m/s (43,2 km/h) — dasselbe
+     *  physikalische Argument wie bei der Kette: kein Mensch fährt über
+     *  Minuten 43 km/h Durchschnitt mit dem Rad. Gemessen blockiert das
+     *  ALLE Rad-Profile (25-35 km/h, Antritte, Gefälle, Pedelec) und
+     *  lässt Motorrad/Auto ≥ 50 km/h durch.
+     *
+     *  WICHTIG: Anders als beim ON_FOOT-Gate gibt es hier KEINEN
+     *  Vehicle-Pace-Override. Der M18.130-Override existiert, weil
+     *  Google MOTORRÄDER persistent als ON_FOOT meldet; unter ON_BICYCLE
+     *  ist er schädlich — er würde die 12-m/s-Schwelle auf 8 m/s
+     *  zurücknehmen, sobald eine Radfahrt 3 Antritte ≥ 8 m/s über ≥ 60 s
+     *  zeigt (gemessen: 100 % Driving). Ein Motorrad, das als ON_BICYCLE
+     *  gemeldet wird, kommt über die 12-m/s-Gates (Motorrad 50 km/h:
+     *  Start @ 60 s) — nur im Stadtverkehr 30-40 km/h bleibt es unter
+     *  dem Gate und wird als Rad-Session geführt (Verlustfreiheit,
+     *  siehe DriveStartWorker). */
+    const val BIKE_MIN_AVG_SPEED_MPS = 12.0f
+
+    /** M18.134: Mindest-Confidence eines ON_BICYCLE-Samples, damit es
+     *  als „belastbares Rad-Signal" für eine Rad-Session zählt (statt
+     *  nur den Kontext zu setzen). Gleicher Wert wie
+     *  WalkStopDetector.WALK_STOP_CONFIDENCE / FAST_START_CONFIDENCE:
+     *  Google liefert bei echter Aktivität typisch 70-100, rohe
+     *  Einzel-Samples sind verrauscht. */
+    const val BIKE_CONTEXT_MIN_CONFIDENCE = 60
 
     /** M18.130 (Motorrad-Fix, t_3ac05e06): Permanentes ON_FOOT über
      *  STUNDEN ist auf Zweirädern der Regelfall (Google-AR klassifiziert
@@ -427,6 +496,159 @@ object DriveDetectionEngine {
         /** DetectedActivity.getConfidence() (0–100). */
         val confidence: Int
     )
+
+    /** M18.134: Rad-Evidence aus dem AR-Continuous-Sampling — das
+     *  Gegenstück zu [VehicleEvidence] für ON_BICYCLE. Pure data class
+     *  (JVM-testbar). Die Bridge hält die Felder, diese Klasse ist nur
+     *  der Werttransport in die puren Funktionen. */
+    data class BicycleEvidence(
+        /** Zeitstempel des letzten ON_BICYCLE-Samples (Frische-Basis). */
+        val atMs: Long,
+        /** DetectedActivity.getConfidence() (0–100). */
+        val confidence: Int
+    )
+
+    /** M18.134: Frische-Fenster der ON_BICYCLE-Evidence: ≤ 90 s — gleiche
+     *  Größenordnung wie [FAST_START_EVIDENCE_MAX_AGE_MS]. Ein Rad-Signal
+     *  älter als ein Burst-Fenster gehört nicht mehr zu dieser Fahrt
+     *  (Google liefert im 30-s-Takt; 90 s deckt eine verpasste Lücke ab,
+     *  ohne dass ein Rad-Signal von vor 10 Minuten eine Fahrt startet). */
+    const val BICYCLE_EVIDENCE_MAX_AGE_MS = 90_000L
+
+    /** M18.134: Ist das Rad-Signal belastbar? Confidence ≥
+     *  [BIKE_CONTEXT_MIN_CONFIDENCE] und frisch (≤
+     *  [BICYCLE_EVIDENCE_MAX_AGE_MS]). Pure Funktion — die Bridge liefert
+     *  die Werte, die Entscheidung liegt hier (Muster shouldFastStart). */
+    fun isReliableBicycleSignal(
+        evidence: BicycleEvidence?,
+        nowMs: Long
+    ): Boolean {
+        if (evidence == null) return false
+        if (evidence.confidence < BIKE_CONTEXT_MIN_CONFIDENCE) return false
+        return nowMs - evidence.atMs <= BICYCLE_EVIDENCE_MAX_AGE_MS
+    }
+
+    /** M18.134: Eine erkannte Radfahrt — Start-Anker für die Session. */
+    data class BikeRide(
+        /** Ältester bewegter Probe im Fenster (Rückdatierung der Session). */
+        val startMs: Long,
+        /** Jüngster Probe im Fenster. */
+        val endMs: Long,
+        /** Anzahl der Probes, die die Fahrt belegen. */
+        val sampleCount: Int,
+        /** Fenster-Schnitt in m/s. */
+        val avgSpeedMps: Float
+    )
+
+    /** M18.134: Mindest-Fensterschnitt für eine Radfahrt: 4,0 m/s =
+     *  14,4 km/h. Liegt über dem Lauf-/Jogging-Schnitt (Joggen 16 km/h =
+     *  4,44 m/s — die Schwelle bleibt darunter BEWUSST knapp, weil die
+     *  Zweirad-Klassifikation von Google kommt: RUNNING/ON_FOOT erreicht
+     *  den ON_BICYCLE-Kontext nie, und das Cadence-Veto blockt Joggen
+     *  zusätzlich) und weit unter jedem Rad-Tempo. Wer über 150 m Netto
+     *  mit ≥ 14 km/h unterwegs ist und dabei ein bestätigtes
+     *  ON_BICYCLE-Signal hat, fährt Rad.
+     *
+     *  Ein Radfahrer, der an der Ampel steht, fällt kurz unter die
+     *  Schwelle — die Prüfung läuft bei JEDEM Fix erneut, die Session
+     *  startet also beim Anfahren, nicht im Stillstand. */
+    const val MIN_BIKE_RIDE_AVG_MPS = 4.0f
+
+    /**
+     * M18.134: Liegt eine Radfahrt vor? — pure Funktion (JVM-testbar).
+     *
+     * Beantwortet die Frage, die die Drive-Gates verneinen: „Der User
+     * bewegt sich schnell, aber nicht schnell genug für ein Fahrzeug —
+     * und Google sagt, er sitzt auf einem Fahrrad." Wird vom
+     * DriveDetectionService und vom BicycleStartWorker mit den
+     * Bridge-Probes aufgerufen, NACHDEM classify() NotDriving lieferte.
+     *
+     * Bedingungen (alle müssen gelten):
+     *  • [MIN_VALID_PROBES] gültige Probes (Alter, Accuracy, kein
+     *    Ausreißer) — dieselben Filter wie classify().
+     *  • Spread ≥ [MIN_SPREAD_MS] (30 s): ein GPS-Burst ist keine Fahrt.
+     *  • Netto-Displacement ≥ [MIN_NET_DISPLACEMENT_M] (150 m): der
+     *    wichtigste Filter gegen Indoor-Drift (M18.66-FIX13).
+     *  • Fensterschnitt in [MIN_BIKE_RIDE_AVG_MPS, [BIKE_DRIVE_SPEED_MPS]):
+     *    Rad-Tempo, nicht Geh-/Lauf-Tempo und nicht Fahrzeug-Tempo.
+     *  • Geofence-Veto (M18.84): alle Probes in EINEM benannten Ort =
+     *    Indoor-Multipath, keine Radfahrt.
+     *
+     * @return [BikeRide] mit Start-Anker, oder null (keine Radfahrt).
+     */
+    fun detectBikeRide(
+        probes: List<DriveProbe>,
+        nowMs: Long = System.currentTimeMillis(),
+        geofences: List<GeoCircle> = emptyList()
+    ): BikeRide? {
+        val valid = probes
+            .filter { nowMs - it.timestampMs <= MAX_PROBE_AGE_MS }
+            .filter { it.accuracyMeters <= MAX_ACCURACY_M }
+            .filter { it.speedMps == null || it.speedMps <= OUTLIER_SPEED_MPS }
+        if (valid.size < MIN_VALID_PROBES) return null
+
+        val spread = valid.maxOf { it.timestampMs } - valid.minOf { it.timestampMs }
+        if (spread < MIN_SPREAD_MS) return null
+
+        val filtered = valid.filterIndexed { i, p ->
+            if (i == 0) return@filterIndexed true
+            val prev = valid[i - 1]
+            val dt = p.timestampMs - prev.timestampMs
+            val dist = p.distanceFromLastM
+            !(dist != null && dt in 1..60_000 && dist > JUMP_OUTLIER_M)
+        }
+        if (filtered.size < MIN_VALID_PROBES) return null
+
+        val first = filtered.first()
+        val last = filtered.last()
+        val net = if (first.latitude != null && first.longitude != null &&
+            last.latitude != null && last.longitude != null
+        ) {
+            haversineMeters(
+                first.latitude!!, first.longitude!!,
+                last.latitude!!, last.longitude!!
+            )
+        } else 0.0
+        if (net < MIN_NET_DISPLACEMENT_M) return null
+
+        if (geofences.isNotEmpty()) {
+            val withCoords = filtered.filter { it.latitude != null && it.longitude != null }
+            val allInsideANamedPlace = withCoords.isNotEmpty() && withCoords.all { p ->
+                geofences.any { isInsideCircle(p.latitude!!, p.longitude!!, it) }
+            }
+            if (allInsideANamedPlace) return null
+        }
+
+        var sum = 0f
+        var count = 0
+        for (p in filtered) {
+            val s = p.speedMps
+            if (s != null) {
+                sum += s
+                count++
+            }
+        }
+        if (count == 0) return null
+        val avg = sum / count
+        if (avg < MIN_BIKE_RIDE_AVG_MPS || avg >= BIKE_DRIVE_SPEED_MPS) return null
+
+        // Start-Anker: ältester Probe, der BEWEGUNG belegt (M18.120-F-3-
+        // Semantik) — Stillstands-Probes aus der Pause dürfen den
+        // Session-Start nicht in die Vergangenheit ziehen.
+        val anchor = filtered
+            .firstOrNull {
+                (it.speedMps != null && it.speedMps >= MIN_ANCHOR_MOTION_MPS) ||
+                    (it.distanceFromLastM != null && it.distanceFromLastM >= MIN_ANCHOR_MOTION_M)
+            }
+            ?.timestampMs ?: first.timestampMs
+
+        return BikeRide(
+            startMs = anchor,
+            endMs = last.timestampMs,
+            sampleCount = filtered.size,
+            avgSpeedMps = avg
+        )
+    }
 
     /** M18.84: Liegt der Punkt im Kreis? (Haversine, gleiche Formel wie
      *  überall in Aevum — bewusst dupliziert statt geteilt, damit die
@@ -697,12 +919,31 @@ object DriveDetectionEngine {
                 preAvg >= VEHICLE_PACE_MIN_AVG_SPEED_MPS
         } else false
         val motionGated = motionContext == MotionContext.ON_FOOT && !vehiclePace
-        val driveSpeed = if (motionGated)
-            MOTION_GATED_DRIVE_SPEED_MPS else AUTO_SPEED_MPS
-        val minConsec = if (motionGated)
-            MOTION_GATED_MIN_CONSECUTIVE_FAST else MIN_CONSECUTIVE_FAST
-        val minAvg = if (motionGated)
-            MOTION_GATED_AVG_SPEED_MPS else 4.5f
+        // M18.134: ON_BICYCLE-Gate — Radfahren ist kein Autofahren.
+        // Eigener Schwellenblock (12 m/s / Kette 3 / Schnitt 12 m/s),
+        // BEWUSST ohne Vehicle-Pace-Override: der M18.130-Override ist
+        // für Motorräder gebaut (Google meldet sie als ON_FOOT) und
+        // würde unter ON_BICYCLE die Fahrtschwelle auf 8 m/s
+        // zurücknehmen — genau das Rad-Loch, das dieser Fix schließt
+        // (gemessen: 25-km/h-Radfahrt mit Antritten → wieder 100 %
+        // Driving). Der Pace-Override wird deshalb NUR für ON_FOOT
+        // ausgewertet (oben), bikeGated ist davon unabhängig.
+        val bikeGated = motionContext == MotionContext.ON_BICYCLE
+        val driveSpeed = when {
+            bikeGated -> BIKE_DRIVE_SPEED_MPS
+            motionGated -> MOTION_GATED_DRIVE_SPEED_MPS
+            else -> AUTO_SPEED_MPS
+        }
+        val minConsec = when {
+            bikeGated -> BIKE_MIN_CONSECUTIVE_FAST
+            motionGated -> MOTION_GATED_MIN_CONSECUTIVE_FAST
+            else -> MIN_CONSECUTIVE_FAST
+        }
+        val minAvg = when {
+            bikeGated -> BIKE_MIN_AVG_SPEED_MPS
+            motionGated -> MOTION_GATED_AVG_SPEED_MPS
+            else -> 4.5f
+        }
 
         // M18.113 SPEED-POSITION-KONSISTENZ (User-Bug „Drive aufgezeichnet obwohl
         // Spaziergang"): Ein GPS-Multipath-Spike behauptet hohe Speed, während die
@@ -1024,4 +1265,18 @@ object DriveDetectionEngine {
             peakConfidence = 75
         )
     }
+
+    /** M18.134: Anzahl der Probes im Erkennungsfenster, die Rad-Tempo
+     *  belegen (speed im Bereich [MIN_BIKE_RIDE_AVG_MPS,
+     *  [BIKE_DRIVE_SPEED_MPS]) — Diagnose/Log-Hilfe für die Rad-Session. */
+    fun bikePaceSampleCount(
+        probes: List<DriveProbe>,
+        nowMs: Long = System.currentTimeMillis()
+    ): Int = probes
+        .filter { nowMs - it.timestampMs <= MAX_PROBE_AGE_MS }
+        .filter { it.accuracyMeters <= MAX_ACCURACY_M }
+        .count {
+            val s = it.speedMps
+            s != null && s >= MIN_BIKE_RIDE_AVG_MPS && s < BIKE_DRIVE_SPEED_MPS
+        }
 }
