@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -129,7 +132,17 @@ private fun BlockScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF141620)),
+            .background(Color(0xFF141620))
+            // M18.136: Randlos-Schutz. Die Activity erbt enableEdgeToEdge()
+            // von LocalizedActivity → sie zeichnet unter Status- und
+            // Navigationsleiste. Der Inhalt ist vertikal zentriert, die
+            // drei Buttons unten belegen viel Höhe: auf kleinen/quer
+            // gehaltenen Geräten (oder mit 3-Button-Navigation, deren
+            // Leiste höher ist) könnte der unterste Button sonst unter der
+            // Navigationsleiste liegen und unklickbar sein. safeDrawing
+            // deckt systemBars + Display-Ausschnitt ab (kein IME nötig —
+            // dieses Popup hat keine Eingabefelder).
+            .windowInsetsPadding(WindowInsets.safeDrawing),
         contentAlignment = Alignment.Center
     ) {
         Column(

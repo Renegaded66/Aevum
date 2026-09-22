@@ -1,5 +1,52 @@
 # CHANGELOG
 
+## [1.0.19] — M18.136 — 2026-09-22
+
+### Behoben — Play-Console-Auflagen
+
+- **DEX-Codeoptimierung (Verschleierung war 0 %):** R8 war im Release-Build
+  vollständig deaktiviert (`isMinifyEnabled = false`). Jetzt aktiv mit
+  `isShrinkResources = true` und einer aus einem Reflection-Audit
+  abgeleiteten `proguard-rules.pro` (Manifest-Komponenten,
+  25 `CoroutineWorker`, Hilt-EntryPoints, Room, MapLibre-JNI,
+  Health Connect, Enum-`valueOf`).
+  Messergebnis aus `r8.json`: Verschleierung **78,7 %**,
+  Optimierung **77,6 %**, Shrinking **78,1 %** (Grenzwert 25 %).
+  App-Klassen einzeln: **92,7 %** verschleiert.
+  DEX-Größe: **52,0 MB → 5,9 MB** (−89 %). AAB: 30,5 MB → 23,4 MB.
+
+- **Randlose Anzeige:** `enableEdgeToEdge()` fehlte, obwohl `targetSdk 36`
+  ab Android 15 randlose Anzeige erzwingt. Jetzt zentral in
+  `LocalizedActivity` (alle drei Activities), mit an Aevums eigenes Theme
+  gekoppelten `SystemBarStyle` (nicht am System-Theme — sonst unsichtbare
+  Icons bei System-Hell + App-Dunkel).
+  Zusätzlich mitgefixt, was unter Randlosigkeit gebrochen wäre:
+  - **Doppeltes Inset-Padding** in 12 Screens: `padding(innerPadding)`
+    konsumiert keine Window-Insets → jetzt `consumeWindowInsets(innerPadding)`.
+  - **Tastatur verdeckte Eingabefelder:** `enableEdgeToEdge()` deaktiviert
+    `setDecorFitsSystemWindows` → `adjustResize` greift nicht mehr →
+    `imePadding()` am NavHost-Wurzelmodifier (12 Screens mit Textfeldern).
+  - **Popup-Activities** (`BlockActivity`, `SwitchActivity`):
+    `windowInsetsPadding(WindowInsets.safeDrawing)`.
+
+### Verifikation
+
+- 853 Unit-Tests, 0 Fehler.
+- Alle 25 Worker, beide `valueOf`-Enums, alle 15 Manifest-Komponenten und
+  die MapLibre-JNI-Klassen im finalen DEX nachgewiesen (Bytesuche).
+- `EdgeToEdge.enable(...)` vor `super.onCreate()`, `consumeWindowInsets` und
+  `imePadding` per Bytecode-Inspektion des gebauten APK bestätigt.
+- Debug-APK signiert mit kanonischem Key (`9c3055c4…`),
+  AAB mit Play-Upload-Key (`C8:43:0D…`).
+
+### Offen (Gerätetest nötig)
+
+Kein Emulator verfügbar (kein `/dev/kvm`). Am Handy zu prüfen:
+R8-Laufzeit (Auto-Tracking/Geofences/Karte), randlose Darstellung,
+Tastatur-Verhalten, Popup-Activities.
+
+---
+
 ## Unreleased
 
 ### Added

@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -91,7 +94,15 @@ private fun SwitchContent(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.55f))
-            .clickable(onClick = onDismiss),
+            .clickable(onClick = onDismiss)
+            // M18.136: Randlos-Schutz. Die Activity ist randlos (enableEdgeToEdge
+            // via LocalizedActivity) und ihr Theme ist transluzent — der
+            // Scrim deckt den ganzen Bildschirm ab. Ohne Inset-Padding
+            // könnte der Dialog auf kurzen Displays unter die
+            // Navigationsleiste geraten (die LazyColumn ist auf feste
+            // 340 dp Höhe begrenzt, der Cancel-Text sitzt darunter).
+            // safeDrawing deckt systemBars + Ausschnitt ab.
+            .windowInsetsPadding(WindowInsets.safeDrawing),
         contentAlignment = Alignment.Center
     ) {
         // Der eigentliche Dialog
