@@ -35,6 +35,33 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND source_type = :sourceType AND session_status = 'FINISHED' AND end_at IS NOT NULL ORDER BY end_at DESC LIMIT 1")
     suspend fun getLastFinishedBySourceType(sourceType: String): ActivitySession?
 
+    // M18.134: Die letzten beendeten Sessions eines Quelltyps (nicht nur die
+    // eine letzte). Wird für die Resume-Evidenz gebraucht: bei MEHREREN
+    // Konflikten hintereinander (Fahrt → Wanderung → Fahrt) liegen mehrere
+    // abgeschnittene Kalender-Sessions im Verlauf, und die jeweils JÜNGSTE
+    // beendete kann zu einem anderen Termin gehören. Ohne History würde der
+    // zuletzt abgeschnittene Termin übersehen. Reine Query — keine
+    // Schema-Änderung, also keine Migration.
+    @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND source_type = :sourceType AND session_status = 'FINISHED' AND end_at IS NOT NULL ORDER BY end_at DESC LIMIT :limit")
+    suspend fun getRecentFinishedBySourceType(sourceType: String, limit: Int): List<ActivitySession>
+
+    // M18.134: Verdrängungs-BEWEIS. Existiert eine FREMD-Session, die genau
+    // an der Schnittstelle begann, an der die Kalender-Session endete?
+    // Genau das schreibt der M18.71-Trim beim Fremd-Start
+    // (`endAt = newStart`), während ein MANUELLER Stop keinerlei Session an
+    // dieser Stelle hinterlässt (er endet bei „jetzt", ohne dass dort eine
+    // neue beginnt). Nur diese Query trennt „übernommen" von „selbst beendet".
+    @Query(
+        "SELECT COUNT(*) FROM activity_session " +
+            "WHERE deleted_at IS NULL AND source_type != :calendarSource " +
+            "AND start_at BETWEEN :from AND :to"
+    )
+    suspend fun countForeignSessionsStartingBetween(
+        calendarSource: String,
+        from: Long,
+        to: Long
+    ): Int
+
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND start_at < :end AND (end_at IS NULL OR end_at > :start) ORDER BY start_at")
     fun getOverlappingRange(start: Long, end: Long): Flow<List<ActivitySession>>
 
