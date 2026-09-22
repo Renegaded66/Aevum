@@ -528,6 +528,55 @@ object DriveDetectionEngine {
         return nowMs - evidence.atMs <= BICYCLE_EVIDENCE_MAX_AGE_MS
     }
 
+    /** M18.135 (Kanban t_8e2889cd): Ist die FAHRZEUG-Evidence belastbar?
+     *  Confidence ≥ [FAST_START_CONFIDENCE] und frisch (≤
+     *  [FAST_START_EVIDENCE_MAX_AGE_MS]) — dieselben Werte, die
+     *  [shouldFastStart] als V1 prüft (dort inline). Als pure Funktion,
+     *  weil der Start-Pfad sie seit M18.135 zusätzlich für die Frage
+     *  braucht: „Ist das ein bestätigter Fahrzeug-Übergang, der eine
+     *  laufende Rad-Session ablösen darf?" (Rad abgestellt, ins Auto
+     *  gestiegen — M18.130-Bestandsschutz). */
+    fun isReliableVehicleSignal(
+        evidence: VehicleEvidence?,
+        nowMs: Long
+    ): Boolean {
+        if (evidence == null) return false
+        if (evidence.confidence < FAST_START_CONFIDENCE) return false
+        return nowMs - evidence.atMs <= FAST_START_EVIDENCE_MAX_AGE_MS
+    }
+
+    /**
+     * M18.135 (Kanban t_8e2889cd): Ist die BEWEGUNG nachweislich auf
+     * Fahrzeug-Niveau — obwohl Google ein Zweirad meldet?
+     *
+     * Wird genau dann gebraucht, wenn eine laufende `radfahren`-Session
+     * durch einen Auto-Start abgelöst werden soll: Die Rad-Session darf
+     * NICHT von einem Auto überlagert werden, das nur deshalb
+     * klassifiziert wurde, weil der Motion-Kontext gerade degradiert ist
+     * (genau die gemessene Lücke: ON_BICYCLE-EXIT → UNKNOWN → 8-m/s-Gate
+     * → 29 km/h → `Driving`). Umgekehrt darf ein echtes Motorrad, das
+     * Google als Zweirrad führt und das nach der Stadtphase auf 70 km/h
+     * beschleunigt, seinen Auto-Start nicht verlieren (M18.130).
+     *
+     * Die Unterscheidung ist deshalb die GATE-TREUE: Es wird mit
+     * [MotionContext.ON_BICYCLE] klassifiziert — also mit den 12-m/s-Gates,
+     * die ein Mensch auf einem Fahrrad physikalisch nicht hält. Was auch
+     * dort als [Classification.Driving] durchgeht, ist Fahrzeug-Niveau
+     * (Motorrad/Auto ab 50 km/h, gemessen in t_fd1ec671 und M18.130);
+     * was nur unter der degradierten 8-m/s-Schwelle Driving war, ist eine
+     * Radfahrt und bleibt es.
+     */
+    fun isVehicleLevelMovement(
+        probes: List<DriveProbe>,
+        nowMs: Long = System.currentTimeMillis(),
+        geofences: List<GeoCircle> = emptyList(),
+        cadenceHz: Float? = null,
+        cadenceValidFraction: Float = 0f
+    ): Boolean = classify(
+        probes, nowMs, geofences, MotionContext.ON_BICYCLE,
+        cadenceHz, cadenceValidFraction
+    ) is Classification.Driving
+
     /** M18.134: Eine erkannte Radfahrt — Start-Anker für die Session. */
     data class BikeRide(
         /** Ältester bewegter Probe im Fenster (Rückdatierung der Session). */

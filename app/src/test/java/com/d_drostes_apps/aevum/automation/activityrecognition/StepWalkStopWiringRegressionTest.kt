@@ -120,13 +120,22 @@ class StepWalkStopWiringRegressionTest {
         val idx = src.indexOf("private fun onStepForWalkStop(eventMs: Long)")
         val end = src.indexOf("// ════", idx)
         val block = src.substring(idx, end)
-        val activeIdx = block.indexOf("if (!bridge.isDriveActive()) return")
+        // M18.135: „aktive Fahrt" umfasst jetzt auch die automatische
+        // Rad-Session — die Live-Session wird direkt gelesen, weil
+        // `isDriveActive()` bei einer radfahren-Session false ist und das
+        // Gate damit geschlossen hielte, obwohl der Detektor feuert.
+        val activeIdx = block.indexOf(
+            "if (!bridge.isDriveActive() && !isLiveAutoTrackedSession(autoSession)) return"
+        )
         val settingIdx = block.indexOf("if (!bridge.isStepWalkStopEnabled()) return")
-        assertWithMessage("isDriveActive-Gate fehlt").that(activeIdx).isAtLeast(0)
+        assertWithMessage("Session-Gate fehlt").that(activeIdx).isAtLeast(0)
         assertWithMessage("isStepWalkStopEnabled-Gate fehlt").that(settingIdx).isAtLeast(0)
         // Beide Gates stehen VOR dem Detector-Aufruf.
         assertThat(activeIdx).isLessThan(block.indexOf("bridge.onStepWalkStopStep(now)"))
         assertThat(settingIdx).isLessThan(block.indexOf("bridge.onStepWalkStopStep(now)"))
+        // Und der Session-Zustand kommt aus der Live-Session, nicht aus
+        // einem zweiten Bridge-Flag (M18.75/M18.76-Lehre).
+        assertThat(block.contains("liveActivityManager.liveSession.value")).isTrue()
     }
 
     @Test

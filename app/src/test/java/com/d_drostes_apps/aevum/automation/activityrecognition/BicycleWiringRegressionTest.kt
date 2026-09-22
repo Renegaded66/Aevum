@@ -213,4 +213,85 @@ class BicycleWiringRegressionTest {
         assertWithMessage("Alle 3 Rad-Evidence-Methoden müssen @Synchronized sein")
             .that(count).isEqualTo(3)
     }
+
+    // ── 6) M18.135: Zweirad-Kontext-Gate (Kanban t_8e2889cd) ──────
+
+    @Test
+    fun `EXIT-Pfad markiert den Rad-EXIT und setzt den Roh-Kontext zurueck`() {
+        // Der Transition-Receiver nimmt den ROHEN Kontext weiterhin auf
+        // UNKNOWN zurück (M18.117-Hysterese, Bestand) — meldet den EXIT
+        // aber zusätzlich an das Gate, das die Klassifikation schützt.
+        val src = source("ActivityRecognitionWorker.kt")
+        val idx = src.indexOf("if (event.activityType == DetectedActivity.ON_BICYCLE) {")
+        assertThat(idx).isAtLeast(0)
+        val block = src.substring(idx, (idx + 4000).coerceAtMost(src.length))
+        assertWithMessage("Der ON_BICYCLE-EXIT muss das Zweirad-Gate melden (sonst bleibt das ~60-s-Loch offen)")
+            .that(block.contains("bridge.onBicycleExit(now)")).isTrue()
+        assertThat(block.contains("MotionContext.UNKNOWN")).isTrue()
+    }
+
+    @Test
+    fun `die Klassifikation liest den effektiven Kontext - Rohwert bleibt diagnostizierbar`() {
+        val src = source("ActivityRecognitionWorker.kt")
+        assertThat(src.contains("bikeContextGuard.effectiveContext(System.currentTimeMillis(), motionContext)")).isTrue()
+        assertThat(src.contains("fun rawMotionContext(): DriveDetectionEngine.MotionContext")).isTrue()
+        assertThat(src.contains("fun isBikeGateActive(nowMs: Long = System.currentTimeMillis()): Boolean")).isTrue()
+    }
+
+    @Test
+    fun `Start-Seite - DriveStartWorker kennt die laufende Rad-Session`() {
+        // Die zweite Schutzebene: Kein Auto-Start über eine laufende
+        // radfahren-Session (Abnahmekriterium 2) — mit der dokumentierten
+        // Ausnahme „Bewegung auf Fahrzeug-Niveau" (M18.130).
+        val src = source("DriveWorkers.kt")
+        assertThat(src.contains("isAutoTrackedSession(liveSessionForCooldown)")).isTrue()
+        val idx = src.indexOf("liveSession!!.activityTypeId == \"radfahren\"")
+        assertWithMessage("Rad-Session-Guard im DriveStartWorker fehlt").that(idx).isAtLeast(0)
+        val block = src.substring(idx, (idx + 900).coerceAtMost(src.length))
+        assertThat(block.contains("DriveDetectionEngine.isVehicleLevelMovement(")).isTrue()
+        assertThat(block.contains("return Result.success()")).isTrue()
+    }
+
+    @Test
+    fun `Trigger-Seite - die Stop-Gates lesen die Live-Session statt isDriveActive allein`() {
+        // Dritte Ebene (dieselbe Wurzel): Die Walk-/Step-Stop-TRIGGER
+        // waren für eine Rad-Session geschlossen, weil isDriveActive dort
+        // false ist. Jetzt entscheidet der Live-Session-Zustand mit.
+        val continuous = source("ActivityContinuousSamples.kt")
+        assertThat(continuous.contains("isLiveAutoTrackedSession(autoSession)")).isTrue()
+        assertThat(continuous.contains("liveActivityManager.liveSession.value")).isTrue()
+
+        val service = source("DriveDetectionService.kt")
+        val idx = service.indexOf("private fun onStepForWalkStop(eventMs: Long)")
+        assertThat(idx).isAtLeast(0)
+        val block = service.substring(idx, (idx + 2000).coerceAtMost(service.length))
+        assertThat(block.contains("!isLiveAutoTrackedSession(autoSession)")).isTrue()
+        assertThat(block.contains("liveActivityManager.liveSession.value")).isTrue()
+    }
+
+    @Test
+    fun `Engine bietet die Fahrzeug-Niveau-Pruefung fuer die Rad-Session-Ablosung`() {
+        val src = source("DriveDetectionEngine.kt")
+        assertThat(src.contains("fun isVehicleLevelMovement(")).isTrue()
+        assertThat(src.contains("fun isReliableVehicleSignal(")).isTrue()
+        // Gate-treu: es wird mit dem Zweirad-Kontext klassifiziert.
+        val idx = src.indexOf("fun isVehicleLevelMovement(")
+        val block = src.substring(idx, (idx + 400).coerceAtMost(src.length))
+        assertThat(block.contains("MotionContext.ON_BICYCLE")).isTrue()
+    }
+
+    @Test
+    fun `das Gate ist pure Logik und Android-frei`() {
+        // Wie DriveDetectionEngine/WalkStopDetector/StepWalkStopDetector:
+        // keine Android-Imports, damit die JVM-Tests die echten Klassen
+        // fahren (kein Robolectric, keine Kopie der Logik).
+        val src = source("BikeContextGuard.kt")
+        assertThat(src.contains("class BikeContextGuard")).isTrue()
+        val androidImports = Regex("^import android", RegexOption.MULTILINE).findAll(src).count()
+        assertWithMessage("BikeContextGuard muss Android-frei bleiben (JVM-testbar)")
+            .that(androidImports).isEqualTo(0)
+        // Die Frische-Grenze ist an die Rad-Evidence gekoppelt (eine
+        // Zeitbasis für Gate und Session).
+        assertThat(src.contains("DriveDetectionEngine.BICYCLE_EVIDENCE_MAX_AGE_MS")).isTrue()
+    }
 }

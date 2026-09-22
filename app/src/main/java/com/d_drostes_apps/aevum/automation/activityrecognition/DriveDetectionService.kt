@@ -986,7 +986,18 @@ class DriveDetectionService : Service() {
             // Step-Stream läuft nur im TRACK_DRIVE-Fenster, aber der
             // Service kann in einen anderen Modus wechseln, während das
             // Sensor-Event in-flight ist).
-            if (!bridge.isDriveActive()) return
+            //
+            // M18.135 (Kanban t_8e2889cd): „Bestätigte Fahrt" heißt seit
+            // diesem Fix: Auto-Session ODER automatische RAD-Session.
+            // `isDriveActive()` ist für eine radfahren-Session false (nur
+            // markDriveConfirmed setzt es — der Fahrzeug-Start-Pfad),
+            // deshalb war dieses Gate für Radfahrten GESCHLOSSEN, obwohl
+            // der Detektor korrekt feuerte: Die Radfahrt endete nur über den
+            // 5-Minuten-Watchdog, nicht über „abgestellt + geht". Die
+            // Live-Session wird direkt gelesen (M18.75/M18.76-Lehre: kein
+            // zweites Flag, das ein Stop-Pfad verpassen kann).
+            val autoSession = liveActivityManager.liveSession.value
+            if (!bridge.isDriveActive() && !isLiveAutoTrackedSession(autoSession)) return
             if (!bridge.isStepWalkStopEnabled()) return
             val now = System.currentTimeMillis()
             val shouldStop = bridge.onStepWalkStopStep(now)

@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -435,58 +434,171 @@ class CyclingVsCarDetectionTest {
     }
 
     // ──────────────────────────────────────────────────────────────
-    // 6) BEKANNTE LÜCKE (Follow-up-Karte) — nicht als Bestand gepinnt
+    // 6) M18.135 — DIE EXIT-LÜCKE IST GESCHLOSSEN (Follow-up-Karte)
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * BEKANNTE LÜCKE (gemessen, Kanban t_88146697 → Follow-up-Karte):
+     * Der Auto-Start-Spiegel des Produktionspfades MIT den beiden
+     * M18.135-Schutzebenen:
+     *  1. `currentMotionContext()` liefert den EFFEKTIVEN Kontext — das
+     *     Zweirad-Gate ([BikeContextGuard]) hält ON_BICYCLE, solange ein
+     *     bestätigtes Rad-Sample frisch ist. `classify` verlangt dann
+     *     12 m/s (43,2 km/h).
+     *  2. Der DriveStartWorker-Guard: Läuft eine automatische
+     *     radfahren-Session, entsteht KEINE Auto-Session darüber, solange
+     *     die Bewegung nicht auf Fahrzeug-Niveau ist
+     *     ([DriveDetectionEngine.isVehicleLevelMovement], 12-m/s-Gate).
      *
-     * Nach einem ON_BICYCLE-EXIT nimmt der Transition-Receiver den
-     * Motion-Kontext auf UNKNOWN zurück (2 Samples). Ist der EXIT ein
-     * Google-Artefakt (die Lehre aus M18.93v9: „Google liefert
-     * regelmäßig EXIT-Artefakte") und fährt der User weiter, gilt für
-     * 60 s wieder die 8-m/s-Schwelle: Bei 29 km/h klassifiziert die
-     * Engine dann `Driving`, `markDriveConfirmed` + DriveStartWorker
-     * starten eine „Autofahren"-Session — der DriveStartWorker-Duplikat-
-     * Guard prüft nur `driving`, nicht die laufende `radfahren`-Session,
-     * und `isDriveActive` ist für eine Rad-Session false.
-     *
-     * Gemessen (JVM, echte Produktionsklassen): 29 km/h → Auto-Session
-     * 15 s nach dem EXIT, die Rad-Session wird dabei von
-     * `trimOverlappingForNewSession` beendet (inserted = [radfahren,
-     * driving]); 32 km/h → Auto-Session ebenfalls, Rad-Session bleibt
-     * live (Überlappung, inserted = [radfahren, driving]).
-     *
-     * Der Test bleibt bewusst @Ignore: er kodiert die GEWÜNSCHTE
-     * Invariante (kein Auto-Start, solange eine Rad-Session lebt) statt
-     * den Bug als Bestand festzuschreiben. Er wird mit dem Fix der
-     * Follow-up-Karte aktiviert.
+     * @return true = es wurde tatsächlich eine Auto-Session gestartet
+     *   (der Fehlerfall, den der Test verlangt = false).
      */
-    @Ignore("Bekannte Lücke — Auto-Start über eine laufende Rad-Session im ON_BICYCLE-EXIT-Fenster (siehe Follow-up-Karte)")
+    private suspend fun driveStartAttempted(
+        b: ActivityRecognitionBridge,
+        manager: LiveActivityManager,
+        bike: ActivitySession?
+    ): Boolean {
+        val carLive = manager.liveSession.value?.let {
+            it.isLive && it.activityTypeId == "driving" &&
+                it.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+        } == true
+        if (carLive) return false
+        val now = b.currentDriveProbes().lastOrNull()?.timestampMs ?: return false
+        if (b.isDriveActive() || !b.isDrivingEnabled() || b.isWithinDriveRestartCooldown(now)) {
+            return false
+        }
+        val fastStart = DriveDetectionEngine.shouldFastStart(
+            b.currentDriveProbes(), b.vehicleEvidence(), now, b.currentGeofenceContext(),
+            b.currentCadenceHz(), b.currentCadenceValidFraction()
+        )
+        val classification = DriveDetectionEngine.classify(
+            b.currentDriveProbes(), now, b.currentGeofenceContext(),
+            b.currentMotionContext(), b.currentCadenceHz(), b.currentCadenceValidFraction()
+        )
+        if (fastStart || classification !is DriveDetectionEngine.Classification.Driving) {
+            return false
+        }
+        // Gate des Workers: laufende Rad-Session + kein Fahrzeug-Niveau
+        // = kein Start. (Genau diese Zeile ist der zu testende Fix.)
+        val bikeLive = bike != null && manager.liveSession.value?.isLive == true
+        val vehicleLevel = DriveDetectionEngine.isVehicleLevelMovement(
+            b.currentDriveProbes(), now, b.currentGeofenceContext(),
+            b.currentCadenceHz(), b.currentCadenceValidFraction()
+        )
+        if (bikeLive && !vehicleLevel) return false
+
+        // Der Start würde stattfinden — genau das verbietet der Test.
+        val s = manager.start(
+            activityTypeId = "driving", title = "Autofahren",
+            sourceType = "ACTIVITY_RECOGNITION_AUTO", startedAt = now
+        )
+        awaitLive(manager, s.id)
+        return true
+    }
+
+    /**
+     * M18.135 (vormals @Ignore): Ein transienter ON_BICYCLE-EXIT darf
+     * keine Autofahrt über der laufenden Rad-Session starten.
+     *
+     * GEMESSENER BUG (t_88146697): Der EXIT setzte den Kontext auf UNKNOWN
+     * (2 Samples, `ActivityRecognitionWorker` Z.1504-1515) und für ~60 s
+     * galt wieder die 8-m/s-Schwelle. Bei 29 km/h klassifizierte die
+     * Engine dann `Driving` 15 s nach dem EXIT, `markDriveConfirmed` +
+     * DriveStartWorker starteten eine „Autofahren"-Session — bei 29 km/h
+     * beendete `trimOverlappingForNewSession` die Rad-Session
+     * (`inserted = [radfahren, driving]`, live = driving/RUNNING), bei
+     * 32 km/h blieb die Rad-Session als Overlap live. 25 km/h blieb
+     * korrekt (unter der 8-m/s-Schwelle).
+     *
+     * Der Test fährt beide gemessenen Tempi (29 und 32 km/h) über den
+     * vollständigen Entscheidungsweg — EXIT-Ereignis, Kontext-Abfrage,
+     * classify/shouldFastStart, DriveStartWorker-Gates, Session — und
+     * verlangt: keine Auto-Session, die Rad-Session bleibt live.
+     */
     @Test
-    fun `Luecke - transienter ON_BICYCLE-EXIT darf keine Autofahrt ueber der Rad-Session starten`() = runTest {
+    fun `transienter ON_BICYCLE-EXIT darf keine Autofahrt ueber der Rad-Session starten`() = runTest {
+        for (speedKmh in listOf(29.0, 32.0)) {
+            val b = bridge()
+            val repo = FakeActivityRepository()
+            val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+            var positionM = 0.0
+            var bike: ActivitySession? = null
+            var carStarted = false
+            val log = StringBuilder()
+
+            for (t in 0L..8 * 60_000L step 15_000L) {
+                val now = t0 + t
+                val mps = kmh(speedKmh)
+                positionM += mps * 15.0
+                b.addDriveProbe(probe(now, mps, 10f, mps * 15.0, positionM), false)
+
+                // AR-Continuous-Stream: ON_BICYCLE alle 30 s — MIT dem
+                // transienten EXIT-Artefakt bei Minute 3 (EXIT-Marker +
+                // 2× UNKNOWN, exakt wie der Transition-Receiver es tut),
+                // danach läuft der Stream weiter.
+                if (t == 3 * 60_000L) {
+                    b.onBicycleExit(now)
+                    repeat(2) { b.updateMotionContext(DriveDetectionEngine.MotionContext.UNKNOWN) }
+                } else if (t % 30_000L == 0L) {
+                    feedBikeSample(b, now)
+                }
+
+                if (bike == null) {
+                    val ride = DriveDetectionEngine.detectBikeRide(b.currentDriveProbes(), now)
+                    if (ride != null && manager.liveSession.value?.isLive != true) {
+                        bike = manager.start(
+                            activityTypeId = "radfahren", title = "Radfahren",
+                            sourceType = "ACTIVITY_RECOGNITION_AUTO", startedAt = ride.startMs
+                        )
+                        awaitLive(manager, bike.id)
+                        log.append("${speedKmh.toInt()} km/h: RAD-Session @ t=${t / 1000}s\n")
+                    }
+                }
+
+                // Auto-Pfad (Fahrzeug-Erkennung) + Wächter.
+                if (driveStartAttempted(b, manager, bike)) carStarted = true
+
+                log.append(
+                    "  t=${t / 1000}s ctx=${b.currentMotionContext()} " +
+                        "classify=${DriveDetectionEngine.classify(
+                            b.currentDriveProbes(), now, b.currentGeofenceContext(),
+                            b.currentMotionContext(), null, 0f
+                        )::class.simpleName}\n"
+                )
+            }
+            println("=== EXIT-Artefakt bei $speedKmh km/h ===\n$log")
+
+            assertWithMessage("${speedKmh.toInt()} km/h: Auto-Start über der Rad-Session")
+                .that(carStarted).isFalse()
+            assertThat(manager.liveSession.value?.activityTypeId).isEqualTo("radfahren")
+            assertThat(manager.liveSession.value?.isLive).isTrue()
+            // Genau eine Session in der Timeline — keine Überlagerung.
+            assertThat(repo.inserted.map { it.activityTypeId }).containsExactly("radfahren")
+        }
+    }
+
+    @Test
+    fun `25 kmh nach dem EXIT-Artefakt bleibt korrekt ohne Autofahrt`() = runTest {
+        // Der dritte gemessene Fall: 25 km/h erreichte schon VOR dem Fix
+        // keine Autofahrt (unter der 8-m/s-Schwelle) — der Fix darf daran
+        // nichts ändern.
         val b = bridge()
         val repo = FakeActivityRepository()
         val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
         var positionM = 0.0
         var bike: ActivitySession? = null
-        val carSessions = mutableListOf<ActivitySession>()
+        var carStarted = false
 
-        for (t in 0L..8 * 60_000L step 15_000L) {
+        for (t in 0L..6 * 60_000L step 15_000L) {
             val now = t0 + t
-            val mps = kmh(29.0)
+            val mps = kmh(25.0)
             positionM += mps * 15.0
             b.addDriveProbe(probe(now, mps, 10f, mps * 15.0, positionM), false)
-
-            // AR-Continuous-Stream: ON_BICYCLE alle 30 s — MIT dem
-            // transienten EXIT-Artefakt bei Minute 3 (2× UNKNOWN, wie der
-            // Transition-Receiver ihn setzt), danach läuft der Stream weiter.
             if (t == 3 * 60_000L) {
+                b.onBicycleExit(now)
                 repeat(2) { b.updateMotionContext(DriveDetectionEngine.MotionContext.UNKNOWN) }
             } else if (t % 30_000L == 0L) {
                 feedBikeSample(b, now)
             }
-
             if (bike == null) {
                 val ride = DriveDetectionEngine.detectBikeRide(b.currentDriveProbes(), now)
                 if (ride != null && manager.liveSession.value?.isLive != true) {
@@ -497,41 +609,151 @@ class CyclingVsCarDetectionTest {
                     awaitLive(manager, bike.id)
                 }
             }
-
-            if (!b.isDriveActive() && b.isDrivingEnabled() &&
-                !b.isWithinDriveRestartCooldown(now)
-            ) {
-                val fastStart = DriveDetectionEngine.shouldFastStart(
-                    b.currentDriveProbes(), b.vehicleEvidence(), now, b.currentGeofenceContext(),
-                    b.currentCadenceHz(), b.currentCadenceValidFraction()
-                )
-                val classification = DriveDetectionEngine.classify(
-                    b.currentDriveProbes(), now, b.currentGeofenceContext(),
-                    b.currentMotionContext(), b.currentCadenceHz(), b.currentCadenceValidFraction()
-                )
-                if (!fastStart && classification is DriveDetectionEngine.Classification.Driving) {
-                    b.markDriveConfirmed()
-                    val live = manager.liveSession.value
-                    val carLive = live != null && live.isLive &&
-                        live.activityTypeId == "driving" &&
-                        live.sourceType == "ACTIVITY_RECOGNITION_AUTO"
-                    if (!carLive) {
-                        val s = manager.start(
-                            activityTypeId = "driving", title = "Autofahren",
-                            sourceType = "ACTIVITY_RECOGNITION_AUTO", startedAt = now
-                        )
-                        awaitLive(manager, s.id)
-                        carSessions += s
-                    }
-                }
-            }
+            if (driveStartAttempted(b, manager, bike)) carStarted = true
         }
-
-        assertWithMessage(
-            "Solange eine radfahren-Session live ist, darf kein Auto-Start passieren " +
-                "(inserted=${repo.inserted.map { it.activityTypeId }})"
-        ).that(carSessions).isEmpty()
+        assertThat(carStarted).isFalse()
         assertThat(manager.liveSession.value?.activityTypeId).isEqualTo("radfahren")
+    }
+
+    @Test
+    fun `das Rad-Gate haelt den 12-m-s-Kontext auch ohne rohen Rad-Kontext`() {
+        // Die Kern-Invariante des Fixes, direkt an der Produktions-Bridge
+        // gemessen: Der rohe Kontext ist nach dem EXIT-Artefakt UNKNOWN
+        // (2 UNKNOWN-Samples = M18.117-Hysterese), aber der Kontext, den
+        // `classify` liest, bleibt ON_BICYCLE — solange ein bestätigtes
+        // Rad-Sample frisch ist. Die Frische nutzt den realen Wall-Clock
+        // (das Rad-Sample wird „jetzt" gemeldet, das Ablaufen der 90 s
+        // prüft BikeContextGuardTest mit injizierter Zeit).
+        val b = bridge()
+        b.onBicycleSampleWithConfidence(85)
+        b.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        b.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        b.onBicycleExit()
+        repeat(2) { b.updateMotionContext(DriveDetectionEngine.MotionContext.UNKNOWN) }
+
+        assertThat(b.rawMotionContext()).isEqualTo(DriveDetectionEngine.MotionContext.UNKNOWN)
+        assertThat(b.currentMotionContext()).isEqualTo(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        assertThat(b.isBikeGateActive()).isTrue()
+
+        // Und die ENGINE-Gates greifen entsprechend: 32 km/h (8,9 m/s) ist
+        // unter ON_BICYCLE kein `Driving` — über dem (jetzt gehaltenen)
+        // Gate ist es genau das nicht, während eine 8-m/s-Schwelle mit dem
+        // UNKNOWN-Kontext hier `Driving` liefern würde.
+        var pos = 0.0
+        val ride = (0L..3 * 60_000L step 15_000L).map {
+            pos += kmh(32.0) * 15.0
+            probe(t0 + it, kmh(32.0), 10f, kmh(32.0) * 15.0, pos)
+        }
+        val now = t0 + 3 * 60_000L
+        assertThat(
+            DriveDetectionEngine.classify(ride, now, emptyList(), b.currentMotionContext(), null, 0f)
+        ).isEqualTo(DriveDetectionEngine.Classification.NotDriving)
+        assertWithMessage("Gegenprobe: mit UNKNOWN (der alte Zustand) klassifiziert dasselbe Profil als Fahrt")
+            .that(
+                DriveDetectionEngine.classify(ride, now, emptyList(), b.rawMotionContext(), null, 0f)
+            ).isInstanceOf(DriveDetectionEngine.Classification.Driving::class.java)
+    }
+
+    @Test
+    fun `die Frische des Rad-Signals faellt nach 90 s ohne Rad-Samples`() {
+        // Abnahmekriterium 4, zweiter Teil: Bleiben die Rad-Samples aus
+        // (Radfahrt wirklich vorbei), verfällt die Frische und der normale
+        // Auto-Pfad ist wieder frei. Geprüft über die puren Werte, die die
+        // Bridge hält (die Ablauf-Grenze selbst prüft BikeContextGuardTest
+        // mit injizierter Zeit).
+        val b = bridge()
+        assertThat(b.lastConfirmedBikeSampleMs()).isEqualTo(0L)
+        b.onBicycleSampleWithConfidence(85)
+        val at = b.lastConfirmedBikeSampleMs()
+        assertThat(at).isGreaterThan(0L)
+        // Die Grenze ist an die Rad-Evidence gekoppelt (eine Zeitbasis).
+        assertThat(BikeContextGuard.BIKE_GATE_HOLD_MS)
+            .isEqualTo(DriveDetectionEngine.BICYCLE_EVIDENCE_MAX_AGE_MS)
+        val guard = BikeContextGuard()
+        guard.onBicycleSample(at, 85)
+        assertThat(guard.effectiveContext(at + BikeContextGuard.BIKE_GATE_HOLD_MS, DriveDetectionEngine.MotionContext.UNKNOWN))
+            .isEqualTo(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        assertThat(guard.effectiveContext(at + BikeContextGuard.BIKE_GATE_HOLD_MS + 1, DriveDetectionEngine.MotionContext.UNKNOWN))
+            .isEqualTo(DriveDetectionEngine.MotionContext.UNKNOWN)
+    }
+
+    @Test
+    fun `bestätigtes IN_VEHICLE-Sample widerlegt das Rad-Gate sofort`() {
+        // „Rad abgestellt, ins Auto gestiegen": ein bestätigtes
+        // Fahrzeug-Sample (Confidence ≥ 60) verwirft die Rad-Frische
+        // SOFORT — der Übergang braucht dann nur noch das nächste
+        // Kontext-Sample (Hysterese), keine 90-s-Wartezeit.
+        val b = bridge()
+        b.onBicycleSampleWithConfidence(85)
+        b.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        b.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        assertThat(b.isBikeGateActive()).isTrue()
+
+        b.onVehicleSample(80)
+        assertThat(b.lastConfirmedBikeSampleMs()).isEqualTo(0L)
+        // Der Roh-Kontext wechselt erst mit dem zweiten Sample (M18.117-
+        // Hysterese, Produktions-Takt 30 s) — danach ist das Gate zu und
+        // der normale Auto-Pfad frei (M18.130-Bestandsschutz).
+        b.updateMotionContext(DriveDetectionEngine.MotionContext.IN_VEHICLE)
+        b.updateMotionContext(DriveDetectionEngine.MotionContext.IN_VEHICLE)
+        assertThat(b.isBikeGateActive()).isFalse()
+        assertThat(b.currentMotionContext()).isEqualTo(DriveDetectionEngine.MotionContext.IN_VEHICLE)
+
+        // Verrauschte Samples (Confidence < 60) widerlegen NICHTS.
+        val b2 = bridge()
+        b2.onBicycleSampleWithConfidence(85)
+        b2.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        b2.updateMotionContext(DriveDetectionEngine.MotionContext.ON_BICYCLE)
+        b2.onVehicleSample(40)
+        assertThat(b2.isBikeGateActive()).isTrue()
+    }
+
+    @Test
+    fun `schwache Rad-Samples halten das Gate nicht offen`() {
+        // Confidence < BIKE_CONTEXT_MIN_CONFIDENCE (60) = Rauschen: Es
+        // darf weder die Rad-Evidence noch das Gate qualifizieren.
+        val b = bridge()
+        b.onBicycleSampleWithConfidence(59, t0)
+        assertThat(b.lastConfirmedBikeSampleMs()).isEqualTo(0L)
+        assertThat(b.isBikeGateActive(t0 + 1_000L)).isFalse()
+    }
+
+    @Test
+    fun `Motorrad 70 kmh loest eine laufende Rad-Session ab - M18_130-Bestandsschutz`() = runTest {
+        // Abnahmekriterium 4, erster Teil: Ein echtes Motorrad, das Google
+        // als Zweirad führt und auf 70 km/h beschleunigt, darf die
+        // Rad-Session ablösen (das 12-m/s-Gate des Rad-Kontexts ist
+        // erfüllt — isVehicleLevelMovement).
+        val b = bridge()
+        val repo = FakeActivityRepository()
+        val manager = LiveActivityManager(repo, FakeTypeRepository(), FakeTriggerRepository())
+        val bike = manager.start(
+            activityTypeId = "radfahren", title = "Radfahren",
+            sourceType = "ACTIVITY_RECOGNITION_AUTO", startedAt = t0
+        )
+        awaitLive(manager, bike.id)
+
+        var positionM = 0.0
+        for (t in 0L..3 * 60_000L step 15_000L) {
+            val now = t0 + t
+            positionM += kmh(70.0) * 15.0
+            b.addDriveProbe(probe(now, kmh(70.0), 10f, kmh(70.0) * 15.0, positionM), false)
+        }
+        val now = t0 + 3 * 60_000L
+        assertThat(
+            DriveDetectionEngine.isVehicleLevelMovement(
+                b.currentDriveProbes(), now, b.currentGeofenceContext(), null, 0f
+            )
+        ).isTrue()
+        // Und die 29/32-km/h-Radfahrten erreichen dieses Niveau NIE.
+        var pos = 0.0
+        val ride = (0L..3 * 60_000L step 15_000L).map {
+            pos += kmh(32.0) * 15.0
+            probe(t0 + it, kmh(32.0), 10f, kmh(32.0) * 15.0, pos)
+        }
+        assertThat(
+            DriveDetectionEngine.isVehicleLevelMovement(ride, now, emptyList(), null, 0f)
+        ).isFalse()
     }
 
     // ── Fakes (Muster: BicycleRideIntegrationTest) ───────────────────

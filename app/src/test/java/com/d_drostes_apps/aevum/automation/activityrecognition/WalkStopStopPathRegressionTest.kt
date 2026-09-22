@@ -86,8 +86,12 @@ class WalkStopStopPathRegressionTest {
     @Test
     fun `Walk-Stop wahrend aktiver Fahrt schedult DriveStopWorker sofort`() {
         val src = source("ActivityContinuousSamples.kt")
-        val idx = src.indexOf("if (bridge.isDriveActive())")
-        assertWithMessage("Walk-Stop-Block (isDriveActive) nicht gefunden").that(idx).isAtLeast(0)
+        // M18.135: Das Gate liest jetzt die LIVE-SESSION (Fahrt ODER
+        // automatische Radfahrt) — `isDriveActive()` allein war für eine
+        // Rad-Session false und hielt den Trigger geschlossen, obwohl der
+        // Detektor feuerte.
+        val idx = src.indexOf("if (bridge.isDriveActive() || isLiveAutoTrackedSession(autoSession))")
+        assertWithMessage("Walk-Stop-Block (Session-Gate) nicht gefunden").that(idx).isAtLeast(0)
         val end = src.indexOf("else if (bridge.isWalkingEnabled())", idx)
         val block = src.substring(idx, end)
 
@@ -113,9 +117,9 @@ class WalkStopStopPathRegressionTest {
         val src = source("ActivityContinuousSamples.kt")
         val count = Regex("DriveStopWorker\\.schedule\\(context\\)").findAll(src).count()
         assertThat(count).isEqualTo(1)
-        // Der eine Aufruf liegt im Walk-Stop-Block (zwischen Detector-If
+        // Der eine Aufruf liegt im Walk-Stop-Block (zwischen Detector-Gate
         // und Walking-else-Zweig).
-        val walkIdx = src.indexOf("if (bridge.isDriveActive())")
+        val walkIdx = src.indexOf("if (bridge.isDriveActive() || isLiveAutoTrackedSession(autoSession))")
         val elseIdx = src.indexOf("else if (bridge.isWalkingEnabled())", walkIdx)
         val schedIdx = src.indexOf("DriveStopWorker.schedule(context)")
         assertThat(schedIdx).isGreaterThan(walkIdx)
@@ -173,7 +177,7 @@ class WalkStopStopPathRegressionTest {
         // Fallback hinaus VERLÄNGERN — „kein Code-Pfad verlängert eine
         // Fahrt", Integrations-Acceptance t_a92bf972).
         val src = source("ActivityContinuousSamples.kt")
-        val idx = src.indexOf("if (bridge.isDriveActive())")
+        val idx = src.indexOf("if (bridge.isDriveActive() || isLiveAutoTrackedSession(autoSession))")
         assertWithMessage("Walk-Stop-Block nicht gefunden").that(idx).isAtLeast(0)
         val end = src.indexOf("else if (bridge.isWalkingEnabled())", idx)
         val block = src.substring(idx, end)
