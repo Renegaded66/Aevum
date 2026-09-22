@@ -153,12 +153,51 @@ Bei mehreren Treffern gewinnt die Regel mit der höchsten Priorität.
 Ein selbst-erneuernder WorkManager-Job prüft fällige Termine und startet bzw.
 stoppt die Aufzeichnung zum Terminbeginn und -ende. Er plant sich auf die
 **nächste Termingrenze** (max. 15 Minuten), läuft also pünktlich um 10:15 und
-nicht „irgendwann zwischen 10:15 und 10:30". Er liest ausschließlich den
+nicht „irgendwann zwischen 10:15 und 10:30“. Er liest ausschließlich den
 lokalen Termin-Cache — nie den Kalender-Provider direkt.
 
 **Sicherheit:** Der Job stoppt nur Sessions, die er selbst gestartet hat.
 Andere Automatiken (Geofence, Fahrt, Wanderung, App-Aufzeichnung) bleiben
 unangetastet. Verpasste Enden werden per Watchdog nachgeholt.
+
+### Kalender als Fallback: Aufzeichnung mit Wiedereinstieg (M18.134)
+
+Ein Kalender-Termin ist ein **Fallback mit Wiedereinstieg**: Er zeichnet
+immer dann auf, wenn nichts anderes läuft — und kommt nach einer
+Verdrängung zurück, solange sein Termin noch läuft.
+
+So verhält es sich für dich:
+
+1. **Der Termin läuft, solange nichts anderes aufzeichnet.** Beginnt während
+   des Termins eine andere automatische Aufzeichnung (z. B. eine Fahrt),
+   übernimmt diese — die Kalender-Aufzeichnung wird an deren Beginn sauber
+   beendet (keine Überlappung, keine doppelte Zeit).
+2. **Nach dem Ende der anderen Aufzeichnung kommt der Termin sofort
+   zurück** — die Autofahrt endet, der Termin läuft noch: Die
+   Kalender-Aufzeichnung startet automatisch wieder, ohne auf den nächsten
+   15-Minuten-Takt zu warten. Das gilt für alle automatischen Quellen:
+   Fahrt (Stopp + Watchdog), Wanderung, Geofence, App-Tracking, Ping und
+   Bildschirm-Auto-Ende.
+3. **Der Wiedereinstieg beginnt bei der aktuellen Uhrzeit.** Es wird nicht
+   auf den Terminbeginn rückdatiert — die Lücke während der Fahrt bleibt
+   ehrlich leer. Es entsteht nie doppelt erfasste Zeit.
+4. **Ein Termin endet nie vor seiner Zeit.** Die Aufzeichnung läuft bis zum
+   Terminende; ein minimal zu später Stopp ist bewusst besser als ein
+   abgeschnittener Block.
+5. **Ein manueller Stop ist endgültig.** Stoppst du die Aufzeichnung
+   selbst, pausierst sie oder wechselst die Aktivität, wird der Termin
+   **nicht** automatisch wieder aufgenommen — eine menschliche Entscheidung
+   wird nicht heimlich umgedreht.
+6. **Es gibt dafür keine Konfiguration.** Das Fallback-Verhalten ist die
+   Semantik der Kalender-Aufzeichnung und lässt sich nicht abschalten.
+
+**Abgrenzung zur Übernahme-Policy:** Die pro Regel (bzw. Termin) wählbare
+Overlap-Policy regelt unverändert nur, wer eine **laufende** fremde
+Aufzeichnung übernehmen darf. Der Wiedereinstieg greift dagegen nur, wenn
+**keine** andere Aufzeichnung mehr läuft — und nur für Termine, deren
+Aufzeichnung nachweislich von einer anderen Session verdrängt wurde.
+Ein Termin, der nie gestartet war (z. B. weil das Handy aus war), wird nach
+Ablauf der 20-Minuten-Toleranz nicht mehr gestartet.
 
 ### 7-Tage-Vorausschau in der Timeline
 
