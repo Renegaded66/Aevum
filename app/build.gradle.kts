@@ -133,6 +133,17 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    // M18.137 (Kanban t_70a06809): Robolectric-Compose-Tests brauchen die
+    // GEMERGTEN Android-Ressourcen (inkl. Manifest). Ohne diese Option sieht
+    // Robolectric nur ein leeres Default-Manifest und kann die
+    // ComponentActivity aus ui-test-manifest nicht auflösen
+    // ("Unable to resolve activity for Intent ... ComponentActivity").
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 kapt {
@@ -186,6 +197,13 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.truth:truth:1.4.4")
+    // M18.137 (Kanban t_70a06809): Compose-UI-Tests auf JVM-Ebene (Robolectric)
+    // fuer den Icon-Toggle der Top-Aktivitäten. Ohne diese Abhaengigkeiten
+    // laesst sich der Auf-/Zuklapp-Pfad nur auf einem Geraet pruefen — und
+    // hier gibt es keine Hardware-Beschleunigung (/dev/kvm fehlt), also ist
+    // Robolectric der einzige verfuegbare Weg zu echter UI-Evidenz.
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
     // M18.135 (Kanban t_f15f4443): Robolectric + echte Room-In-Memory-DB fuer
     // die Kalender-Resume-INTEGRATIONSTESTS. Die Wiedereinstiegs-Evidenz haengt
     // an zwei echten SQL-Queries (getRecentFinishedBySourceType,
