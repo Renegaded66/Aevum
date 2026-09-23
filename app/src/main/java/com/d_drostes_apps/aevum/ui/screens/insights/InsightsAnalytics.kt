@@ -45,7 +45,14 @@ data class InsightsUiState(
     /** M17.4: Total-Minuten inkl. Tagespauschalen (für Hero-Header). */
     val totalMinutesIncludingAllowances: Int = 0,
     /** M18.36: Exakte Millisekunden (inkl. Pauschalen) — fuer die nicht-gerundete Hero-Anzeige. */
-    val totalMsIncludingAllowances: Long = 0L
+    val totalMsIncludingAllowances: Long = 0L,
+    /**
+     * M18.137 (Kanban t_70a06809): Auf-/Zuklappen der Top-Aktivitäten-Liste.
+     * Zugeklappt zeigt die UI die ersten [TOP_ACTIVITIES_COLLAPSED_COUNT]
+     * Zeilen, aufgeklappt alle. [topBreakdown] enthält IMMER die vollständige,
+     * absteigend sortierte Liste — die Begrenzung ist reine Darstellung.
+     */
+    val topActivitiesExpanded: Boolean = false
 )
 
 data class TimeDistributionSlice(
@@ -234,9 +241,14 @@ object InsightsAnalytics {
                 )
             }
         }
-        // M18.66-FIX17: take(5) nur in der Aktivitäten-Ansicht —
-        // die Kategorie-Ansicht zeigt ALLE Kategorien (sonst fehlt z.B.
-        // Transport bei >5 Kategorien am Tag).
+        // M18.66-FIX17: Kein take(5) mehr — die Kategorie-Ansicht zeigt
+        // weiterhin ALLE Kategorien (sonst fehlt z.B. Transport bei >5
+        // Kategorien am Tag), und die Aktivitäten-Ansicht liefert jetzt
+        // ebenfalls die volle sortierte Liste.
+        // M18.137 (Kanban t_70a06809): Die 5er-Grenze ist eine reine
+        // Anzeige-Grenze und wird in der UI beim Zuklappen angewandt —
+        // sobald der Nutzer ausklappt, sind wirklich alle Aktivitäten
+        // sortiert vorhanden.
         val topBreakdown = (baseBreakdown + allowanceTopBreakdown)
             .groupBy { it.id }
             .map { (id, slices) ->
@@ -246,7 +258,6 @@ object InsightsAnalytics {
                 merged.copy(percent = percent(merged.durationMs, (baseBreakdown.sumOf { it.durationMs } + allowanceMs).coerceAtLeast(1L)))
             }
             .sortedByDescending { it.durationMs }
-            .let { list -> if (breakdownMode == BreakdownMode.Activity) list.take(5) else list }
         return InsightsUiState(
             selectedPeriod = selectedPeriod,
             periodLabel = window.label,
@@ -319,7 +330,13 @@ object InsightsAnalytics {
                     )
                 }
             }
-        }.sortedByDescending { it.durationMs }.take(5)
+        }
+        // M18.137 (Kanban t_70a06809): Hier stand ein `.take(5)`. Auch die
+        // Pauschalen-Slices müssen VOLLSTÄNDIG in die Top-Liste einfließen —
+        // sonst könnte die aufgeklappte Liste bei mehr als fünf pauschal
+        // gezählten Aktivitätstypen wieder unvollständig sein. Die sichtbare
+        // Begrenzung passiert ausschließlich in der UI (zugeklappt = 5).
+        .sortedByDescending { it.durationMs }
     }
 
     /**
@@ -412,7 +429,11 @@ object InsightsAnalytics {
                 )
             }
             .sortedByDescending { it.durationMs }
-            .take(5)
+            // M18.137 (Kanban t_70a06809): Hier stand ein `.take(5)`. Die
+            // Begrenzung auf 5 Zeilen ist jetzt eine REINE ANZEIGE-Frage
+            // (collapsed = erste 5, expanded = alle) und liegt im UI
+            // (TopActivitiesCard). Wäre sie hier, könnte die aufgeklappte
+            // Liste strukturell nie mehr als 5 Aktivitäten zeigen.
     }
 
     private fun buildChanges(

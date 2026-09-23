@@ -44,6 +44,12 @@
 
     <!-- Insights -->
     <string name="insights_top_activities">Top activities</string>
+    <!-- M18.137 (Kanban t_70a06809): screen-reader labels for the icon-only
+         expand/collapse toggle (action + state). -->
+    <string name="insights_top_activities_expand">Show all activities</string>
+    <string name="insights_top_activities_collapse">Collapse activities</string>
+    <string name="insights_top_activities_state_expanded">Expanded</string>
+    <string name="insights_top_activities_state_collapsed">Collapsed</string>
     <string name="insights_changes_title">Changes vs. previous period</string>
     <string name="insights_empty_title">No data yet</string>
     <string name="insights_empty_message">Once you start activities or enable allowances, your patterns will appear here.</string>
