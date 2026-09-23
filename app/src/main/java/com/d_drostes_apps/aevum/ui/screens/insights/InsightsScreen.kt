@@ -114,7 +114,13 @@ fun InsightsScreen(
             item {
                 TopActivitiesCard(
                     mode = uiState.breakdownMode,
-                    items = uiState.topBreakdown,
+                    // M18.137 (Kanban t_13e9f843): Die QUELLE fuer beide
+                    // Zustaende ist `allBreakdown` — die vollstaendige,
+                    // sortierte Liste. Zugeklappt schneidet die Karte selbst
+                    // auf die ersten 5 zu, aufgeklappt zeigt sie alles.
+                    // `topBreakdown` bleibt die Top-5-Ansicht des
+                    // Analytics-Layers und wird hier nicht mehr gebraucht.
+                    items = uiState.allBreakdown,
                     expanded = topActivitiesExpanded,
                     onToggleExpanded = viewModel::toggleTopActivitiesExpanded
                 )
