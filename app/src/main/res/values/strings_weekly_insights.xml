@@ -87,6 +87,9 @@
          leeren Datenbank zu unterscheiden. -->
     <string name="insights_load_failed">Auswertung konnte nicht geladen werden. Bitte erneut versuchen.</string>
     <string name="insights_retry">Erneut versuchen</string>
+    <!-- M18.137 (Kanban t_386782be): Kaltstart-Platzhalter. Bewusst NUR hier
+         verwendet — das Auf-/Zuklappen der Top-Liste ist kein Ladevorgang. -->
+    <string name="insights_loading">Auswertung wird geladen…</string>
 
     <!-- Review Inbox -->
     <string name="review_inbox_eyebrow">Review Inbox</string>
