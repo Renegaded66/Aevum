@@ -250,6 +250,37 @@ class InsightsAllActivitiesTest {
         assertThat(result.allBreakdown).hasSize(4)
     }
 
+    /**
+     * Prozentbasis: die Anteile sind Anteile an der GESAMTEN erfassten Zeit
+     * des Zeitraums (alle Aktivitaeten + Pauschalen) — nicht am
+     * Top-5-Ausschnitt.
+     *
+     * Das ist eine bewusste, sichtbare Korrektur: Frueher war die Basis im
+     * Aktivitaets-Modus die Summe der Top 5, weil dieselbe `.take(5)`-
+     * Kappung auch in die Prozentrechnung floss. Bei mehr als fuenf
+     * Aktivitaeten summierte sich die Anzeige dadurch auf 100 % ueber
+     * einen Ausschnitt, und die Prozente wichen von denen im
+     * Kategorie-Modus (dort war die Basis schon immer vollstaendig) und
+     * von `topActivities.percent` ab.
+     *
+     * Rechnung im Test: 7 Aktivitaeten = 28 h, Pauschale = 4 h → Basis
+     * 32 h. "Deep Work" (7 h) ist damit 7/32 = 21,875 % → 22 %.
+     * Mit der alten Top-5-Basis waere es 7/24 = 29 % gewesen.
+     */
+    @Test
+    fun percentagesAreSharesOfTheWholePeriodNotOfTheTopFive() {
+        val result = build(
+            sessions = sevenActivities(),
+            accumulations = listOf(
+                accumulation(allowanceId = "al1", typeId = "reading", minutes = 240)
+            )
+        )
+
+        val deepWork = result.allBreakdown.first { it.id == "deep_work" }
+        assertThat(deepWork.durationMs).isEqualTo(7 * HOUR)
+        assertThat(deepWork.percent).isEqualTo(22)
+    }
+
     private fun accumulation(
         allowanceId: String,
         typeId: String,
