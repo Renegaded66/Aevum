@@ -44,6 +44,12 @@
 
     <!-- Insights -->
     <string name="insights_top_activities">Top activities</string>
+    <!-- M18.137 (Kanban t_70a06809): screen-reader labels for the icon-only
+         expand/collapse toggle (action + state). -->
+    <string name="insights_top_activities_expand">Show all activities</string>
+    <string name="insights_top_activities_collapse">Collapse activities</string>
+    <string name="insights_top_activities_state_expanded">Expanded</string>
+    <string name="insights_top_activities_state_collapsed">Collapsed</string>
     <string name="insights_changes_title">Changes vs. previous period</string>
     <string name="insights_empty_title">No data yet</string>
     <string name="insights_empty_message">Once you start activities or enable allowances, your patterns will appear here.</string>
@@ -74,6 +80,14 @@
     <string name="insights_card_variety_title">Variety</string>
     <string name="insights_card_variety_message">Your time is spread across several areas of life.</string>
     <string name="insights_allowance_label">%1$s (allowance)</string>
+    <!-- M18.137 (Kanban t_13e9f843): error state of the insights view.
+         Not the "no data" copy — an error must be distinguishable from an
+         actually empty database. -->
+    <string name="insights_load_failed">Could not load the analysis. Please try again.</string>
+    <string name="insights_retry">Try again</string>
+    <!-- M18.137 (Kanban t_386782be): cold-start placeholder. Deliberately used
+         ONLY here — expanding the top-activities list is not a load operation. -->
+    <string name="insights_loading">Loading analysis…</string>
 
     <!-- Review Inbox -->
     <string name="review_inbox_eyebrow">Review Inbox</string>

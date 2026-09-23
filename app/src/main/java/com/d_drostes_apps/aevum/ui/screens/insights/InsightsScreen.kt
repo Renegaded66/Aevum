@@ -1,10 +1,5 @@
 package com.d_drostes_apps.aevum.ui.screens.insights
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,6 +66,53 @@ fun InsightsScreen(
     viewModel: InsightsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    InsightsScreenContent(
+        uiState = uiState,
+        onOpenLifeView = onOpenLifeView,
+        onSelectPeriod = viewModel::selectPeriod,
+        onSelectBreakdownMode = viewModel::setBreakdownMode,
+        onToggleExpanded = viewModel::toggleTopActivitiesExpanded,
+        onRetry = viewModel::retry
+    )
+}
+
+/**
+ * M18.137 (Kanban t_386782be): Der zustandsfreie Rumpf des Screens.
+ *
+ * WARUM AUSGELAGERT: Solange Screen und ViewModel eine Einheit waren, liess
+ * sich die VERDRAHTUNG (liest der Screen wirklich `allBreakdown`? haengt die
+ * Liste am Toggle? erscheint bei Fehler die Fehlerkarte?) nur ueber einen
+ * Hilt-Graph im Test pruefen — praktisch also gar nicht. Genau diese Naht
+ * ist aber der Auftrag dieser Karte.
+ *
+ * Der Rumpf nimmt den [InsightsUiState] und die Handler als Parameter. Damit
+ * kann ein Test JEDEN Zustand rendern (Kaltstart, Fehler, 7 Aktivitaeten)
+ * und die tatsaechliche Compose-Hierarchie pruefen, ohne das ViewModel zu
+ * faken. Der Wrapper oben bleibt die einzige Stelle, die Hilt kennt.
+ */
+@Composable
+internal fun InsightsScreenContent(
+    uiState: InsightsUiState,
+    onOpenLifeView: () -> Unit = {},
+    onSelectPeriod: (InsightPeriod) -> Unit = {},
+    onSelectBreakdownMode: (BreakdownMode) -> Unit = {},
+    onToggleExpanded: () -> Unit = {},
+    onRetry: () -> Unit = {}
+) {
+    // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
+    val topActivitiesExpanded = uiState.topActivitiesExpanded
+    // M18.137 (Kanban t_386782be): Lade-/Fehler-/Inhalts-Phase.
+    //
+    // Der Screen hat drei sich ausschliessende Zustaende. Vorher gab es nur
+    // zwei: Inhalt oder "Noch keine Daten". Ein fehlgeschlagener Aufbau
+    // (errorMessage != null) landete damit optisch bei "Noch keine Daten" —
+    // der Nutzer sah eine leere Auswertung statt einer Fehlermeldung und
+    // hatte keinen Weg zurueck.
+    val phase = insightsPhaseOf(
+        isLoading = uiState.isLoading,
+        errorMessage = uiState.errorMessage,
+        hasData = uiState.hasData
+    )
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -85,135 +128,154 @@ fun InsightsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = AevumSpacing.lg),
+                .padding(horizontal = AevumSpacing.lg)
+                // M18.137 (Kanban t_386782be): Tag fuer die UI-Tests — erlaubt
+                // gezieltes Scrollen zu den hinteren Zeilen (der aufgeklappten
+                // Liste), das sonst am Viewport scheitert.
+                .testTag(INSIGHTS_LIST_TEST_TAG),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = AevumSpacing.lg)
         ) {
             // 1) Hero-Header
             item { InsightsHero(uiState, onOpenLifeView) }
 
-            // 2) Period-Toggle
-            item {
-                PeriodSelector(
-                    selected = uiState.selectedPeriod,
-                    onSelect = viewModel::selectPeriod
-                )
-            }
+            // M18.137 (Kanban t_386782be): Ab hier haengt der Inhalt an der
+            // Phase. Der Hero-Header bleibt in JEDER Phase sichtbar — er zeigt
+            // den Zeitraum und den (ggf. noch leeren) Gesamtwert, also genau
+            // den Rahmen, in dem der Lade-/Fehlerzustand stattfindet.
+            when (phase) {
+                // Kaltstart: die Daten stehen noch aus. Ohne diesen Zweig
+                // stand hier ein leerer Bildschirm mit "Noch keine Daten" —
+                // eine falsche Aussage, solange nur noch nichts geladen ist.
+                InsightsPhase.Loading -> item { InsightsLoadingCard() }
 
-            // 3) Breakdown-Toggle (Aktivität / Kategorie)
-            item {
-                BreakdownToggle(
-                    mode = uiState.breakdownMode,
-                    onSelect = viewModel::setBreakdownMode
-                )
-            }
+                // Fehlgeschlagener Aufbau: benannter Fehler + echter Retry.
+                // Bewusst STATT des Inhalts (nicht zusaetzlich): der Zustand
+                // traegt in diesem Fall keine Daten, ein zusaetzlich
+                // gerendertes "Noch keine Daten" waere irrefuehrend.
+                InsightsPhase.Error -> item {
+                    InsightsErrorCard(
+                        message = uiState.errorMessage.orEmpty(),
+                        onRetry = onRetry
+                    )
+                }
 
-            // 4) Top-Liste (animierte Bars)
-            if (uiState.topBreakdown.isNotEmpty()) {
-                item {
-                    GlassCard(
-                        accentColor = uiState.topBreakdown.firstOrNull()?.color
-                    ) {
-                        Column {
-                            Text(
-                                text = when (uiState.breakdownMode) {
-                                    BreakdownMode.Activity -> stringResource(R.string.insights_top_activities)
-                                    // M18.66-FIX17: keine Top-Begrenzung mehr —
-                                    // ALLE Kategorien werden angezeigt.
-                                    BreakdownMode.Category -> stringResource(R.string.common_categories)
-                                },
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(Modifier.height(AevumSpacing.md))
-                            val maxMs = uiState.topBreakdown.maxOf { it.durationMs }.coerceAtLeast(1L)
-                            uiState.topBreakdown.forEachIndexed { index, slice ->
-                                TopSliceRow(slice = slice, maxMs = maxMs, index = index)
-                                if (index < uiState.topBreakdown.lastIndex) {
-                                    Spacer(Modifier.height(AevumSpacing.sm))
+                InsightsPhase.Content -> {
+                    // 2) Period-Toggle
+                    item {
+                        PeriodSelector(
+                            selected = uiState.selectedPeriod,
+                            onSelect = onSelectPeriod
+                        )
+                    }
+
+                    // 3) Breakdown-Toggle (Aktivität / Kategorie)
+                    item {
+                        BreakdownToggle(
+                            mode = uiState.breakdownMode,
+                            onSelect = onSelectBreakdownMode
+                        )
+                    }
+
+                    // 4) Top-Liste (animierte Bars)
+                    // M18.137 (Kanban t_70a06809): Ausklappbar — zugeklappt die
+                    // ersten 5, aufgeklappt wirklich ALLE Aktivitäten der Periode.
+                    // Die Karte bringt den Icon-Toggle selbst mit und rendert sich
+                    // bei leerer Liste gar nicht.
+                    item {
+                        TopActivitiesCard(
+                            mode = uiState.breakdownMode,
+                            // M18.137 (Kanban t_13e9f843): Die QUELLE fuer beide
+                            // Zustaende ist `allBreakdown` — die vollstaendige,
+                            // sortierte Liste. Zugeklappt schneidet die Karte selbst
+                            // auf die ersten 5 zu, aufgeklappt zeigt sie alles.
+                            // `topBreakdown` bleibt die Top-5-Ansicht des
+                            // Analytics-Layers und wird hier nicht mehr gebraucht.
+                            items = uiState.allBreakdown,
+                            expanded = topActivitiesExpanded,
+                            onToggleExpanded = onToggleExpanded
+                        )
+                    }
+
+                    // 5) Period-Änderungen
+                    if (uiState.changes.isNotEmpty()) {
+                        item {
+                            GlassCard(accentColor = MaterialTheme.colorScheme.primary) {
+                                Column {
+                                    Text(
+                                        stringResource(R.string.insights_changes_title),
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(AevumSpacing.md))
+                                    uiState.changes.forEachIndexed { index, change ->
+                                        ChangeRow(change = change, index = index)
+                                        if (index < uiState.changes.lastIndex) {
+                                            Spacer(Modifier.height(AevumSpacing.sm))
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // 5) Period-Änderungen
-            if (uiState.changes.isNotEmpty()) {
-                item {
-                    GlassCard(accentColor = MaterialTheme.colorScheme.primary) {
-                        Column {
-                            Text(
-                                stringResource(R.string.insights_changes_title),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(Modifier.height(AevumSpacing.md))
-                            uiState.changes.forEachIndexed { index, change ->
-                                ChangeRow(change = change, index = index)
-                                if (index < uiState.changes.lastIndex) {
-                                    Spacer(Modifier.height(AevumSpacing.sm))
+                    // 6) Insight-Cards
+                    if (uiState.insightCards.isNotEmpty()) {
+                        items(uiState.insightCards) { card ->
+                            GlassCard(accentColor = MaterialTheme.colorScheme.tertiary) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
+                                    Spacer(Modifier.width(AevumSpacing.md))
+                                    Column {
+                                        Text(
+                                            card.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            card.message,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // 6) Insight-Cards
-            if (uiState.insightCards.isNotEmpty()) {
-                items(uiState.insightCards) { card ->
-                    GlassCard(accentColor = MaterialTheme.colorScheme.tertiary) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.tertiary
-                                )
+                    // 7) Empty-State
+                    // Nur in der Content-Phase erreichbar — und dort bedeutet
+                    // `!hasData` tatsaechlich "leere Datenbank", nicht "laedt
+                    // noch" und nicht "Laden fehlgeschlagen".
+                    if (!uiState.hasData) {
+                        item {
+                            GlassCard(accentColor = MaterialTheme.colorScheme.outline) {
+                                Column {
+                                    Text(
+                                        stringResource(R.string.insights_empty_title),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(AevumSpacing.sm))
+                                    Text(
+                                        stringResource(R.string.insights_empty_message),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                }
                             }
-                            Spacer(Modifier.width(AevumSpacing.md))
-                            Column {
-                                Text(
-                                    card.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    card.message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 7) Empty-State
-            if (!uiState.hasData) {
-                item {
-                    GlassCard(accentColor = MaterialTheme.colorScheme.outline) {
-                        Column {
-                            Text(
-                                stringResource(R.string.insights_empty_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(Modifier.height(AevumSpacing.sm))
-                            Text(
-                                stringResource(R.string.insights_empty_message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
                         }
                     }
                 }
@@ -374,9 +436,9 @@ private fun BreakdownToggle(
 }
 
 @Composable
-private fun TopSliceRow(slice: TopActivitySlice, maxMs: Long, index: Int) {
+internal fun TopSliceRow(slice: TopActivitySlice, maxMs: Long, index: Int, testTag: String? = null) {
     val progress = (slice.durationMs.toFloat() / maxMs.toFloat()).coerceIn(0f, 1f)
-    Column {
+    Column(modifier = if (testTag == null) Modifier else Modifier.testTag(testTag)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // M18.13: Icon in farbigem Kreis statt nacktem Punkt
             Box(
