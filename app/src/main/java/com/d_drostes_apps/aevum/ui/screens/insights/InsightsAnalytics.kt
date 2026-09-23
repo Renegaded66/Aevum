@@ -42,6 +42,25 @@ data class InsightsUiState(
     // M17.4: Toggle-Zustand + neue "Top Breakdown" Liste je nach Modus
     val breakdownMode: BreakdownMode = BreakdownMode.Activity,
     val topBreakdown: List<TopActivitySlice> = emptyList(),
+    /**
+     * VOLLSTAENDIGE Liste — ALLE Aktivitaeten des Zeitraums, nicht nur die
+     * Top 5. Grundlage fuer das Aufklappen der Top-Liste.
+     *
+     * Sortierung: identisches Kriterium wie die Top 5
+     * (`durationMs` absteigend), zusaetzlich ein deterministischer
+     * Tie-Break auf `label`, damit die Reihenfolge bei gleicher Dauer
+     * stabil bleibt und das Aufklappen nicht springt.
+     *
+     * Wichtig: es gibt bewusst KEINEN zweiten Fetch-Pfad. Die Liste liegt
+     * reaktiv im UiState (Room-Flow → Analytics) — dadurch kann beim
+     * Aufklappen kein doppelter oder veralteter Stand entstehen, und es
+     * gibt nichts nachzuladen, was einen eigenen Ladezustand bräuchte.
+     */
+    val allBreakdown: List<TopActivitySlice> = emptyList(),
+    /** Ladezustand — true, solange der erste Datenstand noch aussteht. */
+    val isLoading: Boolean = false,
+    /** Fehlerzustand — null, wenn der letzte Aufbau erfolgreich war. */
+    val errorMessage: String? = null,
     /** M17.4: Total-Minuten inkl. Tagespauschalen (für Hero-Header). */
     val totalMinutesIncludingAllowances: Int = 0,
     /** M18.36: Exakte Millisekunden (inkl. Pauschalen) — fuer die nicht-gerundete Hero-Anzeige. */
@@ -201,7 +220,11 @@ object InsightsAnalytics {
                 merged.copy(percent = percent(merged.durationMs, (totalMs + allowanceMs).coerceAtLeast(1L)))
             }
             .sortedByDescending { it.durationMs }
-        val topActivities = buildTopActivities(current, typeMap, categoryMap)
+        // M18.137 (Kanban t_13e9f843): Die vollstaendige Aggregation wird
+        // EINMAL gerechnet; die Top 5 sind ihr Praefix. Damit koennen die
+        // zugeklappte und die aufgeklappte Ansicht nicht auseinanderlaufen.
+        val allActivities = aggregateActivities(current, typeMap, categoryMap)
+        val topActivities = allActivities.take(5)
         val changes = buildChanges(context, current, previous, categoryMap)
         val balance = buildBalance(context, current, categoryMap)
         val heatmap = buildWeekHeatmap(active, anchorDate, zoneId)
@@ -241,23 +264,42 @@ object InsightsAnalytics {
                 )
             }
         }
-        // M18.66-FIX17: Kein take(5) mehr — die Kategorie-Ansicht zeigt
-        // weiterhin ALLE Kategorien (sonst fehlt z.B. Transport bei >5
-        // Kategorien am Tag), und die Aktivitäten-Ansicht liefert jetzt
-        // ebenfalls die volle sortierte Liste.
-        // M18.137 (Kanban t_70a06809): Die 5er-Grenze ist eine reine
-        // Anzeige-Grenze und wird in der UI beim Zuklappen angewandt —
-        // sobald der Nutzer ausklappt, sind wirklich alle Aktivitäten
-        // sortiert vorhanden.
-        val topBreakdown = (baseBreakdown + allowanceTopBreakdown)
-            .groupBy { it.id }
-            .map { (id, slices) ->
-                val merged = slices.reduce { a, b ->
-                    a.copy(durationMs = a.durationMs + b.durationMs)
-                }
-                merged.copy(percent = percent(merged.durationMs, (baseBreakdown.sumOf { it.durationMs } + allowanceMs).coerceAtLeast(1L)))
-            }
-            .sortedByDescending { it.durationMs }
+        // M18.137 (Kanban t_13e9f843): Die UNGEKAPPTE Basis. Im
+        // Aktivitaets-Modus ist [baseBreakdown] bereits auf 5 gekappt —
+        // die vollstaendige Liste muss aber aus [allActivities] entstehen,
+        // sonst waere sie ebenfalls nur 5 Eintraege lang. Im Kategorie-
+        // Modus ist [baseBreakdown] schon vollstaendig.
+        val allBaseBreakdown = when (breakdownMode) {
+            BreakdownMode.Activity -> allActivities
+            BreakdownMode.Category -> baseBreakdown
+        }
+        // M18.66-FIX17: take(5) nur in der Aktivitäten-Ansicht —
+        // die Kategorie-Ansicht zeigt ALLE Kategorien (sonst fehlt z.B.
+        // Transport bei >5 Kategorien am Tag).
+        //
+        // M18.137 (Kanban t_13e9f843): Die Prozentbasis wird EINMAL
+        // berechnet und an beide Ansichten gegeben — sonst zeigte die
+        // vollstaendige Liste andere Prozente als die Top 5 und die Zahlen
+        // wuerden beim Auf-/Zuklappen springen.
+        //
+        // Die Basis ist bewusst die ungekappte: die Prozente sind Anteile
+        // am gesamten erfassten Zeitraum und duerfen nicht davon abhaengen,
+        // ob gerade 5 oder alle Zeilen sichtbar sind.
+        val percentBasisMs =
+            allBaseBreakdown.sumOf { it.durationMs } + allowanceMs
+        // Top-5-Ansicht: Bestandsverhalten — gleiche Rechnung, nur gekappt.
+        val topBreakdown = mergeBreakdownSlices(
+            base = baseBreakdown,
+            allowances = allowanceTopBreakdown,
+            percentBasisMs = percentBasisMs
+        ).let { list -> if (breakdownMode == BreakdownMode.Activity) list.take(5) else list }
+        // Vollstaendige Liste: DIESELBE Rechnung auf der ungekappten Basis.
+        // Im Aktivitaets-Modus also ALLE Aktivitaeten statt nur der ersten 5.
+        val allBreakdown = mergeBreakdownSlices(
+            base = allBaseBreakdown,
+            allowances = allowanceTopBreakdown,
+            percentBasisMs = percentBasisMs
+        )
         return InsightsUiState(
             selectedPeriod = selectedPeriod,
             periodLabel = window.label,
@@ -272,6 +314,10 @@ object InsightsAnalytics {
             hasData = totalMs > 0 || allowanceMs > 0,
             breakdownMode = breakdownMode,
             topBreakdown = topBreakdown,
+            // M18.137 (Kanban t_13e9f843): vollstaendige Liste fuer das
+            // Aufklappen — ALLE Aktivitaeten des Zeitraums, gleiche
+            // Sortierung, gleiche Prozentbasis wie die Top 5.
+            allBreakdown = allBreakdown,
             // M17.4: Total-Minuten für Hero-Header inkl. Pauschalen.
             totalMinutesIncludingAllowances = ((totalMs + allowanceMs) / 60_000L).toInt(),
             // M18.36: Exakte Millisekunden — die Hero-Anzeige zeigt jetzt
@@ -330,13 +376,7 @@ object InsightsAnalytics {
                     )
                 }
             }
-        }
-        // M18.137 (Kanban t_70a06809): Hier stand ein `.take(5)`. Auch die
-        // Pauschalen-Slices müssen VOLLSTÄNDIG in die Top-Liste einfließen —
-        // sonst könnte die aufgeklappte Liste bei mehr als fünf pauschal
-        // gezählten Aktivitätstypen wieder unvollständig sein. Die sichtbare
-        // Begrenzung passiert ausschließlich in der UI (zugeklappt = 5).
-        .sortedByDescending { it.durationMs }
+        }.sortedWith(compareByDescending<TopActivitySlice> { it.durationMs }.thenBy { it.label })
     }
 
     /**
@@ -408,7 +448,22 @@ object InsightsAnalytics {
             .sortedByDescending { it.durationMs }
     }
 
-    private fun buildTopActivities(
+    /**
+     * Aggregation der Aktivitaeten des Zeitraums, gruppiert nach
+     * Aktivitaetstyp. Liefert ALLE Gruppen (ungekappt).
+     *
+     * Eine Quelle, zwei Sichten: die Top-5-Ansicht nimmt `take(5)` hiervon,
+     * die vollstaendige Liste nimmt das Ergebnis ganz. Dadurch koennen die
+     * zugeklappte und die aufgeklappte Liste nicht auseinanderlaufen —
+     * gleiche Gruppen, gleiche Reihenfolge, gleiche Prozentbasis.
+     *
+     * Sortierung: `durationMs` absteigend (das Bestands-Kriterium der Top 5),
+     * danach `label` aufsteigend als Tie-Break. Der Tie-Break ist noetig,
+     * weil `sortedByDescending` bei identischer Dauer keine stabile
+     * Anzeige-Reihenfolge garantiert — beim Auf-/Zuklappen wuerde die Liste
+     * sonst springen.
+     */
+    private fun aggregateActivities(
         sessions: List<ClippedInsightSession>,
         typeMap: Map<String, ActivityType>,
         categoryMap: Map<String, Category>
@@ -421,20 +476,47 @@ object InsightsAnalytics {
                 TopActivitySlice(
                     id = id,
                     label = typeMap[id]?.name ?: first.title,
-                    color = categoryColor(first.categoryId ?: typeMap[id]?.defaultCategoryId ?: categoryMap.keys.firstOrNull().orEmpty()),
+                    color = categoryColor(
+                        first.categoryId
+                            ?: typeMap[id]?.defaultCategoryId
+                            ?: categoryMap.keys.firstOrNull().orEmpty()
+                    ),
                     durationMs = duration,
                     percent = percent(duration, total),
                     // M18.13: Icon der Aktivität (falls zugeordnet)
                     icon = typeMap[id]?.icon ?: "•"
                 )
             }
-            .sortedByDescending { it.durationMs }
-            // M18.137 (Kanban t_70a06809): Hier stand ein `.take(5)`. Die
-            // Begrenzung auf 5 Zeilen ist jetzt eine REINE ANZEIGE-Frage
-            // (collapsed = erste 5, expanded = alle) und liegt im UI
-            // (TopActivitiesCard). Wäre sie hier, könnte die aufgeklappte
-            // Liste strukturell nie mehr als 5 Aktivitäten zeigen.
+            .sortedWith(compareByDescending<TopActivitySlice> { it.durationMs }.thenBy { it.label })
     }
+
+    /**
+     * Merged Basis-Slices mit den Pauschalen-Slices zu EINER Liste.
+     *
+     * Die Merge-Semantik (groupBy id + Aufsummieren der Dauer + Neuberechnung
+     * des Prozentsatzes) ist unveraendert aus [build] uebernommen — sie ist
+     * das Bestandsverhalten und wird hier nur als benannte Funktion
+     * herausgezogen, damit Top-5-Ansicht und vollstaendige Liste GARANTIERT
+     * durch dieselbe Rechnung laufen (statt durch zwei Kopien, die
+     * auseinanderdriften koennten).
+     *
+     * [percentBasisMs] ist bewusst ein Parameter: die Prozente beider
+     * Ansichten muessen auf derselben Basis stehen, sonst springen die
+     * Zahlen beim Auf-/Zuklappen.
+     */
+    private fun mergeBreakdownSlices(
+        base: List<TopActivitySlice>,
+        allowances: List<TopActivitySlice>,
+        percentBasisMs: Long
+    ): List<TopActivitySlice> = (base + allowances)
+        .groupBy { it.id }
+        .map { (id, slices) ->
+            val merged = slices.reduce { a, b ->
+                a.copy(durationMs = a.durationMs + b.durationMs)
+            }
+            merged.copy(percent = percent(merged.durationMs, percentBasisMs.coerceAtLeast(1L)))
+        }
+        .sortedWith(compareByDescending<TopActivitySlice> { it.durationMs }.thenBy { it.label })
 
     private fun buildChanges(
         context: Context?,

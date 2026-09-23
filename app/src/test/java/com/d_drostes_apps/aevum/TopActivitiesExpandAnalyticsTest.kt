@@ -75,32 +75,36 @@ class TopActivitiesExpandAnalyticsTest {
     )
 
     /**
-     * KERN-BEWEIS gegen den Nutzer-Bug: die Analytik liefert alle 7
-     * Aktivitäten, nicht nur 5. Vor dem Fix lieferte sie exakt 5.
+     * KERN-BEWEIS gegen den Nutzer-Bug: die VOLLSTÄNDIGE Liste liefert alle
+     * 7 Aktivitäten. Die Top-5-Ansicht ([InsightsUiState.topBreakdown]) bleibt
+     * unverändert bei 5 — das ist das Bestandsverhalten und wird hier
+     * mitgeprüft, damit die Trennung "Top 5" vs. "alle" nicht verwischt.
      */
     @Test
-    fun topBreakdownContainsAllActivitiesNotOnlyFive() {
+    fun allBreakdownContainsAllActivitiesWhileTopBreakdownStaysFive() {
         val result = build(sevenSessions())
 
-        assertThat(result.topBreakdown).hasSize(7)
-        assertThat(result.topBreakdown.map { it.label })
+        assertThat(result.allBreakdown).hasSize(7)
+        assertThat(result.allBreakdown.map { it.label })
             .containsExactly(
                 "Aktivität 1", "Aktivität 2", "Aktivität 3", "Aktivität 4",
                 "Aktivität 5", "Aktivität 6", "Aktivität 7"
             ).inOrder()
+        // Bestandsverhalten der Top-5-Ansicht bleibt bestehen.
+        assertThat(result.topBreakdown).hasSize(5)
     }
 
     /** Sortierung bleibt absteigend nach Dauer — auch jenseits der Top 5. */
     @Test
-    fun topBreakdownStaysSortedByDurationBeyondTheTopFive() {
+    fun allBreakdownStaysSortedByDurationBeyondTheTopFive() {
         val result = build(sevenSessions())
 
-        val durations = result.topBreakdown.map { it.durationMs }
+        val durations = result.allBreakdown.map { it.durationMs }
         assertThat(durations).isEqualTo(durations.sortedDescending())
         // Die letzten beiden Einträge sind kürzer als der fünfte — sie
-        // existieren also NUR, weil nicht mehr gekappt wird.
-        assertThat(result.topBreakdown[6].durationMs)
-            .isLessThan(result.topBreakdown[4].durationMs)
+        // existieren also NUR, weil die volle Liste geführt wird.
+        assertThat(result.allBreakdown[6].durationMs)
+            .isLessThan(result.allBreakdown[4].durationMs)
     }
 
     /** Zugeklappt genau 5 Zeilen, aufgeklappt alle. */
@@ -139,7 +143,9 @@ class TopActivitiesExpandAnalyticsTest {
     fun categoryModeStaysUncappedAndHasNoToggle() {
         val result = build(sevenSessions(), mode = BreakdownMode.Category)
 
-        assertThat(result.topBreakdown).hasSize(3) // 3 Kategorien
+        // 3 Kategorien, sowohl gekappt als auch ungekappt vollständig.
+        assertThat(result.allBreakdown).hasSize(3)
+        assertThat(result.topBreakdown).hasSize(3)
         assertThat(
             topActivitiesVisibleCount(9, BreakdownMode.Category, expanded = false)
         ).isEqualTo(9)
