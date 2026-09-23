@@ -1,10 +1,5 @@
 package com.d_drostes_apps.aevum.ui.screens.insights
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,6 +66,8 @@ fun InsightsScreen(
     viewModel: InsightsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
+    val topActivitiesExpanded = uiState.topActivitiesExpanded
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -109,35 +107,17 @@ fun InsightsScreen(
             }
 
             // 4) Top-Liste (animierte Bars)
-            if (uiState.topBreakdown.isNotEmpty()) {
-                item {
-                    GlassCard(
-                        accentColor = uiState.topBreakdown.firstOrNull()?.color
-                    ) {
-                        Column {
-                            Text(
-                                text = when (uiState.breakdownMode) {
-                                    BreakdownMode.Activity -> stringResource(R.string.insights_top_activities)
-                                    // M18.66-FIX17: keine Top-Begrenzung mehr —
-                                    // ALLE Kategorien werden angezeigt.
-                                    BreakdownMode.Category -> stringResource(R.string.common_categories)
-                                },
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(Modifier.height(AevumSpacing.md))
-                            val maxMs = uiState.topBreakdown.maxOf { it.durationMs }.coerceAtLeast(1L)
-                            uiState.topBreakdown.forEachIndexed { index, slice ->
-                                TopSliceRow(slice = slice, maxMs = maxMs, index = index)
-                                if (index < uiState.topBreakdown.lastIndex) {
-                                    Spacer(Modifier.height(AevumSpacing.sm))
-                                }
-                            }
-                        }
-                    }
-                }
+            // M18.137 (Kanban t_70a06809): Ausklappbar — zugeklappt die
+            // ersten 5, aufgeklappt wirklich ALLE Aktivitäten der Periode.
+            // Die Karte bringt den Icon-Toggle selbst mit und rendert sich
+            // bei leerer Liste gar nicht.
+            item {
+                TopActivitiesCard(
+                    mode = uiState.breakdownMode,
+                    items = uiState.topBreakdown,
+                    expanded = topActivitiesExpanded,
+                    onToggleExpanded = viewModel::toggleTopActivitiesExpanded
+                )
             }
 
             // 5) Period-Änderungen
@@ -374,9 +354,9 @@ private fun BreakdownToggle(
 }
 
 @Composable
-private fun TopSliceRow(slice: TopActivitySlice, maxMs: Long, index: Int) {
+internal fun TopSliceRow(slice: TopActivitySlice, maxMs: Long, index: Int, testTag: String? = null) {
     val progress = (slice.durationMs.toFloat() / maxMs.toFloat()).coerceIn(0f, 1f)
-    Column {
+    Column(modifier = if (testTag == null) Modifier else Modifier.testTag(testTag)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // M18.13: Icon in farbigem Kreis statt nacktem Punkt
             Box(

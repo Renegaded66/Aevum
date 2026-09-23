@@ -47,6 +47,12 @@ class InsightsViewModel @Inject constructor(
     private val _selectedHeatmapDate = MutableStateFlow<java.time.LocalDate?>(null)
     // M17.4: Toggle zwischen Aktivitäts- und Kategorie-Aufschlüsselung.
     private val _breakdownMode = MutableStateFlow(BreakdownMode.Activity)
+    // M18.137 (Kanban t_70a06809): Auf-/Zuklappen der Top-Liste.
+    // Persistiert wie die Period-Auswahl (M18.34) — die Einstellung ist eine
+    // Nutzer-Präferenz und soll einen Screen-Wechsel/Neustart überleben.
+    private val _topActivitiesExpanded = MutableStateFlow(
+        prefs.getBoolean(KEY_TOP_ACTIVITIES_EXPANDED, false)
+    )
 
     private val dataFlow = combine(
         activityRepository.getAll(),
@@ -78,8 +84,9 @@ class InsightsViewModel @Inject constructor(
                 dataFlow,
                 _selectedPeriod,
                 _selectedHeatmapDate,
-                _breakdownMode
-            ) { data, period, heatmapDate, breakdownMode ->
+                _breakdownMode,
+                _topActivitiesExpanded
+            ) { data, period, heatmapDate, breakdownMode, topExpanded ->
         val typeMap = data.types.associateBy { it.id }
         // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
         // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
@@ -134,7 +141,13 @@ class InsightsViewModel @Inject constructor(
             // M17.4: neue Parameter
             allowanceAccumulations = allowanceAccums,
             breakdownMode = breakdownMode
-        ).copy(selectedHeatmapDate = heatmapDate)
+        ).copy(
+            selectedHeatmapDate = heatmapDate,
+            // M18.137: Reiner UI-Zustand — wird bewusst NICHT in
+            // InsightsAnalytics.build entschieden, damit die Analytik
+            // unabhängig von der Darstellung bleibt.
+            topActivitiesExpanded = topExpanded
+        )
         }
     }.stateIn(
         viewModelScope,
@@ -159,6 +172,23 @@ class InsightsViewModel @Inject constructor(
     /** M17.4: Toggle zwischen Aktivitäts- und Kategorie-Aufschlüsselung. */
     fun setBreakdownMode(mode: BreakdownMode) {
         _breakdownMode.value = mode
+        // M18.137: Die Kategorie-Ansicht kennt kein Auf-/Zuklappen (sie zeigt
+        // ohnehin alle Kategorien) — beim Wechsel zurück zur Aktivitäts-
+        // Ansicht startet die Liste wieder zugeklappt. Sonst stünde der
+        // Nutzer nach dem Umschalten vor einer unerwartet langen Liste.
+        _topActivitiesExpanded.value = false
+        prefs.edit().putBoolean(KEY_TOP_ACTIVITIES_EXPANDED, false).apply()
+    }
+
+    /**
+     * M18.137 (Kanban t_70a06809): Klappt die Top-Aktivitäten-Liste auf bzw.
+     * wieder zu. Der Zustand wird persistiert, damit er einen Screen-Wechsel
+     * überlebt (gleiches Muster wie die Period-Auswahl).
+     */
+    fun toggleTopActivitiesExpanded() {
+        val next = !_topActivitiesExpanded.value
+        _topActivitiesExpanded.value = next
+        prefs.edit().putBoolean(KEY_TOP_ACTIVITIES_EXPANDED, next).apply()
     }
 
     private fun computePeriodRange(period: InsightPeriod): Pair<java.time.LocalDate, java.time.LocalDate> {
@@ -185,6 +215,8 @@ class InsightsViewModel @Inject constructor(
     companion object {
         // M18.34: Storage-Key fuer die persistierte Period-Auswahl.
         private const val KEY_PERIOD = "selected_period"
+        // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
+        private const val KEY_TOP_ACTIVITIES_EXPANDED = "top_activities_expanded"
     }
 }
 

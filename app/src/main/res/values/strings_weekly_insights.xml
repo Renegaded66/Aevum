@@ -44,6 +44,14 @@
 
     <!-- Insights -->
     <string name="insights_top_activities">Top Aktivitäten</string>
+    <!-- M18.137 (Kanban t_70a06809): Icon-Toggle zum Auf-/Zuklappen der
+         Top-Aktivitäten. Kein sichtbarer Text — diese Strings sind die
+         Screenreader-Labels (Aktion + Zustand), damit ein reiner Icon-Button
+         bedienbar bleibt. -->
+    <string name="insights_top_activities_expand">Alle Aktivitäten anzeigen</string>
+    <string name="insights_top_activities_collapse">Aktivitäten einklappen</string>
+    <string name="insights_top_activities_state_expanded">Ausgeklappt</string>
+    <string name="insights_top_activities_state_collapsed">Zugeklappt</string>
     <string name="insights_changes_title">Veränderungen zur Vorperiode</string>
     <string name="insights_empty_title">Noch keine Daten</string>
     <string name="insights_empty_message">Sobald du Aktivitäten startest oder Pauschalen aktivierst, tauchen hier deine Muster auf.</string>
