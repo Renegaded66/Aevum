@@ -16,6 +16,7 @@ import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -36,6 +37,16 @@ class InsightsViewModel @Inject constructor(
 ) : ViewModel() {
     private val zoneId = java.time.ZoneId.systemDefault()
     private val anchorDate = java.time.LocalDate.now()
+
+    // M18.137 (Kanban t_13e9f843): Retry-Trigger.
+    //
+    // Warum auf DIESER Ebene und nicht innerhalb des combine? Ein `.catch`
+    // auf dem inneren Flow beendet ihn nach dem Fehler-Emissions-Wert — der
+    // innere combine ist dann tot. Ein Trigger, der nur IM combine haengt,
+    // koennte ihn nicht wiederbeleben. Steht der Trigger im flatMapLatest,
+    // baut ein Bump den kompletten inneren Baum neu auf und ist damit ein
+    // echter Retry.
+    private val _retryTrigger = MutableStateFlow(0)
 
     // M18.34: Die letzte Period-Auswahl wird in SharedPreferences
     // persistiert und beim naechsten Oeffnen wiederhergestellt.
@@ -71,15 +82,26 @@ class InsightsViewModel @Inject constructor(
         DataLayer(sessions, categories, types, allowances)
     }
 
-    val uiState: StateFlow<InsightsUiState> = languageRepository.language
+    val uiState: StateFlow<InsightsUiState> = combine(
+        languageRepository.language,
+        _retryTrigger
+    ) { _, retry -> retry }
         .flatMapLatest { _ ->
             // L10N-RUNTIME-FIX: Sprachwechsel → kompletter Rebuild.
+            // M18.137: Auch ein Retry landet hier — der Bump des Triggers
+            // startet den kompletten inneren Baum neu, inklusive der
+            // Accumulation-Reads, die im Aufbau stecken.
             combine(
                 dataFlow,
                 _selectedPeriod,
                 _selectedHeatmapDate,
                 _breakdownMode
-            ) { data, period, heatmapDate, breakdownMode ->
+            ) { values ->
+                @Suppress("UNCHECKED_CAST")
+                val data = values[0] as DataLayer
+                val period = values[1] as InsightPeriod
+                val heatmapDate = values[2] as java.time.LocalDate?
+                val breakdownMode = values[3] as BreakdownMode
         val typeMap = data.types.associateBy { it.id }
         // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
         // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
@@ -134,16 +156,62 @@ class InsightsViewModel @Inject constructor(
             // M17.4: neue Parameter
             allowanceAccumulations = allowanceAccums,
             breakdownMode = breakdownMode
-        ).copy(selectedHeatmapDate = heatmapDate)
+        ).copy(
+            selectedHeatmapDate = heatmapDate,
+            // M18.137: Der Aufbau ist durchgelaufen → kein Ladezustand,
+            // kein Fehler mehr. Beide Flags gehoeren in den ERFOLGS-Pfad,
+            // damit ein Retry sie zuverlaessig zuruecksetzt.
+            isLoading = false,
+            errorMessage = null
+        )
+        }
+        // M18.137 (Kanban t_13e9f843): Fehlerzustand. Ein Fehler im Aufbau
+        // (z.B. DB-Lesefehler bei den Accumulations) darf den Screen nicht
+        // leer lassen und nicht als unbehandelte Exception hochschlagen —
+        // stattdessen ein benannter Fehlertext plus Retry-Angebot in der UI.
+        //
+        // Bewusst KEIN emit eines Default-States ohne Fehlertext: sonst
+        // saehe der User "keine Daten" statt "Laden fehlgeschlagen" und
+        // haette keinen Weg zurueck ausser die App neu zu starten.
+        .catch { e ->
+            android.util.Log.e(
+                "InsightsViewModel",
+                "uiState combine() failed — emitting error state",
+                e
+            )
+            emit(
+                InsightsUiState(
+                    isLoading = false,
+                    errorMessage = application.getString(R.string.insights_load_failed),
+                    periodLabel = application.getString(R.string.common_today)
+                )
+            )
         }
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
+        // M18.137: Kaltstart-Zustand = "laedt". Der erste echte Wert
+        // ersetzt ihn; bis dahin zeigt die UI einen Indikator statt
+        // faelschlich "keine Daten".
         InsightsUiState(
             periodLabel = application.getString(R.string.common_today),
-            summary = application.getString(R.string.insights_summary_empty)
+            summary = application.getString(R.string.insights_summary_empty),
+            isLoading = true
         )
     )
+
+    /**
+     * M18.137 (Kanban t_13e9f843): Einstiegspunkt fuer "erneut versuchen",
+     * wenn der letzte Aufbau fehlgeschlagen ist.
+     *
+     * Bumpt den Retry-Trigger. Weil der Trigger im flatMapLatest haengt,
+     * wird der KOMPLETTE innere Flow-Baum neu aufgebaut — auch die
+     * suspend-Reads, die im Aufbau stecken. Ein Retry, der nur den
+     * Zustand zuruecksetzt, wuerde am selben Fehler wieder scheitern.
+     */
+    fun retry() {
+        _retryTrigger.value = _retryTrigger.value + 1
+    }
 
     fun selectPeriod(period: InsightPeriod) {
         _selectedPeriod.value = period

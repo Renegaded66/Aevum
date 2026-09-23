@@ -74,6 +74,11 @@
     <string name="insights_card_variety_title">Variety</string>
     <string name="insights_card_variety_message">Your time is spread across several areas of life.</string>
     <string name="insights_allowance_label">%1$s (allowance)</string>
+    <!-- M18.137 (Kanban t_13e9f843): error state of the insights view.
+         Not the "no data" copy — an error must be distinguishable from an
+         actually empty database. -->
+    <string name="insights_load_failed">Could not load the analysis. Please try again.</string>
+    <string name="insights_retry">Try again</string>
 
     <!-- Review Inbox -->
     <string name="review_inbox_eyebrow">Review Inbox</string>
