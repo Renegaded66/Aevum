@@ -78,16 +78,42 @@ class LocationDisclosureTest {
     // ── 2) Einwilligungs-Logik: keine Zustimmung ohne Handlung ───────────
 
     @Test
-    fun `ohne bestaetigte Offenlegung ist der Dialog Pflicht`() {
+    fun `Offenlegung noetig wenn Berechtigung fehlt`() {
+        // M18.142: Maßgeblich ist der AKTUELLE Berechtigungsstatus, nicht eine
+        // gemerkte Zustimmung. Vorher entschied `isAccepted` — dadurch lief
+        // nach einer einmal bestätigten Offenlegung jeder Klick direkt zum
+        // Systemdialog, und wenn Android den Dialog nicht mehr zeigte,
+        // passierte gar nichts („Pending" stand daneben).
         val gate = DisclosureGate(disclosureAccepted = false)
-        assertThat(gate.needsDisclosure(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION)).isTrue()
-        assertThat(gate.needsDisclosure(DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS)).isTrue()
+        assertThat(gate.needsDisclosure(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION, alreadySatisfied = false)).isTrue()
+        assertThat(gate.needsDisclosure(DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS, alreadySatisfied = false)).isTrue()
     }
 
     @Test
-    fun `mit bestaetigter Offenlegung laeuft die Aktion direkt`() {
+    fun `keine Offenlegung wenn Berechtigung bereits erteilt`() {
         val gate = DisclosureGate(disclosureAccepted = true)
-        assertThat(gate.needsDisclosure(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION)).isFalse()
+        assertThat(gate.needsDisclosure(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION, alreadySatisfied = true)).isFalse()
+    }
+
+    @Test
+    fun `Zustimmung allein verhindert die Offenlegung NICHT`() {
+        // Der Kern der Korrektur: Selbst mit dokumentierter Zustimmung muss
+        // die Offenlegung erscheinen, solange die Berechtigung fehlt.
+        val acceptedButNotGranted = DisclosureGate(disclosureAccepted = true)
+        assertThat(
+            acceptedButNotGranted.needsDisclosure(
+                DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION,
+                alreadySatisfied = false
+            )
+        ).isTrue()
+        // Und ohne Zustimmung aber mit erteilter Berechtigung: nichts zu zeigen.
+        val notAcceptedButGranted = DisclosureGate(disclosureAccepted = false)
+        assertThat(
+            notAcceptedButGranted.needsDisclosure(
+                DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION,
+                alreadySatisfied = true
+            )
+        ).isFalse()
     }
 
     @Test

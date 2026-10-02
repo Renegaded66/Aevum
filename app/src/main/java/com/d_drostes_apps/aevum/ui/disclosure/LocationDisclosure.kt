@@ -1,6 +1,9 @@
 package com.d_drostes_apps.aevum.ui.disclosure
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -126,6 +129,23 @@ object LocationDisclosure {
  *
  * [Action] ist das, was der Nutzer auslösen wollte; [needsDisclosure]
  * entscheidet, ob zuerst die Offenlegung gezeigt werden muss.
+ *
+ * ── WARUM DER AKTUELLE BERECHTIGUNGSSTATUS ZÄHLT, NICHT DIE ZUSTIMMUNG ──
+ *
+ * Ein früherer Entwurf ließ das Gate über `LocationDisclosure.isAccepted()`
+ * entscheiden. Das war falsch: Nach einer einmal bestätigten Offenlegung
+ * (z. B. beim App-Start) lief jeder spätere Klick direkt zum Systemdialog —
+ * oder, wenn Android den Dialog nicht mehr zeigte, passierte **gar nichts**.
+ * Der Nutzer sah einen Knopf, der nicht reagiert, obwohl „Pending" daneben
+ * stand.
+ *
+ * Maßgeblich ist deshalb der AKTUELLE Berechtigungsstatus:
+ *   - Berechtigung erteilt       → nichts zu erklären, direkt ausführen
+ *   - Berechtigung nicht erteilt → Offenlegung zeigen, dann anfragen
+ *
+ * Damit erscheint der Dialog auch nach einem Widerruf erneut, und der
+ * `isAccepted`-Zustand dient nur noch als Nachweis der dokumentierten
+ * Einwilligung (Aufbewahrungspflicht), niemals als Abkürzung.
  */
 class DisclosureGate(
     private val disclosureAccepted: Boolean
@@ -140,9 +160,13 @@ class DisclosureGate(
 
     /**
      * true  = Offenlegung zuerst zeigen, das eigentliche Ziel merken.
-     * false = Offenlegung liegt bereits bestätigt vor, direkt ausführen.
+     * false = die Berechtigung liegt bereits vor, direkt ausführen.
+     *
+     * [alreadySatisfied] ist der aktuelle Berechtigungsstatus. Nur wenn er
+     * `true` ist, darf die Offenlegung übersprungen werden; die gemerkte
+     * Zustimmung allein genügt dafür NICHT.
      */
-    fun needsDisclosure(action: Action): Boolean = !disclosureAccepted
+    fun needsDisclosure(action: Action, alreadySatisfied: Boolean): Boolean = !alreadySatisfied
 
     /**
      * Nach Klick auf „Einverstanden": Zustimmung persistieren (Aufrufer)
@@ -329,17 +353,51 @@ class LocationDisclosureGateState(
         private set
 
     /**
+     * Ist die offengelegte Berechtigung bereits erteilt?
+     *
+     * Vordergrund-Standort gilt als erteilt, wenn eine der beiden
+     * Laufzeit-Berechtigungen steht. Für die Hintergrund-Aktion wird geprüft,
+     * ob „Immer erlauben" gesetzt ist.
+     */
+    private fun alreadySatisfied(action: DisclosureGate.Action): Boolean = when (action) {
+        DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION -> foregroundGranted()
+        DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS -> backgroundGranted()
+    }
+
+    private fun foregroundGranted(): Boolean =
+        context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun backgroundGranted(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /**
      * Einstiegspunkt für jede standortbezogene Aktion.
      *
-     * Liegt die bestätigte Offenlegung vor, läuft [onReady] sofort. Sonst
-     * wird die Aktion gemerkt und der Dialog gezeigt — [onReady] läuft dann
-     * erst nach ausdrücklicher Zustimmung.
+     * **Entscheidend ist der AKTUELLE Berechtigungsstatus**, nicht eine
+     * gemerkte Zustimmung. Ein früherer Entwurf prüfte
+     * `LocationDisclosure.isAccepted(context)` — dadurch lief nach einer
+     * einmalig bestätigten Offenlegung jeder weitere Klick direkt zum
+     * Systemdialog. Zeigte Android den Dialog nicht mehr (nach zweimaliger
+     * Ablehnung), passierte gar nichts: Der Nutzer drückte auf „Location",
+     * daneben stand „Pending", und die App reagierte nicht.
+     *
+     * Liegt die Berechtigung vor, läuft [onReady] sofort — es gibt nichts zu
+     * erklären. Sonst wird die Aktion gemerkt und die Offenlegung gezeigt;
+     * [onReady] läuft erst nach ausdrücklicher Zustimmung.
      */
     fun request(
         action: DisclosureGate.Action,
         onReady: (DisclosureGate.Action) -> Unit
     ) {
-        if (LocationDisclosure.isAccepted(context)) {
+        if (DisclosureGate(LocationDisclosure.isAccepted(context))
+                .needsDisclosure(action, alreadySatisfied(action))
+                .not()
+        ) {
             onReady(action)
         } else {
             pendingAction = action

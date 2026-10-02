@@ -76,9 +76,13 @@ import com.d_drostes_apps.aevum.ui.components.EmptyState
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.disclosure.DisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.LOCATION_MEMORY_KEY
 import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureMemory
+import com.d_drostes_apps.aevum.ui.disclosure.openAppSettings
 import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
 import com.d_drostes_apps.aevum.ui.disclosure.rememberLocationDisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.willShowSystemDialog
 
 // ══════════════════════════════════════════════════════
 // M8.1: Automation Status Dashboard (user-facing)
@@ -223,13 +227,51 @@ fun GeofenceEditorScreen(
     viewModel: GeofenceEditorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    val foregroundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val foregroundPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        // M18.142: Dialog-Verlauf pflegen — nach einem Grant von vorn, nach
+        // einer Ablehnung merken (dann führt der nächste Klick in die
+        // App-Einstellungen, weil Android keinen Dialog mehr zeigt).
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            PermissionDisclosureMemory.clearDenied(context, LOCATION_MEMORY_KEY)
+        } else {
+            PermissionDisclosureMemory.markDenied(context, LOCATION_MEMORY_KEY)
+        }
+    }
 
     // M18.139 (Play-Auflage): Deutliche Offenlegung VOR dem Standort-Request.
     // „Aktuellen Standort verwenden" ist der erste Standortzugriff im
     // Geofence-Editor — genau hier muss die Offenlegung erscheinen.
     val disclosureGate = rememberLocationDisclosureGate()
+
+    /**
+     * M18.142: Einziger Ausführungspfad für den Vordergrund-Standort.
+     *
+     * Zeigt Android keinen Systemdialog mehr (nach zweimaliger Ablehnung),
+     * würde `launch(...)` still nichts tun — der Nutzer drückt den Knopf und
+     * es passiert nichts. Dann geht es direkt in die App-Einstellungen.
+     */
+    fun requestForegroundLocation() {
+        if (willShowSystemDialog(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                LOCATION_MEMORY_KEY
+            )
+        ) {
+            foregroundPermission.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else {
+            openAppSettings(context)
+        }
+    }
 
     LaunchedEffect(state.saved) { if (state.saved) onBack() }
 
@@ -240,14 +282,9 @@ fun GeofenceEditorScreen(
         disclosureGate.pendingAction?.let { pending ->
             LocationDisclosureDialog(
                 onAccept = {
-                    disclosureGate.consent {
-                        foregroundPermission.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
+                    // M18.142: der einheitliche Ausführungspfad — kein
+                    // direkter launch(...) mehr.
+                    disclosureGate.consent { requestForegroundLocation() }
                 },
                 onDecline = { disclosureGate.dismiss() },
                 onOpenPrivacyPolicy = { openPrivacyPolicy(context) }
@@ -283,12 +320,7 @@ fun GeofenceEditorScreen(
                         },
                         onRequestLocation = {
                             disclosureGate.request(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION) {
-                                foregroundPermission.launch(
-                                    arrayOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
-                                )
+                                requestForegroundLocation()
                             }
                         },
                         message = state.locationMessage,

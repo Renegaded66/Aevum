@@ -66,8 +66,17 @@ android {
         //   Grund der Play-Ablehnung nicht bei der nächsten Berechtigung
         //   erneut auftritt. Ohne Persistenz: der Dialog hängt am aktuellen
         //   Berechtigungsstatus und erscheint nach einem Widerruf erneut.
-        versionCode = 22
-        versionName = "1.0.21"
+        // M18.142: Fehler aus M18.141 behoben — das Standort-Gate entschied
+        //   über die GEMERKTE Zustimmung (LocationDisclosure.isAccepted)
+        //   statt über den aktuellen Berechtigungsstatus. Nach einer einmal
+        //   bestätigten Offenlegung lief jeder Klick direkt durch: bei
+        //   „Location" passierte nichts sichtbares, bei „Background location"
+        //   ging es ohne Erklärung in die Einstellungen. Jetzt entscheidet
+        //   der Berechtigungsstatus; fehlt die Berechtigung, erscheint der
+        //   Dialog immer. Dazu ein Fallback in die App-Einstellungen, wenn
+        //   Android keinen Systemdialog mehr zeigt.
+        versionCode = 23
+        versionName = "1.0.22"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

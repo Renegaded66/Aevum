@@ -105,6 +105,7 @@ import com.d_drostes_apps.aevum.ui.screens.automation.SleepStatusDialog
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.disclosure.DisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.LOCATION_MEMORY_KEY
 import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
 import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
 import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureGateState
@@ -115,6 +116,7 @@ import com.d_drostes_apps.aevum.ui.disclosure.openAppSettings
 import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
 import com.d_drostes_apps.aevum.ui.disclosure.rememberLocationDisclosureGate
 import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.willShowSystemDialog
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -203,6 +205,11 @@ fun TriggerSettingsScreen(
         val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
+            // M18.142: Dialog-Verlauf zurücksetzen — nach einem Grant beginnt
+            // die Historie von vorn. Sonst würde ein späterer Widerruf als
+            // „dauerhaft abgelehnt" gelten und der Nutzer landete in den
+            // App-Einstellungen statt im normalen Dialog.
+            PermissionDisclosureMemory.clearDenied(context, LOCATION_MEMORY_KEY)
             val fresh = viewModel.uiState.value
             if (!fresh.backgroundLocationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 // Hintergrund-Standort ist KEINE Runtime-Permission — der User
@@ -212,6 +219,10 @@ fun TriggerSettingsScreen(
                 viewModel.setGeofencing(true)
                 pendingTrigger = null
             }
+        } else {
+            // M18.142: Ablehnung merken, damit ein weiterer Klick direkt in die
+            // App-Einstellungen führt (Android zeigt den Dialog dann nicht mehr).
+            PermissionDisclosureMemory.markDenied(context, LOCATION_MEMORY_KEY)
         }
         viewModel.refreshPermissions()
     }
@@ -262,13 +273,27 @@ fun TriggerSettingsScreen(
     // Läuft NUR nach bestätigter Offenlegung (siehe disclosureGate).
     fun runLocationAction(action: DisclosureGate.Action) {
         when (action) {
-            DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION ->
-                locationLauncher.launch(
-                    arrayOf(
+            DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION -> {
+                // M18.142: Zeigt Android keinen Dialog mehr (nach zweimaliger
+                // Ablehnung), würde `launch(...)` still nichts tun — der
+                // Nutzer drückt auf „Location" und es passiert nichts.
+                // Dann direkt in die App-Einstellungen führen.
+                if (willShowSystemDialog(
+                        context,
                         Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
+                        LOCATION_MEMORY_KEY
                     )
-                )
+                ) {
+                    locationLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                } else {
+                    openAppDetails()
+                }
+            }
             DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS -> openAppDetails()
         }
     }

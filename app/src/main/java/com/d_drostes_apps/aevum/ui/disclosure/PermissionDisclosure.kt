@@ -194,68 +194,101 @@ fun isPermissionGranted(context: Context, kind: PermissionDisclosureKind): Boole
 }
 
 /**
+ * Schlüssel für den Dialog-Verlauf des Vordergrund-Standorts.
+ *
+ * Der Standort ist keine [PermissionDisclosureKind] — er hat seinen eigenen
+ * Offenlegungs-Dialog (M18.139). Für die Unterscheidung „noch nie gefragt"
+ * vs. „dauerhaft abgelehnt" braucht er trotzdem einen Verlaufseintrag.
+ *
+ * Bewusst zentral definiert: Beide Screens (Trigger-Einstellungen und
+ * Geofence-Editor) fragen dieselbe Berechtigung an und müssen denselben
+ * Verlaufseintrag nutzen — sonst kennt ein Screen die Ablehnung des anderen
+ * nicht und zeigt dort einen Dialog, der gar nicht mehr erscheint.
+ */
+const val LOCATION_MEMORY_KEY = "LOCATION_FOREGROUND"
+
+/**
  * Wird Android den Systemdialog überhaupt noch zeigen?
  *
  * ── WARUM HIER EIN GEMERKTER ABLEHNUNGS-STATUS NÖTIG IST ──────────────
  *
  * `shouldShowRequestPermissionRationale` (SSRPR) allein reicht NICHT:
  *
- * | Zustand                    | SSRPR | granted |
- * |----------------------------|-------|---------|
- * | noch nie gefragt           | false | false   |
- * | einmal abgelehnt           | true  | false   |
- * | dauerhaft abgelehnt        | false | false   |
- * | erteilt                    | false | false->true |
+ * | Zustand                    | SSRPR |
+ * |----------------------------|-------|
+ * | noch nie gefragt           | false |
+ * | einmal abgelehnt           | true  |
+ * | dauerhaft abgelehnt        | false |
+ * | erteilt                    | false |
  *
  * „noch nie gefragt" und „dauerhaft abgelehnt" haben **denselben** SSRPR-Wert.
  * Wer nur SSRPR auswertet, schickt einen Erstnutzer fälschlich in die
  * Systemeinstellungen, statt ihm den normalen Dialog zu zeigen.
  *
  * Deshalb wird zusätzlich gemerkt, ob für diese Berechtigung schon einmal ein
- * Systemdialog lief und ABGELEHNT wurde ([markDenied]). Erst dann ist
- * `SSRPR == false` ein sicheres Signal für „dauerhaft abgelehnt".
+ * Systemdialog lief und ABGELEHNT wurde ([PermissionDisclosureMemory.markDenied]).
+ * Erst dann ist `SSRPR == false` ein sicheres Signal für „dauerhaft abgelehnt".
  *
  * Wichtig: Das ist **keine Einwilligungs-Marke**, sondern eine technische
  * Tatsache über den Dialogverlauf. Sie berührt die gewünschte Regel nicht —
  * die Erklärung erscheint immer, wenn die Berechtigung nicht erteilt ist.
- * Ein Grant-und-danach-Widerruf setzt [clearDenied] beim Grant zurück; beim
- * nächsten Tippen läuft wieder der normale Dialog.
+ * Ein Grant-und-danach-Widerruf setzt [PermissionDisclosureMemory.clearDenied]
+ * beim Grant zurück; beim nächsten Tippen läuft wieder der normale Dialog.
+ *
+ * [memoryKey] benennt den Verlaufseintrag. Für Berechtigungen außerhalb von
+ * [PermissionDisclosureKind] (z. B. den Vordergrund-Standort) wird ein eigener
+ * Schlüssel übergeben.
  */
-fun willShowSystemDialog(context: Context, kind: PermissionDisclosureKind): Boolean {
-    val permission = kind.permission ?: return false
-    if (isPermissionGranted(context, kind) == true) return false
+fun willShowSystemDialog(context: Context, permission: String, memoryKey: String): Boolean {
+    if (ContextCompat.checkSelfPermission(context, permission) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return false
+    }
     // Einmal abgelehnt → Android zeigt den Dialog erneut.
-    val activity = context as? android.app.Activity ?: return !PermissionDisclosureMemory.wasDenied(context, kind)
-    if (androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)) {
+    val activity = context as? android.app.Activity
+    if (activity != null &&
+        androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+    ) {
         return true
     }
     // SSRPR == false: entweder noch nie gefragt (Dialog erscheint) oder
     // dauerhaft abgelehnt (Dialog erscheint NICHT). Der gemerkte Verlauf
     // entscheidet.
-    return !PermissionDisclosureMemory.wasDenied(context, kind)
+    return !PermissionDisclosureMemory.wasDenied(context, memoryKey)
+}
+
+/** Variante für die Berechtigungen aus [PermissionDisclosureKind]. */
+fun willShowSystemDialog(context: Context, kind: PermissionDisclosureKind): Boolean {
+    val permission = kind.permission ?: return false
+    return willShowSystemDialog(context, permission, kind.name)
 }
 
 /**
  * Technischer Verlauf der Berechtigungs-Dialoge — NICHT die Einwilligung.
  *
- * Getrennt von [PermissionDisclosureMemory] mit klarem Namen, damit niemand
- * diesen Zustand für eine „schon erklärt"-Marke hält: er steuert
- * ausschließlich, ob beim Bestätigen der Systemdialog aufgerufen werden kann
- * oder ob in die App-Einstellungen geführt werden muss.
+ * Dieser Zustand steuert ausschließlich, ob beim Bestätigen der Systemdialog
+ * aufgerufen werden kann oder ob in die App-Einstellungen geführt werden muss.
+ * Er darf **niemals** dazu verwendet werden, einen Erklärungsdialog zu
+ * unterdrücken: maßgeblich ist immer der aktuelle Berechtigungsstatus.
+ * Genau diese Verwechslung war der Fehler, der den Standort-Dialog nach einer
+ * einmaligen Zustimmung verschwinden ließ.
  */
 object PermissionDisclosureMemory {
 
     private const val PREFS = "aevum_permission_dialog_history"
 
-    private fun key(kind: PermissionDisclosureKind) = "denied_${kind.name}"
+    private fun key(memoryKey: String) = "denied_$memoryKey"
 
-    /** true, wenn für diese Berechtigung schon einmal ein Dialog abgelehnt wurde. */
-    fun wasDenied(context: Context, kind: PermissionDisclosureKind): Boolean =
-        prefs(context).getBoolean(key(kind), false)
+    // ── Für Berechtigungen außerhalb des Enums (z. B. Vordergrund-Standort) ──
+
+    /** true, wenn für diesen Schlüssel schon einmal ein Dialog abgelehnt wurde. */
+    fun wasDenied(context: Context, memoryKey: String): Boolean =
+        prefs(context).getBoolean(key(memoryKey), false)
 
     /** Nach einem abgelehnten Systemdialog aufrufen. */
-    fun markDenied(context: Context, kind: PermissionDisclosureKind) {
-        prefs(context).edit().putBoolean(key(kind), true).apply()
+    fun markDenied(context: Context, memoryKey: String) {
+        prefs(context).edit().putBoolean(key(memoryKey), true).apply()
     }
 
     /**
@@ -263,9 +296,20 @@ object PermissionDisclosureMemory {
      * ein späterer Widerruf fälschlich als „dauerhaft abgelehnt" gelten und
      * der Nutzer landete in den Einstellungen statt im normalen Dialog.
      */
-    fun clearDenied(context: Context, kind: PermissionDisclosureKind) {
-        prefs(context).edit().remove(key(kind)).apply()
+    fun clearDenied(context: Context, memoryKey: String) {
+        prefs(context).edit().remove(key(memoryKey)).apply()
     }
+
+    // ── Bequeme Varianten für die Berechtigungen aus dem Enum ────────────────
+
+    fun wasDenied(context: Context, kind: PermissionDisclosureKind): Boolean =
+        wasDenied(context, kind.name)
+
+    fun markDenied(context: Context, kind: PermissionDisclosureKind) =
+        markDenied(context, kind.name)
+
+    fun clearDenied(context: Context, kind: PermissionDisclosureKind) =
+        clearDenied(context, kind.name)
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
