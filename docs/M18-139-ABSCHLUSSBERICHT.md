@@ -181,7 +181,7 @@ veröffentlichte Fassung) und `docs/DATENSCHUTZ.md` synchron erweitert:
 
 ## Tests (maschinelle Absicherung)
 
-**29 neue Tests**, die ein erneutes Durchfallen verhindern:
+**30 neue Tests**, die ein erneutes Durchfallen verhindern:
 
 ### `LocationDisclosureTextTest` (Wortlaut, DE + EN)
 Prüft die String-Ressourcen direkt gegen die Google-Kriterien:
@@ -231,7 +231,7 @@ Services (GeofenceForegroundService entfällt).
 | `ui/disclosure/LocationDisclosureTextTest.kt` | **neu** — 13 Tests |
 | `ui/disclosure/LocationDisclosureWiringTest.kt` | **neu** — 9 Tests |
 | `automation/geofence/GeofenceForegroundService.kt` | **gelöscht** |
-| `AndroidManifest.xml` | Service + 2 ungenutzte Berechtigungen entfernt |
+| `AndroidManifest.xml` | Service + 2 ungenutzte Berechtigungen entfernt; `specialUse`-Subtypen für AppTracking/LiveActivity ergänzt |
 | `AevumApplication.kt` | FGS-Start entfernt, Begründung dokumentiert |
 | `MainActivity.kt` | Start-Offenlegung |
 | `ui/screens/settings/TriggerSettingsScreen.kt` | Gate an beiden Pfaden |
