@@ -1,6 +1,6 @@
 # Datenschutzerklärung für Aevum
 
-**Stand: 31. August 2026**
+**Stand: 2. Oktober 2026**
 
 ---
 
@@ -29,7 +29,20 @@ Aevum verarbeitet alle deine Daten **ausschließlich lokal auf deinem Gerät**.
 
 **Verarbeitung:** vollständig **lokal auf deinem Gerät**. Geofence-Grenzen (Koordinaten + Radius), Besuchszeiträume und ggf. zur Routen-Anzeige aufgezeichnete Positionspunkte werden nur in der lokalen App-Datenbank gespeichert. Es findet **keine Übertragung an den Entwickler oder einen Aevum-Server statt**.
 
-**Berechtigungen:** Genauer Standort (Vordergrund), grober Standort, optional Hintergrund-Standort (nur, wenn du Automatisierungen mit Orten nutzen willst).
+**Berechtigungen:** Genauer Standort (Vordergrund), grober Standort sowie Standort im Hintergrund („Immer erlauben“) — letzterer ist erforderlich, damit die automatische Erkennung ohne dein Zutun funktioniert.
+
+### 3.1.1 Standort im Hintergrund — welche Funktionen ihn nutzen
+
+Aevum erhebt Standortdaten, um die folgenden Funktionen zu ermöglichen — **auch wenn die App geschlossen ist oder nicht verwendet wird**:
+
+- **Ortserkennung (Geofences):** Betreten oder Verlassen von Orten wie Zuhause, Arbeit oder Fitnessstudio startet bzw. beendet Aktivitäten automatisch.
+- **Fahrterkennung:** Autofahrten werden automatisch erkannt und mit ihrer Route aufgezeichnet.
+- **Erkennung von Spaziergängen und Radfahrten:** Wege werden automatisch als Aktivität aufgezeichnet.
+- **Orts-Timeline und unbekannte Orte:** Aevum führt den Verlauf der Orte, an denen du warst.
+
+**Warum der Zugriff im Hintergrund nötig ist:** Diese Funktionen sollen ohne dein Zutun arbeiten. Die Ortswechsel passieren, während dein Handy in der Tasche steckt und Aevum nicht geöffnet ist. Ohne Zugriff im Hintergrund müsstest du die App bei jedem Betreten und Verlassen eines Ortes selbst öffnen — die Automatik wäre keine Automatik mehr. **Alle Standortdaten bleiben dabei ausschließlich lokal auf deinem Gerät.**
+
+Vor der ersten Anfrage der Standortberechtigung zeigt Aevum in der App einen Dialog, der diese Verwendung offenlegt; der Zugriff beginnt erst nach deiner ausdrücklichen Zustimmung. Du kannst die Berechtigung jederzeit in den Systemeinstellungen entziehen (Android: Einstellungen → Apps → Aevum → Berechtigungen → Standort).
 
 ### 3.2 Aktivitätserkennung (Fahrten, Fortbewegung)
 
@@ -106,4 +119,4 @@ Bei funktionalen Änderungen der App (insbesondere neuer Datenverarbeitung) aktu
 
 ---
 
-*Stand: 31. August 2026 — Aevum (com.d_drostes_apps.aevum)*
+*Stand: 2. Oktober 2026 — Aevum (com.d_drostes_apps.aevum)*

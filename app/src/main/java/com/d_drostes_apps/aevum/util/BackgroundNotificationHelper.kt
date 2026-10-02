@@ -12,8 +12,8 @@ import com.d_drostes_apps.aevum.MainActivity
 /**
  * M19: Konsolidierte Hintergrund-Benachrichtigung.
  *
- * Vorher hatten GeofenceForegroundService, DriveDetectionService,
- * AppBlockService und AppTrackingService jeweils EIGENE Notification-
+ * Vorher hatten GeofenceForegroundService (M18.139 entfernt),
+ * DriveDetectionService, AppBlockService und AppTrackingService jeweils EIGENE
  * Channels mit verschiedenen Texten ("Ortserkennung aktiv",
  * "Autofahrt-Erkennung aktiv", "Digital Balance aktiv",
  * "App-Aufzeichnung aktiv"). Der Nutzer sah bis zu 4 Benachrichtigungen,

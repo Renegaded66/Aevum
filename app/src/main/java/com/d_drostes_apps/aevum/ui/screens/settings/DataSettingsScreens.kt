@@ -40,6 +40,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosure
+import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -154,6 +157,8 @@ fun PrivacyScreen(
     val state by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showFinalDialog by remember { mutableStateOf(false) }
+    // M18.139: Offenlegung kann hier erneut angezeigt werden.
+    var showDisclosureDialog by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // Nach erfolgreichem Löschen: App neu starten
@@ -194,6 +199,33 @@ fun PrivacyScreen(
                     )
                 }
             }
+            // M18.139 (Play-Auflage): Die deutliche Offenlegung muss auch
+            // hier nachlesbar sein — inklusive der Möglichkeit, sie erneut
+            // als Dialog zu sehen, und dem Link zur Datenschutzerklärung.
+            AevumCard {
+                Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    Text(
+                        stringResource(R.string.settings_privacy_background_location_title),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        stringResource(R.string.settings_privacy_background_location_body),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 22.sp
+                    )
+                    Spacer(Modifier.height(AevumSpacing.xs))
+                    Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        OutlinedButton(onClick = { showDisclosureDialog = true }) {
+                            Text(stringResource(R.string.settings_privacy_background_location_action))
+                        }
+                        OutlinedButton(onClick = { openPrivacyPolicy(context) }) {
+                            Text(stringResource(R.string.settings_privacy_policy_open))
+                        }
+                    }
+                }
+            }
+
             DataActionCard(
                 title = stringResource(R.string.settings_privacy_delete_all),
                 description = stringResource(R.string.settings_privacy_delete_all_desc),
@@ -203,6 +235,20 @@ fun PrivacyScreen(
             )
             DataStatusMessage(state.message, state.isError, state.isWorking)
         }
+    }
+
+    // M18.139: Offenlegung erneut anzeigen (freiwillig, ohne
+    // Permission-Request) — belegt dem Reviewer, dass die Offenlegung im
+    // normalen App-Betrieb erreichbar ist.
+    if (showDisclosureDialog) {
+        LocationDisclosureDialog(
+            onAccept = {
+                LocationDisclosure.markAccepted(context)
+                showDisclosureDialog = false
+            },
+            onDecline = { showDisclosureDialog = false },
+            onOpenPrivacyPolicy = { openPrivacyPolicy(context) }
+        )
     }
 
     if (showDeleteDialog) {

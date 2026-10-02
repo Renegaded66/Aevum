@@ -75,6 +75,10 @@ import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.EmptyState
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import com.d_drostes_apps.aevum.ui.disclosure.DisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
+import com.d_drostes_apps.aevum.ui.disclosure.rememberLocationDisclosureGate
 
 // ══════════════════════════════════════════════════════
 // M8.1: Automation Status Dashboard (user-facing)
@@ -220,12 +224,36 @@ fun GeofenceEditorScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val foregroundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // M18.139 (Play-Auflage): Deutliche Offenlegung VOR dem Standort-Request.
+    // „Aktuellen Standort verwenden" ist der erste Standortzugriff im
+    // Geofence-Editor — genau hier muss die Offenlegung erscheinen.
+    val disclosureGate = rememberLocationDisclosureGate()
+
     LaunchedEffect(state.saved) { if (state.saved) onBack() }
 
     val isNew = state.form.id == null
     val isQuickMode = state.form.quickKind != null
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        disclosureGate.pendingAction?.let { pending ->
+            LocationDisclosureDialog(
+                onAccept = {
+                    disclosureGate.consent {
+                        foregroundPermission.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                },
+                onDecline = { disclosureGate.dismiss() },
+                onOpenPrivacyPolicy = { openPrivacyPolicy(context) }
+            )
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
@@ -244,8 +272,25 @@ fun GeofenceEditorScreen(
                 item {
                     QuickSetupCard(
                         onQuick = viewModel::applyQuickSetup,
-                        onCurrentLocation = viewModel::useCurrentLocation,
-                        onRequestLocation = { foregroundPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
+                        // M18.139: „Aktueller Standort" greift auf den Standort
+                        // zu → Offenlegung vorschalten. Der reine
+                        // „Standort erlauben"-Button läuft über
+                        // onRequestLocation (eigener Gate-Pfad).
+                        onCurrentLocation = {
+                            disclosureGate.request(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION) {
+                                viewModel.useCurrentLocation()
+                            }
+                        },
+                        onRequestLocation = {
+                            disclosureGate.request(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION) {
+                                foregroundPermission.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                        },
                         message = state.locationMessage,
                         // M18.60: "Standort erlauben" nur zeigen, wenn die
                         // Berechtigung noch nicht erteilt ist.
@@ -279,7 +324,15 @@ fun GeofenceEditorScreen(
                             Text(state.form.name, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
                             Text(state.form.icon, fontSize = 48.sp)
                             Text(stringResource(R.string.automation_quick_mode_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Button(onClick = viewModel::useCurrentLocation, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.automation_use_current_position)) }
+                            Button(
+                                onClick = {
+                                    // M18.139: Standortzugriff → Offenlegung zuerst.
+                                    disclosureGate.request(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION) {
+                                        viewModel.useCurrentLocation()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(stringResource(R.string.automation_use_current_position)) }
                             state.locationMessage?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                         }
                     }

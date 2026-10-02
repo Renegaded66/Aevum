@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M18.139: location disclosure + privacy link in the privacy screen. -->
+    <string name="settings_privacy_policy_link_title">Privacy policy</string>
+    <string name="settings_privacy_policy_link_body">The full privacy policy is available online — the same version that is linked in the Play Store listing.</string>
+    <string name="settings_privacy_policy_open">Open privacy policy</string>
+
+    <string name="settings_privacy_background_location_title">Location in the background</string>
+    <string name="settings_privacy_background_location_body">Aevum collects location data for place detection (geofences), automatic drive detection, detection of walks and bike rides, and the place timeline — even when the app is closed or not in use.\n\nAll location data is stored exclusively on your device. There is no Aevum server, no accounts, no advertising and no sharing with third parties.</string>
+    <string name="settings_privacy_background_location_action">Show disclosure again</string>
+</resources>

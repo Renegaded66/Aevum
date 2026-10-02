@@ -104,6 +104,10 @@ import com.d_drostes_apps.aevum.ui.screens.automation.SleepFusionStatusDialog
 import com.d_drostes_apps.aevum.ui.screens.automation.SleepStatusDialog
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import com.d_drostes_apps.aevum.ui.disclosure.DisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
+import com.d_drostes_apps.aevum.ui.disclosure.rememberLocationDisclosureGate
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -160,6 +164,11 @@ fun TriggerSettingsScreen(
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // M18.139 (Play-Auflage): Deutliche Offenlegung VOR jedem Standort-
+    // Permission-Request. Ohne bestätigte Offenlegung zeigt `request(...)`
+    // zuerst den Dialog — die gemerkte Aktion läuft erst nach Zustimmung.
+    val disclosureGate = rememberLocationDisclosureGate()
 
     // M18.57: Welcher Trigger wartet gerade auf seine Berechtigung?
     // Nach erfolgreicher Erteilung wird genau dieser Trigger aktiviert.
@@ -226,6 +235,26 @@ fun TriggerSettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { viewModel.refreshPermissions() }
 
+    // ── M18.139: Ausführung der gemerkten Standort-Aktion ────────────────
+    // Läuft NUR nach bestätigter Offenlegung (siehe disclosureGate).
+    fun runLocationAction(action: DisclosureGate.Action) {
+        when (action) {
+            DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION ->
+                locationLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS -> openAppDetails()
+        }
+    }
+
+    /** Standortzugriff anfragen — Offenlegung wird automatisch vorgeschaltet. */
+    fun requestLocationAccess(action: DisclosureGate.Action) {
+        disclosureGate.request(action) { ready -> runLocationAction(ready) }
+    }
+
     // M18.57: Bei Rückkehr aus den System-Einstellungen (z.B. nach
     // "Immer erlauben") den Permission-Status neu prüfen und einen
     // wartenden Geofence-Trigger abschließen.
@@ -258,6 +287,18 @@ fun TriggerSettingsScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
+        // M18.139 (Play-Auflage): deutliche Offenlegung. Erscheint vor jedem
+        // Standort-Permission-Request; die Zustimmung ist eine ausdrückliche
+        // Handlung. Wegtippen/Zurück ruft dismiss() — keine Einwilligung,
+        // kein Permission-Request.
+        disclosureGate.pendingAction?.let { pending ->
+            LocationDisclosureDialog(
+                onAccept = { disclosureGate.consent { ready -> runLocationAction(ready) } },
+                onDecline = { disclosureGate.dismiss() },
+                onOpenPrivacyPolicy = { openPrivacyPolicy(context) }
+            )
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
@@ -275,14 +316,11 @@ fun TriggerSettingsScreen(
                     notificationsGranted = state.notificationsGranted,
                     usageStatsGranted = state.usageStatsGranted,
                     onRequestForeground = {
-                        locationLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
+                        requestLocationAccess(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION)
                     },
-                    onRequestBackground = { openAppDetails() },
+                    onRequestBackground = {
+                        requestLocationAccess(DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS)
+                    },
                     onRequestActivityRecognition = {
                         activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                     },
@@ -312,14 +350,9 @@ fun TriggerSettingsScreen(
                             onRequestPermission = {
                                 pendingTrigger = "geofences"
                                 if (!state.foregroundLocationGranted) {
-                                    locationLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.ACCESS_FINE_LOCATION,
-                                            Manifest.permission.ACCESS_COARSE_LOCATION
-                                        )
-                                    )
+                                    requestLocationAccess(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION)
                                 } else {
-                                    openAppDetails()
+                                    requestLocationAccess(DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS)
                                 }
                             }
                         )

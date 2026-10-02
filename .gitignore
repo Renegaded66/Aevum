@@ -6,3 +6,6 @@ local.properties
 .DS_Store
 app/build/
 aevum-m1871.apk
+
+# Kotlin compiler session artifacts (M18.139)
+.kotlin/

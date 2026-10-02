@@ -42,8 +42,23 @@ android {
         // M18.136 (Kanban t_099f1911, Play-Console-Auflagen): R8 aktiviert
         // (Verschleierung war 0 %) + randlose Anzeige abwärtskompatibel.
         // Siehe proguard-rules.pro und LocalizedActivity.enableEdgeToEdge.
-        versionCode = 20
-        versionName = "1.0.19"
+        // M18.139 (Play-Ablehnung Update 1.0.19 / versionCode 20):
+        //   1) Prominent In-App Disclosure für Standort im Hintergrund
+        //      eingebaut (Dialog vor jedem Permission-Request + beim Start
+        //      + im Datenschutz-Screen), DE/EN, mit Wire- und Text-Guards.
+        //   2) GeofenceForegroundService ENTFERNT — Geofencing ist ab
+        //      28.10.2026 kein genehmigter Anwendungsfall für
+        //      FOREGROUND_SERVICE_LOCATION mehr. Die Geofence API braucht
+        //      keinen Dienst (Registrierung via GeofencingClient, Übergänge
+        //      per PendingIntent an den GeofenceBroadcastReceiver).
+        //   3) Manifest bereinigt: FOREGROUND_SERVICE_HEALTH und
+        //      SYSTEM_ALERT_WINDOW waren ungenutzt.
+        //   4) PrivacyScreen: Link zur Datenschutzerklärung + Standort-
+        //      Offenlegung nachlesbar.
+        //   5) Datenschutzerklärung (online + docs/) um Abschnitt
+        //      "Standort im Hintergrund" erweitert.
+        versionCode = 21
+        versionName = "1.0.20"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

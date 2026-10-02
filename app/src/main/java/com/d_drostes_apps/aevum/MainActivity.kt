@@ -37,6 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -50,6 +53,9 @@ import dagger.hilt.components.SingletonComponent
 import com.d_drostes_apps.aevum.navigation.AppDestination
 import com.d_drostes_apps.aevum.navigation.AppNavHost
 import com.d_drostes_apps.aevum.ui.theme.AevumAppTheme
+import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosure
+import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -139,6 +145,22 @@ private fun AevumMainApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+
+    // ── M18.139 (Play-Auflage): Offenlegung bei normaler Nutzung ─────────
+    // Die Richtlinie verlangt, dass die deutliche Offenlegung „bei der
+    // normalen Nutzung der App" erscheint und NICHT erst, nachdem der Nutzer
+    // in ein Menü navigiert. Deshalb erscheint sie einmalig direkt beim
+    // Start — vor jedem späteren Standort-Permission-Request greift
+    // zusätzlich das Gate in den Trigger-Einstellungen bzw. im
+    // Geofence-Editor.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var showStartDisclosure by remember {
+        mutableStateOf(
+            !LocationDisclosure.isAccepted(context) &&
+                !LocationDisclosure.wasOnboardingShown(context)
+        )
+    }
+
     val bottomTabs = listOf(
         MainTab(AppDestination.Dashboard, R.string.dashboard_title),
         MainTab(AppDestination.Insights, R.string.insights_title),
@@ -206,6 +228,24 @@ private fun AevumMainApp() {
                 .consumeWindowInsets(innerPadding)
                 .imePadding()
         )
+
+        // M18.139: Offenlegung beim Start (normale Nutzung, kein Menü).
+        // „Nicht jetzt"/Wegtippen = keine Einwilligung; sie erscheint dann
+        // erneut, sobald der Nutzer eine Standort-Funktion auslöst.
+        if (showStartDisclosure) {
+            LocationDisclosureDialog(
+                onAccept = {
+                    LocationDisclosure.markAccepted(context)
+                    showStartDisclosure = false
+                },
+                onDecline = {
+                    // Kein Consent — aber nicht bei jedem Start nerven.
+                    LocationDisclosure.markOnboardingShown(context)
+                    showStartDisclosure = false
+                },
+                onOpenPrivacyPolicy = { openPrivacyPolicy(context) }
+            )
+        }
     }
 }
 

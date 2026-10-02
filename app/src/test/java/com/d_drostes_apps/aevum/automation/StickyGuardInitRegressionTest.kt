@@ -20,16 +20,19 @@ import java.io.File
  * Service-Erstellung killt den Prozess, BEVOR die UI (Dashboard)
  * erscheint — exakt das gemeldete "stuerzt direkt nach dem Update ab".
  *
- * Diese Tests scannen die 5 Service-Quellen und erzwingen das sichere
+ * Diese Tests scannen die Service-Quellen und erzwingen das sichere
  * Muster: sharedPrefs-Gestuetzte Guards nur als lateinit var mit Init
  * in onCreate — niemals als Property-Init. Ein erneuter Rueckfall auf
  * das M18.122-Muster failt hier sofort, ohne Emulator/Device.
+ *
+ * M18.139: GeofenceForegroundService entfernt (Play-Policy — Geofencing ist
+ * kein genehmigter Anwendungsfall für Dienste im Vordergrund mehr).
+ * Verbleiben: 4 Services.
  */
 class StickyGuardInitRegressionTest {
 
     private val services: List<Pair<String, String>> = listOf(
         "domain/liveactivity/LiveActivityService.kt",
-        "automation/geofence/GeofenceForegroundService.kt",
         "automation/apptracking/AppTrackingService.kt",
         "domain/digital/AppBlockService.kt",
         "automation/activityrecognition/DriveDetectionService.kt",
@@ -58,7 +61,7 @@ class StickyGuardInitRegressionTest {
     }
 
     @Test
-    fun `alle 5 Services deklarieren stickyGuard als lateinit var`() {
+    fun `alle Services deklarieren stickyGuard als lateinit var`() {
         for ((name, src) in services) {
             assertWithMessage("$name: stickyGuard muss lateinit var sein")
                 .that(src.contains("private lateinit var stickyGuard"))

@@ -10,11 +10,22 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <!--
+        M18.139 (Play-Review-Hygiene): ENTFERNT wurden
+          • FOREGROUND_SERVICE_HEALTH — nirgends im Code verwendet (kein
+            Service deklariert den Typ "health"; Health Connect wird über die
+            Health-Connect-SDK-Berechtigungen gelesen, nicht über einen FGS).
+          • SYSTEM_ALERT_WINDOW — nirgends im Code verwendet (die
+            Digital-Balance-Sperre läuft über BlockActivity, seit M18.61g
+            ausdrücklich OHNE Overlay). Ab Android 15 verschärft diese
+            Berechtigung zusätzlich die Regeln für FGS-Starts aus dem
+            Hintergrund — sie ohne Nutzen zu deklarieren erzeugt nur
+            Prüffläche.
+        Nicht deklarierte Berechtigungen sind Teil der Mindestumfang-Prüfung
+        (Google: "request the minimum permission scope necessary").
+    -->
     <!-- M9: Live Activity foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <!-- M18.61: Digital Balance — Overlay-Sperre -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- M8: Health Connect -->
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
@@ -147,7 +158,6 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-
         <!-- M13: Screen On/Off receiver for sleep heuristic (no Health Connect required) -->
         <receiver
             android:name=".automation.sleep.ScreenEventReceiver"
@@ -159,15 +169,26 @@
             </intent-filter>
         </receiver>
 
-        <service
-            android:name=".automation.geofence.GeofenceForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="location|shortService" />
+        <!--
+            M18.139 (Play-Policy 28.10.2026): GeofenceForegroundService wurde
+            ENTFERNT. Google entfernt Geofencing als genehmigten Anwendungsfall
+            für Dienste im Vordergrund ("Apps that only use the foreground
+            service permission for geofencing must remove their foreground
+            service permissions ... from the app manifest across all active
+            tracks"). Der Service verrichtete ohnehin keine Geofence-Arbeit:
+            Registrierung und Transition-Events laufen über GeofencingClient
+            und GeofenceBroadcastReceiver (PendingIntent) — laut Android-Doku
+            braucht die Geofence API keinen laufenden Dienst.
+        -->
 
         <!-- M18.66: Autofahrt-Erkennung über kontinuierlichen GPS-Stream.
              ForegroundService vom Typ "location" (Pflicht ab Android 14+,
              damit requestLocationUpdates im Hintergrund zuverlässig läuft).
-             Wird gestartet, solange die Autofahrt-Erkennung aktiv ist. -->
+             Wird gestartet, solange die Autofahrt-Erkennung aktiv ist.
+             Play-Console-Anwendungsfall: "Background Location Updates:
+             user-initiated location sharing — vehicle activity tracking"
+             (Geofencing ist seit dem 15.04.2026 KEIN zulässiger
+             Anwendungsfall mehr). -->
         <service
             android:name=".automation.activityrecognition.DriveDetectionService"
             android:exported="false"

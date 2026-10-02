@@ -102,7 +102,7 @@
 <header class="hero">
   <div class="badge">100&nbsp;% lokal — kein Server, kein Tracking</div>
   <h1>Datenschutzerklärung</h1>
-  <p class="sub">Aevum — Dein Leben. Automatisch erfasst. &nbsp;·&nbsp; Stand: 31.&nbsp;August&nbsp;2026</p>
+  <p class="sub">Aevum — Dein Leben. Automatisch erfasst. &nbsp;·&nbsp; Stand: 2.&nbsp;Oktober&nbsp;2026</p>
 </header>
 
 <section class="card">
@@ -126,7 +126,18 @@
   <h3>3.1 Standortdaten (Geofences, Orts-Timeline, Fahrterkennung)</h3>
   <p><strong>Zweck:</strong> Automatisches Tracking deiner Aktivitäten an selbst angelegten Orten (z.&nbsp;B. Zuhause, Arbeit), die Orts-Timeline (wann warst du wo) und die Fahrterkennung.</p>
   <p><strong>Verarbeitung:</strong> vollständig <strong>lokal auf deinem Gerät</strong>. Geofence-Grenzen (Koordinaten + Radius), Besuchszeiträume und ggf. zur Routen-Anzeige aufgezeichnete Positionspunkte werden nur in der lokalen App-Datenbank gespeichert. Es findet <strong>keine Übertragung an den Entwickler oder einen Aevum-Server statt</strong>.</p>
-  <p><strong>Berechtigungen:</strong> Genauer Standort (Vordergrund), grober Standort, optional Hintergrund-Standort (nur, wenn du Automatisierungen mit Orten nutzen willst).</p>
+  <p><strong>Berechtigungen:</strong> Genauer Standort (Vordergrund), grober Standort sowie Standort im Hintergrund („Immer erlauben“) — letzterer ist erforderlich, damit die automatische Erkennung ohne dein Zutun funktioniert.</p>
+
+  <h3>3.1.1 Standort im Hintergrund — welche Funktionen ihn nutzen</h3>
+  <p>Aevum erhebt Standortdaten, um die folgenden Funktionen zu ermöglichen — <strong>auch wenn die App geschlossen ist oder nicht verwendet wird</strong>:</p>
+  <ul>
+    <li><strong>Ortserkennung (Geofences):</strong> Betreten oder Verlassen von Orten wie Zuhause, Arbeit oder Fitnessstudio startet bzw. beendet Aktivitäten automatisch.</li>
+    <li><strong>Fahrterkennung:</strong> Autofahrten werden automatisch erkannt und mit ihrer Route aufgezeichnet.</li>
+    <li><strong>Erkennung von Spaziergängen und Radfahrten:</strong> Wege werden automatisch als Aktivität aufgezeichnet.</li>
+    <li><strong>Orts-Timeline und unbekannte Orte:</strong> Aevum führt den Verlauf der Orte, an denen du warst.</li>
+  </ul>
+  <p><strong>Warum der Zugriff im Hintergrund nötig ist:</strong> Diese Funktionen sollen ohne dein Zutun arbeiten. Die Ortswechsel passieren, während dein Handy in der Tasche steckt und Aevum nicht geöffnet ist. Ohne Zugriff im Hintergrund müsstest du die App bei jedem Betreten und Verlassen eines Ortes selbst öffnen — die Automatik wäre keine Automatik mehr. <strong>Alle Standortdaten bleiben dabei ausschließlich lokal auf deinem Gerät.</strong></p>
+  <p>Vor der ersten Anfrage der Standortberechtigung zeigt Aevum in der App einen Dialog, der diese Verwendung offenlegt; der Zugriff beginnt erst nach deiner ausdrücklichen Zustimmung. Du kannst die Berechtigung jederzeit in den Systemeinstellungen entziehen (Android: Einstellungen → Apps → Aevum → Berechtigungen → Standort).</p>
 
   <h3>3.2 Aktivitätserkennung (Fahrten, Fortbewegung)</h3>
   <p>Die App nutzt die Activity-Recognition-API von <strong>Google Play Services</strong>, um Fortbewegungsarten (z.&nbsp;B. Fahren, Gehen) zu erkennen und daraus automatisch Zeit-Einträge vorzuschlagen. Die Erkennungsergebnisse werden lokal gespeichert. Welche Daten Google Play Services dabei verarbeitet, regelt die Datenschutzerklärung von Google.</p>
@@ -198,7 +209,7 @@
 </section>
 
 <footer>
-  <p>Aevum · package&nbsp;com.d_drostes_apps.aevum · Stand 31.&nbsp;August&nbsp;2026</p>
+  <p>Aevum · package&nbsp;com.d_drostes_apps.aevum · Stand 2.&nbsp;Oktober&nbsp;2026</p>
   <p class="muted">Diese Erklärung beschreibt den tatsächlichen Datenfluss der App: lokal zuerst, keine Übertragung an den Entwickler.</p>
 </footer>
 

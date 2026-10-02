@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Prominent In-App Disclosure (Google Play – Standortrichtlinie).
+
+        Pflichtanforderung der Play-Richtlinie "Nutzerdaten – Pflicht zur
+        deutlichen Offenlegung und Einwilligung": Vor JEDER Anfrage einer
+        Standort-Laufzeitberechtigung muss ein Dialog erscheinen, der
+        (a) das Wort "Standort" enthält,
+        (b) ausdrücklich sagt, dass der Zugriff IM HINTERGRUND erfolgt
+            (Formulierung "auch wenn die App geschlossen ist oder nicht
+            verwendet wird"),
+        (c) ALLE Funktionen auflistet, die im Hintergrund auf den Standort
+            zugreifen,
+        (d) eine ausdrückliche, aktive Zustimmung verlangt (Button-Klick;
+            Wegtippen/Zurück gilt NICHT als Einwilligung).
+
+        Texte NICHT ohne erneute Prüfung ändern: Der Wortlaut ist die
+        Grundlage der Play-Erklärung. Bei inhaltlichen Änderungen
+        DISCLOSURE_VERSION in LocationDisclosure.kt erhöhen — dann wird
+        die Offenlegung erneut angezeigt.
+    -->
+    <string name="disclosure_location_title">Standort im Hintergrund</string>
+
+    <string name="disclosure_location_lead">Aevum erhebt Standortdaten, um die Ortserkennung (Geofences), die automatische Fahrterkennung, die Erkennung von Spaziergängen und Radfahrten sowie die Orts-Timeline zu ermöglichen — auch wenn die App geschlossen ist oder nicht verwendet wird.</string>
+
+    <string name="disclosure_location_features_title">Diese Funktionen nutzen den Standort im Hintergrund:</string>
+
+    <string name="disclosure_location_feature_geofence">Ortserkennung (Geofences): Betreten oder Verlassen von Orten wie Zuhause, Arbeit oder Fitnessstudio startet bzw. beendet Aktivitäten automatisch.</string>
+    <string name="disclosure_location_feature_drive">Fahrterkennung: Autofahrten werden automatisch erkannt und mit ihrer Route aufgezeichnet.</string>
+    <string name="disclosure_location_feature_movement">Erkennung von Spaziergängen und Radfahrten: Wege werden automatisch als Aktivität aufgezeichnet.</string>
+    <string name="disclosure_location_feature_places">Orts-Timeline und unbekannte Orte: Aevum führt den Verlauf der Orte, an denen du warst.</string>
+
+    <string name="disclosure_location_why_title">Warum der Zugriff im Hintergrund nötig ist</string>
+    <string name="disclosure_location_why">Diese Funktionen sollen ohne dein Zutun arbeiten. Die Ortswechsel passieren, während dein Handy in der Tasche steckt und Aevum nicht geöffnet ist. Ohne Zugriff im Hintergrund müsstest du die App bei jedem Betreten und Verlassen eines Ortes selbst öffnen — die Automatik wäre keine Automatik mehr.</string>
+
+    <string name="disclosure_location_data_title">Was mit deinen Standortdaten passiert</string>
+    <string name="disclosure_location_data">Alle Standortdaten werden ausschließlich lokal auf deinem Gerät gespeichert. Es gibt keinen Aevum-Server, keine Benutzerkonten, keine Werbung und keine Weitergabe an Dritte. Du kannst den Zugriff jederzeit in den Systemeinstellungen entziehen.</string>
+
+    <string name="disclosure_location_privacy_link">Datenschutzerklärung öffnen</string>
+
+    <string name="disclosure_location_accept">Einverstanden — Standort erlauben</string>
+    <string name="disclosure_location_decline">Nicht jetzt</string>
+
+    <string name="disclosure_location_reminder_text">Aevum erhebt Standortdaten für Ortserkennung, Fahrterkennung, Wege-Erkennung und Orts-Timeline — auch wenn die App geschlossen ist oder nicht verwendet wird. Alle Daten bleiben lokal auf deinem Gerät.</string>
+    <string name="disclosure_location_reminder_action">Erneut anzeigen</string>
+
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>
