@@ -220,6 +220,32 @@ Services (GeofenceForegroundService entfällt).
 
 ---
 
+## Ausblick: Nächste Frist (nicht akut, aber vormerken)
+
+Google hat im April-2026-Paket eine **dritte** Standort-Regel angekündigt
+(„Minimum Scope: Foreground Location Access and the Location Button"):
+
+- **Ab `targetSdk 37` (Android 17)** ist der **Android Location Button** das
+  vorgeschriebene Minimum-Scope-Verfahren für *einmalige* Standortabfragen
+  (Suche in der Nähe, einmaliges Teilen, Adress-Autofill).
+- **Durchsetzung: Ende Januar 2027** (Googles Angabe: „late January 2027";
+  Policy-Compliance verpflichtend ab 27.01.2027).
+- Alle Apps, die `ACCESS_FINE_LOCATION` anfragen, brauchen dann zusätzlich eine
+  **Deklaration** in der Play Console, die begründet, warum der Location Button
+  oder grober Standort nicht ausreichen.
+
+**Aevum-Betroffenheit:** aktuell **nicht akut** — das Projekt steht auf
+`targetSdk 36`. Die Automatik-Funktionen (Geofences, Fahrterkennung, Timeline)
+sind ohnehin **keine** einmaligen Abfragen, sondern dauerhafte Kernfunktionen;
+genau für solche Fälle ist `ACCESS_FINE_LOCATION` weiterhin vorgesehen
+(„Features requiring continuous, real-time tracking while the app is active").
+**Aber:** Sobald auf `targetSdk 37` angehoben wird, muss die
+Minimum-Scope-Deklaration ausgefüllt werden. Dann ist die Begründung dieselbe wie
+im Hintergrund-Formular: dauerhafte automatische Erkennung, kein Einmal-Abruf.
+Das ist ein **Termin zum Vormerken, kein Blocker für diese Einreichung.**
+
+---
+
 ## Was Devon noch tun muss (Play Console, nicht im Code lösbar)
 
 > **Wichtig zur Frist:** Die FGS-Regel ist seit **26.08.2026 in Kraft** (Google:
