@@ -33,7 +33,10 @@ class InsightsViewModel @Inject constructor(
     private val dailyAllowanceRepository: DailyAllowanceRepository,
     // L10N-RUNTIME-FIX: Sprach-Flow — bei Sprachwechsel zur Laufzeit wird
     // die komplette Statistik (inkl. application.getString-Texte) neu gebaut.
-    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository,
+    // M18.138: Bildschirmzeit-Quelle (Digital Balance) — EINE Wahrheit für
+    // alle Statistiken.
+    private val balanceSource: com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 ) : ViewModel() {
     private val zoneId = java.time.ZoneId.systemDefault()
     private val anchorDate = java.time.LocalDate.now()
@@ -72,7 +75,10 @@ class InsightsViewModel @Inject constructor(
         // M17.4: Tagespauschalen — wir laden ALLE Accumululations, weil
         // die Period-Filter (Woche/Monat) in InsightsAnalytics.apply()
         // entschieden werden, nicht hier im ViewModel.
-        dailyAllowanceRepository.getAll()
+        dailyAllowanceRepository.getAll(),
+        // M18.138: Bildschirmzeit (Digital Balance) — ersetzt die
+        // Aufzeichnungen in allen Kennzahlen. 60s-Takt wie der Balance-Tab.
+        balanceSource.dailyTotals(LOOKBACK_DAYS)
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
@@ -80,12 +86,14 @@ class InsightsViewModel @Inject constructor(
         val types = values[2] as List<ActivityType>
         @Suppress("UNCHECKED_CAST")
         val allowances = values[3] as List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
+        @Suppress("UNCHECKED_CAST")
+        val balance = values[4] as Map<java.time.LocalDate, Long>
         // M17.4: Hole die Accumulations einmalig (suspend → first())
         // Achtung: getAll() auf Accumulation existiert nicht im
         // Repository, also müssen wir die Accumulation-Reads im
         // Analytics-Build machen. Wir übergeben nur die Allowance-Liste
         // und laden die Accumulations dort on-demand.
-        DataLayer(sessions, categories, types, allowances)
+        DataLayer(sessions, categories, types, allowances, balance)
     }
 
     val uiState: StateFlow<InsightsUiState> = combine(
@@ -112,6 +120,9 @@ class InsightsViewModel @Inject constructor(
                 val breakdownMode = values[3] as BreakdownMode
                 // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
                 val topExpanded = values[4] as Boolean
+        // M18.138: Bildschirmzeit je Tag (Digital Balance) — sie ersetzt
+        // die Aufzeichnungen in allen Kennzahlen dieses Screens.
+        val balanceMsPerDay = data.balanceMsPerDay
         val typeMap = data.types.associateBy { it.id }
         // M17.4: Tagespauschalen-Accumulations im aktuellen Zeitraum laden
         // und zu den Sessions addieren. Bewusst nur in der Statistik, nicht
@@ -165,7 +176,10 @@ class InsightsViewModel @Inject constructor(
             zoneId = zoneId,
             // M17.4: neue Parameter
             allowanceAccumulations = allowanceAccums,
-            breakdownMode = breakdownMode
+            breakdownMode = breakdownMode,
+            // M18.138: Bildschirmzeit ersetzt die Aufzeichnungen (SCREEN_AUTO)
+            // in sämtlichen Kennzahlen dieser Ansicht.
+            balanceMsPerDay = balanceMsPerDay
         ).copy(
             selectedHeatmapDate = heatmapDate,
             // M18.137 (Kanban t_70a06809): Reiner UI-Zustand — wird bewusst
@@ -278,7 +292,9 @@ class InsightsViewModel @Inject constructor(
         val sessions: List<ActivitySession>,
         val categories: List<Category>,
         val types: List<ActivityType>,
-        val allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance>
+        val allowances: List<com.d_drostes_apps.aevum.data.model.DailyAllowance>,
+        // M18.138: Bildschirmzeit je Tag (Digital Balance).
+        val balanceMsPerDay: Map<java.time.LocalDate, Long> = emptyMap()
     )
 
     companion object {
@@ -286,6 +302,12 @@ class InsightsViewModel @Inject constructor(
         private const val KEY_PERIOD = "selected_period"
         // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
         private const val KEY_TOP_ACTIVITIES_EXPANDED = "top_activities_expanded"
+        /**
+         * M18.138: Rückblick-Fenster für die Bildschirmzeit. Die Insights
+         * zeigen höchstens einen Monat; die Vergleichsperiode (Vormonat)
+         * braucht die doppelte Reichweite. 62 Tage decken beides ab.
+         */
+        private const val LOOKBACK_DAYS = 62
     }
 }
 

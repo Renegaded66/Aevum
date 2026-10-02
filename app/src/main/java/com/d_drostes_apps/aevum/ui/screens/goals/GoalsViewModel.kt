@@ -23,7 +23,9 @@ import javax.inject.Inject
 class GoalsViewModel @Inject constructor(
     private val goalRepository: GoalRepository,
     private val activityRepository: ActivityRepository,
-    private val activityTypeRepository: ActivityTypeRepository
+    private val activityTypeRepository: ActivityTypeRepository,
+    // M18.138: Bildschirmzeit-Quelle (Digital Balance).
+    private val balanceSource: com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 ) : ViewModel() {
 
     private val zoneId = ZoneId.systemDefault()
@@ -33,23 +35,37 @@ class GoalsViewModel @Inject constructor(
         goalRepository.getByStatus("ACTIVE"),
         goalRepository.getByStatus("ARCHIVED"),
         activityRepository.getAll(),
-        activityTypeRepository.getAll()
-    ) { activeGoals, archivedGoals, sessions, types ->
-        buildState(activeGoals, archivedGoals, sessions, types.associateBy { it.id })
+        activityTypeRepository.getAll(),
+        // M18.138: Bildschirmzeit (Digital Balance) — Ziele auf „Digital"
+        // messen die echte Bildschirmzeit, nicht die Aufzeichnung.
+        balanceSource.dailyTotals(LOOKBACK_DAYS)
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val activeGoals = values[0] as List<Goal>
+        @Suppress("UNCHECKED_CAST")
+        val archivedGoals = values[1] as List<Goal>
+        @Suppress("UNCHECKED_CAST")
+        val sessions = values[2] as List<com.d_drostes_apps.aevum.data.model.ActivitySession>
+        @Suppress("UNCHECKED_CAST")
+        val types = values[3] as List<ActivityType>
+        @Suppress("UNCHECKED_CAST")
+        val balance = values[4] as Map<LocalDate, Long>
+        buildState(activeGoals, archivedGoals, sessions, types.associateBy { it.id }, balance)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalsUiState())
 
     private fun buildState(
         activeGoals: List<Goal>,
         archivedGoals: List<Goal>,
         sessions: List<com.d_drostes_apps.aevum.data.model.ActivitySession>,
-        typeMap: Map<String, ActivityType>
+        typeMap: Map<String, ActivityType>,
+        balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): GoalsUiState {
         val active = activeGoals.map { goal ->
-            GoalProgressAnalytics.evaluateGoal(goal, sessions, today, zoneId, typeMap)
+            GoalProgressAnalytics.evaluateGoal(goal, sessions, today, zoneId, typeMap, balanceMsPerDay)
         }.sortedWith(goalProgressComparator())
 
         val archived = archivedGoals.map { goal ->
-            GoalProgressAnalytics.evaluateGoal(goal, sessions, today, zoneId, typeMap)
+            GoalProgressAnalytics.evaluateGoal(goal, sessions, today, zoneId, typeMap, balanceMsPerDay)
         }.sortedWith(goalProgressComparator())
 
         return GoalsUiState(
@@ -74,6 +90,12 @@ class GoalsViewModel @Inject constructor(
         }
 
     companion object {
+        /**
+         * M18.138: Rückblick-Fenster für die Bildschirmzeit. Ziele gibt es
+         * täglich/wöchentlich/monatlich → 32 Tage decken den Monatsfall.
+         */
+        private const val LOOKBACK_DAYS = 32
+
         /** For Dashboard: return top N active goals sorted by progress descending */
         fun getTopProgressGoals(
             activeProgress: List<GoalWithProgress>,

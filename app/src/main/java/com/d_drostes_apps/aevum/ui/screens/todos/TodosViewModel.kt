@@ -26,18 +26,42 @@ import javax.inject.Inject
 class TodosViewModel @Inject constructor(
     private val todoRepo: TodoRepository,
     private val activityRepository: ActivityRepository,
-    activityTypeRepository: ActivityTypeRepository
+    activityTypeRepository: ActivityTypeRepository,
+    // M18.138: Bildschirmzeit-Quelle (Digital Balance).
+    private val balanceSource: com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 ) : ViewModel() {
 
     private val zoneId = ZoneId.systemDefault()
+
+    private companion object {
+        /**
+         * M18.138: Rückblick-Fenster für die Bildschirmzeit. Todos werden
+         * für HEUTE ausgewertet; die kurze Historie deckt Mitternachts-
+         * Randfälle und den Tageswechsel ab.
+         */
+        const val LOOKBACK_DAYS = 3
+    }
 
     val uiState: StateFlow<TodosUiState> = combine(
         todoRepo.getAll(),
         todoRepo.getAllCompletions(),
         activityRepository.getAll(),
-        activityTypeRepository.getAll()
-    ) { todos, completions, sessions, types ->
-        buildState(todos, completions, sessions, types)
+        activityTypeRepository.getAll(),
+        // M18.138: Bildschirmzeit (Digital Balance) — ersetzt die
+        // Aufzeichnungen in den Dauer-Fortschritten (z. B. Digital-Todos).
+        balanceSource.dailyTotals(LOOKBACK_DAYS)
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val todos = values[0] as List<Todo>
+        @Suppress("UNCHECKED_CAST")
+        val completions = values[1] as List<TodoCompletion>
+        @Suppress("UNCHECKED_CAST")
+        val sessions = values[2] as List<ActivitySession>
+        @Suppress("UNCHECKED_CAST")
+        val types = values[3] as List<ActivityType>
+        @Suppress("UNCHECKED_CAST")
+        val balance = values[4] as Map<LocalDate, Long>
+        buildState(todos, completions, sessions, types, balance)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodosUiState())
 
     fun toggle(todoId: String, completed: Boolean) {
@@ -69,7 +93,8 @@ class TodosViewModel @Inject constructor(
         todos: List<Todo>,
         allCompletions: List<TodoCompletion>,
         sessions: List<ActivitySession>,
-        types: List<ActivityType>
+        types: List<ActivityType>,
+        balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): TodosUiState {
         val today = LocalDate.now()
         val typeMap = types.associateBy { it.id }
@@ -79,7 +104,18 @@ class TodosViewModel @Inject constructor(
         val dayStart = TimeFormatting.startOfDayMillis(today, zoneId)
         val dayEnd = TimeFormatting.endOfDayMillis(today, zoneId)
         val durationByType = mutableMapOf<String, Long>()
-        sessions.filter { it.deletedAt == null && it.startAt < dayEnd && (it.endAt == null || it.endAt > dayStart) }
+        // M18.138: Bildschirm-Aufzeichnungen (SCREEN_AUTO) zählen nicht in
+        // die Statistik — stattdessen die echte Bildschirmzeit (Digital
+        // Balance) dieses Tages. Ein „Digital"-Dauer-Todo erreicht sein
+        // Ziel damit über die gemessene Zeit, nicht über die Aufzeichnung.
+        com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
+            .mergeForDay(
+                sessions = sessions.filter { it.deletedAt == null },
+                date = today,
+                balanceMs = balanceMsPerDay[today] ?: 0L,
+                zoneId = zoneId
+            )
+            .filter { it.startAt < dayEnd && (it.endAt == null || it.endAt > dayStart) }
             .forEach { session ->
                 val typeId = session.activityTypeId ?: return@forEach
                 val clipStart = maxOf(session.startAt, dayStart)

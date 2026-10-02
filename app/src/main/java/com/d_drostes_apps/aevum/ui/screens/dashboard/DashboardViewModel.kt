@@ -544,6 +544,8 @@ class DashboardViewModel @Inject constructor(
             // jede Minute — M18.93v7 bleibt erhalten). Für vergangene Tage: der
             // Tageswert aus der Event-API (Mitternachts-Clipping, keine
             // >1s-Filter — gleiche Basis wie dailyTotals).
+            // M18.138: Bildschirmzeit je Tag (inkl. Balance-Zeit) für die
+            // Statistik-Aufbereitung dieser Sicht.
             val screenTimeForDay: kotlinx.coroutines.flow.Flow<Long> =
                 if (day == LocalDate.now()) {
                     _screenTimeMs
@@ -662,13 +664,21 @@ class DashboardViewModel @Inject constructor(
             // Override-Flow für HEUTE neu abonniert — Override-Änderungen
             // (M18.60) aktualisieren den Verlauf sofort, genau wie die
             // Headline im uiState-combine.
+            // M18.138: Aufzeichnungen (SCREEN_AUTO) zählen nicht in die
+            // Statistik — der Trend läuft über dieselbe Regel wie die
+            // Headline (echte Bildschirmzeit statt Aufzeichnung).
             combine(
                 activityRepository.getAll(),
                 activityTypeRepository.getAll(),
                 dailyAllowanceRepository.getAll(),
                 minuteTick
             ) { sessions, types, allowances, _ ->
-                Triple(sessions, types, allowances)
+                Triple(
+                    com.d_drostes_apps.aevum.domain.digital.ScreenStatisticsPolicy
+                        .forStatistics(sessions.filter { it.deletedAt == null }),
+                    types,
+                    allowances
+                )
             }.flatMapLatest { (sessions, types, allowances) ->
                 val todayStr = LocalDate.now(zoneId).toString()
                 dailyAllowanceRepository.getOverridesForDateFlow(todayStr).map { overrides ->
@@ -816,7 +826,24 @@ class DashboardViewModel @Inject constructor(
         val activeSessions = sessions.filter { it.deletedAt == null }
         val now = System.currentTimeMillis().coerceIn(start, end)
         val categoryMap = categories.associateBy { it.id }
-        val clippedSessions = activeSessions.map { it.clipped(now) }
+        // M18.138: ZWEI Mengen — die Timeline zeigt alles (inkl. Bildschirm-
+        // Aufzeichnung), die Statistik ersetzt die Aufzeichnung durch die
+        // echte Bildschirmzeit aus Digital Balance.
+        //
+        // User-Spec: „Im Dashboard und generell was die Statistik angeht,
+        // soll nur die Digital-Balance-Zeit zählen, nicht die Zeit, die
+        // sich aus den Aufzeichnungen ergibt."
+        val statSessions = com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource.mergeForDay(
+            sessions = activeSessions,
+            date = displayedDate,
+            balanceMs = screenTimeMs,
+            zoneId = zoneId
+        )
+        // Für den Tagesfluss (24h-Spur) gilt weiterhin die Aufzeichnung —
+        // er ist eine Timeline-Darstellung, keine Statistik. Die künstliche
+        // Balance-Session ist dort ausgeschlossen (sie stünde um 00:00).
+        val clippedSessions = statSessions.map { it.clipped(now) }
+        val flowClippedSessions = activeSessions.map { it.clipped(now) }
         val totalMs = clippedSessions.sumOf { it.durationMs }
         // M18.37: Kompakte Todo-Summary fuer die Dashboard-Karte.
         // Nur aktive Todos zaehlen; erledigt = Completion heute vorhanden.
@@ -831,7 +858,10 @@ class DashboardViewModel @Inject constructor(
         // auto-erledigte Dauer-Todo erschien als offen. Jetzt identische
         // Logik wie im Todos-Screen.
         val durationByType = mutableMapOf<String, Long>()
-        activeSessions
+        // M18.138: Statistik-Sessions (Aufzeichnungen durch die echte
+        // Bildschirmzeit ersetzt) — ein „Digital"-Dauer-Todo misst die
+        // gemessene Zeit, nicht die Aufzeichnung.
+        statSessions
             .filter { it.startAt < end && (it.endAt == null || it.endAt > start) }
             .forEach { session ->
                 val typeId = session.activityTypeId ?: return@forEach
@@ -896,7 +926,9 @@ class DashboardViewModel @Inject constructor(
         // M12.2: Map von Session-ID → sourceType, damit der Flow (der nur
         // ClippedSessions kennt) den Auto-Flag korrekt setzen kann.
         val sourceTypeById = activeSessions.associate { it.id to it.sourceType }
-        val flow = clippedSessions.sortedBy { it.startAt }.map { session ->
+        // M18.138: Tagesfluss aus den TIMELINE-Sessions (Aufzeichnungen
+        // inklusive) — er ist eine Darstellung des Tages, keine Statistik.
+        val flow = flowClippedSessions.sortedBy { it.startAt }.map { session ->
             val startMinute = TimeFormatting.minutesOfDay(session.startAt, zoneId).coerceIn(0, 1440)
             val endMinute = TimeFormatting.minutesOfDay(session.endAt, zoneId).coerceIn(startMinute, 1440)
             val isAutoSession = sourceTypeById[session.id] in com.d_drostes_apps.aevum.ui.screens.timeline.AUTO_SOURCES
@@ -985,7 +1017,7 @@ class DashboardViewModel @Inject constructor(
             insights = insights,
             topCategory = top?.label ?: application.getString(R.string.common_still_open),
             topCategoryDuration = top?.let { TimeFormatting.formatDuration(it.durationMs) } ?: "0m",
-            hasData = activeSessions.isNotEmpty(),
+            hasData = activeSessions.isNotEmpty() || screenTimeMs > 0L,
             dayProgress = ((now - start).toFloat() / DAY_MS.toFloat()).coerceIn(0f, 1f),
             // M7: Automation capture
             capturedTodayCount = activeSessions.size + candidates.size,
@@ -1020,8 +1052,11 @@ class DashboardViewModel @Inject constructor(
             // M18.94-FIX: Fenster des GEWÄHLTEN Tages (start/end) + auf
             // den Tag gedeckeltes now — bei Tag-Navigation zeigt der Ring
             // den Score des angezeigten Tages, nicht von heute.
-            qualityScore = computeQualityScore(activeSessions, typeMap, allowances, overrideByAllowance, now, start, end),
-            qualityBreakdown = computeQualityBreakdown(activeSessions, typeMap, allowances, overrideByAllowance, now, start, end),
+            // M18.138: Qualitätsring + Balken laufen über die STATISTIK-
+            // Sessions — mit der echten Bildschirmzeit statt der
+            // Aufzeichnungsdauer (siehe statSessions oben).
+            qualityScore = computeQualityScore(statSessions, typeMap, allowances, overrideByAllowance, now, start, end),
+            qualityBreakdown = computeQualityBreakdown(statSessions, typeMap, allowances, overrideByAllowance, now, start, end),
             // M18.37: Todos fuer die Dashboard-Karte
             todoDoneCount = todoDoneCount,
             todoOpenCount = todoOpenCount,

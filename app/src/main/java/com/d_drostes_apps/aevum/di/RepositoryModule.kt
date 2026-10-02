@@ -152,6 +152,14 @@ object RepositoryModule {
     // M18.61: Digital Balance — App-Limits
     @Provides @Singleton
     fun provideAppLimitRepository(dao: AppLimitDao): AppLimitRepository = AppLimitRepositoryImpl(dao)
+
+    // M18.138: Bildschirmzeit-Provider — AppUsageAggregator liest
+    // UsageStatsManager; die Statistik-Sichten hängen nur am Interface
+    // (testbar ohne echte UsageStats).
+    @Provides @Singleton
+    fun provideScreenTimeProvider(
+        aggregator: com.d_drostes_apps.aevum.domain.digital.AppUsageAggregator
+    ): com.d_drostes_apps.aevum.domain.digital.ScreenTimeProvider = aggregator
     // M18.61f: Digital Balance — Profile
     @Provides @Singleton
     fun provideBalanceProfileRepository(dao: BalanceProfileDao): BalanceProfileRepository = BalanceProfileRepositoryImpl(dao)

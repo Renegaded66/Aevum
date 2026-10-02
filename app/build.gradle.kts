@@ -142,6 +142,15 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                // Robolectric leitet user.home aus /etc/passwd ab. Auf dieser
+                // Build-Maschine ist /etc/passwd truncated → user.home = "?"
+                // und Robolectric bricht ab mit "Couldn't create lock file
+                // ?/.robolectric-download-lock". Der Test-JVM das Verzeichnis
+                // explizit mitgeben; auf intakten Maschinen zeigt es auf
+                // dasselbe Verzeichnis.
+                it.systemProperty("user.home", System.getProperty("user.home") ?: System.getenv("HOME") ?: "/root")
+            }
         }
     }
 }

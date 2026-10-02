@@ -50,7 +50,9 @@ class LifeViewViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     private val dailyAllowanceRepository: DailyAllowanceRepository,
     // L10N-RUNTIME-FIX: Sprach-Flow — Slice-Labels bei Sprachwechsel neu bauen.
-    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository,
+    // M18.138: Bildschirmzeit-Quelle (Digital Balance).
+    private val balanceSource: com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 ) : ViewModel() {
 
     private val zoneId = ZoneId.systemDefault()
@@ -87,7 +89,9 @@ class LifeViewViewModel @Inject constructor(
         val types: List<ActivityType>,
         val allowances: List<DailyAllowance>,
         val bday: LocalDate?,
-        val age: Int
+        val age: Int,
+        // M18.138: Bildschirmzeit je Tag (Digital Balance).
+        val balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     )
 
     private val lifeInputs = combine(
@@ -95,9 +99,21 @@ class LifeViewViewModel @Inject constructor(
         activityTypeRepository.getAll(),
         dailyAllowanceRepository.getAll(),
         _birthday,
-        _expectedAge
-    ) { sessions, types, allowances, bday, age ->
-        LifeInputs(sessions, types, allowances, bday, age)
+        _expectedAge,
+        // M18.138: Bildschirmzeit je Tag (Digital Balance).
+        balanceSource.dailyTotals(LOOKBACK_DAYS)
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val sessions = values[0] as List<ActivitySession>
+        @Suppress("UNCHECKED_CAST")
+        val types = values[1] as List<ActivityType>
+        @Suppress("UNCHECKED_CAST")
+        val allowances = values[2] as List<DailyAllowance>
+        val bday = values[3] as LocalDate?
+        val age = values[4] as Int
+        @Suppress("UNCHECKED_CAST")
+        val balance = values[5] as Map<LocalDate, Long>
+        LifeInputs(sessions, types, allowances, bday, age, balance)
     }
 
     val uiState: StateFlow<LifeViewUiState> = combine(
@@ -109,7 +125,8 @@ class LifeViewViewModel @Inject constructor(
             types = inputs.types,
             allowances = inputs.allowances,
             bday = inputs.bday,
-            expectedAge = inputs.age
+            expectedAge = inputs.age,
+            balanceMsPerDay = inputs.balanceMsPerDay
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LifeViewUiState())
 
@@ -118,7 +135,8 @@ class LifeViewViewModel @Inject constructor(
         types: List<ActivityType>,
         allowances: List<DailyAllowance>,
         bday: LocalDate?,
-        expectedAge: Int
+        expectedAge: Int,
+        balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): LifeViewUiState {
         val today = LocalDate.now()
         val age = bday?.let { Period.between(it, today).years } ?: 0
@@ -128,7 +146,14 @@ class LifeViewViewModel @Inject constructor(
         val livedMonths = (age * 12 + (bday?.let { Period.between(it, today).months } ?: 0)).coerceIn(0, totalMonths)
 
         val typeMap = types.associateBy { it.id }
-        val active = sessions.filter { it.deletedAt == null }
+        // M18.138: Aufzeichnungen raus, echte Bildschirmzeit rein — die
+        // Life-View rechnet Digitalzeit in Lebensjahre hoch, und dafür
+        // darf nur die gemessene Zeit zählen.
+        val active = com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource.merge(
+            sessions = sessions.filter { it.deletedAt == null },
+            balanceMsPerDay = balanceMsPerDay,
+            zoneId = zoneId
+        )
 
         // --- Tagesdurchschnitte aus den letzten 14 Tagen ---
         val days = 14
@@ -222,6 +247,11 @@ class LifeViewViewModel @Inject constructor(
     companion object {
         private const val KEY_BIRTHDAY = "birthday"
         private const val KEY_EXPECTED_AGE = "expected_age"
+        /**
+         * M18.138: Rückblick-Fenster für die Bildschirmzeit. Die Life-View
+         * mittelt über 14 Tage → 14 Tage Historie genügen.
+         */
+        private const val LOOKBACK_DAYS = 14
     }
 }
 

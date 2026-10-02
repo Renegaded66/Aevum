@@ -29,7 +29,7 @@ import javax.inject.Singleton
 @Singleton
 class AppUsageAggregator @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : com.d_drostes_apps.aevum.domain.digital.ScreenTimeProvider {
     private val usageStats by lazy {
         context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     }
@@ -343,6 +343,24 @@ class AppUsageAggregator @Inject constructor(
             // Zukünftige Tage haben (noch) keine Daten:
             val effectiveEnd = minOf(end, System.currentTimeMillis())
             if (effectiveEnd <= start) return@withContext 0L
+            foregroundTotalForRange(start, effectiveEnd)
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    /**
+     * M18.138: Bildschirmzeit über einen freien Zeitraum [start, end).
+     *
+     * Grundlage für die Statistik-Zeiträume (Insights Woche/Monat, Weekly
+     * Review): Die Aufzeichnungs-Sessions (SCREEN_AUTO) sind aus der
+     * Statistik ausgeschlossen — an ihrer Stelle zählt genau dieser
+     * Digital-Balance-Wert. EIN Aufruf statt einer Abfrage pro Tag.
+     */
+    suspend fun foregroundTotalForRange(start: Long, end: Long): Long = withContext(Dispatchers.IO) {
+        try {
+            val effectiveEnd = minOf(end, System.currentTimeMillis())
+            if (effectiveEnd <= start) return@withContext 0L
             foregroundPhases(start, effectiveEnd).sumOf { it.end - it.start }.coerceAtLeast(0L)
         } catch (_: Exception) {
             0L
@@ -350,7 +368,57 @@ class AppUsageAggregator @Inject constructor(
     }
 
     /**
-     * M18.62: Nutzung pro App an einem BESTIMMTEN Tag.
+     * M18.138: Bildschirmzeit je Tag für einen beliebigen Zeitraum.
+     *
+     * Grundlage für Statistik-Sichten, die die Aufzeichnungs-Sessions
+     * (SCREEN_AUTO) durch die echte Bildschirmzeit ersetzen — sie brauchen
+     * den Balance-Wert PRO TAG, damit Heatmap und Tagesdurchschnitte den
+     * Betrag dem richtigen Tag zuordnen.
+     *
+     * Gleiche Phase-Logik und Mitternachts-Clipping wie [dailyTotals].
+     *
+     * @param startDate erster Tag (inklusive)
+     * @param endDateExclusive Tag nach dem letzten
+     * @return Map Tag → Bildschirmzeit in ms. 0-Tage sind enthalten.
+     */
+    override suspend fun dailyTotalsForRange(
+        startDate: LocalDate,
+        endDateExclusive: LocalDate
+    ): Map<LocalDate, Long> = withContext(Dispatchers.IO) {
+        try {
+            val zone = ZoneId.systemDefault()
+            val start = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = endDateExclusive.atStartOfDay(zone).toInstant().toEpochMilli()
+            val effectiveEnd = minOf(end, System.currentTimeMillis())
+
+            val byDay = HashMap<LocalDate, Long>()
+            var cursor = startDate
+            while (cursor.isBefore(endDateExclusive)) {
+                byDay[cursor] = 0L
+                cursor = cursor.plusDays(1)
+            }
+            if (effectiveEnd <= start) return@withContext byDay
+
+            foregroundPhases(start, effectiveEnd).forEach { phase ->
+                var phaseCursor = phase.start
+                while (phaseCursor < phase.end) {
+                    val day = java.time.Instant.ofEpochMilli(phaseCursor).atZone(zone).toLocalDate()
+                    val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                    val segEnd = minOf(phase.end, dayEnd)
+                    if (byDay.containsKey(day)) {
+                        byDay[day] = (byDay[day] ?: 0L) + (segEnd - phaseCursor).coerceAtLeast(0L)
+                    }
+                    phaseCursor = segEnd
+                }
+            }
+            byDay
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    /**
+     * Nutzung pro App an einem BESTIMMTEN Tag.
      *
      * Für die App-Liste in Digital Balance, wenn im Balken-Diagramm ein
      * anderer Tag als heute gewählt ist (User: "beim Balken-Diagramm auf

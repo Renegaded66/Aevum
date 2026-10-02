@@ -3,17 +3,27 @@ package com.d_drostes_apps.aevum.automation.screen
 /**
  * M18.70: Bildschirm-Aufzeichnung — pure Entscheidungslogik.
  *
+ * M18.138 (User-Spec 2026-10-01) — ZWEI getrennte Rollen:
+ *
+ *  Die Aufzeichnung erzeugt Blöcke in der TIMELINE. Sie ist eine
+ *  Darstellung, keine Messung. Für die Statistik (Dashboard, Insights,
+ *  Weekly Review) zählt ausschließlich die Bildschirmzeit aus Digital
+ *  Balance — siehe [com.d_drostes_apps.aevum.domain.digital.ScreenStatisticsPolicy].
+ *
  * Regel (User-Spec):
  *  - Jedes Mal, wenn das Handy mindestens x Minuten am Stück an ist
  *    UND gerade nichts anderes aufzeichnet → „Digital"-Session starten
  *    mit x Minuten Vorlaufzeit (startedAt = now − x min).
  *  - x = 0 → sofort bei Screen-ON starten (ohne Vorlauf).
  *  - x = -1 (DEACTIVATED) → nie automatisch starten.
- *  - Screen-OFF → Aufzeichnung erst stoppen, wenn der Screen
- *    [SCREEN_OFF_STOP_DELAY_MS] (30 s) am Stück aus war — nicht sofort.
- *    (M18.71: Der User schaltet den Screen oft nur kurz aus, z. B. um
- *    das Handy in die Tasche zu stecken oder einen Anruf anzunehmen —
- *    die Digital-Aufzeichnung soll dann weiterlaufen.)
+ *  - Die x Minuten beziehen sich NUR auf die Timeline: sie verhindern,
+ *    dass jede 10-Sekunden-Nutzung ein eigenes Fragment erzeugt —
+ *    „sodass auch nur größere Blöcke in der Timeline angezeigt werden" .
+ *  - Screen-OFF → Aufzeichnung SOFORT stoppen. (M18.138: Die frühere
+ *    M18.71-Regel mit 30 s Karenz ist damit aufgehoben — der User:
+ *    „Allerdings soll die Aufzeichnung dann auch direkt stoppen, sobald
+ *    man den Bildschirm wieder ausgemacht hat." Ein Block, der über das
+ *    Weglegen des Handys hinausläuft, ist eine Falschaufzeichnung.)
  *
  * Bewusst als pure Funktionen — unit-testbar ohne Android.
  */
@@ -22,10 +32,12 @@ object ScreenRecordingEngine {
     /** Slider-Endwert: ganz rechts = deaktiviert. */
     const val DEACTIVATED = -1
 
-    /** M18.71: Screen-OFF muss 30 s am Stück dauern, bevor die
-     *  Digital-Aufzeichnung gestoppt wird. Kurzes Ausschalten
-     *  (Tasche, Anruf) unterbricht die Aufzeichnung nicht. */
-    const val SCREEN_OFF_STOP_DELAY_MS = 30_000L
+    /**
+     * M18.138: Kein Karenz-Delay mehr — Screen-OFF stoppt die Aufzeichnung
+     * unmittelbar. Der Wert bleibt als Konstante bestehen, damit die
+     * Delay-Logik im aufrufenden Worker unverändert weiterlesbar ist.
+     */
+    const val SCREEN_OFF_STOP_DELAY_MS = 0L
 
     /** Slider-Maximum (Minuten). Werte 0..MAX, MAX = deaktiviert. */
     const val SLIDER_MAX = 10
@@ -71,11 +83,13 @@ object ScreenRecordingEngine {
     }
 
     /**
-     * M18.71: Soll die Screen-Aufzeichnung wegen Screen-OFF gestoppt werden?
+     * M18.138: Soll die Screen-Aufzeichnung wegen Screen-OFF gestoppt werden?
      *
-     * Der Screen muss [SCREEN_OFF_STOP_DELAY_MS] (30 s) am Stück aus sein,
-     * bevor die Digital-Aufzeichnung beendet wird. Kurzes Ausschalten
-     * (Tasche, Anruf, Display-Taste) unterbricht die Aufzeichnung nicht.
+     * M18.138 (User-Spec 2026-10-01): Der Stop erfolgt SOFORT — die
+     * Karenzzeit ist aufgehoben ([SCREEN_OFF_STOP_DELAY_MS] = 0). Der User
+     * legt das Handy weg und erwartet, dass die Aufzeichnung endet:
+     * „Allerdings soll die Aufzeichnung dann auch direkt stoppen, sobald
+     * man den Bildschirm wieder ausgemacht hat."
      *
      * @param screenOffSinceMs Zeitpunkt des letzten Screen-OFF
      *        (System.currentTimeMillis), 0 wenn der Screen noch an ist

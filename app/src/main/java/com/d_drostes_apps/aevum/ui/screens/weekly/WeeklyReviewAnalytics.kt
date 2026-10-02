@@ -7,6 +7,7 @@ import com.d_drostes_apps.aevum.data.model.ActivityCandidate
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
+import com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
 import com.d_drostes_apps.aevum.domain.time.TimeFormatting
 import com.d_drostes_apps.aevum.ui.screens.insights.InsightCard
 import com.d_drostes_apps.aevum.ui.screens.insights.PeriodChange
@@ -31,7 +32,10 @@ object WeeklyReviewAnalytics {
         categories: List<Category>,
         activityTypes: List<ActivityType>,
         anchorDate: LocalDate,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        // M18.138: Bildschirmzeit je Tag (Digital Balance) — ersetzt die
+        // Aufzeichnungen in allen Kennzahlen des Wochenrückblicks.
+        balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): WeeklyReviewUiState {
         val weekStartDate = anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val weekEndDate = weekStartDate.plusDays(7)
@@ -42,7 +46,13 @@ object WeeklyReviewAnalytics {
         val previousEnd = weekStart
         val categoryMap = categories.associateBy { it.id }
         val typeMap = activityTypes.associateBy { it.id }
-        val active = sessions.filter { it.deletedAt == null }
+        // M18.138: Aufzeichnungen raus, echte Bildschirmzeit rein — auch
+        // hier gilt: die Statistik zeigt die Digital-Balance-Zeit.
+        val active = StatisticsSessionSource.merge(
+            sessions = sessions.filter { it.deletedAt == null },
+            balanceMsPerDay = balanceMsPerDay,
+            zoneId = zoneId
+        )
         val current = active.clippedTo(weekStart, weekEnd, zoneId)
         val previous = active.clippedTo(previousStart, previousEnd, zoneId)
         val totalMs = current.sumOf { it.durationMs }

@@ -6,6 +6,7 @@ import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
+import com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
 import com.d_drostes_apps.aevum.ui.theme.AevumCategoryColors
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -186,12 +187,24 @@ object InsightsAnalytics {
         zoneId: ZoneId,
         allowanceAccumulations: List<com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay> = emptyList(),
         // M17.4: Toggle-Modus für die Top-Liste.
-        breakdownMode: BreakdownMode = BreakdownMode.Activity
+        breakdownMode: BreakdownMode = BreakdownMode.Activity,
+        // M18.138: Bildschirmzeit je Tag (Digital Balance). Ersetzt die
+        // Bildschirm-Aufzeichnungen (SCREEN_AUTO) in JEDER Kennzahl dieser
+        // Ansicht — Sessions, Heatmap, Vergleichsperiode. Leer = kein
+        // Nutzungszugriff → keine Digitalzeit (aber auch keine
+        // Aufzeichnungszeit, die die Statistik verfälschen würde).
+        balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): InsightsUiState {
         val window = window(context, selectedPeriod, anchorDate, zoneId)
         val categoryMap = categories.associateBy { it.id }
         val typeMap = activityTypes.associateBy { it.id }
-        val active = sessions.filter { it.deletedAt == null }
+        // M18.138: Aufzeichnungen raus, echte Bildschirmzeit rein — EINE
+        // Regel für alle Kennzahlen (auch die Vergleichsperiode).
+        val active = StatisticsSessionSource.merge(
+            sessions = sessions.filter { it.deletedAt == null },
+            balanceMsPerDay = balanceMsPerDay,
+            zoneId = zoneId
+        )
         val current = active.clippedTo(window.start, window.end)
         val previous = active.clippedTo(window.previousStart, window.previousEnd)
         val totalMs = current.sumOf { it.durationMs }

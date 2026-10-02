@@ -28,7 +28,9 @@ class WeeklyReviewViewModel @Inject constructor(
     activityTypeRepository: ActivityTypeRepository,
     // L10N-RUNTIME-FIX: Sprach-Flow — bei Sprachwechsel zur Laufzeit wird
     // der komplette Wochenrückblick (inkl. application.getString-Texte) neu gebaut.
-    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
+    languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository,
+    // M18.138: Bildschirmzeit-Quelle (Digital Balance).
+    private val balanceSource: com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val anchorDate = LocalDate.now()
@@ -49,8 +51,20 @@ class WeeklyReviewViewModel @Inject constructor(
                 activityRepository.getAll(),
                 candidateRepository.getByStatus("PENDING"),
                 categoryRepository.getAll(),
-                activityTypeRepository.getAll()
-            ) { sessions, candidates, categories, types ->
+                activityTypeRepository.getAll(),
+                // M18.138: Bildschirmzeit je Tag (Digital Balance).
+                balanceSource.dailyTotals(LOOKBACK_DAYS)
+            ) { values ->
+                @Suppress("UNCHECKED_CAST")
+                val sessions = values[0] as List<com.d_drostes_apps.aevum.data.model.ActivitySession>
+                @Suppress("UNCHECKED_CAST")
+                val candidates = values[1] as List<com.d_drostes_apps.aevum.data.model.ActivityCandidate>
+                @Suppress("UNCHECKED_CAST")
+                val categories = values[2] as List<com.d_drostes_apps.aevum.data.model.Category>
+                @Suppress("UNCHECKED_CAST")
+                val types = values[3] as List<com.d_drostes_apps.aevum.data.model.ActivityType>
+                @Suppress("UNCHECKED_CAST")
+                val balance = values[4] as Map<LocalDate, Long>
                 WeeklyReviewAnalytics.build(
                     context = application,
                     sessions = sessions,
@@ -58,8 +72,18 @@ class WeeklyReviewViewModel @Inject constructor(
                     categories = categories,
                     activityTypes = types,
                     anchorDate = anchorDate,
-                    zoneId = zoneId
+                    zoneId = zoneId,
+                    balanceMsPerDay = balance
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialUiState)
+
+    companion object {
+        /**
+         * M18.138: Rückblick-Fenster für die Bildschirmzeit. Der
+         * Wochenrückblick zeigt eine Woche, der Vergleich braucht die
+         * Vorwoche → 15 Tage genügen mit Reserve.
+         */
+        private const val LOOKBACK_DAYS = 15
+    }
 }

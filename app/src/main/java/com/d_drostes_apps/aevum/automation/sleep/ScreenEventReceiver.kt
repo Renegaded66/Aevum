@@ -97,15 +97,21 @@ class ScreenEventReceiver : BroadcastReceiver() {
                     }
                 }
 
-                // M18.70: Bildschirm-Aufzeichnung („Digital").
+                // M18.70 + M18.138: Bildschirm-Aufzeichnung („Digital").
                 // ON  → Worker mit Delay = x Minuten enqueuen (x = Vorlauf).
                 //       Bei x = 0 feuert er sofort. Der Worker prüft beim
                 //       Feuern erneut: Screen noch an? nichts anderes live?
-                // OFF → M18.71: NICHT sofort stoppen — erst nach 30 s
-                //       Screen-Aus (ScreenOffStopWorker). Kommt vorher ein
-                //       Screen-ON/UNLOCK, wird der Stop-Worker gecancelt
-                //       und die Aufzeichnung läuft weiter (kurzes
-                //       Ausschalten: Tasche, Anruf, Display-Taste).
+                //       Die Vorlaufzeit x wirkt NUR auf die Timeline: sie
+                //       verhindert Fragmente aus 10-Sekunden-Nutzungen
+                //       („sodass auch nur größere Blöcke in der Timeline
+                //       angezeigt werden").
+                // OFF → M18.138: Aufzeichnung SOFORT stoppen (User-Spec:
+                //       „Allerdings soll die Aufzeichnung dann auch direkt
+                //       stoppen, sobald man den Bildschirm wieder ausgemacht
+                //       hat."). Die M18.71-Karenz von 30 s ist aufgehoben.
+                //       Der ScreenOffStopWorker bleibt als Sicherheitsnetz
+                //       (Delay 0) für den Fall, dass der Stop hier nicht
+                //       greift.
                 try {
                     val settings = deps.automationSettingsDao().getSettingsSync()
                     val minutes = settings?.screenRecordingMinutes ?: 5
@@ -127,30 +133,33 @@ class ScreenEventReceiver : BroadcastReceiver() {
                             Log.d(TAG, "Screen-Aufzeichnung geplant (Vorlauf=${minutes}min)")
                         }
                     } else if (type == "OFF") {
-                        // M18.90-FIX: Der frühere cancelUniqueWork(screen_recording_auto)
-                        // hatte eine RACE-BEDINGUNG, die die Aufzeichnung still tötete:
-                        // OFF und kurz danach ON laufen in unabhängigen Coroutinen.
-                        // Lief das asynchrone Cancel des OFF-Events NACH dem
-                        // Enqueue des ON-Events, wurde der frisch geplante
-                        // ScreenRecordingWorker gelöscht — die Aufzeichnung
-                        // startete nie (bis zum nächsten Screen-ON). Symptom:
-                        // "15 Minuten durchgängig am Handy, nichts wurde
-                        // aufgenommen".
+                        // M18.138 (User-Spec: „Allerdings soll die Aufzeichnung
+                        // dann auch direkt stoppen, sobald man den Bildschirm
+                        // wieder ausgemacht hat."): Der Stop passiert jetzt
+                        // SOFORT hier — nicht mehr erst nach einer Karenzzeit
+                        // über einen Delay-Worker. Ein Block, der über das
+                        // Weglegen des Handys hinaus weiterläuft, ist eine
+                        // Falschaufzeichnung und war die Ursache dafür, dass
+                        // die Aufzeichnungszeit nicht zur echten Bildschirmzeit
+                        // passte.
                         //
-                        // Cancel ist unnötig: Der Worker prüft beim Feuern
-                        // selbst (a) Screen noch an? (b) nichts anderes live?
-                        // (c) Feature deaktiviert? und bricht als harmloser
-                        // No-Op ab. Ohne Cancel kann die ON/OFF-Reihenfolge
-                        // nichts mehr kaputt machen; ein vorzeitig feuern-
-                        // der Worker nach kurzem OFF ist harmlos, denn der
-                        // nächste ON ersetzt ihn eh (REPLACE).
-                        // Laufende SCREEN_AUTO-Session trotzdem nach 30s
-                        // Screen-Aus stoppen (Re-Check im Delay-Worker):
+                        // Der ScreenOffStopWorker bleibt als Sicherheitsnetz:
+                        // falls die Session hier nicht gestoppt werden konnte
+                        // (z. B. Manager-Zustand noch nicht geladen), räumt er
+                        // beim Feuern nach (Delay = 0, Re-Check im Worker).
                         val live = deps.liveActivityManager().liveSession.value
                         if (live != null && live.isLive && live.sourceType == "SCREEN_AUTO") {
-                            com.d_drostes_apps.aevum.automation.screen.ScreenOffStopWorker.schedule(appContext)
-                            Log.i(TAG, "Screen-Aufzeichnung: Stop in 30s geplant (Screen OFF)")
+                            deps.liveActivityManager().stop()
+                            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.stop(appContext)
+                            // M18.134: Jeder automatische Stop-Pfad muss den
+                            // Kalender-Lauf anstoßen — sonst kommt der
+                            // Wiedereinstieg bis zu 15 Minuten zu spät.
+                            com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
+                                .restartNow(appContext)
+                            Log.i(TAG, "Screen-Aufzeichnung sofort gestoppt (Screen OFF)")
                         }
+                        // Sicherheitsnetz (No-Op, wenn oben bereits gestoppt):
+                        com.d_drostes_apps.aevum.automation.screen.ScreenOffStopWorker.schedule(appContext)
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Screen-Aufzeichnung handling failed for $type", e)

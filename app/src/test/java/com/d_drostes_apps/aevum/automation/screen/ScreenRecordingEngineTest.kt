@@ -138,30 +138,37 @@ class ScreenRecordingEngineTest {
         assertEquals(5, ScreenRecordingEngine.dbToSlider(5))
     }
 
-    // ── Screen-OFF (M18.71: erst nach 30s stoppen) ──
+    // ── Screen-OFF (M18.138: SOFORT stoppen) ──
 
     @Test
-    fun `screen off does not stop immediately`() {
-        assertFalse(
-            ScreenRecordingEngine.shouldStopOnScreenOff(
-                screenOffSinceMs = now - 5_000L, // erst 5s aus
-                now = now
-            )
-        )
-    }
-
-    @Test
-    fun `screen off stops after 30 seconds`() {
+    fun `screen off stops immediately`() {
+        // M18.138 (User-Spec): „Allerdings soll die Aufzeichnung dann auch
+        // direkt stoppen, sobald man den Bildschirm wieder ausgemacht hat."
         assertTrue(
             ScreenRecordingEngine.shouldStopOnScreenOff(
-                screenOffSinceMs = now - 30_000L, // exakt 30s aus
+                screenOffSinceMs = now, // gerade eben ausgeschaltet
                 now = now
             )
         )
     }
 
     @Test
-    fun `screen off stops after more than 30 seconds`() {
+    fun `screen off stops without any grace period`() {
+        assertTrue(
+            ScreenRecordingEngine.shouldStopOnScreenOff(
+                screenOffSinceMs = now - 1L, // 1 ms aus
+                now = now
+            )
+        )
+    }
+
+    @Test
+    fun `grace period constant is zero`() {
+        assertEquals(0L, ScreenRecordingEngine.SCREEN_OFF_STOP_DELAY_MS)
+    }
+
+    @Test
+    fun `screen off stops after longer time too`() {
         assertTrue(
             ScreenRecordingEngine.shouldStopOnScreenOff(
                 screenOffSinceMs = now - 45_000L, // 45s aus

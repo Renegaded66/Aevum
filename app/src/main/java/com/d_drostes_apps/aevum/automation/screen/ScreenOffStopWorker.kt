@@ -17,15 +17,20 @@ import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
 import java.util.concurrent.TimeUnit
 
 /**
- * M18.71: Stoppt die Bildschirm-Aufzeichnung („Digital") erst, wenn der
- * Screen [ScreenRecordingEngine.SCREEN_OFF_STOP_DELAY_MS] (30 s) am
- * Stück aus war.
+ * M18.138: Sicherheitsnetz für den Screen-OFF-Stop.
  *
- * Wird vom [com.d_drostes_apps.aevum.automation.sleep.ScreenEventReceiver]
- * bei Screen-OFF enqueued (nur wenn gerade eine SCREEN_AUTO-Session
- * läuft). Beim Feuern prüft der Worker erneut:
- *  - Screen immer noch aus? (Kommt vorher ein Screen-ON/UNLOCK, wird
- *    der Worker gecancelt und die Aufzeichnung läuft weiter.)
+ * M18.71 führte diesen Worker ein, um die Aufzeichnung erst 30 s nach
+ * Screen-OFF zu beenden. M18.138 (User-Spec 2026-10-01) dreht das um:
+ * gestoppt wird SOFORT im
+ * [com.d_drostes_apps.aevum.automation.sleep.ScreenEventReceiver]
+ * („Allerdings soll die Aufzeichnung dann auch direkt stoppen, sobald man
+ * den Bildschirm wieder ausgemacht hat."). Dieser Worker bleibt als
+ * Sicherheitsnetz bestehen und feuert jetzt mit Delay 0: Konnte der
+ * Receiver nicht stoppen (z. B. Manager-Zustand noch nicht geladen),
+ * räumt der Worker unmittelbar nach.
+ *
+ * Beim Feuern prüft der Worker erneut:
+ *  - Screen immer noch aus?
  *  - Läuft die SCREEN_AUTO-Session noch? (Eine andere Session — z. B.
  *    Autofahrt oder Geofence — wurde inzwischen gestartet und hat die
  *    Digital-Session bereits unterbrochen → nichts zu tun.)
@@ -90,7 +95,7 @@ class ScreenOffStopWorker(
         private const val TAG = "ScreenOffStopWorker"
         const val WORK_NAME = "screen_recording_off_stop"
 
-        /** Vom ScreenEventReceiver bei Screen-OFF aufgerufen: Stop in 30s. */
+        /** Vom ScreenEventReceiver als Sicherheitsnetz aufgerufen: Stop sofort. */
         fun schedule(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WORK_NAME,

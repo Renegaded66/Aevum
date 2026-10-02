@@ -19,6 +19,8 @@ import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.CategoryRepository
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
 import com.d_drostes_apps.aevum.data.repository.LanguageRepository
+import com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
+import com.d_drostes_apps.aevum.domain.digital.ScreenTimeProvider
 import com.d_drostes_apps.aevum.ui.screens.insights.InsightsViewModel
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
@@ -246,14 +248,38 @@ class InsightsWiringIntegrationTest {
 
     private fun viewModel(activityRepository: FakeActivityRepository): InsightsViewModel {
         val app = ApplicationProvider.getApplicationContext<Application>()
+        // M18.138: Bildschirmzeit-Quelle im Test-Modus. Zwei Dinge sind hier
+        // wichtig:
+        //  1. refreshInMs = 0 — sonst läuft die 60s-Polling-Schleife in
+        //     advanceUntilIdle() endlos (Test hängt bis zum Timeout).
+        //  2. Ein Fake-Provider statt des echten Aggregators — der liest
+        //     UsageStatsManager auf Dispatchers.IO und wäre für den
+        //     Test-Scheduler nicht deterministisch.
+        val balanceSource = DigitalBalanceSource(FakeScreenTimeProvider()).apply {
+            refreshInMs = 0L
+        }
         return InsightsViewModel(
             application = app,
             activityRepository = activityRepository,
             categoryRepository = FakeCategoryRepository(categories),
             activityTypeRepository = FakeActivityTypeRepository(types),
             dailyAllowanceRepository = FakeDailyAllowanceRepository(),
-            languageRepository = LanguageRepository(context = app, dataStore = FakePreferencesDataStore())
+            languageRepository = LanguageRepository(context = app, dataStore = FakePreferencesDataStore()),
+            balanceSource = balanceSource
         )
+    }
+
+    /**
+     * M18.138: Bildschirmzeit-Provider ohne UsageStats. Liefert einen festen
+     * Tageswert — im Insights-Test bleiben die Erwartungen dadurch
+     * unverändert (die Test-Sessions sind keine SCREEN_AUTO-Sessions, die
+     * Balance-Zeit kommt als eigene „Digital"-Session hinzu).
+     */
+    private class FakeScreenTimeProvider : ScreenTimeProvider {
+        override suspend fun dailyTotalsForRange(
+            startDate: LocalDate,
+            endDateExclusive: LocalDate
+        ): Map<LocalDate, Long> = emptyMap()
     }
 
     /**

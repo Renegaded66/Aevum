@@ -30,18 +30,29 @@ object GoalProgressAnalytics {
         sessions: List<ActivitySession>,
         anchorDate: LocalDate,
         zoneId: ZoneId,
-        typeMap: Map<String, ActivityType>
+        typeMap: Map<String, ActivityType>,
+        // M18.138: Bildschirmzeit je Tag (Digital Balance). Ersetzt die
+        // Bildschirm-Aufzeichnungen (SCREEN_AUTO) — ein „max 2h Digital"-
+        // Ziel muss gegen die gemessene Zeit laufen, nicht gegen die
+        // Aufzeichnung.
+        balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): GoalProgressResult {
         val (periodStart, periodEnd) = getPeriodWindow(goal.period, anchorDate, zoneId)
         val unitMultiplier = getUnitMultiplier(goal.targetUnit)
 
-        val relevantSessions = sessions.filter { session ->
-            session.deletedAt == null &&
-                session.activityTypeId == goal.activityTypeId &&
-                session.endAt != null &&
-                session.startAt < periodEnd &&
-                session.endAt!! > periodStart
-        }
+        val relevantSessions = com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
+            .merge(
+                sessions = sessions,
+                balanceMsPerDay = balanceMsPerDay,
+                zoneId = zoneId
+            )
+            .filter { session ->
+                session.deletedAt == null &&
+                    session.activityTypeId == goal.activityTypeId &&
+                    session.endAt != null &&
+                    session.startAt < periodEnd &&
+                    session.endAt!! > periodStart
+            }
 
         var totalMs = 0L
         relevantSessions.forEach { session ->
