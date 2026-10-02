@@ -122,7 +122,9 @@ Anwendungsfall mehr (Manifest-Kommentar entsprechend ergänzt).
 
 ## 3 — Manifest-Hygiene (Mindestumfang)
 
-Zwei ungenutzte Berechtigungen entfernt:
+Drei Befunde behoben:
+
+### 3.1 Ungenutzte Berechtigungen entfernt
 
 | Berechtigung | Befund |
 |---|---|
@@ -131,6 +133,28 @@ Zwei ungenutzte Berechtigungen entfernt:
 
 Google fordert ausdrücklich „the minimum permission scope necessary" —
 ungedeckte Deklarationen erzeugen nur Prüffläche.
+
+### 3.2 Fehlende `specialUse`-Subtypen ergänzt (Play-Pflichtfeld)
+
+`AppTrackingService` und `LiveActivityService` standen als
+`foregroundServiceType="specialUse"` im Manifest, **ohne** das von Google
+verlangte `<property>`-Element:
+
+```xml
+<property
+    android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+    android:value="app_usage_tracking" />          <!-- bzw. active_activity_session_display -->
+```
+
+Google: „In addition to declaring the `FOREGROUND_SERVICE_TYPE_SPECIAL_USE`
+foreground service type, developers should declare use cases in the manifest.
+(…) These values and corresponding use cases are reviewed when you submit your
+app in the Google Play Console." Ein fehlender Subtyp ist eine **unvollständige
+Deklaration** — genau die Sorte Befund, die zu Rückfragen führt. Nur
+`AppBlockService` hatte ihn (M18.61).
+
+Neuer Test `jeder specialUse-Dienst deklariert den Pflicht-Subtyp` erzwingt das
+für jeden künftigen Dienst.
 
 ---
 

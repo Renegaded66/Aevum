@@ -201,13 +201,21 @@
         <service
             android:name=".automation.apptracking.AppTrackingService"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="app_usage_tracking" />
+        </service>
 
         <!-- M9: Live Activity foreground service -->
         <service
             android:name=".domain.liveactivity.LiveActivityService"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="active_activity_session_display" />
+        </service>
 
         <!-- M18.19: Wechsel-Popup — transparente Dialog-Activity,
              wird aus der Live-Notification ("⇄ Wechseln") geöffnet. -->

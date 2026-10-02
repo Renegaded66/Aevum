@@ -168,4 +168,31 @@ class LocationDisclosureWiringTest {
         assertWithMessage("SYSTEM_ALERT_WINDOW ist ungenutzt und muss raus")
             .that(manifest.contains("android.permission.SYSTEM_ALERT_WINDOW")).isFalse()
     }
+
+    @Test
+    fun `jeder specialUse-Dienst deklariert den Pflicht-Subtyp`() {
+        // Google verlangt für den FGS-Typ `specialUse` zwingend das
+        // <property>-Element PROPERTY_SPECIAL_USE_FGS_SUBTYPE, das den
+        // konkreten Anwendungsfall beschreibt — sonst ist die Deklaration
+        // unvollständig und die App wird abgelehnt.
+        // https://developer.android.com/develop/background-work/services/fgs/service-types
+        val manifest = readManifestWithoutComments()
+        val serviceBlocks = Regex("<service\\b.*?(?:/>|</service>)", RegexOption.DOT_MATCHES_ALL)
+            .findAll(manifest)
+            .map { it.value }
+            .filter { it.contains("specialUse") }
+            .toList()
+
+        assertWithMessage("Kein specialUse-Dienst gefunden — Manifest-Aufbau geändert?")
+            .that(serviceBlocks).isNotEmpty()
+
+        for (block in serviceBlocks) {
+            val name = Regex("android:name=\"([^\"]+)\"").find(block)?.groupValues?.get(1) ?: "?"
+            assertWithMessage(
+                "Dienst $name nutzt foregroundServiceType=\"specialUse\", " +
+                    "deklariert aber keinen PROPERTY_SPECIAL_USE_FGS_SUBTYPE. " +
+                    "Google verlangt den Subtyp bei der Prüfung."
+            ).that(block.contains("android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE")).isTrue()
+        }
+    }
 }
