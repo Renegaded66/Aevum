@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        PERMISSION DISCLOSURE — DEUTSCH
+        Englischer Originaltext (Fallback): values/strings_permission_disclosure.xml
+        Inhaltliche Änderungen an beiden Stellen mitziehen.
+    -->
+    <string name="perm_disclosure_points_title">Das ermöglicht sie</string>
+    <string name="perm_disclosure_note_title">Was mit deinen Daten passiert</string>
+    <string name="perm_disclosure_allow">Erlauben</string>
+    <string name="perm_disclosure_decline">Nicht jetzt</string>
+    <string name="perm_disclosure_open_settings">Einstellungen öffnen</string>
+
+    <!-- ── Aktivitätserkennung ──────────────────────────────────────────── -->
+    <string name="perm_activity_title">Aktivitätserkennung erlauben?</string>
+    <string name="perm_activity_lead">Aevum nutzt die Aktivitätserkennung, um automatisch zu erkennen, ob du fährst, gehst oder Rad fährst — damit Fahrten, Spaziergänge und Radtouren aufgezeichnet werden, ohne dass du sie starten musst. Die Erkennung läuft fortlaufend, auch wenn die App geschlossen ist.</string>
+    <string name="perm_activity_point_1">Autofahrten werden erkannt und mit ihrer Route aufgezeichnet</string>
+    <string name="perm_activity_point_2">Spaziergänge und Radfahrten werden als Aktivität erfasst</string>
+    <string name="perm_activity_point_3">Automatische Schlaf-Erkennung aus deiner Bewegung</string>
+    <string name="perm_activity_note">Deine Bewegungsdaten werden ausschließlich lokal auf deinem Gerät verarbeitet und niemals übertragen. Du kannst die Berechtigung jederzeit in den Android-Systemeinstellungen entziehen.</string>
+
+    <!-- ── Benachrichtigungen ──────────────────────────────────────────── -->
+    <string name="perm_notifications_title">Benachrichtigungen erlauben?</string>
+    <string name="perm_notifications_lead">Aevum nutzt Benachrichtigungen, um dir zu zeigen, wenn eine Aktivität läuft, und um dich zu informieren, wenn im Hintergrund automatisch eine startet oder endet. Ohne diese Berechtigung laufen diese Wechsel still ab.</string>
+    <string name="perm_notifications_point_1">Sehen, welche Aktivität gerade läuft</string>
+    <string name="perm_notifications_point_2">Erfahren, wenn Aevum eine Aktivität für dich startet oder beendet</string>
+    <string name="perm_notifications_point_3">Erinnerungen für laufende Timer</string>
+    <string name="perm_notifications_note">Benachrichtigungen werden lokal auf deinem Gerät erzeugt. Es gibt keinen Push-Dienst und keinen Benachrichtigungs-Server. Du kannst die Berechtigung jederzeit in den Android-Systemeinstellungen entziehen.</string>
+
+    <!-- ── Nutzungszugriff ─────────────────────────────────────────────── -->
+    <string name="perm_usage_title">Nutzungszugriff erlauben?</string>
+    <string name="perm_usage_lead">Aevum nutzt den Nutzungszugriff, um zu lesen, wie lange und wie oft du deine Apps verwendest. Das ist die Grundlage für Digital Balance — Bildschirmzeit-Statistiken und App-Limits. Die Berechtigung wird auf einer speziellen Android-Einstellungsseite erteilt, nicht im üblichen Berechtigungsdialog.</string>
+    <string name="perm_usage_point_1">Digital Balance: Bildschirmzeit pro App sehen</string>
+    <string name="perm_usage_point_2">Tageslimits setzen und Apps zeitweise sperren</string>
+    <string name="perm_usage_point_3">Automatische Schlaf-Erkennung über deine Bildschirmaktivität</string>
+    <string name="perm_usage_note">Die Nutzungsdaten werden ausschließlich lokal auf deinem Gerät ausgewertet und niemals übertragen. Du kannst den Nutzungszugriff jederzeit in den Android-Systemeinstellungen entziehen (Sonderzugriff → Nutzungszugriff).</string>
+
+    <!-- ── Kalender ────────────────────────────────────────────────────── -->
+    <string name="perm_calendar_title">Kalenderzugriff erlauben?</string>
+    <string name="perm_calendar_lead">Aevum liest deinen Kalender, um für deine Termine automatisch die passende Aktivität zu starten — zum Beispiel ein Meeting oder ein Training. Ohne diese Berechtigung kannst du Kalender-Regeln weiterhin nutzen, musst die Termine aber selbst auswählen.</string>
+    <string name="perm_calendar_point_1">Termine starten und beenden die passende Aktivität</string>
+    <string name="perm_calendar_point_2">Auswählen, welche Kalender genutzt werden</string>
+    <string name="perm_calendar_point_3">Regeln auf bestimmte Termine einschränken</string>
+    <string name="perm_calendar_note">Dein Kalender wird nur gelesen — Aevum legt niemals Termine an und ändert keine. Die Einträge werden ausschließlich lokal auf deinem Gerät ausgewertet und niemals übertragen. Du kannst die Berechtigung jederzeit in den Android-Systemeinstellungen entziehen.</string>
+</resources>

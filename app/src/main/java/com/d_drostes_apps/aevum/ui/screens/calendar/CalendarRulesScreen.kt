@@ -62,6 +62,10 @@ import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.CalendarRule
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureKind
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureMemory
+import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.util.AppLocale
@@ -110,10 +114,36 @@ fun CalendarRulesScreen(
 
     // Permission-Launcher (Muster aus android-permission-flow-composition:
     // der Launcher lebt im @Composable, das ViewModel hält nur State).
+    val context = androidx.compose.ui.platform.LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
+        // M18.141: Dialog-Verlauf pflegen, damit ein weiterer Klick nach einer
+        // dauerhaften Ablehnung direkt in die App-Einstellungen führt.
+        if (granted) {
+            PermissionDisclosureMemory.clearDenied(context, PermissionDisclosureKind.CALENDAR)
+        } else {
+            PermissionDisclosureMemory.markDenied(context, PermissionDisclosureKind.CALENDAR)
+        }
         viewModel.onPermissionResult(granted)
+    }
+
+    // M18.141: Auch hier erst erklären, dann anfragen — konsistent zum
+    // Trigger-Screen. Der Banner fasst den Zweck zusammen; der Dialog nennt
+    // zusätzlich die konkreten Funktionen und die Datenverarbeitung.
+    val permissionGate = rememberPermissionDisclosureGate()
+
+    fun requestCalendarAccess() {
+        permissionGate.request(
+            PermissionDisclosureKind.CALENDAR,
+            alreadyGranted = permission.isGranted
+        ) { pending ->
+            if (pending.requiresSettings) {
+                viewModel.openSettings()
+            } else {
+                permissionLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+            }
+        }
     }
 
     // M18.129: Permission bei Rückkehr aus den System-Einstellungen neu
@@ -201,9 +231,28 @@ fun CalendarRulesScreen(
         if (!permission.isGranted && !bannerDismissed) {
             PermissionBanner(
                 permission = permission,
-                onRequest = { permissionLauncher.launch(android.Manifest.permission.READ_CALENDAR) },
+                // M18.141: erst den Erklärungsdialog, dann der Systemdialog.
+                onRequest = { requestCalendarAccess() },
                 onOpenSettings = viewModel::openSettings,
                 onDismiss = { bannerDismissed = true }
+            )
+        }
+
+        // M18.141: Erklärungsdialog vor dem Kalender-Permission-Request.
+        permissionGate.pending?.let { pending ->
+            PermissionDisclosureDialog(
+                kind = pending.kind,
+                requiresSettings = pending.requiresSettings,
+                onAllow = {
+                    permissionGate.consent { ready ->
+                        if (ready.requiresSettings) {
+                            viewModel.openSettings()
+                        } else {
+                            permissionLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+                        }
+                    }
+                },
+                onDecline = { permissionGate.dismiss() }
             )
         }
 

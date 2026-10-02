@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        ════════════════════════════════════════════════════════════════════
+        PERMISSION DISCLOSURE — ENGLISH (fallback file)
+
+        English is the app's default language, so `values/` is the fallback.
+        German translation: values-de/strings_permission_disclosure.xml
+
+        WHY EVERY PERMISSION GETS A DIALOG:
+        A permission request that goes straight to the Android system dialog
+        gives the user no explanation inside the app. That is exactly what
+        Google rejected for background location ("no immediate in-app
+        disclosure precedes the permission request"). The same reasoning
+        applies to every other sensitive permission: the user should learn
+        from the app itself what a permission is for before the system dialog
+        appears — not from the store listing, and not from a privacy policy.
+
+        RULES for these texts:
+          • Name the permission plainly, ask a question in the title.
+          • Say what Aevum does with it and WHY (not just "needed").
+          • List the concrete features it enables.
+          • State that data stays local + that the permission is revocable.
+          • The consent button must be an explicit action, never a bare "OK".
+
+        Do not shorten these texts: the tests in PermissionDisclosureTest
+        check for the required elements.
+        ════════════════════════════════════════════════════════════════════
+    -->
+    <string name="perm_disclosure_points_title">What this enables</string>
+    <string name="perm_disclosure_note_title">What happens with your data</string>
+    <string name="perm_disclosure_allow">Allow</string>
+    <string name="perm_disclosure_decline">Not now</string>
+    <!-- Shown instead of "Allow" when Android will no longer show its dialog. -->
+    <string name="perm_disclosure_open_settings">Open settings</string>
+
+    <!-- ── Activity recognition ─────────────────────────────────────────── -->
+    <string name="perm_activity_title">Allow activity recognition?</string>
+    <string name="perm_activity_lead">Aevum uses activity recognition to detect automatically whether you are driving, walking or cycling — so that drives, walks and bike rides are recorded without you having to start them. The detection runs continuously, including while the app is closed.</string>
+    <string name="perm_activity_point_1">Car trips are detected and recorded with their route</string>
+    <string name="perm_activity_point_2">Walks and bike rides are recorded as activities</string>
+    <string name="perm_activity_point_3">Automatic sleep detection from your movement</string>
+    <string name="perm_activity_note">Your movement data is processed exclusively on your device and is never transmitted. You can revoke the permission at any time in the Android system settings.</string>
+
+    <!-- ── Notifications ───────────────────────────────────────────────── -->
+    <string name="perm_notifications_title">Allow notifications?</string>
+    <string name="perm_notifications_lead">Aevum uses notifications to show you when an activity is running and to inform you when one starts or stops automatically in the background. Without this permission those automatic switches happen silently.</string>
+    <string name="perm_notifications_point_1">See which activity is running right now</string>
+    <string name="perm_notifications_point_2">Get told when Aevum starts or stops an activity for you</string>
+    <string name="perm_notifications_point_3">Reminders for running timers</string>
+    <string name="perm_notifications_note">Notifications are created locally on your device. There is no push service and no notification server. You can revoke the permission at any time in the Android system settings.</string>
+
+    <!-- ── Usage access ────────────────────────────────────────────────── -->
+    <string name="perm_usage_title">Allow usage access?</string>
+    <string name="perm_usage_lead">Aevum uses usage access to read how long and how often you use your apps. This is what powers Digital Balance — screen time statistics and app limits. The permission is granted in a special Android settings page, not in the usual permission dialog.</string>
+    <string name="perm_usage_point_1">Digital Balance: see your screen time per app</string>
+    <string name="perm_usage_point_2">Set daily limits and block apps temporarily</string>
+    <string name="perm_usage_point_3">Automatic sleep detection based on your screen activity</string>
+    <string name="perm_usage_note">Usage data is evaluated exclusively on your device and is never transmitted. You can revoke usage access at any time in the Android system settings (Special access → Usage access).</string>
+
+    <!-- ── Calendar ────────────────────────────────────────────────────── -->
+    <string name="perm_calendar_title">Allow calendar access?</string>
+    <string name="perm_calendar_lead">Aevum reads your calendar to start the matching activity for your appointments automatically — for example a meeting or a workout. Without this permission you can still use calendar rules, but you have to pick the events yourself.</string>
+    <string name="perm_calendar_point_1">Appointments start and stop the matching activity</string>
+    <string name="perm_calendar_point_2">Choose which calendars are used</string>
+    <string name="perm_calendar_point_3">Rules can be limited to certain events</string>
+    <string name="perm_calendar_note">Your calendar is read only — Aevum never creates or changes appointments. The entries are evaluated exclusively on your device and are never transmitted. You can revoke the permission at any time in the Android system settings.</string>
+</resources>

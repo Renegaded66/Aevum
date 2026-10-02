@@ -106,8 +106,15 @@ import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.disclosure.DisclosureGate
 import com.d_drostes_apps.aevum.ui.disclosure.LocationDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureGateState
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureKind
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureMemory
+import com.d_drostes_apps.aevum.ui.disclosure.isPermissionGranted
+import com.d_drostes_apps.aevum.ui.disclosure.openAppSettings
 import com.d_drostes_apps.aevum.ui.disclosure.openPrivacyPolicy
 import com.d_drostes_apps.aevum.ui.disclosure.rememberLocationDisclosureGate
+import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -214,6 +221,11 @@ fun TriggerSettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
+            // M18.141: Verlauf zurücksetzen — nach einem Grant beginnt die
+            // Dialog-Historie von vorn. Ohne das würde ein späterer Widerruf
+            // als „dauerhaft abgelehnt" gelten und der Nutzer landete in den
+            // App-Einstellungen statt im normalen Systemdialog.
+            PermissionDisclosureMemory.clearDenied(context, PermissionDisclosureKind.ACTIVITY_RECOGNITION)
             when (pendingTrigger) {
                 "driving" -> viewModel.setDriving(true)
                 "walking" -> viewModel.setWalking(true)
@@ -226,6 +238,10 @@ fun TriggerSettingsScreen(
                 // einen AR-Permission-Trigger.
             }
             pendingTrigger = null
+        } else {
+            // Abgelehnt: merken, damit ein weiterer Klick direkt in die
+            // App-Einstellungen führt (Android zeigt dann keinen Dialog mehr).
+            PermissionDisclosureMemory.markDenied(context, PermissionDisclosureKind.ACTIVITY_RECOGNITION)
         }
         viewModel.refreshPermissions()
     }
@@ -233,7 +249,14 @@ fun TriggerSettingsScreen(
     // Benachrichtigungen (nur Status-Zeile, kein Trigger-Gate)
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { viewModel.refreshPermissions() }
+    ) { granted ->
+        if (granted) {
+            PermissionDisclosureMemory.clearDenied(context, PermissionDisclosureKind.NOTIFICATIONS)
+        } else {
+            PermissionDisclosureMemory.markDenied(context, PermissionDisclosureKind.NOTIFICATIONS)
+        }
+        viewModel.refreshPermissions()
+    }
 
     // ── M18.139: Ausführung der gemerkten Standort-Aktion ────────────────
     // Läuft NUR nach bestätigter Offenlegung (siehe disclosureGate).
@@ -253,6 +276,66 @@ fun TriggerSettingsScreen(
     /** Standortzugriff anfragen — Offenlegung wird automatisch vorgeschaltet. */
     fun requestLocationAccess(action: DisclosureGate.Action) {
         disclosureGate.request(action) { ready -> runLocationAction(ready) }
+    }
+
+    // ── M18.141: Erklärungsdialog für ALLE übrigen Berechtigungen ────────
+    // Auslöser: Die Play-Ablehnung von 1.0.19 traf den Standort, aber der
+    // Einwand („keine Offenlegung vor dem Permission-Request") gilt für jede
+    // Berechtigung. Jeder Klick auf eine noch nicht erteilte Berechtigung
+    // zeigt deshalb erst diesen Dialog.
+    //
+    // KEINE Persistenz: es wird immer der AKTUELLE Status geprüft. Wurde eine
+    // Berechtigung erteilt und danach wieder entzogen, ist der Status wieder
+    // „nicht erteilt" — der Dialog erscheint erneut, wie gewünscht.
+    val permissionGate = rememberPermissionDisclosureGate()
+
+    /** Führt die Berechtigungs-Anfrage aus, die der Dialog freigegeben hat. */
+    fun runPermissionAction(pending: PermissionDisclosureGateState.Pending) {
+        // Wurde „Einstellungen öffnen" geklickt (Sonderzugriff wie
+        // Nutzungszugriff, oder Android zeigt keinen Dialog mehr), geht es
+        // direkt in die passende Systemseite.
+        if (pending.requiresSettings) {
+            when (pending.kind) {
+                PermissionDisclosureKind.USAGE_ACCESS -> viewModel.openUsageAccess()
+                else -> openAppSettings(context)
+            }
+            return
+        }
+        when (pending.kind) {
+            PermissionDisclosureKind.ACTIVITY_RECOGNITION ->
+                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+
+            PermissionDisclosureKind.NOTIFICATIONS ->
+                if (Build.VERSION.SDK_INT >= 33) {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+
+            // Nutzungszugriff ist IMMER settings-basiert; der Zweig läuft nur,
+            // falls sich das ändert (dann viewModel.openUsageAccess()).
+            PermissionDisclosureKind.USAGE_ACCESS -> viewModel.openUsageAccess()
+
+            // Kalender wird nicht in diesem Screen angefragt (eigener Screen
+            // mit eigener Erklärung) — defensiv in die App-Einstellungen.
+            PermissionDisclosureKind.CALENDAR -> openAppSettings(context)
+        }
+    }
+
+    /**
+     * Berechtigung anfragen, aber erst erklären — außer sie ist bereits
+     * erteilt (dann gibt es nichts zu erklären und die Aktion läuft sofort,
+     * z. B. um „Immer erlauben" für den Hintergrund-Standort zu setzen).
+     */
+    fun requestPermission(
+        kind: PermissionDisclosureKind,
+        alreadyGranted: Boolean = isPermissionGranted(context, kind) == true,
+        before: () -> Unit = {},
+        after: () -> Unit = {}
+    ) {
+        permissionGate.request(kind, alreadyGranted) { pending ->
+            before()
+            runPermissionAction(pending)
+            after()
+        }
     }
 
     // M18.57: Bei Rückkehr aus den System-Einstellungen (z.B. nach
@@ -299,6 +382,18 @@ fun TriggerSettingsScreen(
             )
         }
 
+        // M18.141: Erklärungsdialog für die übrigen Berechtigungen.
+        // Erscheint, wenn eine noch nicht erteilte Berechtigung angetippt
+        // wird — und erneut, wenn sie zwischenzeitlich entzogen wurde.
+        permissionGate.pending?.let { pending ->
+            PermissionDisclosureDialog(
+                kind = pending.kind,
+                requiresSettings = pending.requiresSettings,
+                onAllow = { permissionGate.consent { ready -> runPermissionAction(ready) } },
+                onDecline = { permissionGate.dismiss() }
+            )
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
@@ -322,14 +417,21 @@ fun TriggerSettingsScreen(
                         requestLocationAccess(DisclosureGate.Action.REQUEST_BACKGROUND_VIA_SETTINGS)
                     },
                     onRequestActivityRecognition = {
-                        activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                        // M18.141: erst erklären, dann anfragen.
+                        requestPermission(PermissionDisclosureKind.ACTIVITY_RECOGNITION)
                     },
                     onRequestNotifications = {
-                        if (Build.VERSION.SDK_INT >= 33) {
-                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
+                        requestPermission(PermissionDisclosureKind.NOTIFICATIONS)
                     },
-                    onOpenUsageAccess = { viewModel.openUsageAccess() }
+                    onOpenUsageAccess = {
+                        // Nutzungszugriff: Berechtigung ist NICHT über
+                        // checkSelfPermission prüfbar — der Fach-Status aus
+                        // dem ViewModel entscheidet, ob erklärt werden muss.
+                        requestPermission(
+                            PermissionDisclosureKind.USAGE_ACCESS,
+                            alreadyGranted = state.usageStatsGranted
+                        )
+                    }
                 )
             }
 
@@ -375,8 +477,13 @@ fun TriggerSettingsScreen(
                             permissionGranted = !arBlocked,
                             onCheckedChange = viewModel::setDriving,
                             onRequestPermission = {
-                                pendingTrigger = "driving"
-                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                // M18.141: Erklärung vor dem Systemdialog.
+                                // pendingTrigger wird erst NACH der
+                                // Zustimmung gesetzt (im before-Block).
+                                requestPermission(
+                                    PermissionDisclosureKind.ACTIVITY_RECOGNITION,
+                                    before = { pendingTrigger = "driving" }
+                                )
                             }
                         ),
                         TriggerToggle(
@@ -388,8 +495,10 @@ fun TriggerSettingsScreen(
                             permissionGranted = !arBlocked,
                             onCheckedChange = viewModel::setWalking,
                             onRequestPermission = {
-                                pendingTrigger = "walking"
-                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                requestPermission(
+                                    PermissionDisclosureKind.ACTIVITY_RECOGNITION,
+                                    before = { pendingTrigger = "walking" }
+                                )
                             }
                         ),
                         TriggerToggle(
@@ -401,8 +510,10 @@ fun TriggerSettingsScreen(
                             permissionGranted = !arBlocked,
                             onCheckedChange = viewModel::setBicycle,
                             onRequestPermission = {
-                                pendingTrigger = "bicycle"
-                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                requestPermission(
+                                    PermissionDisclosureKind.ACTIVITY_RECOGNITION,
+                                    before = { pendingTrigger = "bicycle" }
+                                )
                             }
                         ),
                         // M18.133: Fahrt-Stopp beim Gehen. Der Step-Detector
@@ -420,8 +531,10 @@ fun TriggerSettingsScreen(
                             permissionGranted = !arBlocked,
                             onCheckedChange = viewModel::setStepWalkStop,
                             onRequestPermission = {
-                                pendingTrigger = "step_walk_stop"
-                                activityLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                                requestPermission(
+                                    PermissionDisclosureKind.ACTIVITY_RECOGNITION,
+                                    before = { pendingTrigger = "step_walk_stop" }
+                                )
                             }
                         )
                     )
@@ -482,7 +595,15 @@ fun TriggerSettingsScreen(
                     usageStatsGranted = state.usageStatsGranted,
                     onBackgroundCapture = viewModel::setBackgroundCapture,
                     onDigitalBalance = viewModel::setDigitalBalance,
-                    onOpenUsageAccess = { viewModel.openUsageAccess() }
+                    onOpenUsageAccess = {
+                        // M18.141: auch hier erst erklären (zweiter Einstieg
+                        // in dieselbe Berechtigung — sonst gäbe es einen
+                        // Bypass für den Dialog).
+                        requestPermission(
+                            PermissionDisclosureKind.USAGE_ACCESS,
+                            alreadyGranted = state.usageStatsGranted
+                        )
+                    }
                 )
             }
 

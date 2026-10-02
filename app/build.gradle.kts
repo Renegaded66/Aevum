@@ -57,8 +57,17 @@ android {
         //      Offenlegung nachlesbar.
         //   5) Datenschutzerklärung (online + docs/) um Abschnitt
         //      "Standort im Hintergrund" erweitert.
-        versionCode = 21
-        versionName = "1.0.20"
+        // M18.140: Standardsprache Englisch korrigiert — values/ ist jetzt der
+        //   englische Fallback, Deutsch liegt in values-de/. Dazu die
+        //   Datenschutz-Seite zweisprachig und die Store-Texte auf Englisch.
+        // M18.141: Erklärungsdialog VOR jeder Berechtigungs-Anfrage
+        //   (Aktivitätserkennung, Benachrichtigungen, Nutzungszugriff,
+        //   Kalender) in DE+EN — dieselbe Logik wie beim Standort, damit der
+        //   Grund der Play-Ablehnung nicht bei der nächsten Berechtigung
+        //   erneut auftritt. Ohne Persistenz: der Dialog hängt am aktuellen
+        //   Berechtigungsstatus und erscheint nach einem Widerruf erneut.
+        versionCode = 22
+        versionName = "1.0.21"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
