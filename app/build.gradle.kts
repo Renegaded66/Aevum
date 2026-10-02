@@ -75,8 +75,19 @@ android {
         //   der Berechtigungsstatus; fehlt die Berechtigung, erscheint der
         //   Dialog immer. Dazu ein Fallback in die App-Einstellungen, wenn
         //   Android keinen Systemdialog mehr zeigt.
-        versionCode = 23
-        versionName = "1.0.22"
+        // M18.144: Zwei Geofence-Fehler behoben (Devon, 02.10.2026):
+        //   1) Beim Anlegen eines Geofence am AKTUELLEN Ort startete die
+        //      Automatisierung nicht — der Nutzer war ja schon drin. Jetzt
+        //      läuft direkt nach dem Speichern ein Zonen-Check (nicht
+        //      blockierend, im Scope des Providers), der den aktuellen
+        //      Standort gegen den neuen Geofence prüft. Nur wenn der
+        //      Geofence selbst eine Automatisierung hat.
+        //   2) Eine vom Nutzer MANUELL gestartete Aktivität wurde beim
+        //      Verlassen des Geofence nicht beendet — beide Stop-Pfade
+        //      verlangten sourceType == "GEOFENCE_AUTO". Jetzt entscheidet
+        //      die Aktivität (GeofenceAutoStopPolicy), nicht die Herkunft.
+        versionCode = 24
+        versionName = "1.0.23"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

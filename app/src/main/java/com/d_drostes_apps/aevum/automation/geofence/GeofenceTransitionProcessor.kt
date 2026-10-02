@@ -355,8 +355,31 @@ class GeofenceTransitionProcessor @Inject constructor(
                             geofence.autoStartActivityTypeId != null &&
                             existing.activityTypeId == geofence.autoStartActivityTypeId)
                     if (matchesGeofence) {
-                        val isAutoSession = existing.sourceType == "GEOFENCE_AUTO"
-                        if (isAutoSession) {
+                        // ═══════════════════════════════════════════════
+                        // M18.144: HERKUNFT IST IRRELEVANT
+                        //
+                        // Gemeldeter Fehler: „Als ich [den Geofence] verlassen
+                        // habe, wurde die manuell gestartete Aktivität nicht
+                        // geendet."
+                        //
+                        // Vorher: isAutoSession = (sourceType == "GEOFENCE_AUTO")
+                        // → eine vom Nutzer selbst gestartete Session
+                        // (sourceType = "MANUAL") wurde ausdrücklich
+                        // übersprungen, obwohl sie die konfigurierte
+                        // Aktivität dieses Geofence ist.
+                        //
+                        // Jetzt entscheidet die AKTIVITÄT, nicht die Herkunft.
+                        // Der Auto-Discard-Schutz bleibt herkunftsgebunden
+                        // (nur unbestätigte AUTO-Sessions dürfen verworfen
+                        // werden) — manuelle Sessions werden nie verworfen.
+                        val stopReason = GeofenceAutoStopPolicy.stopReason(
+                            sessionActivityTypeId = existing.activityTypeId,
+                            sessionSourceTriggerId = existing.sourceTriggerId,
+                            geofenceAutoActivityTypeId = geofence.autoStartActivityTypeId,
+                            geofenceEnterTriggerIds = enterTriggerIds,
+                            sessionIsLive = existing.isLive
+                        )
+                        if (stopReason != GeofenceAutoStopPolicy.StopReason.NO_STOP) {
                             liveActivityManager.cancelAutoDiscard(geofence.id)
                             liveActivityManager.stop()
                             // M18.19: Notification beim Auto-Stop entfernen.
@@ -367,9 +390,17 @@ class GeofenceTransitionProcessor @Inject constructor(
                             // („läuft immer, wenn nichts anderes läuft").
                             com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
                                 .restartNow(context)
-                            debugLogger.log("PROCESSOR", "  M17 Auto-Stop: ${existing.title} beendet (sourceTriggerId=${existing.sourceTriggerId})")
+                            debugLogger.log(
+                                "PROCESSOR",
+                                "  M18.144 Auto-Stop: ${existing.title} beendet " +
+                                    "(Grund=$stopReason, sessionSource=${existing.sourceType})"
+                            )
                         } else {
-                            debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: Session ${existing.id} ist manuell (sourceType=${existing.sourceType})")
+                            debugLogger.log(
+                                "PROCESSOR",
+                                "  Auto-Stop übersprungen: Session gehört nicht " +
+                                    "zu ${geofence.name}"
+                            )
                         }
                     } else {
                         debugLogger.log("PROCESSOR", "  M17 Auto-Stop übersprungen: Live-Session gehört zu einem anderen Geofence/Trigger")

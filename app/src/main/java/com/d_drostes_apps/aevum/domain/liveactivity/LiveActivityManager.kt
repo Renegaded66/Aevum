@@ -5,6 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
+import com.d_drostes_apps.aevum.automation.geofence.GeofenceAutoStopPolicy
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
 import com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
@@ -420,10 +421,18 @@ class LiveActivityManager @Inject constructor(
 
     /** M12.1: Discard the current live session — stop + soft-delete.
      *  The session is treated as if it never happened (deletedAt set).
-     *  Only works for auto-started sessions (GEOFENCE_AUTO). */
+     *  Only works for auto-started sessions (GEOFENCE_AUTO).
+     *
+     *  M18.144: Die Herkunftsprüfung liegt jetzt in
+     *  [GeofenceAutoStopPolicy.mayDiscardUnconfirmed] — dieselbe Quelle, die
+     *  auch der geplante Auto-Discard-Job benutzt. Vorher stand hier ein
+     *  hartkodierter String-Vergleich, der bei einer Änderung der
+     *  Auto-Quellen stillschweigend falsch geworden wäre. Eine manuell
+     *  gestartete Session ist immer gewollt und darf niemals verworfen
+     *  werden — nur beendet, wenn der Nutzer den Geofence verlässt. */
     suspend fun discardLiveSession(): Boolean {
         val session = liveSession.value ?: return false
-        if (session.sourceType != "GEOFENCE_AUTO") return false
+        if (!GeofenceAutoStopPolicy.mayDiscardUnconfirmed(session.sourceType)) return false
         if (session.sessionStatus !in setOf("RUNNING", "PAUSED")) return false
         val now = System.currentTimeMillis()
         activityRepository.finishSession(

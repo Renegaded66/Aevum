@@ -208,6 +208,10 @@ class GeofenceEditorViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     private val geofenceRegistrar: GeofenceRegistrar,
     private val currentLocationProvider: CurrentLocationProvider,
+    // M18.144: Sofort-Zonencheck nach dem Anlegen/Bearbeiten eines Geofence
+    // (gemeldeter Fehler: „Beim Erstellen eines Geofences sollte direkt
+    // geprüft werden, ob man sich im Geofence befindet").
+    private val currentZoneProvider: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider,
     // M18.61e: Geofencing-Gate beim Speichern automatisch aktivieren
     // (Root Cause "kein einziger Trigger").
     private val settingsRepository: AutomationSettingsRepository,
@@ -357,6 +361,53 @@ class GeofenceEditorViewModel @Inject constructor(
                         ?: com.d_drostes_apps.aevum.data.model.AutomationSettings(geofencingEnabled = true)
                 )
                 geofenceRegistrar.refreshRegisteredGeofences()
+
+                // ═══════════════════════════════════════════════════════
+                // M18.144: SOFORT-CHECK NACH DEM ANLEGEN
+                //
+                // Gemeldeter Fehler: „Beim Erstellen eines Geofences sollte
+                // direkt geprüft werden, ob man sich im Geofence befindet.
+                // Ich habe am aktuellen Standort einen Geofence erstellt
+                // mit einer Automatisierung, aber die Aufzeichnung ist
+                // nicht gestartet, weil ich war ja schon drin."
+                //
+                // Ursache: Der Registrar erzwingt bewusst KEIN
+                // INITIAL_TRIGGER_ENTER (M18.64 — das hätte bei jedem
+                // App-Öffnen einen False-Start ausgelöst). Und der nächste
+                // Zonen-Check kommt erst mit dem ProactiveGeofenceCheckWorker
+                // (bis zu 5 Min später). Wer den Geofence anlegt und dann
+                // losfährt, ist beim ersten Check längst draußen — der ENTER
+                // wurde nie gesehen, die Automatisierung startete nie.
+                //
+                // Lösung: Nach dem Insert wird der aktuelle Standort SOFORT
+                // gegen den neuen Geofence geprüft (ein einzelner Fix).
+                // Dafür muss der gemerkte Zonen-Zustand verworfen werden —
+                // sonst sieht checkNow() keinen Wechsel und unterlässt den
+                // Auto-Start (der Geofence war beim letzten Check noch nicht
+                // vorhanden, die gemerkte Zone ist also unbrauchbar).
+                //
+                // Läuft NACH insert()+refresh(), weil checkNow() die Geofence-
+                // Liste aus der DB liest. Fehler dürfen das erfolgreiche
+                // Speichern nicht kippen — der Geofence ist gültig, der
+                // Check ist eine Zusatzleistung.
+                // Nur wenn DIESER Geofence eine Automatisierung hat: sonst
+                // gäbe es nichts zu starten — und das Verwerfen des
+                // Zonen-Zustands könnte die Automatisierung eines ANDEREN
+                // Geofence (z. B. „Zuhause") neu anstoßen, was der Nutzer
+                // beim Bearbeiten eines fremden Ortes nicht erwartet.
+                if (gf.autoStartActivityTypeId != null) {
+                    try {
+                        currentZoneProvider.invalidateZoneState()
+                        // M18.144: NICHT checkNow() direkt — das würde 1-5 s auf
+                        // einen GPS-Fix warten und der viewModelScope stirbt beim
+                        // Zurücknavigieren. checkNowInBackground() kehrt sofort
+                        // zurück, die Arbeit läuft im Scope des Providers.
+                        currentZoneProvider.checkNowInBackground()
+                    } catch (e: Exception) {
+                        Log.w("GeofenceEditor", "Sofort-Zonencheck nach dem Speichern fehlgeschlagen (nicht blockierend)", e)
+                    }
+                }
+
                 saved.value = true
             } catch (e: Exception) {
                 // M18.56: Fehler sichtbar machen statt schlucken — vorher

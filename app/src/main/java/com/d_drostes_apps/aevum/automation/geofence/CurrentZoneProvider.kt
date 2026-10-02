@@ -13,9 +13,13 @@ import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 import javax.inject.Inject
@@ -49,6 +53,16 @@ class CurrentZoneProvider @Inject constructor(
     private val liveActivityManager: LiveActivityManager
 ) {
     private val client by lazy { LocationServices.getFusedLocationProviderClient(context) }
+
+    /**
+     * M18.144: Eigener Scope für Hintergrund-Arbeiten (z. B. den
+     * Sofort-Zonencheck nach dem Anlegen eines Geofence).
+     *
+     * Bewusst NICHT der `viewModelScope` des Aufrufers: Der Editor navigiert
+     * direkt nach dem Speichern zurück, wodurch ein ViewModel-Scope
+     * abgebrochen würde — der Check käme nie zum Ende.
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     data class ZoneInfo(
         val geofence: PlaceGeofence,
@@ -304,10 +318,33 @@ class CurrentZoneProvider @Inject constructor(
                 if (autoType != null) {
                     try {
                         val existing = liveActivityManager.liveSession.value
-                        if (existing != null && existing.isLive &&
-                            existing.activityTypeId == autoType &&
-                            existing.sourceType == "GEOFENCE_AUTO"
-                        ) {
+                        // ═══════════════════════════════════════════════
+                        // M18.144: HERKUNFT IST IRRELEVANT
+                        //
+                        // Gemeldeter Fehler: „Als ich verlassen habe, wurde
+                        // die manuell gestartete Aktivität nicht geendet."
+                        //
+                        // Vorher verlangte dieser Zweig
+                        // `existing.sourceType == "GEOFENCE_AUTO"` — eine vom
+                        // Nutzer selbst gestartete Session trägt aber
+                        // `sourceType = "MANUAL"` und wurde deshalb nie
+                        // beendet. Die Frage lautet nicht „wer hat
+                        // gestartet?", sondern „gehört diese Aktivität zu
+                        // diesem Geofence?" — das entscheidet
+                        // [GeofenceAutoStopPolicy] über die AKTIVITÄT.
+                        //
+                        // Der Nutzer hat die Aktivität im Geofence
+                        // konfiguriert; ob er sie selbst oder die
+                        // Automatisierung gestartet hat, ist für ihn
+                        // unsichtbar. Beim Verlassen endet sie.
+                        val stopReason = GeofenceAutoStopPolicy.stopReason(
+                            sessionActivityTypeId = existing?.activityTypeId,
+                            sessionSourceTriggerId = existing?.sourceTriggerId,
+                            geofenceAutoActivityTypeId = autoType,
+                            geofenceEnterTriggerIds = geofenceEnterTriggerIds(previousZoneId),
+                            sessionIsLive = existing?.isLive == true
+                        )
+                        if (stopReason != GeofenceAutoStopPolicy.StopReason.NO_STOP) {
                             liveActivityManager.stop()
                             // M18.124 (User: "Benachrichtigung mit der Aufzeichnung wird
                             // nicht mehr automatisch entfernt"): Live-Notification beim
@@ -319,7 +356,7 @@ class CurrentZoneProvider @Inject constructor(
                             // sofort prüfen (siehe GeofenceTransitionProcessor).
                             com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
                                 .restartNow(context)
-                            Log.d(TAG, "✅ Auto-Stop: ${prevGf?.name} → Session beendet")
+                            Log.d(TAG, "✅ Auto-Stop: ${prevGf?.name} → Session beendet (Grund=$stopReason, war ${existing?.sourceType})")
 
                             triggerRepository.insert(
                                 TriggerEvent(
@@ -330,13 +367,13 @@ class CurrentZoneProvider @Inject constructor(
                                     confidence = 1.0f,
                                     geofenceId = previousZoneId,
                                     detectionEventId = null,
-                                    metadataJson = """{"geofenceName":"${prevGf?.name}","activityTypeId":"$autoType","reason":"direct_auto_stop"}""",
+                                    metadataJson = """{"geofenceName":"${prevGf?.name}","activityTypeId":"$autoType","reason":"direct_auto_stop","stopReason":"$stopReason","sessionSource":"${existing?.sourceType}"}""",
                                     anchorQuality = "HIGH"
                                 )
                             )
                             _debugInfo.value = "✅ Auto-Stop: ${prevGf?.name} → Session beendet"
                         } else {
-                            Log.d(TAG, "Auto-Stop: Keine passende Live-Session (existing=$existing)")
+                            Log.d(TAG, "Auto-Stop: Session gehört nicht zu ${prevGf?.name} (existing=$existing)")
                             _debugInfo.value = "EXIT: ${prevGf?.name} | keine passende Session"
                         }
                     } catch (e: Exception) {
@@ -365,6 +402,69 @@ class CurrentZoneProvider @Inject constructor(
         }
     }
 
+    /**
+     * M18.144: Verwirft den gemerkten Zonen-Zustand.
+     *
+     * Nötig beim Anlegen/Bearbeiten eines Geofence: `checkNow()` erkennt
+     * einen Auto-Start nur bei einem ZONENWECHSEL
+     * (`previousZoneId != newZoneId`). Der gemerkte Zustand stammt aber aus
+     * einem Lauf, in dem der neue Geofence noch gar nicht existierte — er
+     * ist damit unbrauchbar.
+     *
+     * Beispiel: Der Nutzer steht Zuhause (Zone „Zuhause" gemerkt) und legt
+     * an derselben Stelle einen neuen Geofence „Gym" an. Ohne Verwerfen
+     * vergleicht der nächste Check „Zuhause" mit „Gym" — das ergäbe zwar
+     * zufällig einen Wechsel, aber im zweiten Fall (Nutzers Ort hat keinen
+     * alten Zonen-Eintrag, z. B. nach App-Neustart) wäre `previousZoneId`
+     * bereits `null` und der Wechsel würde erkannt. Kritisch ist der Fall,
+     * dass der Nutzer den Geofence am selben Ort NEU anlegt, an dem er laut
+     * vorherigem Check bereits stand: dann ist ein Wechsel nur garantiert,
+     * wenn der Zustand vorher geleert wird.
+     *
+     * Auch die Presence-Evidenz wird zurückgesetzt: sonst glaubt der
+     * Presence-Sampler, der Nutzer sei „schon lange" in einer Zone, die es
+     * eben erst gibt — die Orts-Timeline würde einen erfundenen Aufenthalt
+     * rückdatieren.
+     */
+    fun invalidateZoneState() {
+        savePreviousZoneId(null)
+        clearPresenceOpen()
+        _currentZone.value = null
+        _debugInfo.value = "Zonen-Zustand verworfen (M18.144, Geofence geändert)"
+    }
+
+    /**
+     * ════════════════════════════════════════════════════════════════════
+     * M18.144: SOFORT-CHECK IM HINTERGRUND (nicht blockierend)
+     * ════════════════════════════════════════════════════════════════════
+     *
+     * Warum nicht einfach `checkNow()` aus dem ViewModel aufrufen?
+     *
+     * `checkNow()` holt einen GPS-Fix (`getCurrentLocation`,
+     * BALANCED_POWER_ACCURACY). Das dauert je nach Gerät 1–5 Sekunden. Im
+     * `viewModelScope` eines Speichern-Buttons würde der Nutzer so lange auf
+     * einen reagierenden Bildschirm warten — die App wirkt hängend. Und
+     * schlimmer: Die UI navigiert nach `saved = true` sofort zurück, womit
+     * der `viewModelScope` abgebrochen wird — der Check käme nie zum Ende.
+     *
+     * Deshalb läuft er hier in einem eigenen Scope am Singleton. Der Scope
+     * gehört dem Provider (kein ViewModel-Lebenszyklus), überlebt also die
+     * Navigation weg vom Editor. Das ist dasselbe Muster wie in
+     * [LiveActivityManager].
+     *
+     * Der Aufrufer ruft diese Methode also NUR feuern-und-vergessen auf; sie
+     * kehrt sofort zurück und die Arbeit läuft im Hintergrund.
+     */
+    fun checkNowInBackground() {
+        scope.launch {
+            try {
+                checkNow()
+            } catch (e: Exception) {
+                Log.w(TAG, "M18.144: Hintergrund-Zonencheck fehlgeschlagen: ${e.message}")
+            }
+        }
+    }
+
     // ═════════════════════════════════════════════════════════════════════
     // M18.87: PRESENCE-EVIDENZ
     // ═════════════════════════════════════════════════════════════════════
@@ -379,6 +479,14 @@ class CurrentZoneProvider @Inject constructor(
          *  (Rand-Flackern: ein GPS-Drift-Fix knapp außerhalb darf eine
          *  tagelange Anwesenheit nicht beenden). */
         const val PRESENCE_CONFIRM_MISSES = 2
+
+        /**
+         * M18.144: Fenster für die ENTER-Evidenz im Stop-Pfad.
+         *
+         * 24 h deckt jeden realistischen Aufenthalt ab (auch den
+         * ganztägigen Zuhause-Aufenthalt) und hält die Menge klein.
+         */
+        const val ENTER_TRIGGER_LOOKBACK_MS = 24L * 60 * 60 * 1000
 
         private const val KEY_PRESENCE_GEOFENCE = "presence_geofence_id"
         private const val KEY_PRESENCE_START = "presence_started_at"
@@ -523,5 +631,35 @@ class CurrentZoneProvider @Inject constructor(
             Math.sin(dLon / 2) * Math.sin(dLon / 2)
         val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
         return r * c
+    }
+
+    /**
+     * M18.144: ENTER-Trigger-IDs dieses Geofence (letzte 24 h).
+     *
+     * Die Stop-Entscheidung ([GeofenceAutoStopPolicy]) braucht sie für den
+     * Fall, dass der Nutzer die Aktivität WÄHREND des Aufenthalts gewechselt
+     * hat: Dann passt die Aktivität nicht mehr zur Geofence-Konfiguration,
+     * aber der Ursprungs-Trigger beweist die Zugehörigkeit — die Session
+     * wird trotzdem beendet.
+     *
+     * Lesefehler dürfen den Stop-Pfad nicht blockieren: im Fehlerfall eine
+     * leere Menge, dann greift allein der Aktivitäts-Vergleich.
+     */
+    private suspend fun geofenceEnterTriggerIds(geofenceId: String?): Set<String> {
+        if (geofenceId == null) return emptySet()
+        return try {
+            val since = System.currentTimeMillis() - ENTER_TRIGGER_LOOKBACK_MS
+            triggerRepository.getByGeofenceId(geofenceId).first()
+                .filter { trigger ->
+                    trigger.occurredAt >= since &&
+                        (trigger.type.contains("ENTER", ignoreCase = true) ||
+                            trigger.type.contains("ARRIVED", ignoreCase = true))
+                }
+                .map { it.id }
+                .toSet()
+        } catch (e: Exception) {
+            Log.w(TAG, "M18.144: ENTER-Trigger-Ermittlung fehlgeschlagen: ${e.message}")
+            emptySet()
+        }
     }
 }
