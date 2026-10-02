@@ -76,10 +76,11 @@ für die der Nutzer gerade tippt — so verlangt es die Richtlinie):
 
 ---
 
-## 2 — Foreground-Service-Policy (Frist 28.10.2026)
+## 2 — Foreground-Service-Policy (in Kraft seit 26.08.2026)
 
 **Google hat Geofencing als genehmigten Anwendungsfall für Dienste im
-Vordergrund gestrichen.** Ankündigung 15.04.2026, Durchsetzung ab 28.10.2026:
+Vordergrund gestrichen.** Ankündigung 15.04.2026, wirksam seit 26.08.2026 —
+also bereits in Kraft, das Update 1.0.19 verstieß schon dagegen:
 
 > „Apps that only use the foreground service permission for geofencing must
 > remove their foreground service permissions (including
@@ -221,19 +222,42 @@ Services (GeofenceForegroundService entfällt).
 
 ## Was Devon noch tun muss (Play Console, nicht im Code lösbar)
 
-1. **Video (≤ 30 s)** für das Background-Location-Formular hochladen (YouTube-Link).
-   Muss zeigen: Feature in der App → **Disclosure-Dialog** → Runtime-Prompt → Funktion.
-   Mit dem neuen Dialog ist das erstmals aufnehmbar.
-2. **AAB mit versionCode 21** hochladen und einreichen.
-3. **FGS-Erklärung** prüfen: Anwendungsfall für `location` auf
+> **Wichtig zur Frist:** Die FGS-Regel ist seit **26.08.2026 in Kraft** (Google:
+> „effective on 26 August 2026") — nicht erst im Oktober. Das eingereichte
+> Update 1.0.19 verstieß also bereits dagegen. Das ist mit diesem Commit behoben.
+
+1. **Video (≤ 30 s)** für das Background-Location-Formular — YouTube-Link bevorzugt,
+   Google-Drive-MP4 geht auch. Pflichtinhalte (Google zählt sie einzeln auf):
+   - die Funktion, **aus dem Hintergrund aktiviert**
+   - der **Prominent-Disclosure-Dialog** in der App
+   - der **Runtime-Prompt** danach
+   Mit dem neuen Dialog ist das erstmals aufnehmbar. Wichtig: Aufnahme auf einem
+   **Android-Gerät** zeigen (kein iOS-Video).
+2. **Nur EINE Funktion im Formular erklären.** Google wörtlich: „We can only
+   evaluate one feature at a time. The inclusion of multiple features will result
+   in an app's rejection." → Empfehlung: **Fahrterkennung** als die eine Funktion
+   nennen (die anderen drei nicht im Formular aufzählen!). Die Genehmigung gilt
+   danach für die ganze App.
+3. **AAB mit versionCode 21** hochladen und einreichen.
+4. **FGS-Erklärung**: Anwendungsfall für `location` auf
    „Background Location Updates: **vehicle activity tracking**" umstellen —
-   NICHT „Geofencing" (seit 15.04.2026 nicht mehr zulässig).
-4. **Store-Beschreibung**: Geofence-Funktion sichtbar bewerben (Pflicht laut
-   Policy „must all be prominently documented and promoted in the app's
-   description") + Screenshot mit Karte/Standort.
-5. **Datenschutz-URL im Store-Eintrag** muss weiterhin gesetzt sein
+   NICHT „Geofencing" (kein zulässiger Anwendungsfall mehr).
+5. **Store-Beschreibung erweitern** — Google verlangt für die Offenlegung
+   ausdrücklich: „Must be within the app itself **as well as in the app
+   description and website**" und „The core feature(s) must all be prominently
+   documented and promoted in the app's description." Also in der
+   Play-Beschreibung ausformulieren, dass Aevum Standort im Hintergrund nutzt für
+   Ortserkennung, Fahrterkennung, Wege und Orts-Timeline. Dazu einen Screenshot
+   mit Karte/Standort.
+6. **Drei Offenlegungsorte müssen zusammenpassen**: App (Dialog ✓), Play-Beschreibung
+   (Devon), Website/Datenschutz (✓ aktualisiert).
+7. **Datenschutz-URL im Store-Eintrag** muss gesetzt bleiben
    (https://renegaded66.github.io/Aevum/).
-6. **Data-Safety-Formular**: „Genauer Standort" = erhoben, Zweck „App-Funktionalität".
+8. **Data-Safety-Formular**: „Genauer Standort" = erhoben, Zweck
+   „App-Funktionalität".
+9. **Alle Tracks prüfen**: Die FGS-Regel gilt für geschlossene und offene
+   Test-Tracks gleichermaßen — dort dürfen keine Alt-APKs mit
+   `FOREGROUND_SERVICE_LOCATION` liegen.
 
 ---
 

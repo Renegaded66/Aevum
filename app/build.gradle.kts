@@ -47,7 +47,7 @@ android {
         //      eingebaut (Dialog vor jedem Permission-Request + beim Start
         //      + im Datenschutz-Screen), DE/EN, mit Wire- und Text-Guards.
         //   2) GeofenceForegroundService ENTFERNT — Geofencing ist ab
-        //      28.10.2026 kein genehmigter Anwendungsfall für
+        //      26.08.2026 kein genehmigter Anwendungsfall für
         //      FOREGROUND_SERVICE_LOCATION mehr. Die Geofence API braucht
         //      keinen Dienst (Registrierung via GeofencingClient, Übergänge
         //      per PendingIntent an den GeofenceBroadcastReceiver).

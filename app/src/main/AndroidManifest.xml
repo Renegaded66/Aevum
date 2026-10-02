@@ -170,7 +170,7 @@
         </receiver>
 
         <!--
-            M18.139 (Play-Policy 28.10.2026): GeofenceForegroundService wurde
+            M18.139 (Play-Policy, in Kraft seit 26.08.2026): GeofenceForegroundService wurde
             ENTFERNT. Google entfernt Geofencing als genehmigten Anwendungsfall
             für Dienste im Vordergrund ("Apps that only use the foreground
             service permission for geofencing must remove their foreground

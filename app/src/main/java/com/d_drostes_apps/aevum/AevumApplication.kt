@@ -213,7 +213,7 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "GeofenceRefreshScheduler failed — continuing", e)
         }
-        // M18.139 (Play-Policy 28.10.2026): Der GeofenceForegroundService
+        // M18.139 (Play-Policy, in Kraft seit 26.08.2026): Der GeofenceForegroundService
         // wurde komplett entfernt. Google streicht Geofencing als genehmigten
         // Anwendungsfall für Dienste im Vordergrund; Apps, die einen
         // Location-FGS nur dafür nutzen, müssen die Berechtigung aus dem

@@ -124,7 +124,7 @@ class LocationDisclosureWiringTest {
 
     @Test
     fun `GeofenceForegroundService ist entfernt und nicht mehr deklariert`() {
-        // Play-Policy (Durchsetzung ab 28.10.2026): Geofencing ist kein
+        // Play-Policy (in Kraft seit 26.08.2026): Geofencing ist kein
         // genehmigter Anwendungsfall für Dienste im Vordergrund. Apps, die
         // einen Location-FGS nur dafür nutzen, müssen die Berechtigung aus
         // ALLEN Tracks entfernen.
