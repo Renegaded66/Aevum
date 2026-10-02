@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.domain.calendar
 
+import com.d_drostes_apps.aevum.data.repository.LanguageRepository
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import java.io.File
@@ -14,7 +15,7 @@ import javax.xml.parsers.DocumentBuilderFactory
  * passiert zur Laufzeit gegen das Resource-Table der App, das im Test
  * nicht existiert. Was hier GEPRÜFT WERDEN KANN und soll, ist die
  * Ressourcen-Datei selbst: dass jeder Kalender-Key in `values/` (Deutsch,
- * Fallback) UND `values-en/` (Englisch) existiert und dass die englische
+ * Fallback) UND `values-de/` (Deutsch) existiert und dass die englische
  * Fassung keine deutsche ist.
  *
  * Das ist der Fall, der sonst durch die Maschen fällt: ein neuer Key, der
@@ -26,8 +27,8 @@ import javax.xml.parsers.DocumentBuilderFactory
  */
 class CalendarStringsI18nTest {
 
-    private val deFile = File("src/main/res/values/strings_calendar.xml")
-    private val enFile = File("src/main/res/values-en/strings_calendar.xml")
+    private val deFile = File("src/main/res/values-de/strings_calendar.xml")
+    private val enFile = File("src/main/res/values/strings_calendar.xml")
 
     /** Liest name -> Text aus einer Android-Strings-Datei. */
     private fun readStrings(file: File): Map<String, String> {
@@ -114,12 +115,17 @@ class CalendarStringsI18nTest {
     }
 
     /**
-     * Deutsch bleibt die Quelle: `values/` ist der Fallback. Der Test
-     * dokumentiert die Richtung — es gibt keine `values-de/`.
+     * M18.140: Englisch ist die Standardsprache der App — `values/` ist der
+     * Fallback. Der Test dokumentiert die Richtung: es gibt keine
+     * `values-en/` mehr, Deutsch liegt in `values-de/`. Ein Nutzer mit
+     * Systemsprache Spanisch (oder jeder anderen ohne eigene Übersetzung)
+     * bekommt damit Englisch und nicht versehentlich Deutsch.
      */
     @Test
-    fun `Deutsch liegt im Fallback-Ordner values`() {
-        assertThat(deFile.path.replace('\\', '/')).endsWith("/values/strings_calendar.xml")
-        assertThat(Locale.GERMAN.language).isEqualTo("de")
+    fun `Englisch liegt im Fallback-Ordner values`() {
+        assertThat(enFile.path.replace('\\', '/')).endsWith("/values/strings_calendar.xml")
+        assertThat(deFile.path.replace('\\', '/')).endsWith("/values-de/strings_calendar.xml")
+        assertThat(Locale.ENGLISH.language).isEqualTo("en")
+        assertThat(LanguageRepository.LANGUAGE_DEFAULT).isEqualTo(LanguageRepository.LANGUAGE_EN)
     }
 }

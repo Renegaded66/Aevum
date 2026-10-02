@@ -177,8 +177,8 @@ data class LocationDisclosureText(
         /**
          * Einzige Quelle der Offenlegung. Wird der Text inhaltlich
          * geändert, müssen die Strings in
-         * `res/values/strings_disclosure.xml` und
-         * `res/values-en/strings_disclosure.xml` mitgezogen werden.
+         * `res/values/strings_disclosure.xml` (EN, Fallback) und
+         * `res/values-de/strings_disclosure.xml` (DE) mitgezogen werden.
          */
         fun standard(): LocationDisclosureText = LocationDisclosureText(
             titleRes = R.string.disclosure_location_title,

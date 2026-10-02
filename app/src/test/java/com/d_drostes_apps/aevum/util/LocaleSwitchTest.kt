@@ -14,7 +14,7 @@ import java.util.Locale
  * ("system"/"de"/"en") wird über [LocaleHelper.localeFor] in ein Locale
  * übersetzt und über [AppLocale.update] als App-weites Runtime-Locale
  * gesetzt. Diese reine JVM-Schicht ist testbar — die Ressourcen-Auflösung
- * selbst (stringResource gegen values/ vs. values-en/) wird durch
+ * selbst (stringResource gegen values/ vs. values-de/) wird durch
  * [com.d_drostes_apps.aevum.domain.calendar.CalendarStringsI18nTest]
  * auf Dateiebene bewacht.
  *

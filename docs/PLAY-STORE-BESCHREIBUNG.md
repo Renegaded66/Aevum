@@ -1,176 +1,196 @@
-# Play-Store-Beschreibung — Textbausteine für Devon
+# Play Store listing — text blocks (ENGLISH)
 
-**Zweck:** Google verlangt für die Hintergrund-Standort-Erklärung ausdrücklich,
-dass die Offenlegung „within the app itself **as well as in the app description
-and website**" steht und dass die Kernfunktion „prominently documented and
-promoted in the app's description" wird. Diese Datei liefert die Bausteine zum
-Kopieren in die Play Console.
+**Purpose:** Google requires the background-location disclosure to be
+„within the app itself **as well as in the app description and website**" and
+the core feature to be „prominently documented and promoted in the app's
+description". The Play listing is **English** — these are the blocks to paste
+into Play Console.
 
----
-
-## 1. Kurzbeschreibung (max. 80 Zeichen)
-
-```
-Aevum erfasst deinen Tag automatisch — vor Ort, in der Fahrt, in der Timeline.
-```
-*(79 Zeichen)*
-
-**Alternative, falls Standort betont werden soll:**
-```
-Automatischer Zeit-Tracker: Orte, Fahrten und Aktivitäten — ohne Knopfdruck.
-```
-*(75 Zeichen)*
+**Language note:** English is the app's default language
+(`LanguageRepository.LANGUAGE_DEFAULT = "en"`), the fallback resource folder is
+`values/` (English) and the German translation lives in `values-de/`.
 
 ---
 
-## 2. Vollständige Beschreibung (max. 4000 Zeichen)
+## 1. Short description (max. 80 characters)
 
 ```
-Aevum erfasst deinen Tag — ohne dass du etwas eintragen musst.
-
-Du kommst zuhause an, und die Arbeit ist beendet. Du fährst los, und die Fahrt
-wird aufgezeichnet. Du gehst spazieren, und der Weg landet in deinem Tag. Aevum
-verbindet diese Ereignisse automatisch zu einem vollständigen Bild deiner Zeit.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WAS AEVUM AUTOMATISCH ERKENNT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-• Ortserkennung (Geofences)
-  Lege Orte an wie Zuhause, Arbeit oder Fitnessstudio. Betreten und Verlassen
-  startet bzw. beendet Aktivitäten automatisch.
-
-• Fahrterkennung
-  Autofahrten werden automatisch erkannt und mit ihrer Route aufgezeichnet.
-
-• Spaziergänge und Radfahrten
-  Wege werden automatisch als Aktivität erfasst.
-
-• Orts-Timeline
-  Der Verlauf der Orte, an denen du warst — inklusive bisher unbekannter Orte.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WARUM AEVUM STANDORT IM HINTERGRUND BRAUCHT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Aevum erhebt Standortdaten, um Ortserkennung, Fahrterkennung, Wege-Erkennung und
-Orts-Timeline zu ermöglichen — auch wenn die App geschlossen ist oder nicht
-verwendet wird.
-
-Der Grund: Genau das ist der Sinn der App. Die Ortswechsel passieren, während
-dein Handy in der Tasche steckt und Aevum nicht geöffnet ist. Wenn du bei jedem
-Betreten und Verlassen eines Ortes die App selbst öffnen müsstest, gäbe es keine
-Automatik — und Aevum wäre nichts weiter als ein manueller Zeit-Tracker.
-
-Vor dem ersten Zugriff zeigt Aevum in der App einen Hinweisdialog, der diese
-Verwendung offenlegt. Der Zugriff beginnt erst nach deiner ausdrücklichen
-Zustimmung. Du kannst die Berechtigung jederzeit in den
-Android-Systemeinstellungen entziehen.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DEINE DATEN BLEIBEN BEI DIR
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-• Kein Aevum-Server, keine Benutzerkonten
-• Keine Werbung, keine Weitergabe an Dritte, kein Verkauf von Daten
-• Alle Standortdaten, Aktivitäten und Notizen liegen ausschließlich lokal
-  auf deinem Gerät
-• Export und Backup als Datei — du entscheidest, wohin
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WEITERE FUNKTIONEN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-• Aktivitäten manuell starten und stoppen
-• Kalender-Regeln: Termine starten passende Aktivitäten
-• Digital Balance: Bildschirmzeit im Blick behalten
-• Schlaf über Health Connect
-• Auswertungen: Woche, Monat, Verteilung deiner Zeit
-• Widgets für den Homescreen
-• Vollständig offline nutzbar
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BERECHTIGUNGEN IM ÜBERBLICK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-• Standort (Vordergrund und Hintergrund) — Ortserkennung, Fahrterkennung,
-  Wege-Erkennung, Orts-Timeline
-• Aktivitätserkennung — Bewegungserkennung (Fahrten, Gehen, Radfahren)
-• Benachrichtigungen — laufende Aktivitäten und Hinweise
-• Kalender (nur lesen) — optionale Kalender-Regeln
-• Nutzungsdaten (optional) — Digital Balance
-• Health Connect (optional) — Schlaf- und Trainingsdaten
-
-Datenschutzerklärung: https://renegaded66.github.io/Aevum/
+Automatic time tracker: places, drives and activities — no button pressing.
 ```
+*(74 characters)*
 
-**Zeichenzahl:** ca. 2.900 von 4.000 — Platz für Anpassungen.
+**Alternative, if the location angle should be explicit:**
+```
+Aevum logs your day automatically — places, drives, walks, time line.
+```
+*(69 characters)*
 
 ---
 
-## 3. Was Google bei der Prüfung sieht
+## 2. Full description (max. 4000 characters)
 
-Die Prüferin sucht in der Beschreibung nach diesen drei Dingen — alle sind oben
-enthalten:
+```
+Aevum captures your day — without you having to log anything.
 
-| Anforderung (Google-Wortlaut) | im Text oben |
+You arrive home and work is finished. You start driving and the trip is
+recorded. You go for a walk and the route lands in your day. Aevum turns these
+events into a complete picture of your time, automatically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT AEVUM DETECTS AUTOMATICALLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Place detection (geofences)
+  Set up places like home, work or the gym. Entering and leaving starts or
+  stops activities automatically.
+
+• Drive detection
+  Car trips are detected automatically and recorded with their route.
+
+• Walks and bike rides
+  Your journeys are recorded as activities automatically.
+
+• Place timeline
+  A history of the places you have been to — including places you had not
+  saved before.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHY AEVUM NEEDS LOCATION IN THE BACKGROUND
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Aevum collects location data to enable place detection, drive detection,
+journey detection and the place timeline — even when the app is closed or not
+in use.
+
+Here is why: that is the whole point of the app. Place changes happen while
+your phone is in your pocket and Aevum is not open. If you had to open the app
+yourself every time you enter or leave a place, there would be no automation —
+and Aevum would be nothing more than a manual time tracker.
+
+Before the first access, Aevum shows an in-app disclosure dialog explaining
+this use. Access only begins after your explicit consent. You can revoke the
+permission at any time in the Android system settings.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+YOUR DATA STAYS WITH YOU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• No Aevum server, no user accounts
+• No advertising, no sharing with third parties, no selling of data
+• All location data, activities and notes stay exclusively on your device
+• Export and backup as a file — you decide where it goes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MORE FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Start and stop activities manually
+• Calendar rules: appointments start the matching activity
+• Digital Balance: keep an eye on screen time
+• Sleep tracking via Health Connect
+• Insights: week, month and distribution of your time
+• Home screen widgets
+• Works fully offline
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSIONS AT A GLANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Location (foreground and background) — place detection, drive detection,
+  journey detection, place timeline
+• Activity recognition — motion detection (drives, walking, cycling)
+• Notifications — running activities and alerts
+• Calendar (read only) — optional calendar rules
+• Usage access (optional) — Digital Balance
+• Health Connect (optional) — sleep and workout data
+
+Privacy policy: https://renegaded66.github.io/Aevum/
+```
+
+**Character count:** approx. 2,850 of 4,000 — room for adjustments.
+
+---
+
+## 3. What Google checks in the description
+
+The reviewer searches for three things — all of them are in the text above:
+
+| Requirement (Google's wording) | in the text above |
 |---|---|
-| „Include the term 'location'" | „Aevum erhebt **Standortdaten**" |
-| „Indicate the nature of your app's use of location in the background" | „auch wenn die App **geschlossen** ist oder nicht verwendet wird", Abschnitt „WARUM AEVUM STANDORT IM HINTERGRUND BRAUCHT" |
-| „List all of the app features that use location in the background" | die vier Funktionen einzeln, im selben Absatz |
+| „Include the term 'location'" | „Aevum collects **location data**" |
+| „Indicate the nature of your app's use of location in the background" | „even when the app is **closed** or not in use", section „WHY AEVUM NEEDS LOCATION IN THE BACKGROUND" |
+| „List all of the app features that use location in the background" | the four features individually, in that same paragraph |
+
+The same four features are named identically in the app disclosure, in this
+listing text and in the privacy policy — that consistency is what the review
+looks for.
 
 ---
 
-## 4. Screenshot-Empfehlung
+## 4. Screenshot recommendation
 
-Google erwartet, dass die Kernfunktion auch visuell beworben wird. Ein
-Screenshot mit sichtbarer Karte bzw. Orts-Liste (Orte-Screen oder
-Orts-Timeline) macht die Standort-Funktion für die Prüfung offensichtlich.
-Empfohlene Reihenfolge der Store-Screenshots:
+Google expects the core feature to be promoted visually as well. A screenshot
+with a visible map or place list makes the location feature obvious to the
+reviewer. Suggested order for the store screenshots:
 
-1. Dashboard mit heutigen Aktivitäten
-2. Orte-Screen mit Karte / Geofence-Kreisen
-3. Orts-Timeline (Verlauf)
-4. Auswertung Woche/Monat
-5. Widgets auf dem Homescreen
+1. Dashboard with today's activities
+2. Places screen with map / geofence circles
+3. Place timeline (history)
+4. Weekly / monthly insights
+5. Widgets on the home screen
 
 ---
 
-## 5. Formular „Zweck der App" und „Standortzugriff"
+## 5. Declaration form: "Main purpose" and "Location access"
 
-Für das Background-Location-Formular — **nur EINE Funktion nennen**
+For the background-location declaration form — **name only ONE feature**
 (Google: „We can only evaluate one feature at a time. The inclusion of multiple
 features will result in an app's rejection. **Approval will be granted for your
 entire app, not just for this single feature.**").
 
-### Feld: „Zweck der App" / „What is the main purpose of your app?"
+The Play Console form is in English — use the English wording below.
+
+### Field: "What is the main purpose of your app?"
 
 ```
-Aevum ist ein automatischer Zeit-Tracker. Die App zeichnet Aktivitäten wie
-Arbeit, Sport und Schlaf ohne manuelles Starten auf. Der Hauptzweck ist die
-automatische, lückenlose Zeiterfassung des Tages: Nutzer sollen nicht daran
-denken müssen, die App zu bedienen.
+Aevum is an automatic time tracker. The app records activities such as work,
+exercise and sleep without the user having to start them manually. Its main
+purpose is automatic, uninterrupted time tracking of the day: users should not
+have to think about operating the app.
 ```
 
-### Feld: „Standortzugriff" / „Why does your app need access to the location in the background?"
+### Field: "Why does your app need access to the location in the background?"
 
 ```
-Aevum nutzt Standort im Hintergrund für die automatische Fahrterkennung:
-Autofahrten werden als Aktivität erkannt und mit ihrer Route aufgezeichnet,
-während das Handy in der Tasche steckt und die App geschlossen ist.
+Aevum uses background location for automatic drive detection: car trips are
+recognised as activities and recorded with their route while the phone is in
+the user's pocket and the app is closed.
 
-Ohne Standort im Hintergrund müsste der Nutzer jede Fahrt manuell starten und
-beenden — die Kernfunktion der App (automatische Zeiterfassung ohne
-Nutzerinteraktion) wäre dann nicht mehr gegeben. Die Fahrt wird nur durch den
-Ortswechsel selbst ausgelöst; es gibt keinen anderen Auslöser, der im
-Hintergrund verfügbar wäre.
+Without background location the user would have to start and stop every trip
+manually — the app's core function (automatic time tracking without user
+interaction) would no longer exist. A trip is triggered by the change of
+location itself; there is no other trigger available in the background.
 
-Alle Standortdaten bleiben lokal auf dem Gerät. Es gibt keinen Server, keine
-Konten und keine Weitergabe an Dritte.
+All location data stays locally on the device. There is no server, no accounts
+and no sharing with third parties.
 ```
 
-**Warum Fahrterkennung und nicht Geofencing?** Zwei Gründe: (1) Geofencing ist
-seit 26.08.2026 kein genehmigter Foreground-Service-Anwendungsfall mehr, und
-(2) die Fahrterkennung ist der stärkste Anwendungsfall — sie hat einen klar
-sichtbaren Nutzen (Route, Fahrtdauer), ist unbestreitbar auf den Hintergrund
-angewiesen und wird nicht als Komfort-Feature gewertet.
+**Why drive detection and not geofencing?** Two reasons: (1) geofencing is no
+longer an approved foreground-service use case as of 26 Aug 2026, and (2) drive
+detection is the strongest case — it has a clearly visible benefit (route, trip
+duration), it demonstrably depends on the background, and it is not treated as a
+convenience feature.
+
+---
+
+## 6. German listing (only if added later)
+
+The German disclosure wording lives in
+`app/src/main/res/values-de/strings_disclosure.xml`. If a German listing is
+added, it must name the same four features as the app disclosure and this
+English listing:
+
+- Ortserkennung (Geofences)
+- Fahrterkennung
+- Erkennung von Spaziergängen und Radfahrten
+- Orts-Timeline und unbekannte Orte

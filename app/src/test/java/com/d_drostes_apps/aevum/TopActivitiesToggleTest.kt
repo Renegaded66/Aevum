@@ -166,7 +166,7 @@ class TopActivitiesToggleTest {
         // Der sichtbare Kartentitel existiert weiterhin — der Toggle selbst
         // ist textfrei. Den Titel zur Laufzeit aus den Ressourcen holen:
         // Robolectric laeuft je nach Umgebung unter einer anderen Locale
-        // (hier en-US → values-en), ein hart kodierter deutscher String
+        // (hier en-US → values), ein hart kodierter deutscher String
         // waere ein falscher Test.
         val title = ApplicationProvider.getApplicationContext<android.content.Context>()
             .getString(R.string.insights_top_activities)

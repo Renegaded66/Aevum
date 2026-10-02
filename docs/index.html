@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en" data-lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aevum — Datenschutzerklärung</title>
-<meta name="description" content="Datenschutzerklärung für Aevum — alles bleibt auf deinem Gerät. Kein Server, kein Tracking, keine Werbung.">
+<title>Aevum — Privacy Policy</title>
+<meta name="description" content="Privacy policy for Aevum — everything stays on your device. No server, no tracking, no ads. Datenschutzerklärung für Aevum.">
 <style>
   :root {
     --bg: #0f1420;
@@ -82,6 +82,31 @@
   a:hover { text-decoration: underline; }
   .muted { color: var(--muted); font-size: 14px; }
   footer { margin-top: 28px; text-align: center; color: var(--muted); font-size: 13.5px; }
+  .langbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 16px; }
+  .langbar button {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 15px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .langbar button[aria-pressed="true"] {
+    background: rgba(45, 212, 191, 0.14);
+    color: var(--accent);
+    border-color: rgba(45, 212, 191, 0.45);
+  }
+  /* Both language versions live in the DOM; one is hidden.
+     Default is ENGLISH — the app's default language (LanguageRepository
+     LANGUAGE_DEFAULT = "en") and the language of the Play Store listing.
+     The four background-location features are named identically here and in
+     the in-app disclosure (res/values/strings_disclosure.xml). */
+  html[data-lang="en"] .de { display: none; }
+  html[data-lang="de"] .en { display: none; }
   @media (max-width: 560px) {
     h1 { font-size: 24px; }
     section.card { padding: 20px 16px; }
@@ -93,27 +118,42 @@
     section.card, header.hero { border: none; background: #fff; padding: 10px 0; }
     h2 .num { color: #111; }
     strong { color: #000; }
+    .langbar { display: none; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
 
+<div class="langbar">
+  <button type="button" id="btn-en" aria-pressed="true" onclick="setLang('en')">English</button>
+  <button type="button" id="btn-de" aria-pressed="false" onclick="setLang('de')">Deutsch</button>
+</div>
+
 <header class="hero">
-  <div class="badge">100&nbsp;% lokal — kein Server, kein Tracking</div>
-  <h1>Datenschutzerklärung</h1>
-  <p class="sub">Aevum — Dein Leben. Automatisch erfasst. &nbsp;·&nbsp; Stand: 2.&nbsp;Oktober&nbsp;2026</p>
+  <div class="badge en">100&nbsp;% local — no server, no tracking</div>
+  <div class="badge de">100&nbsp;% lokal — kein Server, kein Tracking</div>
+  <h1 class="en">Privacy Policy</h1>
+  <h1 class="de">Datenschutzerklärung</h1>
+  <p class="sub en">Aevum — Your life. Captured automatically. &nbsp;·&nbsp; Last updated: 2&nbsp;October&nbsp;2026</p>
+  <p class="sub de">Aevum — Dein Leben. Automatisch erfasst. &nbsp;·&nbsp; Stand: 2.&nbsp;Oktober&nbsp;2026</p>
 </header>
 
 <section class="card">
-  <h2><span class="num">1</span>Verantwortlicher</h2>
+  <h2><span class="num">1</span><span class="en">Controller</span><span class="de">Verantwortlicher</span></h2>
   <p>Devon Droste<br>E-Mail: <a href="mailto:06renegaded66@gmail.com">06renegaded66@gmail.com</a></p>
 </section>
 
 <section class="card">
-  <h2><span class="num">2</span>Kurzfassung — das Wichtigste zuerst</h2>
-  <p>Aevum verarbeitet alle deine Daten <strong>ausschließlich lokal auf deinem Gerät</strong>.</p>
-  <ul>
+  <h2><span class="num">2</span><span class="en">Summary — the most important part first</span><span class="de">Kurzfassung — das Wichtigste zuerst</span></h2>
+  <p class="en">Aevum processes all of your data <strong>exclusively on your device</strong>.</p>
+  <p class="de">Aevum verarbeitet alle deine Daten <strong>ausschließlich lokal auf deinem Gerät</strong>.</p>
+  <ul class="en">
+    <li>There is <strong>no Aevum server</strong>, no user accounts and no cloud storage.</li>
+    <li>There is <strong>no advertising, no analytics or tracking services</strong> and no transfer of your data to the developer.</li>
+    <li>Connections to third parties only occur with: <strong>Google Play Services</strong> (your device&rsquo;s system services), <strong>OpenStreetMap</strong> (map tiles for the map view) and — only if you connect it yourself — <strong>Garmin</strong>.</li>
+  </ul>
+  <ul class="de">
     <li>Es gibt <strong>keinen Aevum-Server</strong>, keine Benutzerkonten und keine Cloud-Speicherung.</li>
     <li>Es gibt <strong>keine Werbung, keine Analyse- oder Tracking-Dienste</strong> und keine Weitergabe deiner Daten an den Entwickler.</li>
     <li>Verbindungen zu Dritten entstehen nur zu: <strong>Google Play Services</strong> (Systemdienste deines Geräts), <strong>OpenStreetMap</strong> (Kartenkacheln für die Kartenansicht) und — nur wenn du es selbst aktiv verbindest — <strong>Garmin</strong>.</li>
@@ -121,39 +161,69 @@
 </section>
 
 <section class="card">
-  <h2><span class="num">3</span>Welche Daten verarbeitet Aevum?</h2>
+  <h2><span class="num">3</span><span class="en">What data does Aevum process?</span><span class="de">Welche Daten verarbeitet Aevum?</span></h2>
 
-  <h3>3.1 Standortdaten (Geofences, Orts-Timeline, Fahrterkennung)</h3>
-  <p><strong>Zweck:</strong> Automatisches Tracking deiner Aktivitäten an selbst angelegten Orten (z.&nbsp;B. Zuhause, Arbeit), die Orts-Timeline (wann warst du wo) und die Fahrterkennung.</p>
-  <p><strong>Verarbeitung:</strong> vollständig <strong>lokal auf deinem Gerät</strong>. Geofence-Grenzen (Koordinaten + Radius), Besuchszeiträume und ggf. zur Routen-Anzeige aufgezeichnete Positionspunkte werden nur in der lokalen App-Datenbank gespeichert. Es findet <strong>keine Übertragung an den Entwickler oder einen Aevum-Server statt</strong>.</p>
-  <p><strong>Berechtigungen:</strong> Genauer Standort (Vordergrund), grober Standort sowie Standort im Hintergrund („Immer erlauben“) — letzterer ist erforderlich, damit die automatische Erkennung ohne dein Zutun funktioniert.</p>
+  <h3 class="en">3.1 Location data (geofences, place timeline, drive detection)</h3>
+  <h3 class="de">3.1 Standortdaten (Geofences, Orts-Timeline, Fahrterkennung)</h3>
+  <p class="en"><strong>Purpose:</strong> automatic tracking of your activities at places you set up yourself (e.g. home, work), the place timeline (when were you where) and drive detection.</p>
+  <p class="de"><strong>Zweck:</strong> Automatisches Tracking deiner Aktivitäten an selbst angelegten Orten (z.&nbsp;B. Zuhause, Arbeit), die Orts-Timeline (wann warst du wo) und die Fahrterkennung.</p>
+  <p class="en"><strong>Processing:</strong> entirely <strong>local on your device</strong>. Geofence boundaries (coordinates + radius), visit periods and — where recorded for route display — position points are stored only in the local app database. <strong>Nothing is transferred to the developer or to any Aevum server.</strong></p>
+  <p class="de"><strong>Verarbeitung:</strong> vollständig <strong>lokal auf deinem Gerät</strong>. Geofence-Grenzen (Koordinaten + Radius), Besuchszeiträume und ggf. zur Routen-Anzeige aufgezeichnete Positionspunkte werden nur in der lokalen App-Datenbank gespeichert. Es findet <strong>keine Übertragung an den Entwickler oder einen Aevum-Server statt</strong>.</p>
+  <p class="en"><strong>Permissions:</strong> precise location (foreground), coarse location, and location in the background (&ldquo;Allow all the time&rdquo;) — the latter is required so that detection works without any action from you.</p>
+  <p class="de"><strong>Berechtigungen:</strong> Genauer Standort (Vordergrund), grober Standort sowie Standort im Hintergrund („Immer erlauben“) — letzterer ist erforderlich, damit die automatische Erkennung ohne dein Zutun funktioniert.</p>
 
-  <h3>3.1.1 Standort im Hintergrund — welche Funktionen ihn nutzen</h3>
-  <p>Aevum erhebt Standortdaten, um die folgenden Funktionen zu ermöglichen — <strong>auch wenn die App geschlossen ist oder nicht verwendet wird</strong>:</p>
-  <ul>
+  <h3 class="en">3.1.1 Location in the background — which features use it</h3>
+  <h3 class="de">3.1.1 Standort im Hintergrund — welche Funktionen ihn nutzen</h3>
+  <p class="en">Aevum collects location data to enable the following features — <strong>even when the app is closed or not in use</strong>:</p>
+  <p class="de">Aevum erhebt Standortdaten, um die folgenden Funktionen zu ermöglichen — <strong>auch wenn die App geschlossen ist oder nicht verwendet wird</strong>:</p>
+  <ul class="en">
+    <li><strong>Place detection (geofences):</strong> entering or leaving places such as home, work or the gym automatically starts or stops activities.</li>
+    <li><strong>Drive detection:</strong> car trips are detected automatically and recorded with their route.</li>
+    <li><strong>Detection of walks and bike rides:</strong> your journeys are recorded as activities automatically.</li>
+    <li><strong>Place timeline and unknown places:</strong> Aevum keeps a history of the places you have been to.</li>
+  </ul>
+  <ul class="de">
     <li><strong>Ortserkennung (Geofences):</strong> Betreten oder Verlassen von Orten wie Zuhause, Arbeit oder Fitnessstudio startet bzw. beendet Aktivitäten automatisch.</li>
     <li><strong>Fahrterkennung:</strong> Autofahrten werden automatisch erkannt und mit ihrer Route aufgezeichnet.</li>
     <li><strong>Erkennung von Spaziergängen und Radfahrten:</strong> Wege werden automatisch als Aktivität aufgezeichnet.</li>
     <li><strong>Orts-Timeline und unbekannte Orte:</strong> Aevum führt den Verlauf der Orte, an denen du warst.</li>
   </ul>
-  <p><strong>Warum der Zugriff im Hintergrund nötig ist:</strong> Diese Funktionen sollen ohne dein Zutun arbeiten. Die Ortswechsel passieren, während dein Handy in der Tasche steckt und Aevum nicht geöffnet ist. Ohne Zugriff im Hintergrund müsstest du die App bei jedem Betreten und Verlassen eines Ortes selbst öffnen — die Automatik wäre keine Automatik mehr. <strong>Alle Standortdaten bleiben dabei ausschließlich lokal auf deinem Gerät.</strong></p>
-  <p>Vor der ersten Anfrage der Standortberechtigung zeigt Aevum in der App einen Dialog, der diese Verwendung offenlegt; der Zugriff beginnt erst nach deiner ausdrücklichen Zustimmung. Du kannst die Berechtigung jederzeit in den Systemeinstellungen entziehen (Android: Einstellungen → Apps → Aevum → Berechtigungen → Standort).</p>
+  <p class="en"><strong>Why background access is necessary:</strong> these features are meant to work without any action from you. Place changes happen while your phone is in your pocket and Aevum is not open. Without background access you would have to open the app yourself every time you enter or leave a place — the automation would no longer be automatic. <strong>All location data stays exclusively on your device.</strong></p>
+  <p class="de"><strong>Warum der Zugriff im Hintergrund nötig ist:</strong> Diese Funktionen sollen ohne dein Zutun arbeiten. Die Ortswechsel passieren, während dein Handy in der Tasche steckt und Aevum nicht geöffnet ist. Ohne Zugriff im Hintergrund müsstest du die App bei jedem Betreten und Verlassen eines Ortes selbst öffnen — die Automatik wäre keine Automatik mehr. <strong>Alle Standortdaten bleiben dabei ausschließlich lokal auf deinem Gerät.</strong></p>
+  <p class="en">Before the first request for the location permission, Aevum shows an in-app disclosure dialog explaining this use; access only begins after your explicit consent. You can revoke the permission at any time in the system settings (Android: Settings → Apps → Aevum → Permissions → Location).</p>
+  <p class="de">Vor der ersten Anfrage der Standortberechtigung zeigt Aevum in der App einen Dialog, der diese Verwendung offenlegt; der Zugriff beginnt erst nach deiner ausdrücklichen Zustimmung. Du kannst die Berechtigung jederzeit in den Systemeinstellungen entziehen (Android: Einstellungen → Apps → Aevum → Berechtigungen → Standort).</p>
 
-  <h3>3.2 Aktivitätserkennung (Fahrten, Fortbewegung)</h3>
-  <p>Die App nutzt die Activity-Recognition-API von <strong>Google Play Services</strong>, um Fortbewegungsarten (z.&nbsp;B. Fahren, Gehen) zu erkennen und daraus automatisch Zeit-Einträge vorzuschlagen. Die Erkennungsergebnisse werden lokal gespeichert. Welche Daten Google Play Services dabei verarbeitet, regelt die Datenschutzerklärung von Google.</p>
+  <h3 class="en">3.2 Activity recognition (drives, movement)</h3>
+  <h3 class="de">3.2 Aktivitätserkennung (Fahrten, Fortbewegung)</h3>
+  <p class="en">The app uses the Activity Recognition API of <strong>Google Play Services</strong> to detect modes of movement (e.g. driving, walking) and to suggest time entries from them automatically. The detection results are stored locally. What data Google Play Services processes is governed by Google&rsquo;s privacy policy.</p>
+  <p class="de">Die App nutzt die Activity-Recognition-API von <strong>Google Play Services</strong>, um Fortbewegungsarten (z.&nbsp;B. Fahren, Gehen) zu erkennen und daraus automatisch Zeit-Einträge vorzuschlagen. Die Erkennungsergebnisse werden lokal gespeichert. Welche Daten Google Play Services dabei verarbeitet, regelt die Datenschutzerklärung von Google.</p>
 
-  <h3>3.3 Schlaf- und Gesundheitsdaten (optional — nicht aktiviert, keine Verarbeitung)</h3>
-  <p><strong>Health Connect:</strong> Wenn du die Schlaf-Quelle „Health Connect“ aktivierst, liest Aevum Schlaf- und Trainingsdaten (Berechtigungen: Schlaf lesen, Übungen lesen) und speichert sie nur lokal.</p>
-  <p><strong>Garmin Connect:</strong> Wenn du Garmin in den Einstellungen verbindest, fragt Aevum Schritte, Schlaf und Trainingsdaten von Garmin ab. Deine Garmin-Anmeldedaten (E-Mail/Passwort) werden <strong>ausschließlich direkt an Garmin übermittelt</strong> (offizieller Garmin-Login), von Aevum <strong>nicht gespeichert</strong> und zu keinem Zeitpunkt an den Entwickler oder Dritte weitergegeben. Auf dem Gerät verbleiben nur die resultierenden Zugriffstokens in der privaten App-Speicherung. Du kannst die Verbindung jederzeit trennen; die Tokens werden dann sofort vom Gerät gelöscht.</p>
+  <h3 class="en">3.3 Sleep and health data (optional — not enabled, no processing)</h3>
+  <h3 class="de">3.3 Schlaf- und Gesundheitsdaten (optional — nicht aktiviert, keine Verarbeitung)</h3>
+  <p class="en"><strong>Health Connect:</strong> if you enable the sleep source &ldquo;Health Connect&rdquo;, Aevum reads sleep and workout data (permissions: read sleep, read exercise) and stores it locally only.</p>
+  <p class="de"><strong>Health Connect:</strong> Wenn du die Schlaf-Quelle „Health Connect“ aktivierst, liest Aevum Schlaf- und Trainingsdaten (Berechtigungen: Schlaf lesen, Übungen lesen) und speichert sie nur lokal.</p>
+  <p class="en"><strong>Garmin Connect:</strong> if you connect Garmin in the settings, Aevum requests steps, sleep and workout data from Garmin. Your Garmin credentials (e-mail/password) are <strong>transmitted exclusively and directly to Garmin</strong> (official Garmin login), are <strong>not stored</strong> by Aevum and are never passed on to the developer or third parties. Only the resulting access tokens remain on the device, in private app storage. You can disconnect at any time; the tokens are then deleted from the device immediately.</p>
+  <p class="de"><strong>Garmin Connect:</strong> Wenn du Garmin in den Einstellungen verbindest, fragt Aevum Schritte, Schlaf und Trainingsdaten von Garmin ab. Deine Garmin-Anmeldedaten (E-Mail/Passwort) werden <strong>ausschließlich direkt an Garmin übermittelt</strong> (offizieller Garmin-Login), von Aevum <strong>nicht gespeichert</strong> und zu keinem Zeitpunkt an den Entwickler oder Dritte weitergegeben. Auf dem Gerät verbleiben nur die resultierenden Zugriffstokens in der privaten App-Speicherung. Du kannst die Verbindung jederzeit trennen; die Tokens werden dann sofort vom Gerät gelöscht.</p>
 
-  <h3>3.4 Bildschirm- und App-Nutzung (Digital Balance, Schlaf-Heuristik)</h3>
-  <p>Mit der Sonderberechtigung <strong>„Nutzungszugriff“</strong> erfasst die App lokal, welche Apps du wie lange nutzt (Android UsageStats). Das dient der Funktion „Digital Balance“ (Nutzungszeiten, App-Sperren) und der automatischen Schlaf-Erkennung. Diese Daten bleiben auf dem Gerät.</p>
+  <h3 class="en">3.4 Screen and app usage (Digital Balance, sleep heuristic)</h3>
+  <h3 class="de">3.4 Bildschirm- und App-Nutzung (Digital Balance, Schlaf-Heuristik)</h3>
+  <p class="en">With the special permission <strong>&ldquo;Usage access&rdquo;</strong> the app records locally which apps you use and for how long (Android UsageStats). This serves the &ldquo;Digital Balance&rdquo; feature (usage times, app blocks) and automatic sleep detection. This data stays on the device.</p>
+  <p class="de">Mit der Sonderberechtigung <strong>„Nutzungszugriff“</strong> erfasst die App lokal, welche Apps du wie lange nutzt (Android UsageStats). Das dient der Funktion „Digital Balance“ (Nutzungszeiten, App-Sperren) und der automatischen Schlaf-Erkennung. Diese Daten bleiben auf dem Gerät.</p>
 
-  <h3>3.5 Kartenanzeige (OpenStreetMap)</h3>
-  <p>Die Karten in Aevum nutzen Kartenkacheln von <a href="https://www.openstreetmap.org" rel="noopener">openstreetmap.org</a>. Beim Laden einer Karte werden deine IP-Adresse und der angeforderte Kartenausschnitt an die OpenStreetMap Foundation übermittelt. Informationen dazu: <a href="https://osmfoundation.org/wiki/Privacy_Policy" rel="noopener">osmfoundation.org/wiki/Privacy_Policy</a></p>
+  <h3 class="en">3.5 Map display (OpenStreetMap)</h3>
+  <h3 class="de">3.5 Kartenanzeige (OpenStreetMap)</h3>
+  <p class="en">The maps in Aevum use map tiles from <a href="https://www.openstreetmap.org" rel="noopener">openstreetmap.org</a>. When a map is loaded, your IP address and the requested map section are transmitted to the OpenStreetMap Foundation. Information about this: <a href="https://osmfoundation.org/wiki/Privacy_Policy" rel="noopener">osmfoundation.org/wiki/Privacy_Policy</a></p>
+  <p class="de">Die Karten in Aevum nutzen Kartenkacheln von <a href="https://www.openstreetmap.org" rel="noopener">openstreetmap.org</a>. Beim Laden einer Karte werden deine IP-Adresse und der angeforderte Kartenausschnitt an die OpenStreetMap Foundation übermittelt. Informationen dazu: <a href="https://osmfoundation.org/wiki/Privacy_Policy" rel="noopener">osmfoundation.org/wiki/Privacy_Policy</a></p>
 
-  <h3>3.6 Was Aevum nicht tut</h3>
-  <ul>
+  <h3 class="en">3.6 What Aevum does not do</h3>
+  <h3 class="de">3.6 Was Aevum nicht tut</h3>
+  <ul class="en">
+    <li>No access to contacts, camera, microphone, SMS or call logs</li>
+    <li>No advertising, no advertising IDs, no analytics SDKs (e.g. Google Analytics, Firebase)</li>
+    <li>No automatic crash or error reports to the developer</li>
+    <li>No personal user profile, no tracking across other apps (apart from the locally processed usage time for Digital Balance)</li>
+  </ul>
+  <ul class="de">
     <li>Kein Zugriff auf Kontakte, Kamera, Mikrofon, SMS oder Anruflisten</li>
     <li>Keine Werbung, keine Werbe-IDs, keine Analyse-SDKs (z.&nbsp;B. Google Analytics, Firebase)</li>
     <li>Keine automatischen Crash- oder Fehlermeldungen an den Entwickler</li>
@@ -162,9 +232,18 @@
 </section>
 
 <section class="card">
-  <h2><span class="num">4</span>Weitergabe an Dritte</h2>
-  <p>Aevum übermittelt <strong>keine personenbezogenen Daten an den Entwickler</strong>, Werbenetzwerke oder Datenhändler. Technisch bedingte Berührungen mit Drittanbietern:</p>
-  <table>
+  <h2><span class="num">4</span><span class="en">Sharing with third parties</span><span class="de">Weitergabe an Dritte</span></h2>
+  <p class="en">Aevum <strong>does not transmit any personal data to the developer</strong>, advertising networks or data brokers. Technically necessary contact with third-party providers:</p>
+  <p class="de">Aevum übermittelt <strong>keine personenbezogenen Daten an den Entwickler</strong>, Werbenetzwerke oder Datenhändler. Technisch bedingte Berührungen mit Drittanbietern:</p>
+  <table class="en">
+    <thead><tr><th>Provider</th><th>Reason</th><th>Data</th></tr></thead>
+    <tbody>
+      <tr><td>Google LLC (Play Services)</td><td>Geofencing, activity recognition, map environment</td><td>Location/activity signals delivered from your device to Google</td></tr>
+      <tr><td>OpenStreetMap Foundation</td><td>Displaying maps</td><td>IP address, requested tile area</td></tr>
+      <tr><td>Garmin Ltd.</td><td>Only with an active connection</td><td>Garmin credentials (directly to Garmin), querying your Garmin fitness data</td></tr>
+    </tbody>
+  </table>
+  <table class="de">
     <thead><tr><th>Anbieter</th><th>Anlass</th><th>Daten</th></tr></thead>
     <tbody>
       <tr><td>Google LLC (Play Services)</td><td>Geofencing, Aktivitätserkennung, Karten-Umgebung</td><td>Von deinem Gerät an Google gelieferte Standort-/Aktivitätssignale</td></tr>
@@ -175,18 +254,29 @@
 </section>
 
 <section class="card">
-  <h2><span class="num">5</span>Speicherdauer und Löschung</h2>
-  <p>Alle Daten existieren nur lokal auf deinem Gerät, solange du Aevum (oder deine Daten darin) behältst. Du hast jederzeit volle Kontrolle:</p>
-  <ul>
+  <h2><span class="num">5</span><span class="en">Retention and deletion</span><span class="de">Speicherdauer und Löschung</span></h2>
+  <p class="en">All data exists only locally on your device, for as long as you keep Aevum (or your data in it). You have full control at any time:</p>
+  <p class="de">Alle Daten existieren nur lokal auf deinem Gerät, solange du Aevum (oder deine Daten darin) behältst. Du hast jederzeit volle Kontrolle:</p>
+  <ul class="en">
+    <li><strong>In the app:</strong> you can delete activities, places, triggers and entries where they are created; under &ldquo;Settings → Data&rdquo; there are export and backup functions (you decide where the exported files go).</li>
+    <li><strong>Completely:</strong> Android system settings → Apps → Aevum → &ldquo;Clear data&rdquo; or uninstalling removes <strong>all</strong> locally stored data, including the Garmin access tokens.</li>
+  </ul>
+  <ul class="de">
     <li><strong>In der App:</strong> Aktivitäten, Orte, Trigger und Einträge kannst du dort löschen, wo sie entstehen; unter „Einstellungen → Daten“ stehen Export- und Backup-Funktionen bereit (du bestimmst, wohin die exportierten Dateien gelangen).</li>
     <li><strong>Komplett:</strong> Android-Systemeinstellungen → Apps → Aevum → „Daten löschen“ oder Deinstallation entfernen <strong>sämtliche</strong> lokal gespeicherten Daten, einschließlich der Garmin-Zugriffstokens.</li>
   </ul>
-  <p>Da keine Daten bei uns ankommen, gibt es bei uns nichts zu löschen oder einzuschränken.</p>
+  <p class="en">Since no data reaches us, there is nothing for us to delete or restrict.</p>
+  <p class="de">Da keine Daten bei uns ankommen, gibt es bei uns nichts zu löschen oder einzuschränken.</p>
 </section>
 
 <section class="card">
-  <h2><span class="num">6</span>Sicherheit</h2>
-  <ul>
+  <h2><span class="num">6</span><span class="en">Security</span><span class="de">Sicherheit</span></h2>
+  <ul class="en">
+    <li>Data is stored in the private app storage of your user profile, protected by Android.</li>
+    <li>Automatic backup to Google services (Android Backup) is <strong>disabled</strong>.</li>
+    <li>Connections to Garmin and OpenStreetMap are encrypted (HTTPS).</li>
+  </ul>
+  <ul class="de">
     <li>Daten liegen im privaten, durch Android geschützten App-Speicher deines Benutzerprofils.</li>
     <li>Die automatische Sicherung auf Google-Dienste (Android-Backup) ist <strong>deaktiviert</strong>.</li>
     <li>Verbindungen zu Garmin und OpenStreetMap erfolgen verschlüsselt (HTTPS).</li>
@@ -194,25 +284,49 @@
 </section>
 
 <section class="card">
-  <h2><span class="num">7</span>Deine Rechte (insbesondere DSGVO)</h2>
-  <p>Da Aevum keine personenbezogenen Daten an uns übermittelt und wir keine eigene Datenverarbeitung auf Serverseite betreiben, sind wir nicht in der Lage, auf deine Daten zuzugreifen — Auskunft, Berichtigung, Löschung und Datenübertragbarkeit übst du direkt am Gerät aus (siehe Abschnitt 5). Für Fragen zu dieser Erklärung erreichst du uns unter der E-Mail-Adresse in Abschnitt 1. Ist das anwendbare Recht (z.&nbsp;B. DSGVO) trotzdem eine Beschwerde bei einer Aufsichtsbehörde vor, z.&nbsp;B. der zuständigen Landesdatenschutzbehörde.</p>
+  <h2><span class="num">7</span><span class="en">Your rights (in particular under the GDPR)</span><span class="de">Deine Rechte (insbesondere DSGVO)</span></h2>
+  <p class="en">Since Aevum does not transmit any personal data to us and we do not operate any data processing on the server side, we are unable to access your data — you exercise access, rectification, deletion and data portability directly on your device (see section 5). For questions about this policy you can reach us at the e-mail address in section 1. If applicable law (e.g. the GDPR) nevertheless provides for it, you may lodge a complaint with a supervisory authority, e.g. the competent state data protection authority.</p>
+  <p class="de">Da Aevum keine personenbezogenen Daten an uns übermittelt und wir keine eigene Datenverarbeitung auf Serverseite betreiben, sind wir nicht in der Lage, auf deine Daten zuzugreifen — Auskunft, Berichtigung, Löschung und Datenübertragbarkeit übst du direkt am Gerät aus (siehe Abschnitt 5). Für Fragen zu dieser Erklärung erreichst du uns unter der E-Mail-Adresse in Abschnitt 1. Ist das anwendbare Recht (z.&nbsp;B. DSGVO) trotzdem eine Beschwerde bei einer Aufsichtsbehörde vor, z.&nbsp;B. der zuständigen Landesdatenschutzbehörde.</p>
 </section>
 
 <section class="card">
-  <h2><span class="num">8</span>Kinder</h2>
-  <p>Aevum richtet sich an Erwachsene und jugendliche Nutzer zum allgemeinen Zeit-Tracker-Gebrauch. Es werden bewusst keine personenbezogenen Daten erhoben, die eine gesonderte Kinderverarbeitung erfordern würden; Eltern können die im Gerät vorhandenen Kinderschutz-Maßnahmen nutzen.</p>
+  <h2><span class="num">8</span><span class="en">Children</span><span class="de">Kinder</span></h2>
+  <p class="en">Aevum is aimed at adult and adolescent users for general time-tracker use. No personal data is deliberately collected that would require separate processing for children; parents can use the child protection measures available on the device.</p>
+  <p class="de">Aevum richtet sich an Erwachsene und jugendliche Nutzer zum allgemeinen Zeit-Tracker-Gebrauch. Es werden bewusst keine personenbezogenen Daten erhoben, die eine gesonderte Kinderverarbeitung erfordern würden; Eltern können die im Gerät vorhandenen Kinderschutz-Maßnahmen nutzen.</p>
 </section>
 
 <section class="card">
-  <h2><span class="num">9</span>Änderungen dieser Erklärung</h2>
-  <p>Bei funktionalen Änderungen der App (insbesondere neuer Datenverarbeitung) aktualisieren wir diese Erklärung und das Datum am Anfang. Maßgeblich ist die jeweils im Play Store bzw. in der App verlinkte Fassung.</p>
+  <h2><span class="num">9</span><span class="en">Changes to this policy</span><span class="de">Änderungen dieser Erklärung</span></h2>
+  <p class="en">If the app&rsquo;s functionality changes (in particular new data processing), we will update this policy and the date at the top. The version linked in the Play Store or in the app is the binding one.</p>
+  <p class="de">Bei funktionalen Änderungen der App (insbesondere neuer Datenverarbeitung) aktualisieren wir diese Erklärung und das Datum am Anfang. Maßgeblich ist die jeweils im Play Store bzw. in der App verlinkte Fassung.</p>
 </section>
 
 <footer>
-  <p>Aevum · package&nbsp;com.d_drostes_apps.aevum · Stand 2.&nbsp;Oktober&nbsp;2026</p>
-  <p class="muted">Diese Erklärung beschreibt den tatsächlichen Datenfluss der App: lokal zuerst, keine Übertragung an den Entwickler.</p>
+  <p class="en">Aevum · package&nbsp;com.d_drostes_apps.aevum · Last updated 2&nbsp;October&nbsp;2026</p>
+  <p class="de">Aevum · package&nbsp;com.d_drostes_apps.aevum · Stand 2.&nbsp;Oktober&nbsp;2026</p>
+  <p class="muted en">This policy describes the app&rsquo;s actual data flow: local first, no transfer to the developer.</p>
+  <p class="muted de">Diese Erklärung beschreibt den tatsächlichen Datenfluss der App: lokal zuerst, keine Übertragung an den Entwickler.</p>
 </footer>
 
 </div>
+<script>
+  function setLang(lang) {
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.setAttribute('lang', lang);
+    document.title = (lang === 'de') ? 'Aevum — Datenschutzerklärung' : 'Aevum — Privacy Policy';
+    document.getElementById('btn-en').setAttribute('aria-pressed', String(lang === 'en'));
+    document.getElementById('btn-de').setAttribute('aria-pressed', String(lang === 'de'));
+    try { localStorage.setItem('aevum-policy-lang', lang); } catch (e) {}
+  }
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem('aevum-policy-lang'); } catch (e) {}
+    var browser = (navigator.language || 'en').toLowerCase();
+    // Default: English (app default language + store listing language).
+    // German only if the visitor chose it before or their browser is German.
+    var initial = stored || (browser.indexOf('de') === 0 ? 'de' : 'en');
+    setLang(initial);
+  })();
+</script>
 </body>
 </html>

@@ -26,7 +26,10 @@ import java.io.File
 class LocationDisclosureTextTest {
 
     private fun resourceFile(locale: String): String {
-        val relative = if (locale == "de") {
+        // M18.140: Standardsprache der App ist ENGLISCH -> `values/` ist der
+        // Fallback (Englisch). Deutsch liegt in `values-de/`. Zuvor war es
+        // umgekehrt; die Dateien wurden gedreht.
+        val relative = if (locale == "en") {
             "src/main/res/values/strings_disclosure.xml"
         } else {
             "src/main/res/values-$locale/strings_disclosure.xml"
@@ -224,10 +227,49 @@ class LocationDisclosureTextTest {
 
     @Test
     fun `Datenschutz-URL zeigt auf die veroeffentlichte Seite`() {
-        val url = stringValue(de, "disclosure_privacy_url").trim()
+        // Die URL ist sprachneutral (`translatable="false"`) und liegt in der
+        // Fallback-Datei `values/`.
+        val url = stringValue(en, "disclosure_privacy_url").trim()
         assertWithMessage("Datenschutz-URL ist nicht die veröffentlichte Seite: '$url'")
             .that(url).isEqualTo("https://renegaded66.github.io/Aevum/")
         assertWithMessage("Datenschutz-URL muss HTTPS sein")
             .that(url.startsWith("https://")).isTrue()
+    }
+
+    // ── Struktur: Englisch ist der Fallback ──────────────────────────────
+
+    @Test
+    fun `Englisch liegt in values - nicht in values-en`() {
+        // M18.140: Standardsprache der App ist Englisch (LanguageRepository
+        // LANGUAGE_DEFAULT = "en"). Androids Ressourcen-Fallback ist `values/`
+        // — steht dort Deutsch, sehen Nutzer mit jeder nicht übersetzten
+        // Systemsprache (z. B. Spanisch) Deutsch statt Englisch.
+        //
+        // Dieser Test hält die Richtung fest, damit sie nicht versehentlich
+        // zurückgedreht wird.
+        val res = listOf(File("."), File("..").resolve("app"), File("../app"))
+            .map { it.resolve("src/main/res") }
+            .firstOrNull { it.exists() } ?: error("res-Verzeichnis nicht gefunden")
+
+        assertWithMessage(
+            "values-en/ existiert wieder. Englisch muss der Fallback in " +
+                "values/ sein, sonst ist die Standardsprache der App effektiv " +
+                "Deutsch fuer alle nicht uebersetzten Locales."
+        ).that(res.resolve("values-en").exists()).isFalse()
+
+        assertWithMessage("values-de/ fehlt — die deutsche Übersetzung ist verloren")
+            .that(res.resolve("values-de").exists()).isTrue()
+
+        val fallback = res.resolve("values/strings_disclosure.xml").readText()
+        assertWithMessage(
+            "values/strings_disclosure.xml enthält Deutsch. Die Fallback-Datei " +
+                "muss englisch sein (Standardsprache der App)."
+        ).that(fallback.contains("collects location data", ignoreCase = true)).isTrue()
+        assertWithMessage("Die Fallback-Datei darf keinen deutschen Pflichtsatz enthalten")
+            .that(fallback.contains("erhebt Standortdaten")).isFalse()
+
+        val german = res.resolve("values-de/strings_disclosure.xml").readText()
+        assertWithMessage("values-de/ enthält kein Deutsch")
+            .that(german.contains("erhebt Standortdaten")).isTrue()
     }
 }

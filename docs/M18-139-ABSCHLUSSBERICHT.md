@@ -172,16 +172,43 @@ veröffentlichte Fassung) und `docs/DATENSCHUTZ.md` synchron erweitert:
 
 ---
 
-## 5 — Version und Upload
+## 5. Datenschutz-Seite zweisprachig
+
+Die im Store-Eintrag **und** im englischen Disclosure-Dialog verlinkte Seite
+(`docs/index.html` → https://renegaded66.github.io/Aevum/) war **komplett
+deutsch**. Bei englischem Store-Eintrag ist das die nächste logische Lücke:
+Google verlangt die Offenlegung „within the app itself as well as in the app
+description **and website**".
+
+Umsetzung:
+
+- **Englisch als Standard** (`<html lang="en" data-lang="en">`), Deutsch über
+  einen Umschalter (`English` / `Deutsch`) erreichbar.
+- Beide Sprachfassungen liegen im DOM, eine wird per CSS ausgeblendet
+  (`html[data-lang="en"] .de { display: none; }`) — kein Nachladen, keine
+  zweite Datei, die auseinanderlaufen kann.
+- Die Vorauswahl richtet sich nach `navigator.language`: deutscher Browser →
+  Deutsch, sonst Englisch. Eine manuelle Wahl wird in `localStorage` gemerkt.
+  **Standard ohne Vorgabe ist Englisch** (App-Default + Store-Sprache).
+- Alle Pflichtinhalte sind in beiden Sprachen vorhanden und geprüft:
+  Begriff „location"/„Standort", Hintergrund-Phrase („even when the app is
+  closed"/„auch wenn die App geschlossen ist"), Liste **aller vier** Funktionen.
+- 42 EN- und 42 DE-Blöcke — Parität maschinell verifiziert.
+
+---
+
+## 6. Version und Upload
 
 - `versionCode` 20 → **21**, `versionName` 1.0.19 → **1.0.20**
   (Play verlangt für die erneute Prüfung einen höheren versionCode)
+- M18.140 ändert die Versionsnummer **nicht** weiter — beide Änderungen gehen
+  in dieselbe Einreichung (versionCode 21).
 
 ---
 
 ## Tests (maschinelle Absicherung)
 
-**30 neue Tests**, die ein erneutes Durchfallen verhindern:
+**32 neue Tests**, die ein erneutes Durchfallen verhindern:
 
 ### `LocationDisclosureTextTest` (Wortlaut, DE + EN)
 Prüft die String-Ressourcen direkt gegen die Google-Kriterien:

@@ -1,21 +1,21 @@
 <resources>
-    <!-- Rule-Engine-Titel & Reasons (Review-Inbox / Timeline) -->
-    <string name="rule_title_commute_to_work">Arbeitsweg</string>
-    <string name="rule_title_commute_home">Heimweg</string>
-    <string name="rule_title_gym_trip">Anfahrt: Fitnessstudio</string>
-    <string name="rule_title_shopping">Einkauf: %1$s</string>
-    <string name="rule_title_gym_return">Rückfahrt: Fitnessstudio</string>
-    <string name="rule_title_transit">Unterwegs: %1$s → %2$s</string>
-    <string name="rule_title_work">Arbeit</string>
-    <string name="rule_title_gym">Fitnessstudio</string>
-    <string name="rule_title_home">Zuhause</string>
-    <string name="rule_title_trip">Ausflug</string>
-    <string name="rule_reason_travel">Trigger-Paar erkannt: %1$s. %2$s als Wegzeit vorgeschlagen.</string>
-    <string name="rule_reason_stay">Trigger-Paar erkannt: %1$s betreten → verlassen. Vorschlag bleibt überprüfbar.</string>
-    <string name="rule_reason_away">Trigger-Paar erkannt: %1$s verlassen → wieder angekommen. Kein Ziel bekannt, daher vorsichtig als Ausflug vorgeschlagen.</string>
-    <string name="rule_reason_merge">%1$s | Zusammengeführt mit %2$s (Lücke &lt; 5min).</string>
-    <string name="rule_reason_merge_fallback">weiterem Kandidaten</string>
+    <!-- Rule engine titles & reasons (review inbox / timeline) -->
+    <string name="rule_title_commute_to_work">Commute to work</string>
+    <string name="rule_title_commute_home">Commute home</string>
+    <string name="rule_title_gym_trip">Trip to gym</string>
+    <string name="rule_title_shopping">Shopping: %1$s</string>
+    <string name="rule_title_gym_return">Return from gym</string>
+    <string name="rule_title_transit">On the way: %1$s → %2$s</string>
+    <string name="rule_title_work">Work</string>
+    <string name="rule_title_gym">Gym</string>
+    <string name="rule_title_home">Home</string>
+    <string name="rule_title_trip">Trip</string>
+    <string name="rule_reason_travel">Trigger pair detected: %1$s. %2$s suggested as travel time.</string>
+    <string name="rule_reason_stay">Trigger pair detected: entered %1$s → left. Suggestion stays reviewable.</string>
+    <string name="rule_reason_away">Trigger pair detected: left %1$s → arrived back. No destination known, therefore cautiously suggested as a trip.</string>
+    <string name="rule_reason_merge">%1$s | Merged with %2$s (gap &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">another candidate</string>
 
-    <!-- Fallback-Titel -->
-    <string name="common_activity_fallback">Aktivität</string>
+    <!-- Fallback titles -->
+    <string name="common_activity_fallback">Activity</string>
 </resources>

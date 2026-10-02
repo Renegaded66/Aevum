@@ -87,7 +87,7 @@ private val SYNC_INTERVALS = listOf(1, 3, 6, 12, 24)
  * Vorschau wollen, ohne dass sein Kalender die Aufzeichnung steuert.
  *
  * M18.129-i18n: Alle sichtbaren Texte kommen aus `strings_calendar.xml`
- * (DE in `values/`, EN in `values-en/`). Kein deutscher Literaltext mehr
+ * (EN in `values/` (Fallback), DE in `values-de/`). Kein deutscher Literaltext mehr
  * im Composable-Code.
  */
 @Composable

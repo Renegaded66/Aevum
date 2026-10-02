@@ -1,0 +1,80 @@
+<resources>
+    <string name="app_name">Aevum</string>
+    <string name="app_name_debug">Aevum Debug</string>
+    <string name="onboarding_welcome_title">Willkommen bei Aevum</string>
+    <string name="onboarding_welcome_subtitle">Dein persönliches Lebenscockpit</string>
+    <string name="dashboard_title">Heute</string>
+    <string name="timeline_title">Timeline</string>
+    <string name="insights_title">Insights</string>
+    <string name="growth_title">Wachstum</string>
+    <string name="settings_title">Einstellungen</string>
+    <string name="balance_title">Balance</string>
+
+    <!-- App-Einstellungen: Sprache -->
+    <string name="settings_app_section">App Einstellungen</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_language_desc">Sprache der App auswählen</string>
+    <string name="settings_theme">Design</string>
+    <string name="settings_theme_desc">Erscheinungsbild der App auswählen</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_system">System</string>
+    <string name="settings_hero_subtitle">Automatisierung ist freiwillig, lokal und erklärbar. Du entscheidest, welche Orte Aevum im Hintergrund beobachten darf.</string>
+    <string name="settings_section_automation">Automatisierung</string>
+    <string name="settings_trigger_detection">Trigger &amp; Erkennung</string>
+    <string name="settings_trigger_detection_desc">Geofences · Auto · Walking · Schlaf · Berechtigungen</string>
+    <string name="settings_geofences_manage">Geofences verwalten</string>
+    <string name="settings_geofences_manage_desc">Orte, Radien &amp; Auto-Start</string>
+    <string name="settings_trigger_events">Trigger Events</string>
+    <string name="settings_trigger_events_desc">Alle erkannten Ereignisse</string>
+    <string name="settings_my_places">Meine Orte</string>
+    <string name="settings_your_activities">Deine Aktivitäten</string>
+    <string name="settings_activity_types">Activity Types verwalten</string>
+    <string name="settings_activity_types_desc">Icons, Farben, Positivität</string>
+    <string name="settings_categories_desc">Erstellen, Aktivitäten zuordnen, Icon &amp; Farbe</string>
+    <string name="settings_advanced">Erweitert</string>
+    <string name="settings_todos_manage">Todos verwalten</string>
+    <string name="settings_allowances_manage">Tagespauschalen verwalten</string>
+    <string name="settings_privacy_data">Datenschutz &amp; Daten</string>
+    <string name="settings_privacy">Datenschutz</string>
+    <string name="settings_privacy_desc">Lokale Daten, Löschen</string>
+    <string name="settings_export_desc">Alle Daten als JSON</string>
+    <string name="settings_backup_desc">Sichern &amp; Wiederherstellen</string>
+    <string name="settings_fitness_trackers">Fitness-Tracker</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_connect_desc">Verbinden, Synchronisieren, Trennen</string>
+    <!-- M18.83: Place Timeline (Google-Maps-artige Tag-Story der besuchten Orte) -->
+    <string name="settings_place_timeline">Orts-Timeline</string>
+    <string name="settings_place_timeline_desc">Wo war ich wann — Tagesverlauf</string>
+    <string name="place_timeline_title">Orts-Timeline</string>
+    <string name="place_timeline_subtitle">Dein Tag im Ortsverlauf</string>
+    <string name="place_timeline_empty_hint">Noch keine Orts-Besuche an diesem Tag. Sobald du Geofences besuchst oder einen unbekannten Ort benennst, erscheint er hier.</string>
+    <string name="place_timeline_summary_lede">%1$d Besuche · %2$s unterwegs</string>
+    <string name="place_timeline_badge_short">Kurzer Stopp</string>
+    <string name="place_timeline_badge_long">Länger geblieben</string>
+    <string name="place_timeline_badge_named">Benannter Ort</string>
+    <string name="place_timeline_ongoing">läuft gerade</string>
+    <string name="place_timeline_road_prefix">Unterwegs</string>
+    <string name="place_timeline_unnamed_place">Ort (unbenannt)</string>
+    <string name="place_timeline_badge_live">Aktuell hier</string>
+    <string name="place_timeline_badge_unnamed">Unbenannter Ort</string>
+    <string name="place_timeline_cd_prev_day">Voriger Tag</string>
+    <string name="place_timeline_cd_next_day">Nächster Tag</string>
+    <string name="language_system">System</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_en">English</string>
+
+    <!-- Digital-Balance-Sperr-Overlay -->
+    <string name="block_app_locked">App gesperrt</string>
+    <string name="block_app_locked_title">%1$s gesperrt</string>
+    <string name="block_profile_active">Profil „%1$s“ ist aktiv — diese App ist gesperrt.</string>
+    <string name="block_limit_reached">Tägliches Limit von %1$d Minuten erreicht.</string>
+    <string name="block_daily_limit_reached">Tägliches Limit erreicht.</string>
+    <string name="block_extend_5min">Noch 5 Minuten</string>
+    <string name="block_ignore_today">Heute ignorieren</string>
+    <string name="block_close">Schließen</string>
+
+    <!-- SwitchActivity (Live-Notification Wechsel-Popup) -->
+    <string name="switch_activity_title">Aktivität wechseln</string>
+    <string name="switch_activity_subtitle">Die aktuelle Aktivität wird beendet und die neue gestartet.</string>
+</resources>

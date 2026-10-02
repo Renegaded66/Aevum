@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.d_drostes_apps.aevum.R
+import androidx.compose.ui.res.stringResource
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.domain.liveactivity.RecentActivityType
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
@@ -582,7 +583,7 @@ fun OrbitLauncherSheet(
                         Text(if (item.type.icon.isBlank()) "•" else item.type.icon, fontSize = 17.sp)
                         Spacer(Modifier.width(AevumSpacing.sm))
                         Text(item.type.name, fontSize = 15.sp, color = onColor, modifier = Modifier.weight(1f))
-                        Text("Auswählen", fontSize = 10.sp, color = accent, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.common_select), fontSize = 10.sp, color = accent, fontWeight = FontWeight.Medium)
                     }
                 }
                 // Neue Aktivität

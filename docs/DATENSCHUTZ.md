@@ -2,6 +2,17 @@
 
 **Stand: 2. Oktober 2026**
 
+> **Sprachhinweis (M18.140):** Maßgeblich und im Play Store verlinkt ist die
+> veröffentlichte Fassung unter https://renegaded66.github.io/Aevum/
+> (`docs/index.html`). Sie ist **zweisprachig** (Englisch als Standard, Deutsch
+> umschaltbar), weil die Standardsprache der App und der Store-Eintrag Englisch
+> sind. Diese Markdown-Datei ist die deutschsprachige Arbeitsfassung; bei
+> inhaltlichen Änderungen müssen **beide** Fassungen mitgezogen werden.
+> Die vier Hintergrund-Standort-Funktionen müssen in allen drei Orten identisch
+> benannt sein: App-Dialog (`res/values/strings_disclosure.xml` bzw.
+> `values-de/`), Store-Beschreibung (`docs/PLAY-STORE-BESCHREIBUNG.md`),
+> Datenschutzerklärung (`docs/index.html`).
+
 ---
 
 ## 1. Verantwortlicher

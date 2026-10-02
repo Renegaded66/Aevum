@@ -1,0 +1,21 @@
+<resources>
+    <!-- Rule-Engine-Titel & Reasons (Review-Inbox / Timeline) -->
+    <string name="rule_title_commute_to_work">Arbeitsweg</string>
+    <string name="rule_title_commute_home">Heimweg</string>
+    <string name="rule_title_gym_trip">Anfahrt: Fitnessstudio</string>
+    <string name="rule_title_shopping">Einkauf: %1$s</string>
+    <string name="rule_title_gym_return">Rückfahrt: Fitnessstudio</string>
+    <string name="rule_title_transit">Unterwegs: %1$s → %2$s</string>
+    <string name="rule_title_work">Arbeit</string>
+    <string name="rule_title_gym">Fitnessstudio</string>
+    <string name="rule_title_home">Zuhause</string>
+    <string name="rule_title_trip">Ausflug</string>
+    <string name="rule_reason_travel">Trigger-Paar erkannt: %1$s. %2$s als Wegzeit vorgeschlagen.</string>
+    <string name="rule_reason_stay">Trigger-Paar erkannt: %1$s betreten → verlassen. Vorschlag bleibt überprüfbar.</string>
+    <string name="rule_reason_away">Trigger-Paar erkannt: %1$s verlassen → wieder angekommen. Kein Ziel bekannt, daher vorsichtig als Ausflug vorgeschlagen.</string>
+    <string name="rule_reason_merge">%1$s | Zusammengeführt mit %2$s (Lücke &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">weiterem Kandidaten</string>
+
+    <!-- Fallback-Titel -->
+    <string name="common_activity_fallback">Aktivität</string>
+</resources>
