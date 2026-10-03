@@ -146,6 +146,15 @@ fun CalendarRulesScreen(
         }
     }
 
+    // M18.145: Auch der „Einstellungen öffnen"-Weg läuft über das Gate.
+    // Zuvor sprang der PermanentDenied-Zweig direkt in die App-Einstellungen.
+    fun openCalendarSettingsViaGate() {
+        permissionGate.request(
+            PermissionDisclosureKind.CALENDAR,
+            alreadyGranted = permission.isGranted
+        ) { viewModel.openSettings() }
+    }
+
     // M18.129: Permission bei Rückkehr aus den System-Einstellungen neu
     // lesen. Der Nutzer kann sie dort erteilen ODER entziehen — ohne
     // diesen Refresh zeigte die UI einen veralteten Zustand.
@@ -233,7 +242,7 @@ fun CalendarRulesScreen(
                 permission = permission,
                 // M18.141: erst den Erklärungsdialog, dann der Systemdialog.
                 onRequest = { requestCalendarAccess() },
-                onOpenSettings = viewModel::openSettings,
+                onOpenSettings = { openCalendarSettingsViaGate() },
                 onDismiss = { bannerDismissed = true }
             )
         }

@@ -86,8 +86,23 @@ android {
         //      Verlassen des Geofence nicht beendet — beide Stop-Pfade
         //      verlangten sourceType == "GEOFENCE_AUTO". Jetzt entscheidet
         //      die Aktivität (GeofenceAutoStopPolicy), nicht die Herkunft.
-        versionCode = 24
-        versionName = "1.0.23"
+        // M18.145 (Play-Konsistenz, gefunden beim Abgleich mit den beiden
+        //   Ablehnungsmails zu 1.0.19): M18.141 hat nur die damals bekannten
+        //   Einstiege abgesichert. Drei Wege führten weiterhin DIREKT in die
+        //   Systemeinstellungen, ohne Offenlegung in der App:
+        //     a) DigitalBalanceScreen — „Balance" ist ein Tab in der
+        //        Bottom-Navigation; der Button führte direkt in den
+        //        Nutzungszugriff.
+        //     b) AppTrackingScreen — über den Balance-Tab erreichbar,
+        //        derselbe Sonderzugriff, ebenfalls direkt.
+        //     c) CalendarRulesScreen (PermanentDenied-Zweig) — der
+        //        Banner-Button ging am Gate vorbei in die App-Einstellungen.
+        //   Alle drei laufen jetzt über PermissionDisclosureGate.
+        //   Neuer Guard: DisclosureCoverageTest prüft nicht mehr nur die zwei
+        //   bekannten Dateien, sondern ALLE *Screen*.kt-Dateien daraufhin,
+        //   dass kein Sonderzugriff ohne Dialog geöffnet wird.
+        versionCode = 25
+        versionName = "1.0.24"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

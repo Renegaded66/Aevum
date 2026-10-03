@@ -53,6 +53,9 @@ import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureKind
+import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 
@@ -73,6 +76,23 @@ fun AppTrackingScreen(
     viewModel: AppTrackingViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // M18.145 (Play-Konsistenz): dieser Screen ist über den Balance-Tab
+    // erreichbar und fragt denselben Nutzungszugriff an wie der
+    // Trigger-Screen. Bis hierher führte der Button DIREKT in die
+    // Systemeinstellungen — ohne Offenlegung in der App. Das war ein
+    // Bypass um den M18.141-Dialog und damit genau die Beanstandung
+    // („Anfragen … geht keine unmittelbare Offenlegung in der App voraus").
+    val permissionGate = rememberPermissionDisclosureGate()
+
+    permissionGate.pending?.let { pending ->
+        PermissionDisclosureDialog(
+            kind = pending.kind,
+            requiresSettings = pending.requiresSettings,
+            onAllow = { permissionGate.consent { viewModel.openUsageAccessSettings() } },
+            onDecline = { permissionGate.dismiss() }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Kopfzeile
@@ -100,7 +120,15 @@ fun AppTrackingScreen(
         }
 
         if (!state.hasUsagePermission) {
-            PermissionHint(onOpenSettings = viewModel::openUsageAccessSettings)
+            // M18.145: erst erklären, dann in die Systemseite (siehe oben).
+            PermissionHint(
+                onOpenSettings = {
+                    permissionGate.request(
+                        PermissionDisclosureKind.USAGE_ACCESS,
+                        alreadyGranted = false
+                    ) { viewModel.openUsageAccessSettings() }
+                }
+            )
             return
         }
 

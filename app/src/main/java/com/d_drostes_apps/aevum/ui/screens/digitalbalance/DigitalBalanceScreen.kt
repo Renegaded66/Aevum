@@ -84,6 +84,9 @@ import com.d_drostes_apps.aevum.data.model.BalanceProfile
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureKind
+import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import kotlinx.coroutines.Dispatchers
@@ -122,8 +125,34 @@ fun DigitalBalanceScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // M18.145 (Play-Konsistenz): Der Balance-Tab ist ein Haupt-Tab in der
+    // Bottom-Navigation — ein Prüfer landet hier ohne Umweg über die
+    // Einstellungen. M18.141 hatte nur die beiden Einstiege im Trigger-Screen
+    // abgesichert; dieser hier führte weiterhin DIREKT in die
+    // Systemeinstellungen, ohne dass der Nutzer in der App ein Wort dazu
+    // gelesen hat. Genau das ist der Bypass, den die Play-Auflage verbietet.
+    val permissionGate = rememberPermissionDisclosureGate()
+
+    permissionGate.pending?.let { pending ->
+        PermissionDisclosureDialog(
+            kind = pending.kind,
+            requiresSettings = pending.requiresSettings,
+            onAllow = { permissionGate.consent { viewModel.openUsageAccessSettings() } },
+            onDecline = { permissionGate.dismiss() }
+        )
+    }
+
     if (!state.hasPermission) {
-        PermissionCard(onOpenSettings = viewModel::openUsageAccessSettings)
+        PermissionCard(
+            // Nutzungszugriff ist ein Sonderzugriff: der Bestätigungsbutton
+            // heißt „Einstellungen öffnen" und führt in die Systemseite.
+            onOpenSettings = {
+                permissionGate.request(
+                    PermissionDisclosureKind.USAGE_ACCESS,
+                    alreadyGranted = false
+                ) { viewModel.openUsageAccessSettings() }
+            }
+        )
         return
     }
 
