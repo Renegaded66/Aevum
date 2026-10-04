@@ -66,6 +66,8 @@ import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 @Composable
 fun ActivityTypesScreen(
     onBack: () -> Unit,
+    // M18.146: „Verlauf"-Verlinkung je Aktivität → Detail-Statistikseite.
+    onOpenActivityStats: (String) -> Unit = {},
     viewModel: ActivityTypesViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -133,6 +135,8 @@ fun ActivityTypesScreen(
                             onColorChange = { viewModel.setColor(row.id, it) },
                             onCategoryChange = { viewModel.setCategory(row.id, it) },
                             onCreateCategory = viewModel::createCategory,
+                            // M18.146: Verlauf-Link je Aktivität.
+                            onOpenStats = { onOpenActivityStats(row.id) },
                             // M18.51 (User: "nicht alle einen Lösch-Button erhalten
                             // muss nicht sein, das einzige was kaputt gehen könnte
                             // ist Schlaf, von mir aus darf die Activity keinen
@@ -231,6 +235,8 @@ private fun ActivityTypeCard(
     // M18.17: Kategorie-Zuordnung
     onCategoryChange: (String?) -> Unit,
     onCreateCategory: (String) -> Unit,
+    // M18.146: Verlauf-Link (öffnet die Detail-Statistikseite).
+    onOpenStats: (() -> Unit)? = null,
     // M18.50: Löschen (null = System-Typ, nicht löschbar).
     // Parameter: alsoDeleteSessions (true = Activity + alle Aufzeichnungen).
     onDelete: ((Boolean) -> Unit)? = null
@@ -373,6 +379,30 @@ private fun ActivityTypeCard(
                             )
                         }
                     }
+                }
+            }
+
+            // M18.146: Verlauf-Link — dezente Zeile mit Mini-Sparkline-Icon
+            // und Text. Führt zur Detail-Statistikseite dieser Aktivität.
+            if (onOpenStats != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.large)
+                        .clickable(onClick = onOpenStats)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("∿", fontSize = 16.sp, color = accent)
+                    Text(
+                        stringResource(R.string.activity_stats_open_link),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("›", fontSize = 16.sp, color = accent.copy(alpha = 0.7f))
                 }
             }
         }

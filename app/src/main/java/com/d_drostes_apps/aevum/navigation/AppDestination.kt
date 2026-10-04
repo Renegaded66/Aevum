@@ -65,5 +65,7 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
     FitnessTrackers("fitness_trackers", R.string.fitness_trackers_title),
     // M18.83: Orts-Timeline (Google-Maps-artige Tag-Story)
-    PlaceTimeline("place_timeline", R.string.place_timeline_title)
+    PlaceTimeline("place_timeline", R.string.place_timeline_title),
+    // M18.146: Detail-Statistikseite einer Aktivität (fancy Verlaufsgraph)
+    ActivityStats("stats/{activityTypeId}", R.string.activity_stats_title)
 }

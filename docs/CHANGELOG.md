@@ -1,5 +1,63 @@
 # CHANGELOG
 
+## [Unreleased] — M18.146 — 2026-10-04
+
+### Behoben — Statistik: Pauschale zählte 30 Tage statt Kalendermonat
+
+- **Bug (gemeldet):** In der Monatsansicht summierte die Tagespauschale
+  (z. B. 90 min/Tag „Essen") die **rollierenden letzten 30 Tage**, während
+  Sessions aus allen anderen Quellen nur den **Kalendermonat** zählten.
+  Ursache: zwei divergierende Perioden-Definitionen — `InsightsAnalytics`
+  rechnete kalendarisch, das `InsightsViewModel` für Pauschalen rollierend
+  (`anchorDate.minusDays(29)`). Warum es erst im Monat auffiel: Am Tag der
+  Meldung (Sonntag, 4. Okt) sind die rollierenden 7 Tage zufällig identisch
+  mit der Kalenderwoche.
+- **Fix (drei Schichten):**
+  1. `InsightsAnalytics.periodDates()` ist die **einzige** Perioden-Quelle
+     (kalendarisch: Monat ab 1., Woche ab Montag); `computePeriodRange()`
+     entfernt.
+  2. Das ViewModel fragt Pauschalen über dieselbe Definition ab.
+  3. `InsightsAnalytics.build` begrenzt die Accumulations **selbst** auf
+     das Fenster — der Fehlertyp „Aufrufer und Analytik uneinig" ist damit
+     strukturell ausgeschlossen.
+- **Nebenfund:** `hasData` prüfte ohne Fensterbezug → Aktivitäten mit nur
+  älteren Aufzeichnungen zeigten ein Null-Chart statt des Leerzustands.
+  Jetzt: `hasData = windowTotal > 0`.
+
+### Hinzugefügt — Zeitraum-Navigation in der Statistik
+
+- **Navigationszeile** `‹ KW 40 · 28. Sep. – 4. Okt. ›` unter dem
+  Period-Toggle: konkretes Zeitraum-Label statt nur „Diese Woche";
+  Pfeile skippen eine Periode, Label öffnet das Picker-Sheet.
+- **Picker-Sheet:** letzte 12 Perioden, Wochen **mit Datum und
+  Wochennummer** (ISO), Tage mit „Heute"/„Gestern"-Sonderfall, Monate als
+  „Oktober 2026"; Auswahlmarkierung + „jetzt"-Marker + „Zurück zu
+  jetzt"-Chip in der Vergangenheit.
+- Beim Granularitätswechsel springt der Anker auf heute (sonst zeigte ein
+  Mai-Anker nach dem Wechsel plötzlich eine Mai-Woche).
+
+### Hinzugefügt — Detail-Statistikseite je Aktivität
+
+- **Neue Seite** `stats/{activityTypeId}`: Verlaufsgraph im Canvas-Stil
+  (Bezier mit Farbverlauf, Glow, animiertes Flächen-Einwachsen, Ring-Marker
+  auf dem Gegenwarts-Punkt), **Finger-Scrubber** mit Detail-Karte (Datum,
+  Dauer, Anzahl Aufzeichnungen, haptisch), Umschalter **täglich /
+  wöchentlich / monatlich** (30 Tage / 12 Wochen / 12 Monate, persistiert).
+- Kennzahl-Kacheln (Gesamt, Ø/Tag, Aufzeichnungen, Längste, aktive Tage,
+  beste Serie), Wochenmuster (7 Mini-Balken), Trend ±% vs. Vorzeitraum.
+- EINE Tagesbasis für alle drei Sichten — konsistent per Konstruktion.
+- **Drei Einstiegspunkte:** Insights (Klick auf Top-Liste), Aufzeichnungs-
+  Detailseite („Verlauf ansehen"), Aktivitätstypen-Einstellungen
+  („Verlauf ansehen" je Aktivität).
+- DE + EN Strings; Leerzustand statt leerem Chart.
+
+### Verifikation
+
+- 1039 Unit-Tests, 0 Fehler (neu: 7 + 19 + 5 Tests in drei neuen Suiten,
+  plus 2 Integrationstests für die Pauschalen-Range).
+
+---
+
 ## [1.0.19] — M18.136 — 2026-09-22
 
 ### Behoben — Play-Console-Auflagen

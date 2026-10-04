@@ -161,7 +161,9 @@ fun AppNavHost(
         ) {
             ActivityDetailScreen(
                 onBack = { navController.popBackStack() },
-                onEdit = { id -> navController.navigate("activity/edit/$id") }
+                onEdit = { id -> navController.navigate("activity/edit/$id") },
+                // M18.146: „Verlauf ansehen" → Statistikseite der Aktivität.
+                onOpenActivityStats = { typeId -> navController.navigate("stats/$typeId") }
             )
         }
         composable(AppDestination.Insights.route) {
@@ -169,9 +171,22 @@ fun AppNavHost(
             // die Verlinkungen zu Goals/WeeklyReview sind
             // (noch) nicht Teil des Redesigns, folgen separat.
             // M18.35: + onOpenLifeView zur Lebenszeit-Ansicht.
+            // M18.146: + onOpenActivityStats — Klick auf eine Aktivität
+            // in der Top-Liste öffnet die neue Detail-Statistikseite.
             InsightsScreen(
                 onBack = { navController.popBackStack() },
-                onOpenLifeView = { navController.navigate(AppDestination.LifeView.route) }
+                onOpenLifeView = { navController.navigate(AppDestination.LifeView.route) },
+                onOpenActivityStats = { typeId -> navController.navigate("stats/$typeId") }
+            )
+        }
+        // M18.146: Detail-Statistikseite einer Aktivität — Verlauf mit
+        // Umschalter täglich/wöchentlich/monatlich + Finger-Scrubber.
+        composable(
+            route = AppDestination.ActivityStats.route,
+            arguments = listOf(navArgument("activityTypeId") { type = NavType.StringType })
+        ) {
+            com.d_drostes_apps.aevum.ui.screens.activitystats.ActivityStatsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
         composable(AppDestination.WeeklyReview.route) {
@@ -333,7 +348,10 @@ fun AppNavHost(
         // M18.2: Positivitäts-Scores pro Aktivität
         composable(AppDestination.ActivityTypes.route) {
             com.d_drostes_apps.aevum.ui.screens.activitytypes.ActivityTypesScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                // M18.146: Verlauf je Aktivität — Link aus der Verwaltung
+                // zur Statistikseite.
+                onOpenActivityStats = { typeId -> navController.navigate("stats/$typeId") }
             )
         }
         // M18.59: Kategorien verwalten

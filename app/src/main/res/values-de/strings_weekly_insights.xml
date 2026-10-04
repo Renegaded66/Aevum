@@ -91,6 +91,42 @@
          verwendet — das Auf-/Zuklappen der Top-Liste ist kein Ladevorgang. -->
     <string name="insights_loading">Auswertung wird geladen…</string>
 
+    <!-- M18.146: Perioden-Navigation (‹ Label ›) + Zeitraum-Picker-Sheet +
+         Aktivitäts-Statistikseite. -->
+    <string name="insights_nav_previous">Vorheriger Zeitraum</string>
+    <string name="insights_nav_next">Nächster Zeitraum</string>
+    <string name="insights_nav_today">Zurück zu jetzt</string>
+    <string name="insights_nav_pick">Zeitraum wählen</string>
+    <string name="insights_picker_title">Zeitraum wählen</string>
+    <string name="insights_picker_now_marker">jetzt</string>
+    <string name="insights_week_label">KW %1$d · %2$s</string>
+    <string name="insights_week_short">KW %1$d</string>
+
+    <!-- Aktivitäts-Statistikseite (M18.146) -->
+    <string name="activity_stats_title">Aktivität</string>
+    <string name="activity_stats_subtitle">Wie sich diese Aktivität über die Zeit entfaltet</string>
+    <string name="activity_stats_axis_daily">Täglich</string>
+    <string name="activity_stats_axis_weekly">Wöchentlich</string>
+    <string name="activity_stats_axis_monthly">Monatlich</string>
+    <string name="activity_stats_total">Gesamt</string>
+    <string name="activity_stats_avg_per_day">Ø pro Tag</string>
+    <string name="activity_stats_sessions">Aufzeichnungen</string>
+    <string name="activity_stats_longest">Längste</string>
+    <string name="activity_stats_active_days">Aktive Tage</string>
+    <string name="activity_stats_streak">Beste Serie</string>
+    <string name="activity_stats_trend_title">Entwicklung</string>
+    <string name="activity_stats_trend_up">mehr als im Zeitraum davor</string>
+    <string name="activity_stats_trend_down">weniger als im Zeitraum davor</string>
+    <string name="activity_stats_trend_flat">etwa gleich wie im Zeitraum davor</string>
+    <string name="activity_stats_weekday_title">Rhythmus der Woche</string>
+    <string name="activity_stats_empty_title">Noch nichts aufgezeichnet</string>
+    <string name="activity_stats_empty_message">Sobald du diese Aktivität erfasst, erscheint hier ihr Verlauf.</string>
+    <string name="activity_stats_chart_hint">Finger auf dem Graphen halten für Details</string>
+    <string name="activity_stats_open_link">Verlauf ansehen</string>
+    <string name="activity_stats_this_week_suffix">diese Woche</string>
+    <string name="activity_stats_sessions_count">%1$d Aufzeichnungen</string>
+    <string name="activity_stats_open_session">läuft</string>
+
     <!-- Review Inbox -->
     <string name="review_inbox_eyebrow">Review Inbox</string>
     <string name="review_inbox_hero_title">Aevum hat etwas vorbereitet</string>

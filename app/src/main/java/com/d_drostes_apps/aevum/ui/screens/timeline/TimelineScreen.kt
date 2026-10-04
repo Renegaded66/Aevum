@@ -1142,6 +1142,8 @@ fun ActivityDetailScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onEdit: (String) -> Unit,
+    // M18.146: Link zur Statistikseite der Aktivität dieser Aufzeichnung.
+    onOpenActivityStats: (String) -> Unit = {},
     viewModel: ActivityDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -1211,6 +1213,21 @@ fun ActivityDetailScreen(
                 // Bearbeiten / Güte / Loeschen Buttons am Ende
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        // M18.146: Verlauf dieser Aktivität ansehen — nur wenn
+                        // die Aufzeichnung einer Aktivität zugeordnet ist
+                        // (sonst gibt es keine Statistikseite für sie).
+                        session.activityTypeId?.let { typeId ->
+                            OutlinedButton(
+                                onClick = { onOpenActivityStats(typeId) },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(vertical = AevumSpacing.md)
+                            ) {
+                                Text(
+                                    stringResource(R.string.activity_stats_open_link),
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
                         // R20-v2: Güte anpassen — sichtbarer Button statt nur Lang-Druck
                         OutlinedButton(
                             onClick = { showQualityDialog = true },

@@ -30,6 +30,14 @@ enum class InsightPeriod {
 data class InsightsUiState(
     val selectedPeriod: InsightPeriod = InsightPeriod.Today,
     val periodLabel: String = "",
+    /**
+     * M18.146: Der Anker-Tag der aktuell gezeigten Periode. Die
+     * Navigationszeile baut daraus zusammen mit [selectedPeriod] das
+     * konkrete Label ("KW 40 · 28. Sep. – 4. Okt.") — bewusst hier und
+     * nicht in [periodLabel], damit die Analytik unabhängig von der
+     * Darstellung bleibt (gleiches Prinzip wie [topActivitiesExpanded]).
+     */
+    val anchorDate: LocalDate = LocalDate.now(),
     val summary: String = "",
     val startDate: LocalDate = LocalDate.now(),
     val timeDistribution: List<TimeDistributionSlice> = emptyList(),
@@ -72,7 +80,15 @@ data class InsightsUiState(
      * Zeilen, aufgeklappt alle. [topBreakdown] enthält IMMER die vollständige,
      * absteigend sortierte Liste — die Begrenzung ist reine Darstellung.
      */
-    val topActivitiesExpanded: Boolean = false
+    val topActivitiesExpanded: Boolean = false,
+    /**
+     * M18.146: IDs aller bekannten ActivityTypes. Die Top-Liste nutzt sie,
+     * um zu entscheiden, welche Zeilen auf die Detail-Statistikseite
+     * verlinken (Zeilen ohne echten Typ — z.B. Titel-Fallbacks oder
+     * Kategorie-Zeilen — bleiben nicht klickbar statt auf eine leere
+     * Seite zu führen).
+     */
+    val knownActivityTypeIds: Set<String> = emptySet()
 )
 
 data class TimeDistributionSlice(
@@ -139,36 +155,107 @@ data class PeriodWindow(
     val label: String
 )
 
+/**
+ * M18.146: Kalendarische Grenzen EINER Periode — die EINZIGE Quelle der
+ * Wahrheit für Zeitraum-Grenzen in der Statistik.
+ *
+ * WARUM ES DIESEN TYP GIBT (Root Cause des „Pauschale zählt 30 Tage statt
+ * Monat"-Bugs): Vorher existierten ZWEI Perioden-Definitionen — [window]
+ * rechnete für Sessions kalendarisch (Monat ab dem 1., Woche ab Montag),
+ * während das InsightsViewModel für die Tagespauschalen eine eigene,
+ * ROLLIERENDE Rechnung („letzte 30 Tage", „letzte 7 Tage") führte. Am
+ * Sonntag sind rollierende 7 Tage zufällig identisch mit der Kalenderwoche
+ * — deshalb fiel der Fehler erst in der Monatsansicht auf. Ab hier gibt es
+ * nur noch [periodDates]; alle Verbraucher (Sessions, Pauschalen, Verlauf,
+ * Vorperioden-Vergleich) leiten ihre Grenzen daraus ab.
+ *
+ * [endInclusive] ist der letzte TAG der Periode (nützlich für
+ * BETWEEN-Queries über ISO-Datumsstrings), [endExclusive] der erste Tag
+ * NACH der Periode (für Millis-Fenster). Die Vorperiode endet exklusiv an
+ * [start] — identisch zur bisherigen Vergleichslogik.
+ */
+data class PeriodDates(
+    val start: LocalDate,
+    val endInclusive: LocalDate,
+    val endExclusive: LocalDate,
+    val previousStart: LocalDate,
+    val previousEnd: LocalDate
+)
+
 object InsightsAnalytics {
     private const val HOUR = 60 * 60 * 1000L
 
-    fun window(context: Context? = null, period: InsightPeriod, anchorDate: LocalDate, zoneId: ZoneId): PeriodWindow {
-        val startDate = when (period) {
+    /**
+     * M18.146: Kalendarische Grenzen der Periode um [anchorDate] — die
+     * EINZIGE Quelle der Wahrheit für alle Zeitraum-Grenzen der Statistik.
+     *
+     * - Today: genau [anchorDate].
+     * - Week: Montag der Kalenderwoche bis einschließlich Sonntag.
+     * - Month: 1. des Monats bis letzter Tag des Monats.
+     *
+     * Die Vorperioden sind die unmittelbar davorliegenden Perioden gleicher
+     * Art (gestern / letzte Kalenderwoche / letzter Kalendermonat). Der
+     * Aufrufer übergibt den Anchor-Tag; für „durchskippen" genügt es, den
+     * Anchor entsprechend zu verschieben ([shiftAnchor]).
+     */
+    fun periodDates(period: InsightPeriod, anchorDate: LocalDate): PeriodDates {
+        val start = when (period) {
             InsightPeriod.Today -> anchorDate
             InsightPeriod.Week -> anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             InsightPeriod.Month -> anchorDate.withDayOfMonth(1)
         }
-        val endDateExclusive = when (period) {
-            InsightPeriod.Today -> startDate.plusDays(1)
-            InsightPeriod.Week -> startDate.plusDays(7)
-            InsightPeriod.Month -> startDate.plusMonths(1)
+        val endExclusive = when (period) {
+            InsightPeriod.Today -> start.plusDays(1)
+            InsightPeriod.Week -> start.plusDays(7)
+            InsightPeriod.Month -> start.plusMonths(1)
         }
-        val previousStartDate = when (period) {
-            InsightPeriod.Today -> startDate.minusDays(1)
-            InsightPeriod.Week -> startDate.minusWeeks(1)
-            InsightPeriod.Month -> startDate.minusMonths(1)
+        val previousStart = when (period) {
+            InsightPeriod.Today -> start.minusDays(1)
+            InsightPeriod.Week -> start.minusWeeks(1)
+            InsightPeriod.Month -> start.minusMonths(1)
         }
-        val previousEndDate = when (period) {
-            InsightPeriod.Today -> startDate
-            InsightPeriod.Week -> startDate
-            InsightPeriod.Month -> startDate
+        return PeriodDates(
+            start = start,
+            endInclusive = endExclusive.minusDays(1),
+            endExclusive = endExclusive,
+            previousStart = previousStart,
+            // Die Vorperiode endet exklusiv am Periodenbeginn — gleiche
+            // Grenze wie bisher (Vergleichslogik der Changes-Karte).
+            previousEnd = start
+        )
+    }
+
+    /**
+     * M18.146: Anchor-Tag um genau eine Periode verschieben — Baustein für
+     * das Durchskippen von Tagen/Wochen/Monaten.
+     *
+     * Bewusst auf TAGES-Ebene verschoben (nicht Monat für Monat auf dem
+     * 1.): aus dem 31. Januar + 1 Monat würde sonst der 28. Februar und
+     * ein weiteres Skippen landete im falschen Monat. Stattdessen rückt
+     * [anchorDate] um die Periodenlänge und [periodDates] normalisiert auf
+     * die kalendarische Periode — dadurch ist jeder Monat genau einmal
+     * erreichbar.
+     */
+    fun shiftAnchor(period: InsightPeriod, anchorDate: LocalDate, steps: Long): LocalDate {
+        if (steps == 0L) return anchorDate
+        return when (period) {
+            InsightPeriod.Today -> anchorDate.plusDays(steps)
+            InsightPeriod.Week -> anchorDate.plusWeeks(steps)
+            // Monat: erst auf den Monatsanfang normalisieren, dann schieben —
+            // nur so springt z.B. der 31.01. sauber in den Februar statt auf
+            // den 03.03. (Day-Overflow von plusMonths).
+            InsightPeriod.Month -> anchorDate.withDayOfMonth(1).plusMonths(steps)
         }
+    }
+
+    fun window(context: Context? = null, period: InsightPeriod, anchorDate: LocalDate, zoneId: ZoneId): PeriodWindow {
+        val dates = periodDates(period, anchorDate)
         return PeriodWindow(
-            start = startDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            end = endDateExclusive.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            previousStart = previousStartDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            previousEnd = previousEndDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            startDate = startDate,
+            start = dates.start.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            end = dates.endExclusive.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            previousStart = dates.previousStart.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            previousEnd = dates.previousEnd.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            startDate = dates.start,
             label = when (period) {
                 InsightPeriod.Today -> str(context, R.string.common_today)
                 InsightPeriod.Week -> str(context, R.string.insights_period_this_week)
@@ -196,6 +283,10 @@ object InsightsAnalytics {
         balanceMsPerDay: Map<LocalDate, Long> = emptyMap()
     ): InsightsUiState {
         val window = window(context, selectedPeriod, anchorDate, zoneId)
+        // M18.146: Die Kalender-Grenzen der gezeigten Periode. NOETIG fuer
+        // die Pauschalen unten: sie werden HIER auf das Fenster begrenzt,
+        // nicht beim Aufrufer.
+        val windowDates = periodDates(selectedPeriod, anchorDate)
         val categoryMap = categories.associateBy { it.id }
         val typeMap = activityTypes.associateBy { it.id }
         // M18.138: Aufzeichnungen raus, echte Bildschirmzeit rein — EINE
@@ -211,16 +302,29 @@ object InsightsAnalytics {
         // M17.4: Tagespauschalen → als virtuelle Sessions für die Aggregation.
         // Wichtig: wir nutzen einen separaten Pfad, der NUR in die Top-Liste
         // und in den Hero-Header einfließt, niemals in den Heatmap.
+        //
+        // M18.146 (Pauschalen-Bug, Verteidigung in der Tiefe): Die
+        // Accumulations werden HIER auf die Kalender-Periode begrenzt —
+        // dieselbe [periodDates]-Wahrheit wie die Sessions. Der Aufrufer
+        // darf eine breitere Range anfragen (das ViewModel deckt z.B. auch
+        // on-the-fly-Tage ab); was NIRGENDS mehr passieren kann: dass eine
+        // Pauschale aus einem anderen Monat mitgezählt wird, weil Aufrufer
+        // und Analytik sich über den Zeitraum uneinig sind. Genau diese
+        // Uneinigkeit war der Bug (rollierende 30 Tage statt Kalendermonat).
+        val windowAccumulations = allowanceAccumulations.filter { acc ->
+            val d = runCatching { LocalDate.parse(acc.date) }.getOrNull()
+            d != null && !d.isBefore(windowDates.start) && !d.isAfter(windowDates.endInclusive)
+        }
         // M18.37: allowanceMs muss VOR distributionWithAllowances stehen
         // (wird dort als Nenner fuer die Prozentwerte genutzt).
-        val allowanceMs = allowanceAccumulations.sumOf { it.minutes } * 60_000L
+        val allowanceMs = windowAccumulations.sumOf { it.minutes } * 60_000L
         val distribution = buildDistribution(context, current, categoryMap, typeMap)
         // M18.37: Pauschalen auch ins Kreisdiagramm mischen — als eigene
         // Slices pro Kategorie (id "allowance_<catId>"), damit sie dort
         // sichtbar sind und nicht nur in der Gesamtsumme aufgehen.
         val allowanceDistribution = buildAllowanceDistribution(
             context = context,
-            accumulations = allowanceAccumulations,
+            accumulations = windowAccumulations,
             categories = categories,
             activityTypes = activityTypes
         )
@@ -247,7 +351,7 @@ object InsightsAnalytics {
         // und in den Hero-Header einfließt, niemals in den Heatmap.
         val allowanceTopBreakdown = buildAllowanceTopBreakdown(
             context = context,
-            accumulations = allowanceAccumulations,
+            accumulations = windowAccumulations,
             activityTypes = activityTypes,
             categories = categories,
             mode = breakdownMode
@@ -335,7 +439,10 @@ object InsightsAnalytics {
             totalMinutesIncludingAllowances = ((totalMs + allowanceMs) / 60_000L).toInt(),
             // M18.36: Exakte Millisekunden — die Hero-Anzeige zeigt jetzt
             // Dezimal-Stunden (1 Nachkommastelle) statt gerundeter Ints.
-            totalMsIncludingAllowances = totalMs + allowanceMs
+            totalMsIncludingAllowances = totalMs + allowanceMs,
+            // M18.146: Bekannte Typ-IDs für die Verlinkung der Top-Liste
+            // zur Detail-Statistikseite.
+            knownActivityTypeIds = typeMap.keys
         )
     }
 

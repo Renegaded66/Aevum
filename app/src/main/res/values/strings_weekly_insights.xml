@@ -89,6 +89,43 @@
          ONLY here — expanding the top-activities list is not a load operation. -->
     <string name="insights_loading">Loading analysis…</string>
 
+    <!-- M18.146: period navigation (‹ label ›) + period picker sheet + the
+         per-activity statistics page. One place for all labels so day/
+         week/month cannot drift apart in wording. -->
+    <string name="insights_nav_previous">Previous period</string>
+    <string name="insights_nav_next">Next period</string>
+    <string name="insights_nav_today">Back to now</string>
+    <string name="insights_nav_pick">Choose period</string>
+    <string name="insights_picker_title">Choose period</string>
+    <string name="insights_picker_now_marker">now</string>
+    <string name="insights_week_label">Week %1$d · %2$s</string>
+    <string name="insights_week_short">Week %1$d</string>
+
+    <!-- Activity statistics page (M18.146) -->
+    <string name="activity_stats_title">Activity</string>
+    <string name="activity_stats_subtitle">How this activity unfolds over time</string>
+    <string name="activity_stats_axis_daily">Daily</string>
+    <string name="activity_stats_axis_weekly">Weekly</string>
+    <string name="activity_stats_axis_monthly">Monthly</string>
+    <string name="activity_stats_total">Total</string>
+    <string name="activity_stats_avg_per_day">Ø per day</string>
+    <string name="activity_stats_sessions">Sessions</string>
+    <string name="activity_stats_longest">Longest</string>
+    <string name="activity_stats_active_days">Active days</string>
+    <string name="activity_stats_streak">Best streak</string>
+    <string name="activity_stats_trend_title">Trend</string>
+    <string name="activity_stats_trend_up">more than the previous period</string>
+    <string name="activity_stats_trend_down">less than the previous period</string>
+    <string name="activity_stats_trend_flat">about the same as the previous period</string>
+    <string name="activity_stats_weekday_title">Rhythm of the week</string>
+    <string name="activity_stats_empty_title">Nothing recorded yet</string>
+    <string name="activity_stats_empty_message">As soon as you capture this activity, its curve will appear here.</string>
+    <string name="activity_stats_chart_hint">Hold your finger on the chart for details</string>
+    <string name="activity_stats_open_link">View history</string>
+    <string name="activity_stats_this_week_suffix">this week</string>
+    <string name="activity_stats_sessions_count">%1$d sessions</string>
+    <string name="activity_stats_open_session">running</string>
+
     <!-- Review Inbox -->
     <string name="review_inbox_eyebrow">Review Inbox</string>
     <string name="review_inbox_hero_title">Aevum has prepared something</string>

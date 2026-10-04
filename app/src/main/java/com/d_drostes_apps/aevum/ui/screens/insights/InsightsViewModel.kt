@@ -39,7 +39,6 @@ class InsightsViewModel @Inject constructor(
     private val balanceSource: com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 ) : ViewModel() {
     private val zoneId = java.time.ZoneId.systemDefault()
-    private val anchorDate = java.time.LocalDate.now()
 
     // M18.137 (Kanban t_13e9f843): Retry-Trigger.
     //
@@ -59,6 +58,14 @@ class InsightsViewModel @Inject constructor(
         InsightPeriod.fromStorage(prefs.getString(KEY_PERIOD, null))
     )
     private val _selectedHeatmapDate = MutableStateFlow<java.time.LocalDate?>(null)
+    // M18.146: Navigierbarer Anker-Tag. Vorher war der Anker FEST der
+    // App-Start-Tag — ein Durchskippen durch Tage/Wochen/Monate war deshalb
+    // unmöglich, und die Pauschalen rechneten in einer eigenen, rollierenden
+    // „letzte 30 Tage"-Logik, während die Sessions kalendarisch zählten
+    // (Bug: „Monatsansicht summiert 30 Tage Pauschale statt Kalendermonat").
+    // Jetzt: EIN Anker, EINE Perioden-Definition ([InsightsAnalytics.periodDates]),
+    // alle Verbraucher leiten daraus ab.
+    private val _anchorDate = MutableStateFlow(java.time.LocalDate.now())
     // M17.4: Toggle zwischen Aktivitäts- und Kategorie-Aufschlüsselung.
     private val _breakdownMode = MutableStateFlow(BreakdownMode.Activity)
     // M18.137 (Kanban t_70a06809): Auf-/Zuklappen der Top-Liste.
@@ -67,6 +74,14 @@ class InsightsViewModel @Inject constructor(
     private val _topActivitiesExpanded = MutableStateFlow(
         prefs.getBoolean(KEY_TOP_ACTIVITIES_EXPANDED, false)
     )
+
+    // M18.146: combine-Operator-Limit (max. 5 typisierte Flows) — darum
+    // werden Ausklapp-Zustand und Anker-Tag zu EINEM Paar-Flow verschachtelt
+    // (Muster aus PlaceTimelineViewModel / TriggerSettingsScreen).
+    private val _viewPrefs = combine(
+        _topActivitiesExpanded,
+        _anchorDate
+    ) { expanded, anchor -> expanded to anchor }
 
     private val dataFlow = combine(
         activityRepository.getAll(),
@@ -78,7 +93,20 @@ class InsightsViewModel @Inject constructor(
         dailyAllowanceRepository.getAll(),
         // M18.138: Bildschirmzeit (Digital Balance) — ersetzt die
         // Aufzeichnungen in allen Kennzahlen. 60s-Takt wie der Balance-Tab.
-        balanceSource.dailyTotals(LOOKBACK_DAYS)
+        //
+        // M18.146: Das Fenster folgt jetzt der GEZEIGTEN Periode statt eines
+        // festen 62-Tage-Rückblicks. Seit die Statistik durch Tage/Wochen/
+        // Monate navigierbar ist, wäre der feste Rückblick falsch: nach dem
+        // Skippen in den Vormonat fehlten dort alle Digital-Balance-Werte.
+        // Abgedeckt wird: gezeigte Periode + Vorperiode (Vergleichs-Changes)
+        // + komplette Kalenderwoche des Ankers (Heatmap zeigt stets diese
+        // Woche). flatMapLatest baut das Abonnement bei jedem Skip um.
+        combine(_selectedPeriod, _anchorDate) { period, anchor -> period to anchor }
+            .flatMapLatest { (period, anchor) ->
+                val dates = InsightsAnalytics.periodDates(period, anchor)
+                val coverageStart = minOf(dates.previousStart, PeriodLabels.weekStart(anchor))
+                balanceSource.dailyTotalsInRange(coverageStart, dates.endExclusive)
+            }
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val sessions = values[0] as List<ActivitySession>
@@ -110,8 +138,9 @@ class InsightsViewModel @Inject constructor(
                 _selectedPeriod,
                 _selectedHeatmapDate,
                 _breakdownMode,
-                // M18.137 (Kanban t_70a06809): 5. Flow fuer das Auf-/Zuklappen.
-                _topActivitiesExpanded
+                // M18.146: 5. Flow — Paar aus Ausklapp-Zustand + Anker-Tag
+                // (6 einzelne Flows wären über dem combine-Limit).
+                _viewPrefs
             ) { values ->
                 @Suppress("UNCHECKED_CAST")
                 val data = values[0] as DataLayer
@@ -119,7 +148,9 @@ class InsightsViewModel @Inject constructor(
                 val heatmapDate = values[2] as java.time.LocalDate?
                 val breakdownMode = values[3] as BreakdownMode
                 // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
-                val topExpanded = values[4] as Boolean
+                val topExpanded = (values[4] as Pair<Boolean, java.time.LocalDate>).first
+                // M18.146: Anker-Tag der aktuell gezeigten Periode.
+                val anchorDate = (values[4] as Pair<Boolean, java.time.LocalDate>).second
         // M18.138: Bildschirmzeit je Tag (Digital Balance) — sie ersetzt
         // die Aufzeichnungen in allen Kennzahlen dieses Screens.
         val balanceMsPerDay = data.balanceMsPerDay
@@ -130,9 +161,19 @@ class InsightsViewModel @Inject constructor(
         // M18.33: ZUSAETZLICH enabled Allowances on-the-fly fuer die
         // aktuellen Tage einrechnen — eine heute erstellte Pauschale
         // erscheint SOFORT, nicht erst nach dem Midnight-Worker (00:05).
-        val (periodStart, periodEnd) = computePeriodRange(period)
+        // M18.146-FIX (User: „Pauschale zählt in der Monatsansicht 30 Tage
+        // statt Kalendermonat"): Die Pauschalen benutzen jetzt DIESELBE
+        // Perioden-Definition wie die Sessions — [InsightsAnalytics.periodDates].
+        // Vorher hatte das ViewModel eine eigene, rollierende Rechnung
+        // (Monat = minusDays(29)), während InsightsAnalytics.build für die
+        // Sessions kalendarisch rechnete (Monat ab dem 1.). Zwei Definitionen
+        // — zwei Wahrheiten; sichtbar wurde der Widerspruch als „Pauschale
+        // summiert die letzten 30 Tage, Sessions nur den Monat".
+        val periodDates = InsightsAnalytics.periodDates(period, anchorDate)
+        val periodStart = periodDates.start
+        val periodEndInclusive = periodDates.endInclusive
         val allowanceAccums = dailyAllowanceRepository.getAccumulationInRange(
-            periodStart.toString(), periodEnd.toString()
+            periodStart.toString(), periodEndInclusive.toString()
         )
             // M18.37-FIX (Self-Healing): Verwaiste Accumulations ignorieren —
             // wenn die zugehoerige Allowance geloescht wurde (z.B. Pauschale
@@ -143,11 +184,13 @@ class InsightsViewModel @Inject constructor(
         // Heutige Pauschalen (und alle Tage ohne Accumulation) on-the-fly:
         // pro Tag im Zeitraum wird jede enabled Allowance addiert, die noch
         // keinen Accumulation-Eintrag hat (idempotent via PK-Check).
+        // M18.146: Nur Tage BIS HEUTE — beim Vorwärts-Skippen in die Zukunft
+        // gilt eine Pauschale (noch) nicht.
         val existingKeys = allowanceAccums.map { it.date to it.allowanceId }.toSet()
         val today = java.time.LocalDate.now()
         val enabledAllowances = data.allowances.filter { it.enabled }
         var cursor = periodStart
-        while (!cursor.isAfter(periodEnd)) {
+        while (!cursor.isAfter(periodEndInclusive)) {
             if (cursor <= today) {
                 enabledAllowances.forEach { allowance ->
                     val key = cursor.toString() to allowance.id
@@ -182,6 +225,8 @@ class InsightsViewModel @Inject constructor(
             balanceMsPerDay = balanceMsPerDay
         ).copy(
             selectedHeatmapDate = heatmapDate,
+            // M18.146: Anker-Tag für die Navigationszeile (UI-Zustand).
+            anchorDate = anchorDate,
             // M18.137 (Kanban t_70a06809): Reiner UI-Zustand — wird bewusst
             // NICHT in InsightsAnalytics.build entschieden, damit die
             // Analytik unabhängig von der Darstellung bleibt.
@@ -244,8 +289,49 @@ class InsightsViewModel @Inject constructor(
     fun selectPeriod(period: InsightPeriod) {
         _selectedPeriod.value = period
         _selectedHeatmapDate.value = null
+        // M18.146: Beim Wechsel der Granularität springt der Anker auf die
+        // AKTUELLE Periode zurück. Sonst würde z.B. ein beim Skippen in den
+        // Mai gesetzter Anker nach dem Wechsel auf „Woche" plötzlich eine
+        // Mai-Woche zeigen, obwohl der Nutzer gerade „jetzt" erwartet.
+        _anchorDate.value = java.time.LocalDate.now()
         // M18.34: Auswahl persistieren — beim naechsten Oeffnen direkt da.
         prefs.edit().putString(KEY_PERIOD, period.name).apply()
+    }
+
+    /**
+     * M18.146: Durchskippen um ±1 Periode (Tag/Woche/Monat). Basis der
+     * ‹ / ›-Buttons in der Navigationszeile. Die Schrittweite ergibt sich
+     * aus der gewählten Granularität ([InsightsAnalytics.shiftAnchor]).
+     */
+    fun stepAnchor(steps: Long) {
+        _anchorDate.value = InsightsAnalytics.shiftAnchor(_selectedPeriod.value, _anchorDate.value, steps)
+        _selectedHeatmapDate.value = null
+    }
+
+    /**
+     * M18.146: Direkte Auswahl einer Periode aus dem Zeitraum-Sheet. Der
+     * Anker wird auf den Periodenbeginn normalisiert, damit die Auswahl
+     * unabhängig davon ist, welcher Tag im Eintrag repräsentiert wurde.
+     */
+    fun selectAnchor(anchor: java.time.LocalDate) {
+        _anchorDate.value = PeriodLabels.normalize(_selectedPeriod.value, anchor)
+        _selectedHeatmapDate.value = null
+    }
+
+    /** M18.146: Zurück zur aktuellen Periode („Heute"/„Diese Woche"/„Dieser Monat"). */
+    fun resetAnchorToToday() {
+        _anchorDate.value = java.time.LocalDate.now()
+        _selectedHeatmapDate.value = null
+    }
+
+    /**
+     * M18.146: Ist die aktuell gezeigte Periode NICHT die, in der „heute"
+     * liegt? Steuert den „Zurück zu heute"-Affordance in der UI.
+     */
+    fun isShowingPastPeriod(): Boolean {
+        val today = java.time.LocalDate.now()
+        return PeriodLabels.normalize(_selectedPeriod.value, _anchorDate.value) !=
+            PeriodLabels.normalize(_selectedPeriod.value, today)
     }
 
     fun selectHeatmapDay(date: java.time.LocalDate) {
@@ -274,19 +360,12 @@ class InsightsViewModel @Inject constructor(
         prefs.edit().putBoolean(KEY_TOP_ACTIVITIES_EXPANDED, next).apply()
     }
 
-    private fun computePeriodRange(period: InsightPeriod): Pair<java.time.LocalDate, java.time.LocalDate> {
-        return when (period) {
-            InsightPeriod.Today -> anchorDate to anchorDate
-            InsightPeriod.Week -> {
-                val start = anchorDate.minusDays(6)
-                start to anchorDate
-            }
-            InsightPeriod.Month -> {
-                val start = anchorDate.minusDays(29)
-                start to anchorDate
-            }
-        }
-    }
+    /**
+     * M18.146: ENTFERNT — die rollierende Perioden-Rechnung („letzte 7/30
+     * Tage") war die Ursache des Pauschalen-Bugs. Die Perioden-Grenzen
+     * kommen jetzt ausschließlich aus [InsightsAnalytics.periodDates]
+     * (kalendarisch, dieselbe Quelle wie die Sessions).
+     */
 
     private data class DataLayer(
         val sessions: List<ActivitySession>,
@@ -298,6 +377,12 @@ class InsightsViewModel @Inject constructor(
     )
 
     companion object {
+        /**
+         * M18.146: Name der SharedPreferences-Datei der Statistik-Ansichten.
+         * Public, weil die Aktivitäts-Statistikseite ihre Granularität in
+         * derselben Datei persistiert (gleiche Nutzer-Präferenzen, ein Ort).
+         */
+        const val PREFS_NAME = "aevum_insights"
         // M18.34: Storage-Key fuer die persistierte Period-Auswahl.
         private const val KEY_PERIOD = "selected_period"
         // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.

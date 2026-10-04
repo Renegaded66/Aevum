@@ -21,6 +21,7 @@ import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
 import com.d_drostes_apps.aevum.data.repository.LanguageRepository
 import com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 import com.d_drostes_apps.aevum.domain.digital.ScreenTimeProvider
+import com.d_drostes_apps.aevum.ui.screens.insights.InsightPeriod
 import com.d_drostes_apps.aevum.ui.screens.insights.InsightsViewModel
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
@@ -218,15 +219,28 @@ class InsightsWiringIntegrationTest {
     }
 
     private class FakeDailyAllowanceRepository : DailyAllowanceRepository {
-        override fun getAll(): Flow<List<DailyAllowance>> = flowOf(emptyList())
-        override suspend fun getEnabled(): List<DailyAllowance> = emptyList()
-        override suspend fun getById(id: String): DailyAllowance? = null
+        /**
+         * M18.146: Merkt sich die zuletzt angeforderte Accumulation-Range.
+         * GENAU diese Nahtstelle war der Pauschalen-Bug: die alte
+         * ViewModel-Logik forderte die rollierenden letzten 30 Tage an,
+         * obwohl der Kalendermonat gezeigt wurde. Die Tests lesen die
+         * tatsaechlich uebergebene Range hier ab.
+         */
+        var lastAccumulationRange: Pair<String, String>? = null
+        var allowances: List<DailyAllowance> = emptyList()
+
+        override fun getAll(): Flow<List<DailyAllowance>> = flowOf(allowances)
+        override suspend fun getEnabled(): List<DailyAllowance> = allowances.filter { it.enabled }
+        override suspend fun getById(id: String): DailyAllowance? = allowances.firstOrNull { it.id == id }
         override suspend fun insert(allowance: DailyAllowance) {}
         override suspend fun setEnabled(id: String, enabled: Boolean) {}
         override suspend fun delete(id: String) {}
         override suspend fun deleteAccumulationsForAllowance(allowanceId: String) {}
         override suspend fun getAccumulationForDate(date: String): List<AllowanceAccumulationDay> = emptyList()
-        override suspend fun getAccumulationInRange(startDate: String, endDate: String): List<AllowanceAccumulationDay> = emptyList()
+        override suspend fun getAccumulationInRange(startDate: String, endDate: String): List<AllowanceAccumulationDay> {
+            lastAccumulationRange = startDate to endDate
+            return emptyList()
+        }
         override suspend fun insertAccumulation(accumulation: AllowanceAccumulationDay) {}
         override suspend fun getOverridesForDate(date: String): List<AllowanceDayOverride> = emptyList()
         override fun getOverridesForDateFlow(date: String): Flow<List<AllowanceDayOverride>> = flowOf(emptyList())
@@ -246,7 +260,12 @@ class InsightsWiringIntegrationTest {
         }
     }
 
-    private fun viewModel(activityRepository: FakeActivityRepository): InsightsViewModel {
+    private fun viewModel(
+        activityRepository: FakeActivityRepository,
+        // M18.146: optional injizierbar, damit Tests die Accumulation-Range
+        // ablesen koennen (Pauschalen-Kalendermonat-Regression).
+        allowanceRepository: FakeDailyAllowanceRepository = FakeDailyAllowanceRepository()
+    ): InsightsViewModel {
         val app = ApplicationProvider.getApplicationContext<Application>()
         // M18.138: Bildschirmzeit-Quelle im Test-Modus. Zwei Dinge sind hier
         // wichtig:
@@ -263,7 +282,7 @@ class InsightsWiringIntegrationTest {
             activityRepository = activityRepository,
             categoryRepository = FakeCategoryRepository(categories),
             activityTypeRepository = FakeActivityTypeRepository(types),
-            dailyAllowanceRepository = FakeDailyAllowanceRepository(),
+            dailyAllowanceRepository = allowanceRepository,
             languageRepository = LanguageRepository(context = app, dataStore = FakePreferencesDataStore()),
             balanceSource = balanceSource
         )
@@ -421,5 +440,81 @@ class InsightsWiringIntegrationTest {
         // Ohne advanceUntilIdle: der stateIn-Startwert steht noch.
         assertThat(vm.uiState.value.isLoading).isTrue()
         assertThat(vm.uiState.value.errorMessage).isNull()
+    }
+
+    // ---------------------------------------------------------------
+    // M18.146-REGRESSION: Pauschalen folgen dem KALENDERMONAT
+    // ---------------------------------------------------------------
+
+    /**
+     * DER PAUSCHALEN-BUG (User: „Monatsansicht summiert 30 Tage statt des
+     * Kalendermonats"). Geprueft wird die Nahtstelle, an der er saß: welche
+     * Accumulation-Range das ViewModel beim Repository anfragt, wenn der
+     * Nutzer „Dieser Monat" gewaehlt hat.
+     *
+     * KALENDARISCH heisst: vom 1. des Monats bis zum letzten Tag des Monats
+     * (hier: 1. Okt bis 31. Okt) — NICHT die rollierenden letzten 30 Tage
+     * (bei einem Anker am 4. Okt waere das der 5. Sep bis 4. Okt). Die alte
+     * Logik (`anchorDate.minusDays(29)`) lieferte genau diese rollierende
+     * Range und ist damit durch diesen Test dauerhaft ausgeschlossen.
+     */
+    @Test
+    fun monthPeriodRequestsTheCalendarMonthFromTheAllowanceRepository() = runTest(dispatcher) {
+        val repo = FakeActivityRepository()
+        repo.setSessions(sessions())
+        val allowances = FakeDailyAllowanceRepository()
+        val vm = viewModel(repo, allowances)
+        collectUiState(vm)
+
+        advanceUntilIdle()
+        vm.selectPeriod(InsightPeriod.Month)
+        advanceUntilIdle()
+
+        val range = allowances.lastAccumulationRange
+        assertThat(range).isNotNull()
+        val (start, end) = range!!
+
+        // Der Anker ist HEUTE (der echte Tag, an dem der Test laeuft), denn
+        // selectPeriod springt auf die aktuelle Periode — verglichen wird
+        // darum kalendarisch gegen den heutigen Monat, nicht gegen ein
+        // hartkodiertes Datum.
+        val today = LocalDate.now()
+        val expectedStart = today.withDayOfMonth(1)
+        val expectedEnd = today.withDayOfMonth(1).plusMonths(1).minusDays(1)
+
+        assertThat(start).isEqualTo(expectedStart.toString())
+        assertThat(end).isEqualTo(expectedEnd.toString())
+
+        // Gegenprobe: NICHT die rollierenden 30 Tage (der alte Bug).
+        val rollingStart = today.minusDays(29)
+        if (rollingStart != expectedStart) {
+            assertThat(start).isNotEqualTo(rollingStart.toString())
+        }
+    }
+
+    /**
+     * Dasselbe fuer die Woche: kalendarisch ab Montag — nicht die letzten
+     * sieben rollierenden Tage.
+     */
+    @Test
+    fun weekPeriodRequestsTheCalendarWeekNotSevenRollingDays() = runTest(dispatcher) {
+        val repo = FakeActivityRepository()
+        repo.setSessions(sessions())
+        val allowances = FakeDailyAllowanceRepository()
+        val vm = viewModel(repo, allowances)
+        collectUiState(vm)
+
+        advanceUntilIdle()
+        vm.selectPeriod(InsightPeriod.Week)
+        advanceUntilIdle()
+
+        val range = allowances.lastAccumulationRange
+        assertThat(range).isNotNull()
+        val (start, end) = range!!
+
+        val today = LocalDate.now()
+        val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        assertThat(start).isEqualTo(monday.toString())
+        assertThat(end).isEqualTo(monday.plusDays(6).toString())
     }
 }

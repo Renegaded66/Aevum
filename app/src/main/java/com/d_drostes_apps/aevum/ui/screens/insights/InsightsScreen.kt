@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,6 +30,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,26 +58,50 @@ import java.time.Duration
  *
  * - Hero-Header mit animated Number-Counter (Total-Minuten)
  * - Period-Toggle (Heute / Woche / Monat)
+ * - M18.146: Perioden-Navigation (‹ Label › + Picker-Sheet zum Durchskippen)
  * - Breakdown-Toggle (Aktivität / Kategorie) — animiert
  * - Animierte Gradient-Bars (verzögert pro Item → Kaskaden-Effekt)
  * - Glass-Cards mit Gradient-Border
+ * - M18.146: Klick auf eine Aktivität → Detail-Statistikseite
  */
 @Composable
 fun InsightsScreen(
     onBack: () -> Unit,
     // M18.35: Link zur Lebenszeit-Ansicht
     onOpenLifeView: () -> Unit = {},
+    // M18.146: Klick auf eine Aktivität der Top-Liste → Statistikseite.
+    onOpenActivityStats: (String) -> Unit = {},
     viewModel: InsightsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // M18.146: Das Auswahl-Sheet ist reiner UI-Zustand — es gehört dem Screen,
+    // nicht dem ViewModel (derselbe Grundsatz wie beim Auf-/Zuklappen).
+    var showPickerSheet by remember { mutableStateOf(false) }
     InsightsScreenContent(
         uiState = uiState,
         onOpenLifeView = onOpenLifeView,
         onSelectPeriod = viewModel::selectPeriod,
         onSelectBreakdownMode = viewModel::setBreakdownMode,
         onToggleExpanded = viewModel::toggleTopActivitiesExpanded,
-        onRetry = viewModel::retry
+        onRetry = viewModel::retry,
+        // M18.146: Perioden-Navigation
+        onStepPeriod = viewModel::stepAnchor,
+        onResetPeriod = viewModel::resetAnchorToToday,
+        onOpenPicker = { showPickerSheet = true },
+        onOpenActivityStats = onOpenActivityStats
     )
+    // M18.146: Zeitraum-Auswahl-Sheet — durch Tage/Wochen/Monate skippen.
+    if (showPickerSheet) {
+        PeriodPickerSheet(
+            period = uiState.selectedPeriod,
+            anchor = uiState.anchorDate,
+            onSelect = { anchor ->
+                viewModel.selectAnchor(anchor)
+                showPickerSheet = false
+            },
+            onDismiss = { showPickerSheet = false }
+        )
+    }
 }
 
 /**
@@ -97,7 +125,12 @@ internal fun InsightsScreenContent(
     onSelectPeriod: (InsightPeriod) -> Unit = {},
     onSelectBreakdownMode: (BreakdownMode) -> Unit = {},
     onToggleExpanded: () -> Unit = {},
-    onRetry: () -> Unit = {}
+    onRetry: () -> Unit = {},
+    // M18.146: Perioden-Navigation + Verlinkung zur Aktivitäts-Statistik.
+    onStepPeriod: (Long) -> Unit = {},
+    onResetPeriod: () -> Unit = {},
+    onOpenPicker: () -> Unit = {},
+    onOpenActivityStats: (String) -> Unit = {}
 ) {
     // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
     val topActivitiesExpanded = uiState.topActivitiesExpanded
@@ -169,6 +202,19 @@ internal fun InsightsScreenContent(
                         )
                     }
 
+                    // 2b) M18.146: Perioden-Navigationszeile — ‹ Label ›
+                    // durchskippen + Sheet öffnen. Das Label zeigt die KONKRETE
+                    // Periode (z.B. "KW 40 · 28. Sep. – 4. Okt."), nicht nur
+                    // "Diese Woche" — genau das, was beim Skippen fehlte.
+                    item {
+                        PeriodNavigatorRow(
+                            uiState = uiState,
+                            onStep = onStepPeriod,
+                            onReset = onResetPeriod,
+                            onOpenPicker = onOpenPicker
+                        )
+                    }
+
                     // 3) Breakdown-Toggle (Aktivität / Kategorie)
                     item {
                         BreakdownToggle(
@@ -182,18 +228,25 @@ internal fun InsightsScreenContent(
                     // ersten 5, aufgeklappt wirklich ALLE Aktivitäten der Periode.
                     // Die Karte bringt den Icon-Toggle selbst mit und rendert sich
                     // bei leerer Liste gar nicht.
+                    // M18.146: Jede Zeile mit echtem ActivityType verlinkt auf
+                    // die Detail-Statistikseite (Kategorie-Zeilen und
+                    // Titel-Fallbacks bleiben ohne Link).
                     item {
                         TopActivitiesCard(
                             mode = uiState.breakdownMode,
                             // M18.137 (Kanban t_13e9f843): Die QUELLE fuer beide
-                            // Zustaende ist `allBreakdown` — die vollstaendige,
+                            // Zustaende ist `allBreakdown` — die vollständige,
                             // sortierte Liste. Zugeklappt schneidet die Karte selbst
                             // auf die ersten 5 zu, aufgeklappt zeigt sie alles.
                             // `topBreakdown` bleibt die Top-5-Ansicht des
                             // Analytics-Layers und wird hier nicht mehr gebraucht.
                             items = uiState.allBreakdown,
                             expanded = topActivitiesExpanded,
-                            onToggleExpanded = onToggleExpanded
+                            onToggleExpanded = onToggleExpanded,
+                            // M18.146: Link-Ziel je Zeile (null = kein Link).
+                            onOpenActivityStats = { id ->
+                                if (id in uiState.knownActivityTypeIds) onOpenActivityStats(id)
+                            }
                         )
                     }
 
@@ -436,9 +489,21 @@ private fun BreakdownToggle(
 }
 
 @Composable
-internal fun TopSliceRow(slice: TopActivitySlice, maxMs: Long, index: Int, testTag: String? = null) {
+internal fun TopSliceRow(
+    slice: TopActivitySlice,
+    maxMs: Long,
+    index: Int,
+    testTag: String? = null,
+    // M18.146: optionaler Klick (öffnet die Detail-Statistikseite der
+    // Aktivität). Null = Zeile bleibt rein informativ (Kategorie-Modus,
+    // bestehende Aufrufer/Tests).
+    onClick: (() -> Unit)? = null
+) {
     val progress = (slice.durationMs.toFloat() / maxMs.toFloat()).coerceIn(0f, 1f)
-    Column(modifier = if (testTag == null) Modifier else Modifier.testTag(testTag)) {
+    Column(
+        modifier = (if (testTag == null) Modifier else Modifier.testTag(testTag))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // M18.13: Icon in farbigem Kreis statt nacktem Punkt
             Box(
@@ -526,3 +591,218 @@ private fun formatDuration(ms: Long): String {
     val m = total % 60
     return if (h > 0) "${h}h ${m}m" else "${m}m"
 }
+
+// ----------------------------------------------------------------------
+// M18.146: Perioden-Navigation + Zeitraum-Auswahl-Sheet
+// ----------------------------------------------------------------------
+
+/** Test-Tag der Navigationszeile gesamt. */
+internal const val INSIGHTS_PERIOD_NAV_TEST_TAG = "insightsPeriodNav"
+
+/** Test-Tag des ‹-Buttons. */
+internal const val INSIGHTS_PERIOD_PREV_TEST_TAG = "insightsPeriodPrev"
+
+/** Test-Tag des ›-Buttons. */
+internal const val INSIGHTS_PERIOD_NEXT_TEST_TAG = "insightsPeriodNext"
+
+/** Test-Tag des Label-Buttons (öffnet das Sheet). */
+internal const val INSIGHTS_PERIOD_LABEL_TEST_TAG = "insightsPeriodLabel"
+
+/** Test-Tag des "Zurück zu jetzt"-Chips (nur in der Vergangenheit sichtbar). */
+internal const val INSIGHTS_PERIOD_RESET_TEST_TAG = "insightsPeriodReset"
+
+/** Test-Tag eines Eintrags im Auswahl-Sheet. */
+internal fun periodPickerItemTestTag(index: Int): String = "periodPickerItem_$index"
+
+/**
+ * M18.146: Die Navigationszeile der Statistik — ‹ konkretes Label ›.
+ *
+ * WARUM NEBEN DEM PERIOD-TOGGLE: Der Toggle wählt die GRANULARITÄT
+ * (Tag/Woche/Monat), die Navigationszeile BEWEGT sich darin. Beides gehört
+ * sichtbar getrennt: sonst wüsste niemand, ob ein Klick auf „Woche" jetzt
+ * umschaltet oder eine Woche weiterblättert.
+ *
+ * Das Label ist klickbar und öffnet das Auswahl-Sheet ([PeriodPickerSheet]) —
+ * dort lässt sich „jeweils durch die Wochen (mit Datum und Wochennummer) und
+ * Monate und Tage durchskippen". Bei einer vergangenen Periode erscheint
+ * zusätzlich ein dezenter „Zurück zu jetzt"-Chip.
+ */
+@Composable
+internal fun PeriodNavigatorRow(
+    uiState: InsightsUiState,
+    onStep: (Long) -> Unit,
+    onReset: () -> Unit,
+    onOpenPicker: () -> Unit
+) {
+    val today = java.time.LocalDate.now()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val label = PeriodLabels.periodLabel(uiState.selectedPeriod, uiState.anchorDate, today, context)
+    val isPast = PeriodLabels.normalize(uiState.selectedPeriod, uiState.anchorDate) !=
+        PeriodLabels.normalize(uiState.selectedPeriod, today)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(INSIGHTS_PERIOD_NAV_TEST_TAG),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+    ) {
+        // ‹ — eine Periode zurück
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                .clickable { onStep(-1L) }
+                .testTag(INSIGHTS_PERIOD_PREV_TEST_TAG),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("‹", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface)
+        }
+
+        // Label — öffnet das Auswahl-Sheet
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(AevumRadius.full))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                .clickable(onClick = onOpenPicker)
+                .testTag(INSIGHTS_PERIOD_LABEL_TEST_TAG)
+                .padding(horizontal = AevumSpacing.md, vertical = 9.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                // ▾-Symbol: das Label ist ein Picker, kein Button.
+                Text("⌄", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            }
+        }
+
+        // "Zurück zu jetzt" — nur, wenn eine vergangene Periode gezeigt wird.
+        if (isPast) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                    .clickable(onClick = onReset)
+                    .testTag(INSIGHTS_PERIOD_RESET_TEST_TAG)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    stringResource(R.string.insights_picker_now_marker),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        // › — eine Periode vor (in die Zukunft maximal bis heute sinnvoll;
+        // die Pauschalen-Logik zählt nur bis heute, leere Zukunft bleibt leer).
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                .clickable { onStep(1L) }
+                .testTag(INSIGHTS_PERIOD_NEXT_TEST_TAG),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+/**
+ * M18.146: Zeitraum-Auswahl-Sheet — die letzten 12 Perioden der gewählten
+ * Granularität, neueste zuerst, mit Datum UND (bei Wochen) Wochennummer.
+ * Die aktuell gezeigte Periode trägt die Auswahl-Markierung, „jetzt" eine
+ * dezente Zweitmarkierung.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun PeriodPickerSheet(
+    period: InsightPeriod,
+    anchor: java.time.LocalDate,
+    onSelect: (java.time.LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val today = java.time.LocalDate.now()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pickerItems = remember(period, anchor, today) {
+        PeriodLabels.pickerItems(period, anchor, today, context = context)
+    }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = AevumSpacing.lg)
+        ) {
+            Text(
+                stringResource(R.string.insights_picker_title),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.sm)
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = AevumSpacing.lg,
+                    vertical = AevumSpacing.xs
+                ),
+                verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+            ) {
+                items(
+                    count = pickerItems.size,
+                    key = { index -> pickerItems[index].label }
+                ) { index ->
+                    val item = pickerItems[index]
+                    val isSelected = item.isShown
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.md))
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                else Color.Transparent
+                            )
+                            .clickable { onSelect(item.anchor) }
+                            .testTag(periodPickerItemTestTag(index))
+                            .padding(horizontal = AevumSpacing.md, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            item.label,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (item.isCurrent) {
+                            Text(
+                                stringResource(R.string.insights_picker_now_marker),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

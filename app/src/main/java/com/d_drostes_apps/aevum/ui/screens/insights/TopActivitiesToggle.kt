@@ -110,7 +110,11 @@ fun TopActivitiesCard(
     mode: BreakdownMode,
     items: List<TopActivitySlice>,
     expanded: Boolean,
-    onToggleExpanded: () -> Unit
+    onToggleExpanded: () -> Unit,
+    // M18.146: Klick auf eine Aktivitäts-Zeile → Detail-Statistikseite.
+    // Nullable-frei mit Default, damit bestehende Aufrufer/Tests unverändert
+    // bleiben; die Zeilen erhalten nur dann einen Klick, wenn ein Handler da ist.
+    onOpenActivityStats: ((String) -> Unit)? = null
 ) {
     if (items.isEmpty()) return
     val head = items.take(topActivitiesVisibleCount(items.size, mode, expanded = false))
@@ -119,6 +123,10 @@ fun TopActivitiesCard(
     // Referenz-Balkenlänge über ALLE Zeilen — sonst würden die Balken beim
     // Ausklappen neu skalieren und der Übergang wirkte unruhig.
     val maxMs = items.maxOf { it.durationMs }.coerceAtLeast(1L)
+    // M18.146: In der Kategorie-Ansicht sind die Zeilen KATEGORIEN, keine
+    // Aktivitäten — dort gibt es nichts zu verlinken. Im Aktivitäts-Modus
+    // verlinkt jede Zeile auf ihren Typ.
+    val rowClick: ((String) -> Unit)? = onOpenActivityStats?.takeIf { mode == BreakdownMode.Activity }
 
     GlassCard(accentColor = items.first().color) {
         Column {
@@ -149,7 +157,8 @@ fun TopActivitiesCard(
                     slice = slice,
                     maxMs = maxMs,
                     index = index,
-                    testTag = topActivitiesRowTestTag(index)
+                    testTag = topActivitiesRowTestTag(index),
+                    onClick = rowClick?.let { click -> { click(slice.id) } }
                 )
                 Spacer(Modifier.height(AevumSpacing.sm))
             }
@@ -177,7 +186,8 @@ fun TopActivitiesCard(
                             // Kaskade läuft über die GESAMTE Liste weiter,
                             // damit die neuen Zeilen versetzt einlaufen.
                             index = absoluteIndex,
-                            testTag = topActivitiesRowTestTag(absoluteIndex)
+                            testTag = topActivitiesRowTestTag(absoluteIndex),
+                            onClick = rowClick?.let { click -> { click(slice.id) } }
                         )
                         if (index < tail.lastIndex) {
                             Spacer(Modifier.height(AevumSpacing.sm))
