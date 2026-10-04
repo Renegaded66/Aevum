@@ -9,36 +9,60 @@ import java.time.ZoneId
 import kotlin.math.roundToInt
 
 /**
- * M18.146: Aktivitäts-Statistikseite — Granularität der Verlaufs-Buckets.
+ * M18.146: Detail-Statistikseite einer Aktivität — Fenster des Verlaufs.
  *
- * Der Nutzer kann den Graphen zwischen täglich, wöchentlich und monatlich
- * umstellen („den Graphen umstellen"). Die Granularität bestimmt NUR die
- * Bucket-Breite und das Fenster — die zugrunde liegenden Tageswerte werden
- * EINMAL gerechnet und in Buckets zusammengefasst, damit Tages-, Wochen-
- * und Monatsansicht nicht auseinanderlaufen können (gleiches Prinzip wie
- * [com.d_drostes_apps.aevum.ui.screens.insights.InsightsAnalytics]).
+ * M18.146b (User-Präzisierung): Die Umschalter sind KEINE Kalender-
+ * Granularität (täglich/wöchentlich/monatlich), sondern FENSTERGRÖSSEN —
+ * „einmal die letzten 7 Tage, einmal die letzten 30 Tage, einmal die
+ * letzten 365 Tage und einmal die Gesamtzeit". Die Buckets richten sich
+ * adaptiv nach dem Fenster ([bucketUnitFor]): 7/30-Tage-Fenster zeigen je
+ * einen Punkt pro Tag, das 365-Tage-Fenster je Kalenderwoche, die
+ * Gesamtzeit adaptiv (Tage bei kurzer Historie, sonst Wochen, sonst
+ * Monate) — ein Punkt bleibt dabei IMMER ein gleiches Zeit-Mass, damit
+ * die Kurvenform nicht suggeriert, was nicht in den Daten liegt.
  */
 enum class ActivityStatsRange {
-    Daily,
-    Weekly,
-    Monthly;
+    Days7,
+    Days30,
+    Days365,
+    All;
 
     companion object {
-        /** Persistenz-freier Default der Seite. */
-        fun fromStorage(raw: String?): ActivityStatsRange =
-            entries.firstOrNull { it.name == raw } ?: Daily
+        /**
+         * Persistenz-freier Default der Seite. Alte gespeicherte Werte der
+         * ersten Fassung („Daily"/„Weekly"/„Monthly") werden auf das
+         * nahegelegene FENSTER abgebildet statt auf den Default zurück-
+         * gesetzt — die gespeicherte Nutzer-Präferenz bleibt also erhalten.
+         */
+        fun fromStorage(raw: String?): ActivityStatsRange = when (raw) {
+            "Daily" -> Days7
+            "Weekly" -> Days30
+            "Monthly" -> Days365
+            null, "" -> Days30
+            else -> entries.firstOrNull { it.name == raw } ?: Days30
+        }
     }
 }
 
+/** Zeit-Mass eines Verlaufs-Buckets (Punktabstand auf der X-Achse). */
+enum class BucketUnit {
+    /** Ein Punkt = ein Kalendertag. */
+    Daily,
+    /** Ein Punkt = eine Kalenderwoche (Montag-Start, wie überall in der App). */
+    Weekly,
+    /** Ein Punkt = ein Kalendermonat (Beginn am 1., wie überall in der App). */
+    Monthly
+}
+
 /**
- * Ein Bucket des Verlaufs-Graphen: entweder ein Tag, eine Kalenderwoche oder
- * ein Kalendermonat. [label] ist die KURZE Achsen-Beschriftung,
- * [fullLabel] die ausgeschriebene Form für den Tooltip beim Halten des
- * Fingers.
+ * Ein Bucket des Verlaufs-Graphen: [unit] sagt, welches Zeit-Mass der Punkt
+ * bündelt. [label] ist die KURZE Achsen-Beschriftung, [fullLabel] die
+ * ausgeschriebene Form für den Tooltip beim Halten des Fingers.
  */
 data class ActivityStatBucket(
     val start: LocalDate,
     val endInclusive: LocalDate,
+    val unit: BucketUnit,
     val label: String,
     val fullLabel: String,
     val durationMs: Long,
@@ -51,12 +75,17 @@ data class ActivityStatBucket(
  * damit die komplette Berechnung unit-testbar bleibt.
  */
 data class ActivityStatsUiModel(
-    val range: ActivityStatsRange = ActivityStatsRange.Daily,
+    val range: ActivityStatsRange = ActivityStatsRange.Days30,
     val buckets: List<ActivityStatBucket> = emptyList(),
-    /** Gesamt-Zeit im gezeigten Fenster. */
+    /**
+     * KUMULIERTE Zeit im Fenster — die Hero-Zahl der Seite (User: „kumulierte
+     * Werte"). Die Summe aller Buckets, geclippt auf das gezeigte Fenster.
+     */
     val totalMs: Long = 0L,
     /** Ø pro Tag über das Fenster (auch über Null-Tage gemittelt). */
     val avgPerDayMs: Long = 0L,
+    /** Ø pro Woche über das Fenster (User: „Durchschnittswerte"). */
+    val avgPerWeekMs: Long = 0L,
     /** Anzahl Aufzeichnungen, die das Fenster berühren. */
     val sessionCount: Int = 0,
     /** Längste EINZELNE Aufzeichnung im Fenster (geclippt). */
@@ -70,7 +99,9 @@ data class ActivityStatsUiModel(
     /**
      * Entwicklung gegenüber dem unmittelbar davorliegenden Fenster gleicher
      * Länge — null, wenn es dort keine Daten gab (dann gibt es nichts zu
-     * vergleichen; eine „+∞ %"-Anzeige wäre irreführend).
+     * vergleichen; eine „+∞ %"-Anzeige wäre irreführend) und null bei der
+     * Gesamtzeit-Ansicht (die Gesamthistorie hat per Definition kein
+     * „davor" — der Vergleich wäre leer und suggerierte Stagnation).
      */
     val trendPercent: Int? = null,
     val hasData: Boolean = false
@@ -85,10 +116,10 @@ data class ActivityStatsUiModel(
  *
  *  1. **EINE Tagesbasis.** Alle Tageswerte werden einmal über das gesamte
  *     Fenster (inkl. Vorfenster für den Trend) berechnet; die Buckets
- *     summieren diese Tageswerte nur auf. Tages-, Wochen- und Monatsansicht
- *     sind dadurch per Konstruktion konsistent — genau der Fehlertyp, der
- *     beim Pauschalen-Bug entstand (zwei Perioden-Definitionen), kann hier
- *     nicht entstehen.
+ *     summieren diese Tageswerte nur auf. Fensterwechsel ändern die
+ *     Gruppierung, nie die Werte — die Sichten können per Konstruktion
+ *     nicht auseinanderlaufen (derselbe Fehlertyp wie beim
+ *     Pauschalen-Bug ist hier ausgeschlossen).
  *
  *  2. **Aufzeichnungen zählen nicht** ([ScreenStatisticsPolicy.forStatistics]):
  *     Bildschirm-Aufzeichnungen (SCREEN_AUTO) sind laut M18.138 eine
@@ -100,16 +131,20 @@ data class ActivityStatsUiModel(
  *  3. **Clipping + Pausen** laufen über [ActivitySession.activeDurationInWindow]
  *     — dieselbe zentrale Berechnung wie Dashboard, Timeline und Insights.
  *
- *  4. **Fenster**: Täglich = letzte 30 Tage, Wöchentlich = letzte 12
- *     Kalenderwochen, Monatlich = letzte 12 Kalendermonate. Der Trend
- *     vergleicht das Fenster mit dem gleich langen Fenster davor.
+ *  4. **Fenster** (M18.146b): 7 Tage / 30 Tage / 365 Tage / Gesamtzeit.
+ *     Der Trend vergleicht das Fenster mit dem gleich langen Fenster
+ *     davor (nicht bei „Gesamtzeit" — siehe [ActivityStatsUiModel.trendPercent]).
  */
 object ActivityStatsAnalytics {
 
-    /** Anzahl Buckets je Granularität. */
-    const val DAILY_BUCKETS = 30
-    const val WEEKLY_BUCKETS = 12
-    const val MONTHLY_BUCKETS = 12
+    /** Fenster in Tagen für die drei Tages-/Wochen-/Jahres-Fenster. */
+    const val DAYS7 = 7L
+    const val DAYS30 = 30L
+    const val DAYS365 = 365L
+
+    /** Adaptions-Grenzen des Gesamtzeit-Buckets (in Tagen). */
+    const val ALL_DAILY_MAX_DAYS = 62L
+    const val ALL_WEEKLY_MAX_DAYS = 730L
 
     fun build(
         sessions: List<ActivitySession>,
@@ -123,42 +158,64 @@ object ActivityStatsAnalytics {
         val relevant = ScreenStatisticsPolicy.forStatistics(
             sessions.filter { it.deletedAt == null && it.activityTypeId == activityTypeId }
         )
+        if (relevant.isEmpty()) {
+            // Leerzustand: keine Aufzeichnung dieser Aktivität überhaupt.
+            return ActivityStatsUiModel(range = range, hasData = false)
+        }
 
-        val buckets = bucketStarts(range, today)
-        val previousBuckets = previousBucketStarts(range, today)
+        val earliest = relevant.minOf { it.startAt }
+            .let { java.time.Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
+
+        val unit = bucketUnitFor(range, today, earliest)
+        val buckets = bucketStarts(range, today, earliest, unit)
+        if (buckets.isEmpty()) {
+            return ActivityStatsUiModel(range = range, hasData = false)
+        }
         val windowStart = buckets.first()
-        val windowEndExclusive = bucketEndExclusive(buckets.last(), range)
-        val previousStart = previousBuckets.first()
-        val previousEndExclusive = bucketEndExclusive(previousBuckets.last(), range)
+        val windowEndExclusive = bucketEndExclusive(buckets.last(), unit)
 
-        // EINE Tagesbasis über beide Fenster — Grundlage für alle Sichten.
+        // Trend-Vergleichsbasis: das gleich lange Vorfenster. Die Tagesbasis
+        // deckt BEIDE Fenster ab — sonst würde der Trend-Vergleich die Tage
+        // davor überspringen (dayTotals hätte dort keine Keys).
+        val hasTrend = range != ActivityStatsRange.All
+        val trendStart = if (hasTrend) {
+            val windowDays = java.time.temporal.ChronoUnit.DAYS
+                .between(windowStart, windowEndExclusive)
+            windowStart.minusDays(windowDays)
+        } else windowStart
+
+        // EINE Tagesbasis — Grundlage für alle Sichten.
         val dayTotals = dayDurations(
             sessions = relevant,
-            start = previousStart,
+            start = trendStart,
             endExclusive = windowEndExclusive,
             zoneId = zoneId
         )
 
         val bucketModels = buckets.map { start ->
-            val endEx = bucketEndExclusive(start, range)
+            val endEx = bucketEndExclusive(start, unit)
             val endInclusive = endEx.minusDays(1)
             val duration = sumDays(dayTotals, start, endEx)
             ActivityStatBucket(
                 start = start,
                 endInclusive = endInclusive,
-                label = axisLabel(range, start, today, context),
-                fullLabel = fullLabel(range, start, today, context),
+                unit = unit,
+                label = axisLabel(unit, start, context),
+                fullLabel = fullLabel(unit, start, today, context),
                 durationMs = duration,
                 sessionCount = countSessions(relevant, start, endEx, zoneId)
             )
         }
 
         val windowTotal = sumDays(dayTotals, windowStart, windowEndExclusive)
-        val previousTotal = sumDays(dayTotals, previousStart, previousEndExclusive)
-
         val windowDays = java.time.temporal.ChronoUnit.DAYS
             .between(windowStart, windowEndExclusive)
             .coerceAtLeast(1L)
+
+        // Trend: gleich langes Fenster davor — außer bei „Gesamtzeit",
+        // dessen Historie per Definition kein „davor" hat.
+        val previousTotal = if (range == ActivityStatsRange.All) null
+        else sumDays(dayTotals, windowStart.minusDays(windowDays), windowStart)
 
         val longestMs = relevant.maxOfOrNull { session ->
             session.activeDurationInWindow(
@@ -177,18 +234,18 @@ object ActivityStatsAnalytics {
             buckets = bucketModels,
             totalMs = windowTotal,
             avgPerDayMs = windowTotal / windowDays,
+            avgPerWeekMs = windowTotal / (windowDays / 7L).coerceAtLeast(1L),
             sessionCount = countSessions(relevant, windowStart, windowEndExclusive, zoneId),
             longestMs = longestMs,
             activeDays = activeDayFlags.count { it },
             bestStreak = longestStreak(activeDayFlags),
             weekdayMs = weekdayTotals(dayTotals, windowStart, windowEndExclusive),
-            trendPercent = trendPercent(windowTotal, previousTotal),
+            trendPercent = if (range == ActivityStatsRange.All) null
+            else trendPercent(windowTotal, previousTotal ?: 0L),
             // M18.146: „Daten vorhanden" heisst: Zeit IM GEZEIGTEN FENSTER.
             // Frueher: relevant.isNotEmpty() — dann zeigte eine Aktivitaet,
-            // die nur ausserhalb des Fensters Aufzeichnungen hat (z.B. aelter
-            // als 30 Tage), einen Graphen voller Nullen statt des
-            // Leerzustands. Die UI entscheidet damit korrekt zwischen
-            // „noch nichts aufgezeichnet" und „hier verlaeuft die Kurve".
+            // die nur ausserhalb des Fensters Aufzeichnungen hat, einen
+            // Graphen voller Nullen statt des Leerzustands.
             hasData = windowTotal > 0L
         )
     }
@@ -197,39 +254,77 @@ object ActivityStatsAnalytics {
     // Bucket-Grenzen
     // ---------------------------------------------------------------
 
-    /** Start-Datum jedes Buckets im Fenster (aufsteigend, letzter = heute). */
-    fun bucketStarts(range: ActivityStatsRange, today: LocalDate): List<LocalDate> = when (range) {
-        ActivityStatsRange.Daily ->
-            (DAILY_BUCKETS - 1 downTo 0).map { today.minusDays(it.toLong()) }
-        ActivityStatsRange.Weekly -> {
-            val thisWeek = PeriodLabels.weekStart(today)
-            (WEEKLY_BUCKETS - 1 downTo 0).map { thisWeek.minusWeeks(it.toLong()) }
-        }
-        ActivityStatsRange.Monthly -> {
-            val thisMonth = today.withDayOfMonth(1)
-            (MONTHLY_BUCKETS - 1 downTo 0).map { thisMonth.minusMonths(it.toLong()) }
-        }
-    }
-
-    /** Start-Datum jedes Buckets des UNMITTELBAR davorliegenden Fensters. */
-    private fun previousBucketStarts(range: ActivityStatsRange, today: LocalDate): List<LocalDate> = when (range) {
-        ActivityStatsRange.Daily ->
-            (2 * DAILY_BUCKETS - 1 downTo DAILY_BUCKETS).map { today.minusDays(it.toLong()) }
-        ActivityStatsRange.Weekly -> {
-            val thisWeek = PeriodLabels.weekStart(today)
-            (2 * WEEKLY_BUCKETS - 1 downTo WEEKLY_BUCKETS).map { thisWeek.minusWeeks(it.toLong()) }
-        }
-        ActivityStatsRange.Monthly -> {
-            val thisMonth = today.withDayOfMonth(1)
-            (2 * MONTHLY_BUCKETS - 1 downTo MONTHLY_BUCKETS).map { thisMonth.minusMonths(it.toLong()) }
+    /** Adaptives Zeit-Mass des Verlaufs je Fenster. */
+    fun bucketUnitFor(
+        range: ActivityStatsRange,
+        today: LocalDate,
+        earliest: LocalDate?
+    ): BucketUnit = when (range) {
+        ActivityStatsRange.Days7, ActivityStatsRange.Days30 -> BucketUnit.Daily
+        ActivityStatsRange.Days365 -> BucketUnit.Weekly
+        ActivityStatsRange.All -> {
+            val spanDays = earliest
+                ?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).plus(1) }
+                ?: 0L
+            when {
+                spanDays <= ALL_DAILY_MAX_DAYS -> BucketUnit.Daily
+                spanDays <= ALL_WEEKLY_MAX_DAYS -> BucketUnit.Weekly
+                else -> BucketUnit.Monthly
+            }
         }
     }
 
-    /** Exklusives Ende eines Buckets (Tag danach). */
-    fun bucketEndExclusive(start: LocalDate, range: ActivityStatsRange): LocalDate = when (range) {
-        ActivityStatsRange.Daily -> start.plusDays(1)
-        ActivityStatsRange.Weekly -> start.plusWeeks(1)
-        ActivityStatsRange.Monthly -> start.plusMonths(1)
+    /** Start-Datum jedes Buckets im Fenster (aufsteigend). */
+    fun bucketStarts(
+        range: ActivityStatsRange,
+        today: LocalDate,
+        earliest: LocalDate?,
+        unit: BucketUnit
+    ): List<LocalDate> = when (range) {
+        ActivityStatsRange.Days7 ->
+            (DAYS7 - 1 downTo 0).map { today.minusDays(it) }
+        ActivityStatsRange.Days30 ->
+            (DAYS30 - 1 downTo 0).map { today.minusDays(it) }
+        ActivityStatsRange.Days365 -> {
+            var cursor = PeriodLabels.weekStart(today.minusDays(DAYS365 - 1))
+            val end = PeriodLabels.weekStart(today)
+            buildList {
+                while (!cursor.isAfter(end)) {
+                    add(cursor)
+                    cursor = cursor.plusWeeks(1)
+                }
+            }
+        }
+        ActivityStatsRange.All -> {
+            val first = earliest ?: return emptyList()
+            var cursor = when (unit) {
+                BucketUnit.Daily -> first
+                BucketUnit.Weekly -> PeriodLabels.weekStart(first)
+                BucketUnit.Monthly -> first.withDayOfMonth(1)
+            }
+            val end = when (unit) {
+                BucketUnit.Daily -> today
+                BucketUnit.Weekly -> PeriodLabels.weekStart(today)
+                BucketUnit.Monthly -> today.withDayOfMonth(1)
+            }
+            buildList {
+                while (!cursor.isAfter(end)) {
+                    add(cursor)
+                    cursor = when (unit) {
+                        BucketUnit.Daily -> cursor.plusDays(1)
+                        BucketUnit.Weekly -> cursor.plusWeeks(1)
+                        BucketUnit.Monthly -> cursor.plusMonths(1)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Exklusives Ende eines Buckets. */
+    fun bucketEndExclusive(start: LocalDate, unit: BucketUnit): LocalDate = when (unit) {
+        BucketUnit.Daily -> start.plusDays(1)
+        BucketUnit.Weekly -> start.plusWeeks(1)
+        BucketUnit.Monthly -> start.plusMonths(1)
     }
 
     // ---------------------------------------------------------------
@@ -355,17 +450,17 @@ object ActivityStatsAnalytics {
     // Labels
     // ---------------------------------------------------------------
 
-    private fun axisLabel(range: ActivityStatsRange, start: LocalDate, today: LocalDate, context: Context?): String =
-        when (range) {
-            ActivityStatsRange.Daily -> PeriodLabels.dayShortLabel(start)
-            ActivityStatsRange.Weekly -> PeriodLabels.weekShortLabel(start, context)
-            ActivityStatsRange.Monthly -> PeriodLabels.monthShortLabel(start)
+    private fun axisLabel(unit: BucketUnit, start: LocalDate, context: Context?): String =
+        when (unit) {
+            BucketUnit.Daily -> PeriodLabels.dayShortLabel(start)
+            BucketUnit.Weekly -> PeriodLabels.weekShortLabel(start, context)
+            BucketUnit.Monthly -> PeriodLabels.monthShortLabel(start)
         }
 
-    private fun fullLabel(range: ActivityStatsRange, start: LocalDate, today: LocalDate, context: Context?): String =
-        when (range) {
-            ActivityStatsRange.Daily -> PeriodLabels.dayLabel(start, today, context)
-            ActivityStatsRange.Weekly -> PeriodLabels.weekLabel(start, today, context)
-            ActivityStatsRange.Monthly -> PeriodLabels.monthLabel(start, context)
+    private fun fullLabel(unit: BucketUnit, start: LocalDate, today: LocalDate, context: Context?): String =
+        when (unit) {
+            BucketUnit.Daily -> PeriodLabels.dayLabel(start, today, context)
+            BucketUnit.Weekly -> PeriodLabels.weekLabel(start, today, context)
+            BucketUnit.Monthly -> PeriodLabels.monthLabel(start, context)
         }
 }

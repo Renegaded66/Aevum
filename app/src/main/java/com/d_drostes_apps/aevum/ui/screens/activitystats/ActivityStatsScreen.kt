@@ -230,7 +230,8 @@ internal fun ActivityStatsContent(
 /**
  * Animierter Segmented-Umschalter in Glas-Optik (Muster aus der
  * Dashboard-Qualitätskarte): der aktive Chip leuchtet in der
- * Aktivitätsfarbe, die Optionen heißen kurz „Täglich/Wöchentlich/Monatlich".
+ * Aktivitätsfarbe, die Optionen heißen kurz „7T / 30T / 1J / Gesamt"
+ * (M18.146b: FENSTERGRÖSSEN, keine Kalender-Granularität).
  */
 @Composable
 private fun ActivityStatsRangeToggle(
@@ -250,9 +251,10 @@ private fun ActivityStatsRangeToggle(
             val isSelected = range == selected
             val label = stringResource(
                 when (range) {
-                    ActivityStatsRange.Daily -> R.string.activity_stats_axis_daily
-                    ActivityStatsRange.Weekly -> R.string.activity_stats_axis_weekly
-                    ActivityStatsRange.Monthly -> R.string.activity_stats_axis_monthly
+                    ActivityStatsRange.Days7 -> R.string.activity_stats_range_7d
+                    ActivityStatsRange.Days30 -> R.string.activity_stats_range_30d
+                    ActivityStatsRange.Days365 -> R.string.activity_stats_range_365d
+                    ActivityStatsRange.All -> R.string.activity_stats_range_all
                 }
             )
             Box(
@@ -277,17 +279,21 @@ private fun ActivityStatsRangeToggle(
 }
 
 /**
- * Hero: Gesamtzeit des Fensters als große Monospace-Zahl + Zeitraum-Kontext
- * ("letzte 30 Tage" bzw. Fenster-Beschriftung).
+ * Hero: kumulierte Zeit des Fensters als große Monospace-Zahl + Fenster-
+ * Kontext + die zwei Ø-Werte direkt darunter (User: „Durchschnittswerte
+ * und kumulierte Werte … modernes App Design wie beim Calorie Tracker").
  */
 @Composable
 private fun ActivityStatsHero(model: ActivityStatsUiModel, accent: Color, name: String) {
     val totalMs = model.totalMs
-    val label = when (model.range) {
-        ActivityStatsRange.Daily -> stringResource(R.string.activity_stats_axis_daily).lowercase()
-        ActivityStatsRange.Weekly -> stringResource(R.string.activity_stats_axis_weekly).lowercase()
-        ActivityStatsRange.Monthly -> stringResource(R.string.activity_stats_axis_monthly).lowercase()
-    }
+    val label = stringResource(
+        when (model.range) {
+            ActivityStatsRange.Days7 -> R.string.activity_stats_range_7d_suffix
+            ActivityStatsRange.Days30 -> R.string.activity_stats_range_30d_suffix
+            ActivityStatsRange.Days365 -> R.string.activity_stats_range_365d_suffix
+            ActivityStatsRange.All -> R.string.activity_stats_range_all_suffix
+        }
+    )
     GlassCard(accentColor = accent) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
             Text(
@@ -328,7 +334,55 @@ private fun ActivityStatsHero(model: ActivityStatsUiModel, accent: Color, name: 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // Ø-Zeile — im Calorie-Tracker-Stil: zwei dezente Chips.
+            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                val avgDay = remember(model.avgPerDayMs) {
+                    formatHoursMinutes(model.avgPerDayMs)
+                }
+                val avgWeek = remember(model.avgPerWeekMs) {
+                    formatHoursMinutes(model.avgPerWeekMs)
+                }
+                AverageChip(
+                    icon = "◷",
+                    value = "${avgDay.first}${stringResource(R.string.insights_hours_short)} ${avgDay.second}${stringResource(R.string.insights_minutes_short)}",
+                    label = stringResource(R.string.activity_stats_avg_per_day),
+                    accent = accent
+                )
+                AverageChip(
+                    icon = "▦",
+                    value = "${avgWeek.first}${stringResource(R.string.insights_hours_short)} ${avgWeek.second}${stringResource(R.string.insights_minutes_short)}",
+                    label = stringResource(R.string.activity_stats_avg_per_week),
+                    accent = accent
+                )
+            }
         }
+    }
+}
+
+/** Dezenter Ø-Chip (Icon + fette Zahl + Mini-Label) im Hero. */
+@Composable
+private fun AverageChip(icon: String, value: String, label: String, accent: Color) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(AevumRadius.full))
+            .background(accent.copy(alpha = 0.10f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(icon, fontSize = 13.sp, color = accent.copy(alpha = 0.8f))
+        Text(
+            value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            label,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -359,15 +413,20 @@ private fun ActivityTrendChartCard(
     var scrubIndex by remember { mutableIntStateOf(-1) }
     val haptics = LocalHapticFeedback.current
 
-    // Einwachsen der Fläche beim Öffnen — der „lebendige" Effekt.
-    // Animatable statt animateFloatAsState: letzteres startet bereits auf
-    // seinem Zielwert und würde beim ersten Rendern NICHT animieren; der
-    // sichtbare Öffnungs-Effekt braucht einen echten 0 → 1-Lauf.
-    val fillProgress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        fillProgress.animateTo(
+    // Aufbau-Animation (M18.146b): beim ÖFFNEN und bei JEDEM Fensterwechsel
+    // baut sich der Graph neu auf — die Kurve wächst von links ein und die
+    // Fläche blendet ein. Key = Bucket-Identität (Fenster + Daten): eine
+    // Änderung erzeugt einen echten 0→1-Lauf. Animatable statt
+    // animateFloatAsState: letzteres startet bereits auf seinem Zielwert
+    // und würde den Übergang gar nicht zeigen.
+    val rangeId = remember(model.range, buckets.size) {
+        "${model.range.name}-${buckets.size}-${buckets.firstOrNull()?.start}-${buckets.lastOrNull()?.start}"
+    }
+    val drawProgress = remember { Animatable(0f) }
+    LaunchedEffect(rangeId) {
+        drawProgress.animateTo(
             targetValue = 1f,
-            animationSpec = spring(dampingRatio = 0.85f, stiffness = 110f)
+            animationSpec = spring(dampingRatio = 0.9f, stiffness = 90f)
         )
     }
 
@@ -465,21 +524,49 @@ private fun ActivityTrendChartCard(
                         val points = buckets.mapIndexed { i, b -> Offset(xFor(i), yFor(b.durationMs)) }
                         val baseline = h - padBottom
 
-                        // ---- Fläche (animiert von unten) ----
+                        // ---- Aufbau-Animation (M18.146b) ----
+                        // drawProgress 0→1: die Kurve wächst von LINKS ein —
+                        // zuerst nur der erste Punkt, dann Punkt für Punkt bis
+                        // zur Gegenwart. Sichtbar wird jeder Zwischenstand
+                        // interpoliert (letzter gezeichneter Punkt partial),
+                        // damit die Bewegung weich ist statt in Schüben.
+                        val progress = drawProgress.value.coerceIn(0f, 1f)
+                        val visibleCount = buckets.size * progress
+                        val fullPoints = visibleCount.toInt().coerceAtLeast(1)
+                        val visiblePoints = points.take(fullPoints)
+                        // Partial-Punkt zwischen dem letzten vollen und dem
+                        // nächsten (linear auf der Kurvenposition).
+                        val partialY = run {
+                            if (fullPoints >= points.size) null
+                            else {
+                                val a = points[fullPoints - 1]
+                                val b = points[fullPoints]
+                                val t = (visibleCount - fullPoints).coerceIn(0f, 1f)
+                                Offset(
+                                    a.x + (b.x - a.x) * t,
+                                    a.y + (b.y - a.y) * t
+                                )
+                            }
+                        }
+
+                        // ---- Fläche ----
                         val path = Path()
                         path.moveTo(points[0].x, baseline)
-                        points.forEach { path.lineTo(it.x, it.y) }
-                        path.lineTo(points.last().x, baseline)
+                        visiblePoints.forEach { path.lineTo(it.x, it.y) }
+                        partialY?.let { path.lineTo(it.x, it.y) }
+                        if (partialY != null) {
+                            path.lineTo(partialY.x, baseline)
+                        } else {
+                            path.lineTo(points[fullPoints - 1].x, baseline)
+                        }
                         path.close()
 
-                        // Die Fläche wächst beim Öffnen optisch ein
-                        // (Gradient + fillProgress-Animation des Alpha-Bereichs).
                         drawPath(
                             path = path,
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    accent.copy(alpha = 0.38f * fillProgress.value),
-                                    accent.copy(alpha = 0.10f * fillProgress.value),
+                                    accent.copy(alpha = 0.38f),
+                                    accent.copy(alpha = 0.10f),
                                     Color.Transparent
                                 ),
                                 startY = padTop,
@@ -487,38 +574,41 @@ private fun ActivityTrendChartCard(
                             )
                         )
 
-                        // ---- Geglättete Bezier-Linie ----
-                        val linePath = Path()
-                        linePath.moveTo(points[0].x, points[0].y)
-                        for (i in 0 until points.size - 1) {
-                            val p0 = points[i]
-                            val p1 = points[i + 1]
-                            val midX = (p0.x + p1.x) / 2f
-                            linePath.cubicTo(midX, p0.y, midX, p1.y, p1.x, p1.y)
+                        // ---- Geglättete Bezier-Linie (nur sichtbare Punkte) ----
+                        val linePoints = if (partialY != null) visiblePoints + partialY else visiblePoints
+                        if (linePoints.size >= 2) {
+                            val linePath = Path()
+                            linePath.moveTo(linePoints[0].x, linePoints[0].y)
+                            for (i in 0 until linePoints.size - 1) {
+                                val p0 = linePoints[i]
+                                val p1 = linePoints[i + 1]
+                                val midX = (p0.x + p1.x) / 2f
+                                linePath.cubicTo(midX, p0.y, midX, p1.y, p1.x, p1.y)
+                            }
+
+                            // Glow (weicher, breiter Stroke in niedriger Alpha) …
+                            drawPath(
+                                path = linePath,
+                                color = accent.copy(alpha = 0.22f),
+                                style = Stroke(width = 9f, cap = StrokeCap.Round)
+                            )
+                            // … und die Kern-Linie mit horizontalem Farbverlauf.
+                            drawPath(
+                                path = linePath,
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        accent.copy(alpha = 0.75f),
+                                        accent,
+                                        accent.copy(alpha = 0.85f)
+                                    )
+                                ),
+                                style = Stroke(width = 3f, cap = StrokeCap.Round)
+                            )
                         }
 
-                        // Glow (weicher, breiter Stroke in niedriger Alpha) …
-                        drawPath(
-                            path = linePath,
-                            color = accent.copy(alpha = 0.22f),
-                            style = Stroke(width = 9f, cap = StrokeCap.Round)
-                        )
-                        // … und die Kern-Linie mit horizontalem Farbverlauf.
-                        drawPath(
-                            path = linePath,
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    accent.copy(alpha = 0.75f),
-                                    accent,
-                                    accent.copy(alpha = 0.85f)
-                                )
-                            ),
-                            style = Stroke(width = 3f, cap = StrokeCap.Round)
-                        )
-
-                        // ---- Punkte ----
-                        points.forEachIndexed { i, p ->
-                            val isLast = i == points.lastIndex
+                        // ---- Punkte (nur die bereits aufgebauten) ----
+                        visiblePoints.forEachIndexed { i, p ->
+                            val isLast = i == visiblePoints.lastIndex && partialY == null && progress >= 1f
                             if (isLast) {
                                 // Gegenwarts-Marker: Ring + Kern.
                                 drawCircle(color = accent.copy(alpha = 0.25f), radius = 9f, center = p)
@@ -534,7 +624,7 @@ private fun ActivityTrendChartCard(
                         }
 
                         // ---- Scrubber ----
-                        if (scrubIndex in buckets.indices) {
+                        if (scrubIndex in buckets.indices && progress >= 1f) {
                             val sx = points[scrubIndex].x
                             val sy = points[scrubIndex].y
                             drawLine(
@@ -622,17 +712,20 @@ internal fun nearestBucketIndex(x: Float, canvasWidth: Float, bucketCount: Int):
 }
 
 /**
- * Kennzahlen 2×3 — wenige Wörter, klare Zahlen: Gesamt, Ø pro Tag,
- * Aufzeichnungen, Längste, aktive Tage, beste Serie.
+ * Kennzahlen 2×3 — wenige Wörter, klare Zahlen (M18.146b: zusätzlich
+ * Ø/Woche neben Ø/Tag, kumuliert im Hero): Gesamt, Ø pro Tag, Ø pro Woche,
+ * Aufzeichnungen, Längste, beste Serie. Aktive Tage sind im Ø-Set redundant
+ * (stecken in „Aktive Tage" des Wochenmusters) und wurden gegen Ø/Woche
+ * getauscht.
  */
 @Composable
 private fun ActivityStatsGrid(model: ActivityStatsUiModel, accent: Color) {
     val stats = listOf(
         Triple("⧖", stringResource(R.string.activity_stats_total), TimeFormatting.formatDuration(model.totalMs)),
         Triple("◷", stringResource(R.string.activity_stats_avg_per_day), TimeFormatting.formatDuration(model.avgPerDayMs)),
+        Triple("▦", stringResource(R.string.activity_stats_avg_per_week), TimeFormatting.formatDuration(model.avgPerWeekMs)),
         Triple("☰", stringResource(R.string.activity_stats_sessions), model.sessionCount.toString()),
         Triple("↗", stringResource(R.string.activity_stats_longest), TimeFormatting.formatDuration(model.longestMs)),
-        Triple("●", stringResource(R.string.activity_stats_active_days), model.activeDays.toString()),
         Triple("✦", stringResource(R.string.activity_stats_streak), model.bestStreak.toString())
     )
     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {

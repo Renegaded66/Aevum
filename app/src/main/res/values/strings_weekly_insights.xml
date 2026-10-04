@@ -107,8 +107,17 @@
     <string name="activity_stats_axis_daily">Daily</string>
     <string name="activity_stats_axis_weekly">Weekly</string>
     <string name="activity_stats_axis_monthly">Monthly</string>
+    <string name="activity_stats_range_7d">7 days</string>
+    <string name="activity_stats_range_30d">30 days</string>
+    <string name="activity_stats_range_365d">1 year</string>
+    <string name="activity_stats_range_all">All time</string>
+    <string name="activity_stats_range_7d_suffix">last 7 days</string>
+    <string name="activity_stats_range_30d_suffix">last 30 days</string>
+    <string name="activity_stats_range_365d_suffix">last 365 days</string>
+    <string name="activity_stats_range_all_suffix">all recorded time</string>
     <string name="activity_stats_total">Total</string>
     <string name="activity_stats_avg_per_day">Ø per day</string>
+    <string name="activity_stats_avg_per_week">Ø per week</string>
     <string name="activity_stats_sessions">Sessions</string>
     <string name="activity_stats_longest">Longest</string>
     <string name="activity_stats_active_days">Active days</string>

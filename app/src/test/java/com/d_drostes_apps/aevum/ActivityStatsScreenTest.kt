@@ -59,7 +59,7 @@ class ActivityStatsScreenTest {
         val emptyModel = ActivityStatsAnalytics.build(
             sessions = emptyList(),
             activityTypeId = "meal",
-            range = ActivityStatsRange.Daily,
+            range = ActivityStatsRange.Days30,
             today = today,
             zoneId = zone
         )
@@ -116,11 +116,11 @@ class ActivityStatsScreenTest {
             )
         }
 
-        composeRule.onNodeWithTag(activityStatsRangeTestTag(ActivityStatsRange.Weekly)).performClick()
-        assertThat(selected).isEqualTo(ActivityStatsRange.Weekly)
+        composeRule.onNodeWithTag(activityStatsRangeTestTag(ActivityStatsRange.Days30)).performClick()
+        assertThat(selected).isEqualTo(ActivityStatsRange.Days30)
 
-        composeRule.onNodeWithTag(activityStatsRangeTestTag(ActivityStatsRange.Monthly)).performClick()
-        assertThat(selected).isEqualTo(ActivityStatsRange.Monthly)
+        composeRule.onNodeWithTag(activityStatsRangeTestTag(ActivityStatsRange.All)).performClick()
+        assertThat(selected).isEqualTo(ActivityStatsRange.All)
     }
 
     @Test
@@ -155,7 +155,7 @@ class ActivityStatsScreenTest {
         // Die drei Granularitaeten werden in EINEM setContent gerendert
         // (die Compose-Testregel erlaubt nur einen Aufruf pro Test) —
         // umgeschaltet wird ueber den echten State des Screens.
-        var range by mutableStateOf(ActivityStatsRange.Daily)
+        var range by mutableStateOf(ActivityStatsRange.Days30)
         composeRule.setContent {
             val model = ActivityStatsAnalytics.build(sessions, "meal", range, today, zone)
             ActivityStatsContent(
@@ -182,7 +182,7 @@ class ActivityStatsScreenTest {
 
     private fun modelWithOneSession(): ActivityStatsUiModel {
         val sessions = listOf(session("a", daysAgo = 1, startHour = 8, durationMinutes = 90))
-        return ActivityStatsAnalytics.build(sessions, "meal", ActivityStatsRange.Daily, today, zone)
+        return ActivityStatsAnalytics.build(sessions, "meal", ActivityStatsRange.Days30, today, zone)
     }
 
     private fun session(

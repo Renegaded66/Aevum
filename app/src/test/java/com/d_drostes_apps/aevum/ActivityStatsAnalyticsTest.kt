@@ -3,20 +3,22 @@ package com.d_drostes_apps.aevum
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.ui.screens.activitystats.ActivityStatsAnalytics
 import com.d_drostes_apps.aevum.ui.screens.activitystats.ActivityStatsRange
+import com.d_drostes_apps.aevum.ui.screens.activitystats.BucketUnit
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * M18.146: Verlaufs-Analytik der Aktivitäts-Statistikseite.
+ * M18.146b: Fenster-Analytik der Aktivitäts-Statistikseite.
  *
- * Die Seite hat EINE Tagesbasis, aus der täglich/wöchentlich/monatlich
- * gebucketet wird — die Tests sichern genau das ab: die drei Sichten sind
- * per Konstruktion konsistent (gleiche Fenster-Tage, nur anders gruppiert),
- * Sessions werden auf Tagesgrenzen geclippt, und der Trend vergleicht mit
- * dem gleich langen Fenster davor. Genau dieser Fehlertyp (zwei divergierende
- * Perioden-Definitionen) war der Auslöser des Pauschalen-Bugs.
+ * Der Nutzer präzisierte: Die Ansichten sind FENSTER (letzte 7 Tage, letzte
+ * 30 Tage, letzte 365 Tage, Gesamtzeit) — keine Kalender-Granularität.
+ * Diese Suite sichert die Kern-Eigenschaften ab: adaptiver Bucket-Schnitt
+ * (Tag/Woche/Monat je Fenstergröße), die drei Tages-Fenster summieren über
+ * EXAKT dieselbe Tagesbasis (konsistent per Konstruktion — der Fehlertyp
+ * des Pauschalen-Bugs), der 365-Tage-Verlauf bucketiert kalendarisch in
+ * Wochen, und die Gesamtzeit deckt die komplette Historie ab.
  */
 class ActivityStatsAnalyticsTest {
 
@@ -25,81 +27,161 @@ class ActivityStatsAnalyticsTest {
     private val today: LocalDate = LocalDate.of(2026, 10, 4)
 
     // ---------------------------------------------------------------
-    // Bucket-Grenzen
+    // Fenster-Grenzen + adaptiver Bucket-Schnitt
     // ---------------------------------------------------------------
 
     @Test
-    fun dailyBucketsEndTodayAndCoverThirtyDays() {
-        val buckets = ActivityStatsAnalytics.bucketStarts(ActivityStatsRange.Daily, today)
+    fun days7WindowIsExactlySevenDailyBucketsEndingToday() {
+        val buckets = ActivityStatsAnalytics.bucketStarts(
+            ActivityStatsRange.Days7, today, earliest = null, unit = BucketUnit.Daily
+        )
+
+        assertThat(buckets).hasSize(7)
+        assertThat(buckets.last()).isEqualTo(today)
+        assertThat(buckets.first()).isEqualTo(today.minusDays(6))
+    }
+
+    @Test
+    fun days30WindowIsExactlyThirtyDailyBucketsEndingToday() {
+        val buckets = ActivityStatsAnalytics.bucketStarts(
+            ActivityStatsRange.Days30, today, earliest = null, unit = BucketUnit.Daily
+        )
 
         assertThat(buckets).hasSize(30)
-        assertThat(buckets.last()).isEqualTo(today)
         assertThat(buckets.first()).isEqualTo(today.minusDays(29))
     }
 
     @Test
-    fun weeklyBucketsStartOnMondaysAndEndWithCurrentWeek() {
-        // 4. Okt 2026 ist ein Sonntag → Kalenderwoche beginnt am 28. Sep.
-        val buckets = ActivityStatsAnalytics.bucketStarts(ActivityStatsRange.Weekly, today)
+    fun days365WindowBucketsInCalendarWeeks() {
+        val buckets = ActivityStatsAnalytics.bucketStarts(
+            ActivityStatsRange.Days365, today, earliest = null, unit = BucketUnit.Weekly
+        )
 
-        assertThat(buckets).hasSize(12)
+        // 4. Okt 2026 ist ein Sonntag → die Woche des Fensters endet am
+        // 28. Sep (Montag). Jeder Bucket-Start ist ein Montag.
         assertThat(buckets.last()).isEqualTo(LocalDate.of(2026, 9, 28))
-        assertThat(buckets.first()).isEqualTo(LocalDate.of(2026, 7, 13))
-        // Jeder Bucket-Start ist ein Montag.
         assertThat(buckets.all { it.dayOfWeek.value == 1 }).isTrue()
-    }
-
-    @Test
-    fun monthlyBucketsStartOnFirstOfMonth() {
-        val buckets = ActivityStatsAnalytics.bucketStarts(ActivityStatsRange.Monthly, today)
-
-        assertThat(buckets).hasSize(12)
-        assertThat(buckets.last()).isEqualTo(LocalDate.of(2026, 10, 1))
-        assertThat(buckets.first()).isEqualTo(LocalDate.of(2025, 11, 1))
+        // Der früheste Bucket beginnt (auf Montag normalisiert) nicht später
+        // als der Fensterbeginn.
+        assertThat(buckets.first().isBefore(today.minusDays(364).plusDays(7))).isTrue()
     }
 
     @Test
     fun bucketEndExclusiveDoesNotOverflow() {
-        assertThat(ActivityStatsAnalytics.bucketEndExclusive(LocalDate.of(2026, 10, 1), ActivityStatsRange.Monthly))
+        assertThat(ActivityStatsAnalytics.bucketEndExclusive(LocalDate.of(2026, 10, 1), BucketUnit.Monthly))
             .isEqualTo(LocalDate.of(2026, 11, 1))
-        assertThat(ActivityStatsAnalytics.bucketEndExclusive(LocalDate.of(2026, 9, 28), ActivityStatsRange.Weekly))
+        assertThat(ActivityStatsAnalytics.bucketEndExclusive(LocalDate.of(2026, 9, 28), BucketUnit.Weekly))
             .isEqualTo(LocalDate.of(2026, 10, 5))
-        assertThat(ActivityStatsAnalytics.bucketEndExclusive(today, ActivityStatsRange.Daily))
+        assertThat(ActivityStatsAnalytics.bucketEndExclusive(today, BucketUnit.Daily))
             .isEqualTo(today.plusDays(1))
     }
 
     // ---------------------------------------------------------------
-    // Konsistenz der drei Sichten — EINE Tagesbasis
+    // Adaptiver Schnitt der Gesamtzeit
+    // ---------------------------------------------------------------
+
+    @Test
+    fun allTimeBucketUnitAdaptsToHistoryLength() {
+        // Kurze Historie (30 Tage) → tägliche Buckets.
+        assertThat(
+            ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.All, today, today.minusDays(29))
+        ).isEqualTo(BucketUnit.Daily)
+        // Historie = 62 Tage → noch gerade täglich (Limit inklusive).
+        assertThat(
+            ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.All, today, today.minusDays(61))
+        ).isEqualTo(BucketUnit.Daily)
+        // Historie = 63 Tage → wöchentlich.
+        assertThat(
+            ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.All, today, today.minusDays(62))
+        ).isEqualTo(BucketUnit.Weekly)
+        // Historie = 2 Jahre + 1 Tag → monatlich.
+        assertThat(
+            ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.All, today, today.minusDays(731))
+        ).isEqualTo(BucketUnit.Monthly)
+    }
+
+    @Test
+    fun allTimeCoversTheEntireHistory() {
+        val earliest = today.minusDays(200)
+        val buckets = ActivityStatsAnalytics.bucketStarts(
+            ActivityStatsRange.All, today, earliest, BucketUnit.Weekly
+        )
+
+        // Erster Bucket beginnt (auf Wochen-Anfang normalisiert) bei der
+        // frühesten Aufzeichnung, letzter in der aktuellen Woche.
+        assertThat(buckets.first().isBefore(earliest.plusDays(7))).isTrue()
+        assertThat(buckets.last()).isEqualTo(LocalDate.of(2026, 9, 28))
+    }
+
+    @Test
+    fun fixedWindowsKeepTheirUnitRegardlessOfHistory() {
+        val earliest = today.minusDays(1000)
+        // 7/30 Tage bleiben täglich; 365 Tage bleibt wöchentlich — unabhängig
+        // davon, wie alt die Historie ist.
+        assertThat(ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.Days7, today, earliest))
+            .isEqualTo(BucketUnit.Daily)
+        assertThat(ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.Days30, today, earliest))
+            .isEqualTo(BucketUnit.Daily)
+        assertThat(ActivityStatsAnalytics.bucketUnitFor(ActivityStatsRange.Days365, today, earliest))
+            .isEqualTo(BucketUnit.Weekly)
+    }
+
+    // ---------------------------------------------------------------
+    // Konsistenz der Fenster — EINE Tagesbasis
     // ---------------------------------------------------------------
 
     /**
-     * KERN-Eigenschaft: Die Gesamt-Summe der Buckets entspricht über alle
-     * drei Granularitäten exakt derselben aufgezeichneten Zeit (nur anders
-     * gruppiert). Zwei verschiedene Definitionen (der alte Bug-Typ) würden
-     * hier auseinanderlaufen.
+     * KERN-Eigenschaft: Die Gesamt-Summe entspricht über alle Fenster exakt
+     * derselben aufgezeichneten Zeit, nur anders gruppiert/geclippt. Zwei
+     * verschiedene Definitionen (der alte Bug-Typ) würden hier auseinanderlaufen.
      */
     @Test
-    fun dailyWeeklyMonthlyTotalsAgreeOnTheSameData() {
+    fun allWindowsAgreeOnTheSameData() {
         val sessions = listOf(
             session("a", daysAgo = 0, startHour = 8, durationMinutes = 120),
             session("b", daysAgo = 3, startHour = 10, durationMinutes = 90),
             session("c", daysAgo = 10, startHour = 14, durationMinutes = 45),
-            session("d", daysAgo = 25, startHour = 9, durationMinutes = 60)
+            session("d", daysAgo = 25, startHour = 9, durationMinutes = 60),
+            session("e", daysAgo = 100, startHour = 9, durationMinutes = 60)
         )
 
-        val daily = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
-        val weekly = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Weekly, today, zone)
-        val monthly = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Monthly, today, zone)
+        val d7 = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days7, today, zone)
+        val d30 = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
+        val d365 = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days365, today, zone)
+        val all = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.All, today, zone)
 
-        val expectedMs = (120 + 90 + 45 + 60) * 60_000L
-        assertThat(daily.totalMs).isEqualTo(expectedMs)
-        assertThat(weekly.totalMs).isEqualTo(expectedMs)
-        assertThat(monthly.totalMs).isEqualTo(expectedMs)
+        // Letzte 7 Tage: nur a + b.
+        assertThat(d7.totalMs).isEqualTo(210 * 60_000L)
+        // Letzte 30 Tage: a + b + c + d.
+        assertThat(d30.totalMs).isEqualTo(315 * 60_000L)
+        // 365 Tage + Gesamtzeit: alle fünf.
+        assertThat(d365.totalMs).isEqualTo(375 * 60_000L)
+        assertThat(all.totalMs).isEqualTo(375 * 60_000L)
 
         // Und die Buckets summieren sich jeweils zur Gesamt-Zeit.
-        assertThat(daily.buckets.sumOf { it.durationMs }).isEqualTo(expectedMs)
-        assertThat(weekly.buckets.sumOf { it.durationMs }).isEqualTo(expectedMs)
-        assertThat(monthly.buckets.sumOf { it.durationMs }).isEqualTo(expectedMs)
+        assertThat(d7.buckets.sumOf { it.durationMs }).isEqualTo(d7.totalMs)
+        assertThat(d30.buckets.sumOf { it.durationMs }).isEqualTo(d30.totalMs)
+        assertThat(d365.buckets.sumOf { it.durationMs }).isEqualTo(d365.totalMs)
+        assertThat(all.buckets.sumOf { it.durationMs }).isEqualTo(all.totalMs)
+    }
+
+    /**
+     * Guard aus dem Original-Bug-Muster: 30-Tage-Fenster und Gesamtzeit
+     * MÜSSEN sich unterscheiden, sobald ältere Daten existieren — sonst
+     * wäre „Gesamtzeit" heimlich wieder „letzte N Tage".
+     */
+    @Test
+    fun totalWindowDiffersFrom30DaysWhenOlderDataExists() {
+        val sessions = listOf(
+            session("a", daysAgo = 5, startHour = 8, durationMinutes = 60),
+            session("old", daysAgo = 200, startHour = 8, durationMinutes = 30)
+        )
+        val d30 = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
+        val all = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.All, today, zone)
+
+        assertThat(d30.totalMs).isEqualTo(60 * 60_000L)
+        assertThat(all.totalMs).isEqualTo(90 * 60_000L)
+        assertThat(all.totalMs).isNotEqualTo(d30.totalMs)
     }
 
     // ---------------------------------------------------------------
@@ -113,7 +195,7 @@ class ActivityStatsAnalyticsTest {
             session("b", daysAgo = 1, startHour = 10, durationMinutes = 30, typeId = "gym")
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         assertThat(result.totalMs).isEqualTo(60 * 60_000L)
         assertThat(result.sessionCount).isEqualTo(1)
@@ -123,10 +205,10 @@ class ActivityStatsAnalyticsTest {
     fun deletedSessionsAreExcluded() {
         val sessions = listOf(
             session("a", daysAgo = 1, startHour = 8, durationMinutes = 60)
-                .copy(deletedAt = today.minusDays(1).toEpochDay())
+                .copy(deletedAt = 1L)
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         assertThat(result.totalMs).isEqualTo(0L)
         assertThat(result.hasData).isFalse()
@@ -142,20 +224,20 @@ class ActivityStatsAnalyticsTest {
             categoryId = "work", startAt = start, endAt = end
         )
 
-        val result = ActivityStatsAnalytics.build(listOf(session), "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(listOf(session), "deep_work", ActivityStatsRange.Days30, today, zone)
 
-        // Beide Tage sind im 30-Tage-Fenster und zählen je 1h.
+        // Beide Tage sind im Fenster und zählen je 1h.
         assertThat(result.totalMs).isEqualTo(2 * 60 * 60_000L)
         assertThat(result.activeDays).isEqualTo(2)
     }
 
     @Test
-    fun sessionsOutsideTheWindowAreIgnored() {
-        // 40 Tage zurück liegt außerhalb des 30-Tage-Fensters (und außerhalb
-        // des Vormonats-Vergleichsfensters).
+    fun sessionsOutsideTheWindowShowEmptyState() {
+        // 40 Tage zurück liegt außerhalb des 30-Tage-Fensters → der
+        // Leerzustand gilt, statt eines Null-Charts.
         val result = ActivityStatsAnalytics.build(
             listOf(session("old", daysAgo = 40, startHour = 8, durationMinutes = 60)),
-            "deep_work", ActivityStatsRange.Daily, today, zone
+            "deep_work", ActivityStatsRange.Days30, today, zone
         )
 
         assertThat(result.totalMs).isEqualTo(0L)
@@ -176,7 +258,7 @@ class ActivityStatsAnalyticsTest {
             session("d4", daysAgo = 0, startHour = 8, durationMinutes = 30)
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         assertThat(result.activeDays).isEqualTo(4)
         assertThat(result.bestStreak).isEqualTo(3)
@@ -190,7 +272,7 @@ class ActivityStatsAnalyticsTest {
             session("c", daysAgo = 0, startHour = 8, durationMinutes = 30)
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         assertThat(result.longestMs).isEqualTo(150 * 60_000L)
         assertThat(result.totalMs).isEqualTo(240 * 60_000L)
@@ -200,10 +282,22 @@ class ActivityStatsAnalyticsTest {
     fun avgPerDayDividesByAllDaysInWindowNotJustActiveOnes() {
         val sessions = listOf(session("a", daysAgo = 0, startHour = 8, durationMinutes = 300))
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         // 300 min über 30 Tage = 10 min/Tag.
         assertThat(result.avgPerDayMs).isEqualTo(10 * 60_000L)
+    }
+
+    @Test
+    fun avgPerWeekDividesByWholeWeeksInWindow() {
+        val sessions = listOf(session("a", daysAgo = 0, startHour = 8, durationMinutes = 210))
+
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
+
+        // 210 min über 30 Tage: Ø/Woche = 210 / (30/7 = 4 ganze Wochen, ceil
+        // nicht — floor) = 52,5 min → als ms 52 min 500 000 ms. Die Division
+        // ist ganzzahlig: 210*60000 / 4 = 3_150_000 ms = 52,5 min.
+        assertThat(result.avgPerWeekMs).isEqualTo(3_150_000L)
     }
 
     @Test
@@ -214,7 +308,7 @@ class ActivityStatsAnalyticsTest {
             session("fri", daysAgo = 2, startHour = 8, durationMinutes = 30)
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         assertThat(result.weekdayMs[6]).isEqualTo(60 * 60_000L) // Sonntag
         assertThat(result.weekdayMs[4]).isEqualTo(30 * 60_000L) // Freitag
@@ -227,15 +321,15 @@ class ActivityStatsAnalyticsTest {
 
     @Test
     fun trendComparesAgainstTheEquallyLongPreviousWindow() {
-        // Fenster: letzte 30 Tage. Vormonat davor: 30 Tage vorher.
+        // Fenster: letzte 30 Tage. Das Vorfenster: die 30 Tage davor.
         val sessions = listOf(
-            // Vormonat: 60 min
+            // Vorfenster: 60 min
             session("prev", daysAgo = 35, startHour = 8, durationMinutes = 60),
             // Aktuelles Fenster: 90 min → +50 %
             session("now", daysAgo = 2, startHour = 8, durationMinutes = 90)
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
         assertThat(result.trendPercent).isEqualTo(50)
     }
@@ -244,8 +338,22 @@ class ActivityStatsAnalyticsTest {
     fun trendIsNullWithoutPreviousData() {
         val sessions = listOf(session("now", daysAgo = 2, startHour = 8, durationMinutes = 90))
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days30, today, zone)
 
+        assertThat(result.trendPercent).isNull()
+    }
+
+    /**
+     * Gesamtzeit hat KEINEN Trend — die Gesamthistorie hat kein „davor";
+     * ein Vergleich gegen eine leere Vorzeit wäre eine erfundene Zahl.
+     */
+    @Test
+    fun allTimeHasNoTrend() {
+        val sessions = listOf(session("a", daysAgo = 2, startHour = 8, durationMinutes = 90))
+
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.All, today, zone)
+
+        assertThat(result.hasData).isTrue()
         assertThat(result.trendPercent).isNull()
     }
 
@@ -258,32 +366,45 @@ class ActivityStatsAnalyticsTest {
     }
 
     // ---------------------------------------------------------------
+    // Persistenz-Migration (alte Granularität → Fenster)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun storageMigrationMapsOldGranularityToNearestWindow() {
+        assertThat(ActivityStatsRange.fromStorage("Daily")).isEqualTo(ActivityStatsRange.Days7)
+        assertThat(ActivityStatsRange.fromStorage("Weekly")).isEqualTo(ActivityStatsRange.Days30)
+        assertThat(ActivityStatsRange.fromStorage("Monthly")).isEqualTo(ActivityStatsRange.Days365)
+        assertThat(ActivityStatsRange.fromStorage(null)).isEqualTo(ActivityStatsRange.Days30)
+        assertThat(ActivityStatsRange.fromStorage("Days7")).isEqualTo(ActivityStatsRange.Days7)
+        assertThat(ActivityStatsRange.fromStorage("All")).isEqualTo(ActivityStatsRange.All)
+        assertThat(ActivityStatsRange.fromStorage("Unbekannt")).isEqualTo(ActivityStatsRange.Days30)
+    }
+
+    // ---------------------------------------------------------------
     // Labels & Leerzustand
     // ---------------------------------------------------------------
 
     @Test
-    fun labelsAreLocalizedAndNonEmpty() {
+    fun labelsAreNonEmptyAcrossUnits() {
         val result = ActivityStatsAnalytics.build(
             listOf(session("a", daysAgo = 1, startHour = 8, durationMinutes = 30)),
-            "deep_work", ActivityStatsRange.Daily, today, zone
+            "deep_work", ActivityStatsRange.Days30, today, zone
         )
 
         assertThat(result.buckets.all { it.label.isNotEmpty() }).isTrue()
         assertThat(result.buckets.all { it.fullLabel.isNotEmpty() }).isTrue()
+        // Alle Buckets des 30-Tage-Fensters sind Tages-Buckets.
+        assertThat(result.buckets.all { it.unit == BucketUnit.Daily }).isTrue()
         assertThat(result.hasData).isTrue()
     }
 
     @Test
-    fun emptySessionsProduceNoDataButTheFullTimeline() {
-        val result = ActivityStatsAnalytics.build(emptyList(), "deep_work", ActivityStatsRange.Daily, today, zone)
+    fun emptySessionsProduceNoDataAndNoBuckets() {
+        val result = ActivityStatsAnalytics.build(emptyList(), "deep_work", ActivityStatsRange.Days30, today, zone)
 
-        // Kein Datenzustand — die UI zeigt den Leerzustand statt des Charts.
         assertThat(result.hasData).isFalse()
+        assertThat(result.buckets).isEmpty()
         assertThat(result.totalMs).isEqualTo(0L)
-        // Die Buckets bleiben trotzdem die vollständige Zeitachse: sie
-        // beschreiben den leeren Zeitraum, nicht Datenpunkte.
-        assertThat(result.buckets).hasSize(30)
-        assertThat(result.buckets.all { it.durationMs == 0L }).isTrue()
     }
 
     @Test
@@ -291,14 +412,14 @@ class ActivityStatsAnalyticsTest {
         val sessions = listOf(
             session("a", daysAgo = 0, startHour = 8, durationMinutes = 30),
             session("b", daysAgo = 0, startHour = 10, durationMinutes = 30),
-            session("c", daysAgo = 7, startHour = 8, durationMinutes = 30)
+            session("c", daysAgo = 6, startHour = 8, durationMinutes = 30)
         )
 
-        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Daily, today, zone)
+        val result = ActivityStatsAnalytics.build(sessions, "deep_work", ActivityStatsRange.Days7, today, zone)
 
         assertThat(result.sessionCount).isEqualTo(3)
         assertThat(result.buckets.last().sessionCount).isEqualTo(2) // heute
-        assertThat(result.buckets.first { it.start == today.minusDays(7) }.sessionCount).isEqualTo(1)
+        assertThat(result.buckets.first { it.start == today.minusDays(6) }.sessionCount).isEqualTo(1)
     }
 
     // ---------------------------------------------------------------

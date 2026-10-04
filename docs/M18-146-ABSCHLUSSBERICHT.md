@@ -1,8 +1,38 @@
 # M18.146 — Abschlussbericht: Pauschalen-Bug, Zeitraum-Navigation, Aktivitäts-Statistikseite
 
 **Datum:** 2026-10-04
-**Version:** 1.0.19 (M18.136) → Arbeitstitel M18.146
-**Status:** Implementiert, 1039/1039 Unit-Tests grün, APK signiert.
+**Version:** 1.0.24 (versionCode 25) → Arbeitstitel M18.146
+**Status:** Implementiert, 1046/1046 Unit-Tests grün, APK signiert.
+
+---
+
+## 1b. Nutzer-Präzisierung (M18.146b, noch am gleichen Tag)
+
+Der Nutzer präzisierte die Ansichten: **„Ich meinte bei dem Wechsel der
+Ansichten, dass man einmal die letzten 7 Tage, einmal die letzten 30 Tage,
+einmal die letzten 365 Tage und einmal die Gesamtzeit sehen kann."** — also
+**FENSTERGRÖSSEN**, keine Kalender-Granularität. Zusätzlich:
+- „Beim Öffnen und Wechsel der Ansicht soll sich der Graph **fancy
+  aufbauen** mit einer Animation."
+- „Unten … Durchschnittswerte und **kumulierte Werte**, gerne in einem
+  modernen App Design wie beim Calorie Tracker."
+
+**Umgesetzt:**
+- `ActivityStatsRange` umgebaut: `Days7 / Days30 / Days365 / All`
+  (alter Enum `Daily/Weekly/Monthly` entfernt; gespeicherte Werte werden
+  beim Start auf das nahegelegene Fenster **migriert** statt verworfen —
+  `"Daily"→7T`, `"Weekly"→30T`, `"Monthly"→365T`).
+- **Adaptiver Bucket-Schnitt** (`bucketUnitFor`): 7/30-Tage-Fenster = ein
+  Punkt pro Tag; 365-Tage-Fenster = ein Punkt pro Kalenderwoche; Gesamtzeit
+  überlekt (≤62 Tage → Tage, ≤730 → Wochen, sonst Monate). Ein Punkt bleibt
+  immer ein gleiches Zeit-Mass — die Kurvenform suggeriert nichts Falsches.
+- **Aufbau-Animation:** Der Graph wächst beim Öffnen UND bei jedem
+  Fensterwechsel von links Punkt für Punkt auf (`Animatable` mit Key =
+  Bucket-Identität; ein echter 0→1-Lauf, `animateFloatAsState` hätte den
+  Übergang nicht gezeigt). Der Scrubber wird erst nach Ablauf freigegeben.
+- **Werte:** Hero zeigt kumulierte Zeit + „last 30 days"-Kontext, darunter
+  Ø/Tag- und Ø/Woche-Chips (Calorie-Tracker-Stil). Kennzahl-Band unten
+  inkl. Ø/Woche; „Aktive Tage" wechselte ins Wochenmuster (redundant).
 
 ---
 
