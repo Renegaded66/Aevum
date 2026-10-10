@@ -11,3 +11,4 @@
 - [x] leere App-Shell bauen und testen
 - [x] Debug APK bauen und verifizieren
 - [ ] M3 Design System & Dashboard Skeleton starten
+- [x] PC-Tracker: Windows-App (`desktop/`, Avalonia) + Aevum-Client (Discovery, Kopplung, Sync, Import) + Protokoll `docs/PC-TRACKER-PROTOCOL.md`

@@ -26,4 +26,9 @@ interface DataSourceDao {
 
     @Query("UPDATE data_source SET last_sync_at = :now, updated_at = :now WHERE id = :id")
     suspend fun updateLastSync(id: String, now: Long)
+
+    // PC-Tracker: Beim Entkoppeln verschwindet die Quelle wieder (keine
+    // Schema-Änderung, nur eine Query).
+    @Query("DELETE FROM data_source WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

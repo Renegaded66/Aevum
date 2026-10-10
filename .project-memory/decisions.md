@@ -14,3 +14,5 @@ Wichtige aktuelle Entscheidungen:
 - UsageStats optional
 - Geofencing statt permanentem GPS Tracking
 - Dashboard-first Produktstrategie
+- PC-Tracker: LAN-only (gleiches WLAN), Pull-Sync vom PC, Kurzcode-Kopplung, keine Cloud — bewusst so, weil die App kostenlos für jedermann ohne Serverkosten verfügbar sein soll
+- PC-Import ohne Schema-Migration: external_id idempotent, Auto-Mapping über den Aktivitätsnamen, DataSource mit config_json

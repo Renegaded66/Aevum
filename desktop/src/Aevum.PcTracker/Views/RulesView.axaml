@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Aevum.PcTracker.ViewModels"
+             x:Class="Aevum.PcTracker.Views.RulesView"
+             x:DataType="vm:RulesViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="28,24,28,28" Spacing="16">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Regeln" Classes="h1" />
+        <TextBlock Text="Ordne PC-Programme den Aktivitäten aus Aevum zu — nur Zugeordnetes wird aufgezeichnet." Classes="muted" />
+      </StackPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="DEINE ZUORDNUNGEN" Classes="section-label" />
+          <TextBlock Text="Noch keine Zuordnungen — wähle unten ein Programm aus." Classes="muted"
+                     IsVisible="{Binding !HasRules}" />
+          <ItemsControl ItemsSource="{Binding Rules}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RuleRowViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,6" ColumnSpacing="12">
+                  <TextBlock Text="{Binding ActivityDisplay}" FontWeight="SemiBold" VerticalAlignment="Center"
+                             MinWidth="150" />
+                  <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ProgramName}" />
+                    <TextBlock Text="{Binding ThresholdLabel}" Classes="muted" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                VerticalAlignment="Center" OnContent="" OffContent="" />
+                  <Button Grid.Column="3" Classes="danger" Content="Entfernen"
+                          Command="{Binding DeleteCommand}" VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="PROGRAMM HINZUFÜGEN" Classes="section-label" />
+          <TextBox Text="{Binding SearchText, Mode=TwoWay}" Watermark="Suchen… z. B. Minecraft, Chrome, Spotify" />
+
+          <ItemsControl ItemsSource="{Binding Candidates}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ProgramCandidateViewModel">
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding SelectCommand}" Padding="12,7">
+                  <StackPanel Spacing="1">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5" />
+                    <TextBlock Classes="muted" FontSize="11">
+                      <Run Text="{Binding Badge}" />
+                      <Run Text=" · " />
+                      <Run Text="{Binding SuggestionText}" />
+                    </TextBlock>
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border IsVisible="{Binding IsDraftOpen}" Background="{DynamicResource SurfaceVariantBrush}"
+                  CornerRadius="12" Padding="16">
+            <StackPanel Spacing="12">
+              <StackPanel Spacing="1">
+                <TextBlock Text="{Binding DraftTitle}" Classes="h2" />
+                <TextBlock Text="{Binding DraftSubtitle}" Classes="muted" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Aktivität" Classes="section-label" />
+                  <ComboBox ItemsSource="{Binding ActivityOptions}" SelectedItem="{Binding DraftActivity, Mode=TwoWay}"
+                            MinWidth="220">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ActivityOptionViewModel">
+                        <TextBlock Text="{Binding Display}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Aufnahme endet nach" Classes="section-label" />
+                  <ComboBox ItemsSource="{Binding ThresholdOptions}" SelectedItem="{Binding DraftThreshold, Mode=TwoWay}"
+                            MinWidth="180">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ThresholdOptionViewModel">
+                        <TextBlock Text="{Binding Label}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Classes="primary" Content="Speichern" Command="{Binding SaveDraftCommand}" />
+                <Button Classes="ghost" Content="Abbrechen" Command="{Binding CancelDraftCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <TextBlock TextWrapping="Wrap" Classes="muted"
+                   Text="Alles bleibt auf deinem PC: Aufgezeichnet wird nur, was du hier zuordnest, und übertragen wird ausschließlich im Heimnetz — erst wenn Aevum auf dem Handy die Daten abholt." />
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

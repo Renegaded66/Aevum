@@ -77,4 +77,46 @@
     <!-- SwitchActivity (Live-Notification Wechsel-Popup) -->
     <string name="switch_activity_title">Aktivität wechseln</string>
     <string name="switch_activity_subtitle">Die aktuelle Aktivität wird beendet und die neue gestartet.</string>
+    <!-- PC-Tracker (Windows, Heimnetz) -->
+    <string name="pc_tracker_title">PC-Tracker</string>
+    <string name="pc_tracker_subtitle">Windows-Aktivität — Übertragung im Heimnetz</string>
+    <string name="settings_pc_tracker_section">PC-Tracker</string>
+    <string name="settings_pc_tracker">PC-Tracker (Windows)</string>
+    <string name="settings_pc_tracker_desc">App-Aktivität am PC aufzeichnen und in die Timeline holen</string>
+    <string name="pc_tracker_connected">Verbunden</string>
+    <string name="pc_tracker_sync_info">Nur abgeschlossene Aufzeichnungen werden übertragen — direkt zwischen Handy und PC, keine Cloud.</string>
+    <string name="pc_tracker_last_sync">Zuletzt: %1$s</string>
+    <string name="pc_tracker_never_synced">Noch nie synchronisiert</string>
+    <string name="pc_tracker_sync_now">Jetzt synchronisieren</string>
+    <string name="pc_tracker_sync_none">Alles aktuell — keine neuen Aufzeichnungen.</string>
+    <string name="pc_tracker_sync_result">%1$d neue Aufzeichnungen, %2$d aktualisiert</string>
+    <string name="pc_tracker_sync_new_types">(neue Aktivität: %1$s)</string>
+    <string name="pc_tracker_disconnect">Verbindung trennen</string>
+    <string name="pc_tracker_disconnected">Verbindung getrennt</string>
+    <string name="pc_tracker_disconnect_confirm_title">PC-Tracker trennen?</string>
+    <string name="pc_tracker_disconnect_confirm_text">Die Kopplung wird am Handy entfernt. Bereits importierte Aufzeichnungen bleiben in der Timeline.</string>
+    <string name="pc_tracker_cancel">Abbrechen</string>
+    <string name="pc_tracker_search">PC im WLAN suchen</string>
+    <string name="pc_tracker_searching">Suche im WLAN läuft…</string>
+    <string name="pc_tracker_rescan">Erneut suchen</string>
+    <string name="pc_tracker_no_devices">Kein PC gefunden. Läuft der PC-Tracker am PC? Beide Geräte müssen im selben WLAN sein.</string>
+    <string name="pc_tracker_pairing_active">Bereit zum Koppeln</string>
+    <string name="pc_tracker_pairing_inactive">Kopplungsmodus aus — am PC einschalten</string>
+    <string name="pc_tracker_manual">Stattdessen manuell verbinden</string>
+    <string name="pc_tracker_manual_hint">Adresse eingeben, die in der PC-App steht (z. B. 192.168.178.42).</string>
+    <string name="pc_tracker_host">Adresse des PCs</string>
+    <string name="pc_tracker_port">Port</string>
+    <string name="pc_tracker_next">Weiter</string>
+    <string name="pc_tracker_code_title">Mit %1$s koppeln</string>
+    <string name="pc_tracker_code_info">Gib den Code ein, der am PC unter „Kopplung“ angezeigt wird.</string>
+    <string name="pc_tracker_code">Kopplungs-Code</string>
+    <string name="pc_tracker_connect">Verbinden</string>
+    <string name="pc_tracker_error_host">Bitte die Adresse des PCs eingeben.</string>
+    <string name="pc_tracker_error_port">Bitte einen gültigen Port eingeben (1–65535).</string>
+    <string name="pc_tracker_error_code">Bitte den Code eingeben.</string>
+    <string name="pc_tracker_error_invalid_code">Code falsch — am PC einen neuen Code erzeugen und erneut versuchen.</string>
+    <string name="pc_tracker_error_rate_limited">Zu viele Fehlversuche. Bitte in %1$d Sekunden erneut versuchen.</string>
+    <string name="pc_tracker_error_unreachable">PC nicht erreichbar. Ist der PC an, läuft die App und sind beide im selben WLAN?</string>
+    <string name="pc_tracker_error_not_connected">Kein PC gekoppelt.</string>
+    <string name="pc_tracker_error_unauthorized">Der Zugang wurde am PC zurückgesetzt. Bitte neu koppeln.</string>
 </resources>

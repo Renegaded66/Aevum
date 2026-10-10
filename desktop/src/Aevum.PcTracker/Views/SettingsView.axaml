@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Aevum.PcTracker.ViewModels"
+             x:Class="Aevum.PcTracker.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="28,24,28,28" Spacing="16">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Einstellungen" Classes="h1" />
+        <TextBlock Text="Verhalten der Aufzeichnung und des Speichers" Classes="muted" />
+      </StackPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="14">
+          <TextBlock Text="AUFZEICHNUNG" Classes="section-label" />
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Pausen-Erkennung" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" TextWrapping="Wrap"
+                         Text="Wenn du so lange keine Eingabe machst, endet die laufende Aufzeichnung automatisch." />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding IdleEnabled, Mode=TwoWay}" VerticalAlignment="Center"
+                          OnContent="" OffContent="" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IdleEnabled}">
+            <TextBlock Text="Inaktiv nach" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding IdleOptions}"
+                      SelectedItem="{Binding SelectedIdleOption, Mode=TwoWay}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:IdleMinuteOptionViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Standard-Aufnahmefenster" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" TextWrapping="Wrap"
+                         Text="Für neue Zuordnungen: So lange läuft die Aufzeichnung nach, wenn das Programm geschlossen wird." />
+            </StackPanel>
+            <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding ThresholdOptions}"
+                      SelectedItem="{Binding SelectedThreshold, Mode=TwoWay}" VerticalAlignment="Center">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ThresholdOptionViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="14">
+          <TextBlock Text="SPEICHER" Classes="section-label" />
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Verlauf aufbewahren" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" TextWrapping="Wrap"
+                         Text="Ältere Aufzeichnungen werden automatisch entfernt. Alles liegt nur auf diesem PC." />
+            </StackPanel>
+            <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding RetentionOptions}"
+                      SelectedItem="{Binding SelectedRetention, Mode=TwoWay}" VerticalAlignment="Center">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:RetentionOptionViewModel">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Datenordner" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding DataFolderText}" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="ghost" Content="Öffnen" Command="{Binding OpenDataFolderCommand}"
+                    VerticalAlignment="Center" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Verlauf löschen" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ClearHint}" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Classes="danger" Content="Löschen" Command="{Binding ClearHistoryCommand}" />
+              <Button Classes="ghost" Content="Abbrechen" Command="{Binding CancelClearCommand}"
+                      IsVisible="{Binding ClearConfirmVisible}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="14">
+          <TextBlock Text="ALLGEMEIN" Classes="section-label" />
+          <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding AutostartSupported}">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Mit Windows starten" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" TextWrapping="Wrap"
+                         Text="Die App startet automatisch und bleibt still im Infobereich der Taskleiste." />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding Autostart, Mode=TwoWay}" VerticalAlignment="Center"
+                          OnContent="" OffContent="" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Beim Start minimiert" FontWeight="SemiBold" />
+              <TextBlock Classes="muted" TextWrapping="Wrap"
+                         Text="Auch beim manuellen Start nur im Infobereich erscheinen (per Klick auf das Symbol öffnen)." />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding StartMinimized, Mode=TwoWay}" VerticalAlignment="Center"
+                          OnContent="" OffContent="" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="ÜBER" Classes="section-label" />
+          <TextBlock Text="{Binding VersionText}" />
+          <TextBlock TextWrapping="Wrap" Classes="muted"
+                     Text="Die Übertragung an Aevum läuft ausschließlich im Heimnetz, direkt von diesem PC zum Handy. Kein Konto, keine Cloud, keine Kosten." />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

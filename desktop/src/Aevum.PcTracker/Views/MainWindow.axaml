@@ -1,0 +1,76 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Aevum.PcTracker.ViewModels"
+        xmlns:v="using:Aevum.PcTracker.Views"
+        x:Class="Aevum.PcTracker.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Aevum PC-Tracker"
+        Width="1120" Height="760" MinWidth="920" MinHeight="640"
+        Icon="/Assets/aevum-256.png"
+        Background="{DynamicResource BgBrush}"
+        WindowStartupLocation="CenterScreen">
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:DashboardViewModel">
+      <v:DashboardView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:RulesViewModel">
+      <v:RulesView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:HistoryViewModel">
+      <v:HistoryView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:PairingViewModel">
+      <v:PairingView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel">
+      <v:SettingsView />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <Grid ColumnDefinitions="248,*">
+    <Border Background="{DynamicResource SidebarBrush}"
+            BorderBrush="{DynamicResource OutlineBrush}"
+            BorderThickness="0,0,1,0">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Margin="22,26,22,18" Spacing="3">
+          <TextBlock Text="Aevum" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource PrimaryBrush}" />
+          <TextBlock Text="PC-Tracker" Classes="muted" FontSize="13" />
+        </StackPanel>
+
+        <Border DockPanel.Dock="Bottom" Margin="14,14,14,18" Classes="card" Padding="16">
+          <StackPanel Spacing="12">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Ellipse Width="10" Height="10" VerticalAlignment="Top" Margin="0,3,0,0" Fill="{Binding StatusDotBrush}" />
+              <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" FontSize="13"
+                         TextWrapping="Wrap" MaxWidth="160" />
+            </StackPanel>
+            <Button Classes="ghost"
+                    Command="{Binding TogglePauseCommand}"
+                    Content="{Binding PauseButtonText}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+            <TextBlock Text="{Binding VersionText}" Classes="muted" HorizontalAlignment="Center" />
+          </StackPanel>
+        </Border>
+
+        <ItemsControl ItemsSource="{Binding NavItems}" Margin="12,0,12,8">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItemViewModel">
+              <Button Classes="nav"
+                      Classes.active="{Binding IsSelected}"
+                      Command="{Binding SelectCommand}"
+                      Margin="0,2">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Ellipse Width="8" Height="8" Fill="{Binding IndicatorBrush}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontSize="14" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </DockPanel>
+    </Border>
+
+    <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" />
+  </Grid>
+</Window>

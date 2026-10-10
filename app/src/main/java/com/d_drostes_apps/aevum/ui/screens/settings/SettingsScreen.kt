@@ -82,6 +82,8 @@ fun SettingsScreen(
     onOpenBackup: () -> Unit = {},
     // M18.59: Fitness-Tracker (Garmin Connect Login + Sync)
     onOpenFitnessTrackers: () -> Unit = {},
+    // PC-Tracker: Windows-Aufzeichnung im Heimnetz
+    onOpenPcTracker: () -> Unit = {},
     // M18.129: Kalender-Integration (Regeln + Sync + Berechtigung)
     onOpenCalendarRules: () -> Unit = {}
 ) {
@@ -177,6 +179,10 @@ fun SettingsScreen(
             // M18.59: Fitness-Tracker — Garmin Connect Login + Sync
             item { SettingsSection(stringResource(R.string.settings_fitness_trackers), listOf(
                 SettingsEntry(stringResource(R.string.settings_garmin_connect), stringResource(R.string.settings_garmin_connect_desc), onOpenFitnessTrackers)
+            )) }
+            // PC-Tracker — Windows-Aufzeichnung, Übertragung im Heimnetz
+            item { SettingsSection(stringResource(R.string.settings_pc_tracker_section), listOf(
+                SettingsEntry(stringResource(R.string.settings_pc_tracker), stringResource(R.string.settings_pc_tracker_desc), onOpenPcTracker)
             )) }
             // M18.129: Kalender-Integration — Regeln, Auto-Aufzeichnung, Sync
             item { SettingsSection(stringResource(R.string.settings_calendar_section), listOf(

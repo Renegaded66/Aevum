@@ -108,6 +108,12 @@ interface ActivitySessionDao {
     @Query("SELECT * FROM activity_session WHERE external_id = :externalId AND deleted_at IS NULL ORDER BY created_at ASC")
     fun getByExternalId(externalId: String): Flow<List<ActivitySession>>
 
+    // PC-Tracker: Batch-Lookup für idempotente Syncs (keine Schema-Änderung,
+    // nur eine Query). Liefert alle bereits importierten Sessions zu den
+    // angegebenen external_ids in einem Rutsch.
+    @Query("SELECT * FROM activity_session WHERE external_id IN (:externalIds) AND deleted_at IS NULL")
+    suspend fun getByExternalIdsOnce(externalIds: List<String>): List<ActivitySession>
+
     @Query("SELECT * FROM activity_session WHERE supersedes_session_id = :id AND deleted_at IS NULL")
     fun getSupersededBy(id: String): Flow<ActivitySession?>
 

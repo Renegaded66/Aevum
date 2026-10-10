@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    PC-Tracker: Die Verbindung zum eigenen PC läuft ausschließlich im
+    lokalen Heimnetz (HTTP im WLAN/LAN — der PC hat kein Zertifikat).
+    Deshalb ist Cleartext hier erlaubt; TLS-fähige Dienste nutzen weiterhin
+    HTTPS. Es sind keine Cloud-Endpunkte beteiligt: Der PC-Tracker
+    kommuniziert nur mit der Adresse, die der Nutzer selbst koppelt.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

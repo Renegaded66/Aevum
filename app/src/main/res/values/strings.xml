@@ -77,4 +77,46 @@
     <!-- SwitchActivity (live notification switch popup) -->
     <string name="switch_activity_title">Switch activity</string>
     <string name="switch_activity_subtitle">The current activity will be ended and the new one started.</string>
+    <!-- PC-Tracker (Windows, Heimnetz) -->
+    <string name="pc_tracker_title">PC Tracker</string>
+    <string name="pc_tracker_subtitle">Windows activity — transferred over your home network</string>
+    <string name="settings_pc_tracker_section">PC Tracker</string>
+    <string name="settings_pc_tracker">PC Tracker (Windows)</string>
+    <string name="settings_pc_tracker_desc">Record app activity on your PC and bring it into the timeline</string>
+    <string name="pc_tracker_connected">Connected</string>
+    <string name="pc_tracker_sync_info">Only completed recordings are transferred — directly between phone and PC, no cloud.</string>
+    <string name="pc_tracker_last_sync">Last: %1$s</string>
+    <string name="pc_tracker_never_synced">Never synced</string>
+    <string name="pc_tracker_sync_now">Sync now</string>
+    <string name="pc_tracker_sync_none">Everything up to date — no new recordings.</string>
+    <string name="pc_tracker_sync_result">%1$d new recordings, %2$d updated</string>
+    <string name="pc_tracker_sync_new_types">(new activity: %1$s)</string>
+    <string name="pc_tracker_disconnect">Disconnect</string>
+    <string name="pc_tracker_disconnected">Connection removed</string>
+    <string name="pc_tracker_disconnect_confirm_title">Disconnect PC tracker?</string>
+    <string name="pc_tracker_disconnect_confirm_text">The pairing is removed from this phone. Already imported recordings stay in your timeline.</string>
+    <string name="pc_tracker_cancel">Cancel</string>
+    <string name="pc_tracker_search">Find PC on Wi-Fi</string>
+    <string name="pc_tracker_searching">Searching your network…</string>
+    <string name="pc_tracker_rescan">Search again</string>
+    <string name="pc_tracker_no_devices">No PC found. Is the PC tracker running on your PC? Both devices must be on the same Wi-Fi.</string>
+    <string name="pc_tracker_pairing_active">Ready to pair</string>
+    <string name="pc_tracker_pairing_inactive">Pairing mode off — turn it on at the PC</string>
+    <string name="pc_tracker_manual">Connect manually instead</string>
+    <string name="pc_tracker_manual_hint">Enter the address shown in the PC app (e.g. 192.168.178.42).</string>
+    <string name="pc_tracker_host">PC address</string>
+    <string name="pc_tracker_port">Port</string>
+    <string name="pc_tracker_next">Next</string>
+    <string name="pc_tracker_code_title">Pair with %1$s</string>
+    <string name="pc_tracker_code_info">Enter the code shown at the PC under “Pairing”.</string>
+    <string name="pc_tracker_code">Pairing code</string>
+    <string name="pc_tracker_connect">Connect</string>
+    <string name="pc_tracker_error_host">Please enter the PC address.</string>
+    <string name="pc_tracker_error_port">Please enter a valid port (1–65535).</string>
+    <string name="pc_tracker_error_code">Please enter the code.</string>
+    <string name="pc_tracker_error_invalid_code">Wrong code — create a new code at the PC and try again.</string>
+    <string name="pc_tracker_error_rate_limited">Too many attempts. Please try again in %1$d seconds.</string>
+    <string name="pc_tracker_error_unreachable">PC not reachable. Is the PC on, is the app running and are both on the same Wi-Fi?</string>
+    <string name="pc_tracker_error_not_connected">No PC paired.</string>
+    <string name="pc_tracker_error_unauthorized">Access was reset at the PC. Please pair again.</string>
 </resources>

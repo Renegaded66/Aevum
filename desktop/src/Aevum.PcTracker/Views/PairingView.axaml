@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Aevum.PcTracker.ViewModels"
+             x:Class="Aevum.PcTracker.Views.PairingView"
+             x:DataType="vm:PairingViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="28,24,28,28" Spacing="16">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Kopplung" Classes="h1" />
+        <TextBlock Text="Handy und PC im gleichen WLAN — mehr braucht es nicht." Classes="muted" />
+      </StackPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="SO VERBINDEST DU DEIN HANDY" Classes="section-label" />
+          <StackPanel Spacing="6">
+            <TextBlock TextWrapping="Wrap"><Run Text="1.  " Foreground="#A99CFF" FontWeight="Bold" /><Run Text="Aevum auf dem Handy öffnen und zu Einstellungen → PC-Tracking gehen." /></TextBlock>
+            <TextBlock TextWrapping="Wrap"><Run Text="2.  " Foreground="#A99CFF" FontWeight="Bold" /><Run Text="Nach Computern im Heimnetz suchen lassen — dieser PC erscheint automatisch." /></TextBlock>
+            <TextBlock TextWrapping="Wrap"><Run Text="3.  " Foreground="#A99CFF" FontWeight="Bold" /><Run Text="Den Code von hier eintippen. Fertig — Aevum holt die Daten dann selbstständig ab." /></TextBlock>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="14">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="KOPPLUNGSMODUS" Classes="section-label" />
+              <TextBlock Text="Solange er an ist, kann sich ein Handy mit dem Code verbinden." Classes="muted" />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding PairingActive, Mode=TwoWay}" VerticalAlignment="Center"
+                          OnContent="An" OffContent="Aus" />
+          </Grid>
+
+          <Border Background="{DynamicResource SurfaceVariantBrush}" CornerRadius="12" Padding="20,16">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+              <TextBlock Text="DEIN CODE" Classes="section-label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding CodeText}" FontSize="44" FontWeight="Bold" LetterSpacing="4"
+                         Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" />
+              <TextBlock Classes="muted" HorizontalAlignment="Center"
+                         Text="Der Code gilt, bis er benutzt wurde — danach kommt automatisch ein neuer." />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Classes="ghost" Content="Neuen Code erzeugen" Command="{Binding RotateCodeCommand}" />
+          </StackPanel>
+
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{Binding ServerDotBrush}" />
+              <TextBlock Text="{Binding ServerStatusText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding AddressText}" Classes="muted" FontFamily="Consolas, Menlo, monospace"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding LastAccessText}" Classes="muted" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="SICHERHEIT" Classes="section-label" />
+          <TextBlock TextWrapping="Wrap" Classes="muted"
+                     Text="Nach der Kopplung bekommt nur dein Handy einen Schlüssel für diesen PC. Alle anderen Geräte im Netzwerk können nichts abrufen. Der Kopplungsmodus lässt sich jederzeit ausschalten." />
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Classes="danger" Content="Zugang zurücksetzen" Command="{Binding ResetAccessCommand}" />
+            <Button Classes="ghost" Content="Abbrechen" Command="{Binding CancelResetCommand}"
+                    IsVisible="{Binding ResetConfirmVisible}" />
+          </StackPanel>
+          <TextBlock Text="{Binding ResetHintText}" Classes="muted" IsVisible="{Binding ResetHintText.Length}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <TextBlock TextWrapping="Wrap" Classes="muted"
+                   Text="Beim ersten Start fragt Windows nach der Freigabe für private Netzwerke — bitte zulassen, sonst kann Aevum den PC nicht finden. Öffentliche Netzwerke bleiben unberührt." />
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

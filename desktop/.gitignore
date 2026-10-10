@@ -1,0 +1,5 @@
+# Build-Artefakte der Windows-App
+bin/
+obj/
+dist/
+*.user

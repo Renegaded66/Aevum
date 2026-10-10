@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <RootNamespace>Aevum.PcTracker.Core</RootNamespace>
+    <AssemblyName>Aevum.PcTracker.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Kestrel (eingebetteter LAN-Server) kommt aus dem ASP.NET-Core-Shared-Framework. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.31" />
+  </ItemGroup>
+
+  <!-- Tests prüfen interne Abläufe (z. B. den Tracker-Takt) direkt. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aevum.PcTracker.Core.Tests" />
+  </ItemGroup>
+
+</Project>

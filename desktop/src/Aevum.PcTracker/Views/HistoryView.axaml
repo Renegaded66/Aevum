@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Aevum.PcTracker.ViewModels"
+             x:Class="Aevum.PcTracker.Views.HistoryView"
+             x:DataType="vm:HistoryViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="28,24,28,28" Spacing="16">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Verlauf" Classes="h1" />
+        <TextBlock Text="{Binding SummaryText}" Classes="muted" />
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <ComboBox SelectedIndex="{Binding RangeIndex, Mode=TwoWay}" MinWidth="140">
+          <ComboBoxItem>Heute</ComboBoxItem>
+          <ComboBoxItem>7 Tage</ComboBoxItem>
+          <ComboBoxItem>30 Tage</ComboBoxItem>
+        </ComboBox>
+      </StackPanel>
+
+      <Border Classes="card" IsVisible="{Binding IsEmpty}">
+        <TextBlock Classes="muted" TextWrapping="Wrap"
+                   Text="Für diesen Zeitraum gibt es noch keine Aufzeichnungen. Sobald du Programme unter „Regeln“ zuordnest, erscheinen sie hier." />
+      </Border>
+
+      <ItemsControl ItemsSource="{Binding Days}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:DayGroupViewModel">
+            <Border Classes="card" Margin="0,0,0,12">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Header}" Classes="h2" />
+                  <TextBlock Grid.Column="1" Text="{Binding Summary}" Classes="muted" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Sessions}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SessionRowViewModel">
+                      <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,4" ColumnSpacing="10">
+                        <TextBlock Text="{Binding Icon}" FontSize="18" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Spacing="1">
+                          <TextBlock>
+                            <Run Text="{Binding Title}" FontWeight="SemiBold" />
+                            <Run Text=" · " Foreground="#9491A5" />
+                            <Run Text="{Binding Subtitle}" Foreground="#CAC8D8" />
+                          </TextBlock>
+                          <TextBlock Text="{Binding TimeText}" Classes="muted" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

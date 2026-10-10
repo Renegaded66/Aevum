@@ -1,0 +1,25 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Aevum.PcTracker.App"
+             RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <!-- Aevum-Markenfarben (identisch zur Android-App) -->
+    <SolidColorBrush x:Key="BgBrush" Color="#090B16" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="#0D1020" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#121526" />
+    <SolidColorBrush x:Key="SurfaceVariantBrush" Color="#1D2136" />
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#A99CFF" />
+    <SolidColorBrush x:Key="PrimarySoftBrush" Color="#3A326B" />
+    <SolidColorBrush x:Key="OnPrimaryBrush" Color="#171329" />
+    <SolidColorBrush x:Key="TealBrush" Color="#5EEAD4" />
+    <SolidColorBrush x:Key="AmberBrush" Color="#FFC85C" />
+    <SolidColorBrush x:Key="TextBrush" Color="#F0EFF8" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#CAC8D8" />
+    <SolidColorBrush x:Key="OutlineBrush" Color="#3B4057" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="#F87171" />
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://AevumPcTracker/Styles/AppStyles.axaml" />
+  </Application.Styles>
+</Application>
