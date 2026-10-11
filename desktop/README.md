@@ -11,18 +11,41 @@ direkt aus dem Heimnetz ab — kein Konto, keine Cloud, kein Server.
 
 ---
 
-## Installation
+## Die fertige App herunterladen
 
-1. ZIP entpacken (z. B. nach `C:\Programme\AevumPcTracker`).
-2. `AevumPcTracker.exe` doppelklicken.
-3. Windows zeigt beim ersten Start möglicherweise den SmartScreen-Dialog
-   („Windows hat den Start dieser App verhindert") — das ist normal, weil die
-   App kein gekauftes Signaturzertifikat hat. Auf **„Weitere Informationen" →
-   „Trotzdem ausführen"** klicken.
+**Wichtig:** In diesem Ordner (`desktop/`) liegt nur der **Quellcode** — hier
+gibt es bewusst keine `.exe`-Datei. Auch das Quellcode-ZIP des Repositories
+enthält keine fertige App. Die lauffähige Version gibt es als eigenes Paket
+im **Releases-Bereich** des Repositories:
+
+**➜ [github.com/Renegaded66/Aevum/releases](https://github.com/Renegaded66/Aevum/releases)**
+
+Dort das Release **`pc-tracker-1.0.0`** öffnen und
+**`AevumPcTracker-1.0.0-win-x64.zip`** (ca. 55 MB) herunterladen. Darin steckt
+die komplette App inklusive Laufzeitumgebung — es muss **nichts zusätzlich
+installiert** werden (kein .NET, kein Setup-Programm).
+
+### Installieren in 3 Schritten
+
+1. **ZIP herunterladen** (Link oben) und **entpacken** — am einfachsten
+   Rechtsklick → „Alle extrahieren…" nach z. B. `C:\Programme\AevumPcTracker`.
+   Wichtig: wirklich entpacken, nicht nur hineinschauen.
+2. Im entpackten Ordner **`AevumPcTracker.exe`** doppelklicken.
+3. Windows-Sicherheitshinweise einmalig bestätigen:
+   - **SmartScreen** („Windows hat den Start dieser App verhindert"): normal,
+     weil die App kein gekauftes Signaturzertifikat hat → **„Weitere
+     Informationen" → „Trotzdem ausführen"**.
+   - **Firewall** („Windows Defender Firewall hat einige Funktionen dieser App
+     blockiert"): **„Zugriff zulassen"** anhaken — mindestens für *private
+     Netzwerke*. Ohne diese Freigabe kann dein Handy den PC nicht finden.
 
 Die App braucht **keine Installation** und **keine Administratorrechte**.
 Sie startet im Infobereich (Tray) neben der Uhr; das X oben rechts versteckt
 sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
+
+**Update:** Wenn eine neue Version erscheint, einfach die neue ZIP aus dem
+Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
+Einstellungen und Aufzeichnungen bleiben erhalten.
 
 ## Erste Schritte
 
@@ -91,3 +114,5 @@ wenn du PC-Zeit aufzeichnen willst.
 - Tests: `dotnet test tests/Aevum.PcTracker.Core.Tests`
 - Build (Windows-x64, self-contained):
   `dotnet publish src/Aevum.PcTracker/Aevum.PcTracker.csproj -c Release -r win-x64 --self-contained true`
+- ZIP fürs Release bauen: `cd` ins Projekt, dann `dotnet publish … -o publish`,
+  PDB-Dateien weglassen und den `publish`-Ordner zippen.

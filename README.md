@@ -45,6 +45,21 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 
 ---
 
+## 🖥️ Windows-Begleiter (PC-Tracker)
+
+Optional, für alle, die ihre PC-Zeit (z. B. Zocken, Videos, Programmieren) mit
+Aevums Timeline zusammenführen wollen: Der **PC-Tracker** ist eine kleine
+Windows-App, die ausgewählte Programme im Blick behält und die Zeiten im
+Heimnetz für die App bereitstellt — **keine Cloud, keine Konten**, alles
+bleibt zuhause.
+
+- **Download:** [Releases-Bereich](https://github.com/Renegaded66/Aevum/releases) —
+  ZIP entpacken, `AevumPcTracker.exe` starten, fertig (keine Installation nötig).
+- **Anleitung:** [`desktop/README.md`](desktop/README.md)
+- **Technik/Protokoll:** [`docs/PC-TRACKER-PROTOCOL.md`](docs/PC-TRACKER-PROTOCOL.md)
+
+---
+
 ## 🧱 Architektur
 
 ```
