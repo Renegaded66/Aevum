@@ -38,6 +38,39 @@
         </Grid>
       </Border>
 
+      <!-- Allgemeine Aufzeichnung: eine Aktivität für „alles andere“ -->
+      <Border Classes="card" Padding="22,18">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="{DynamicResource s.gen_title}" Classes="section-label" />
+              <TextBlock Text="{DynamicResource s.gen_desc}" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding GeneralEnabled}"
+                          IsEnabled="{Binding HasGeneralActivities}"
+                          OnContent="" OffContent="" VerticalAlignment="Center" />
+          </Grid>
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding GeneralEnabled}">
+            <TextBlock Text="{DynamicResource s.gen_activity}" Classes="muted" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding GeneralActivities}"
+                      SelectedItem="{Binding SelectedGeneralActivity}"
+                      SelectionChanged="OnGeneralActivityChanged"
+                      PlaceholderText="{DynamicResource s.gen_choose}"
+                      HorizontalAlignment="Stretch" MinWidth="240">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:GeneralActivityOption">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <TextBlock Text="{DynamicResource s.gen_stops}" Classes="muted" FontSize="12"
+                     IsVisible="{Binding GeneralEnabled}" TextWrapping="Wrap" />
+          <TextBlock Text="{DynamicResource s.gen_empty}" Classes="muted" TextWrapping="Wrap"
+                     IsVisible="{Binding !HasGeneralActivities}" />
+        </StackPanel>
+      </Border>
+
       <!-- Heute + Dein Handy -->
       <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
         <Border Classes="card">

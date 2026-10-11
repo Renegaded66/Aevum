@@ -21,6 +21,7 @@ public sealed class FakeProbe : IForegroundProbe
 {
     public ForegroundSample? Foreground { get; set; }
     public long IdleMs { get; set; }
+    public bool AudioPlaying { get; set; }
     public List<RunningProgram> Running { get; } = new();
 
     public ForegroundSample? GetForeground() => Foreground;
@@ -28,6 +29,8 @@ public sealed class FakeProbe : IForegroundProbe
     public long GetIdleMs() => IdleMs;
 
     public IReadOnlyList<RunningProgram> GetRunningPrograms() => Running;
+
+    public bool IsAudioPlaying() => AudioPlaying;
 
     public RunningProgram AddRunning(string key, string? title = null)
     {

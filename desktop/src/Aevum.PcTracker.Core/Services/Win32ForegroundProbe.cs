@@ -110,6 +110,102 @@ public sealed class Win32ForegroundProbe : IForegroundProbe
     }
 
     /// <summary>
+    /// Spielt gerade Ton ab? Liest den Spitzenpegel des Standard-Ausgabegeräts
+    /// (CoreAudio „IAudioMeterInformation“) — reine Lese-API ohne Aufnahme.
+    /// </summary>
+    public bool IsAudioPlaying()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+        EnsureAudioMeter();
+        if (_audioMeter is null)
+        {
+            return false;
+        }
+        try
+        {
+            _audioMeter.GetPeakValue(out var peak);
+            return peak > 0.005f;
+        }
+        catch
+        {
+            // Gerät wurde entfernt/gewechselt — bis zum nächsten Start ohne
+            // Audio-Erkennung weiterlaufen (die Maus/Tastatur-Erkennung bleibt).
+            _audioMeter = null;
+            return false;
+        }
+    }
+
+    private IAudioMeterInformation? _audioMeter;
+    private bool _audioMeterTried;
+
+    private void EnsureAudioMeter()
+    {
+        if (_audioMeterTried)
+        {
+            return;
+        }
+        _audioMeterTried = true;
+        // COM-Initialisierung ist systemabhängig (kein Ausgabegerät, RDP-Sitzung,
+        // Dienstkontext) und darf die Aufzeichnung nie stören: genau ein Versuch,
+        // danach zählt Audio schlicht nie als „Aktivität“ — die App läuft weiter.
+        try
+        {
+            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+            var hr = enumerator.GetDefaultAudioEndpoint(0 /* eRender */, 1 /* eMultimedia */, out var device);
+            if (hr == 0 && device is not null)
+            {
+                var iid = typeof(IAudioMeterInformation).GUID;
+                hr = device.Activate(ref iid, 23 /* CLSCTX_ALL */, IntPtr.Zero, out var obj);
+                if (hr == 0)
+                {
+                    _audioMeter = obj as IAudioMeterInformation;
+                }
+            }
+        }
+        catch
+        {
+            _audioMeter = null;
+        }
+    }
+
+    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+    private class MMDeviceEnumeratorComObject
+    {
+    }
+
+    [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDeviceEnumerator
+    {
+        int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+        int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+        int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
+        int RegisterEndpointNotificationCallback(IntPtr client);
+        int UnregisterEndpointNotificationCallback(IntPtr client);
+    }
+
+    [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDevice
+    {
+        int Activate(ref Guid iid, int clsCtx, IntPtr activationParams,
+            [MarshalAs(UnmanagedType.IUnknown)] out object interfacePointer);
+        int OpenPropertyStore(int stgmAccess, out IntPtr properties);
+        int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+        int GetState(out int state);
+    }
+
+    [Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioMeterInformation
+    {
+        int GetPeakValue(out float peak);
+        int GetMeteringChannelCount(out int channelCount);
+        int GetChannelsPeakValues(int channelCount, [Out] float[] peakValues);
+        int QueryHardwareSupport(out int hardwareSupportMask);
+    }
+
+    /// <summary>
     /// Läuft durch die Prozessliste und sammelt Programme mit sichtbarem
     /// Hauptfenster (Fenstertitel nicht leer) — dieselbe Menge, die auch als
     /// Vordergrundprogramm in Frage kommt. Läuft außerhalb von Windows leer.

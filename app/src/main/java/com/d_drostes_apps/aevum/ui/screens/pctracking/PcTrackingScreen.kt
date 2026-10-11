@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -130,7 +131,9 @@ fun PcTrackingScreen(
             ConnectedCard(
                 connection = connection,
                 syncing = state.syncing,
+                autoSyncEnabled = state.autoSyncEnabled,
                 onSync = { viewModel.syncNow() },
+                onAutoSyncChanged = { viewModel.setAutoSync(it) },
                 onDisconnect = { showDisconnectDialog = true }
             )
         } else {
@@ -174,7 +177,9 @@ fun PcTrackingScreen(
 private fun ConnectedCard(
     connection: com.d_drostes_apps.aevum.data.pc.PcTrackerPrefs.StoredConnection,
     syncing: Boolean,
+    autoSyncEnabled: Boolean,
     onSync: () -> Unit,
+    onAutoSyncChanged: (Boolean) -> Unit,
     onDisconnect: () -> Unit
 ) {
     AevumCard {
@@ -244,6 +249,29 @@ private fun ConnectedCard(
                         Text(stringResource(R.string.pc_tracker_sync_now))
                     }
                 }
+            }
+
+            // Stiller Hintergrund-Sync: holt Aufzeichnungen ab, sobald der PC
+            // im gleichen WLAN ist — ohne jede Meldung bei Fehlschlag.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.pc_tracker_autosync),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        stringResource(R.string.pc_tracker_autosync_desc),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.size(AevumSpacing.sm))
+                Switch(checked = autoSyncEnabled, onCheckedChange = onAutoSyncChanged)
             }
 
             OutlinedButton(

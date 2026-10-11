@@ -127,4 +127,6 @@
     <string name="pc_tracker_install_step3">3. AevumPcTracker.exe starten — Windows fragt einmal nach der Firewall, bitte zulassen.</string>
     <string name="pc_tracker_install_hint">Kein Setup nötig — alles steckt im ZIP. Die App läuft nur unter Windows.</string>
     <string name="pc_tracker_install_open">Download-Seite öffnen</string>
+    <string name="pc_tracker_autosync">Automatisch im Hintergrund synchronisieren</string>
+    <string name="pc_tracker_autosync_desc">Holt Aufzeichnungen still ab, sobald dieser PC im gleichen WLAN ist. Fehler zeigt nur der manuelle Sync.</string>
 </resources>

@@ -61,6 +61,17 @@ class PcTrackerPrefs @Inject constructor(
         prefs.edit().clear().apply()
     }
 
+    /**
+     * Automatischer Hintergrund-Sync (Default an): holt Aufzeichnungen still
+     * ab, sobald der PC im gleichen WLAN ist. Fehler erscheinen nur beim
+     * manuellen Sync — der Hintergrund-Lauf meldet nichts.
+     */
+    fun isAutoSyncEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_SYNC, true)
+
+    fun setAutoSyncEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_SYNC, enabled).apply()
+    }
+
     private companion object {
         const val KEY_HOST = "host"
         const val KEY_PORT = "port"
@@ -68,5 +79,6 @@ class PcTrackerPrefs @Inject constructor(
         const val KEY_DEVICE_NAME = "device_name"
         const val KEY_TOKEN = "token"
         const val KEY_LAST_SYNC = "last_sync_at"
+        const val KEY_AUTO_SYNC = "auto_sync_enabled"
     }
 }

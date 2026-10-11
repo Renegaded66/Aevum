@@ -140,6 +140,9 @@ public sealed class TrackerService : IDisposable
             IdleMs = idleMs,
             TimezoneId = TimeHelper.LocalIanaTimeZoneId(),
             RunningPrograms = runningKeys,
+            GeneralEnabled = settings.GeneralEnabled,
+            GeneralActivityKey = settings.GeneralActivityKey,
+            AudioActive = _probe.IsAudioPlaying(),
         });
         if (upserts.Count > 0)
         {

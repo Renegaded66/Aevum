@@ -19,6 +19,8 @@ public sealed class AppHost : IAsyncDisposable
     public ApiServer Server { get; }
     public DiscoveryResponder Discovery { get; }
     public TrackerService Tracker { get; }
+    public UpdateService Updates { get; }
+    public UpdateInstaller Installer { get; }
     public IClock Clock { get; } = SystemClock.Instance;
 
     /// <summary>Fehler beim Start des LAN-Servers (null = läuft).</summary>
@@ -38,6 +40,8 @@ public sealed class AppHost : IAsyncDisposable
         Settings = new SettingsService(Store, Clock);
         Tokens = new TokenService(Settings);
         Server = new ApiServer(Store, Settings, Tokens, Pairing, Clock, Version);
+        Updates = new UpdateService();
+        Installer = new UpdateInstaller();
         Discovery = new DiscoveryResponder(Settings.Current.DiscoveryPort, () => new AnnouncePayload(
             Settings.Current.DeviceId,
             Settings.Current.DeviceName,

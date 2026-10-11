@@ -101,7 +101,7 @@ Header `X-Aevum-Token: <token>` (oder `Authorization: Bearer <token>`).
 
 ### GET /api/info
 ```json
-{ "app": "aevum-pc-tracker", "protocol": 1, "version": "1.1.0",
+{ "app": "aevum-pc-tracker", "protocol": 1, "version": "1.2.0",
   "deviceId": "…uuid…", "name": "DEVON-PC", "apiPort": 47825,
   "pairingActive": false, "trackingPaused": false, "retentionDays": 365 }
 ```
@@ -161,6 +161,9 @@ Optional sendet die App bei `/api/sessions` und `/api/activities` den Header
   sind harmlos — der Import ist idempotent, siehe Abschnitt 6).
 - Ein **Pausen-/Leerlauf-Schnitt** (Inaktivität) ist ein normales Session-Ende;
   Aevum sieht nur mehrere Sessions desselben Programms hintereinander.
+- **Allgemeine Aufzeichnung (ab 1.2.0):** Sessions der allgemeinen Aktivität
+  tragen den festen `programKey` `__general__` (Anzeigename „General use") —
+  ansonsten normale Sessions, der Import läuft unverändert.
 
 ### Fehlerformat
 ```json

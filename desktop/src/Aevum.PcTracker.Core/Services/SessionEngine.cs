@@ -16,6 +16,14 @@ public sealed record EngineTick
     public required string TimezoneId { get; init; }
     /// <summary>Gerade laufende Prozess-Keys (exe, lowercase) — für Regeln im Modus „läuft auch im Hintergrund“.</summary>
     public IReadOnlyList<string> RunningPrograms { get; init; } = Array.Empty<string>();
+
+    // --- Allgemeine Aufzeichnung («General») ---
+    /// <summary>Schalter: allgemeine Aufzeichnung aktiv.</summary>
+    public bool GeneralEnabled { get; init; }
+    /// <summary>Gewählte Aktivität der allgemeinen Aufzeichnung (leer = nichts gewählt).</summary>
+    public string GeneralActivityKey { get; init; } = "";
+    /// <summary>Spielt gerade Ton ab? Zählt wie eine Nutzereingabe („PC wird benutzt“).</summary>
+    public bool AudioActive { get; init; }
 }
 
 /// <summary>
@@ -34,9 +42,21 @@ public sealed record EngineTick
 ///    und läuft danach (gekappt an das Session-Ende) weiter, wenn es noch offen ist.
 ///  • Inaktivität (Idle) beendet die Session zum Zeitpunkt der letzten Eingabe.
 ///  • Pause (Nutzer-Schalter) beendet die laufende Session sofort.
+///  • Allgemeine Aufzeichnung: läuft nur, wenn KEINE Regel greift, mit der vom
+///    Nutzer gewählten Aktivität; aktiv solange Maus/Tastatur benutzt werden
+///    oder Ton läuft; endet nach 1 Minute ohne Aktivität.
 /// </summary>
 public sealed class SessionEngine
 {
+    /// <summary>Programm-Key der allgemeinen Aufzeichnung (kollidiert nie mit exe-Keys).</summary>
+    public const string GeneralProgramKey = "__general__";
+
+    /// <summary>Anzeigename der allgemeinen Aufzeichnung (erscheint in Verlauf/Handy).</summary>
+    public const string GeneralProgramName = "General use";
+
+    /// <summary>Die allgemeine Aufzeichnung endet nach dieser Ruhezeit (Maus/Tastatur still und kein Ton).</summary>
+    public const long GeneralIdleMs = 60_000;
+
     private readonly Func<string> _idFactory;
 
     public SessionEngine(Func<string>? idFactory = null)
@@ -56,6 +76,9 @@ public sealed class SessionEngine
 
     /// <summary>Ende der zuletzt abgeschlossenen Session (kappt Hintergrund-Neustarts).</summary>
     private long _lastSessionEndMs;
+
+    /// <summary>Letzter Tick, in dem die allgemeine Aufzeichnung als „in Benutzung“ galt.</summary>
+    private long _genLastActiveMs;
 
     /// <summary>
     /// Setzt die Zählung für gerade sichtbare Programme zurück — der Host ruft
@@ -155,6 +178,13 @@ public sealed class SessionEngine
             }
         }
 
+        var generalRequested = t.GeneralEnabled && t.GeneralActivityKey.Length > 0;
+        var userActive = t.IdleMs < GeneralIdleMs || t.AudioActive;
+        if (userActive)
+        {
+            _genLastActiveMs = t.NowMs;
+        }
+
         // „Sichtbar“ hängt vom Regel-Modus ab: Vordergrund ODER (im Modus
         // „läuft im Hintergrund“) der laufende Prozess.
         bool SeenNow(TrackedSession s) =>
@@ -163,8 +193,9 @@ public sealed class SessionEngine
                 && r.Mode == RecordMode.WhileRunning
                 && running.Contains(s.ProgramKey));
 
-        // 1) Laufende Session pflegen.
-        if (Active is not null)
+        // 1) Laufende Session pflegen. (Die allgemeine Aufzeichnung wird in
+        //    Schritt 6 gepflegt — sie folgt nicht den Regel-Thresholds.)
+        if (Active is not null && Active.ProgramKey != GeneralProgramKey)
         {
             if (!ruleMap.ContainsKey(Active.ProgramKey))
             {
@@ -180,7 +211,9 @@ public sealed class SessionEngine
         }
 
         // 2) Inaktivität beendet die Session (Zeitpunkt der letzten Eingabe).
-        if (Active is not null && idleBlocked)
+        //    Ausnahme: Die allgemeine Aufzeichnung hat ihre eigene Ruhe-Logik
+        //    (1 Minute bzw. Ton) und wird hier nicht von der globalen Schwelle beendet.
+        if (Active is not null && Active.ProgramKey != GeneralProgramKey && idleBlocked)
         {
             var endAt = SeenNow(Active) ? t.NowMs - t.IdleMs : Active.LastSeenAtMs;
             var ended = Finalize(Active, endAt);
@@ -203,7 +236,7 @@ public sealed class SessionEngine
         _wasIdleBlocked = idleBlocked;
 
         // 3) Threshold-Ende: Programm ist länger weg als sein Threshold.
-        if (Active is not null && !SeenNow(Active))
+        if (Active is not null && Active.ProgramKey != GeneralProgramKey && !SeenNow(Active))
         {
             var rule = ruleMap[Active.ProgramKey];
             var thresholdMs = Math.Max(1, rule.ThresholdSeconds) * 1000L;
@@ -231,14 +264,20 @@ public sealed class SessionEngine
             Active = null;
         }
 
-        // 5) Neue Session starten.
-        if (Active is null && !t.Paused && !idleBlocked)
+        // 5) Neue Regel-Session starten. Läuft gerade die allgemeine Aufzeichnung,
+        //    endet sie zum Startzeitpunkt der Regel — Regeln haben Vorrang.
+        if (Active is null or { ProgramKey: GeneralProgramKey } && !t.Paused && !idleBlocked)
         {
+            string? startKey = null;
+            string startName = "";
+            long startAt = t.NowMs;
+
             // 5a) Vordergrund-Programm mit Regel hat Vorrang.
             if (t.Foreground is not null && ruleMap.TryGetValue(t.Foreground.ProgramKey, out _))
             {
-                Start(t, t.Foreground.ProgramKey, t.Foreground.DisplayName,
-                    _fgSinceMs > 0 ? Math.Min(_fgSinceMs, t.NowMs) : t.NowMs, upserts);
+                startKey = t.Foreground.ProgramKey;
+                startName = t.Foreground.DisplayName;
+                startAt = _fgSinceMs > 0 ? Math.Min(_fgSinceMs, t.NowMs) : t.NowMs;
             }
             else
             {
@@ -260,11 +299,66 @@ public sealed class SessionEngine
                 }
                 if (pick is not null)
                 {
-                    var startAt = Math.Max(pickSince, _lastSessionEndMs);
-                    startAt = Math.Min(startAt, t.NowMs);
-                    Start(t, pick, ProgramNameFor(t, pick), startAt, upserts);
+                    startKey = pick;
+                    startName = ProgramNameFor(t, pick);
+                    startAt = Math.Min(Math.Max(pickSince, _lastSessionEndMs), t.NowMs);
                 }
             }
+
+            if (startKey is not null)
+            {
+                if (Active is { ProgramKey: GeneralProgramKey } general)
+                {
+                    var endedGeneral = Finalize(general,
+                        Math.Max(general.StartAtMs, Math.Min(t.NowMs, startAt)));
+                    _lastSessionEndMs = endedGeneral.EndAtMs ?? 0;
+                    upserts.Add(endedGeneral);
+                    Active = null;
+                }
+                Start(t, startKey, startName, startAt, upserts);
+            }
+        }
+
+        // 6) Allgemeine Aufzeichnung: nur wenn keine Regel läuft, mit der gewählten
+        //    Aktivität, solange der PC benutzt wird (Maus/Tastatur ODER Ton);
+        //    Ende nach 1 Minute ohne Aktivität, beim Ausschalten oder Wechsel.
+        if (Active is not null && Active.ProgramKey == GeneralProgramKey)
+        {
+            var activityChanged = !string.Equals(Active.ActivityKey, t.GeneralActivityKey,
+                StringComparison.OrdinalIgnoreCase);
+            if (!userActive || !generalRequested || t.Paused || activityChanged)
+            {
+                // Ende = letzter als aktiv gewerteter Moment (Ton bis zuletzt,
+                // sonst die letzte Eingabe) — keine Geister-Minuten.
+                var endAt = userActive
+                    ? t.NowMs
+                    : Math.Max(Active.StartAtMs, Math.Max(t.NowMs - t.IdleMs, _genLastActiveMs));
+                var ended = Finalize(Active, endAt);
+                _lastSessionEndMs = ended.EndAtMs ?? 0;
+                upserts.Add(ended);
+                Active = null;
+            }
+            else
+            {
+                Active = Active with { LastSeenAtMs = t.NowMs };
+                upserts.Add(Active);
+            }
+        }
+        if (Active is null && generalRequested && userActive && !t.Paused)
+        {
+            Active = new TrackedSession
+            {
+                Id = _idFactory(),
+                ProgramKey = GeneralProgramKey,
+                ProgramName = GeneralProgramName,
+                ActivityKey = t.GeneralActivityKey,
+                StartAtMs = t.NowMs,
+                LastSeenAtMs = t.NowMs,
+                EndAtMs = null,
+                TimezoneId = t.TimezoneId,
+                CreatedAtMs = t.NowMs,
+            };
+            upserts.Add(Active);
         }
 
         // Pro Session nur den jüngsten Stand ausliefern — ein Heartbeat und ein

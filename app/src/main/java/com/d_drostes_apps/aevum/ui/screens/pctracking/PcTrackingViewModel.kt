@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.d_drostes_apps.aevum.R
+import com.d_drostes_apps.aevum.automation.pctracker.PcAutoSyncScheduler
 import com.d_drostes_apps.aevum.data.pc.DiscoveredPc
 import com.d_drostes_apps.aevum.data.pc.PcTrackerPrefs
 import com.d_drostes_apps.aevum.data.repository.PcTrackerRepository
@@ -30,6 +31,7 @@ data class PcTrackingUiState(
     val manualHost: String = "",
     val manualPort: String = "47825",
     val syncing: Boolean = false,
+    val autoSyncEnabled: Boolean = true,
     val message: String? = null,
     val error: String? = null
 )
@@ -44,7 +46,9 @@ data class PcTrackingUiState(
 @HiltViewModel
 class PcTrackingViewModel @Inject constructor(
     private val app: Application,
-    private val repository: PcTrackerRepository
+    private val repository: PcTrackerRepository,
+    private val prefs: PcTrackerPrefs,
+    private val autoSyncScheduler: PcAutoSyncScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PcTrackingUiState())
@@ -53,6 +57,8 @@ class PcTrackingViewModel @Inject constructor(
     private var autoSyncTriggered = false
 
     init {
+        _uiState.update { it.copy(autoSyncEnabled = prefs.isAutoSyncEnabled()) }
+
         // Verbindung beobachten; sobald eine besteht (auch frisch gekoppelt),
         // einmal automatisch synchronisieren — beim Öffnen und nach Pairing.
         viewModelScope.launch {
@@ -136,6 +142,10 @@ class PcTrackingViewModel @Inject constructor(
                 is PcTrackerRepository.PairOutcome.Success ->
                     _uiState.update {
                         it.copy(pairing = false, target = null, code = "", message = null, error = null)
+                    }.also {
+                        // Frisch gekoppelt: stillen Hintergrund-Sync einplanen
+                        // (läuft nur, wenn der PC später im gleichen WLAN ist).
+                        autoSyncScheduler.schedule()
                     }
                 PcTrackerRepository.PairOutcome.InvalidCode ->
                     _uiState.update {
@@ -209,6 +219,7 @@ class PcTrackingViewModel @Inject constructor(
     fun disconnect() {
         viewModelScope.launch {
             repository.disconnect()
+            autoSyncScheduler.schedule() // ohne Kopplung entfernt das die Planung
             autoSyncTriggered = false
             _uiState.update {
                 it.copy(
@@ -224,5 +235,15 @@ class PcTrackingViewModel @Inject constructor(
 
     fun clearMessages() {
         _uiState.update { it.copy(message = null, error = null) }
+    }
+
+    /**
+     * Schalter „Automatisch im Hintergrund synchronisieren“: still, nur im
+     * WLAN, ohne jede Meldung bei Fehlschlag — der manuelle Sync meldet Fehler.
+     */
+    fun setAutoSync(enabled: Boolean) {
+        prefs.setAutoSyncEnabled(enabled)
+        autoSyncScheduler.schedule()
+        _uiState.update { it.copy(autoSyncEnabled = enabled) }
     }
 }

@@ -20,6 +20,12 @@ public interface IForegroundProbe
     /// Regel-Modus „läuft im Hintergrund“ und die „Jetzt offen“-Liste).
     /// </summary>
     IReadOnlyList<RunningProgram> GetRunningPrograms();
+
+    /// <summary>
+    /// Spielt gerade Ton ab? (Standard-Ausgabegerät). Zählt neben Maus/Tastatur
+    /// als „PC wird benutzt“ — z. B. beim Video-/Musikschauen ohne Eingaben.
+    /// </summary>
+    bool IsAudioPlaying();
 }
 
 /// <summary>
@@ -33,4 +39,6 @@ public sealed class NullForegroundProbe : IForegroundProbe
     public long GetIdleMs() => 0;
 
     public IReadOnlyList<RunningProgram> GetRunningPrograms() => Array.Empty<RunningProgram>();
+
+    public bool IsAudioPlaying() => false;
 }

@@ -25,6 +25,16 @@ public sealed class AppSettings
     /// <summary>Aufbewahrung der lokalen Session-Historie.</summary>
     public int RetentionDays { get; set; } = 365;
 
+    // --- Allgemeine Aufzeichnung («General») ---
+    /// <summary>
+    /// Allgemeine Aufzeichnung: Wenn nichts anderes (keine Regel) läuft, wird
+    /// diese Aktivität aufgezeichnet, solange der PC benutzt wird (Maus/Tastatur
+    /// oder Audio) — Ende nach 1 Minute ohne Aktivität.
+    /// </summary>
+    public bool GeneralEnabled { get; set; }
+    /// <summary>Activity-Key der allgemeinen Aufzeichnung (aus den mit dem Handy gespiegelten Aktivitäten).</summary>
+    public string GeneralActivityKey { get; set; } = "";
+
     // --- Verhalten ---
     public bool Autostart { get; set; }
     public bool StartMinimized { get; set; }

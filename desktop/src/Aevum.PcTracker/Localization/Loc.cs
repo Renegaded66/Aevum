@@ -271,6 +271,33 @@ public static class Loc
         ["s.msg_startfail_title"] = "Aevum PC-Tracker could not start",
         ["s.msg_startfail_body"] = "The local data store could not be opened:",
         ["s.language_tooltip"] = "Switch language (English / Deutsch)",
+
+        // Allgemeine Aufzeichnung (Dashboard-Karte)
+        ["s.gen_title"] = "GENERAL RECORDING",
+        ["s.gen_desc"] = "Records the selected activity whenever you use the PC and no mapping applies.",
+        ["s.gen_toggle"] = "Record general activity",
+        ["s.gen_activity"] = "Activity",
+        ["s.gen_choose"] = "Choose activity…",
+        ["s.gen_empty"] = "Sync with your phone first — your activities appear here.",
+        ["s.gen_stops"] = "Ends after 1 minute without input (mouse/keyboard or sound).",
+        ["s.gen_in_use"] = "PC in use",
+
+        // Updates (Einstellungen)
+        ["s.upd_title"] = "UPDATES",
+        ["s.upd_current"] = "Installed version {0}",
+        ["s.upd_auto"] = "Checked automatically at every start.",
+        ["s.upd_check"] = "Check for updates",
+        ["s.upd_checking"] = "Checking…",
+        ["s.upd_uptodate"] = "You are up to date.",
+        ["s.upd_available"] = "Version {0} is available.",
+        ["s.upd_notes"] = "What's new:",
+        ["s.upd_download"] = "Download & restart",
+        ["s.upd_downloading"] = "Downloading… {0} %",
+        ["s.upd_installing"] = "Installing — the app restarts by itself…",
+        ["s.upd_manual"] = "Automatic update is not possible here — download manually:",
+        ["s.upd_error"] = "Could not check for updates (offline?).",
+        ["s.upd_badge"] = "Update available",
+        ["s.upd_open"] = "Open release page",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -465,5 +492,30 @@ public static class Loc
         ["s.msg_startfail_title"] = "Aevum PC-Tracker konnte nicht starten",
         ["s.msg_startfail_body"] = "Der lokale Datenspeicher ließ sich nicht öffnen:",
         ["s.language_tooltip"] = "Sprache wechseln (Deutsch / English)",
+
+        ["s.gen_title"] = "ALLGEMEINE AUFZEICHNUNG",
+        ["s.gen_desc"] = "Zeichnet die gewählte Aktivität auf, solange du den PC benutzt und keine Zuordnung greift.",
+        ["s.gen_toggle"] = "Allgemeine Aktivität aufzeichnen",
+        ["s.gen_activity"] = "Aktivität",
+        ["s.gen_choose"] = "Aktivität wählen…",
+        ["s.gen_empty"] = "Synchronisiere zuerst mit deinem Handy — dann erscheinen hier deine Aktivitäten.",
+        ["s.gen_stops"] = "Endet nach 1 Minute ohne Eingabe (Maus/Tastatur oder Ton).",
+        ["s.gen_in_use"] = "PC wird benutzt",
+
+        ["s.upd_title"] = "AKTUALISIERUNGEN",
+        ["s.upd_current"] = "Installierte Version {0}",
+        ["s.upd_auto"] = "Wird bei jedem Start automatisch geprüft.",
+        ["s.upd_check"] = "Nach Updates suchen",
+        ["s.upd_checking"] = "Prüfe…",
+        ["s.upd_uptodate"] = "Du bist auf dem neuesten Stand.",
+        ["s.upd_available"] = "Version {0} ist verfügbar.",
+        ["s.upd_notes"] = "Neu in dieser Version:",
+        ["s.upd_download"] = "Herunterladen & neu starten",
+        ["s.upd_downloading"] = "Lädt… {0} %",
+        ["s.upd_installing"] = "Update wird eingespielt — die App startet gleich neu…",
+        ["s.upd_manual"] = "Automatisches Update ist hier nicht möglich — bitte manuell herunterladen:",
+        ["s.upd_error"] = "Update-Prüfung fehlgeschlagen (offline?).",
+        ["s.upd_badge"] = "Update verfügbar",
+        ["s.upd_open"] = "Release-Seite öffnen",
     };
 }

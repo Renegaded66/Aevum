@@ -56,6 +56,8 @@ class AevumApplication : Application() {
     @InstallIn(SingletonComponent::class)
     interface Deps {
         fun screenEventRepository(): ScreenEventRepository
+        // App 1.0.26: stiller PC-Tracker-Hintergrund-Sync (nur im Heimnetz).
+        fun pcAutoSyncScheduler(): com.d_drostes_apps.aevum.automation.pctracker.PcAutoSyncScheduler
         fun ensureDefaultData(): EnsureDefaultDataUseCase
         // M18.86: Track-Punkt-Retention (90 Tage) beim App-Start.
         fun locationTrackPointRepository(): com.d_drostes_apps.aevum.data.repository.LocationTrackPointRepository
@@ -367,6 +369,24 @@ class AevumApplication : Application() {
             com.d_drostes_apps.aevum.automation.digitalbalance.ProfileScheduleWorker.schedule(this)
         } catch (e: Exception) {
             Log.e("AevumApplication", "ProfileScheduleWorker schedule failed — continuing", e)
+        }
+        // App 1.0.26: PC-Tracker — stiller Hintergrund-Sync mit dem gekoppelten
+        // Windows-PC (alle 30 Min, nur mit Netzwerk). Ist der PC nicht im WLAN,
+        // passiert nichts; Meldungen zeigt ausschließlich der manuelle Sync.
+        // schedule() prüft Kopplung + Schalter selbst und ist idempotent —
+        // so übersteht die Planung sowohl App-Updates als auch Neustarts.
+        try {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    EntryPointAccessors.fromApplication(this@AevumApplication, Deps::class.java)
+                        .pcAutoSyncScheduler()
+                        .schedule()
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "PC-Auto-Sync schedule failed — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "PC-Auto-Sync init failed — continuing", e)
         }
         // M17.2: Unknown Place Detector — alle 5 min, prüft ob User
         // an einem nicht-Geofence-Ort sesshaft ist (Restaurant,

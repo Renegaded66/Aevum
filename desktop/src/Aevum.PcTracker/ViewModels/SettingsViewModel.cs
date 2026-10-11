@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Aevum.PcTracker.Core.Models;
+using Aevum.PcTracker.Core.Services;
 using Aevum.PcTracker.Localization;
 using Aevum.PcTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -44,6 +45,165 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
     [ObservableProperty] private string _clearHint = "";
     [ObservableProperty] private string _versionText = "";
     [ObservableProperty] private string _dataFolderText = "";
+
+    // --- Updates ---
+    [ObservableProperty] private string _updateCurrentText = "";
+    [ObservableProperty] private string _updateStatus = "";
+    [ObservableProperty] private string _updateDetail = "";
+    [ObservableProperty] private bool _updateNotesVisible;
+    [ObservableProperty] private bool _updateDownloadVisible;
+    [ObservableProperty] private bool _updateManualVisible;
+    [ObservableProperty] private bool _updateBusy;
+    [ObservableProperty] private bool _updateProgressVisible;
+    [ObservableProperty] private double _updateProgress;
+
+    private AvailableUpdate? _pendingUpdate;
+    private string _updState = "";
+
+    /// <summary>Der Navigations-Badge („Update verfügbar“) hört hierauf.</summary>
+    public event Action<bool>? UpdateBadgeChanged;
+
+    /// <summary>Beim Start (still) und auf Knopfdruck: öffentliche GitHub-Releases prüfen — ohne Token.</summary>
+    public async Task CheckForUpdatesAsync(bool silent)
+    {
+        if (UpdateBusy)
+        {
+            return;
+        }
+        UpdateBusy = true;
+        if (!silent)
+        {
+            _updState = "checking";
+            RenderUpdateStatus();
+        }
+
+        var result = await _host.Updates.CheckAsync(ParseVersion(_host.Version));
+        UpdateBusy = false;
+
+        if (result.Update is not null)
+        {
+            _pendingUpdate = result.Update;
+            UpdateDetail = result.Update.Notes.Trim();
+            _updState = "available";
+            UpdateBadgeChanged?.Invoke(true);
+        }
+        else
+        {
+            _pendingUpdate = null;
+            if (result.Failed)
+            {
+                // Beim stillen Start-Check nichts anzeigen; beim manuellen Klick ehrlich melden.
+                _updState = silent ? "" : "failed";
+                // Badge-Zustand bei Netzfehlern unverändert lassen.
+            }
+            else
+            {
+                _updState = "uptodate";
+                UpdateBadgeChanged?.Invoke(false);
+            }
+        }
+        RenderUpdateStatus();
+    }
+
+    /// <summary>Der Knopf in den Einstellungen (mit sichtbarem Ergebnis).</summary>
+    [RelayCommand]
+    private async Task CheckUpdates() => await CheckForUpdatesAsync(silent: false);
+
+    /// <summary>Setzt Statuszeile + Sichtbarkeiten aus dem Zustand — auch nach Sprachwechsel korrekt.</summary>
+    private void RenderUpdateStatus()
+    {
+        UpdateStatus = _updState switch
+        {
+            "checking" => Loc.S("s.upd_checking"),
+            "uptodate" => Loc.S("s.upd_uptodate"),
+            "failed" => Loc.S("s.upd_error"),
+            "available" => _pendingUpdate is null
+                ? ""
+                : Loc.F("s.upd_available", _pendingUpdate.Version),
+            "downloading" => Loc.F("s.upd_downloading", (int)Math.Round(UpdateProgress)),
+            "installing" => Loc.S("s.upd_installing"),
+            "manual" => Loc.S("s.upd_manual"),
+            _ => "",
+        };
+        UpdateDownloadVisible = _updState == "available";
+        UpdateManualVisible = _updState == "manual";
+        UpdateNotesVisible = _pendingUpdate is not null && UpdateDetail.Trim().Length > 0
+            && _updState == "available";
+        UpdateProgressVisible = _updState == "downloading";
+    }
+
+    private static Version ParseVersion(string text)
+        => Version.TryParse(text, out var v) ? v : new Version(1, 0, 0);
+
+    /// <summary>Lädt das ZIP und spielt das Update ein; die App startet dabei neu.</summary>
+    [RelayCommand]
+    private async Task DownloadUpdateAsync()
+    {
+        if (_pendingUpdate is null || UpdateBusy)
+        {
+            return;
+        }
+        var appDir = AppContext.BaseDirectory;
+        var exeName = Path.GetFileName(Environment.ProcessPath) is { Length: > 0 } name
+            ? name
+            : "AevumPcTracker.exe";
+
+        if (!OperatingSystem.IsWindows() || !UpdateInstaller.CanWriteAppDirectory(appDir))
+        {
+            // Kein Schreibrecht am Programmordner (z. B. unter Programme/) —
+            // ehrlich bleiben statt halbherzig kopieren; Release-Seite verlinken.
+            _updState = "manual";
+            RenderUpdateStatus();
+            return;
+        }
+
+        UpdateBusy = true;
+        _updState = "downloading";
+        UpdateProgress = 0;
+        RenderUpdateStatus();
+        try
+        {
+            var zipPath = Path.Combine(Path.GetTempPath(), $"AevumPcTracker-{_pendingUpdate.Version}.zip");
+            var progress = new Progress<double>(p =>
+            {
+                UpdateProgress = p * 100;
+                RenderUpdateStatus();
+            });
+            await _host.Installer.DownloadAsync(_pendingUpdate, zipPath, progress, CancellationToken.None);
+            _updState = "installing";
+            UpdateProgressVisible = false;
+            RenderUpdateStatus();
+            UpdateInstaller.ApplyAndRestart(zipPath, appDir, exeName);
+            // Kurz stehen lassen, dann beenden — das Skript tauscht die Dateien
+            // aus und startet die neue Version.
+            await Task.Delay(500);
+            if (Avalonia.Application.Current?.ApplicationLifetime
+                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+            }
+        }
+        catch (Exception)
+        {
+            UpdateBusy = false;
+            _updState = "failed";
+            RenderUpdateStatus();
+        }
+    }
+
+    [RelayCommand]
+    private void OpenReleasePage()
+    {
+        var url = _pendingUpdate?.HtmlUrl ?? "https://github.com/Renegaded66/Aevum/releases";
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Browser ließ sich nicht öffnen — die Adresse steht in den Notes.
+        }
+    }
 
     [ObservableProperty] private IdleMinuteOptionViewModel? _selectedIdleOption;
     [ObservableProperty] private ThresholdOptionViewModel? _selectedThreshold;
@@ -106,6 +266,8 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
         StartMinimized = s.StartMinimized;
         VersionText = $"Aevum PC-Tracker {_host.Version}";
         DataFolderText = _host.DataDirectory;
+        UpdateCurrentText = Loc.F("s.upd_current", _host.Version);
+        RenderUpdateStatus();
         _loading = false;
     }
 

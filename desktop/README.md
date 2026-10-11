@@ -47,7 +47,19 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
-## Neu in Version 1.1
+## Neu in Version 1.2
+
+- **Automatisches Update:** Die App prüft bei jedem Start die öffentlichen
+  GitHub-Releases und meldet neue Versionen in den Einstellungen (Punkt am
+  „Einstellungen“-Eintrag). **Herunterladen & neu starten** tauscht die Dateien
+  automatisch aus — ohne Konto, ohne Zugangsschlüssel.
+- **Allgemeine Aufzeichnung:** Im Dashboard („Allgemeine Aufzeichnung“)
+  einschalten und eine Aktivität aus deiner Aevum-App auswählen. Läuft, solange
+  du den PC benutzt (Maus, Tastatur **oder** Ton) und gerade keine Regel greift;
+  endet automatisch nach **1 Minute ohne Eingabe**. Regeln haben immer Vorrang
+  (z. B. Minecraft → „Zocken“; im Browser ohne Regel → deine allgemeine
+  Aktivität).
+### Was Version 1.1 gebracht hat
 
 - **Sprache:** Standard **Englisch**. Oben rechts auf jeder Seite zeigt der
   Flaggen-Knopf die aktive Sprache — einfach anklicken, um zwischen

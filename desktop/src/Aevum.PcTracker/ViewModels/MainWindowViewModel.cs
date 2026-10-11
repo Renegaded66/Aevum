@@ -98,6 +98,16 @@ public partial class MainWindowViewModel : ObservableObject
         host.Server.ClientAccessed += OnClientAccessed;
         Loc.LanguageChanged += OnLanguageChanged;
 
+        // „Update verfügbar“: Punkt am Einstellungen-Eintrag in der Navigation.
+        Settings.UpdateBadgeChanged += has => Dispatcher.UIThread.Post(() =>
+        {
+            var item = NavItems.FirstOrDefault(n => n.Key == "settings");
+            if (item is not null)
+            {
+                item.HasBadge = has;
+            }
+        });
+
         // Sync-Bar: Zeitangaben altern auch ohne Ereignisse — leicht nachziehen.
         _syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         _syncTimer.Tick += (_, _) => UpdateSyncUi();
@@ -144,6 +154,9 @@ public partial class MainWindowViewModel : ObservableObject
         RefreshStatus();
         UpdateSyncUi();
         Pairing.OnHostStarted();
+        // Stiller Update-Check gegen die öffentlichen GitHub-Releases (ohne Token);
+        // Fehler bleiben unsichtbar — nur der manuelle Knopf meldet Probleme.
+        _ = Settings.CheckForUpdatesAsync(silent: true);
     }
 
     private void RefreshStatus() => Dispatcher.UIThread.Post(() =>
@@ -231,6 +244,12 @@ public partial class NavItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    /// <summary>Kleiner Hinweis-Punkt rechts am Eintrag (z. B. „Update verfügbar“).</summary>
+    [ObservableProperty]
+    private bool _hasBadge;
+
+    public string BadgeTooltip => Loc.S("s.upd_badge");
+
     /// <summary>Punkt links am Eintrag: Lavendel wenn aktiv, sonst Outline-Farbe.</summary>
     public IBrush IndicatorBrush => new SolidColorBrush(Color.Parse(IsSelected ? "#A99CFF" : "#3B4057"));
 
@@ -242,7 +261,11 @@ public partial class NavItemViewModel : ObservableObject
         SelectCommand = new RelayCommand(() => owner.Navigate(this));
     }
 
-    public void NotifyTitleChanged() => OnPropertyChanged(nameof(Title));
+    public void NotifyTitleChanged()
+    {
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(BadgeTooltip));
+    }
 
     partial void OnIsSelectedChanged(bool value) => OnPropertyChanged(nameof(IndicatorBrush));
 }

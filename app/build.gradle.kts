@@ -107,8 +107,8 @@ android {
         //     – Sync spiegelt jetzt die Aktivitäten der App an den PC (Regeln-
         //       Dropdown dort: „Von deinem Handy“) + Gerätename als Header.
         //     – Kurzanleitung „Windows-App installieren“ im PC-Tracker (DE/EN).
-        versionCode = 26
-        versionName = "1.0.25"
+        versionCode = 27
+        versionName = "1.0.26"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

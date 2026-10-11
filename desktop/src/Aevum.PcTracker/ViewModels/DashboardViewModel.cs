@@ -27,6 +27,19 @@ public sealed class BarRowViewModel
     }
 }
 
+/// <summary>Eine wählbare Aktivität der allgemeinen Aufzeichnung (vom Handy gespiegelt).</summary>
+public sealed class GeneralActivityOption
+{
+    public string Key { get; }
+    public string Label { get; }
+
+    public GeneralActivityOption(string key, string label)
+    {
+        Key = key;
+        Label = label;
+    }
+}
+
 public partial class DashboardViewModel : ObservableObject, IRefreshable
 {
     private const double BarMaxWidth = 200;
@@ -55,6 +68,14 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
     public ObservableCollection<BarRowViewModel> TopBars { get; } = new();
     public ObservableCollection<SessionRowViewModel> Recent { get; } = new();
 
+    // --- Allgemeine Aufzeichnung («General») ---
+    [ObservableProperty] private bool _generalEnabled;
+    [ObservableProperty] private GeneralActivityOption? _selectedGeneralActivity;
+    [ObservableProperty] private bool _hasGeneralActivities;
+    public ObservableCollection<GeneralActivityOption> GeneralActivities { get; } = new();
+
+    private bool _loadingGeneral;
+
     /// <summary>Wird vom Hauptfenster gesetzt: Wechsel zum Kopplungs-Tab.</summary>
     public Action<string>? RequestNavigation { get; set; }
 
@@ -74,6 +95,70 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         UpdateLive();
         ReloadToday();
         UpdatePhone();
+        LoadGeneral();
+    }
+
+    // ------------------------------------------------- Allgemeine Aufzeichnung
+
+    /// <summary>Lädt Toggle + Aktivitätsliste aus den Einstellungen bzw. dem Handy-Sync.</summary>
+    private void LoadGeneral()
+    {
+        _loadingGeneral = true;
+        var s = _host.Settings.Current;
+        GeneralEnabled = s.GeneralEnabled;
+
+        var synced = _host.Store.GetSyncedActivities();
+        HasGeneralActivities = synced.Count > 0;
+
+        // Liste nur neu aufbauen, wenn sie sich wirklich geändert hat — sie wird
+        // bei jedem UI-Refresh durchlaufen, und ein Neuaufbau würde ein gerade
+        // offenes Dropdown zuklappen.
+        var currentKeys = GeneralActivities.Select(o => o.Key).ToList();
+        var syncedKeys = synced.Select(a => a.Key).ToList();
+        if (!currentKeys.SequenceEqual(syncedKeys, StringComparer.OrdinalIgnoreCase))
+        {
+            GeneralActivities.Clear();
+            foreach (var a in synced)
+            {
+                GeneralActivities.Add(new GeneralActivityOption(
+                    a.Key, string.IsNullOrWhiteSpace(a.Icon) ? a.Name : $"{a.Icon}  {a.Name}"));
+            }
+        }
+
+        // Auswahl nur setzen, wenn sie wirklich abweicht (sonst zappelt die ComboBox).
+        if (!string.Equals(SelectedGeneralActivity?.Key, s.GeneralActivityKey, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedGeneralActivity = GeneralActivities
+                .FirstOrDefault(o => string.Equals(o.Key, s.GeneralActivityKey, StringComparison.OrdinalIgnoreCase));
+        }
+        _loadingGeneral = false;
+    }
+
+    /// <summary>Übernimmt die ComboBox-Auswahl explizit (CodeBehind-Handler, wie bei den Regeln).</summary>
+    public void SetGeneralActivity(GeneralActivityOption? option) => SelectedGeneralActivity = option;
+
+    partial void OnGeneralEnabledChanged(bool value)
+    {
+        if (_loadingGeneral)
+        {
+            return;
+        }
+        _host.Settings.Update(s => s.GeneralEnabled = value);
+        // Erster Start ohne Auswahl: die erste (alphabetische) Aktivität wählen —
+        // sonst bliebe der Schalter wirkungslos. Änderbar jederzeit im Dropdown.
+        if (value && SelectedGeneralActivity is null && GeneralActivities.Count > 0)
+        {
+            SelectedGeneralActivity = GeneralActivities[0];
+        }
+    }
+
+    partial void OnSelectedGeneralActivityChanged(GeneralActivityOption? value)
+    {
+        if (_loadingGeneral || value is null)
+        {
+            return;
+        }
+        _host.Settings.Update(s => s.GeneralActivityKey = value.Key);
     }
 
     /// <summary>Aktivitätsname+Icon aus Sicht der App: synchronisierte zuerst, sonst Katalog.</summary>
@@ -120,7 +205,10 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
             NowLabelBrush = LiveBrush;
             NowIcon = icon;
             NowTitle = name;
-            NowLine = $"{active.ProgramName} · {Loc.F("s.row_since", UiFormat.Clock(active.StartAtMs))} · {UiFormat.Duration(now - active.StartAtMs)}";
+            var subject = active.ProgramKey == SessionEngine.GeneralProgramKey
+                ? Loc.S("s.gen_in_use")
+                : active.ProgramName;
+            NowLine = $"{subject} · {Loc.F("s.row_since", UiFormat.Clock(active.StartAtMs))} · {UiFormat.Duration(now - active.StartAtMs)}";
         }
         else
         {
