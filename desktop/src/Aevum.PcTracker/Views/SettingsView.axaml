@@ -6,24 +6,24 @@
   <ScrollViewer>
     <StackPanel Margin="28,24,28,28" Spacing="16">
       <StackPanel Spacing="2">
-        <TextBlock Text="Einstellungen" Classes="h1" />
-        <TextBlock Text="Verhalten der Aufzeichnung und des Speichers" Classes="muted" />
+        <TextBlock Text="{DynamicResource s.set_title}" Classes="h1" />
+        <TextBlock Text="{DynamicResource s.set_subtitle}" Classes="muted" TextWrapping="Wrap" />
       </StackPanel>
 
       <Border Classes="card">
         <StackPanel Spacing="14">
-          <TextBlock Text="AUFZEICHNUNG" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.set_tracking}" Classes="section-label" />
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
-              <TextBlock Text="Pausen-Erkennung" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_idle_label}" FontWeight="SemiBold" />
               <TextBlock Classes="muted" TextWrapping="Wrap"
-                         Text="Wenn du so lange keine Eingabe machst, endet die laufende Aufzeichnung automatisch." />
+                         Text="{DynamicResource s.set_idle_desc}" />
             </StackPanel>
             <ToggleSwitch Grid.Column="1" IsChecked="{Binding IdleEnabled, Mode=TwoWay}" VerticalAlignment="Center"
                           OnContent="" OffContent="" />
           </Grid>
           <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IdleEnabled}">
-            <TextBlock Text="Inaktiv nach" VerticalAlignment="Center" />
+            <TextBlock Text="{DynamicResource s.set_idle_after_label}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding IdleOptions}"
                       SelectedItem="{Binding SelectedIdleOption, Mode=TwoWay}">
               <ComboBox.ItemTemplate>
@@ -35,9 +35,9 @@
           </Grid>
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
-              <TextBlock Text="Standard-Aufnahmefenster" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_threshold_label}" FontWeight="SemiBold" />
               <TextBlock Classes="muted" TextWrapping="Wrap"
-                         Text="Für neue Zuordnungen: So lange läuft die Aufzeichnung nach, wenn das Programm geschlossen wird." />
+                         Text="{DynamicResource s.set_threshold_desc}" />
             </StackPanel>
             <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding ThresholdOptions}"
                       SelectedItem="{Binding SelectedThreshold, Mode=TwoWay}" VerticalAlignment="Center">
@@ -53,12 +53,12 @@
 
       <Border Classes="card">
         <StackPanel Spacing="14">
-          <TextBlock Text="SPEICHER" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.set_data}" Classes="section-label" />
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
-              <TextBlock Text="Verlauf aufbewahren" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_retention_label}" FontWeight="SemiBold" />
               <TextBlock Classes="muted" TextWrapping="Wrap"
-                         Text="Ältere Aufzeichnungen werden automatisch entfernt. Alles liegt nur auf diesem PC." />
+                         Text="{DynamicResource s.set_retention_desc}" />
             </StackPanel>
             <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding RetentionOptions}"
                       SelectedItem="{Binding SelectedRetention, Mode=TwoWay}" VerticalAlignment="Center">
@@ -71,20 +71,20 @@
           </Grid>
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
-              <TextBlock Text="Datenordner" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_folder_label}" FontWeight="SemiBold" />
               <TextBlock Text="{Binding DataFolderText}" Classes="muted" TextWrapping="Wrap" />
             </StackPanel>
-            <Button Grid.Column="1" Classes="ghost" Content="Öffnen" Command="{Binding OpenDataFolderCommand}"
-                    VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource s.set_open}"
+                    Command="{Binding OpenDataFolderCommand}" VerticalAlignment="Center" />
           </Grid>
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
-              <TextBlock Text="Verlauf löschen" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_delete_label}" FontWeight="SemiBold" />
               <TextBlock Text="{Binding ClearHint}" Classes="muted" TextWrapping="Wrap" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-              <Button Classes="danger" Content="Löschen" Command="{Binding ClearHistoryCommand}" />
-              <Button Classes="ghost" Content="Abbrechen" Command="{Binding CancelClearCommand}"
+              <Button Classes="danger" Content="{DynamicResource s.set_delete_btn}" Command="{Binding ClearHistoryCommand}" />
+              <Button Classes="ghost" Content="{DynamicResource s.common_cancel}" Command="{Binding CancelClearCommand}"
                       IsVisible="{Binding ClearConfirmVisible}" />
             </StackPanel>
           </Grid>
@@ -93,21 +93,21 @@
 
       <Border Classes="card">
         <StackPanel Spacing="14">
-          <TextBlock Text="ALLGEMEIN" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.set_startup}" Classes="section-label" />
           <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding AutostartSupported}">
             <StackPanel Spacing="2">
-              <TextBlock Text="Mit Windows starten" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_autostart_label}" FontWeight="SemiBold" />
               <TextBlock Classes="muted" TextWrapping="Wrap"
-                         Text="Die App startet automatisch und bleibt still im Infobereich der Taskleiste." />
+                         Text="{DynamicResource s.set_autostart_desc}" />
             </StackPanel>
             <ToggleSwitch Grid.Column="1" IsChecked="{Binding Autostart, Mode=TwoWay}" VerticalAlignment="Center"
                           OnContent="" OffContent="" />
           </Grid>
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Spacing="2">
-              <TextBlock Text="Beim Start minimiert" FontWeight="SemiBold" />
+              <TextBlock Text="{DynamicResource s.set_startmin_label}" FontWeight="SemiBold" />
               <TextBlock Classes="muted" TextWrapping="Wrap"
-                         Text="Auch beim manuellen Start nur im Infobereich erscheinen (per Klick auf das Symbol öffnen)." />
+                         Text="{DynamicResource s.set_startmin_desc}" />
             </StackPanel>
             <ToggleSwitch Grid.Column="1" IsChecked="{Binding StartMinimized, Mode=TwoWay}" VerticalAlignment="Center"
                           OnContent="" OffContent="" />
@@ -117,10 +117,10 @@
 
       <Border Classes="card">
         <StackPanel Spacing="6">
-          <TextBlock Text="ÜBER" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.set_about}" Classes="section-label" />
           <TextBlock Text="{Binding VersionText}" />
           <TextBlock TextWrapping="Wrap" Classes="muted"
-                     Text="Die Übertragung an Aevum läuft ausschließlich im Heimnetz, direkt von diesem PC zum Handy. Kein Konto, keine Cloud, keine Kosten." />
+                     Text="{DynamicResource s.set_about_desc}" />
         </StackPanel>
       </Border>
     </StackPanel>

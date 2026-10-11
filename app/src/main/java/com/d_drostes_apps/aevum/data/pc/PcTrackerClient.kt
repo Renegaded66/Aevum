@@ -2,6 +2,7 @@ package com.d_drostes_apps.aevum.data.pc
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -32,6 +33,14 @@ class PcTrackerClient @Inject constructor() {
     )
 
     data class PairToken(val token: String, val deviceId: String, val name: String)
+
+    /** Eine Aktivität, die an den PC gespiegelt wird (Regel-Dropdown dort). */
+    data class ActivitySync(
+        val key: String,
+        val name: String,
+        val icon: String,
+        val categoryKey: String
+    )
 
     data class PcSession(
         val id: String,
@@ -93,10 +102,17 @@ class PcTrackerClient @Inject constructor() {
         port: Int,
         token: String,
         sinceMs: Long,
-        limit: Int = 200
+        limit: Int = 200,
+        clientName: String = ""
     ): SessionsResponse = withContext(Dispatchers.IO) {
         val url = "${base(host, port)}/api/sessions?since=$sinceMs&limit=$limit"
-        val (_, body) = request("GET", url, null, mapOf("X-Aevum-Token" to token))
+        val headers = buildMap {
+            put("X-Aevum-Token", token)
+            if (clientName.isNotBlank()) {
+                put("X-Aevum-Client", clientName)
+            }
+        }
+        val (_, body) = request("GET", url, null, headers)
         val json = JSONObject(body)
         val device = json.optJSONObject("device")
         val sessions = json.optJSONArray("sessions") ?: return@withContext SessionsResponse(
@@ -135,6 +151,45 @@ class PcTrackerClient @Inject constructor() {
             deviceName = device?.optString("name").orEmpty(),
             sessions = list
         )
+    }
+
+    /**
+     * Spiegelt die Aktivitäten der App zum PC (Regeln-Dropdown dort). Der PC
+     * ersetzt seinen Stand komplett — die App schickt bei jedem Sync alles.
+     * Ein 404 bedeutet: ältere PC-Version ohne diesen Endpunkt → kein Fehler.
+     */
+    suspend fun pushActivities(
+        host: String,
+        port: Int,
+        token: String,
+        clientName: String,
+        activities: List<ActivitySync>
+    ): Boolean = withContext(Dispatchers.IO) {
+        val array = JSONArray()
+        activities.forEach { activity ->
+            array.put(
+                JSONObject()
+                    .put("key", activity.key)
+                    .put("name", activity.name)
+                    .put("icon", activity.icon)
+                    .put("categoryKey", activity.categoryKey)
+            )
+        }
+        val payload = JSONObject()
+            .put("clientName", clientName)
+            .put("activities", array)
+            .toString()
+        try {
+            request(
+                "POST",
+                "${base(host, port)}/api/activities",
+                payload,
+                mapOf("X-Aevum-Token" to token, "X-Aevum-Client" to clientName)
+            )
+            true
+        } catch (e: PcHttpException) {
+            if (e.statusCode == 404) false else throw e
+        }
     }
 
     private fun base(host: String, port: Int) = "http://$host:$port"

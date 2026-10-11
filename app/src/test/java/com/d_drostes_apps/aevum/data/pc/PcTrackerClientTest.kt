@@ -155,4 +155,41 @@ class PcTrackerClientTest {
         val failure = runCatching { client.fetchInfo("127.0.0.1", free) }.exceptionOrNull()
         assertThat(failure).isInstanceOf(java.io.IOException::class.java)
     }
+
+    @Test
+    fun `pushActivities sendet alle Aktivitaeten und meldet Erfolg`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"ok":true,"count":2}"""))
+
+        val ok = client.pushActivities(
+            host, port, "tok-123", "Aevum auf Pixel",
+            listOf(
+                PcTrackerClient.ActivitySync("gaming", "Zocken", "🎮", "leisure"),
+                PcTrackerClient.ActivitySync("custom-1", "Neue Aktivität", "✨", "")
+            )
+        )
+
+        assertThat(ok).isTrue()
+        val request = server.takeRequest()
+        assertThat(request.method).isEqualTo("POST")
+        assertThat(request.path).isEqualTo("/api/activities")
+        assertThat(request.getHeader("X-Aevum-Token")).isEqualTo("tok-123")
+        assertThat(request.getHeader("X-Aevum-Client")).isEqualTo("Aevum auf Pixel")
+        val body = request.body.readUtf8()
+        assertThat(body).contains("\"key\":\"gaming\"")
+        assertThat(body).contains("\"name\":\"Zocken\"")
+        assertThat(body).contains("\"categoryKey\":\"leisure\"")
+        assertThat(body).contains("Neue Aktivität")
+    }
+
+    @Test
+    fun `pushActivities meldet false bei 404 (aeltere PC-Version)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"not_found"}"""))
+
+        val ok = client.pushActivities(
+            host, port, "tok-123", "Handy",
+            listOf(PcTrackerClient.ActivitySync("gaming", "Zocken", "🎮", "leisure"))
+        )
+
+        assertThat(ok).isFalse()
+    }
 }

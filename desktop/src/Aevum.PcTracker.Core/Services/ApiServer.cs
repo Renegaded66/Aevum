@@ -11,8 +11,9 @@ namespace Aevum.PcTracker.Core.Services;
 
 /// <summary>
 /// Der eingebettete LAN-Server (Kestrel): liefert die abgeschlossenen Sessions an
-/// die Aevum-App und wickelt die Kopplung ab. Alles per Token geschützt —
-/// Spezifikation siehe docs/PC-TRACKER-PROTOCOL.md.
+/// die Aevum-App, nimmt deren Aktivitäts-Verzeichnis entgegen (für das
+/// Aktivitäts-Dropdown im Regeln-Tab) und wickelt die Kopplung ab. Alles per
+/// Token geschützt — Spezifikation siehe docs/PC-TRACKER-PROTOCOL.md.
 /// </summary>
 public sealed class ApiServer : IAsyncDisposable
 {
@@ -30,8 +31,11 @@ public sealed class ApiServer : IAsyncDisposable
     /// <summary>Tatsächlicher Port nach dem Start (bei Port 0 der vergebene).</summary>
     public int BoundPort { get; private set; }
 
-    /// <summary>Zeitpunkt des letzten authentifizierten Abrufs („Zuletzt abgerufen …").</summary>
+    /// <summary>Zeitpunkt des letzten authentifizierten Zugriffs („Zuletzt synchronisiert …").</summary>
     public long LastClientAccessMs { get; private set; }
+
+    /// <summary>Name des zuletzt zugreifenden Geräts (aus dem X-Aevum-Client-Header).</summary>
+    public string LastClientName { get; private set; } = "";
 
     public event Action? ClientAccessed;
 
@@ -64,7 +68,9 @@ public sealed class ApiServer : IAsyncDisposable
         builder.WebHost.ConfigureKestrel(options =>
         {
             options.Listen(IPAddress.Parse(bindAddress), port);
-            options.Limits.MaxRequestBodySize = 64 * 1024;
+            // Klein halten: Sessions-Antworten sind kompakt; das Activity-Verzeichnis
+            // (max. 300 Einträge) passt ebenfalls locker in 256 KB.
+            options.Limits.MaxRequestBodySize = 256 * 1024;
         });
 
         var app = builder.Build();
@@ -164,8 +170,9 @@ public sealed class ApiServer : IAsyncDisposable
             var limit = (int)Math.Clamp(ParseLong(ctx.Request.Query["limit"]) ?? 200, 1, 500);
             var sessions = _store.QueryCompletedSessions(since, limit);
 
-            LastClientAccessMs = _clock.NowMs;
-            ClientAccessed?.Invoke();
+            var synced = _store.GetSyncedActivities()
+                .ToDictionary(a => a.Key, StringComparer.OrdinalIgnoreCase);
+            TouchClient(ctx);
 
             var s = _settings.Current;
             return Results.Json(new
@@ -173,13 +180,100 @@ public sealed class ApiServer : IAsyncDisposable
                 protocol = ProtocolVersion,
                 serverTime = _clock.NowMs,
                 device = new { id = s.DeviceId, name = s.DeviceName },
-                sessions = sessions.Select(MapSession).ToList(),
+                sessions = sessions.Select(x => MapSession(x, synced)).ToList(),
             });
+        });
+
+        app.MapPost("/api/activities", async (HttpContext ctx) =>
+        {
+            if (!Authorize(ctx, out var failure))
+            {
+                return failure!;
+            }
+            ActivitySyncRequest? request = null;
+            try
+            {
+                request = await ctx.Request.ReadFromJsonAsync<ActivitySyncRequest>();
+            }
+            catch
+            {
+                // Unlesbarer Body → unten als bad_request beantwortet.
+            }
+            if (request?.Activities is null)
+            {
+                return Results.Json(new { error = "bad_request" }, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var now = _clock.NowMs;
+            var list = new List<SyncedActivity>(Math.Min(request.Activities.Count, 300));
+            foreach (var item in request.Activities.Take(300))
+            {
+                var key = Trim(item.Key, 64);
+                var name = Trim(item.Name, 80);
+                if (key.Length == 0 || name.Length == 0)
+                {
+                    continue; // unbrauchbare Einträge still überspringen
+                }
+                list.Add(new SyncedActivity
+                {
+                    Key = key,
+                    Name = name,
+                    Icon = Trim(item.Icon, 8),
+                    CategoryKey = Trim(item.CategoryKey, 64),
+                    UpdatedAtMs = now,
+                });
+            }
+            _store.ReplaceSyncedActivities(list);
+            TouchClient(ctx);
+
+            return Results.Json(new { ok = true, count = list.Count, serverTime = now });
         });
     }
 
-    private static object MapSession(TrackedSession session)
+    private void TouchClient(HttpContext ctx)
     {
+        LastClientAccessMs = _clock.NowMs;
+        var name = Trim(ctx.Request.Headers["X-Aevum-Client"].FirstOrDefault(), 60);
+        if (name.Length > 0)
+        {
+            LastClientName = name;
+        }
+        ClientAccessed?.Invoke();
+    }
+
+    private static string Trim(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
+    /// <summary>
+    /// Bildet eine Session fürs JSON ab. Aktivitäts-Anzeige bevorzugt das vom
+    /// Handy synchronisierte Verzeichnis (gleiche Namen beidseitig); der lokale
+    /// Katalog bleibt Rückfall für Regeln, die vor dem ersten Sync entstanden sind.
+    /// </summary>
+    private static object MapSession(TrackedSession session, IReadOnlyDictionary<string, SyncedActivity> synced)
+    {
+        if (synced.TryGetValue(session.ActivityKey, out var s))
+        {
+            return new
+            {
+                id = session.Id,
+                program = session.ProgramName,
+                programKey = session.ProgramKey,
+                activityKey = s.Key,
+                activityName = s.Name,
+                categoryKey = s.CategoryKey,
+                icon = s.Icon,
+                startAt = session.StartAtMs,
+                endAt = session.EndAtMs,
+                timezoneId = session.TimezoneId,
+            };
+        }
         var activity = ActivityCatalog.ByKeyOrOther(session.ActivityKey);
         return new
         {
@@ -220,4 +314,8 @@ public sealed class ApiServer : IAsyncDisposable
         => long.TryParse(value, out var parsed) ? parsed : null;
 
     public sealed record PairRequest(string? Code, string? ClientName);
+
+    public sealed record ActivitySyncRequest(string? ClientName, List<ActivityItem>? Activities);
+
+    public sealed record ActivityItem(string? Key, string? Name, string? Icon, string? CategoryKey);
 }

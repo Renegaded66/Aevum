@@ -76,10 +76,23 @@ public sealed class SessionStore : IDisposable
               key   TEXT PRIMARY KEY,
               value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS synced_activities (
+              key          TEXT PRIMARY KEY,
+              name         TEXT NOT NULL,
+              icon         TEXT NOT NULL DEFAULT '',
+              category_key TEXT NOT NULL DEFAULT '',
+              updated_at   INTEGER NOT NULL
+            );
             """);
+        // Bestands-Datenbanken (PC-Tracker 1.0): Regeln bekommen den Aufnahme-Modus.
+        if (!ColumnExists("rules", "record_mode"))
+        {
+            Exec("ALTER TABLE rules ADD COLUMN record_mode INTEGER NOT NULL DEFAULT 0;");
+        }
         if (GetSetting("schema_version") is null)
         {
-            SetSetting("schema_version", "1");
+            SetSetting("schema_version", "2");
         }
     }
 
@@ -231,12 +244,13 @@ public sealed class SessionStore : IDisposable
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO rules (program_key, program_name, activity_key, threshold_seconds, enabled, created_at, updated_at)
-            VALUES ($pk, $pn, $ak, $th, $en, $ca, $ua)
+            INSERT INTO rules (program_key, program_name, activity_key, threshold_seconds, record_mode, enabled, created_at, updated_at)
+            VALUES ($pk, $pn, $ak, $th, $rm, $en, $ca, $ua)
             ON CONFLICT(program_key) DO UPDATE SET
               program_name = excluded.program_name,
               activity_key = excluded.activity_key,
               threshold_seconds = excluded.threshold_seconds,
+              record_mode = excluded.record_mode,
               enabled = excluded.enabled,
               updated_at = excluded.updated_at
             """;
@@ -244,6 +258,7 @@ public sealed class SessionStore : IDisposable
         cmd.Parameters.AddWithValue("$pn", rule.ProgramName);
         cmd.Parameters.AddWithValue("$ak", rule.ActivityKey);
         cmd.Parameters.AddWithValue("$th", rule.ThresholdSeconds);
+        cmd.Parameters.AddWithValue("$rm", (int)rule.Mode);
         cmd.Parameters.AddWithValue("$en", rule.Enabled ? 1 : 0);
         cmd.Parameters.AddWithValue("$ca", rule.CreatedAtMs);
         cmd.Parameters.AddWithValue("$ua", rule.UpdatedAtMs);
@@ -264,7 +279,7 @@ public sealed class SessionStore : IDisposable
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT program_key, program_name, activity_key, threshold_seconds, enabled, created_at, updated_at
+            SELECT program_key, program_name, activity_key, threshold_seconds, record_mode, enabled, created_at, updated_at
             FROM rules ORDER BY program_name COLLATE NOCASE
             """;
         using var reader = cmd.ExecuteReader();
@@ -277,9 +292,64 @@ public sealed class SessionStore : IDisposable
                 ProgramName = reader.GetString(1),
                 ActivityKey = reader.GetString(2),
                 ThresholdSeconds = reader.GetInt32(3),
-                Enabled = reader.GetInt32(4) != 0,
-                CreatedAtMs = reader.GetInt64(5),
-                UpdatedAtMs = reader.GetInt64(6),
+                Mode = (RecordMode)reader.GetInt32(4),
+                Enabled = reader.GetInt32(5) != 0,
+                CreatedAtMs = reader.GetInt64(6),
+                UpdatedAtMs = reader.GetInt64(7),
+            });
+        }
+        return list;
+    });
+
+    // ------------------------------------------------------- Synced activities
+
+    /// <summary>
+    /// Ersetzt die vom Handy synchronisierten Aktivitäten (kompletter Abgleich —
+    /// die App schickt bei jedem Sync ihren aktuellen Stand).
+    /// </summary>
+    public void ReplaceSyncedActivities(IReadOnlyList<SyncedActivity> activities) => WithDb(conn =>
+    {
+        using var tx = conn.BeginTransaction();
+        using (var del = conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM synced_activities;";
+            del.ExecuteNonQuery();
+        }
+        foreach (var activity in activities)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO synced_activities (key, name, icon, category_key, updated_at)
+                VALUES ($k, $n, $i, $c, $u)
+                """;
+            cmd.Parameters.AddWithValue("$k", activity.Key);
+            cmd.Parameters.AddWithValue("$n", activity.Name);
+            cmd.Parameters.AddWithValue("$i", activity.Icon);
+            cmd.Parameters.AddWithValue("$c", activity.CategoryKey);
+            cmd.Parameters.AddWithValue("$u", activity.UpdatedAtMs);
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+        return 0;
+    });
+
+    public List<SyncedActivity> GetSyncedActivities() => WithDb(conn =>
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT key, name, icon, category_key, updated_at FROM synced_activities ORDER BY name COLLATE NOCASE";
+        using var reader = cmd.ExecuteReader();
+        var list = new List<SyncedActivity>();
+        while (reader.Read())
+        {
+            list.Add(new SyncedActivity
+            {
+                Key = reader.GetString(0),
+                Name = reader.GetString(1),
+                Icon = reader.GetString(2),
+                CategoryKey = reader.GetString(3),
+                UpdatedAtMs = reader.GetInt64(4),
             });
         }
         return list;
@@ -362,6 +432,22 @@ public sealed class SessionStore : IDisposable
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
         return 0;
+    });
+
+    /// <summary>Existiert die Spalte bereits? (Für idempotente Migrationen.)</summary>
+    private bool ColumnExists(string table, string column) => WithDb(conn =>
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table});";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     });
 
     private T WithDb<T>(Func<SqliteConnection, T> work)

@@ -119,4 +119,12 @@
     <string name="pc_tracker_error_unreachable">PC not reachable. Is the PC on, is the app running and are both on the same Wi-Fi?</string>
     <string name="pc_tracker_error_not_connected">No PC paired.</string>
     <string name="pc_tracker_error_unauthorized">Access was reset at the PC. Please pair again.</string>
+
+    <!-- Windows app installation (short guide) -->
+    <string name="pc_tracker_install_title">Installing the Windows app</string>
+    <string name="pc_tracker_install_step1">1. On your PC: open github.com/Renegaded66/Aevum/releases</string>
+    <string name="pc_tracker_install_step2">2. Download “AevumPcTracker-…-win-x64.zip” and unzip it (right-click → Extract all).</string>
+    <string name="pc_tracker_install_step3">3. Start AevumPcTracker.exe — Windows asks once about the firewall, please allow it.</string>
+    <string name="pc_tracker_install_hint">No setup needed — everything is inside the ZIP. The app only runs on Windows.</string>
+    <string name="pc_tracker_install_open">Open download page</string>
 </resources>

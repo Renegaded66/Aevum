@@ -1,13 +1,13 @@
-using System.Collections.ObjectModel;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Aevum.PcTracker.Localization;
 using Aevum.PcTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Aevum.PcTracker.ViewModels;
 
-/// <summary>Seiten, die beim Öffnen frische Daten ziehen.</summary>
+/// <summary>Seiten, die beim Öffnen (und nach Ereignissen) frische Daten ziehen.</summary>
 public interface IRefreshable
 {
     void Refresh();
@@ -28,18 +28,38 @@ public partial class MainWindowViewModel : ObservableObject
     private object _currentPage = null!;
 
     [ObservableProperty]
-    private string _statusText = "Wird gestartet…";
+    private string _statusText = "";
 
     [ObservableProperty]
     private IBrush _statusDotBrush = new SolidColorBrush(Color.Parse("#9491A5"));
 
     [ObservableProperty]
-    private string _pauseButtonText = "Pausieren";
+    private string _pauseButtonText = "";
 
     [ObservableProperty]
     private bool _isPaused;
 
-    public string VersionText => $"Version {Host.Version}";
+    [ObservableProperty]
+    private string _syncStatusText = "";
+
+    [ObservableProperty]
+    private string _syncPhoneText = "";
+
+    [ObservableProperty]
+    private bool _isPhoneConnected;
+
+    [ObservableProperty]
+    private IBrush _syncDotBrush = new SolidColorBrush(Color.Parse("#9491A5"));
+
+    /// <summary>Flaggen-Knopf: zeigt die AKTIVE Sprache; Klick wechselt.</summary>
+    public string LanguageLabel => Loc.Current == "de" ? "DE" : "EN";
+
+    /// <summary>True = gerade Deutsch (steuert die gezeichnete Deutschland-Flagge).</summary>
+    public bool IsGerman => Loc.Current == "de";
+
+    public string VersionText => $"v{Host.Version}";
+
+    private readonly DispatcherTimer _syncTimer;
 
     public MainWindowViewModel(AppHost host)
     {
@@ -52,11 +72,11 @@ public partial class MainWindowViewModel : ObservableObject
 
         NavItems = new List<NavItemViewModel>
         {
-            new("dashboard", "Dashboard", Dashboard, this),
-            new("rules", "Regeln", Rules, this),
-            new("history", "Verlauf", History, this),
-            new("pairing", "Kopplung", Pairing, this),
-            new("settings", "Einstellungen", Settings, this),
+            new("dashboard", "s.nav_dashboard", Dashboard, this),
+            new("rules", "s.nav_rules", Rules, this),
+            new("history", "s.nav_history", History, this),
+            new("pairing", "s.nav_pairing", Pairing, this),
+            new("settings", "s.nav_settings", Settings, this),
         };
         _currentPage = Dashboard;
         NavItems[0].IsSelected = true;
@@ -71,11 +91,20 @@ public partial class MainWindowViewModel : ObservableObject
             }
         };
 
-        // Live-Anzeige: jeder Tracker-Takt und jede Einstellungs-Änderung
-        // aktualisiert die Statuszeile (im UI-Thread).
+        // Live-Anzeige: Tracker-Takt, Einstellungs-Änderungen und Zugriffe des
+        // Handys aktualisieren die Oberfläche (im UI-Thread).
         host.Tracker.StateChanged += RefreshStatus;
         host.Settings.Changed += RefreshStatus;
+        host.Server.ClientAccessed += OnClientAccessed;
+        Loc.LanguageChanged += OnLanguageChanged;
+
+        // Sync-Bar: Zeitangaben altern auch ohne Ereignisse — leicht nachziehen.
+        _syncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _syncTimer.Tick += (_, _) => UpdateSyncUi();
+        _syncTimer.Start();
+
         RefreshStatus();
+        UpdateSyncUi();
     }
 
     public void Navigate(NavItemViewModel item)
@@ -86,12 +115,34 @@ public partial class MainWindowViewModel : ObservableObject
         }
         CurrentPage = item.Page;
         (item.Page as IRefreshable)?.Refresh();
+        UpdateSyncUi();
     }
+
+    /// <summary>Wird gerufen, sobald das Handy Daten abholt (oder Aktivitäten schickt).</summary>
+    private void OnClientAccessed() => Dispatcher.UIThread.Post(() =>
+    {
+        UpdateSyncUi();
+        (CurrentPage as IRefreshable)?.Refresh();
+    });
+
+    private void OnLanguageChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        OnPropertyChanged(nameof(LanguageLabel));
+        OnPropertyChanged(nameof(IsGerman));
+        foreach (var nav in NavItems)
+        {
+            nav.NotifyTitleChanged();
+        }
+        RefreshStatus();
+        UpdateSyncUi();
+        (CurrentPage as IRefreshable)?.Refresh();
+    });
 
     /// <summary>Wird gerufen, sobald der Host hochgefahren ist (Server/Discovery stehen).</summary>
     public void OnHostStarted()
     {
         RefreshStatus();
+        UpdateSyncUi();
         Pairing.OnHostStarted();
     }
 
@@ -100,15 +151,59 @@ public partial class MainWindowViewModel : ObservableObject
         IsPaused = Host.Settings.Current.TrackingPaused;
         var probeOk = Host.Tracker.ProbeAvailable;
         StatusText = IsPaused
-            ? "Aufzeichnung pausiert"
+            ? Loc.S("s.status_paused")
             : probeOk
-                ? "Aufzeichnung aktiv"
-                : "Aufzeichnung inaktiv (nur unter Windows)";
+                ? Loc.S("s.status_active")
+                : Loc.S("s.status_inactive");
         StatusDotBrush = new SolidColorBrush(Color.Parse(
             IsPaused ? "#FFC85C" : probeOk ? "#5EEAD4" : "#9491A5"));
-        PauseButtonText = IsPaused ? "Fortsetzen" : "Pausieren";
+        PauseButtonText = IsPaused ? Loc.S("s.resume") : Loc.S("s.pause");
         Dashboard.Refresh();
     });
+
+    private void UpdateSyncUi()
+    {
+        var last = Host.Server.LastClientAccessMs;
+        var now = Host.Clock.NowMs;
+        var connected = last > 0 && now - last < 10 * 60_000L;
+        IsPhoneConnected = connected;
+
+        if (last <= 0)
+        {
+            SyncStatusText = Loc.S("s.sync_never");
+        }
+        else
+        {
+            var d = now - last;
+            var relative = d < 60_000
+                ? Loc.S("s.sync_just_now")
+                : d < 3_600_000
+                    ? Loc.F("s.sync_min_ago", (int)(d / 60_000))
+                    : Loc.F("s.sync_at", UiFormat.Clock(last));
+            SyncStatusText = $"{Loc.S("s.sync_last")}: {relative}";
+        }
+
+        var name = Host.Server.LastClientName;
+        SyncPhoneText = connected
+            ? Loc.S("s.sync_connected") + (name.Length > 0 ? $" · {name}" : "")
+            : Loc.S("s.sync_not_connected");
+        SyncDotBrush = new SolidColorBrush(Color.Parse(connected ? "#5EEAD4" : "#9491A5"));
+    }
+
+    [RelayCommand]
+    private void RefreshCurrent()
+    {
+        UpdateSyncUi();
+        (CurrentPage as IRefreshable)?.Refresh();
+    }
+
+    [RelayCommand]
+    private void ToggleLanguage()
+    {
+        var next = Loc.Current == "de" ? "en" : "de";
+        Host.Settings.Update(s => s.Language = next);
+        Loc.SetLanguage(next);
+    }
 
     [RelayCommand]
     private void TogglePause()
@@ -127,9 +222,11 @@ public partial class MainWindowViewModel : ObservableObject
 public partial class NavItemViewModel : ObservableObject
 {
     public string Key { get; }
-    public string Title { get; }
+    public string TitleKey { get; }
     public object Page { get; }
     public IRelayCommand SelectCommand { get; }
+
+    public string Title => Loc.S(TitleKey);
 
     [ObservableProperty]
     private bool _isSelected;
@@ -137,13 +234,15 @@ public partial class NavItemViewModel : ObservableObject
     /// <summary>Punkt links am Eintrag: Lavendel wenn aktiv, sonst Outline-Farbe.</summary>
     public IBrush IndicatorBrush => new SolidColorBrush(Color.Parse(IsSelected ? "#A99CFF" : "#3B4057"));
 
-    public NavItemViewModel(string key, string title, object page, MainWindowViewModel owner)
+    public NavItemViewModel(string key, string titleKey, object page, MainWindowViewModel owner)
     {
         Key = key;
-        Title = title;
+        TitleKey = titleKey;
         Page = page;
         SelectCommand = new RelayCommand(() => owner.Navigate(this));
     }
+
+    public void NotifyTitleChanged() => OnPropertyChanged(nameof(Title));
 
     partial void OnIsSelectedChanged(bool value) => OnPropertyChanged(nameof(IndicatorBrush));
 }

@@ -1,4 +1,5 @@
 using Aevum.PcTracker.Core.Models;
+using Aevum.PcTracker.Localization;
 
 namespace Aevum.PcTracker.ViewModels;
 
@@ -22,20 +23,36 @@ public sealed class SessionRowViewModel
         IsOpen = isOpen;
     }
 
-    public static SessionRowViewModel From(TrackedSession session, long nowMs)
+    public static SessionRowViewModel From(
+        TrackedSession session,
+        long nowMs,
+        IReadOnlyDictionary<string, SyncedActivity>? synced = null)
     {
-        var activity = ActivityCatalog.ByKeyOrOther(session.ActivityKey);
+        var (icon, name) = ActivityDisplay(session.ActivityKey, synced);
         var start = UiFormat.Clock(session.StartAtMs);
         var durationMs = session.IsOpen ? nowMs - session.StartAtMs : session.DurationMs;
         var when = session.IsOpen
-            ? $"seit {start}"
+            ? Loc.F("s.row_since", start)
             : $"{start} – {UiFormat.Clock(session.EndAtMs ?? session.LastSeenAtMs)}";
         return new SessionRowViewModel(
-            activity.Icon,
-            activity.Name,
+            icon,
+            name,
             session.ProgramName,
             when,
             UiFormat.Duration(durationMs),
             session.IsOpen);
+    }
+
+    /// <summary>Aktivität mit Icon — vom Handy synchronisierte zuerst, sonst Katalog.</summary>
+    public static (string Icon, string Name) ActivityDisplay(
+        string activityKey,
+        IReadOnlyDictionary<string, SyncedActivity>? synced)
+    {
+        if (synced is not null && synced.TryGetValue(activityKey, out var s))
+        {
+            return (string.IsNullOrEmpty(s.Icon) ? "•" : s.Icon, s.Name);
+        }
+        var catalog = ActivityCatalog.ByKeyOrOther(activityKey);
+        return (catalog.Icon, catalog.Name);
     }
 }

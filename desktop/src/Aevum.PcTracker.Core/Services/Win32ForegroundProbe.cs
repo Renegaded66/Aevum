@@ -109,6 +109,63 @@ public sealed class Win32ForegroundProbe : IForegroundProbe
         }
     }
 
+    /// <summary>
+    /// Läuft durch die Prozessliste und sammelt Programme mit sichtbarem
+    /// Hauptfenster (Fenstertitel nicht leer) — dieselbe Menge, die auch als
+    /// Vordergrundprogramm in Frage kommt. Läuft außerhalb von Windows leer.
+    /// </summary>
+    public IReadOnlyList<RunningProgram> GetRunningPrograms()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Array.Empty<RunningProgram>();
+        }
+        var list = new List<RunningProgram>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var proc in Process.GetProcesses())
+        {
+            try
+            {
+                if (proc.MainWindowHandle == IntPtr.Zero)
+                {
+                    continue;
+                }
+                var title = proc.MainWindowTitle;
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+                var key = ProgramNames.KeyFor(proc.ProcessName.ToLowerInvariant() + ".exe");
+                if (key.Length == 0 || !seen.Add(key))
+                {
+                    continue;
+                }
+                if (_ownExeName.Length > 0 && key.Equals(_ownExeName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue; // die eigene Oberfläche zählt nicht
+                }
+                list.Add(new RunningProgram
+                {
+                    ProgramKey = key,
+                    Name = ProgramNames.DisplayNameFor(key),
+                    Title = title,
+                });
+            }
+            catch
+            {
+                // Prozess inzwischen beendet oder kein Zugriff — überspringen.
+            }
+            finally
+            {
+                proc.Dispose();
+            }
+        }
+        return list
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.ProgramKey, StringComparer.Ordinal)
+            .ToList();
+    }
+
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static string GetWindowTitle(IntPtr hwnd)
     {

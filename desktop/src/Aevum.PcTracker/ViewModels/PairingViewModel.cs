@@ -1,6 +1,7 @@
 using Avalonia.Media;
 using Avalonia.Threading;
 using Aevum.PcTracker.Core.Services;
+using Aevum.PcTracker.Localization;
 using Aevum.PcTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,11 +20,13 @@ public partial class PairingViewModel : ObservableObject, IRefreshable
     [ObservableProperty] private string _lastAccessText = "";
     [ObservableProperty] private string _resetHintText = "";
     [ObservableProperty] private bool _resetConfirmVisible;
+    [ObservableProperty] private bool _isConnected;
 
     public PairingViewModel(AppHost host)
     {
         _host = host;
         _host.Server.ClientAccessed += () => Dispatcher.UIThread.Post(Refresh);
+        Loc.LanguageChanged += () => Dispatcher.UIThread.Post(Refresh);
         Refresh();
     }
 
@@ -40,24 +43,33 @@ public partial class PairingViewModel : ObservableObject, IRefreshable
             var addresses = NetworkInfo.LocalIPv4Addresses();
             var port = server.BoundPort;
             AddressText = addresses.Count == 0
-                ? $"Port {port} (keine Netzwerkadresse gefunden — ist der PC im WLAN?)"
+                ? Loc.F("s.pair_no_lan", port)
                 : string.Join("   ", addresses.Select(a => $"{a}:{port}"));
-            ServerStatusText = "Bereit für Abrufe aus dem Heimnetz";
+            ServerStatusText = Loc.S("s.pair_server_ready");
             ServerDotBrush = new SolidColorBrush(Color.Parse("#5EEAD4"));
         }
         else
         {
             AddressText = "";
             ServerStatusText = _host.ServerError is { Length: > 0 } error
-                ? $"LAN-Server konnte nicht starten: {error}"
-                : "LAN-Server startet…";
+                ? Loc.F("s.dash_server_error", error)
+                : Loc.S("s.dash_server_starting");
             ServerDotBrush = new SolidColorBrush(Color.Parse("#FFC85C"));
         }
 
+        var now = _host.Clock.NowMs;
         var last = server.LastClientAccessMs;
-        LastAccessText = last == 0
-            ? "Bisher hat noch kein Handy Daten abgeholt."
-            : $"Zuletzt abgeholt: {UiFormat.Ago(last, _host.Clock.NowMs)}";
+        IsConnected = last > 0 && now - last < 10 * 60_000L;
+        if (last == 0)
+        {
+            LastAccessText = Loc.S("s.pair_no_fetch");
+        }
+        else
+        {
+            var name = server.LastClientName;
+            var ago = UiFormat.Ago(last, now);
+            LastAccessText = Loc.F("s.pair_last_fetch", name.Length > 0 ? $"{ago} — {name}" : ago);
+        }
     }
 
     public void OnHostStarted() => Refresh();
@@ -93,12 +105,12 @@ public partial class PairingViewModel : ObservableObject, IRefreshable
         if (!ResetConfirmVisible)
         {
             ResetConfirmVisible = true;
-            ResetHintText = "Wirklich zurücksetzen? Jedes gekoppelte Handy muss danach neu gekoppelt werden.";
+            ResetHintText = Loc.S("s.pair_reset_confirm");
             return;
         }
         _host.Tokens.Rotate();
         ResetConfirmVisible = false;
-        ResetHintText = "Zugang zurückgesetzt — neue Kopplung nötig.";
+        ResetHintText = Loc.S("s.pair_reset_done");
         Refresh();
     }
 

@@ -1,46 +1,166 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Aevum.PcTracker.ViewModels"
+             xmlns:conv="using:Avalonia.Data.Converters"
              x:Class="Aevum.PcTracker.Views.RulesView"
              x:DataType="vm:RulesViewModel">
-  <ScrollViewer>
+  <ScrollViewer x:Name="RootScroll">
     <StackPanel Margin="28,24,28,28" Spacing="16">
       <StackPanel Spacing="2">
-        <TextBlock Text="Regeln" Classes="h1" />
-        <TextBlock Text="Ordne PC-Programme den Aktivitäten aus Aevum zu — nur Zugeordnetes wird aufgezeichnet." Classes="muted" />
+        <TextBlock Text="{DynamicResource s.rules_title}" Classes="h1" />
+        <TextBlock Text="{DynamicResource s.rules_subtitle}" Classes="muted" TextWrapping="Wrap" />
       </StackPanel>
 
+      <!-- Deine Zuordnungen -->
       <Border Classes="card">
-        <StackPanel Spacing="12">
-          <TextBlock Text="DEINE ZUORDNUNGEN" Classes="section-label" />
-          <TextBlock Text="Noch keine Zuordnungen — wähle unten ein Programm aus." Classes="muted"
+        <StackPanel Spacing="10">
+          <TextBlock Text="{DynamicResource s.rules_mine}" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.rules_none}" Classes="muted"
                      IsVisible="{Binding !HasRules}" />
           <ItemsControl ItemsSource="{Binding Rules}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:RuleRowViewModel">
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,6" ColumnSpacing="12">
-                  <TextBlock Text="{Binding ActivityDisplay}" FontWeight="SemiBold" VerticalAlignment="Center"
-                             MinWidth="150" />
-                  <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ProgramName}" />
-                    <TextBlock Text="{Binding ThresholdLabel}" Classes="muted" />
-                  </StackPanel>
-                  <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                VerticalAlignment="Center" OnContent="" OffContent="" />
-                  <Button Grid.Column="3" Classes="danger" Content="Entfernen"
-                          Command="{Binding DeleteCommand}" VerticalAlignment="Center" />
-                </Grid>
+                <Border Background="{DynamicResource SurfaceVariantBrush}" CornerRadius="10"
+                        Padding="12,9" Margin="0,3">
+                  <Grid ColumnDefinitions="Auto,190,*,Auto,Auto" ColumnSpacing="12">
+                    <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="1">
+                      <TextBlock Text="{Binding ProgramName}" FontWeight="SemiBold" FontSize="13.5"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding ModeLabel}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="1">
+                      <TextBlock Text="{Binding ActivityDisplay}" FontSize="13.5" />
+                      <TextBlock Text="{Binding ThresholdLabel}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                    <Button Grid.Column="3" Classes="ghost" Padding="12,7"
+                            Content="{DynamicResource s.common_edit}"
+                            Command="{Binding EditCommand}" />
+                    <Button Grid.Column="4" Classes="danger" Padding="12,7"
+                            Content="{DynamicResource s.common_remove}"
+                            Command="{Binding DeleteCommand}" />
+                  </Grid>
+                </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
       </Border>
 
+      <!-- Entwurf: neue Zuordnung oder Bearbeiten -->
+      <Border x:Name="DraftBorder" Classes="card" IsVisible="{Binding IsDraftOpen}"
+              BorderBrush="#7C6FE0" BorderThickness="1.5">
+        <StackPanel Spacing="12">
+          <StackPanel Spacing="2">
+            <TextBlock Text="{Binding DraftTitle}" Classes="h2" />
+            <TextBlock Text="{Binding DraftSubtitle}" Classes="muted"
+                       IsVisible="{Binding DraftSubtitle, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
+            <StackPanel Spacing="4">
+              <TextBlock Text="{DynamicResource s.rules_activity}" Classes="muted" FontSize="11.5" />
+              <ComboBox x:Name="ActivityCombo" HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding ActivityOptions}"
+                        SelectedItem="{Binding DraftActivity, Mode=TwoWay}"
+                        SelectionChanged="OnActivityChanged">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ActivityOptionViewModel">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                      <TextBlock Text="{Binding Display}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding SourceLabel}" Classes="muted"
+                                 FontSize="11" VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="4">
+              <TextBlock Text="{DynamicResource s.rules_ends_label}" Classes="muted" FontSize="11.5" />
+              <ComboBox x:Name="ThresholdCombo" HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding ThresholdOptions}"
+                        SelectedItem="{Binding DraftThreshold, Mode=TwoWay}"
+                        SelectionChanged="OnThresholdChanged">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ThresholdOptionViewModel">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="4">
+              <TextBlock Text="{DynamicResource s.rules_mode}" Classes="muted" FontSize="11.5" />
+              <ComboBox x:Name="ModeCombo" HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding ModeOptions}"
+                        SelectedItem="{Binding DraftMode, Mode=TwoWay}"
+                        SelectionChanged="OnModeChanged">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ModeOptionViewModel">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+          </Grid>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Classes="primary" Content="{DynamicResource s.common_save}"
+                    Command="{Binding SaveDraftCommand}" />
+            <Button Classes="ghost" Content="{DynamicResource s.common_cancel}"
+                    Command="{Binding CancelDraftCommand}" />
+          </StackPanel>
+          <TextBlock Text="{DynamicResource s.rules_apply_changes}" Classes="muted"
+                     TextWrapping="Wrap" IsVisible="{Binding !HasPhoneActivities}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Programm hinzufügen -->
       <Border Classes="card">
         <StackPanel Spacing="12">
-          <TextBlock Text="PROGRAMM HINZUFÜGEN" Classes="section-label" />
-          <TextBox Text="{Binding SearchText, Mode=TwoWay}" Watermark="Suchen… z. B. Minecraft, Chrome, Spotify" />
+          <TextBlock Text="{DynamicResource s.rules_add}" Classes="section-label" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                     Watermark="{DynamicResource s.rules_search}" />
+            <Button Grid.Column="1" Classes="ghost"
+                    Content="{DynamicResource s.rules_running_btn}"
+                    Command="{Binding ToggleRunningCommand}" />
+          </Grid>
 
+          <!-- Jetzt geöffnete Programme -->
+          <Border IsVisible="{Binding IsRunningListOpen}" Background="#141836" CornerRadius="10"
+                  Padding="14" BorderBrush="{DynamicResource OutlineBrush}" BorderThickness="1">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{DynamicResource s.rules_running_title}" Classes="section-label"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="icon" Content="↻"
+                        ToolTip.Tip="{DynamicResource s.common_refresh}"
+                        Command="{Binding RefreshRunningCommand}" />
+              </Grid>
+              <TextBlock Text="{DynamicResource s.rules_running_empty}" Classes="muted"
+                         IsVisible="{Binding !HasRunning}" />
+              <ItemsControl ItemsSource="{Binding RunningPrograms}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:RunningProgramViewModel">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,3">
+                      <StackPanel Spacing="1">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Text="{Binding Title}" Classes="muted" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Classes="primary" Padding="12,6"
+                              Content="{DynamicResource s.rules_running_map}"
+                              Command="{Binding MapCommand}" IsVisible="{Binding !HasRule}" />
+                      <TextBlock Grid.Column="1" Text="{DynamicResource s.rules_badge_mapped}"
+                                 Classes="muted" VerticalAlignment="Center"
+                                 IsVisible="{Binding HasRule}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <!-- Suchtreffer / Vorschläge -->
           <ItemsControl ItemsSource="{Binding Candidates}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -49,9 +169,9 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:ProgramCandidateViewModel">
-                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding SelectCommand}" Padding="12,7">
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding SelectCommand}">
                   <StackPanel Spacing="1">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5" />
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" />
                     <TextBlock Classes="muted" FontSize="11">
                       <Run Text="{Binding Badge}" />
                       <Run Text=" · " />
@@ -63,50 +183,22 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <Border IsVisible="{Binding IsDraftOpen}" Background="{DynamicResource SurfaceVariantBrush}"
-                  CornerRadius="12" Padding="16">
-            <StackPanel Spacing="12">
-              <StackPanel Spacing="1">
-                <TextBlock Text="{Binding DraftTitle}" Classes="h2" />
-                <TextBlock Text="{Binding DraftSubtitle}" Classes="muted" />
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="12">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="Aktivität" Classes="section-label" />
-                  <ComboBox ItemsSource="{Binding ActivityOptions}" SelectedItem="{Binding DraftActivity, Mode=TwoWay}"
-                            MinWidth="220">
-                    <ComboBox.ItemTemplate>
-                      <DataTemplate x:DataType="vm:ActivityOptionViewModel">
-                        <TextBlock Text="{Binding Display}" />
-                      </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
-                </StackPanel>
-                <StackPanel Spacing="4">
-                  <TextBlock Text="Aufnahme endet nach" Classes="section-label" />
-                  <ComboBox ItemsSource="{Binding ThresholdOptions}" SelectedItem="{Binding DraftThreshold, Mode=TwoWay}"
-                            MinWidth="180">
-                    <ComboBox.ItemTemplate>
-                      <DataTemplate x:DataType="vm:ThresholdOptionViewModel">
-                        <TextBlock Text="{Binding Label}" />
-                      </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
-                </StackPanel>
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Classes="primary" Content="Speichern" Command="{Binding SaveDraftCommand}" />
-                <Button Classes="ghost" Content="Abbrechen" Command="{Binding CancelDraftCommand}" />
-              </StackPanel>
+          <!-- Eigene Programme -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <StackPanel Spacing="4">
+              <TextBlock Text="{DynamicResource s.rules_custom_label}" Classes="muted"
+                         FontSize="11.5" />
+              <TextBox Text="{Binding CustomProgramText, Mode=TwoWay}"
+                       Watermark="z. B. obs64.exe" />
             </StackPanel>
-          </Border>
+            <Button Grid.Column="1" Classes="ghost" VerticalAlignment="Bottom"
+                    Content="{DynamicResource s.rules_custom_add}"
+                    Command="{Binding AddCustomProgramCommand}" />
+          </Grid>
         </StackPanel>
       </Border>
 
-      <Border Classes="card">
-        <TextBlock TextWrapping="Wrap" Classes="muted"
-                   Text="Alles bleibt auf deinem PC: Aufgezeichnet wird nur, was du hier zuordnest, und übertragen wird ausschließlich im Heimnetz — erst wenn Aevum auf dem Handy die Daten abholt." />
-      </Border>
+      <TextBlock Text="{DynamicResource s.rules_privacy}" Classes="muted" TextWrapping="Wrap" />
     </StackPanel>
   </ScrollViewer>
 </UserControl>

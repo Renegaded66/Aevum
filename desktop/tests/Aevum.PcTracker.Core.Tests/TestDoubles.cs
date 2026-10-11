@@ -21,10 +21,28 @@ public sealed class FakeProbe : IForegroundProbe
 {
     public ForegroundSample? Foreground { get; set; }
     public long IdleMs { get; set; }
+    public List<RunningProgram> Running { get; } = new();
 
     public ForegroundSample? GetForeground() => Foreground;
 
     public long GetIdleMs() => IdleMs;
+
+    public IReadOnlyList<RunningProgram> GetRunningPrograms() => Running;
+
+    public RunningProgram AddRunning(string key, string? title = null)
+    {
+        var program = new RunningProgram
+        {
+            ProgramKey = key,
+            Name = key,
+            Title = title ?? key,
+        };
+        Running.Add(program);
+        return program;
+    }
+
+    public void RemoveRunning(string key) => Running.RemoveAll(r =>
+        string.Equals(r.ProgramKey, key, StringComparison.OrdinalIgnoreCase));
 
     public static ForegroundSample Sample(string key, string? path = null) => new()
     {

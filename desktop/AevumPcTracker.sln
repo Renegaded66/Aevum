@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7B1EC791
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aevum.PcTracker.Core.Tests", "tests\Aevum.PcTracker.Core.Tests\Aevum.PcTracker.Core.Tests.csproj", "{6C038EF8-8BDA-44CE-8BEC-84E37794F13C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aevum.PcTracker", "src\Aevum.PcTracker\Aevum.PcTracker.csproj", "{0B108F1F-8B45-44C3-B14D-CB68E7F1C7F6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{6C038EF8-8BDA-44CE-8BEC-84E37794F13C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6C038EF8-8BDA-44CE-8BEC-84E37794F13C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6C038EF8-8BDA-44CE-8BEC-84E37794F13C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B108F1F-8B45-44C3-B14D-CB68E7F1C7F6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B108F1F-8B45-44C3-B14D-CB68E7F1C7F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B108F1F-8B45-44C3-B14D-CB68E7F1C7F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B108F1F-8B45-44C3-B14D-CB68E7F1C7F6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{B3B44DE5-0184-4483-B972-4DC17540DB55} = {91B228B1-78CE-4B5F-B466-EF9A637862EB}
 		{6C038EF8-8BDA-44CE-8BEC-84E37794F13C} = {7B1EC791-9475-414B-B7B5-7A9E14E690F4}
+		{0B108F1F-8B45-44C3-B14D-CB68E7F1C7F6} = {91B228B1-78CE-4B5F-B466-EF9A637862EB}
 	EndGlobalSection
 EndGlobal

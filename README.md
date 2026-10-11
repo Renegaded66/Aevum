@@ -58,6 +58,12 @@ bleibt zuhause.
 - **Anleitung:** [`desktop/README.md`](desktop/README.md)
 - **Technik/Protokoll:** [`docs/PC-TRACKER-PROTOCOL.md`](docs/PC-TRACKER-PROTOCOL.md)
 
+**Neu in 1.1:** Englisch als Standard mit Flaggen-Umschalter (DE/EN) auf jeder
+Seite · Sync-Statuszeile („Handy verbunden — Name“, letzter Sync) · Regeln
+bearbeiten · Aufnahme-Modus *nur Vordergrund* oder *läuft im Hintergrund* ·
+laufende Programme direkt anklicken und Regeln formulieren · neue Aktivitäten
+aus der App erscheinen nach dem Sync im Regeln-Dropdown („Von deinem Handy“).
+
 ---
 
 ## 🧱 Architektur

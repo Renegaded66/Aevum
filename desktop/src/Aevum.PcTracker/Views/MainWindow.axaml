@@ -71,6 +71,51 @@
       </DockPanel>
     </Border>
 
-    <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" />
+    <Grid Grid.Column="1" RowDefinitions="Auto,*">
+      <!-- Auf jeder Seite oben rechts: Sync-Status mit Aktualisieren + Sprach-Flagge -->
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
+                  Margin="0,14,20,0">
+        <Border Classes="pill" Padding="14,6" ToolTip.Tip="{DynamicResource s.sync_hint}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Border Width="8" Height="8" CornerRadius="4" Background="{Binding SyncDotBrush}"
+                    VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SyncStatusText}" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SyncPhoneText}" FontSize="12" Classes="muted"
+                       VerticalAlignment="Center" />
+            <Button Classes="icon" Padding="6,1" Content="↻" Margin="2,0,0,0"
+                    ToolTip.Tip="{DynamicResource s.common_refresh}"
+                    Command="{Binding RefreshCurrentCommand}" />
+          </StackPanel>
+        </Border>
+        <Button Classes="ghost" Padding="9,5"
+                Command="{Binding ToggleLanguageCommand}"
+                ToolTip.Tip="{DynamicResource s.language_tooltip}">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <!-- Deutsch: schwarz-rot-gold gezeichnet (Emoji-Flaggen fehlen unter Windows) -->
+            <Border Width="18" Height="12" CornerRadius="2" ClipToBounds="True" IsVisible="{Binding IsGerman}">
+              <StackPanel>
+                <Border Height="4" Background="#1A1A1A" />
+                <Border Height="4" Background="#DD0000" />
+                <Border Height="4" Background="#FFCE00" />
+              </StackPanel>
+            </Border>
+            <!-- Englisch: stilisierte Union-Jack-Flagge -->
+            <Border Width="18" Height="12" CornerRadius="2" ClipToBounds="True" IsVisible="{Binding !IsGerman}">
+              <Grid>
+                <Border Background="#012169" />
+                <Border Height="4" Background="White" VerticalAlignment="Center" />
+                <Border Width="4" Background="White" HorizontalAlignment="Center" />
+                <Border Height="2" Background="#C8102E" VerticalAlignment="Center" />
+                <Border Width="2" Background="#C8102E" HorizontalAlignment="Center" />
+              </Grid>
+            </Border>
+            <TextBlock Text="{Binding LanguageLabel}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <ContentControl Grid.Row="1" Content="{Binding CurrentPage}" />
+    </Grid>
   </Grid>
 </Window>

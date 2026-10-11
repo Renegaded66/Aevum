@@ -6,101 +6,114 @@
   <ScrollViewer>
     <StackPanel Margin="28,24,28,28" Spacing="16">
       <StackPanel Spacing="2">
-        <TextBlock Text="Dashboard" Classes="h1" />
-        <TextBlock Text="Live-Überblick über die PC-Aufzeichnung" Classes="muted" />
+        <TextBlock Text="{DynamicResource s.dash_title}" Classes="h1" />
+        <TextBlock Text="{DynamicResource s.dash_subtitle}" Classes="muted" />
       </StackPanel>
 
-      <Border Classes="card" IsVisible="{Binding !ProbeAvailable}">
-        <TextBlock TextWrapping="Wrap" Classes="muted"
-                   Text="Die PC-Aufzeichnung läuft nur unter Windows. Diese Oberfläche läuft bereits — auf deinem Windows-PC wird sie Programme erkennen und an Aevum auf dem Handy übertragen." />
+      <!-- Live-Karte: was gerade aufgezeichnet wird (Puls-Animation bei Aufnahme) -->
+      <Border Classes="card" Padding="22">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+          <Grid Width="66" Height="66" VerticalAlignment="Center">
+            <Border Classes="pulseGlow" Width="66" Height="66" CornerRadius="33"
+                    Background="#5EEAD4" Opacity="0.15" IsVisible="{Binding IsRecording}" />
+            <Border Width="54" Height="54" CornerRadius="27"
+                    Background="{DynamicResource SurfaceVariantBrush}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+              <TextBlock Text="{Binding NowIcon}" FontSize="26"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+          </Grid>
+          <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Border Classes="pulseDot" Width="9" Height="9" CornerRadius="5"
+                      Background="#5EEAD4" VerticalAlignment="Center"
+                      IsVisible="{Binding IsRecording}" />
+              <TextBlock Text="{Binding NowLabel}" Classes="section-label"
+                         Foreground="{Binding NowLabelBrush}" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding NowTitle}" FontSize="23" FontWeight="Bold"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding NowLine}" Classes="muted" TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
       </Border>
 
+      <!-- Heute + Dein Handy -->
       <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-        <Border Grid.Column="0" Classes="card">
-          <StackPanel Spacing="12">
-            <TextBlock Text="GERADE JETZT" Classes="section-label" />
-            <StackPanel Orientation="Horizontal" Spacing="14">
-              <TextBlock Text="{Binding NowIcon}" FontSize="34" VerticalAlignment="Center" />
-              <StackPanel VerticalAlignment="Center" Spacing="2">
-                <TextBlock Text="{Binding NowTitle}" FontSize="22" FontWeight="Bold" />
-                <TextBlock Text="{Binding NowDetails}" Classes="muted" TextWrapping="Wrap" />
-              </StackPanel>
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
-        <Border Grid.Column="1" Classes="card">
-          <StackPanel Spacing="12">
-            <TextBlock Text="HEUTE" Classes="section-label" />
-            <StackPanel Orientation="Horizontal" Spacing="18">
+        <Border Classes="card">
+          <StackPanel Spacing="10">
+            <TextBlock Text="{DynamicResource s.dash_tracking_today}" Classes="section-label" />
+            <StackPanel Orientation="Horizontal" Spacing="26">
               <StackPanel>
                 <TextBlock Text="{Binding TodayCountText}" Classes="metric" />
-                <TextBlock Text="Aufzeichnungen" Classes="muted" />
+                <TextBlock Text="{DynamicResource s.dash_sessions}" Classes="muted" FontSize="11" />
               </StackPanel>
               <StackPanel>
                 <TextBlock Text="{Binding TodayTotalText}" Classes="metric" />
-                <TextBlock Text="Gesamtdauer" Classes="muted" />
+                <TextBlock Text="{DynamicResource s.dash_total_today}" Classes="muted" FontSize="11" />
               </StackPanel>
             </StackPanel>
-            <ItemsControl ItemsSource="{Binding TopBars}" Margin="0,4,0,0">
+            <ItemsControl ItemsSource="{Binding TopBars}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:BarRowViewModel">
-                  <Grid ColumnDefinitions="Auto,110,*" Margin="0,3">
-                    <TextBlock Text="{Binding Icon}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                  <Grid ColumnDefinitions="Auto,120,*,Auto" ColumnSpacing="10" Margin="0,3">
+                    <TextBlock Text="{Binding Icon}" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                      <Border Width="{Binding BarWidth}" Height="8" CornerRadius="4"
-                              Background="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
-                      <TextBlock Text="{Binding DurationText}" Classes="muted" VerticalAlignment="Center" />
-                    </StackPanel>
+                               FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                    <Border Grid.Column="2" Height="8" CornerRadius="4" Background="#5EEAD4"
+                            Opacity="0.75" Width="{Binding BarWidth}"
+                            HorizontalAlignment="Left" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding DurationText}" Classes="muted"
+                               VerticalAlignment="Center" />
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
           </StackPanel>
         </Border>
+
+        <Border Grid.Column="1" Classes="card">
+          <StackPanel Spacing="10">
+            <TextBlock Text="{DynamicResource s.dash_phone}" Classes="section-label" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Border Width="9" Height="9" CornerRadius="5" Background="{Binding PhoneDotBrush}"
+                      VerticalAlignment="Center" />
+              <TextBlock Text="{Binding PhoneStatusText}" FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+            <TextBlock Text="{Binding PhoneDetailText}" Classes="muted" />
+            <TextBlock Text="{DynamicResource s.dash_phone_hint}" Classes="muted" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PairingHintText}" Classes="muted" TextWrapping="Wrap" />
+            <Button Classes="ghost" Content="{DynamicResource s.dash_setup}"
+                    Command="{Binding OpenPairingCommand}" HorizontalAlignment="Left" />
+          </StackPanel>
+        </Border>
       </Grid>
 
+      <!-- Letzte Aufzeichnungen -->
       <Border Classes="card">
-        <StackPanel Spacing="12">
-          <TextBlock Text="LETZTE AUFZEICHNUNGEN" Classes="section-label" />
-          <TextBlock Text="Heute wurde noch nichts aufgezeichnet." Classes="muted"
-                     IsVisible="{Binding !Recent.Count}" />
+        <StackPanel Spacing="10">
+          <TextBlock Text="{DynamicResource s.dash_recent}" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.dash_recent_empty}" Classes="muted"
+                     IsVisible="{Binding !HasRecent}" />
           <ItemsControl ItemsSource="{Binding Recent}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SessionRowViewModel">
-                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,5">
-                  <TextBlock Text="{Binding Icon}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center" />
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Margin="0,5">
+                  <TextBlock Text="{Binding Icon}" FontSize="16" VerticalAlignment="Center" />
                   <StackPanel Grid.Column="1" Spacing="1">
-                    <TextBlock>
-                      <Run Text="{Binding Title}" FontWeight="SemiBold" />
-                      <Run Text=" · " Foreground="#9491A5" />
-                      <Run Text="{Binding Subtitle}" Foreground="#CAC8D8" />
-                    </TextBlock>
-                    <TextBlock Text="{Binding TimeText}" Classes="muted" />
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13.5" />
+                    <TextBlock Text="{Binding Subtitle}" Classes="muted" />
                   </StackPanel>
-                  <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontWeight="SemiBold"
-                             VerticalAlignment="Center" Foreground="{DynamicResource PrimaryBrush}" />
+                  <TextBlock Grid.Column="2" Text="{Binding TimeText}" Classes="muted"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding DurationText}" FontWeight="SemiBold"
+                             VerticalAlignment="Center" MinWidth="64" TextAlignment="Right"
+                             Foreground="{DynamicResource PrimaryBrush}" />
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-        </StackPanel>
-      </Border>
-
-      <Border Classes="card">
-        <StackPanel Spacing="12">
-          <TextBlock Text="VERBINDUNG ZUM HANDY" Classes="section-label" />
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{Binding PairingDotBrush}" />
-            <TextBlock Text="{Binding PairingStatusText}" FontWeight="SemiBold" VerticalAlignment="Center" />
-          </StackPanel>
-          <TextBlock Text="{Binding PairingAddressText}" Classes="muted" TextWrapping="Wrap" />
-          <TextBlock Classes="muted" TextWrapping="Wrap"
-                     Text="Die Übertragung läuft nur im Heimnetz: Aevum auf dem Handy ruft die Daten direkt von diesem PC ab — nichts geht ins Internet." />
-          <Button Classes="ghost" Content="Kopplung einrichten" Command="{Binding OpenPairingCommand}"
-                  HorizontalAlignment="Left" />
         </StackPanel>
       </Border>
     </StackPanel>

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Aevum.PcTracker.Localization;
 using Aevum.PcTracker.Services;
 using Aevum.PcTracker.ViewModels;
 using Aevum.PcTracker.Views;
@@ -35,8 +36,8 @@ public partial class App : Application
         if (!SingleInstance.TryAcquire())
         {
             desktop.MainWindow = InfoWindows.Create(
-                "Aevum PC-Tracker läuft bereits",
-                "Die App ist schon im Infobereich der Taskleiste aktiv. Dort lässt sie sich öffnen oder beenden.");
+                Loc.S("s.msg_running_title"),
+                Loc.S("s.msg_running_body"));
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -48,11 +49,16 @@ public partial class App : Application
         catch (Exception ex)
         {
             desktop.MainWindow = InfoWindows.Create(
-                "Aevum PC-Tracker konnte nicht starten",
-                "Der lokale Datenspeicher ließ sich nicht öffnen:\n\n" + ex.Message);
+                Loc.S("s.msg_startfail_title"),
+                Loc.S("s.msg_startfail_body") + "\n\n" + ex.Message);
             base.OnFrameworkInitializationCompleted();
             return;
         }
+
+        // UI-Sprache aus den Einstellungen anwenden (Default Englisch) und das
+        // Sprach-Wörterbuch in die App-Ressourcen legen — vor dem Fensterbau.
+        Loc.Init(_host.Settings.Current.Language);
+        Loc.Apply(this);
 
         var viewModel = new MainWindowViewModel(_host);
         var window = new MainWindow { DataContext = viewModel };
@@ -120,20 +126,20 @@ public partial class App : Application
         var icon = new TrayIcon
         {
             Icon = LoadAppIcon(),
-            ToolTipText = "Aevum PC-Tracker",
+            ToolTipText = Loc.S("s.tray_tooltip"),
             IsVisible = true,
         };
 
         var menu = new NativeMenu();
-        var openItem = new NativeMenuItem("Fenster öffnen");
+        var openItem = new NativeMenuItem(Loc.S("s.tray_open"));
         openItem.Click += (_, _) => ShowWindow(window);
-        var pauseItem = new NativeMenuItem("Aufzeichnung pausieren")
+        var pauseItem = new NativeMenuItem(Loc.S("s.tray_pause"))
         {
             ToggleType = NativeMenuItemToggleType.CheckBox,
             IsChecked = viewModel.IsPaused,
         };
         pauseItem.Click += (_, _) => viewModel.TogglePauseCommand.Execute(null);
-        var quitItem = new NativeMenuItem("Beenden");
+        var quitItem = new NativeMenuItem(Loc.S("s.tray_quit"));
         quitItem.Click += (_, _) => RequestShutdown(desktop);
         menu.Items.Add(openItem);
         menu.Items.Add(pauseItem);
@@ -147,7 +153,17 @@ public partial class App : Application
             if (e.PropertyName == nameof(MainWindowViewModel.IsPaused))
             {
                 pauseItem.IsChecked = viewModel.IsPaused;
+                icon.ToolTipText = Loc.S(viewModel.IsPaused ? "s.tray_tooltip_paused" : "s.tray_tooltip");
             }
+        };
+
+        // Sprachwechsel zieht die Tray-Texte nach (kommt aus dem UI-Thread).
+        Loc.LanguageChanged += () =>
+        {
+            openItem.Header = Loc.S("s.tray_open");
+            pauseItem.Header = Loc.S("s.tray_pause");
+            quitItem.Header = Loc.S("s.tray_quit");
+            icon.ToolTipText = Loc.S(viewModel.IsPaused ? "s.tray_tooltip_paused" : "s.tray_tooltip");
         };
 
         TrayIcon.SetIcons(this, new TrayIcons { icon });

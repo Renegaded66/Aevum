@@ -28,8 +28,10 @@ public sealed class AppSettings
     // --- Verhalten ---
     public bool Autostart { get; set; }
     public bool StartMinimized { get; set; }
-    /// <summary>„system", „light" oder „dark".</summary>
+    /// <summary>„system“, „light“ oder „dark“.</summary>
     public string Theme { get; set; } = "system";
+    /// <summary>UI-Sprache: „en“ oder „de“ (Default Englisch — umschaltbar per Flagge).</summary>
+    public string Language { get; set; } = "en";
 
     // --- Intern ---
     /// <summary>Token für die Kopplung (32 Byte hex). Nie anzeigen, nie loggen.</summary>

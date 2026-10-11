@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.data.repository
 
+import com.d_drostes_apps.aevum.data.db.ActivityTypeDao
 import com.d_drostes_apps.aevum.data.db.DataSourceDao
 import com.d_drostes_apps.aevum.data.model.DataSource
 import com.d_drostes_apps.aevum.data.pc.DiscoveredPc
@@ -24,7 +25,8 @@ class PcTrackerRepository @Inject constructor(
     private val discovery: PcDiscovery,
     private val prefs: PcTrackerPrefs,
     private val importer: PcSessionImporter,
-    private val dataSourceDao: DataSourceDao
+    private val dataSourceDao: DataSourceDao,
+    private val activityTypeDao: ActivityTypeDao
 ) {
 
     sealed class PairOutcome {
@@ -96,14 +98,37 @@ class PcTrackerRepository @Inject constructor(
     suspend fun syncNow(): SyncOutcome {
         val connection = _connection.value ?: return SyncOutcome.NotConnected
         return try {
-            // Kleiner Überlapp beim since-Wert: Grenzfälle an der Sync-Kante
-            // sind dank externalId ohnehin idempotent.
+            // 1) Aktivitäten der App zum PC spiegeln (Grundlage fürs Regel-Dropdown).
+            //    Bewusst best effort: Scheitert nur dieser Nebenweg (z. B. sehr alte
+            //    PC-Version), läuft der Session-Sync trotzdem — der nächste Sync
+            //    sendet den Stand ohnehin erneut (idempotent, kompletter Abgleich).
+            runCatching {
+                val activities = activityTypeDao.getAllOnce().map { type ->
+                    PcTrackerClient.ActivitySync(
+                        key = type.id,
+                        name = type.name,
+                        icon = type.icon,
+                        categoryKey = type.defaultCategoryId.orEmpty()
+                    )
+                }
+                client.pushActivities(
+                    host = connection.host,
+                    port = connection.port,
+                    token = connection.token,
+                    clientName = connection.deviceName,
+                    activities = activities
+                )
+            }
+
+            // 2) Sessions abholen. Kleiner Überlapp beim since-Wert: Grenzfälle an
+            //    der Sync-Kante sind dank externalId ohnehin idempotent.
             val since = (connection.lastSyncAt - OVERLAP_MS).coerceAtLeast(0L)
             val response = client.fetchSessions(
                 host = connection.host,
                 port = connection.port,
                 token = connection.token,
-                sinceMs = since
+                sinceMs = since,
+                clientName = connection.deviceName
             )
             val result = importer.import(
                 deviceName = response.deviceName.ifBlank { connection.deviceName },

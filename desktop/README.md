@@ -20,8 +20,8 @@ im **Releases-Bereich** des Repositories:
 
 **➜ [github.com/Renegaded66/Aevum/releases](https://github.com/Renegaded66/Aevum/releases)**
 
-Dort das Release **`pc-tracker-1.0.0`** öffnen und
-**`AevumPcTracker-1.0.0-win-x64.zip`** (ca. 55 MB) herunterladen. Darin steckt
+Dort das Release **`pc-tracker-1.1.0`** öffnen und
+**`AevumPcTracker-1.1.0-win-x64.zip`** (ca. 55 MB) herunterladen. Darin steckt
 die komplette App inklusive Laufzeitumgebung — es muss **nichts zusätzlich
 installiert** werden (kein .NET, kein Setup-Programm).
 
@@ -47,17 +47,50 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
+## Neu in Version 1.1
+
+- **Sprache:** Standard **Englisch**. Oben rechts auf jeder Seite zeigt der
+  Flaggen-Knopf die aktive Sprache — einfach anklicken, um zwischen
+  🇩🇪 Deutsch und 🇬🇧 English zu wechseln.
+- **Sync-Zeile (oben rechts, auf jeder Seite):** zeigt, wann dein Handy
+  zuletzt Daten abgeholt hat und ob es gerade verbunden ist („Handy
+  verbunden — *Name*“). Der ↻-Knopf lädt die Ansicht neu.
+- **Neue Aktivitäten aus der App:** Erstelle eine Aktivität im Handy →
+  in der App **„Jetzt synchronisieren“** antippen → sie erscheint hier in
+  den Regeln im Dropdown unter **„Von deinem Handy“**.
+- **Aufnahme-Modus pro Regel:** *Nur im Vordergrund* (Standard) oder
+  *Auch wenn es im Hintergrund läuft* — z. B. für Musik oder Programm, das
+  minimiert weiterarbeitet.
+- **Laufende Programme:** Im Regeln-Tab **„Laufende Programme anzeigen“** —
+  alles, was gerade offen ist, direkt anklicken und eine Regel daraus
+  formulieren. Eigene Programme lassen sich auch per Name oder `.exe`
+  eintragen.
+- **Regeln bearbeiten:** Jede Zuordnung hat jetzt **Bearbeiten** und
+  **Entfernen**.
+- **Live-Ansicht:** Das Dashboard pulsiert, wenn gerade etwas aufgezeichnet
+  wird — mit Programm, Aktivität und laufender Dauer.
+
 ## Erste Schritte
 
 ### 1. Regeln anlegen
 
-Im Tab **Regeln** wählst du aus dem Vorschlags-Katalog die Programme, die
-aufgezeichnet werden sollen (z. B. *Minecraft → 🎮 Zocken*). Nur zugeordnete
-Programme werden aufgezeichnet — nichts anderes verlässt den PC.
+Im Tab **Regeln** (englisch „Programs“) ordnest du Programme den Aktivitäten
+zu. Drei Wege:
 
-- **Aufnahmefenster:** Erst wenn ein Programm länger als das eingestellte
-  Fenster (Standard: 1 Minute) im Vordergrund ist, entsteht eine Aufzeichnung.
-  Kurzes Hin- und Herschalten erzeugt also keinen Lärm in der Timeline.
+- **Vorschlags-Katalog:** Klick auf z. B. *Minecraft* → Aktivität wählen → **Save**.
+- **Laufende Programme:** „Laufende Programme anzeigen“ → alles, was gerade
+  offen ist, direkt anklicken.
+- **Eigene Programme:** Name oder `.exe` eintragen (z. B. `obs64.exe`).
+
+Im Dropdown stehen zuerst die **Aktivitäten aus deiner Aevum-App** („Von
+deinem Handy“) — auch selbst angelegte — darunter der allgemeine Katalog.
+Nur zugeordnete Programme werden aufgezeichnet — nichts anderes verlässt den PC.
+
+- **Aufnahmefenster:** So lange muss ein Programm nach dem Schließen noch
+  „nachlaufen“, bevor die Aufzeichnung endet (Standard: 1 Minute).
+  Kurzes Hin- und Herschalten erzeugt so keinen Lärm in der Timeline.
+- **Aufnahme-Modus:** *Nur im Vordergrund* (Standard) oder *Auch wenn es im
+  Hintergrund läuft* (z. B. Musik, Spiele-Launcher).
 - **Pause-Erkennung:** Keine Eingabe mehr? Nach der eingestellten Zeit (z. B.
   15 Minuten) endet die laufende Aufzeichnung automatisch.
 

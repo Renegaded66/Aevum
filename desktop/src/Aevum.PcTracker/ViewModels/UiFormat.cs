@@ -1,8 +1,9 @@
 using System.Globalization;
+using Aevum.PcTracker.Localization;
 
 namespace Aevum.PcTracker.ViewModels;
 
-/// <summary>Kleine Anzeige-Helfer für Zeitangaben (deutsch, kompakt).</summary>
+/// <summary>Kleine Anzeige-Helfer für Zeitangaben (sprachabhängig, kompakt).</summary>
 public static class UiFormat
 {
     public static string Duration(long ms)
@@ -10,13 +11,15 @@ public static class UiFormat
         var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
         if (t.TotalHours >= 1)
         {
-            return $"{(int)t.TotalHours} Std {t.Minutes} Min";
+            return Loc.IsGerman
+                ? $"{(int)t.TotalHours} Std {t.Minutes} Min"
+                : $"{(int)t.TotalHours} h {t.Minutes} min";
         }
         if (t.TotalMinutes >= 1)
         {
-            return $"{t.Minutes} Min";
+            return $"{t.Minutes} min";
         }
-        return "< 1 Min";
+        return Loc.IsGerman ? "< 1 Min" : "< 1 min";
     }
 
     public static string Clock(long ms) =>
@@ -27,17 +30,19 @@ public static class UiFormat
         var d = Math.Max(0, nowMs - thenMs);
         if (d < 60_000)
         {
-            return "gerade eben";
+            return Loc.S("s.sync_just_now");
         }
         if (d < 3_600_000)
         {
-            return $"vor {(int)(d / 60_000)} Min";
+            return Loc.F("s.sync_min_ago", (int)(d / 60_000));
         }
         if (d < 86_400_000)
         {
-            return $"vor {(int)(d / 3_600_000)} Std";
+            var hours = (int)(d / 3_600_000);
+            return Loc.IsGerman ? $"vor {hours} Std" : $"{hours} h ago";
         }
-        return $"vor {(int)(d / 86_400_000)} Tagen";
+        var days = (int)(d / 86_400_000);
+        return Loc.IsGerman ? $"vor {days} Tagen" : $"{days} days ago";
     }
 
     public static long StartOfLocalDayMs(long nowMs)
@@ -52,12 +57,13 @@ public static class UiFormat
     {
         if (date.Date == today.Date)
         {
-            return "Heute";
+            return Loc.IsGerman ? "Heute" : "Today";
         }
         if (date.Date == today.Date.AddDays(-1))
         {
-            return "Gestern";
+            return Loc.IsGerman ? "Gestern" : "Yesterday";
         }
-        return date.ToString("dddd, d. MMM", CultureInfo.CurrentCulture);
+        var culture = Loc.IsGerman ? CultureInfo.CurrentCulture : CultureInfo.InvariantCulture;
+        return date.ToString("dddd, d. MMM", culture);
     }
 }

@@ -1,5 +1,7 @@
 package com.d_drostes_apps.aevum.ui.screens.pctracking
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,9 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -137,6 +141,10 @@ fun PcTrackingScreen(
             }
         }
 
+        // Kurze, verständliche Anleitung zur Windows-App — gilt vor wie nach der
+        // Kopplung und ist in beiden Sprachen verfügbar (strings values/values-de).
+        InstallHelpCard()
+
         Spacer(Modifier.size(AevumSpacing.xxl))
     }
 
@@ -171,7 +179,10 @@ private fun ConnectedCard(
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -184,11 +195,15 @@ private fun ConnectedCard(
                     Text("🖥", fontSize = 20.sp)
                 }
                 Spacer(Modifier.size(AevumSpacing.sm))
-                Column {
+                // Gewichtete Spalte: Der PC-Name bekommt die Restbreite und kann
+                // nicht in einen 1-Zeichen-Spalt gedrückt werden.
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         connection.deviceName.ifBlank { connection.host },
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         stringResource(R.string.pc_tracker_connected),
@@ -288,21 +303,30 @@ private fun SearchCard(state: PcTrackingUiState, viewModel: PcTrackingViewModel)
                             Text("🖥", fontSize = 16.sp)
                         }
                         Spacer(Modifier.size(AevumSpacing.sm))
+                        // Name und Status liegen in der gewichteten Spalte: Sie
+                        // bekommt die Restbreite (statt eines 1-Zeichen-Spalts),
+                        // Name bricht höchstens sauber mit „…“ ab.
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(pc.name, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                pc.name,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                             Text(
                                 "${pc.host}:${pc.port}",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Text(
+                                if (pc.pairingActive) stringResource(R.string.pc_tracker_pairing_active)
+                                else stringResource(R.string.pc_tracker_pairing_inactive),
+                                fontSize = 11.sp,
+                                color = if (pc.pairingActive) Color(0xFF34D399)
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Text(
-                            if (pc.pairingActive) stringResource(R.string.pc_tracker_pairing_active)
-                            else stringResource(R.string.pc_tracker_pairing_inactive),
-                            fontSize = 11.sp,
-                            color = if (pc.pairingActive) Color(0xFF34D399)
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
@@ -422,6 +446,49 @@ private fun PairCodeCard(
                 TextButton(onClick = { viewModel.cancelPairing() }) {
                     Text(stringResource(R.string.pc_tracker_cancel))
                 }
+            }
+        }
+    }
+}
+
+// ── Windows-App installieren (kurze Anleitung, DE/EN) ───────────────────
+
+@Composable
+private fun InstallHelpCard() {
+    val context = LocalContext.current
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                stringResource(R.string.pc_tracker_install_title),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(R.string.pc_tracker_install_step1),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                stringResource(R.string.pc_tracker_install_step2),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                stringResource(R.string.pc_tracker_install_step3),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                stringResource(R.string.pc_tracker_install_hint),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(onClick = {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Renegaded66/Aevum/releases"))
+                )
+            }) {
+                Text(stringResource(R.string.pc_tracker_install_open))
             }
         }
     }

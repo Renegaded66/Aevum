@@ -101,8 +101,14 @@ android {
         //   Neuer Guard: DisclosureCoverageTest prüft nicht mehr nur die zwei
         //   bekannten Dateien, sondern ALLE *Screen*.kt-Dateien daraufhin,
         //   dass kein Sonderzugriff ohne Dialog geöffnet wird.
-        versionCode = 25
-        versionName = "1.0.24"
+        //   PC-Tracker 1.1 (1.0.25 / 26):
+        //     – Kopplungs-Liste: PC-Name/Status brachen in extrem schmalen Spalten
+        //       um (ein Zeichen je Zeile) → gewichtete Spalte, Ellipsis.
+        //     – Sync spiegelt jetzt die Aktivitäten der App an den PC (Regeln-
+        //       Dropdown dort: „Von deinem Handy“) + Gerätename als Header.
+        //     – Kurzanleitung „Windows-App installieren“ im PC-Tracker (DE/EN).
+        versionCode = 26
+        versionName = "1.0.25"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

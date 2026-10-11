@@ -142,4 +142,30 @@
   <Style Selector="TextBox">
     <Setter Property="CornerRadius" Value="8" />
   </Style>
+
+  <!-- Aufnahme-Puls (Dashboard „Jetzt“): weiches Atmen von Glow und Punkt -->
+  <Style Selector="Border.pulseGlow">
+    <Style.Animations>
+      <Animation Duration="0:0:1.6" IterationCount="INFINITE" PlaybackDirection="Alternate">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0.15" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="0.6" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+  <Style Selector="Border.pulseDot">
+    <Style.Animations>
+      <Animation Duration="0:0:1.2" IterationCount="INFINITE" PlaybackDirection="Alternate">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="0.35" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="1" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
 </Styles>

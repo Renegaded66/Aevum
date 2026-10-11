@@ -39,6 +39,9 @@ public sealed class TrackerService : IDisposable
     /// <summary>Läuft die echte (Windows-)Probe? Sonst zeigt die UI einen Hinweis.</summary>
     public bool ProbeAvailable => _probe is not NullForegroundProbe;
 
+    /// <summary>Gerade offene Programme mit Fenster („Jetzt auf diesem PC“ im Regeln-Tab).</summary>
+    public IReadOnlyList<RunningProgram> GetRunningPrograms() => _probe.GetRunningPrograms();
+
     public void Start()
     {
         _store.RepairOpenSessions();
@@ -116,16 +119,27 @@ public sealed class TrackerService : IDisposable
         }
 
         var settings = _settings.Current;
+        var rules = _store.GetRules();
+
+        // Prozessliste nur abfragen, wenn überhaupt Hintergrund-Regeln existieren
+        // (sonst kostet jede Abfrage unnötig — sie ist der teuerste Probe-Teil).
+        IReadOnlyList<string> runningKeys = Array.Empty<string>();
+        if (rules.Any(r => r.Enabled && r.Mode == RecordMode.WhileRunning))
+        {
+            runningKeys = _probe.GetRunningPrograms().Select(p => p.ProgramKey).ToList();
+        }
+
         var upserts = _engine.Tick(new EngineTick
         {
             NowMs = now,
             Foreground = foreground,
-            Rules = _store.GetRules(),
+            Rules = rules,
             Paused = settings.TrackingPaused,
             IdleEnabled = settings.IdleEnabled,
             IdleThresholdMs = settings.IdleThresholdSeconds * 1000L,
             IdleMs = idleMs,
             TimezoneId = TimeHelper.LocalIanaTimeZoneId(),
+            RunningPrograms = runningKeys,
         });
         if (upserts.Count > 0)
         {

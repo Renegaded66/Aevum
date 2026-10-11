@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Aevum.PcTracker.Core.Models;
+using Aevum.PcTracker.Localization;
 using Aevum.PcTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,30 +11,22 @@ namespace Aevum.PcTracker.ViewModels;
 public sealed class IdleMinuteOptionViewModel
 {
     public int Minutes { get; }
-    public string Label { get; }
+    public string Label => Loc.F("s.idle_min", Minutes);
 
-    public IdleMinuteOptionViewModel(int minutes)
-    {
-        Minutes = minutes;
-        Label = $"{minutes} Minuten";
-    }
+    public IdleMinuteOptionViewModel(int minutes) => Minutes = minutes;
 }
 
 public sealed class RetentionOptionViewModel
 {
     public int Days { get; }
-    public string Label { get; }
-
-    public RetentionOptionViewModel(int days)
+    public string Label => Days switch
     {
-        Days = days;
-        Label = days switch
-        {
-            365 => "1 Jahr",
-            730 => "2 Jahre",
-            _ => $"{days} Tage",
-        };
-    }
+        365 => Loc.S("s.ret_1y"),
+        730 => Loc.S("s.ret_2y"),
+        _ => Loc.F("s.ret_days", Days),
+    };
+
+    public RetentionOptionViewModel(int days) => Days = days;
 }
 
 public partial class SettingsViewModel : ObservableObject, IRefreshable
@@ -63,19 +56,33 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
     public SettingsViewModel(AppHost host)
     {
         _host = host;
+        BuildOptions();
+        Loc.LanguageChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            // Optionen neu erzeugen, damit die Labels die neue Sprache tragen.
+            BuildOptions();
+            LoadFromSettings();
+        });
+        Refresh();
+    }
+
+    private void BuildOptions()
+    {
+        IdleOptions.Clear();
         foreach (var minutes in new[] { 5, 10, 15, 20, 30, 45, 60 })
         {
             IdleOptions.Add(new IdleMinuteOptionViewModel(minutes));
         }
+        ThresholdOptions.Clear();
         foreach (var seconds in Core.Models.ThresholdOptions.Seconds)
         {
             ThresholdOptions.Add(new ThresholdOptionViewModel(seconds));
         }
+        RetentionOptions.Clear();
         foreach (var days in new[] { 30, 90, 180, 365, 730 })
         {
             RetentionOptions.Add(new RetentionOptionViewModel(days));
         }
-        Refresh();
     }
 
     public void Refresh() => LoadFromSettings();
@@ -166,12 +173,12 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
         if (!ClearConfirmVisible)
         {
             ClearConfirmVisible = true;
-            ClearHint = "Wirklich den gesamten lokalen Verlauf löschen? Das lässt sich nicht rückgängig machen.";
+            ClearHint = Loc.S("s.set_delete_confirm");
             return;
         }
         var deleted = _host.Store.DeleteAllSessions();
         ClearConfirmVisible = false;
-        ClearHint = $"{deleted} Aufzeichnung{(deleted == 1 ? "" : "en")} gelöscht.";
+        ClearHint = Loc.F("s.set_deleted", deleted == 1 ? Loc.S("s.rec_1") : Loc.F("s.rec_n", deleted));
     }
 
     [RelayCommand]

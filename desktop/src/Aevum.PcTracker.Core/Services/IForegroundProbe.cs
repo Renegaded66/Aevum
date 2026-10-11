@@ -14,6 +14,12 @@ public interface IForegroundProbe
 
     /// <summary>Millisekunden seit der letzten Nutzereingabe (Tastatur/Maus).</summary>
     long GetIdleMs();
+
+    /// <summary>
+    /// Gerade laufende Programme mit sichtbarem Fenster (Basis für den
+    /// Regel-Modus „läuft im Hintergrund“ und die „Jetzt offen“-Liste).
+    /// </summary>
+    IReadOnlyList<RunningProgram> GetRunningPrograms();
 }
 
 /// <summary>
@@ -25,4 +31,6 @@ public sealed class NullForegroundProbe : IForegroundProbe
     public ForegroundSample? GetForeground() => null;
 
     public long GetIdleMs() => 0;
+
+    public IReadOnlyList<RunningProgram> GetRunningPrograms() => Array.Empty<RunningProgram>();
 }

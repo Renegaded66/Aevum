@@ -101,13 +101,40 @@ Header `X-Aevum-Token: <token>` (oder `Authorization: Bearer <token>`).
 
 ### GET /api/info
 ```json
-{ "app": "aevum-pc-tracker", "protocol": 1, "version": "1.0.0",
+{ "app": "aevum-pc-tracker", "protocol": 1, "version": "1.1.0",
   "deviceId": "…uuid…", "name": "DEVON-PC", "apiPort": 47825,
   "pairingActive": false, "trackingPaused": false, "retentionDays": 365 }
 ```
 
 ### POST /api/pair
 Siehe Abschnitt 3.
+
+### POST /api/activities (ab PC-Tracker 1.1)
+Die Aevum-App spiegelt bei jedem Sync ihre **Aktivitäten** zum PC — Grundlage
+für das Aktivitäts-Dropdown im Regeln-Tab der Windows-App („Von deinem Handy").
+Der PC ersetzt seinen Stand komplett (idempotenter Komplett-Abgleich):
+
+```http
+POST /api/activities
+X-Aevum-Token: <token>
+X-Aevum-Client: Devons Handy
+
+{ "clientName": "Devons Handy",
+  "activities": [ { "key": "gaming", "name": "Zocken", "icon": "🎮",
+                    "categoryKey": "leisure" } ] }
+```
+
+Antwort: `{ "ok": true, "count": 12, "serverTime": … }`. Regeln, die auf eine
+so gespiegelte Aktivität zeigen, werden in `/api/sessions` mit deren
+`activityName`/`categoryKey`/`icon` ausgeliefert — so ordnet die App sie beim
+Import per Namen wieder exakt derselben Aktivität zu. Eine ältere PC-Version
+ohne diesen Endpunkt antwortet `404` — die App wertet das als „nicht
+unterstützt" und macht mit dem Session-Sync weiter.
+
+### Client-Name in Anfragen
+Optional sendet die App bei `/api/sessions` und `/api/activities` den Header
+`X-Aevum-Client: <Gerätename>` — die Windows-App zeigt damit „Handy verbunden —
+<Name>" samt letztem Sync-Zeitpunkt an. Ohne Header bleibt nur der Zeitpunkt.
 
 ### GET /api/sessions?since=\<epochMs\>&limit=\<n\>
 - `since` (optional, Default 0): liefert Sessions mit `endAt > since`.
@@ -170,34 +197,56 @@ Der Nutzer ordnet jedem Programm **einmal** eine Aktivität zu
 `activityName` + `categoryKey` + `icon` — Aevum braucht dadurch **kein**
 Vorwissen über den Katalog.
 
+### 5b. Aktivitäts-Spiegel vom Handy (ab PC-Tracker 1.1)
+
+Sobald die App synchronisiert hat (Abschnitt 4, `POST /api/activities`), zeigt
+das Aktivitäts-Dropdown der Windows-App **zuerst die Aktivitäten aus Aevum**
+(auch selbst angelegte, z. B. „Zocken"), darunter den lokalen Katalog ohne
+Namens-Dubletten. So gilt überall dieselbe Zuordnung: Die App erstellt die
+Aktivität, der PC wählt sie beim Anlegen einer Regel aus, und der Import findet
+sie beim Sync über den Namen wieder.
+
+### 5c. Aufnahme-Modus pro Regel (ab PC-Tracker 1.1)
+
+Jede Regel hat einen Modus:
+
+- **`foreground` (Standard):** Aufgezeichnet wird nur, solange das Programm das
+  Vordergrundfenster ist (klassisches Verhalten, inkl. Threshold-Fenster).
+- **`while_running`:** Aufgezeichnet wird, solange der **Prozess läuft** — auch
+  minimiert/im Hintergrund (Musik, Spiele-Launcher). Spezifik:
+  - Start: sobald der Prozess läuft (Start = erste Sicht; nicht rückwirkend).
+  - Übernimmt ein **anderes zugeordnetes** Programm den Vordergrund, endet die
+    Hintergrund-Session **zu diesem Zeitpunkt**; nach dessen Ende läuft sie
+    weiter (Neustart an das Session-Ende gekappt, keine großen Überlappungen).
+  - Ende wie sonst: Prozess weg länger als der Threshold bzw. Inaktivitäts-/
+    Pausen-Regeln. Es bleibt immer höchstens **eine** Session aktiv.
+
 ---
 
 ## 6. Import in Aevum (idempotent)
 
-- **DataSource:** pro PC eine Zeile `data_source` — `id = "pc_tracker_<deviceId>"`,
-  `type = "PC_TRACKER"`, `name = <PC-Name>`. Die Kopplung lebt in `config_json`:
+**Ist-Stand der Umsetzung (bewusst minimal, kein Schema-Update):**
 
-```json
-{ "host": "192.168.178.42", "port": 47825, "token": "…",
-  "deviceId": "…", "pcName": "DEVON-PC", "lastSyncAtMs": 1759998700000,
-  "activityMap": { "gaming": "<activityTypeId>" } }
-```
-
-  (`host` wird bei jeder Discovery aktualisiert — DHCP-Wechsel heilt sich so.)
-- **external_id der Session:** `pctracker:<deviceId>:<sessionId>`.
+- **DataSource:** pro PC eine Zeile `data_source` — `id = "pc_<deviceId>"`,
+  `type = "pc_tracker"`, `name = <PC-Name>`, `config_json = { "host", "port",
+  "deviceId" }`. Der Sync-Stand liegt im `last_sync_at`-Feld der DataSource
+  (und in den App-Prefs).
+- **external_id der Session:** `"pc_<Session-UUID des PCs>"`.
   Gleiche externalId = gleicher Datensatz → **UPDATE statt INSERT** (idempotent,
-  wiederholter Sync erzeugt keine Duplikate; Garmin-Import nutzt dasselbe Prinzip).
-- **Zuordnung Aktivität → ActivityType:** 1) `activityMap` aus `config_json`,
-  2) sonst existierender ActivityType mit gleichem Namen (case-insensitive),
-  3) sonst **anlegen** (Name, Kategorie aus `categoryKey`, Icon, `isSystem=false`,
-  Positivität 50 = neutral) und in `activityMap` merken.
+  wiederholter Sync erzeugt keine Duplikate).
+- **Zuordnung Aktivität → ActivityType:** 1) existierender ActivityType mit
+  gleichem Namen (case-insensitive), 2) existierender Typ mit der stabilen ID
+  `"pc_<activityKey>"`, 3) sonst **anlegen** (Name = `activityName`, Kategorie
+  aus `categoryKey` wenn im Seed bekannt, Icon vom PC, `isSystem = false`).
+  Selbst angelegte Aktivitäten aus Aevum werden dadurch automatisch gefunden —
+  genau deshalb ist der Aktivitäts-Spiegel (5b) wichtig.
 - **Session-Felder:** `title = activityName`, `description = programName`,
-  `sourceType = "PC_TRACKING"`, `createdBy = "PC_IMPORT"`,
-  `originDeviceId = <deviceId>`, `timezoneId` vom PC, `confidence = 1.0`.
-- **Rohereignis:** Jede übernommene Session wird zusätzlich als
-  `raw_source_event` (`event_type = "PC_SESSION"`, `payload_json` = Original)
-  abgelegt — Aevum-Architekturprinzip „Rohsignale getrennt von Sessions".
-- **Cursor:** `lastSyncAtMs` = `endAt` der letzten gelieferten Session.
+  `sourceType = "PC_TRACKER"`, `createdBy = "PC_IMPORT"`, `timezoneId` vom PC,
+  `confidence = 1.0`, `externalId` siehe oben.
+- **Nutzer-Änderungen gewinnen:** Wer eine importierte Session in Aevum
+  bearbeitet hat (`isUserEdited`), wird bei späteren Syncs **nicht** überschrieben.
+- **Cursor:** `lastSyncAt`, mit 1 h Überlappung beim `since`-Wert — Grenzfälle
+  sind dank Idempotenz harmlos.
 - **Kein Schema-Update:** Alles nutzt bestehende Tabellen (DB-Version bleibt).
 
 ---

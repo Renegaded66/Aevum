@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using Aevum.PcTracker.Core.Models;
+using Aevum.PcTracker.Localization;
 using Aevum.PcTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -24,7 +26,8 @@ public partial class HistoryViewModel : ObservableObject, IRefreshable
 
     private readonly AppHost _host;
 
-    [ObservableProperty] private int _rangeIndex; // 0 = heute, 1 = 7 Tage, 2 = 30 Tage
+    /// <summary>0 = heute, 1 = 7 Tage, 2 = 30 Tage, 3 = gesamt.</summary>
+    [ObservableProperty] private int _rangeIndex;
     [ObservableProperty] private bool _isEmpty;
     [ObservableProperty] private string _summaryText = "";
 
@@ -33,6 +36,7 @@ public partial class HistoryViewModel : ObservableObject, IRefreshable
     public HistoryViewModel(AppHost host)
     {
         _host = host;
+        Loc.LanguageChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(Refresh);
         Refresh();
     }
 
@@ -48,12 +52,16 @@ public partial class HistoryViewModel : ObservableObject, IRefreshable
         {
             0 => dayStart,
             1 => dayStart - 6 * DayMs,
-            _ => dayStart - 29 * DayMs,
+            2 => dayStart - 29 * DayMs,
+            _ => 0L,
         };
 
         var sessions = _host.Store.QueryCompletedSessions(since, 3000)
             .OrderByDescending(s => s.StartAtMs)
             .ToList();
+
+        var syncedLookup = _host.Store.GetSyncedActivities()
+            .ToDictionary(a => a.Key, StringComparer.OrdinalIgnoreCase);
 
         Days.Clear();
         var today = DateTime.Today;
@@ -64,13 +72,16 @@ public partial class HistoryViewModel : ObservableObject, IRefreshable
             var total = list.Sum(s => s.DurationMs);
             Days.Add(new DayGroupViewModel(
                 UiFormat.DayLabel(group.Key, today),
-                $"{UiFormat.Duration(total)} · {list.Count} Aufzeichnung{(list.Count == 1 ? "" : "en")}",
-                list.Select(s => SessionRowViewModel.From(s, now)).ToList()));
+                $"{Recordings(list.Count)} · {UiFormat.Duration(total)}",
+                list.Select(s => SessionRowViewModel.From(s, now, syncedLookup)).ToList()));
         }
 
         IsEmpty = Days.Count == 0;
         SummaryText = sessions.Count == 0
             ? ""
-            : $"{sessions.Count} Aufzeichnungen · {UiFormat.Duration(sessions.Sum(s => s.DurationMs))} gesamt";
+            : Loc.F("s.hist_summary", Recordings(sessions.Count), UiFormat.Duration(sessions.Sum(s => s.DurationMs)));
     }
+
+    private static string Recordings(int count) =>
+        count == 1 ? Loc.S("s.rec_1") : Loc.F("s.rec_n", count);
 }
