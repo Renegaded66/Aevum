@@ -1,6 +1,7 @@
 # Roadmap
 
-Aktueller Stand: M0/M1/M2 abgeschlossen.
+Aktueller Stand: M0–M18 abgeschlossen, M19.1 (Projektmanagement) abgeschlossen.
+Maßgeblich ist `docs/ROADMAP.md` — diese Datei ist nur eine Kurzfassung.
 
 Abgeschlossener Meilenstein: M2 Android-Projektgrundlage für Aevum.
 
@@ -19,3 +20,6 @@ Langfristige Roadmap:
 - [ ] M10 Polish/Performance/Release
 
 Siehe `docs/ROADMAP.md`.
+
+- [x] M19.1 Projektmanagement (Projekt/Unterprojekt/Kategorie/Aufgabe/Schritte,
+      Tagesplan, Glas mit Juwelen, Feuerwerk, Fortschrittsbalken)

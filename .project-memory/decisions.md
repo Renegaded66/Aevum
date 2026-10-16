@@ -30,3 +30,43 @@ Wichtige aktuelle Entscheidungen:
 - App-Aufzeichnung × Digital (App 1.0.30): "Vordergrund" hat genau EINE Definition — `ForegroundTracker` (pure, 8 Tests), genutzt vom Service-Poll UND von `ForegroundAppProbe` (One-Shot-Query des ScreenRecordingWorkers). Der Digital-Worker startet nie, wenn eine getrackte App im Vordergrund ist (Probe der letzten 2 min + prozess-lokaler Poll-Schnappschuss `AppTrackingService.recentPollSnapshot(90s)` für "App seit Stunden ruhig"), und stupst stattdessen den AppTrackingService an.
 - App-Aufzeichnung × Digital (App 1.0.30): Nach dem Ende einer App-Aufzeichnung setzt der Service den Digital-Start mit der konfigurierten Vorlaufzeit neu an (EINE Funktion `ScreenRecordingWorker.schedule()`, EIN UniqueWork-Name — auch der ScreenEventReceiver nutzt sie). Screen-OFF beendet die App-Session SOFORT (konsistent zu M18.138); vorher lief sie eingefroren bis zum nächsten Entsperren (Nacht-Falschblock). Jede App-Session startet die Live-Notification.
 - App-Aufzeichnung × Digital (App 1.0.30, Nachtrag): Verwaiste App-Tracking-Sessions (FGS-System-Kill, `trackedSessionId` leer, Session lebt weiter) zaehlen ueber `sourceType == APP_TRACKING` weiter zur Smartphone-Familie — Take-over-Pruefung (`isOwnSession`) und `stopOwnSessionIfRunning()` behandeln sie wie eine eigene Session, sonst blockierte sie fuer immer jeden Wechsel ohne je gestoppt zu werden. Fremde Quellen bleiben unberuehrt; nur dieses Feature erzeugt `APP_TRACKING`.
+
+---
+
+## M19.1 (17.10.2026)
+
+**Entscheidung:** Ein selbstreferenzieller Baum (`pm_node`) statt fünf
+Tabellen für Projekte/Kategorien/Aufgaben/Schritte.
+**Grund:** Der Nutzer beschreibt eine offene Hierarchie („verschachtelt").
+Fünf Tabellen hätten jede weitere Ebene zu einer Migration gemacht; die
+Rekursion läuft stattdessen in Kotlin über einen vollständig geladenen,
+indexierten Baum (unter 1 ms bei diesen Datenmengen).
+**Verworfen:** Materialized Path, Closure Table (Nutzen erst bei
+Zehntausenden Knoten), feste Ebenen-Tabellen.
+**Konsequenz:** Ein DAO, ein Repository, ein Editor; Umzüge sind ein UPDATE.
+Der Umzug in den eigenen Teilbaum wird vom Repository abgelehnt (Rückgabe
+false, es wird nichts geschrieben).
+
+**Entscheidung:** `done_at` als einzelner Zeitstempel statt eigener
+Erledigungs-Tabelle.
+**Grund:** Ein PM-Schritt wird genau einmal erledigt (keine Serien). Aus dem
+Zeitstempel entsteht der 7-Tage-Verlauf ohne zusätzliche Tabelle.
+
+**Entscheidung:** Getrenntes PM-Modul, KEINE Wiederverwendung der bestehenden
+`todo`/`todo_completion`-Tabellen.
+**Grund:** Das bestehende Modul ist ein Serien-/Gewohnheits-System (Recurrence,
+Streaks, Auto-Check per Dauer). PM-Schritte sind einmalige, tagzuweisbare
+Kleinschritte. Eine Vermischung hätte beide Modelle verzerrt und 1114
+Bestandstests gefährdet.
+
+**Entscheidung:** Feuerwerk nur beim Übergang auf „voll", persistiert pro Tag
+(`PmCelebrationStore`).
+**Grund:** Eine an „100 %" hängende Animation feuert sonst bei jeder
+Neukomposition (Scrollen, Rotation, Rückkehr, DB-Emission). Der Nutzer fordert
+ausdrücklich KEINE Spielerei-Mechanik — die Belohnung darf deshalb nicht
+verpuffen.
+
+**Entscheidung:** Zähler der offenen Schritte am Dashboard-Knopf, aber in einem
+EIGENEN `PmEntryViewModel`.
+**Grund:** Minimaler Eingriff in das 77-KB-DashboardViewModel, kein Risiko für
+die bestehenden Tests; der Zähler macht den Tag ohne einen Tipp ablesbar.
