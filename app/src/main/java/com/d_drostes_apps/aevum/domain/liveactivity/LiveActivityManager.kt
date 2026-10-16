@@ -308,6 +308,27 @@ class LiveActivityManager @Inject constructor(
         )
     }
 
+    /**
+     * M18.151: Stoppt die laufende Session NUR, wenn es genau [sessionId] ist
+     * (Race-Schutz für die Digital→App-Übergabe im AppTrackingService).
+     *
+     * Hintergrund: Zwischen „liveSession lesen" und „stop aufrufen" können
+     * Millisekunden liegen — hat in der Zwischenzeit eine HÖHERPRIORE
+     * Session übernommen (z. B. die Fahrterkennung via start()), darf die
+     * Übergabe sie NIE stoppen (User-Rangfolge: Autofahrt hat immer
+     * Vorrang). In einem Prozess läuft das hier atomar genug: Der Vergleich
+     * und der Stop passieren ohne Suspension dazwischen (stop() liest
+     * liveSession erneut, aber derselbe Dispatcher-Coroutine-Kontext hält
+     * den Zustand stabil, und ein etwaiges Fremd-starten() hätte die ID
+     * bereits geändert → Vergleich schlägt fehl → nichts passiert).
+     */
+    suspend fun stopIfLive(sessionId: String): Boolean {
+        val session = liveSession.value ?: return false
+        if (!session.isLive || session.id != sessionId) return false
+        stop()
+        return true
+    }
+
     /** M18.62-FIX: endAt für Finish-Pfade — bei PAUSED bleibt der Pause-Zeitpunkt. */
     private fun finishEndAt(session: ActivitySession, now: Long): Long =
         if (session.isPaused) session.endAt ?: now else now

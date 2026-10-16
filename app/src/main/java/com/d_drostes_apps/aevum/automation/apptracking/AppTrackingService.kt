@@ -30,31 +30,49 @@ import javax.inject.Inject
 
 /**
  * M18.67: APP-AUFZEICHNUNG — automatische Activity-Aufzeichnung pro App.
+ * M18.151: Übergabe-Regeln zwischen „Digital" und App-Aufzeichnung
+ * (User-Report: „… stoppt leider auch nicht die Aufzeichnung von Digital
+ * und die neue Aufzeichnung von der zugewiesenen [App wird] gestartet,
+ * sondern fälschlicherweise wird einfach weiterhin nur Digital
+ * aufgezeichnet.").
  *
  * User-Spezifikation:
  *  - Apps, die in der App-Aufzeichnung (rechte Spalte) stehen, werden
  *    automatisch als Activity aufgezeichnet, wenn sie in den Vordergrund
  *    kommen (z.B. Instagram → "Doomscrolling").
- *  - App schließen → die gestartete Session wird gestoppt.
- *  - App öffnen, während eine ANDERE Aufzeichnung läuft → nichts passiert.
+ *  - App schließen → die gestartete Session wird gestoppt („direkt nach
+ *    Beenden der App soll die aktuelle stoppen").
  *  - App öffnen, während die EIGENE App-Tracking-Session läuft (Wechsel
  *    von getrackter App A zu getrackter App B) → A stoppen, B starten
- *    (konsistent mit "Neue Trigger stoppen laufende").
+ *    (konsistent mit "Neue Trigger stoppen laufende") — „und zwar direkt".
+ *  - M18.151: App öffnen, während „Digital" (SCREEN_AUTO) läuft → Digital
+ *    wird SOFORT gestoppt, die zugewiesene Activity beginnt (Übergabe;
+ *    Regeln zentral in [AppTrackingTakeoverPolicy]).
+ *  - M18.151: Endet die App-Aufzeichnung, wird der Digital-Start über
+ *    [ScreenRecordingWorker.schedule] neu angesetzt — ohne neuen
+ *    Screen-ON-Zyklus startet „Digital" sonst nie wieder („Falls dann
+ *    2 Minuten das Display an ist ohne eine ausgewählte App, dann soll
+ *    Digital wieder starten.").
+ *  - M18.151: Screen OFF beendet auch die App-Aufzeichnung SOFORT (vorher
+ *    lief sie eingefroren bis zum nächsten Entsperren weiter → falscher
+ *    Riesen-Block über die Nacht).
+ *  - RANGFOLGE (zwingend, User): „… das bezieht sich nur auf Smartphone-
+ *    Aufzeichnungen — Geofence-, sportliche, manuell gestartete und
+ *    Autofahrt-Aufzeichnungen haben immer Vorrang." Der Service stoppt/
+ *    übernimmt daher NUR Sessions der Smartphone-Familie (eigene
+ *    APP_TRACKING-Session + SCREEN_AUTO); alles andere wird nie angefasst.
  *
  * Technik: ForegroundService (specialUse) mit UsageStats-Event-Polling
- * alle 5s. Kein GPS, kein ActivityRecognition — nur die Event-API, die
+ * alle 15s. Kein GPS, kein ActivityRecognition — nur die Event-API, die
  * auch Digital Balance nutzt. Der Service läuft nur, wenn mindestens
  * eine App getrackt ist (Gate in start()/onStartCommand).
- *
- * WICHTIG (Fremd-Sessions-Schutz): Der Service stoppt NUR Sessions, die
- * er selbst gestartet hat (sourceType == "APP_TRACKING" + eigene ID).
- * Eine laufende Geofence-/Drive-/manuelle Session wird NIE angefasst.
  */
 @AndroidEntryPoint
 class AppTrackingService : Service() {
 
     @Inject lateinit var liveActivityManager: LiveActivityManager
     @Inject lateinit var trackingRepository: AppTrackingEntryRepository
+    @Inject lateinit var automationSettingsDao: com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: kotlinx.coroutines.Job? = null
@@ -106,6 +124,28 @@ class AppTrackingService : Service() {
         // Sticky-Guard bricht NUR Intents OHNE Action (System-Rebirth).
         // JEDER interne Start setzt sie, siehe start().
         const val ACTION_INTERNAL_START = "com.d_drostes_apps.aevum.APP_TRACKING_INTERNAL_START"
+
+        // M18.151: Letzter Vordergrund-Schnappschuss des Polls —
+        // PROZESS-LOKAL. Der ScreenRecordingWorker (gleicher Prozess) darf
+        // „Digital" nicht starten, wenn eine getrackte App im Vordergrund
+        // ist; dieses Cache liefert die Antwort exakt (der Service ist die
+        // Autorität für den Vordergrund), ohne im Worker neue UsageStats-
+        // Semantik zu duplizieren. Frische-Guard: ältere Werte sind nichts
+        // wert (der Service pollt bei Screen an alle 15s).
+        @Volatile private var pollSnapshotPackage: String? = null
+        @Volatile private var pollSnapshotAtMs: Long = 0L
+        @Volatile private var pollSnapshotValid: Boolean = false
+
+        /**
+         * M18.151: Zuletzt gepollter Vordergrund (null = Homescreen o. ä.),
+         * nur wenn höchstens [maxAgeMs] alt. null = kein frischer Wert.
+         */
+        fun recentPollSnapshot(maxAgeMs: Long): String? {
+            if (!pollSnapshotValid) return null
+            return if (System.currentTimeMillis() - pollSnapshotAtMs <= maxAgeMs) {
+                pollSnapshotPackage
+            } else null
+        }
 
         fun start(context: Context) {
             // M18.122 (D3): Interne Starts tragen explizit
@@ -284,7 +324,29 @@ class AppTrackingService : Service() {
                             }
                         }
                     }
-                    Intent.ACTION_SCREEN_OFF -> screenOn = false
+                    Intent.ACTION_SCREEN_OFF -> {
+                        screenOn = false
+                        // M18.151 (User-Spec: „Und zwar direkt. Also direkt
+                        // nach Beenden der App soll die aktuelle stoppen."):
+                        // Die App-Aufzeichnung endet SOFORT mit dem
+                        // Bildschirm. VORHER lief sie eingefroren bis zum
+                        // nächsten Entsperren weiter — lag das Handy über
+                        // Nacht mit offener Instagram-Session, entstand ein
+                        // falscher Riesen-Block bis zum Morgen (die Pause-
+                        // Events des System wurden wegen des 17s-Event-
+                        // Fensters nie gesehen). Konsistent mit M18.138
+                        // („Bildschirm-Aufzeichnung stoppt sofort bei OFF").
+                        if (pollingJob?.isActive == true) {
+                            scope.launch {
+                                try {
+                                    stopOwnSessionIfRunning()
+                                    currentTrackedApp = null
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Screen-OFF-Stop fehlgeschlagen: ${e.message}")
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -323,25 +385,29 @@ class AppTrackingService : Service() {
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            when (event.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND,
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    lastKnownForeground = event.packageName
-                }
-                UsageEvents.Event.MOVE_TO_BACKGROUND,
-                UsageEvents.Event.ACTIVITY_PAUSED,
-                UsageEvents.Event.ACTIVITY_STOPPED -> {
-                    if (event.packageName == lastKnownForeground) {
-                        lastKnownForeground = null
-                    }
-                }
-            }
+            // M18.151: Faltung als PURE Logik ausgelagert ([ForegroundTracker],
+            // unit-getestet) — identische Semantik wie zuvor, jetzt aber auch
+            // vom [ForegroundAppProbe] (ScreenRecordingWorker) genutzt, damit
+            // es nur EINE Definition von „Vordergrund" gibt.
+            lastKnownForeground = ForegroundTracker.next(
+                current = lastKnownForeground,
+                packageName = event.packageName ?: "",
+                isForegroundEvent = event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
+                    event.eventType == UsageEvents.Event.ACTIVITY_RESUMED,
+                isBackgroundEvent = event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND ||
+                    event.eventType == UsageEvents.Event.ACTIVITY_PAUSED ||
+                    event.eventType == UsageEvents.Event.ACTIVITY_STOPPED
+            )
         }
         isFirstPoll = false
     }
 
     private suspend fun pollForegroundApp() {
         processForegroundEvents()
+        // M18.151: Schnappschuss für den ScreenRecordingWorker (gleicher
+        // Prozess) — VOR den frühen Returns, damit JEDER Poll den Stand
+        // aktualisiert (auch „Homescreen").
+        rememberForegroundSnapshot()
         val foreground = lastKnownForeground ?: run {
             // Keine App im Vordergrund (Homescreen/Sperrbildschirm) →
             // eigene Session stoppen, falls eine läuft.
@@ -373,22 +439,41 @@ class AppTrackingService : Service() {
             return
         }
 
-        // Neue getrackte App im Vordergrund.
+        // Neue getrackte App im Vordergrund — M18.151: Übergabe-Regeln
+        // zentral in [AppTrackingTakeoverPolicy] (unit-getestet):
+        //   nichts live → starten · eigene Session → Wechsel (A→B) ·
+        //   Digital (SCREEN_AUTO) → ÜBERNEHMEN · alles Fremde → Vorrang.
         val live = liveActivityManager.liveSession.value
-        val ownSessionRunning = live != null && live.id == trackedSessionId
+        val action = AppTrackingTakeoverPolicy.onTrackedForeground(
+            liveSourceType = live?.sourceType,
+            isOwnSession = live != null && live.id == trackedSessionId
+        )
 
-        if (live != null && !ownSessionRunning) {
-            // Eine FREMDE Aufzeichnung läuft (Geofence/Drive/manuell) →
-            // User-Regel: "Wenn ich schon was anderes aufzeichne und dann
-            // Instagram öffne soll nichts passieren."
-            Log.d(TAG, "Fremde Session läuft (${live.id}) — kein Auto-Start für $foreground")
-            currentTrackedApp = foreground
-            return
-        }
-
-        // Eigene Session stoppen (Wechsel getrackte App A → B)
-        if (ownSessionRunning) {
-            stopOwnSessionIfRunning()
+        when (action) {
+            AppTrackingTakeoverPolicy.Action.KEEP_FOREIGN -> {
+                // Geofence/Fahrt/Sport/manuell/Kalender läuft → NICHTS
+                // anfassen (User-Rangfolge). Auch kein Start.
+                Log.d(TAG, "Fremde Session läuft (source=${live?.sourceType}) — kein Auto-Start für $foreground (Rangfolge)")
+                currentTrackedApp = foreground
+                return
+            }
+            AppTrackingTakeoverPolicy.Action.TAKE_OVER_DIGITAL -> {
+                val digital = live ?: return
+                // Race-Schutz: NUR stoppen, wenn EXAKT diese Session noch
+                // live ist — hat in der Zwischenzeit z. B. die Fahrterkennung
+                // übernommen, wird sie nie angefasst.
+                if (!liveActivityManager.stopIfLive(digital.id)) {
+                    Log.d(TAG, "Digital-Übergabe abgebrochen — Live-Session hat inzwischen gewechselt")
+                    currentTrackedApp = foreground
+                    return
+                }
+                Log.d(TAG, "Digital (${digital.id}) SOFORT gestoppt — App-Aufzeichnung $foreground übernimmt")
+            }
+            AppTrackingTakeoverPolicy.Action.STOP_AND_START -> {
+                // Eigene Session stoppen (Wechsel getrackte App A → B)
+                stopOwnSessionIfRunning()
+            }
+            AppTrackingTakeoverPolicy.Action.START_APP -> Unit // nichts zuvor zu tun
         }
 
         // Auto-Start der zugeordneten Activity
@@ -397,10 +482,16 @@ class AppTrackingService : Service() {
             val session = liveActivityManager.start(
                 activityTypeId = typeId,
                 title = null,
-                sourceType = "APP_TRACKING"
+                sourceType = AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING
             )
             trackedSessionId = session.id
             currentTrackedApp = foreground
+            // M18.151: Live-Notification sicherstellen — vorher startete NUR
+            // der Digital-Pfad den LiveActivityService; eine App-Session aus
+            // dem Leerlauf heraus lief ohne Live-Banner (M18.21-Restore griff
+            // nur beim App-Prozess-Start). Beim Digital-Übernahme-Fall läuft
+            // der Service ohnehin — der Aufruf ist dann ein No-Op.
+            com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
             Log.d(TAG, "Auto-Start: $foreground → Session ${session.id} (Typ $typeId)")
         } catch (e: Exception) {
             Log.e(TAG, "Auto-Start fehlgeschlagen für $foreground", e)
@@ -409,13 +500,22 @@ class AppTrackingService : Service() {
         }
     }
 
+    /** M18.151: Letzten Vordergrund-Stand für externe Konsumenten ablegen. */
+    private fun rememberForegroundSnapshot() {
+        pollSnapshotPackage = lastKnownForeground
+        pollSnapshotAtMs = System.currentTimeMillis()
+        pollSnapshotValid = true
+    }
+
     /** Stoppt die eigene Session, falls sie noch live ist. */
     private suspend fun stopOwnSessionIfRunning() {
         val sessionId = trackedSessionId ?: return
-        val live = liveActivityManager.liveSession.value
-        if (live != null && live.id == sessionId) {
+        // M18.151: stopIfLive statt unbedingtem stop() — falls die eigene
+        // Session inzwischen durch etwas Höherpriores ersetzt wurde (z. B.
+        // Fahrt-Start), wird NICHTS angefasst.
+        val stopped = liveActivityManager.stopIfLive(sessionId)
+        if (stopped) {
             try {
-                liveActivityManager.stop()
                 // M18.134 (Kanban t_0bf5541e): Ein App-Tracking-Ende kann
                 // einen Kalender-Termin verdrängt haben (jeder Auto-Start
                 // trimmt die laufende CALENDAR_AUTO-Session) — Termin-
@@ -424,11 +524,39 @@ class AppTrackingService : Service() {
                 com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
                     .restartNow(applicationContext)
                 Log.d(TAG, "Auto-Stop: Session $sessionId")
+                // M18.151 (User-Spec: „Falls dann 2 Minuten das Display an
+                // ist ohne eine ausgewählte App, dann soll Digital wieder
+                // starten."): Digital-Neuansatz einplanen. Ohne diesen
+                // Aufruf hing der Digital-Start NUR am nächsten
+                // Screen-ON-Zyklus — wer nach dem App-Ende am selben
+                // Bildschirm-Einschaltvorgang weiternutzte, bekam nie
+                // wieder Digital. Der Worker prüft beim Feuern selbst
+                // (nichts live? Screen an? keine getrackte App im
+                // Vordergrund?) — REPLACE macht den Aufruf idempotent.
+                scheduleDigitalRecheck()
             } catch (e: Exception) {
-                Log.e(TAG, "Auto-Stop fehlgeschlagen", e)
+                Log.e(TAG, "Auto-Stop-Nachbereitung fehlgeschlagen", e)
             }
         }
         trackedSessionId = null
+    }
+
+    /** M18.151: „Digital" nach dem App-Ende mit der konfigurierten
+     *  Vorlaufzeit neu ansetzen (gleicher UniqueWork-Name wie der
+     *  ScreenEventReceiver — ein einziger ausstehender Start). */
+    private suspend fun scheduleDigitalRecheck() {
+        try {
+            val settings = automationSettingsDao.getSettingsSync()
+            val minutes = settings?.screenRecordingMinutes ?: 5
+            if (minutes == com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.DEACTIVATED) return
+            com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker.schedule(
+                applicationContext,
+                minutes.coerceAtLeast(0).toLong()
+            )
+            Log.d(TAG, "Digital-Neuansatz geplant (+${minutes}min nach App-Ende)")
+        } catch (e: Exception) {
+            Log.w(TAG, "Digital-Neuansatz konnte nicht geplant werden: ${e.message}")
+        }
     }
 
     private fun createNotificationChannel() {

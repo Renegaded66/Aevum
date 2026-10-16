@@ -129,8 +129,16 @@ android {
         //   Ressourcen-Schrumpfen aktiviert (android.r8.optimizedResourceShrinking)
         //   — die Console beanstandete die deaktivierte R8-Ressourcen-
         //   Optimierung im Release "Google play policy fix".
-        versionCode = 30
-        versionName = "1.0.29"
+        // M18.151 (App 1.0.30, App-Aufzeichnung × Digital): Übergabe-Regeln
+        //   der Smartphone-Aufzeichnungen — eine getrackte App übernimmt
+        //   SOFORT von "Digital" (SCREEN_AUTO), App-Wechsel stoppen/starten
+        //   direkt, Screen-OFF beendet die App-Session sofort, nach dem
+        //   App-Ende setzt sich "Digital" nach der Vorlaufzeit selbst neu
+        //   an, und der Digital-Worker startet nie, wenn eine getrackte App
+        //   im Vordergrund ist. Fremde Sessions (Geofence/Fahrt/Sport/
+        //   manuell/Kalender) behalten strikt Vorrang.
+        versionCode = 31
+        versionName = "1.0.30"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

@@ -1,5 +1,73 @@
 # CHANGELOG
 
+## [Unreleased] — M18.151 — 2026-10-16
+
+### Behoben — App-Aufzeichnung × Digital: Übergabe-Regeln der Smartphone-Aufzeichnungen
+
+- **Anlass (User-Report):** „Irgendwie funktioniert die App-Aufzeichnung nicht so
+  ganz. […] wenn der Threshold bei 2 Minuten liegt, ich aber bereits nach
+  30 Sekunden Instagram öffne, und unter App-Aufzeichnung Instagram einer
+  Activity zugewiesen habe, dann wird einfach weiterhin die ganze Zeit Digital
+  aufgezeichnet. […] und auch nach den zwei Minuten Threshold, wenn also die
+  Aufzeichnung von Digital schon gestartet ist und ich dann Instagram öffne,
+  stoppt leider auch nicht die Aufzeichnung von Digital und die neue
+  Aufzeichnung von der zugewiesenen Instagram wird gestartet, sondern
+  fälschlicherweise wird einfach weiterhin nur Digital aufgezeichnet. […]
+  Falls dann 2 Minuten das Display an ist ohne eine ausgewählte App, dann soll
+  Digital wieder starten."
+- **Ursache (drei Lücken):**
+  1. Eine laufende **Digital**-Session (`SCREEN_AUTO`) galt für den
+     AppTrackingService als „fremde" Aufzeichnung → beim Öffnen einer
+     getrackten App passierte NICHTS, Digital lief weiter.
+  2. Nach dem Ende einer App-Aufzeichnung wurde **nichts neu angesetzt** —
+     der Digital-Start hing nur am nächsten Screen-ON-Zyklus; wer am selben
+     Bildschirm-Einschaltvorgang weiternutzte, bekam nie wieder Digital.
+  3. App-Sessions **überlebten Screen-OFF** (eingefrorener Vordergrund-Status)
+     bis zum nächsten Entsperren → falscher Riesen-Block über die Nacht.
+- **Fix (M18.151):**
+  - **Übergabe-Regeln zentral** in `AppTrackingTakeoverPolicy` (pure,
+    unit-getestet): nichts läuft → App starten; eigene Session → Wechsel
+    A→B („und zwar direkt"); **Digital läuft → SOFORT übernehmen** (Digital
+    endet exakt jetzt, App-Activity beginnt); alles Fremde → nichts anfassen.
+  - **Rangfolge strikt:** Geofence, sportliche, manuell gestartete und
+    Autofahrt-Aufzeichnungen (plus Kalender-Fallback) werden NIE gestoppt
+    oder übernommen — auch der eigene Stop-Pfad läuft jetzt über den
+    Race-sicheren `LiveActivityManager.stopIfLive(sessionId)`.
+  - **Digital-Neuansatz nach App-Ende:** Der AppTrackingService plant den
+    `ScreenRecordingWorker` mit der konfigurierten Vorlaufzeit neu ein
+    (ein zentraler Einplan-Punkt `ScreenRecordingWorker.schedule()`, den
+    auch der ScreenEventReceiver nutzt) → „Falls dann 2 Minuten das Display
+    an ist ohne eine ausgewählte App, dann soll Digital wieder starten."
+  - **Screen-OFF beendet die App-Aufzeichnung sofort** (konsistent zu
+    M18.138 für Digital); beim Wiedereinschalten startet der Wiedereinstieg
+    in die App sauber als neue Session.
+  - **Digital-Worker startet nie über einer getrackten App:** Beim Feuern
+    prüft er den Vordergrund (Event-Probe der letzten 2 Minuten +
+    Poll-Schnappschuss des AppTrackingService) und stupst bei einem Treffer
+    den AppTrackingService an, statt Digital zu starten.
+  - **Nebenbefund behoben:** Eine App-Session aus dem Leerlauf heraus startete
+    bisher KEINE Live-Notification (nur der Digital-Pfad tat das) — jetzt
+    startet jede App-Session den LiveActivityService.
+- **Akku:** Kein neuer Dauerläuft-Pfad — der Worker-Guard nutzt die
+  bestehenden 15s-Polls (Schnappschuss, prozess-lokal), die Event-Probe ist
+  ein einmaliger Query pro Worker-Feuern. Keine Erhöhung der Poll-Frequenz.
+- **Verifikation:** 30 neue Tests (11 Takeover-Policy, 8 Foreground-Folding,
+  11 Verdrahtungs-Regression) — **1114/1114 grün**, 0 Fehler/Errors,
+  1 vorbestehender Skipped. Release-APK + AAB in 1.0.30 (versionCode 31).
+
+### Technik-Details
+
+- `automation/apptracking/AppTrackingTakeoverPolicy.kt` (neu, pure),
+  `automation/apptracking/ForegroundTracker.kt` (neu, pure — EINE
+  Vordergrund-Semantik für Service + Probe),
+  `automation/apptracking/ForegroundAppProbe.kt` (neu, One-Shot-Probe),
+  `domain/liveactivity/LiveActivityManager.kt` (`stopIfLive`),
+  `automation/apptracking/AppTrackingService.kt` (Übergabe, Screen-OFF-Stop,
+  Digital-Neuansatz, Poll-Schnappschuss, Live-Service-Start),
+  `automation/screen/ScreenRecordingWorker.kt` (Vordergrund-Guard +
+  zentraler `schedule()`), `automation/sleep/ScreenEventReceiver.kt`
+  (nutzt den zentralen Einplan-Punkt).
+
 ## [Unreleased] — M18.150 — 2026-10-16
 
 ### Geändert — R8: Optimierte Ressourcen-Entfernung aktiviert (Play-Console-Auflage)

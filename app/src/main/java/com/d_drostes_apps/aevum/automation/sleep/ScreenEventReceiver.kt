@@ -120,16 +120,12 @@ class ScreenEventReceiver : BroadcastReceiver() {
                         androidx.work.WorkManager.getInstance(appContext)
                             .cancelUniqueWork(com.d_drostes_apps.aevum.automation.screen.ScreenOffStopWorker.WORK_NAME)
                         if (minutes != com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.DEACTIVATED) {
-                            val delay = minutes.coerceAtLeast(0).toLong()
-                            val request = androidx.work.OneTimeWorkRequestBuilder<com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker>()
-                                .setInitialDelay(delay, java.util.concurrent.TimeUnit.MINUTES)
-                                .build()
-                            androidx.work.WorkManager.getInstance(appContext)
-                                .enqueueUniqueWork(
-                                    com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker.WORK_NAME,
-                                    androidx.work.ExistingWorkPolicy.REPLACE,
-                                    request
-                                )
+                            // M18.151: zentraler Einplan-Punkt (derselbe wie im
+                            // AppTrackingService nach einem App-Ende) — REPLACE
+                            // auf dem einen UniqueWork-Namen, doppelte Aufrufe
+                            // sind damit idempotent.
+                            com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker
+                                .schedule(appContext, minutes.coerceAtLeast(0).toLong())
                             Log.d(TAG, "Screen-Aufzeichnung geplant (Vorlauf=${minutes}min)")
                         }
                     } else if (type == "OFF") {
