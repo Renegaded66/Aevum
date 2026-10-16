@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## [Unreleased] — M18.150 — 2026-10-16
+
+### Geändert — R8: Optimierte Ressourcen-Entfernung aktiviert (Play-Console-Auflage)
+
+- **Anlass:** Die Play Console beanstandete im Release „Google play policy
+  fix" unter „Mit der R8-Optimierung kannst du den Arbeitsspeicher und die
+  Leistung deiner App verbessern": *„Optimierte Entfernung von Ressourcen ist
+  nicht aktiviert"*.
+- **Fix:** `android.r8.optimizedResourceShrinking=true` in
+  `gradle.properties` (war seit M18.136 bewusst `false`). Damit entfernt R8
+  ungenutzte Ressourcen aggressiver und kompaktiert die Ressourcen-Tabelle —
+  kleinerer APK/AAB, weniger Speicher zur Laufzeit. Die Einstellung wirkt
+  nur auf Release-Builds.
+- **Vorab-Absicherung (Stolperfalle ausgeschlossen):** Der Code enthält
+  KEINE `getIdentifier()`- bzw. dynamischen Ressourcen-Zugriffe (per
+  Volltext-Suche geprüft); alle Ressourcen laufen über R-Referenzen oder den
+  XML-Referenzgraphen, der von der Optimierung berücksichtigt wird.
+- Zusätzlich: neues Artefakt-Format für die Play-Console — der Build erzeugt
+  jetzt auch ein **AAB** (`bundleRelease`, signiert mit dem Aevum-Upload-Key).
+
+### Verifikation
+
+- Release-APK + AAB in 1.0.29 (versionCode 30); Ressourcen- und
+  Manifest-Integrität am Artefakt geprüft (Label, Icon, Launch-Activity),
+  Größenvergleich vor/nach der Aktivierung dokumentiert. Unit-Tests
+  unverändert (letzter vollständiger Lauf 1084/1084; die Optimierung wirkt
+  nur auf Release-Packaging).
+
+---
+
 ## [Unreleased] — M18.149 — 2026-10-16
 
 ### Behoben — App-Icon: Ring der Bereichs-Icons wurde angeschnitten

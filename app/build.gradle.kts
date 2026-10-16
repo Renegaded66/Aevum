@@ -125,8 +125,12 @@ android {
         //   Kreis-Maske des Launchers den Ring der zehn Bereichs-Icons an
         //   (je Icon halb sichtbar). Neu: Knoten-Außenkante ~35 dp statt ~46 dp,
         //   unter jeder realistischen Maske vollständig sichtbar.
-        versionCode = 29
-        versionName = "1.0.28"
+        // M18.150 (App 1.0.29, Play-Console-Auflage): Optimiertes
+        //   Ressourcen-Schrumpfen aktiviert (android.r8.optimizedResourceShrinking)
+        //   — die Console beanstandete die deaktivierte R8-Ressourcen-
+        //   Optimierung im Release "Google play policy fix".
+        versionCode = 30
+        versionName = "1.0.29"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
