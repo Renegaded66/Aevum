@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    M18.147: Adaptives App-Icon in der runden Variante (android:roundIcon).
+    Gleicher Aufbau wie ic_launcher.xml — das Artwork ist randlos dunkel,
+    beide Launcher-Masken schneiden sauber.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground_clear" />
+</adaptive-icon>

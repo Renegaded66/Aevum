@@ -1,5 +1,66 @@
 # CHANGELOG
 
+## [Unreleased] — M18.147 — 2026-10-16
+
+### Hinzugefügt — Neues App-Icon
+
+- **Adaptives App-Icon** aus dem gelieferten Artwork: Das Bild liegt
+  vollflächig im Hintergrund-Layer (`mipmap-anydpi-v26`, je Dichte 108–432
+  px); der Vordergrund-Layer ist bewusst transparent, damit bei
+  Launcher-Parallaxe nichts doppelt erscheint. Dazu Legacy-PNGs mit
+  Alpha-Ecken (abgerundet + runde Variante) und das Play-Console-Asset
+  `docs/store-assets/icon-512.png`. Reproduzierbar über den neuen Generator
+  `docs/tools/gen_app_icon.py`.
+- Manifest: `android:icon`/`android:roundIcon` von der alten Logo-Vektor-
+  Datei auf `@mipmap/ic_launcher` bzw. `@mipmap/ic_launcher_round`
+  umgestellt.
+- Nebenfund behoben: Die Kandidaten-Benachrichtigung nutzte das vollfarbige
+  Logo als SmallIcon (das System zeigt das als weißes Viereck) — jetzt das
+  weiße Silhouetten-Icon `ic_notification` wie bei allen übrigen
+  Benachrichtigungen.
+
+### Behoben — App-Aufzeichnung: 3-Sekunden-Hänger beim Öffnen beseitigt
+
+- **Ursache (User-Meldung: „bei diesem Klick hängt die App kurz für 3
+  Sekunden und danach wird alles angezeigt"):** Der PackageManager-Scan
+  (installierte Apps + Launch-Prüfung + Icon-Dekodierung für ALLE Apps) lief
+  im combine-Transform des ViewModels auf dem **Main-Thread** — bei jedem
+  Öffnen, bei jedem Klick (App verschieben) und bei jedem Suchbuchstaben.
+- **Jetzt:** Neuer `InstalledAppsProvider` (Singleton, Dispatchers.IO)
+  scannt in 24er-Chunks und meldet Zwischenstände — der Screen öffnet
+  **sofort**, die Liste füllt sich sichtbar nach („immer mehr ploppen auf").
+  Ein warmer Cache liefert den letzten Stand augenblicklich; ein gedrosselter
+  Neu-Scan (≥ 60 s) hält ihn aktuell (deckt auch Deinstallationen auf).
+  Icons prozessweit gecacht, auf 144 px gekappt (Anzeige: 28 dp).
+- **Interaktionen optimistisch** (`AppTrackingOptimism`): App verschieben /
+  Activity zuordnen wirkt im selben Frame (lokale Absicht als Override,
+  serialisierte DB-Writes); die DB bestätigt und räumt den Override ab, bei
+  Schreibfehler stiller Rückfall auf den echten Stand. Dezenter
+  Fortschritts-Spinner, solange nachgeladen wird.
+
+### Geändert — PC-Sync: zuverlässiger, weiter still und sparsam
+
+- **Takt 30 → 15 Minuten** (WorkManager-Minimum) — und jetzt **nur im WLAN**
+  (UNMETERED statt „irgendein Netz"): Der PC steht im Heimnetz; über
+  Mobilfunk hätte der Lauf nur Strom und Daten gekostet.
+- **Opportunistischer Kick** beim App-Öffnen und bei jedem Prozess-Start im
+  Hintergrund („wenn die App gerade eh was im Hintergrund macht"): holt
+  Verpasstes nach, statt bis zum nächsten Takt zu warten, den das System
+  (Doze) jederzeit aufschieben kann. Gedrosselt über `PcSyncGate`
+  (≥ 10 Min zwischen Versuchen — Erfolg wie Fehlschlag; nichts ohne Kopplung,
+  Schalter oder bei frischem Sync). Vollkommen still — Meldungen zeigt
+  weiterhin nur der manuelle Sync.
+
+### Verifikation
+
+- Vollständiger Unit-Test-Lauf: **1084/1084 grün** (neu: 18 —
+  `AppTrackingOptimismTest` 11, `PcSyncGateTest` 7). Debug-APK (123,7 MB)
+  mit kanonischem Keystore verifiziert, Release-APK (52,3 MB, „Aevum Upload
+  Key") gebaut — adaptive Icon-XML + alle 15 Dichte-PNGs in beiden Paketen
+  geprüft; `aapt`: 1.0.27 (versionCode 28).
+
+---
+
 ## [Unreleased] — M18.146 — 2026-10-04
 
 ### Behoben — Statistik: Pauschale zählte 30 Tage statt Kalendermonat

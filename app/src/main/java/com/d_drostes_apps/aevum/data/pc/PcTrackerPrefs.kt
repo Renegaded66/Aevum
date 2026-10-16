@@ -72,6 +72,17 @@ class PcTrackerPrefs @Inject constructor(
         prefs.edit().putBoolean(KEY_AUTO_SYNC, enabled).apply()
     }
 
+    /**
+     * M18.147: Zeitstempel des letzten stillen Sync-Versuchs (Erfolg wie
+     * Fehlschlag). Drosselt die App-Öffnen-Kicks (PcSyncGate), damit häufiges
+     * Öffnen der App nicht mehrfach pro Minute synchronisiert.
+     */
+    fun lastAttemptAt(): Long = prefs.getLong(KEY_LAST_ATTEMPT, 0L)
+
+    fun setLastAttemptAt(atMs: Long) {
+        prefs.edit().putLong(KEY_LAST_ATTEMPT, atMs).apply()
+    }
+
     private companion object {
         const val KEY_HOST = "host"
         const val KEY_PORT = "port"
@@ -80,5 +91,6 @@ class PcTrackerPrefs @Inject constructor(
         const val KEY_TOKEN = "token"
         const val KEY_LAST_SYNC = "last_sync_at"
         const val KEY_AUTO_SYNC = "auto_sync_enabled"
+        const val KEY_LAST_ATTEMPT = "last_attempt_at"
     }
 }

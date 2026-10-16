@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -34,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +78,11 @@ fun AppTrackingScreen(
     viewModel: AppTrackingViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // M18.147: Beim Öffnen still aktualisieren (im ViewModel gedrosselt) —
+    // neu installierte Apps tauchen auf. Die Liste selbst füllt sich
+    // chunkweise nach, während der Screen sofort bedienbar ist.
+    LaunchedEffect(Unit) { viewModel.refreshInstalled() }
 
     // M18.145 (Play-Konsistenz): dieser Screen ist über den Balance-Tab
     // erreichbar und fragt denselben Nutzungszugriff an wie der
@@ -120,15 +127,19 @@ fun AppTrackingScreen(
         }
 
         if (!state.hasUsagePermission) {
-            // M18.145: erst erklären, dann in die Systemseite (siehe oben).
-            PermissionHint(
-                onOpenSettings = {
-                    permissionGate.request(
-                        PermissionDisclosureKind.USAGE_ACCESS,
-                        alreadyGranted = false
-                    ) { viewModel.openUsageAccessSettings() }
-                }
-            )
+            // M18.147: Erst wenn der Status wirklich feststeht, den Hinweis
+            // zeigen — vorher (erste Frames) nichts, statt kurz aufzublitzen.
+            if (!state.loading) {
+                // M18.145: erst erklären, dann in die Systemseite (siehe oben).
+                PermissionHint(
+                    onOpenSettings = {
+                        permissionGate.request(
+                            PermissionDisclosureKind.USAGE_ACCESS,
+                            alreadyGranted = false
+                        ) { viewModel.openUsageAccessSettings() }
+                    }
+                )
+            }
             return
         }
 
@@ -168,6 +179,7 @@ fun AppTrackingScreen(
                 onAppClick = { viewModel.addApp(it.packageName) },
                 onAssignActivity = null,
                 activityTypes = state.activityTypes,
+                progress = state.scanning,
                 modifier = Modifier.weight(1f)
             )
             AppColumn(
@@ -178,6 +190,7 @@ fun AppTrackingScreen(
                 onAppClick = { viewModel.removeApp(it.packageName) },
                 onAssignActivity = { app, typeId -> viewModel.assignActivity(app.packageName, typeId) },
                 activityTypes = state.activityTypes,
+                progress = state.scanning && state.trackedApps.isEmpty(),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -193,6 +206,9 @@ private fun AppColumn(
     onAppClick: (TrackableApp) -> Unit,
     onAssignActivity: ((TrackableApp, String) -> Unit)?,
     activityTypes: List<ActivityType>,
+    // M18.147: true, solange der App-Scan lädt — dezenter Spinner statt
+    // "keine Ergebnisse" bzw. neben dem Zähler.
+    progress: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -212,6 +228,15 @@ private fun AppColumn(
             Spacer(Modifier.width(AevumSpacing.xs))
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
+            // M18.147: dezenter Fortschritt, solange die Liste nachwächst.
+            if (progress) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(AevumSpacing.xs))
+            }
             Text(
                 subtitle,
                 fontSize = 12.sp,
@@ -230,11 +255,21 @@ private fun AppColumn(
                     .padding(vertical = AevumSpacing.lg),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    if (title == stringResource(R.string.apptracking_recording)) stringResource(R.string.apptracking_tap_left_hint) else stringResource(R.string.apptracking_no_results),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (progress) {
+                    // M18.147: Liste füllt sich gerade nach — Spinner statt
+                    // "keine Ergebnisse".
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Text(
+                        if (title == stringResource(R.string.apptracking_recording)) stringResource(R.string.apptracking_tap_left_hint) else stringResource(R.string.apptracking_no_results),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             LazyColumn(

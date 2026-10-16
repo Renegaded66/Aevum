@@ -370,17 +370,21 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "ProfileScheduleWorker schedule failed — continuing", e)
         }
-        // App 1.0.26: PC-Tracker — stiller Hintergrund-Sync mit dem gekoppelten
-        // Windows-PC (alle 30 Min, nur mit Netzwerk). Ist der PC nicht im WLAN,
-        // passiert nichts; Meldungen zeigt ausschließlich der manuelle Sync.
-        // schedule() prüft Kopplung + Schalter selbst und ist idempotent —
-        // so übersteht die Planung sowohl App-Updates als auch Neustarts.
+        // App 1.0.27 (M18.147): PC-Tracker — stiller Hintergrund-Sync mit dem
+        // gekoppelten Windows-PC (alle 15 Min, NUR im WLAN) plus ein gedrosselter
+        // Kick bei jedem Prozess-Start: So holt die App Verpasstes nach, wann
+        // immer sie ohnehin gerade erwacht (User: "wenn die App gerade eh was
+        // im Hintergrund macht und im WLAN ist"). Ist der PC nicht da, passiert
+        // nichts; Meldungen zeigt ausschließlich der manuelle Sync. schedule()
+        // prüft Kopplung + Schalter selbst und ist idempotent — so übersteht die
+        // Planung sowohl App-Updates als auch Neustarts.
         try {
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 try {
-                    EntryPointAccessors.fromApplication(this@AevumApplication, Deps::class.java)
+                    val scheduler = EntryPointAccessors.fromApplication(this@AevumApplication, Deps::class.java)
                         .pcAutoSyncScheduler()
-                        .schedule()
+                    scheduler.schedule()
+                    scheduler.triggerOpportunistic()
                 } catch (e: Exception) {
                     Log.e("AevumApplication", "PC-Auto-Sync schedule failed — continuing", e)
                 }

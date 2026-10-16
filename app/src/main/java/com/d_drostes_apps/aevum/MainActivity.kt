@@ -68,6 +68,8 @@ class MainActivity : LocalizedActivity() {
     @InstallIn(SingletonComponent::class)
     interface Deps {
         fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
+        // M18.147: stiller PC-Sync-Kick beim App-Öffnen (gedrosselt, WLAN).
+        fun pcAutoSyncScheduler(): com.d_drostes_apps.aevum.automation.pctracker.PcAutoSyncScheduler
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -103,6 +105,13 @@ class MainActivity : LocalizedActivity() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val deps = EntryPointAccessors.fromApplication(application, Deps::class.java)
+                // M18.147: Stiller PC-Sync-Kick beim App-Öffnen — gedrosselt
+                // (PcSyncGate), nur im WLAN, ohne jede Meldung. Eigener
+                // try-Block: ein Sync-Problem darf den Notification-Restore
+                // darunter nicht verhindern.
+                try {
+                    deps.pcAutoSyncScheduler().triggerOpportunistic()
+                } catch (_: Exception) { }
                 val manager = deps.liveActivityManager()
                 // M18.24: liveSession ist jetzt SharingStarted.Eagerly —
                 // .value liefert IMMER den echten DB-Wert, auch ohne

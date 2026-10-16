@@ -107,8 +107,21 @@ android {
         //     – Sync spiegelt jetzt die Aktivitäten der App an den PC (Regeln-
         //       Dropdown dort: „Von deinem Handy“) + Gerätename als Header.
         //     – Kurzanleitung „Windows-App installieren“ im PC-Tracker (DE/EN).
-        versionCode = 27
-        versionName = "1.0.26"
+        // M18.147 (App 1.0.27):
+        //   1) Neues adaptives App-Icon aus dem gelieferten Artwork
+        //      (mipmap-anydpi-v26 + Hintergrund-Layer je Dichte; Manifest
+        //      icon/roundIcon umgestellt; Play-Asset docs/store-assets/icon-512.png).
+        //   2) App-Aufzeichnung: Paket-Scan + Icon-Dekodierung raus aus dem
+        //      Main-Thread (InstalledAppsProvider, Dispatchers.IO, chunkweises
+        //      Nachladen) — Screen öffnet sofort, Listen wachsen beim Benutzen
+        //      nach; Interaktionen (Verschieben/Zuordnen) sind optimistisch
+        //      (sofort sichtbar, DB folgt).
+        //   3) PC-Sync zuverlässiger: alle 15 Min nur im WLAN (UNMETERED,
+        //      vorher 30 Min / irgendein Netz) + gedrosselter stiller Kick bei
+        //      App-Öffnen/Hintergrund-Start (PcSyncGate, >=10 Min Abstand) —
+        //      ohne jede Meldung, ohne Akku-Last.
+        versionCode = 28
+        versionName = "1.0.27"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

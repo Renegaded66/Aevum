@@ -46,7 +46,10 @@ class CandidateReviewNotifier @Inject constructor(
             context.getString(R.string.notif_review_multi, candidates.size)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            // M18.147: weißes Silhouetten-Icon statt des vollfarbigen Logos —
+            // vollfarbige SmallIcons zeigt das System als weißes Viereck
+            // (gleiche Korrektur wie M18.22 bei den übrigen Benachrichtigungen).
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notif_review_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

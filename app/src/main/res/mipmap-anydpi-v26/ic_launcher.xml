@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    M18.147: Adaptives App-Icon (User: das gelieferte Artwork wird das neue
+    App-Icon). Der Hintergrund-Layer traegt das vollflaechige Artwork im
+    108dp-Raster — die Launcher-Maske (Kreis/Squircle) schneidet die Ecken,
+    die im Artwork ohnehin randlos dunkel auslaufen. Der Vordergrund-Layer
+    ist bewusst transparent: das Artwork bringt seine Tiefe selbst mit.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground_clear" />
+</adaptive-icon>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    M18.147: Bewusst leerer Vordergrund-Layer des adaptiven Icons. Das
+    Artwork liegt vollflaechig im Hintergrund-Layer; ein zweiter, gefuellter
+    Layer wuerde bei Launcher-Parallaxe doppelt sichtbar werden.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#00000000" />
+</shape>
