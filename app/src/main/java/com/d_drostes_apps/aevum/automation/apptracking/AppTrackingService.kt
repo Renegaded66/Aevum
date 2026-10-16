@@ -446,7 +446,14 @@ class AppTrackingService : Service() {
         val live = liveActivityManager.liveSession.value
         val action = AppTrackingTakeoverPolicy.onTrackedForeground(
             liveSourceType = live?.sourceType,
-            isOwnSession = live != null && live.id == trackedSessionId
+            // M18.151: „eigene" Familie = die von diesem Feature gestartete
+            // Session ODER eine VERWAISTE App-Tracking-Session (nach einem
+            // Service-Kill ist trackedSessionId leer, die Session in der DB
+            // lebt aber weiter — sie gehört trotzdem zur Smartphone-Familie
+            // und darf gewechselt/übernommen werden; fremde Quellen bleiben
+            // unberührt). Nur dieses Feature erzeugt sourceType=APP_TRACKING.
+            isOwnSession = live != null && (live.id == trackedSessionId ||
+                live.sourceType == AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING)
         )
 
         when (action) {
@@ -509,11 +516,22 @@ class AppTrackingService : Service() {
 
     /** Stoppt die eigene Session, falls sie noch live ist. */
     private suspend fun stopOwnSessionIfRunning() {
-        val sessionId = trackedSessionId ?: return
-        // M18.151: stopIfLive statt unbedingtem stop() — falls die eigene
-        // Session inzwischen durch etwas Höherpriores ersetzt wurde (z. B.
-        // Fahrt-Start), wird NICHTS angefasst.
-        val stopped = liveActivityManager.stopIfLive(sessionId)
+        // M18.151: Ziel bestimmen — die eigene Session (getrackte ID) ODER
+        // eine verwaiste App-Tracking-Session (Service-Neustart:
+        // trackedSessionId ist leer, die Session lebt aber weiter; sie
+        // gehört zur Smartphone-Familie und muss z. B. beim Verlassen der
+        // App trotzdem stoppen). Fremde Quellen werden NIE Ziel (Rangfolge).
+        val live = liveActivityManager.liveSession.value
+        val targetId: String? = when {
+            live == null || !live.isLive -> null
+            live.id == trackedSessionId -> live.id
+            live.sourceType == AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING -> live.id
+            else -> null
+        }
+        // stopIfLive statt unbedingtem stop(): Falls zwischenzeitlich etwas
+        // Höherpriores übernommen hat (z. B. Fahrt-Start), wird NICHTS
+        // angefasst.
+        val stopped = targetId?.let { liveActivityManager.stopIfLive(it) } ?: false
         if (stopped) {
             try {
                 // M18.134 (Kanban t_0bf5541e): Ein App-Tracking-Ende kann
@@ -523,7 +541,7 @@ class AppTrackingService : Service() {
                 // anderes läuft"), nicht erst beim 15-Minuten-Takt.
                 com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
                     .restartNow(applicationContext)
-                Log.d(TAG, "Auto-Stop: Session $sessionId")
+                Log.d(TAG, "Auto-Stop: Session $targetId")
                 // M18.151 (User-Spec: „Falls dann 2 Minuten das Display an
                 // ist ohne eine ausgewählte App, dann soll Digital wieder
                 // starten."): Digital-Neuansatz einplanen. Ohne diesen

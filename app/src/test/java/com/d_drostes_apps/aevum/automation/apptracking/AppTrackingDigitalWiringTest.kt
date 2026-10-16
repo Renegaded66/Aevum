@@ -64,6 +64,8 @@ class AppTrackingDigitalWiringTest {
             .that(src).contains("AppTrackingTakeoverPolicy.onTrackedForeground(")
         assertWithMessage("Der Take-over-Zweig fehlt (TAKE_OVER_DIGITAL)")
             .that(src).contains("AppTrackingTakeoverPolicy.Action.TAKE_OVER_DIGITAL")
+        assertWithMessage("Die Familien-Regel fehlt: eine verwaiste App-Tracking-Session (Service-Neustart) muss als 'eigene' gelten, sonst blockiert sie für immer den Wechsel/Stop")
+            .that(src).contains("live.sourceType == AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING")
     }
 
     @Test
@@ -85,9 +87,13 @@ class AppTrackingDigitalWiringTest {
         val src = serviceSource()
         val idx = src.indexOf("private suspend fun stopOwnSessionIfRunning")
         assertWithMessage("stopOwnSessionIfRunning fehlt").that(idx).isAtLeast(0)
-        val block = src.substring(idx, idx + 700)
+        val block = src.substring(idx, (idx + 3_000).coerceAtMost(src.length))
         assertWithMessage("stopOwnSessionIfRunning muss stopIfLive nutzen (Rangfolge: höherpriore Sessions nie stoppen)")
-            .that(block).contains("stopIfLive(sessionId)")
+            .that(block).contains("stopIfLive(")
+        assertWithMessage("stopOwnSessionIfRunning muss auch die verwaiste App-Tracking-Session als Ziel kennen (Service-Neustart)")
+            .that(block).contains("SOURCE_APP_TRACKING")
+        assertWithMessage("Der Stop darf NIE über ein unbedingtes liveActivityManager.stop() laufen")
+            .that(block).doesNotContain("liveActivityManager.stop()")
     }
 
     // ── 3) Screen-OFF beendet die App-Aufzeichnung sofort ─────────

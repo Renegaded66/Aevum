@@ -33,6 +33,11 @@
     Autofahrt-Aufzeichnungen (plus Kalender-Fallback) werden NIE gestoppt
     oder übernommen — auch der eigene Stop-Pfad läuft jetzt über den
     Race-sicheren `LiveActivityManager.stopIfLive(sessionId)`.
+  - **Verwaiste App-Sessions** (Service-Kill durch das System: `trackedSessionId`
+    ist leer, die Session lebt aber in der DB weiter) zählen über
+    `sourceType == APP_TRACKING` weiter zur Smartphone-Familie — sie werden
+    beim Verlassen der App bzw. beim Wechsel jetzt sauber gestoppt/ersetzt,
+    statt nach einem Neustart für immer als „fremd" den Wechsel zu blockieren.
   - **Digital-Neuansatz nach App-Ende:** Der AppTrackingService plant den
     `ScreenRecordingWorker` mit der konfigurierten Vorlaufzeit neu ein
     (ein zentraler Einplan-Punkt `ScreenRecordingWorker.schedule()`, den

@@ -123,6 +123,15 @@ Stoppt nur, wenn **exakt** diese Session noch live ist. Zwischen „lesen" und
 Übergabe nie anfassen (Rangfolge). Wird an beiden Stop-Pfaden verwendet
 (Digital-Übernahme + eigener Stop).
 
+**Familien-Erkennung verwaister Sessions:** Stirbt der FGS durch einen
+System-Kill, während eine App-Session läuft, ist nach dem Neustart
+`trackedSessionId` leer — die Session lebt aber weiter. Damit sie nicht für
+immer als „fremd" jeden Wechsel blockiert (bzw. nie gestoppt wird), zählt
+sie über `sourceType == APP_TRACKING` weiter zur Smartphone-Familie:
+Take-over-Prüfung und `stopOwnSessionIfRunning()` behandeln sie wie eine
+eigene Session. Fremde Quellen bleiben unberührt — die Familien-Regel gilt
+NUR für den einen Quellen-Typ dieses Features.
+
 ### 3.3 Screen-OFF beendet die App-Aufzeichnung sofort
 
 Der Screen-Receiver des AppTrackingService (läuft als FGS) stoppt bei
@@ -205,9 +214,10 @@ andere Live-Aufzeichnung (Stop/Pause direkt aus der Notification möglich).
   `AppTrackingTakeoverPolicyTest`, 8 `ForegroundTrackerTest`, 11
   `AppTrackingDigitalWiringTest` (Datei-Scan-Regression: Übergabe-, Stop-,
   Screen-OFF-, Neuansatz- und Worker-Guard-Verdrahtung).
-- **Build `aevum-m18151`:** Exit 0 — Debug-APK kanonisch signiert
-  (Key-Guard), Release-APK (Aevum Upload Key) + AAB für die Play Console:
-  - Debug-APK: 123,4 MB — SHA-1 `9c3055c4…` (kanonischer Key, verifiziert)
+- **Builds `aevum-m18151` und `aevum-m18151b` (finale Artefakte aus b):**
+  Exit 0 (5m32s / 4m06s) — Debug-APK kanonisch signiert (Key-Guard),
+  Release-APK (Aevum Upload Key) + AAB für die Play Console:
+  - Debug-APK: 123,95 MB — SHA-1 `9c3055c4…` (kanonischer Key, verifiziert)
   - Release-APK: 51,97 MB — SHA-1 `c8430d35…` (Aevum Upload Key);
     `aapt dump badging`: versionCode 31, versionName 1.0.30, Label „Aevum"
   - AAB: 24,2 MB (Play-Console-Upload)
