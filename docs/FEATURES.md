@@ -229,3 +229,63 @@ die App-Einstellungen). Der Status wird bei jedem Zurückkehren in die App
 neu gelesen — ein Widerruf in den System-Einstellungen wird sofort erkannt,
 die Regeln bleiben dabei erhalten. Aevum **liest** den Kalender nur; es legt
 niemals Termine an oder verändert sie.
+
+
+## Projektmanagement (M19.1)
+
+**Ziel:** Große, lähmende Vorhaben (Studium, Präsentation, Hausarbeit) in
+kleinste Schritte zerlegen und sichtbar fertig bekommen.
+
+**Das Problem, das dieses Feature löst:** „Ich kann mich überhaupt nicht
+fokussieren. Es scheint kein Ende zu haben und ich scheine keinen Fortschritt
+zu machen." Große Aufgaben sind keine Aufgaben, sondern Zustände — sie haben
+keinen Anfang, kein Ende und keine abhakbare Einheit. Projektmanagement macht
+daraus eine Kette kleiner, einzeln abhakbarer Schritte.
+
+### Struktur
+
+Beliebig tiefe Hierarchie in EINEM Baum:
+
+```text
+Studium                PROJECT   (Oberprojekt)
+ └ 2. Semester         PROJECT   (Unterprojekt)
+    └ Projektgruppe    CATEGORY  (Kategorie)
+       └ Präsentation  TASK      (Aufgabe — Fortschrittsbalken, eigene Karte)
+          ├ erste Hälfte lesen      TODO (Schritt, abhakbar, tagzuweisbar)
+          └ Entwurf aufschreiben    TODO
+```
+
+### Tagesplan
+
+- Todos lassen sich einem Tag zuweisen — oder ohne Datum im **Backlog** liegen
+  bleiben.
+- **Übernahme:** Nicht erledigte Todos von gestern und früher erscheinen
+  weiterhin (markiert mit „übernommen"), erledigte verschwinden am Folgetag.
+- Das **Glas** füllt sich mit jedem erledigten Schritt um ein Juwel in der
+  Farbe der Aufgabe; offene Schritte liegen als leere Fassungen darüber (die
+  sichtbare Lücke ist der Antrieb).
+- Bei vollem Glas: kurze Feuerwerk-Animation — genau einmal pro erreichtem
+  Stand, nicht bei jeder Neukomposition.
+- 7-Tage-Streifen: wie viele Schritte wurden an den letzten Tagen erledigt
+  (aus den Erledigungszeitpunkten abgeleitet, keine zusätzliche Tabelle).
+
+### Fortschritt
+
+Jede Aufgabe und jedes Projekt trägt einen Balken über ALLE enthaltenen
+Schritte (nicht nur die heutigen) — damit wird langfristiger Fortschritt
+sichtbar, nicht nur Tageserfolg.
+
+### Massenzuweisung (kein 25-mal-Tippen)
+
+1. **Sammel-Eingabe:** mehrzeiliges Feld, eine Zeile = ein Schritt; optional
+   alle zusammen auf ein Datum.
+2. **„Alle offenen → heute":** ein Tipp auf der Aufgabenkarte bzw. im Backlog.
+3. **„Tag planen"-Sheet:** alle offenen Schritte gruppiert, bereits geplante
+   vorausgewählt, Gruppen-Schalter, Datum wählbar — eine Bestätigung.
+
+### Ausdrücklich NICHT Bestandteil
+
+Keine Levels, Erfahrungspunkte, Maskottchen, Währungen oder Shop. Keine
+Zeiterfassung in PM-Schritten, keine Wiederholung/Serien, keine Erinnerungen,
+keine Abhängigkeiten zwischen Schritten, keine Freigabe/Teilen. Das bestehende
+Modul „Todos" (Serien, Streaks, Dauer-Auto-Check) bleibt davon unberührt.

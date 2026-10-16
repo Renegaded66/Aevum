@@ -66,6 +66,8 @@ fun SettingsScreen(
     onOpenTriggers: () -> Unit = {},
     // M18.30: Todos + Tagespauschalen
     onOpenTodos: () -> Unit = {},
+    // M19.1: Projektmanagement
+    onOpenProjects: () -> Unit = {},
     onOpenDailyAllowances: () -> Unit = {},
     // M18.2: Positivitäts-Scores pro Aktivität
     onOpenActivityTypes: () -> Unit = {},
@@ -167,6 +169,12 @@ fun SettingsScreen(
             // M18.60: "Ziele verwalten" entfernt — Todos erfüllen die
             // Anforderungen eines Ziels (Ziel-Chip + Streak auf jeder Karte).
             item { SettingsSection(stringResource(R.string.settings_advanced), listOf(
+                // M19.1: Projektmanagement — großer Baum aus kleinen Schritten.
+                SettingsEntry(
+                    stringResource(R.string.settings_projects),
+                    stringResource(R.string.settings_projects_desc),
+                    onOpenProjects
+                ),
                 SettingsEntry(stringResource(R.string.settings_todos_manage), onClick = onOpenTodos),
                 SettingsEntry(stringResource(R.string.settings_allowances_manage), onClick = onOpenDailyAllowances)
             )) }

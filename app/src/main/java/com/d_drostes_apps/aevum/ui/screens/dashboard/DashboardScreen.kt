@@ -1,6 +1,8 @@
 package com.d_drostes_apps.aevum.ui.screens.dashboard
 
 import com.d_drostes_apps.aevum.R
+// M19.1: Projektmanagement (Einstiegsknopf + eigener ViewModel für den Zähler)
+import com.d_drostes_apps.aevum.ui.screens.projects.PmEntryViewModel
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloat
@@ -125,9 +127,16 @@ fun DashboardScreen(
     onOpenUsageSettings: () -> Unit = {},
     // M18.37: Todos-Karte auf dem Dashboard
     onOpenTodos: () -> Unit = {},
-    viewModel: DashboardViewModel = hiltViewModel()
+    // M19.1: Projektmanagement — der Knopf oben rechts in der Ecke.
+    onOpenProjects: () -> Unit = {},
+    viewModel: DashboardViewModel = hiltViewModel(),
+    // M19.1: Eigener, kleiner ViewModel nur für den Zähler am Einstiegsknopf
+    // (offene Todos des Tages). Hält den Eingriff ins DashboardViewModel
+    // minimal — siehe PmEntryViewModel.
+    pmEntryViewModel: PmEntryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val pmEntry by pmEntryViewModel.uiState.collectAsState()
     val liveState by viewModel.liveActivityManager.liveState.collectAsState()
     val nowMs by viewModel.liveActivityManager.nowMs.collectAsState()
     val recents by viewModel.liveActivityManager.recentActivityTypes.collectAsState()
@@ -157,6 +166,10 @@ fun DashboardScreen(
         onOpenSleepStatus = onOpenSleepStatus,
         onOpenUsageSettings = onOpenUsageSettings,
         onOpenTodos = onOpenTodos,
+        // M19.1: Projektmanagement
+        onOpenProjects = onOpenProjects,
+        pmPending = pmEntry.pending,
+        pmHasPlan = pmEntry.hasPlan,
         onStartLive = viewModel::startLiveActivity,
         onPauseLive = viewModel::pauseLiveActivity,
         onResumeLive = viewModel::resumeLiveActivity,
@@ -202,6 +215,12 @@ private fun DashboardContent(
     onOpenUsageSettings: () -> Unit = {},
     // M18.37: Todos-Karte auf dem Dashboard
     onOpenTodos: () -> Unit = {},
+    // M19.1: Projektmanagement — Einstieg oben rechts + Zähler der offenen
+    // Todos des Tages (0 = nichts offen, hasPlan unterscheidet "leer" von
+    // "alles fertig" — nur dann wird der Knopf golden).
+    onOpenProjects: () -> Unit = {},
+    pmPending: Int = 0,
+    pmHasPlan: Boolean = false,
     onStartLive: (String, String?, Long) -> Unit,
     onPauseLive: () -> Unit,
     onResumeLive: () -> Unit,
@@ -360,6 +379,10 @@ private fun DashboardContent(
                     onNextDay = { onNavigateDay(1) },
                     onResetToToday = onResetToToday,
                     onDateClick = { showDatePickerDialog = true },
+                    // M19.1: kleiner Projektmanagement-Knopf in der Ecke
+                    pmPending = pmPending,
+                    pmHasPlan = pmHasPlan,
+                    onOpenProjects = onOpenProjects,
                     modifier = Modifier.graphicsLayer {
                         translationY = -heroCollapse * heroHeightPx * 0.45f
                         alpha = 1f - 0.35f * heroCollapse
@@ -481,6 +504,34 @@ private fun DashboardContent(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = AevumSpacing.lg, bottom = AevumSpacing.lg)
+                )
+            }
+
+            // M19.1: Der Projektmanagement-Knopf schwebt oben rechts ein,
+            // sobald der Hero-Kopf weggescrollt ist. Bewusst NUR dann: solange
+            // der Hero sichtbar ist, sitzt der Knopf schon in dessen Kopfzeile
+            // — zwei gleichzeitig sichtbare Knöpfe wären doppelt gemoppelt.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = heroCollapse > 0.6f,
+                enter = androidx.compose.animation.fadeIn(
+                    androidx.compose.animation.core.tween(220)
+                ) + androidx.compose.animation.scaleIn(
+                    initialScale = 0.8f,
+                    animationSpec = androidx.compose.animation.core.tween(220)
+                ),
+                exit = androidx.compose.animation.fadeOut(
+                    androidx.compose.animation.core.tween(160)
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = AevumSpacing.xs, end = AevumSpacing.md)
+            ) {
+                com.d_drostes_apps.aevum.ui.components.PmEntryButton(
+                    pendingCount = pmPending,
+                    hasPlan = pmHasPlan,
+                    onClick = onOpenProjects,
+                    size = 38.dp
                 )
             }
         }

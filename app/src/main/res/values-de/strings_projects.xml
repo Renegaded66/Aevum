@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  M19.1: Projektmanagement (Projekte → Aufgaben → kleinste Schritte).
+  Deutsche Fassung (Standard ist Englisch in values/).
+-->
+<resources>
+    <!-- Einstieg & Navigation -->
+    <string name="projects_title">Projektmanagement</string>
+    <string name="pm_entry_content_desc">Projektmanagement öffnen</string>
+    <string name="pm_close">Schließen</string>
+    <string name="pm_drag_hint">Kopf nach unten ziehen zum Schließen</string>
+    <string name="pm_plan_day">Tag planen</string>
+
+    <!-- Tabs -->
+    <string name="pm_tab_today">Heute</string>
+    <string name="pm_tab_projects">Projekte</string>
+
+    <!-- Glas -->
+    <string name="pm_glass_title">Dein Glas</string>
+    <string name="pm_counter">%1$d / %2$d</string>
+    <string name="pm_counter_label">Schritte geschafft</string>
+    <string name="pm_gems_remaining">noch %1$d</string>
+    <string name="pm_glass_empty">Noch nichts für heute geplant</string>
+    <string name="pm_glass_empty_hint">Plane deine Schritte — dann füllt sich das Glas.</string>
+    <string name="pm_all_done">Alles geschafft!</string>
+    <string name="pm_all_done_sub">Das Glas ist voll.</string>
+    <string name="pm_rollover_chip">%1$d übernommen</string>
+    <string name="pm_history">Letzte 7 Tage</string>
+    <string name="pm_history_day_content_desc">%1$d Schritte geschafft</string>
+
+    <!-- Tages-Karussell -->
+    <string name="pm_today_tasks">Deine Aufgaben heute</string>
+    <string name="pm_task_progress">%1$d von %2$d Schritten</string>
+    <string name="pm_task_done">Fertig</string>
+    <string name="pm_task_open">%1$d offen</string>
+    <string name="pm_task_details">Details</string>
+    <string name="pm_pull_all_today">Alle offenen → heute</string>
+    <string name="pm_no_todos_today">Für heute ist nichts eingeplant</string>
+    <string name="pm_no_todos_today_hint">Tippe auf „Tag planen" und wähle, was heute dran ist.</string>
+    <string name="pm_swipe_hint">Nach links/rechts wischen für die nächste Aufgabe</string>
+
+    <!-- Backlog -->
+    <string name="pm_backlog_title">Aus dem Backlog</string>
+    <string name="pm_backlog_hint">Noch keinem Tag zugewiesen</string>
+    <string name="pm_backlog_empty">Kein Rückstand — alles ist eingeplant.</string>
+    <string name="pm_pull_today">+ Heute</string>
+    <string name="pm_more_todos">noch %1$d</string>
+
+    <!-- Erledigt -->
+    <string name="pm_done_today">Heute erledigt</string>
+    <string name="pm_undo">Rückgängig</string>
+
+    <!-- Baum -->
+    <string name="pm_tree_hint">Tippen öffnet, Chevron klappt auf</string>
+    <string name="pm_expand_all">Alles aufklappen</string>
+    <string name="pm_collapse_all">Zuklappen</string>
+    <string name="pm_empty_title">Noch kein Projekt</string>
+    <string name="pm_empty_body">Lege ein Projekt an — oder nutze die Beispielstruktur (Studium → Semester → Projektgruppe → Präsentation) und hake in Sekunden den ersten Schritt ab.</string>
+    <string name="pm_example_insert">Beispielstruktur einfügen</string>
+    <string name="pm_structure_summary">%1$d Projekte · %2$d Aufgaben · %3$d Schritte</string>
+
+    <!-- Frist -->
+    <string name="pm_due">Frist %1$s</string>
+    <string name="pm_due_in_days">noch %1$d Tage</string>
+    <string name="pm_due_tomorrow">morgen</string>
+    <string name="pm_due_today">heute</string>
+    <string name="pm_due_over">%1$d Tage über</string>
+
+    <!-- Detailseite -->
+    <string name="pm_node_todos">Schritte</string>
+    <string name="pm_node_subs">Enthalten</string>
+    <string name="pm_node_add_sub">Etwas hineinlegen</string>
+    <string name="pm_node_add_todo">Schritte hinzufügen</string>
+    <string name="pm_node_empty_todos">Noch keine Schritte</string>
+    <string name="pm_node_empty_todos_hint">Kleine Schritte sind der ganze Trick. Schreib sie auf — eine Zeile pro Schritt.</string>
+    <string name="pm_edit">Bearbeiten</string>
+    <string name="pm_delete">Löschen</string>
+    <string name="pm_delete_confirm_title">Wirklich löschen?</string>
+    <string name="pm_delete_confirm_body">Der komplette Inhalt wird mit entfernt — auch alle Schritte darunter.</string>
+    <string name="pm_move_up">Nach oben</string>
+    <string name="pm_move_down">Nach unten</string>
+    <string name="pm_select_all">Alle</string>
+    <string name="pm_selected_count">%1$d ausgewählt</string>
+    <string name="pm_cancel">Abbrechen</string>
+    <string name="pm_note_label">Notiz</string>
+
+    <!-- Datum -->
+    <string name="pm_date_none">Kein Datum</string>
+    <string name="pm_today">Heute</string>
+    <string name="pm_tomorrow">Morgen</string>
+    <string name="pm_pick_date">Datum …</string>
+    <string name="pm_scheduled_on">am %1$s</string>
+    <string name="pm_carried_from">übernommen</string>
+
+    <!-- Editor -->
+    <string name="pm_editor_new_project">Neues Projekt</string>
+    <string name="pm_editor_new_category">Neue Kategorie</string>
+    <string name="pm_editor_new_task">Neue Aufgabe</string>
+    <string name="pm_editor_new_todos">Neue Schritte</string>
+    <string name="pm_editor_edit_node">Bearbeiten</string>
+    <string name="pm_editor_edit_todo">Schritt bearbeiten</string>
+    <string name="pm_field_title">Titel</string>
+    <string name="pm_field_note">Notiz (optional)</string>
+    <string name="pm_field_color">Farbe</string>
+    <string name="pm_field_type">Art</string>
+    <string name="pm_field_due">Frist (optional)</string>
+    <string name="pm_field_day">Tag (optional)</string>
+    <string name="pm_type_project">Projekt</string>
+    <string name="pm_type_category">Kategorie</string>
+    <string name="pm_type_task">Aufgabe</string>
+    <string name="pm_type_todo">Schritt</string>
+    <string name="pm_color_auto">Automatisch</string>
+    <string name="pm_color_pick">Farbe %1$d</string>
+    <string name="pm_bulk_label">Eine Zeile = ein Schritt</string>
+    <string name="pm_bulk_hint">Erste Hälfte lesen\nZweite Hälfte lesen\nEntwurf überlegen\nEntwurf aufschreiben …</string>
+    <string name="pm_bulk_count">%1$d Schritte</string>
+    <string name="pm_bulk_plan_today">Alle für heute einplanen</string>
+    <string name="pm_save">Speichern</string>
+    <string name="pm_create">Anlegen</string>
+    <string name="pm_parent_label">In</string>
+    <string name="pm_done_label">Erledigt</string>
+    <string name="pm_no_parent">Ganz oben</string>
+    <string name="pm_title_required">Bitte einen Titel eingeben.</string>
+
+    <!-- Tag planen -->
+    <string name="pm_planner_title">Tag planen</string>
+    <string name="pm_planner_sub">Was willst du heute schaffen?</string>
+    <string name="pm_planner_hint">Schon geplante Schritte sind vorausgewählt.</string>
+    <string name="pm_planner_select_group_all">Alle</string>
+    <string name="pm_planner_apply">Übernehmen</string>
+    <string name="pm_planner_remove">Aus dem Tag nehmen</string>
+    <string name="pm_planner_empty">Keine offenen Schritte zum Planen. Lege zuerst ein paar kleine an.</string>
+    <string name="pm_selected_summary">%1$d Schritte für heute</string>
+    <!-- Einstellungen -->
+    <string name="settings_projects">Projektmanagement</string>
+    <string name="settings_projects_desc">Große Aufgaben in kleine Schritte zerlegen</string>
+</resources>

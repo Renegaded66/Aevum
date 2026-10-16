@@ -92,7 +92,9 @@ fun AppNavHost(
                     navController.navigate(AppDestination.TriggerSettings.route)
                 },
                 // M18.37: Todos-Karte auf dem Dashboard
-                onOpenTodos = { navController.navigate(AppDestination.Todos.route) }
+                onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
+                // M19.1: Projektmanagement — der Knopf oben rechts im Dashboard.
+                onOpenProjects = { navController.navigate(AppDestination.Projects.route) }
             )
         }
         composable(AppDestination.Timeline.route) {
@@ -210,6 +212,8 @@ fun AppNavHost(
                 // M18.30: Todos + Tagespauschalen
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
                 onOpenDailyAllowances = { navController.navigate(AppDestination.DailyAllowances.route) },
+                // M19.1: Projektmanagement (zusätzlich zum Dashboard-Knopf)
+                onOpenProjects = { navController.navigate(AppDestination.Projects.route) },
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
                 onOpenCategories = { navController.navigate(AppDestination.Categories.route) },
@@ -418,6 +422,110 @@ fun AppNavHost(
             )
         }
         // M18.35: Lebenszeit-Ansicht — von Insights aus erreichbar
+        // ── M19.1: Projektmanagement ───────────────────────────────────────
+        //
+        // ÜBERGANG: Diese Seite ist ein „Sheet": sie schiebt sich von unten
+        // über das Dashboard und fährt beim Schließen wieder nach unten heraus.
+        // Bewusst NUR für diese Route gesetzt (die Standard-Übergänge der App
+        // bleiben für alles andere unverändert).
+        composable(
+            route = AppDestination.Projects.route,
+            enterTransition = {
+                androidx.compose.animation.slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ) + androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                )
+            },
+            popExitTransition = {
+                androidx.compose.animation.slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                )
+            }
+        ) {
+            com.d_drostes_apps.aevum.ui.screens.projects.ProjectsScreen(
+                onClose = { navController.popBackStack() },
+                onOpenNode = { nodeId ->
+                    navController.navigate("projects/node/$nodeId")
+                },
+                onNewChild = { parentId, type ->
+                    navController.navigate(
+                        "pm_editor?mode=node_new" +
+                            (parentId?.let { "&parentId=$it" } ?: "") +
+                            "&type=$type"
+                    )
+                },
+                onEditNode = { nodeId ->
+                    navController.navigate("pm_editor?mode=node_edit&nodeId=$nodeId")
+                },
+                onNewTodos = { parentId ->
+                    navController.navigate(
+                        "pm_editor?mode=todos_new" + (parentId?.let { "&parentId=$it" } ?: "")
+                    )
+                },
+                onEditTodo = { todoId ->
+                    navController.navigate("pm_editor?mode=todo_edit&nodeId=$todoId")
+                }
+            )
+        }
+        composable(
+            route = AppDestination.ProjectsNode.route,
+            arguments = listOf(androidx.navigation.navArgument("nodeId") {
+                type = androidx.navigation.NavType.StringType
+            })
+        ) {
+            com.d_drostes_apps.aevum.ui.screens.projects.PmNodeDetailScreen(
+                onBack = { navController.popBackStack() },
+                onEditNode = { id -> navController.navigate("pm_editor?mode=node_edit&nodeId=$id") },
+                onNewTodos = { parent ->
+                    navController.navigate("pm_editor?mode=todos_new&parentId=$parent")
+                },
+                onEditTodo = { id -> navController.navigate("pm_editor?mode=todo_edit&nodeId=$id") },
+                onNewChild = { parent, type ->
+                    navController.navigate("pm_editor?mode=node_new&parentId=$parent&type=$type")
+                },
+                onOpenNode = { id -> navController.navigate("projects/node/$id") }
+            )
+        }
+        composable(
+            route = AppDestination.PmEditor.route,
+            arguments = listOf(
+                androidx.navigation.navArgument("mode") {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = "node_new"
+                },
+                androidx.navigation.navArgument("nodeId") {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = ""
+                },
+                androidx.navigation.navArgument("parentId") {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = ""
+                },
+                androidx.navigation.navArgument("type") {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = com.d_drostes_apps.aevum.data.model.PmType.TASK
+                }
+            ),
+            enterTransition = {
+                androidx.compose.animation.slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = androidx.compose.animation.core.tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))
+            },
+            popExitTransition = {
+                androidx.compose.animation.slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                )
+            }
+        ) {
+            com.d_drostes_apps.aevum.ui.screens.projects.PmEditorScreen(
+                onDone = { navController.popBackStack() }
+            )
+        }
         composable(AppDestination.LifeView.route) {
             com.d_drostes_apps.aevum.ui.screens.lifeview.LifeViewScreen(
                 onBack = { navController.popBackStack() }

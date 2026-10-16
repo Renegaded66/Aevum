@@ -137,8 +137,16 @@ android {
         //   an, und der Digital-Worker startet nie, wenn eine getrackte App
         //   im Vordergrund ist. Fremde Sessions (Geofence/Fahrt/Sport/
         //   manuell/Kalender) behalten strikt Vorrang.
-        versionCode = 31
-        versionName = "1.0.30"
+        // M19.1 (App 1.0.31): Projektmanagement — ein selbstreferenzieller
+        //   Baum (pm_node, DB v44) für Projekte → Kategorien → Aufgaben →
+        //   kleinste Schritte, mit Dashboard-Einstieg (Zähler der offenen
+        //   Schritte), von unten einfahrendem Sheet, Tages-Karussell mit
+        //   Swipe, Glas mit Juwelen + Feuerwerk (Feier-Gate gegen
+        //   Dauerfeuer), Backlog, Tag-planen-Sheet, Sammel-Eingabe und
+        //   Fortschrittsbalken je Aufgabe und Projekt. Keine Levels, keine
+        //   XP, keine Maskottchen — abhakbare Arbeit statt Spielerei.
+        versionCode = 32
+        versionName = "1.0.31"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

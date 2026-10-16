@@ -60,7 +60,10 @@ import com.d_drostes_apps.aevum.data.model.*
         CalendarRule::class,
         CalendarEventCache::class,
         // M18.131: manuell markierte Einzel-Termine (Kalender → Activity)
-        CalendarEventPin::class
+        CalendarEventPin::class,
+        // M19.1: Projektmanagement (ein selbstreferenzieller Baum für
+        // Ober-/Unterprojekte, Kategorien, Aufgaben und Todos)
+        PmNode::class
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
@@ -92,8 +95,14 @@ import com.d_drostes_apps.aevum.data.model.*
     // Markierung an der Termin-INSTANZ hängt (Instanz-Schlüssel enthält
     // den Startzeitpunkt) und damit genau ein Vorkommen trifft — auch bei
     // wiederkehrenden Terminen. FK auf activity_type mit SET NULL, damit
-    // das Löschen einer Aktivität die Markierung nicht mitreißt.
-    version = 43,
+    // dann das Löschen einer Aktivität die Markierung nicht mitreißt.
+    // M19.1: v44 — pm_node (Projektmanagement: Ober-/Unterprojekte,
+    // Kategorien, Aufgaben, Todos in EINEM selbstreferenziellen Baum).
+    // Rein additive Migration; kein Bestandsdatum wird angefasst. Der Baum
+    // wird in Kotlin indexiert (PmTree), deshalb braucht die Migration keine
+    // Datenumformung, nur Tabelle + Indizes. Die Übereinstimmung mit dem
+    // erwarteten Schema wird von PmMigrationSchemaTest gegen 44.json geprüft.
+    version = 44,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -136,6 +145,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun calendarEventCacheDao(): CalendarEventCacheDao
     // M18.131: manuell markierte Einzel-Termine
     abstract fun calendarEventPinDao(): CalendarEventPinDao
+    // M19.1: Projektmanagement (ein Baum für Projekte → Aufgaben → Todos)
+    abstract fun pmNodeDao(): PmNodeDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1594,6 +1605,60 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "ALTER TABLE `automation_settings` ADD COLUMN `walk_stop_on_steps_enabled` INTEGER NOT NULL DEFAULT 1"
                 )
+            }
+        }
+
+        /**
+         * M19.1: Die exakten SQL-Anweisungen der v43→v44-Migration als
+         * Konstanten. Sie werden von der Migration BENUTZT und von
+         * PmMigrationSchemaTest gegen die von Room erzeugte Schema-Datei
+         * 44.json geprüft — so kann die Migration nicht von der Entity
+         * abweichen (die App öffnet die DB fail-fast, ein „Migration didn't
+         * properly handle: pm_node" wäre ein Startabsturz nach dem Update).
+         */
+        const val SQL_CREATE_PM_NODE =
+            "CREATE TABLE IF NOT EXISTS `pm_node` (" +
+                "`id` TEXT NOT NULL, " +
+                "`parent_id` TEXT, " +
+                "`type` TEXT NOT NULL, " +
+                "`title` TEXT NOT NULL, " +
+                "`note` TEXT NOT NULL, " +
+                "`color` TEXT, " +
+                "`sort_order` INTEGER NOT NULL, " +
+                "`scheduled_date` TEXT, " +
+                "`due_date` TEXT, " +
+                "`done_at` INTEGER, " +
+                "`created_at` INTEGER NOT NULL, " +
+                "`updated_at` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`id`), " +
+                "FOREIGN KEY(`parent_id`) REFERENCES `pm_node`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+
+        val SQL_PM_NODE_INDICES: List<String> = listOf(
+            "CREATE INDEX IF NOT EXISTS `index_pm_node_parent_id` ON `pm_node` (`parent_id`)",
+            "CREATE INDEX IF NOT EXISTS `index_pm_node_type` ON `pm_node` (`type`)",
+            "CREATE INDEX IF NOT EXISTS `index_pm_node_sort_order` ON `pm_node` (`sort_order`)",
+            "CREATE INDEX IF NOT EXISTS `index_pm_node_scheduled_date` ON `pm_node` (`scheduled_date`)",
+            "CREATE INDEX IF NOT EXISTS `index_pm_node_done_at` ON `pm_node` (`done_at`)"
+        )
+
+        /**
+         * M19.1: v43 → v44 — Projektmanagement-Baum.
+         *
+         * Rein additiv: eine neue Tabelle, kein Bestandsdatum wird angefasst.
+         *
+         * Die SQL-Strings sind Zeichen für Zeichen das, was Room aus [PmNode]
+         * erzeugt (Spaltenreihenfolge = Deklarationsreihenfolge, NOT NULL für
+         * alle nicht-nullbaren Kotlin-Eigenschaften, kein DEFAULT, Primärschlüssel
+         * am Ende, Fremdschlüssel inklusive ON DELETE CASCADE).
+         *
+         * ON DELETE CASCADE auf den Selbstbezug: Löschen eines Projekts räumt
+         * den kompletten Teilbaum ab, ohne Nacharbeit im Code.
+         */
+        val MIGRATION_43_44 = object : Migration(43, 44) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(SQL_CREATE_PM_NODE)
+                SQL_PM_NODE_INDICES.forEach { database.execSQL(it) }
             }
         }
     }

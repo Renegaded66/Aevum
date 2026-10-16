@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## [Unreleased] — M19.1 — 2026-10-17
+
+### Neu — Projektmanagement
+
+- **Anlass (User-Report):** „Großes Aevum update. […] ich habe Probleme bei
+  meinem Studium, große Aufgaben zu erledigen. Aktuell muss ich eine umfangreiche
+  Präsentation machen. Und als Ziel hab ich einfach nur dass die fertig wird. Und
+  ich kann mich überhaupt nicht fokussieren. Es scheint kein Ende zu haben und ich
+  scheine keinen Fortschritt zu machen. Daher halte ich es für sinnvoll jede
+  kleinste Aufgabe schriftlich festzuhalten und abzuarbeiten."
+- **Struktur:** Ein selbstreferenzieller Baum (`pm_node`, DB **v44**) für
+  Ober-/Unterprojekte, Kategorien, Aufgaben und Schritte — beliebig tief. Vier
+  Typen statt fünf Tabellen, damit die Hierarchie offen bleibt.
+- **Einstieg:** kleiner Knopf oben rechts im Dashboard (gemaltes Juwel mit
+  Zähler der offenen Schritte; schwebt als zweite Platzierung ein, sobald der
+  Hero weggescrollt ist). Öffnet ein Sheet, das von unten nach oben einfährt.
+- **Glas:** Gefäß mit einem Juwel je erledigtem Schritt (Farbe = Aufgabe),
+  leere Fassungen für die offenen Schritte, Fallanimation beim Abhaken,
+  Feuerwerk bei vollem Glas — **genau einmal** pro erreichtem Stand
+  (persistiertes Feier-Gate gegen Dauerfeuer bei Neukomposition).
+- **Tagesplan:** Todos tagzuweisbar; nicht erledigte werden am Folgetag
+  übernommen und markiert, erledigte verschwinden am Folgetag. Schritte ohne
+  Datum liegen im Backlog.
+- **Karussell:** eine Karte je Aufgabe mit den heutigen Schritten, Wischen
+  nach links/rechts wechselt die Aufgabe.
+- **Fortschritt:** Balken je Aufgabe UND je Projekt über alle enthaltenen
+  Schritte (nicht nur heute) — der langfristige Fortschritt wird sichtbar.
+- **Massenzuweisung:** Sammel-Eingabe (eine Zeile = ein Schritt),
+  „Alle offenen → heute" je Aufgabe, „Tag planen"-Sheet mit Vorauswahl.
+- **Tests:** 8 neue Suiten (u. a. echte Room-DB, Migration gegen das
+  Compiler-Schema, Komplettablauf über das ViewModel). Details im
+  Abschlussbericht `docs/M19-1-ABSCHLUSSBERICHT.md`.
+- **Nicht Bestandteil:** keine Levels/XP/Maskottchen, keine Zeiterfassung in
+  PM-Schritten, keine Serien, keine Erinnerungen. Das bestehende Modul „Todos"
+  bleibt unverändert.
+
 ## [Unreleased] — M18.151 — 2026-10-16
 
 ### Behoben — App-Aufzeichnung × Digital: Übergabe-Regeln der Smartphone-Aufzeichnungen

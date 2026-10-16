@@ -156,3 +156,39 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 - Bottom Navigation zeigt Heute, Insights, Timeline, Wachstum und Settings.
 - Insights-Heatmap öffnet den gewählten Tag in der Timeline.
 - Weekly Review ist aus Insights erreichbar und öffnet Timeline-Tage sowie Review Inbox.
+
+## Projektmanagement (M19.1)
+
+Drei Routen, ein Einstieg:
+
+```text
+Dashboard (Knopf oben rechts, Zähler der offenen Todos)
+   └── Projects            "projects"                    — Sheet von unten
+        ├── ProjectsNode   "projects/node/{nodeId}"       — Hierarchie (Push)
+        └── PmEditor       "pm_editor?mode={mode}&nodeId=&parentId=&type="
+```
+
+**Übergänge** (bewusst nur für diese Routen gesetzt, alles andere bleibt beim
+App-Standard):
+
+- `Projects` erscheint mit `slideInVertically` von unten und fährt beim
+  Schließen wieder nach unten heraus — die geforderte „Animation von unten
+  nach oben".
+- `PmEditor` benutzt denselben vertikalen Übergang (Modal-Charakter).
+- `ProjectsNode` nutzt den normalen horizontalen Push (Hierarchie-Gefühl).
+
+**Bedeutung der Editor-Route:** Eine einzige Seite deckt vier Fälle ab, weil
+die Absicht in der Route steht:
+
+| `mode` | Fall | Argumente |
+|---|---|---|
+| `node_new` | Projekt/Kategorie/Aufgabe anlegen | `parentId`, `type` |
+| `node_edit` | Knoten bearbeiten | `nodeId` |
+| `todos_new` | Schritte sammeln (eine Zeile = ein Schritt) | `parentId` |
+| `todo_edit` | einzelnen Schritt bearbeiten | `nodeId` |
+
+**Weitere Einstiege:** Zahnrad → „Projektmanagement" (Abschnitt Erweitert).
+
+**Zurück-Verhalten:** Editor kehrt nach dem Speichern zurück (`popBackStack`),
+die Detailseite nach dem Löschen des Knotens, das Sheet schließt über den
+Pfeil, den Griff (Herunterziehen) oder den System-Zurück.

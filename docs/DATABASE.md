@@ -572,3 +572,48 @@ Die wichtigste Änderung ist die Trennung von:
 - Aggregaten
 
 Damit bleibt Aevum über Jahre erweiterbar, auch wenn neue Sensoren, Wearables, Kalenderdaten, KI-Auswertungen, Exporte, Widgets, PDF-Berichte oder Multi-Device-Sync hinzukommen.
+
+
+## M19.1 — Projektmanagement (Version 44)
+
+Neue Tabelle `pm_node` — EIN selbstreferenzieller Baum für die komplette
+Hierarchie (Ober-/Unterprojekte, Kategorien, Aufgaben, Schritte).
+
+| Spalte | Typ | Nullbar | Zweck |
+|---|---|---|---|
+| `id` | TEXT | nein | Primärschlüssel (UUID) |
+| `parent_id` | TEXT | ja | Elternteil, FK auf `pm_node(id)` · ON DELETE CASCADE |
+| `type` | TEXT | nein | `PROJECT` \| `CATEGORY` \| `TASK` \| `TODO` |
+| `title` | TEXT | nein | Bezeichnung |
+| `note` | TEXT | nein | Notiz/Quelle (Default leer) |
+| `color` | TEXT | ja | optionale Farbe (#RRGGBB) |
+| `sort_order` | INTEGER | nein | Reihenfolge unter Geschwistern |
+| `scheduled_date` | TEXT | ja | ISO-Datum (Tag); NULL = Backlog |
+| `due_date` | TEXT | ja | Frist (nur Anzeige) |
+| `done_at` | INTEGER | ja | Erledigungszeitpunkt (nur Todos) |
+| `created_at` | INTEGER | nein | Anlage |
+| `updated_at` | INTEGER | nein | letzte Änderung |
+
+Indizes: `parent_id`, `type`, `sort_order`, `scheduled_date`, `done_at`.
+
+**Warum eine Tabelle statt fünf:** Die Rekursion passiert im Speicher
+(`PmTree`), weil die Datenmenge (hunderte bis wenige tausend Knoten) einen
+vollständig geladenen, indexierten Baum billiger macht als jede rekursive
+SQL-Query — und die Fortschrittswerte sich dadurch automatisch mitändern,
+sobald ein Schritt abgehakt wird (ein einziger Flow über die Tabelle).
+
+**Warum ein `done_at` statt einer Erledigungs-Tabelle:** Ein PM-Schritt wird
+genau einmal erledigt (keine Serien). Der Zeitstempel liefert zugleich die
+Historie (welcher Tag, welche Uhrzeit) — der 7-Tage-Streifen kommt damit ohne
+zweite Tabelle aus.
+
+**Migration 43 → 44** ist rein additiv (`MIGRATION_43_44`: Tabelle + fünf
+Indizes). Die SQL-Anweisungen stehen als Konstanten in `AppDatabase`
+(`SQL_CREATE_PM_NODE`, `SQL_PM_NODE_INDICES`) und werden von
+`PmMigrationSchemaTest` Zeichen für Zeichen gegen die vom Room-Compiler
+erzeugte `44.json` geprüft — die App öffnet die Datenbank fail-fast, eine
+abweichende Migration wäre also ein Startabsturz nach dem Update.
+
+**Export/Backup:** `DataManager` arbeitet auf der SQLite-Datei und erfasst
+alle Tabellen — `pm_node` ist damit automatisch in JSON-Export und ZIP-Backup
+enthalten, ohne eigenen Code.

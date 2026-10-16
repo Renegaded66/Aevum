@@ -68,5 +68,12 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     // M18.83: Orts-Timeline (Google-Maps-artige Tag-Story)
     PlaceTimeline("place_timeline", R.string.place_timeline_title),
     // M18.146: Detail-Statistikseite einer Aktivität (fancy Verlaufsgraph)
-    ActivityStats("stats/{activityTypeId}", R.string.activity_stats_title)
+    ActivityStats("stats/{activityTypeId}", R.string.activity_stats_title),
+    // M19.1: Projektmanagement (Sheet von unten) — Wurzel, Detailseite, Editor.
+    // Der Editor trägt seine Absicht in der Route (mode), damit eine einzige
+    // Seite alle vier Fälle abdeckt: Knoten neu, Knoten bearbeiten, Schritte
+    // sammeln, einzelnen Schritt bearbeiten.
+    Projects("projects", R.string.projects_title),
+    ProjectsNode("projects/node/{nodeId}", R.string.pm_task_details),
+    PmEditor("pm_editor?mode={mode}&nodeId={nodeId}&parentId={parentId}&type={type}", R.string.pm_editor_edit_node)
 }

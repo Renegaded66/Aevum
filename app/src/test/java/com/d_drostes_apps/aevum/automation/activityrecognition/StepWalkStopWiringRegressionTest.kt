@@ -239,7 +239,16 @@ class StepWalkStopWiringRegressionTest {
         val text = src.readText()
         assertThat(text.contains("val MIGRATION_42_43 = object : Migration(42, 43)")).isTrue()
         assertThat(text.contains("ADD COLUMN `walk_stop_on_steps_enabled` INTEGER NOT NULL DEFAULT 1")).isTrue()
-        assertThat(text.contains("version = 43")).isTrue()
+        // M19.1: Die Versionsprüfung war fest auf 43 verdrahtet und brach damit
+        // bei JEDER weiteren Migration (v44 = Projektmanagement). Die Absicht
+        // dieses Tests ist „die v43-Migration ist da und die Version wurde
+        // mitgezogen" — genau das wird jetzt geprüft, ohne bei v45 erneut zu
+        // brechen.
+        val version = Regex("version = (\\d+)").find(text)?.groupValues?.get(1)?.toInt()
+        assertWithMessage("Keine Datenbank-Version in AppDatabase gefunden")
+            .that(version).isNotNull()
+        assertWithMessage("Die v43-Migration ist da, aber die Version steht noch auf 43")
+            .that(version!!).isAtLeast(43)
     }
 
     @Test

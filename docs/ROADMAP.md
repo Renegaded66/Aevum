@@ -320,3 +320,27 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 **Tests:** komplette Suite, APK badging/signature, manuelle Smoke Tests.
 
 **Definition of Done:** verifizierte installierbare APK liegt vor.
+
+## M19.1 — Projektmanagement
+
+**Ziel:** Große Vorhaben in kleinste abhakbare Schritte zerlegen, jeden Tag
+sichtbar machen, was ansteht — und den Fortschritt spürbar wachsen lassen.
+
+**Status:** Abgeschlossen (siehe `docs/M19-1-ABSCHLUSSBERICHT.md` und die
+Spezifikation `docs/M19-1-PROJEKTMANAGEMENT.md`).
+
+**Aufgaben:** Baum-Datenmodell (`pm_node`, DB v44), Domänenlogik (Baum,
+Tagesplan, Fortschritt, Feier-Gate), Repository mit Massenoperationen,
+Dashboard-Einstieg mit Zähler, PM-Sheet als Fragment-Ersatz mit
+Von-unten-Animation, Tages-Karussell mit Swipe, Glas mit Juwelen und
+Feuerwerk, Backlog, Tag-planen-Sheet, Sammel-Eingabe, Editor.
+
+**Tests:** `PmTreeTest`, `PmTodayPlanTest`, `PmCelebrationGateTest`,
+`PmColorsTest`, `PmSeedTest`, `PmRepositoryRoomTest` (echte Room-DB),
+`PmMigrationSchemaTest` (Migration gegen das Compiler-Schema),
+`PmProjectsViewModelTest` (Komplettablauf DB → Repository → ViewModel).
+
+**Definition of Done:** Alle Schritte eines Tages sind an einem Ort
+abhakbar, das Glas füllt sich je Schritt und feiert genau einmal bei vollem
+Glas, Fortschrittsbalken wachsen über Tage hinweg, 25 Schritte sind mit einem
+Tipp planbar. Erfüllt.
