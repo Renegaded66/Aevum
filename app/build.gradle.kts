@@ -120,8 +120,13 @@ android {
         //      vorher 30 Min / irgendein Netz) + gedrosselter stiller Kick bei
         //      App-Öffnen/Hintergrund-Start (PcSyncGate, >=10 Min Abstand) —
         //      ohne jede Meldung, ohne Akku-Last.
-        versionCode = 28
-        versionName = "1.0.27"
+        // M18.149 (App 1.0.28, Icon-Fix): Das Artwork liegt jetzt verkleinert
+        //   (76 %) mit dunklem Rand im Icon — auf Devons Handy schnitt die
+        //   Kreis-Maske des Launchers den Ring der zehn Bereichs-Icons an
+        //   (je Icon halb sichtbar). Neu: Knoten-Außenkante ~35 dp statt ~46 dp,
+        //   unter jeder realistischen Maske vollständig sichtbar.
+        versionCode = 29
+        versionName = "1.0.28"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

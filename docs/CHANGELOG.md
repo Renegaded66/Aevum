@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## [Unreleased] — M18.149 — 2026-10-16
+
+### Behoben — App-Icon: Ring der Bereichs-Icons wurde angeschnitten
+
+- **Meldung (Devon):** „Das App-Icon ist ein Kreis, und der schneidet das Bild
+  ziemlich genau auf dem Kreis ab, wo die ganzen Icons drauf sind" — die zehn
+  Lebensbereich-Icons auf dem Ring waren je nur zur Hälfte sichtbar.
+- **Ursache (gemessen):** Das Artwork füllte das adaptive 108-dp-Raster
+  randlos; die Launcher-Maske auf dem betroffenen Gerät schneidet deutlich
+  aggressiver als die eingeschriebene Standard-Maske (beobachtet: sichtbarer
+  Kreis ≈ 77 % des Rasters, exakt auf den Knoten-Mitten). Knoten-Außenkante
+  lag bei ~46 dp, der Zuschnitt bei ~41,6 dp.
+- **Fix:** Das Artwork liegt jetzt auf **76 %** verkleinert, zentriert auf
+  einem aus der Artwork-Randfarbe gemittelten dunklen Grund (Übergang
+  unsichtbar) — wie das Originalbild mit Rand. Knoten-Außenkante jetzt ~35 dp,
+  unter der beobachteten Maske mit ~6 dp Rand vollständig sichtbar
+  (Sichtprüfung mit simulierter Geräte-Maske: vorher angeschnitten, nachher
+  komplett). Adaptive-Layer, Legacy-PNGs und Play-512 neu erzeugt aus dem
+  Generator `docs/tools/gen_app_icon.py` (`ART_SCALE = 0.76`).
+
+### Verifikation
+
+- Icon-only-Änderung ohne Codeänderung: Unit-Tests unverändert (letzter
+  vollständiger Lauf 1084/1084). Debug-APK (kanonischer Key) + Release-APK in
+  1.0.28 (versionCode 29) gebaut.
+
+---
+
 ## [Unreleased] — M18.147 — 2026-10-16
 
 ### Hinzugefügt — Neues App-Icon
