@@ -172,6 +172,11 @@ public static class Loc
         ["s.rec_1"] = "1 recording",
         ["s.rec_n"] = "{0} recordings",
         ["s.hist_summary"] = "{0} · {1} total",
+        // PC 1.5.0: Aufzeichnung aus dem Verlauf entfernen (zweistufig)
+        ["s.hist_delete"] = "Remove recording",
+        ["s.hist_delete_q"] = "Remove?",
+        ["s.hist_delete_yes"] = "Yes",
+        ["s.hist_delete_no"] = "No",
 
         // Kopplung
         ["s.pair_title"] = "Pairing",
@@ -286,6 +291,8 @@ public static class Loc
         ["s.start_title"] = "START ACTIVITY",
         ["s.start_desc"] = "Pick an activity from your Aevum list — start it right away or with a head start.",
         ["s.start_paused"] = "Recording is paused — resume tracking to start an activity.",
+        // PC 1.5.0: Handy zeichnet auf → PC-Start wartet (Handy hat Vorrang)
+        ["s.start_phone_priority"] = "Your phone is recording right now — PC start waits until it's done (your phone has priority).",
         ["s.start_now"] = "Start now",
         ["s.start_in_5"] = "+5 min",
         ["s.start_in_15"] = "+15 min",
@@ -307,6 +314,13 @@ public static class Loc
         ["s.plive_hint"] = "Live from your phone — controls apply within seconds (same Wi-Fi).",
         ["s.plive_stale"] = "Last update {0} — control needs the same Wi-Fi.",
         ["s.plive_busy"] = "Command sent — waiting for your phone…",
+        ["s.plive_badge"] = "● LIVE",
+
+        // PC 1.5.0: Handy-Vorrang + deutlich sichtbare Aufnahme
+        ["s.dash_rec_badge"] = "● RECORDING",
+        ["s.dash_priority_label"] = "PHONE GOES FIRST",
+        ["s.dash_phone_recording"] = "Your phone is recording",
+        ["s.dash_phone_priority"] = "The PC holds back while your phone records — only one recording runs at a time, and your phone has priority.",
 
         // Updates (Einstellungen)
         ["s.upd_title"] = "UPDATES",
@@ -425,6 +439,11 @@ public static class Loc
         ["s.rec_1"] = "1 Aufzeichnung",
         ["s.rec_n"] = "{0} Aufzeichnungen",
         ["s.hist_summary"] = "{0} · {1} gesamt",
+        // PC 1.5.0: Aufzeichnung aus dem Verlauf entfernen (zweistufig)
+        ["s.hist_delete"] = "Aufzeichnung entfernen",
+        ["s.hist_delete_q"] = "Entfernen?",
+        ["s.hist_delete_yes"] = "Ja",
+        ["s.hist_delete_no"] = "Nein",
 
         ["s.pair_title"] = "Kopplung",
         ["s.pair_subtitle"] = "Verbinde die Aevum-App auf deinem Handy — gleiches WLAN, kein Konto, keine Cloud.",
@@ -533,6 +552,8 @@ public static class Loc
         ["s.start_title"] = "AKTIVITÄT STARTEN",
         ["s.start_desc"] = "Wähle eine Aktivität aus deiner Aevum-Liste — starte sie sofort oder mit Vorlaufzeit.",
         ["s.start_paused"] = "Aufzeichnung ist pausiert — zum Starten erst fortsetzen.",
+        // PC 1.5.0: Handy zeichnet auf → PC-Start wartet (Handy hat Vorrang)
+        ["s.start_phone_priority"] = "Dein Handy zeichnet gerade auf — der PC-Start wartet, bis es fertig ist (dein Handy hat Vorrang).",
         ["s.start_now"] = "Jetzt starten",
         ["s.start_in_5"] = "+5 Min",
         ["s.start_in_15"] = "+15 Min",
@@ -554,6 +575,13 @@ public static class Loc
         ["s.plive_hint"] = "Live vom Handy — Steuerung wirkt in Sekunden (gleiches WLAN).",
         ["s.plive_stale"] = "Letzte Meldung {0} — Steuerung braucht das gleiche WLAN.",
         ["s.plive_busy"] = "Befehl gesendet — warte auf dein Handy…",
+        ["s.plive_badge"] = "● LIVE",
+
+        // PC 1.5.0: Handy-Vorrang + deutlich sichtbare Aufnahme
+        ["s.dash_rec_badge"] = "● AUFNAHME LÄUFT",
+        ["s.dash_priority_label"] = "HANDY HAT VORRANG",
+        ["s.dash_phone_recording"] = "Dein Handy zeichnet auf",
+        ["s.dash_phone_priority"] = "Der PC hält sich zurück, solange dein Handy aufzeichnet — es läuft immer nur eine Aufzeichnung, und dein Handy hat Vorrang.",
 
         ["s.upd_title"] = "AKTUALISIERUNGEN",
         ["s.upd_current"] = "Installierte Version {0}",

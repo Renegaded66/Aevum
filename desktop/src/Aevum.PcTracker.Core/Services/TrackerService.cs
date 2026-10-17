@@ -17,6 +17,13 @@ public sealed class TrackerService : IDisposable
     private readonly IClock _clock;
     private readonly SessionEngine _engine = new();
 
+    /// <summary>
+    /// PC 1.5.0: Liefert „zeichnet gerade das Handy auf?" zum Zeitpunkt X
+    /// (Live-Kanal). Null = kein Kanal angeschlossen (Tests/Headless) →
+    /// Handy-Vorrang greift nie.
+    /// </summary>
+    private readonly Func<long, bool>? _phoneRecording;
+
     private Timer? _timer;
     private long _lastCatalogWriteMs;
     private string? _lastCatalogKey;
@@ -24,17 +31,26 @@ public sealed class TrackerService : IDisposable
     /// <summary>Wird nach jedem Tick ausgelöst (UI aktualisiert die Live-Anzeige).</summary>
     public event Action? StateChanged;
 
-    public TrackerService(IForegroundProbe probe, SessionStore store, SettingsService settings, IClock clock)
+    public TrackerService(
+        IForegroundProbe probe,
+        SessionStore store,
+        SettingsService settings,
+        IClock clock,
+        Func<long, bool>? phoneRecording = null)
     {
         _probe = probe;
         _store = store;
         _settings = settings;
         _clock = clock;
+        _phoneRecording = phoneRecording;
     }
 
     public TrackedSession? ActiveSession => _engine.Active;
     public ForegroundSample? LastForeground { get; private set; }
     public long LastIdleMs { get; private set; }
+
+    /// <summary>PC 1.5.0: Zeichnet gerade das Handy auf? (Handy hat Vorrang)</summary>
+    public bool IsPhoneRecording => _phoneRecording?.Invoke(_clock.NowMs) == true;
 
     /// <summary>Läuft die echte (Windows-)Probe? Sonst zeigt die UI einen Hinweis.</summary>
     public bool ProbeAvailable => _probe is not NullForegroundProbe;
@@ -82,15 +98,25 @@ public sealed class TrackerService : IDisposable
     /// der Ablauf an). Manuelle Sessions haben Vorrang vor Regeln und allgemeiner
     /// Aufzeichnung; beendet werden sie über den Stop-Knopf
     /// (<see cref="StopActiveSession"/>) oder die Pause.
+    ///
+    /// PC 1.5.0: Zeichnet gerade das HANDY auf, wird der Start abgelehnt
+    /// (Rückgabe false) — „immer nur eine Sache, Handy hat Vorrang". Die UI
+    /// zeigt den Hinweis; so blitzt keine 2-Sekunden-Session auf, die der
+    /// nächste Tick sofort wieder beenden müsste.
     /// </summary>
-    public void StartManualActivity(string activityKey)
+    public bool StartManualActivity(string activityKey)
     {
+        if (IsPhoneRecording)
+        {
+            return false;
+        }
         var upserts = _engine.StartManual(activityKey, TimeHelper.LocalIanaTimeZoneId(), _clock.NowMs);
         if (upserts.Count > 0)
         {
             _store.Apply(upserts);
         }
         StateChanged?.Invoke();
+        return true;
     }
 
     /// <summary>PC 1.3.0 (M20): Stop-Knopf — die laufende (manuelle) Session endet jetzt.</summary>
@@ -171,6 +197,9 @@ public sealed class TrackerService : IDisposable
             GeneralEnabled = settings.GeneralEnabled,
             GeneralActivityKey = settings.GeneralActivityKey,
             AudioActive = _probe.IsAudioPlaying(),
+            // PC 1.5.0: Handy-Vorrang — während einer Handy-Aufzeichnung stoppt
+            // die Engine alle PC-Sessions und startet nichts Neues.
+            PhoneRecording = _phoneRecording?.Invoke(now) == true,
         });
         if (upserts.Count > 0)
         {

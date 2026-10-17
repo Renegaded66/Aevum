@@ -320,6 +320,35 @@ Antwort:
 
 ---
 
+### 5f. Handy-Vorrang: nur eine Aufzeichnung zur Zeit (ab PC-Tracker 1.5.0)
+
+Devon: „Offensichtlich sollte die pc aufzeichnung gestoppt werden, wenn etwas
+am handy beginnt aufzuzeichnen, dabei ist es egal ob es nur die allgemeine pc
+aktivität (bspw Digital) ist, oder ein bestimmtes programm […] Also bedenke
+dass immer nur eine sache gleichzeitig aufgezeichnet werden können soll und
+handy hat vorrang."
+
+- **Regel:** Läuft am Handy eine Aufzeichnung (frische Live-Meldung im Sinne
+  von §5e), beendet der PC **jede** eigene Session sofort (Regel-Session,
+  allgemeine Aufzeichnung — auch eine manuell gestartete) und startet nichts
+  Neues, bis das Handy fertig ist. Danach zählt die Sichtbarkeit frisch ab
+  dem Handy-Ende (keine rückwirkende Überlappung: die nächste PC-Session
+  beginnt erst nach dem Handy, nicht bei der „ersten Sicht" von vorhin).
+- **Quelle:** derselbe Live-Kanal (`POST /api/live`). Als „zeichnet auf"
+  zählt eine Session, deren letzte Meldung nicht älter als die
+  Stale-Schwelle ist (45 s) — bleibt die App länger stumm (Absturz, Handy
+  aus), ist der PC wieder frei. Kein neuer Endpunkt.
+- **Manueller PC-Start während Handy-Aufzeichnung:** wird abgelehnt (Engine
+  und UI) — die Start-Karte zeigt „dein Handy hat Vorrang" und ist
+  deaktiviert, damit keine Session aufblitzt, die sofort wieder enden müsste.
+- **UI:** Die Live-Karte zeigt im Vorrang-Fall „Dein Handy zeichnet auf —
+  der PC hält sich zurück"; eine laufende Aufzeichnung (PC oder Handy) ist
+  mit türkisem Rahmen, RECORDING-Badge und wanderndem Schimmer deutlich
+  markiert (§ 1.5.0, Devon: „oben sollte das wirklich ganz deutlich sichtbar
+  sein, mit farbe und schimmer").
+
+---
+
 ## 6. Import in Aevum (idempotent)
 
 **Ist-Stand der Umsetzung (bewusst minimal, kein Schema-Update):**

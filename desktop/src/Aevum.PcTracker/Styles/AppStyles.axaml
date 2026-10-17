@@ -186,4 +186,31 @@
       </Animation>
     </Style.Animations>
   </Style>
+
+  <!-- PC 1.5.0: Aufzeichnung „ganz deutlich sichtbar — mit Farbe und Schimmer"
+       (Devon). Drei Bausteine: kräftiger Türkis-Rahmen (liveFrame), gefülltes
+       RECORDING-Badge (recBadge) und ein wandernder Licht-Schimmer, der über
+       die Karte zieht (shimmer; das Element bringt sein eigenes
+       TranslateTransform mit, hier lebt nur die Endlos-Animation). -->
+  <Style Selector="Border.liveFrame">
+    <Setter Property="BorderBrush" Value="#5EEAD4" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <Style Selector="Border.recBadge">
+    <Setter Property="Background" Value="#5EEAD4" />
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Padding" Value="9,3" />
+  </Style>
+  <Style Selector="Border.shimmer">
+    <Style.Animations>
+      <Animation Duration="0:0:2.4" IterationCount="INFINITE">
+        <KeyFrame Cue="0%">
+          <Setter Property="TranslateTransform.X" Value="-340" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="TranslateTransform.X" Value="1400" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
 </Styles>

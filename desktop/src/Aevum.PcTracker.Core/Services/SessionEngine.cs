@@ -24,6 +24,12 @@ public sealed record EngineTick
     public string GeneralActivityKey { get; init; } = "";
     /// <summary>Spielt gerade Ton ab? Zählt wie eine Nutzereingabe („PC wird benutzt“).</summary>
     public bool AudioActive { get; init; }
+
+    /// <summary>
+    /// PC-Tracker 1.5.0: Zeichnet gerade das HANDY auf? Dann hat es Vorrang —
+    /// der PC beendet alle eigenen Sessions und startet nichts Neues.
+    /// </summary>
+    public bool PhoneRecording { get; init; }
 }
 
 /// <summary>
@@ -268,6 +274,33 @@ public sealed class SessionEngine
             || (ruleMap.TryGetValue(s.ProgramKey, out var r)
                 && r.Mode == RecordMode.WhileRunning
                 && running.Contains(s.ProgramKey));
+
+        // 0) HANDY-VORRANG (PC-Tracker 1.5.0). Devon: „Offensichtlich sollte die
+        //    pc aufzeichnung gestoppt werden, wenn etwas am handy beginnt
+        //    aufzuzeichnen […] egal ob es nur die allgemeine pc aktivität […]
+        //    oder ein bestimmtes programm […] Also bedenke dass immer nur eine
+        //    sache gleichzeitig aufgezeichnet werden können soll und handy hat
+        //    vorrang."
+        //    Solange das Handy aufzeichnet: JEDE PC-Session endet sofort
+        //    (Ende = jetzt — auch eine manuelle: der Vorrang ist eine Ansage
+        //    des Nutzers, kein Bug), nichts Neues startet, und die
+        //    Sichtbarkeits-Zähler beginnen NACH dem Handy-Ende frisch —
+        //    sonst würde die nächste PC-Session rückwirkend die ganze
+        //    Handy-Zeit beanspruchen. Der Block steht VOR der Session-Pflege
+        //    (Schritt 1), damit die gerade beendete Session keinen
+        //    Heartbeat-Doppeleintrag mehr bekommt.
+        if (t.PhoneRecording)
+        {
+            if (Active is not null)
+            {
+                var endedPhone = Finalize(Active, t.NowMs);
+                _lastSessionEndMs = endedPhone.EndAtMs ?? 0;
+                upserts.Add(endedPhone);
+                Active = null;
+            }
+            ResetVisibilityClock(t.NowMs);
+            return upserts;
+        }
 
         // 1) Laufende Session pflegen. (Die allgemeine Aufzeichnung wird in
         //    Schritt 6 gepflegt, die manuelle hier direkt — beide folgen nicht

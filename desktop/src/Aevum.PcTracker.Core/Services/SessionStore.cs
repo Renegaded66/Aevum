@@ -225,6 +225,25 @@ public sealed class SessionStore : IDisposable
         return cmd.ExecuteNonQuery();
     });
 
+    /// <summary>
+    /// PC 1.5.0: EINE abgeschlossene Aufzeichnung aus dem Verlauf entfernen
+    /// (Devon: „Ich will auch in der desktop app aufzeichnungen aus dem verlauf
+    /// entfernen können."). Laufende (offene) Sessions sind bewusst nicht
+    /// löschbar — sie werden gerade geschrieben und kämen beim nächsten
+    /// Heartbeat sofort zurück; die Bedingung „end_at IS NOT NULL" macht das
+    /// auch auf Store-Ebene klar. Bereits zum Handy übertragene Kopien werden
+    /// vom nächsten Sync nicht mehr ausgeliefert (das Handy holt nur noch
+    /// Neues), aber nicht rückwirkend am Handy entfernt — es gibt bewusst
+    /// keinen Rückkanal.
+    /// </summary>
+    public int DeleteSessionById(string id) => WithDb(conn =>
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM sessions WHERE id = $id AND end_at IS NOT NULL";
+        cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteNonQuery();
+    });
+
     private static TrackedSession ReadSession(SqliteDataReader reader) => new()
     {
         Id = reader.GetString(0),

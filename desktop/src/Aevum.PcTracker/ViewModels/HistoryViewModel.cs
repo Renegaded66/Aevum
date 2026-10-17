@@ -65,6 +65,13 @@ public partial class HistoryViewModel : ObservableObject, IRefreshable
 
         Days.Clear();
         var today = DateTime.Today;
+        // PC 1.5.0: Verlaufs-Zeilen sind löschbar — der Handler entfernt die
+        // Session (nur abgeschlossene) und lädt die Ansicht neu.
+        Action<SessionRowViewModel> onDelete = row =>
+        {
+            _host.Store.DeleteSessionById(row.SessionId);
+            Reload();
+        };
         foreach (var group in sessions.GroupBy(s =>
                      DateTimeOffset.FromUnixTimeMilliseconds(s.StartAtMs).ToLocalTime().Date))
         {
@@ -73,7 +80,7 @@ public partial class HistoryViewModel : ObservableObject, IRefreshable
             Days.Add(new DayGroupViewModel(
                 UiFormat.DayLabel(group.Key, today),
                 $"{Recordings(list.Count)} · {UiFormat.Duration(total)}",
-                list.Select(s => SessionRowViewModel.From(s, now, syncedLookup)).ToList()));
+                list.Select(s => SessionRowViewModel.From(s, now, syncedLookup, onDelete)).ToList()));
         }
 
         IsEmpty = Days.Count == 0;

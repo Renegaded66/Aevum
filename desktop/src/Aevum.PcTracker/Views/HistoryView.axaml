@@ -36,7 +36,7 @@
                 <ItemsControl ItemsSource="{Binding Sessions}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:SessionRowViewModel">
-                      <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,4" ColumnSpacing="10">
+                      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,4" ColumnSpacing="10">
                         <TextBlock Text="{Binding Icon}" FontSize="16" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Spacing="1">
                           <TextBlock>
@@ -48,6 +48,22 @@
                         </StackPanel>
                         <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontWeight="SemiBold"
                                    Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
+                        <!-- PC 1.5.0: Aufzeichnung entfernen — zweistufig (Klick → „Ja/Nein") -->
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6"
+                                    VerticalAlignment="Center">
+                          <Button Classes="icon" Content="✕" Command="{Binding RequestDeleteCommand}"
+                                  IsVisible="{Binding !ConfirmDeleteVisible}"
+                                  ToolTip.Tip="{DynamicResource s.hist_delete}"
+                                  Foreground="#9491A5" />
+                          <TextBlock Text="{DynamicResource s.hist_delete_q}" Classes="muted"
+                                     VerticalAlignment="Center" IsVisible="{Binding ConfirmDeleteVisible}" />
+                          <Button Classes="danger" Content="{DynamicResource s.hist_delete_yes}"
+                                  Command="{Binding ConfirmDeleteCommand}" IsVisible="{Binding ConfirmDeleteVisible}"
+                                  Padding="11,5" FontSize="12" />
+                          <Button Classes="ghost" Content="{DynamicResource s.hist_delete_no}"
+                                  Command="{Binding CancelDeleteCommand}" IsVisible="{Binding ConfirmDeleteVisible}"
+                                  Padding="11,5" FontSize="12" />
+                        </StackPanel>
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>

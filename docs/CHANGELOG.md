@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.5.0 — 2026-10-17
+
+### Handy-Vorrang, Aktivitäts-Vorwahl, Verlauf-Löschen, deutliche Aufnahme-Anzeige
+
+- **Handy hat immer Vorrang (Nutzerprinzip):** „Offensichtlich sollte die pc
+  aufzeichnung gestoppt werden, wenn etwas am handy beginnt aufzuzeichnen […]
+  immer nur eine sache gleichzeitig […] und handy hat vorrang." Läuft am
+  Handy eine Aufzeichnung, beendet der PC sofort **jede** eigene Session
+  (Regel, allgemein, auch manuell) und startet nichts Neues; nach dem
+  Handy-Ende zählt die Sichtbarkeit frisch ab jetzt. Manuelle PC-Starts
+  werden während der Handy-Aufzeichnung abgelehnt (Start-Karte deaktiviert
+  mit Hinweis). Quelle ist der bestehende Live-Kanal — kein neuer Endpunkt.
+  Protokoll §5f; neue Testklassen `PhonePriorityTests` (5) und
+  `TrackerServicePhonePriorityTests` (2).
+- **Allgemeine Aufzeichnung: Aktivität VOR dem Schalter wählbar:** „damit
+  nicht direkt eine falsche activity aufgezeichnet wird." Die
+  Aktivitäts-Auswahl im Dashboard ist nicht mehr an den aktiven Schalter
+  gebunden — wählen, dann einschalten; die Session startet mit der gewählten
+  Aktivität.
+- **Verlauf: Aufzeichnungen entfernbar:** „Ich will auch in der desktop app
+  aufzeichnungen aus dem verlauf entfernen können." Zweistufiges Entfernen
+  pro Zeile (✕ → „Entfernen? Ja/Nein", gleiches Muster wie der
+  Zugang-Reset). Nur abgeschlossene Sessions (laufende sind geschützt);
+  gelöschte werden nicht mehr ans Handy ausgeliefert. `DeleteSessionById` +
+  `HistoryDeleteTests` (4).
+- **Aufzeichnung ganz deutlich sichtbar:** „oben […] wirklich ganz deutlich
+  sichtbar […] mit farbe und schimmer." Beide Live-Karten (PC und Handy)
+  tragen bei laufender Aufzeichnung einen türkisen Rahmen, ein gefülltes
+  RECORDING-Badge und einen wandernden Licht-Schimmer; der Zustand
+  „Handy zeichnet auf" ist eine eigene, hervorgehobene Karte.
+- **Version 1.5.0.** Gesamt: **127/127 Tests grün**; Xvfb-Livetest deckte
+  einen Anzeige-Bug auf (Pause-Hinweis erschien fälschlich auch beim
+  Handy-Vorrang — behoben) und verifizierte alle vier Features live
+  (Details im Abschlussbericht).
+
 ## [Unreleased] — PC-Tracker 1.4.1 + App 1.0.35 — 2026-10-17 (Nachtrag)
 
 ### Update-Installation repariert + Update-Knopf gehört nur in die PC-App

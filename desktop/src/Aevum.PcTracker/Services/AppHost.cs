@@ -50,7 +50,27 @@ public sealed class AppHost : IAsyncDisposable
             Settings.Current.DeviceName,
             Server.IsRunning && Server.BoundPort > 0 ? Server.BoundPort : Settings.Current.ApiPort,
             Pairing.Enabled));
-        Tracker = new TrackerService(ProbeFactory.Create(), Store, Settings, Clock);
+        // PC 1.5.0: Handy-Vorrang — der Tracker fragt bei jedem Tick (und vor
+        // jedem manuellen Start), ob das Handy gerade aufzeichnet.
+        Tracker = new TrackerService(ProbeFactory.Create(), Store, Settings, Clock,
+            phoneRecording: now =>
+            {
+                var status = PhoneLive.GetStatus(now);
+                return status.Session is not null && !status.Stale;
+            });
+    }
+
+    /// <summary>
+    /// PC 1.5.0: Zeichnet gerade das Handy auf? (frische Live-Meldung, nicht
+    /// älter als die Stale-Schwelle). Quelle ist der Live-Kanal
+    /// (<c>POST /api/live</c>); ohne Meldung ist der PC sofort wieder frei —
+    /// so bleibt „es läuft immer nur eine Aufzeichnung" auch nach einem
+    /// Handy-Absturz ehrlich.
+    /// </summary>
+    public bool IsPhoneRecording()
+    {
+        var status = PhoneLive.GetStatus(Clock.NowMs);
+        return status.Session is not null && !status.Stale;
     }
 
     public static string DefaultDataDirectory()

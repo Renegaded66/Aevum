@@ -326,6 +326,9 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
     // (alle wenigen Sekunden), gesteuert über Befehl-Antworten an die App.
     [ObservableProperty] private bool _phoneLiveVisible;
     [ObservableProperty] private bool _phoneLiveStale;
+    // PC 1.5.0: Aufzeichnung läuft gerade wirklich (frisch, nicht stale) —
+    // steuert Rahmen/Schimmer/Badge der Karte.
+    [ObservableProperty] private bool _phoneLiveActive;
     [ObservableProperty] private string _phoneLiveIcon = "📱";
     [ObservableProperty] private string _phoneLiveTitle = "";
     [ObservableProperty] private string _phoneLiveLine = "";
@@ -337,6 +340,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         var status = _host.PhoneLive.GetStatus(now);
         var session = status.Session;
         PhoneLiveVisible = session is not null;
+        PhoneLiveActive = session is not null && !status.Stale;
         if (session is null)
         {
             return;
@@ -383,7 +387,11 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         var now = _host.Clock.NowMs;
         ProbeAvailable = _host.Tracker.ProbeAvailable;
         IsPaused = _host.Settings.Current.TrackingPaused;
-        IsStartEnabled = !IsPaused;
+        // PC 1.5.0: Handy-Vorrang — zeichnet das Handy auf, pausiert auch die
+        // Start-Karte („immer nur eine Sache gleichzeitig, Handy hat Vorrang").
+        var phonePriority = _host.Tracker.IsPhoneRecording;
+        PhonePriorityActive = phonePriority;
+        IsStartEnabled = !IsPaused && !phonePriority;
         CheckPendingStart(now);
         IsManualActive = _host.Tracker.ActiveSession?.ProgramKey == SessionEngine.ManualProgramKey;
         UpdatePhoneLive(now);
@@ -404,6 +412,21 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
             NowIcon = manualIcon;
             NowTitle = manualName;
             NowLine = $"{Loc.S("s.man_started")} · {Loc.F("s.row_since", UiFormat.Clock(manual.StartAtMs))} · {UiFormat.Duration(now - manual.StartAtMs)}";
+            return;
+        }
+
+        // PC 1.5.0: Das Handy zeichnet auf — dieser Zustand ist WICHTIGER als
+        // jeder Hinweis darunter („PC recording is active on Windows only"):
+        // Der PC hält sich bewusst zurück, weil das Handy Vorrang hat.
+        // Steht deshalb vor dem Probe-Check.
+        if (PhonePriorityActive)
+        {
+            IsRecording = false;
+            NowLabel = Loc.S("s.dash_priority_label");
+            NowLabelBrush = LiveBrush;
+            NowIcon = "📱";
+            NowTitle = Loc.S("s.dash_phone_recording");
+            NowLine = Loc.S("s.dash_phone_priority");
             return;
         }
 
@@ -465,6 +488,9 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
 
     [ObservableProperty] private bool _probeAvailable = true;
     [ObservableProperty] private bool _isPaused;
+
+    /// <summary>PC 1.5.0: Handy zeichnet gerade auf — PC hat Start-Stopp (Hinweis auf der Start-Karte).</summary>
+    [ObservableProperty] private bool _phonePriorityActive;
 
     private static readonly IBrush LiveBrush = new SolidColorBrush(Color.Parse("#5EEAD4"));
     private static readonly IBrush IdleBrush = new SolidColorBrush(Color.Parse("#9491A5"));

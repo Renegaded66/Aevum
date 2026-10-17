@@ -11,63 +11,118 @@
       </StackPanel>
 
       <!-- PC 1.4.0: Was gerade auf dem HANDY aufgezeichnet wird — Live-Meldung
-           der Aevum-App (alle wenigen Sekunden) mit Stop-/Pause-Steuerung. -->
-      <Border Classes="card" Padding="22" IsVisible="{Binding PhoneLiveVisible}">
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
-          <Grid Width="66" Height="66" VerticalAlignment="Center">
-            <Border Width="54" Height="54" CornerRadius="27"
-                    Background="{DynamicResource SurfaceVariantBrush}"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-              <TextBlock Text="{Binding PhoneLiveIcon}" FontSize="26"
-                         HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
+           der Aevum-App (alle wenigen Sekunden) mit Stop-/Pause-Steuerung.
+           PC 1.5.0: Bei laufender Aufzeichnung deutlich markiert — Türkis-
+           Rahmen, RECORDING-Badge und wandernder Schimmer. -->
+      <Border Classes="card" Padding="22" IsVisible="{Binding PhoneLiveVisible}"
+              Classes.liveFrame="{Binding PhoneLiveActive}">
+        <Grid>
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+            <Grid Width="66" Height="66" VerticalAlignment="Center">
+              <Border Classes="pulseGlow" Width="60" Height="60" CornerRadius="30"
+                      Background="#5EEAD4" Opacity="0.15" IsVisible="{Binding PhoneLiveActive}" />
+              <Border Width="54" Height="54" CornerRadius="27"
+                      Background="{DynamicResource SurfaceVariantBrush}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="{Binding PhoneLiveIcon}" FontSize="26"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </Grid>
+            <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Classes="recBadge" IsVisible="{Binding PhoneLiveActive}" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource s.plive_badge}" FontSize="11" FontWeight="Bold"
+                             Foreground="#0E1424" />
+                </Border>
+                <TextBlock Text="{DynamicResource s.plive_title}" Classes="section-label" VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Text="{Binding PhoneLiveTitle}" FontSize="23" FontWeight="Bold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding PhoneLiveLine}" Classes="muted" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding PhoneLiveHint}" Classes="muted" FontSize="12"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="ghost" Content="{Binding PhonePauseResumeLabel}"
+                    Command="{Binding PhonePauseResumeCommand}" IsEnabled="{Binding !PhoneLiveStale}"
+                    VerticalAlignment="Center" />
+            <Button Grid.Column="3" Classes="danger" Content="{DynamicResource s.plive_stop}"
+                    Command="{Binding PhoneStopCommand}" IsEnabled="{Binding !PhoneLiveStale}"
+                    VerticalAlignment="Center" />
           </Grid>
-          <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-            <TextBlock Text="{DynamicResource s.plive_title}" Classes="section-label" />
-            <TextBlock Text="{Binding PhoneLiveTitle}" FontSize="23" FontWeight="Bold"
-                       TextWrapping="Wrap" />
-            <TextBlock Text="{Binding PhoneLiveLine}" Classes="muted" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding PhoneLiveHint}" Classes="muted" FontSize="12"
-                       TextWrapping="Wrap" />
-          </StackPanel>
-          <Button Grid.Column="2" Classes="ghost" Content="{Binding PhonePauseResumeLabel}"
-                  Command="{Binding PhonePauseResumeCommand}" IsEnabled="{Binding !PhoneLiveStale}"
-                  VerticalAlignment="Center" />
-          <Button Grid.Column="3" Classes="danger" Content="{DynamicResource s.plive_stop}"
-                  Command="{Binding PhoneStopCommand}" IsEnabled="{Binding !PhoneLiveStale}"
-                  VerticalAlignment="Center" />
+          <!-- Schimmer: zieht als weicher Lichtstreifen über die Karte, solange
+               die Handy-Aufzeichnung läuft (reine Deko, klickt nicht). -->
+          <Border CornerRadius="14" ClipToBounds="True" IsHitTestVisible="False"
+                  IsVisible="{Binding PhoneLiveActive}">
+            <Border Classes="shimmer" Width="170" HorizontalAlignment="Left" Opacity="0.55">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                  <GradientStop Color="#005EEAD4" Offset="0" />
+                  <GradientStop Color="#3A5EEAD4" Offset="0.5" />
+                  <GradientStop Color="#005EEAD4" Offset="1" />
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.RenderTransform>
+                <TranslateTransform X="-340" />
+              </Border.RenderTransform>
+            </Border>
+          </Border>
         </Grid>
       </Border>
 
-      <!-- Live-Karte: was gerade aufgezeichnet wird (Puls-Animation bei Aufnahme) -->
-      <Border Classes="card" Padding="22">
-        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">
-          <Grid Width="66" Height="66" VerticalAlignment="Center">
-            <Border Classes="pulseGlow" Width="66" Height="66" CornerRadius="33"
-                    Background="#5EEAD4" Opacity="0.15" IsVisible="{Binding IsRecording}" />
-            <Border Width="54" Height="54" CornerRadius="27"
-                    Background="{DynamicResource SurfaceVariantBrush}"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-              <TextBlock Text="{Binding NowIcon}" FontSize="26"
-                         HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-          </Grid>
-          <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Border Classes="pulseDot" Width="9" Height="9" CornerRadius="5"
-                      Background="#5EEAD4" VerticalAlignment="Center"
-                      IsVisible="{Binding IsRecording}" />
-              <TextBlock Text="{Binding NowLabel}" Classes="section-label"
-                         Foreground="{Binding NowLabelBrush}" VerticalAlignment="Center" />
+      <!-- Live-Karte: was gerade aufgezeichnet wird (Puls-Animation bei Aufnahme).
+           PC 1.5.0: Bei laufender Aufzeichnung deutlich markiert (Rahmen, Badge,
+           Schimmer) — „oben sollte das wirklich ganz deutlich sichtbar sein". -->
+      <Border Classes="card" Padding="22" Classes.liveFrame="{Binding IsRecording}">
+        <Grid>
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">
+            <Grid Width="66" Height="66" VerticalAlignment="Center">
+              <Border Classes="pulseGlow" Width="66" Height="66" CornerRadius="33"
+                      Background="#5EEAD4" Opacity="0.15" IsVisible="{Binding IsRecording}" />
+              <Border Width="54" Height="54" CornerRadius="27"
+                      Background="{DynamicResource SurfaceVariantBrush}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="{Binding NowIcon}" FontSize="26"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </Grid>
+            <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Classes="recBadge" IsVisible="{Binding IsRecording}" VerticalAlignment="Center">
+                  <TextBlock Text="{DynamicResource s.dash_rec_badge}" FontSize="11" FontWeight="Bold"
+                             Foreground="#0E1424" />
+                </Border>
+                <Border Classes="pulseDot" Width="9" Height="9" CornerRadius="5"
+                        Background="#5EEAD4" VerticalAlignment="Center"
+                        IsVisible="{Binding IsRecording}" />
+                <TextBlock Text="{Binding NowLabel}" Classes="section-label"
+                           Foreground="{Binding NowLabelBrush}" VerticalAlignment="Center"
+                           IsVisible="{Binding !IsRecording}" />
+              </StackPanel>
+              <TextBlock Text="{Binding NowTitle}" FontSize="23" FontWeight="Bold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding NowLine}" Classes="muted" TextWrapping="Wrap" />
             </StackPanel>
-            <TextBlock Text="{Binding NowTitle}" FontSize="23" FontWeight="Bold"
-                       TextWrapping="Wrap" />
-            <TextBlock Text="{Binding NowLine}" Classes="muted" TextWrapping="Wrap" />
-          </StackPanel>
-          <!-- PC 1.3.0: Stop-Knopf — beendet die manuell gestartete Aktivität sofort -->
-          <Button Grid.Column="2" Classes="danger" Content="{DynamicResource s.start_stop}"
-                  Command="{Binding StopSessionCommand}" IsVisible="{Binding IsManualActive}"
-                  VerticalAlignment="Center" />
+            <!-- PC 1.3.0: Stop-Knopf — beendet die manuell gestartete Aktivität sofort -->
+            <Button Grid.Column="2" Classes="danger" Content="{DynamicResource s.start_stop}"
+                    Command="{Binding StopSessionCommand}" IsVisible="{Binding IsManualActive}"
+                    VerticalAlignment="Center" />
+          </Grid>
+          <!-- Schimmer bei laufender PC-Aufzeichnung (siehe oben). -->
+          <Border CornerRadius="14" ClipToBounds="True" IsHitTestVisible="False"
+                  IsVisible="{Binding IsRecording}">
+            <Border Classes="shimmer" Width="170" HorizontalAlignment="Left" Opacity="0.55">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                  <GradientStop Color="#005EEAD4" Offset="0" />
+                  <GradientStop Color="#3A5EEAD4" Offset="0.5" />
+                  <GradientStop Color="#005EEAD4" Offset="1" />
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.RenderTransform>
+                <TranslateTransform X="-340" />
+              </Border.RenderTransform>
+            </Border>
+          </Border>
         </Grid>
       </Border>
 
@@ -77,8 +132,14 @@
         <StackPanel Spacing="10">
           <TextBlock Text="{DynamicResource s.start_title}" Classes="section-label" />
           <TextBlock Text="{DynamicResource s.start_desc}" Classes="muted" TextWrapping="Wrap" />
+          <!-- Nur bei ECHTER Pause (nicht beim Handy-Vorrang — der hat seinen
+               eigenen Hinweis darunter; der Fix kam aus dem Xvfb-Test, wo
+               beide Texte gleichzeitig erschienen). -->
           <TextBlock Text="{DynamicResource s.start_paused}" TextWrapping="Wrap"
-                     Foreground="#FFC85C" IsVisible="{Binding !IsStartEnabled}" />
+                     Foreground="#FFC85C" IsVisible="{Binding IsPaused}" />
+          <!-- PC 1.5.0: Handy-Vorrang — gleiche Stelle, Türkis statt Warn-Gelb -->
+          <TextBlock Text="{DynamicResource s.start_phone_priority}" TextWrapping="Wrap"
+                     Foreground="#5EEAD4" IsVisible="{Binding PhonePriorityActive}" />
 
           <!-- Vorlaufzeit läuft: Countdown + Abbrechen -->
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding HasPendingStart}">
@@ -136,7 +197,12 @@
                           IsEnabled="{Binding HasGeneralActivities}"
                           OnContent="" OffContent="" VerticalAlignment="Center" />
           </Grid>
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding GeneralEnabled}">
+          <!-- PC 1.5.0: Die Aktivität ist JEDERZEIT wählbar — auch bevor der
+               Schalter aktiviert wird (Devon: „bei Dashboard allgemeine
+               Aufzeichnung auch schon die activity ausgewählt werden können
+               bevor ich den schieberegler aktiviere, damit nicht direkt eine
+               falsche activity aufgezeichnet wird"). -->
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding HasGeneralActivities}">
             <TextBlock Text="{DynamicResource s.gen_activity}" Classes="muted" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" ItemsSource="{Binding GeneralActivities}"
                       SelectedItem="{Binding SelectedGeneralActivity}"

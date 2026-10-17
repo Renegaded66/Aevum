@@ -47,6 +47,21 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
+## Neu in Version 1.5
+
+- **Dein Handy hat immer Vorrang:** Läuft in der Aevum-App eine Aufzeichnung,
+  hält der PC sich automatisch zurück — seine eigene Aufzeichnung stoppt
+  sofort und startet erst nach dem Handy-Ende wieder. Es läuft immer nur
+  eine Aufzeichnung gleichzeitig.
+- **Allgemeine Aufzeichnung: Aktivität zuerst wählen:** Die Aktivität lässt
+  sich jetzt schon aussuchen, bevor der Schalter eingeschaltet wird — so
+  wird nie kurz versehentlich die falsche Aktivität aufgezeichnet.
+- **Verlauf aufräumen:** Aufzeichnungen lassen sich im Verlauf einzeln
+  entfernen (✕ → kurz bestätigen).
+- **Deutlich sichtbare Aufzeichnung:** Läuft eine Aufzeichnung (PC oder
+  Handy), leuchtet die Live-Karte oben in Türkis mit RECORDING-Badge und
+  einem sanft wandernden Schimmer.
+
 ## Neu in Version 1.4.1
 
 - **Update-Installation repariert:** Der Update-Knopf tauscht die neue
