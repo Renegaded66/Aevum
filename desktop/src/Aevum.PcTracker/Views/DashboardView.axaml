@@ -10,6 +10,35 @@
         <TextBlock Text="{DynamicResource s.dash_subtitle}" Classes="muted" />
       </StackPanel>
 
+      <!-- PC 1.4.0: Was gerade auf dem HANDY aufgezeichnet wird — Live-Meldung
+           der Aevum-App (alle wenigen Sekunden) mit Stop-/Pause-Steuerung. -->
+      <Border Classes="card" Padding="22" IsVisible="{Binding PhoneLiveVisible}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+          <Grid Width="66" Height="66" VerticalAlignment="Center">
+            <Border Width="54" Height="54" CornerRadius="27"
+                    Background="{DynamicResource SurfaceVariantBrush}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+              <TextBlock Text="{Binding PhoneLiveIcon}" FontSize="26"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+          </Grid>
+          <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+            <TextBlock Text="{DynamicResource s.plive_title}" Classes="section-label" />
+            <TextBlock Text="{Binding PhoneLiveTitle}" FontSize="23" FontWeight="Bold"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PhoneLiveLine}" Classes="muted" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PhoneLiveHint}" Classes="muted" FontSize="12"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="2" Classes="ghost" Content="{Binding PhonePauseResumeLabel}"
+                  Command="{Binding PhonePauseResumeCommand}" IsEnabled="{Binding !PhoneLiveStale}"
+                  VerticalAlignment="Center" />
+          <Button Grid.Column="3" Classes="danger" Content="{DynamicResource s.plive_stop}"
+                  Command="{Binding PhoneStopCommand}" IsEnabled="{Binding !PhoneLiveStale}"
+                  VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
       <!-- Live-Karte: was gerade aufgezeichnet wird (Puls-Animation bei Aufnahme) -->
       <Border Classes="card" Padding="22">
         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">

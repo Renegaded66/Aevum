@@ -192,6 +192,61 @@ class PcTrackerClient @Inject constructor() {
         }
     }
 
+    /**
+     * PC 1.4.0: Live-Zustand der Handy-Aufzeichnung zum PC melden und den
+     * ausstehenden Steuerbefehl abholen. Devon: „Also auf meinem handy zeichne
+     * ich gerade studium auf. […] Es sollte es aber, auch mit buttons zum
+     * stoppen und pausieren." — Der PC antwortet auf jede Meldung mit dem
+     * ggf. wartenden Befehl; nur das Handy initiiert (Pull-Modell).
+     *
+     * Rückgabe: „pause" / „resume" / „stop" — oder null (nichts zu tun).
+     */
+    suspend fun relayLive(
+        host: String,
+        port: Int,
+        token: String,
+        clientName: String,
+        session: LiveSessionSync?
+    ): String? = withContext(Dispatchers.IO) {
+        val payload = JSONObject().put("clientName", clientName)
+        if (session != null) {
+            payload.put(
+                "session",
+                JSONObject()
+                    .put("sessionId", session.sessionId)
+                    .put("activityKey", session.activityKey)
+                    .put("activityName", session.activityName)
+                    .put("icon", session.icon)
+                    .put("categoryKey", session.categoryKey)
+                    .put("startAtMs", session.startAtMs)
+                    .put("isPaused", session.isPaused)
+                    .put("blockEndAtMs", session.blockEndAtMs)
+            )
+        } else {
+            payload.put("session", JSONObject.NULL)
+        }
+        val (_, body) = request(
+            "POST",
+            "${base(host, port)}/api/live",
+            payload.toString(),
+            mapOf("X-Aevum-Token" to token, "X-Aevum-Client" to clientName)
+        )
+        JSONObject(body).optString("command").ifBlank { null }
+    }
+
+    /** Momentaufnahme einer laufenden Aufzeichnung für den PC (Live-Kanal). */
+    data class LiveSessionSync(
+        val sessionId: String,
+        val activityKey: String,
+        val activityName: String,
+        val icon: String,
+        val categoryKey: String,
+        val startAtMs: Long,
+        val isPaused: Boolean,
+        /** Bei Pause: Zeitpunkt, an dem der Aufzeichnungsblock endete (Session-Split). */
+        val blockEndAtMs: Long
+    )
+
     private fun base(host: String, port: Int) = "http://$host:$port"
 
     private fun request(

@@ -52,3 +52,16 @@
       104/104 Tests (+12 ManualSessionTests), Xvfb-Smoke-Test mit
       gefundenen+gefixten Bugs (CommandParameter, Sichtbarkeits-Vorrang).
       Bericht `docs/PC-TRACKER-1.3-ABSCHLUSSBERICHT.md`, Protokoll §5d.
+- [x] PC-Tracker 1.4.0 + App 1.0.34: Live vom Handy — Desktop-Live-Karte
+      (PhoneLiveRegistry: TTL 15 s stale/45 s gone, Befehls-Wiederholung bis
+      Bestätigung, Resume = neuer Session-Split) + Android-Relay im
+      LiveActivityService (7 s/15 s, ohne Session kein HTTP, Stop-Befehl =
+      Notification-Pfad inkl. driveActive-Reset via performStopFromOutside).
+      E2E unter Xvfb verifiziert (curl-Handy: pause/resume/stop alle ✔, Karte
+      verschwindet bei session:null). In-App-Update App (AppUpdateChecker/
+      Installer, 12 Tests, REQUEST_INSTALL_PACKAGES + FileProvider nur
+      files/updates; Debug→Debug-APK, Release→Store-APK). Sofort-Sync beim
+      App-Öffnen (MainActivity In-Process + Gate 10→2 min/60 s fresh).
+      Desktop: s.upd_keep-Hinweis „Einstellungen bleiben erhalten“ (Daten in
+      %APPDATA%\AevumPcTracker, robocopy ohne /PURGE). Tests: 1158/1158
+      Android, 113/113 Desktop; ZIP 57.305.209 B; Tag pc-tracker-1.4.0.

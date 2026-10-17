@@ -1,5 +1,63 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.4.0 + App 1.0.34 — 2026-10-17
+
+### Live vom Handy: laufende Aufzeichnung mit Stop/Pause am PC + In-App-Update
+
+**PC-Tracker 1.4.0:**
+
+- **Handy-Session live im PC-Dashboard (Nutzerwunsch):** „Also auf meinem
+  handy zeichne ich gerade studium auf. Aber das wird auf dem dashboard in
+  der desktop anwendung gar nicht angezeigt. Das sollte es aber. Auch mit
+  buttons zum stoppen und pausieren." Neue Live-Karte: Aktivität mit Icon,
+  Startzeit, Pausenzustand, Knöpfe **Pause/Fortsetzen** und **Stop**. Ein
+  Klick wirkt in Sekunden — der Befehl wird bei der nächsten Meldung der App
+  abgeholt und ausgeführt. Pull-Modell unverändert (nur das Handy initiiert).
+  Protokoll §5e; 7 neue `PhoneLiveRegistryTests`.
+- **Update-Karte:** Hinweis „Deine Einstellungen und Aufzeichnungen bleiben
+  erhalten — das Update ersetzt nur die Programmdateien." (Nutzerwunsch:
+  „denke beim installieren eines updates der desktop app daran, dass die
+  einstellungen übernommen werden sollen in die neue version.") Faktisch
+  lagen Einstellungen, Aufzeichnungen und Kopplung schon immer unter
+  `%APPDATA%\AevumPcTracker`; das Update tauscht per robocopy nur
+  Programmdateien aus (ohne /PURGE, nichts wird gelöscht) — jetzt zusätzlich
+  im Code dokumentiert und für den Nutzer sichtbar.
+- **Version 1.4.0.**
+
+**App 1.0.34:**
+
+- **Live-Kanal zum PC (Gegenstück zu 1.4.0):** Während einer laufenden
+  Aufzeichnung meldet die App ihren Zustand alle wenigen Sekunden an
+  `POST /api/live` und führt Stop/Pause-Befehle vom PC-Dashboard sofort aus
+  (gleicher Pfad wie die Notification-Knöpfe). Ohne Session: kein HTTP.
+- **Sync beim App-Öffnen sofort (Nutzerbericht):** „spätestens wenn ich aevum
+  auf dem handy öffne sollte der im hintergrund synchronisieren mit dem pc."
+  Der stille Sync-Kick beim App-Öffnen ist jetzt ein sofortiger In-Process-
+  Sync (statt nur WorkManager-Einreihung, die das System verzögern kann);
+  `PcSyncGate`: Mindestabstand 10 min → 2 min, frischer Erfolg blockiert nur
+  noch 60 s („vorhin war doch schon" blockierte das Nachholen).
+- **In-App-Update in den Einstellungen (Nutzerwunsch):** „einen button um
+  nach updates zu suchen im github repo. Und natürlich auch herunterladen
+  und installieren. Sauber durchdacht für beste usability. Ohne irgendwelche
+  tokens, weil das alles veröffentlicht wird." Neue Karte „App-Update":
+  installierte Version, „Nach Updates suchen" (öffentliche GitHub-Releases,
+  kein Token, kein Konto), Release-Notes, Download mit Fortschritt,
+  Installation über den System-Dialog. Debug-Builds laden die Debug-APK,
+  reguläre die Store-APK. Neues Modul `AppUpdateChecker`/`AppUpdateInstaller`
+  (12 neue Tests) + `REQUEST_INSTALL_PACKAGES` + FileProvider nur für
+  `files/updates`. Installation ersetzt nie App-Daten — Einstellungen
+  bleiben.
+- **Version 1.0.34** (versionCode 35).
+
+### Verified
+
+- **1158/1158 Android-Tests grün** (1145 + 12 Update-Tests + 2 neue Gate-Tests;
+  1 Alt-Skip), Build `assembleDebug assembleRelease bundleRelease` erfolgreich,
+  Debug-Signatur kanonisch (SHA-1 `9c3055c4…`).
+- **113/113 PC-Tracker-Tests grün**; Windows-Publish `win-x64` self-contained,
+  ZIP `AevumPcTracker-1.4.0-win-x64.zip`.
+- Details in `docs/PC-TRACKER-1.4-ABSCHLUSSBERICHT.md`.
+
 ## [Unreleased] — PC-Tracker 1.3.0 — 2026-10-17
 
 ### Aktivitäten starten, Android-ähnliches Dashboard, sichtbarer Sync

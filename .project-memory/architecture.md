@@ -103,3 +103,14 @@ App 1.0.32 (versionCode 33), DB **v45**.
 - **Abgrenzung:** Alt-Modul „Todos" (Serien/Streaks) unberührt; Digital-
   Balance-Kern (`AppTrackingTakeoverPolicy`, `ForegroundTracker`,
   `ScreenRecordingWorker`-Logik) unangetastet.
+- **PC-Tracker 1.4.0 / App 1.0.34 — Live-Kanal:** Desktop
+  `PhoneLiveRegistry` (TTL stale 15 s/gone 45 s, Befehl bis Bestätigung,
+  Resume-Split) + `POST /api/live` im `ApiServer`; App-Relay im
+  `LiveActivityService` (7 s/15 s, ohne Session kein HTTP; Stop =
+  `performStopFromOutside` inkl. driveActive-Reset). Dashboard-Karte
+  „LIVE VON DEINEM HANDY" über der PC-Karte; `s.plive_*` DE/EN.
+- **App-Updater:** `data/update/AppUpdateChecker` (öffentliche Releases,
+  Tag `app-`, Debug↔Debug-APK) + `AppUpdateInstaller` (Download in
+  `files/updates`, System-Dialog via FileProvider) + Settings-Karte
+  „App-Update". Sync-Gate: `MIN_GAP_MS` 2 min, `FRESH_SYNC_MS` 60 s,
+  Sofort-Sync in `MainActivity` (In-Process) — WorkManager nur Zusatz.

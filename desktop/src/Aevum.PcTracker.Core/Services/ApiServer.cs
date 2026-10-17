@@ -25,6 +25,7 @@ public sealed class ApiServer : IAsyncDisposable
     private readonly PairingManager _pairing;
     private readonly IClock _clock;
     private readonly string _version;
+    private readonly PhoneLiveRegistry _phoneLive;
 
     private WebApplication? _app;
 
@@ -45,7 +46,8 @@ public sealed class ApiServer : IAsyncDisposable
         TokenService tokens,
         PairingManager pairing,
         IClock clock,
-        string version)
+        string version,
+        PhoneLiveRegistry? phoneLive = null)
     {
         _store = store;
         _settings = settings;
@@ -53,6 +55,7 @@ public sealed class ApiServer : IAsyncDisposable
         _pairing = pairing;
         _clock = clock;
         _version = version;
+        _phoneLive = phoneLive ?? new PhoneLiveRegistry();
     }
 
     public bool IsRunning => _app is not null;
@@ -228,6 +231,71 @@ public sealed class ApiServer : IAsyncDisposable
 
             return Results.Json(new { ok = true, count = list.Count, serverTime = now });
         });
+
+        // PC-Tracker 1.4.0: Live-Kanal — die Aevum-App meldet während einer
+        // laufenden Aufzeichnung regelmäßig ihren Zustand und erhält als
+        // Antwort den ausstehenden Steuerbefehl (Stop/Pause/Fortsetzen).
+        // Nur das Handy initiiert (Pull-Modell); der PC hält nie eine
+        // Verbindung zum Handy offen.
+        app.MapPost("/api/live", async (HttpContext ctx) =>
+        {
+            if (!Authorize(ctx, out var failure))
+            {
+                return failure!;
+            }
+            LiveRelayRequest? request = null;
+            try
+            {
+                request = await ctx.Request.ReadFromJsonAsync<LiveRelayRequest>();
+            }
+            catch
+            {
+                // Unlesbarer Body → unten als bad_request beantwortet.
+            }
+            if (request is null)
+            {
+                return Results.Json(new { error = "bad_request" }, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var now = _clock.NowMs;
+            PhoneLiveSession? session = null;
+            var dto = request.Session;
+            if (dto is not null)
+            {
+                var id = Trim(dto.SessionId, 64);
+                var name = Trim(dto.ActivityName, 80);
+                if (id.Length > 0 && name.Length > 0)
+                {
+                    session = new PhoneLiveSession
+                    {
+                        SessionId = id,
+                        ActivityKey = Trim(dto.ActivityKey, 64),
+                        ActivityName = name,
+                        Icon = Trim(dto.Icon, 8),
+                        CategoryKey = Trim(dto.CategoryKey, 64),
+                        StartAtMs = dto.StartAtMs,
+                        IsPaused = dto.IsPaused,
+                        BlockEndAtMs = dto.BlockEndAtMs,
+                        LastUpdateMs = now,
+                    };
+                }
+            }
+            var command = _phoneLive.HandleRelay(session, now);
+            TouchClient(ctx);
+
+            return Results.Json(new
+            {
+                protocol = ProtocolVersion,
+                serverTime = now,
+                command = command switch
+                {
+                    PhoneLiveCommand.Pause => "pause",
+                    PhoneLiveCommand.Resume => "resume",
+                    PhoneLiveCommand.Stop => "stop",
+                    _ => null,
+                },
+            });
+        });
     }
 
     private void TouchClient(HttpContext ctx)
@@ -318,4 +386,16 @@ public sealed class ApiServer : IAsyncDisposable
     public sealed record ActivitySyncRequest(string? ClientName, List<ActivityItem>? Activities);
 
     public sealed record ActivityItem(string? Key, string? Name, string? Icon, string? CategoryKey);
+
+    public sealed record LiveRelayRequest(string? ClientName, LiveSessionDto? Session);
+
+    public sealed record LiveSessionDto(
+        string? SessionId,
+        string? ActivityKey,
+        string? ActivityName,
+        string? Icon,
+        string? CategoryKey,
+        long StartAtMs,
+        bool IsPaused,
+        long BlockEndAtMs);
 }

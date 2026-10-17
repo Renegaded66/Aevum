@@ -47,6 +47,17 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
+## Neu in Version 1.4
+
+- **Live vom Handy:** Läuft in der Aevum-App gerade eine Aufzeichnung, zeigt
+  das Dashboard sie jetzt live an — mit **Stop** und **Pause/Fortsetzen**.
+  Ein Klick wirkt in wenigen Sekunden (beide Geräte im gleichen WLAN); die
+  Karte verschwindet automatisch, wenn die Aufzeichnung endet.
+- **Update-Hinweis:** Die Update-Karte sagt es jetzt ausdrücklich: Deine
+  Einstellungen und Aufzeichnungen bleiben beim Update erhalten — ersetzt
+  werden nur die Programmdateien. (Alle Daten liegen unter
+  `%APPDATA%\AevumPcTracker`.)
+
 ## Neu in Version 1.3
 
 - **Aktivitäten direkt am PC starten:** Neue Karte „Aktivität starten" auf dem

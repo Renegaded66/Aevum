@@ -321,6 +321,63 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         return SessionRowViewModel.ActivityDisplay(activityKey, synced);
     }
 
+    // PC 1.4.0: Live-Zustand vom Handy (Dashboard-Karte „Auf deinem Handy").
+    // Quelle ist die PhoneLiveRegistry — gespeist von POST /api/live der App
+    // (alle wenigen Sekunden), gesteuert über Befehl-Antworten an die App.
+    [ObservableProperty] private bool _phoneLiveVisible;
+    [ObservableProperty] private bool _phoneLiveStale;
+    [ObservableProperty] private string _phoneLiveIcon = "📱";
+    [ObservableProperty] private string _phoneLiveTitle = "";
+    [ObservableProperty] private string _phoneLiveLine = "";
+    [ObservableProperty] private string _phoneLiveHint = "";
+    [ObservableProperty] private string _phonePauseResumeLabel = "";
+
+    private void UpdatePhoneLive(long now)
+    {
+        var status = _host.PhoneLive.GetStatus(now);
+        var session = status.Session;
+        PhoneLiveVisible = session is not null;
+        if (session is null)
+        {
+            return;
+        }
+        PhoneLiveStale = status.Stale;
+        PhoneLiveIcon = string.IsNullOrWhiteSpace(session.Icon) ? "📱" : session.Icon;
+        PhoneLiveTitle = session.ActivityName;
+        PhoneLiveLine = session.IsPaused
+            ? Loc.F("s.plive_paused", UiFormat.Clock(session.BlockEndAtMs > 0 ? session.BlockEndAtMs : session.StartAtMs))
+            : Loc.F("s.plive_running", UiFormat.Clock(session.StartAtMs), UiFormat.Duration(now - session.StartAtMs));
+        PhonePauseResumeLabel = Loc.S(session.IsPaused ? "s.plive_resume" : "s.plive_pause");
+        PhoneLiveHint = status.PendingCommand is not null
+            ? Loc.S("s.plive_busy")
+            : status.Stale
+                ? Loc.F("s.plive_stale", UiFormat.Ago(session.LastUpdateMs, now))
+                : Loc.S("s.plive_hint");
+    }
+
+    [RelayCommand]
+    private void PhonePauseResume()
+    {
+        var status = _host.PhoneLive.GetStatus(_host.Clock.NowMs);
+        if (status.Session is null)
+        {
+            return;
+        }
+        _host.PhoneLive.RequestCommand(
+            status.Session.IsPaused ? PhoneLiveCommand.Resume : PhoneLiveCommand.Pause,
+            _host.Clock.NowMs);
+    }
+
+    [RelayCommand]
+    private void PhoneStop()
+    {
+        if (_host.PhoneLive.GetStatus(_host.Clock.NowMs).Session is null)
+        {
+            return;
+        }
+        _host.PhoneLive.RequestCommand(PhoneLiveCommand.Stop, _host.Clock.NowMs);
+    }
+
     private void UpdateLive()
     {
         var now = _host.Clock.NowMs;
@@ -329,6 +386,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         IsStartEnabled = !IsPaused;
         CheckPendingStart(now);
         IsManualActive = _host.Tracker.ActiveSession?.ProgramKey == SessionEngine.ManualProgramKey;
+        UpdatePhoneLive(now);
 
         // PC 1.3.0: Eine MANUELLE Session wird immer angezeigt — sie hängt nicht
         // an der Windows-Probe (der Linux-Smoke-Test zeigte: ohne diesen Vorrang

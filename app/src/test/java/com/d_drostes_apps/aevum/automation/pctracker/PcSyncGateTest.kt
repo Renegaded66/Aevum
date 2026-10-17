@@ -48,10 +48,37 @@ class PcSyncGateTest {
 
     @Test
     fun frischerSyncBlockiertDenKick() {
-        // Vor 3 Minuten erfolgreich synchronisiert → nichts nachholen.
+        // Vor 30 Sekunden erfolgreich synchronisiert → nichts nachholen.
         assertThat(
             PcSyncGate.shouldAttemptNow(
-                nowMs = t0, lastAttemptMs = t0 - 3 * 60_000L, lastSyncMs = t0 - 3 * 60_000L,
+                nowMs = t0, lastAttemptMs = t0 - 20 * 60_000L, lastSyncMs = t0 - 30_000L,
+                coupled = true, autoSyncEnabled = true
+            )
+        ).isFalse()
+    }
+
+    /**
+     * PC 1.4.0 (Devon: „spätestens wenn ich aevum auf dem handy öffne sollte er
+     * im hintergrund synchronisieren"): Ein Sync von vor 3 Minuten darf das
+     * App-Öffnen NICHT mehr blockieren — genau dieser Fall (Desktop „nicht
+     * gekoppelt" trotz geöffneter App) war der gemeldete Fehler.
+     */
+    @Test
+    fun syncVorDreiMinutenErlaubtDenKickBeimAppOeffnen() {
+        assertThat(
+            PcSyncGate.shouldAttemptNow(
+                nowMs = t0, lastAttemptMs = t0 - 20 * 60_000L, lastSyncMs = t0 - 3 * 60_000L,
+                coupled = true, autoSyncEnabled = true
+            )
+        ).isTrue()
+    }
+
+    /** Und ein frischer Sync (unter 60 s) blockiert weiterhin — kein Doppel-Sync. */
+    @Test
+    fun syncVorDreissigSekundenBlockiertNoch() {
+        assertThat(
+            PcSyncGate.shouldAttemptNow(
+                nowMs = t0, lastAttemptMs = t0 - 20 * 60_000L, lastSyncMs = t0 - 30_000L,
                 coupled = true, autoSyncEnabled = true
             )
         ).isFalse()
@@ -59,13 +86,25 @@ class PcSyncGateTest {
 
     @Test
     fun kuerzlicherFehlversuchBlockiertDenKick() {
-        // PC war vor 2 Minuten nicht erreichbar — nicht sofort erneut funken.
+        // PC war vor 90 Sekunden nicht erreichbar — nicht sofort erneut funken
+        // (Mindestabstand 2 Minuten, Sturm-Schutz bleibt).
         assertThat(
             PcSyncGate.shouldAttemptNow(
-                nowMs = t0, lastAttemptMs = t0 - 2 * 60_000L, lastSyncMs = t0 - 7 * 60 * 60_000L,
+                nowMs = t0, lastAttemptMs = t0 - 90_000L, lastSyncMs = t0 - 7 * 60 * 60_000L,
                 coupled = true, autoSyncEnabled = true
             )
         ).isFalse()
+    }
+
+    /** Ein Fehlversuch von vor 3 Minuten darf das nächste App-Öffnen nicht blockieren. */
+    @Test
+    fun alterFehlversuchErlaubtNachholen() {
+        assertThat(
+            PcSyncGate.shouldAttemptNow(
+                nowMs = t0, lastAttemptMs = t0 - 3 * 60_000L, lastSyncMs = t0 - 7 * 60 * 60_000L,
+                coupled = true, autoSyncEnabled = true
+            )
+        ).isTrue()
     }
 
     @Test
@@ -91,7 +130,8 @@ class PcSyncGateTest {
                 coupled = true, autoSyncEnabled = true
             )
         ).isFalse()
-        // Genau am Mindestabstand → Versuch erlaubt.
+        // Genau am Mindestabstand → Versuch erlaubt (letzter Sync liegt mit
+        // gap=2 Minuten auch über dem Frisch-Fenster von 60 s).
         assertThat(
             PcSyncGate.shouldAttemptNow(
                 nowMs = t0, lastAttemptMs = t0 - gap, lastSyncMs = t0 - gap,

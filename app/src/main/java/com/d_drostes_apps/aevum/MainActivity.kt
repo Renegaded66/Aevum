@@ -70,6 +70,9 @@ class MainActivity : LocalizedActivity() {
         fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
         // M18.147: stiller PC-Sync-Kick beim App-Öffnen (gedrosselt, WLAN).
         fun pcAutoSyncScheduler(): com.d_drostes_apps.aevum.automation.pctracker.PcAutoSyncScheduler
+        // PC 1.4.0: sofortiger stiller Sync beim App-Öffnen (statt nur WorkManager).
+        fun pcTrackerPrefs(): com.d_drostes_apps.aevum.data.pc.PcTrackerPrefs
+        fun pcTrackerRepository(): com.d_drostes_apps.aevum.data.repository.PcTrackerRepository
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -110,6 +113,35 @@ class MainActivity : LocalizedActivity() {
                 // try-Block: ein Sync-Problem darf den Notification-Restore
                 // darunter nicht verhindern.
                 try {
+                    // PC 1.4.0 (Devon: „spätestens wenn ich aevum auf dem handy
+                    // öffne sollte der im hintergrund synchronisieren mit dem
+                    // pc."): Erst SOFORT im Prozess synchronisieren — der
+                    // WorkManager-Kick unten darf vom System verzögert werden
+                    // (JobScheduler) und war damit als „beim Öffnen"-Garantie
+                    // untauglich. Der Sofort-Sync stempelt den Versuch, der
+                    // Kick findet danach einen frischen Versuch vor und
+                    // startet keinen zweiten (kein Doppel-Sync).
+                    val prefs = deps.pcTrackerPrefs()
+                    val connection = prefs.load()
+                    val now = System.currentTimeMillis()
+                    if (connection != null && prefs.isAutoSyncEnabled() &&
+                        com.d_drostes_apps.aevum.automation.pctracker.PcSyncGate.shouldAttemptNow(
+                            nowMs = now,
+                            lastAttemptMs = prefs.lastAttemptAt(),
+                            lastSyncMs = connection.lastSyncAt,
+                            coupled = true,
+                            autoSyncEnabled = true
+                        )
+                    ) {
+                        prefs.setLastAttemptAt(now)
+                        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                            try {
+                                deps.pcTrackerRepository().syncNow()
+                            } catch (_: Exception) {
+                                // Still: nächster Versuch beim nächsten Öffnen/Takt.
+                            }
+                        }
+                    }
                     deps.pcAutoSyncScheduler().triggerOpportunistic()
                 } catch (_: Exception) { }
                 val manager = deps.liveActivityManager()

@@ -42,8 +42,23 @@ class LiveActivityService : Service() {
         fun activityRecognitionBridge(): com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge
     }
 
+    /**
+     * PC 1.4.0: EntryPoint für den Live-Relay zum PC — der Service meldet
+     * während einer laufenden Aufzeichnung den Zustand ans Dashboard und
+     * führt dort ausgelöste Befehle (Stop/Pause/Fortsetzen) sofort aus.
+     */
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface PcRelayEntryPoint {
+        fun pcTrackerRepository(): com.d_drostes_apps.aevum.data.repository.PcTrackerRepository
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var updateJob: Job? = null
+    // PC 1.4.0: Live-Relay ans PC-Dashboard (Zustand melden, Befehle abholen).
+    private var pcRelayJob: Job? = null
+    @Volatile private var serviceAlive = false
+    private var lastRelayedSessionId: String? = null
     // M18.41: Zeitpunkt des Service-Starts. Wird fuer die
     // Initialisierungsphase genutzt: Beim Start kann die Room-Query
     // noch laufen (liveSession.value == null, obwohl eine Session
@@ -83,6 +98,15 @@ class LiveActivityService : Service() {
         // (14 Caller) setzt sie, siehe start().
         const val ACTION_INTERNAL_START = "com.d_drostes_apps.aevum.LIVE_INTERNAL_START"
 
+        /**
+         * PC 1.4.0: Takt des Live-Relays ans PC-Dashboard. Nur während einer
+         * laufenden Aufzeichnung läuft der Job überhaupt Daten los
+         * (ohne Session: kein HTTP); bei ausgeschaltetem Screen entspannt
+         * sich der Takt auf 15 s (gleiche Spar-Logik wie der Timer-Loop).
+         */
+        const val PC_RELAY_INTERVAL_MS = 7_000L
+        const val PC_RELAY_INTERVAL_SCREEN_OFF_MS = 15_000L
+
         fun start(context: Context) {
             // M18.122 (D3): Interne Starts tragen explizit
             // ACTION_INTERNAL_START — null-Action bleibt damit dem
@@ -110,6 +134,7 @@ class LiveActivityService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        serviceAlive = true
         processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
         // M18.123-CRASHFIX: Guard erst hier konstruieren — ab onCreate
         // ist der Context garantiert attacht (Property-Init crasht mit
@@ -151,22 +176,10 @@ class LiveActivityService : Service() {
                 // stopLiveActivity() im ViewModel. Stoppt der User eine
                 // AUTO-Session (Fahrterkennung) hier, blieb driveActive in
                 // der Bridge true → der DriveDetectionService klassifizierte
-                // NIE WIEDER (Blackout bis App-Neustart). Jetzt: Flag
-                // zurücksetzen + Drive-Watchdog canceln (nur bei
-                // ACTIVITY_RECOGNITION_AUTO-Sessions, wie im Dashboard).
-                val sessionBefore = liveActivityManager.liveSession.value
-                liveActivityManager.stop()
-                if (sessionBefore != null && sessionBefore.sourceType == "ACTIVITY_RECOGNITION_AUTO") {
-                    try {
-                        dagger.hilt.android.EntryPointAccessors.fromApplication(
-                            applicationContext,
-                            BridgeEntryPoint::class.java
-                        ).activityRecognitionBridge().clearDriveActive()
-                        com.d_drostes_apps.aevum.automation.activityrecognition.DriveWatchdogWorker.cancel(applicationContext)
-                    } catch (e: Exception) {
-                        android.util.Log.e("LiveActivitySvc", "driveActive-Reset nach Notification-Stop fehlgeschlagen", e)
-                    }
-                }
+                // NIE WIEDER (Blackout bis App-Neustart).
+                // PC 1.4.0: Derselbe Pfad gilt jetzt auch für Stopp-Befehle
+                // vom PC-Dashboard (performStopFromOutside).
+                performStopFromOutside()
                 stopSelf()
             }
             // M18.19: Wechsel-Popup öffnen (transparente Activity).
@@ -201,6 +214,10 @@ class LiveActivityService : Service() {
                 }
             }
         }
+
+        // PC 1.4.0: Live-Relay zum PC-Dashboard starten (läuft, solange der
+        // Service lebt — ohne Session schickt er nichts).
+        startPcRelayIfNeeded()
 
         // M18.104: Screen-Receiver — null Kosten im Schlaf, sofortiges
         // Notification-Refresh beim Aufwachen.
@@ -241,6 +258,100 @@ class LiveActivityService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * PC 1.4.0: Startet den Live-Relay-Job (idempotent). Er meldet während
+     * einer laufenden Aufzeichnung alle [PC_RELAY_INTERVAL_MS] den Zustand
+     * ans PC-Dashboard und führt dort ausgelöste Befehle sofort aus.
+     *
+     * Wichtig für Akku & Funkstille: Ohne Session wird KEIN HTTP gesendet
+     * (die erste Runde nach einem Session-Ende schickt genau einmal „keine
+     * Session mehr" — damit die PC-Karte sofort verschwindet); ist der PC
+     * nicht erreichbar oder keine Kopplung vorhanden, passiert still nichts.
+     */
+    private fun startPcRelayIfNeeded() {
+        if (pcRelayJob?.isActive == true) {
+            return
+        }
+        pcRelayJob = scope.launch {
+            while (serviceAlive) {
+                try {
+                    relayPcOnce()
+                } catch (e: Exception) {
+                    // Nie stören: Funkloch, PC aus, irgendein Fehler — der
+                    // nächste Tick probiert es einfach wieder.
+                }
+                delay(if (screenOn) PC_RELAY_INTERVAL_MS else PC_RELAY_INTERVAL_SCREEN_OFF_MS)
+            }
+        }
+    }
+
+    /** Eine Relay-Runde: Zustand melden, Befehl ausführen. */
+    private suspend fun relayPcOnce() {
+        val session = liveActivityManager.liveSession.value?.takeIf { it.isLive }
+        if (session == null && lastRelayedSessionId == null) {
+            return // nichts zu melden — kein HTTP im Leerlauf
+        }
+        val type = session?.activityTypeId?.let { liveActivityManager.cachedActivityType(it) }
+        val dto = session?.let {
+            com.d_drostes_apps.aevum.data.pc.PcTrackerClient.LiveSessionSync(
+                sessionId = it.id,
+                activityKey = it.activityTypeId.orEmpty(),
+                activityName = type?.name ?: it.title,
+                icon = type?.icon.orEmpty(),
+                categoryKey = type?.defaultCategoryId.orEmpty(),
+                startAtMs = it.startAt,
+                isPaused = it.isPaused,
+                blockEndAtMs = it.endAt ?: 0L
+            )
+        }
+        val deps = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            applicationContext,
+            PcRelayEntryPoint::class.java
+        )
+        when (val outcome = deps.pcTrackerRepository().relayLive(dto)) {
+            is com.d_drostes_apps.aevum.data.repository.PcTrackerRepository.LiveRelayOutcome.Delivered -> {
+                lastRelayedSessionId = dto?.sessionId
+                when (outcome.command) {
+                    // Genau die Aktionen der Notification-Knöpfe — ein
+                    // Steuerweg, keine Sonderlogik.
+                    "pause" -> liveActivityManager.pause()
+                    "resume" -> liveActivityManager.resume()
+                    "stop" -> {
+                        performStopFromOutside()
+                        stopSelf()
+                    }
+                }
+            }
+            is com.d_drostes_apps.aevum.data.repository.PcTrackerRepository.LiveRelayOutcome.NotSent -> {
+                // Nichts gesendet (keine Kopplung/Schalter aus/PC weg) —
+                // lastRelayedSessionId bewusst NICHT ändern: Sobald wieder
+                // alles da ist, wird der letzte Stand erneut zugestellt.
+            }
+        }
+    }
+
+    /**
+     * Beendet die laufende Session wie der „■ Stoppen"-Button: inklusive
+     * driveActive-Reset für Fahrterkennungs-Sessions (M18.76-FIX) — sonst
+     * bliebe die Fahrterkennung bis zum App-Neustart stumm. Wird sowohl vom
+     * Notification-Knopf als auch von PC-Stopp-Befehlen genutzt.
+     */
+    private suspend fun performStopFromOutside() {
+        val sessionBefore = liveActivityManager.liveSession.value
+        liveActivityManager.stop()
+        if (sessionBefore != null && sessionBefore.sourceType == "ACTIVITY_RECOGNITION_AUTO") {
+            try {
+                dagger.hilt.android.EntryPointAccessors.fromApplication(
+                    applicationContext,
+                    BridgeEntryPoint::class.java
+                ).activityRecognitionBridge().clearDriveActive()
+                com.d_drostes_apps.aevum.automation.activityrecognition.DriveWatchdogWorker.cancel(applicationContext)
+            } catch (e: Exception) {
+                android.util.Log.e("LiveActivitySvc", "driveActive-Reset nach Stop von außen fehlgeschlagen", e)
+            }
+        }
+    }
+
     // M18.19: Wechsel-Popup (SwitchActivity) als Dialog über der App öffnen.
     private fun openSwitchActivity() {
         val intent = Intent(this, com.d_drostes_apps.aevum.ui.screens.dashboard.SwitchActivity::class.java).apply {
@@ -250,7 +361,9 @@ class LiveActivityService : Service() {
     }
 
     override fun onDestroy() {
+        serviceAlive = false
         updateJob?.cancel()
+        pcRelayJob?.cancel()
         // M18.125: Bitmaps aus dem Ping-Pong-Pool freigeben (Service-Ende).
         recycleBitmap(livePatternBitmap)
         recycleBitmap(liveLargeIcon)

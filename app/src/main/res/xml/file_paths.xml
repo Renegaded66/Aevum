@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App 1.0.34: Pfade, die der FileProvider für den System-Installer
+     freigibt — ausschließlich der private Update-Ordner der App. -->
+<paths>
+    <files-path name="updates" path="updates/" />
+</paths>

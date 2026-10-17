@@ -224,6 +224,13 @@ public sealed class UpdateInstaller : IDisposable
     /// Entpackt das ZIP und stößt das Austausch-Skript an: Es wartet auf das
     /// Ende dieses Prozesses, kopiert die neuen Dateien über das Programm-
     /// verzeichnis und startet die App neu. Der Aufrufer beendet die App danach.
+    ///
+    /// Einstellungen bleiben dabei erhalten (Devon: „denke beim installieren
+    /// eines updates der desktop app daran, dass die einstellungen übernommen
+    /// werden sollen"): robocopy kopiert NUR die Dateien aus dem ZIP über das
+    /// Programmverzeichnis — ohne /PURGE wird nichts gelöscht. Alle Nutzerdaten
+    /// (pctracker.sqlite mit Einstellungen, Aufzeichnungen, Kopplung) liegen
+    /// ohnehin außerhalb, unter %APPDATA%\AevumPcTracker (AppHost.DefaultDataDirectory).
     /// </summary>
     public static void ApplyAndRestart(string zipPath, string appDir, string exeName)
     {

@@ -257,10 +257,66 @@ die Start-Reparatur sie am letzten Lebenszeichen (wie jede offene Session).
 
 **Regelmäßiger Abgleich:** Der Abruf bleibt vollständig auf der Handy-Seite
 (Architektur-Entscheidung, siehe Abschnitt 1): Die Aevum-App synchronisiert im
-WLAN **automatisch alle 15 Minuten** (WorkManager, UNMETERED) plus gedrosselte
-Zusatz-Kicks beim App-Öffnen — sie holt Aufzeichnungen ab und spiegelt zugleich
-den Aktivitätskatalog zum PC. Das PC-Dashboard zeigt den Stand an („Letzte
-Synchronisierung …, N Aktivitäten vom Handy").
+WLAN **automatisch alle 15 Minuten** (WorkManager, UNMETERED) plus einem
+**sofortigen** stillen Sync beim App-Öffnen (ab App 1.0.34: In-Process-Sync mit
+2-Minuten-Drossel statt nur WorkManager-Kick) — sie holt Aufzeichnungen ab und
+spiegelt zugleich den Aktivitätskatalog zum PC. Das PC-Dashboard zeigt den
+Stand an („Letzte Synchronisierung …, N Aktivitäten vom Handy").
+
+---
+
+### 5e. Live-Kanal: laufende Handy-Aufzeichnung am PC (ab PC-Tracker 1.4.0 / App 1.0.34)
+
+Devon: „Also auf meinem handy zeichne ich gerade studium auf. Aber das wird
+auf dem dashboard in der desktop anwendung gar nicht angezeigt. Das sollte es
+aber. Auch mit buttons zum stoppen und pausieren."
+
+**`POST /api/live`** (Header `X-Aevum-Token`, `X-Aevum-Client` wie üblich)
+
+Während einer laufenden Aufzeichnung meldet die App alle wenigen Sekunden
+ihren Zustand; die Antwort enthält den ggf. am PC ausgelösten Steuerbefehl.
+Das Pull-Modell bleibt: **Nur das Handy initiiert** — der PC hält weiterhin
+nie eine Verbindung zum Handy offen.
+
+Anfrage:
+
+```json
+{
+  "clientName": "…",
+  "session": {
+    "sessionId": "…",          // null = keine Session (Karte verschwindet)
+    "activityKey": "studium",
+    "activityName": "Studium",
+    "icon": "…",
+    "categoryKey": "…",
+    "startAtMs": 1760000000000,
+    "isPaused": false,
+    "blockEndAtMs": 0          // bei Pause: Ende des Aufzeichnungsblocks
+  }
+}
+```
+
+Antwort:
+
+```json
+{ "command": "pause" }   // "resume" | "stop" | null (nichts zu tun)
+```
+
+- **Stop/Pause am PC:** Das Dashboard zeigt die Handy-Session als Live-Karte
+  mit Pause/Fortsetzen- und Stop-Knopf. Ein Klick legt den Befehl ab; die
+  nächste Meldung (wenige Sekunden) holt ihn ab und führt ihn genau wie den
+  jeweiligen Notification-Knopf aus.
+- **Befehl bleibt bis zur Bestätigung erhalten:** Funkloch oder App noch
+  nicht wach → bei jeder weiteren Meldung wird erneut geliefert; erst der
+  passende Folgezustand räumt ihn ab.
+- **„Fortsetzen" nach Pause** startet bewusst eine neue Session (Split,
+  eigener Session-Fokus) — die PC-Seite übernimmt den neuen Stand automatisch.
+- **Verschwinden:** Meldet die App `session: null` oder bleibt sie länger als
+  die TTL still (App beendet, Handy aus), räumt der PC die Karte weg
+  (`PhoneLiveRegistry.GoneAfter`).
+- **Still ohne Kopplung:** Keine Kopplung gespeichert oder Schalter
+  „Automatisch synchronisieren" aus → die App sendet nichts; ohne laufende
+  Session wird gar kein HTTP ausgelöst.
 
 ---
 

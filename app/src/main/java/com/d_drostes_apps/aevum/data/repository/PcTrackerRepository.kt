@@ -50,6 +50,15 @@ class PcTrackerRepository @Inject constructor(
         object NotReachable : SyncOutcome()
     }
 
+    /** PC 1.4.0: Ergebnis einer Live-Meldung an den PC. */
+    sealed class LiveRelayOutcome {
+        /** Meldung angekommen; command = auszuführender Steuerbefehl oder null. */
+        data class Delivered(val command: String?) : LiveRelayOutcome()
+
+        /** Nichts gesendet (keine Kopplung, Schalter aus oder PC nicht erreichbar) — still. */
+        object NotSent : LiveRelayOutcome()
+    }
+
     private val _connection = MutableStateFlow(prefs.load())
     val connection: StateFlow<PcTrackerPrefs.StoredConnection?> = _connection
 
@@ -156,6 +165,34 @@ class PcTrackerRepository @Inject constructor(
         _connection.value = null
         if (connection != null) {
             dataSourceDao.deleteById(dataSourceId(connection.deviceId))
+        }
+    }
+
+    /**
+     * PC 1.4.0: Eine Runde des Live-Kanals — Zustand melden, Befehl abholen.
+     * Wird vom LiveActivityService während einer laufenden Aufzeichnung alle
+     * wenigen Sekunden aufgerufen. Läuft still: ohne Kopplung, ohne Schalter
+     * oder ohne erreichbaren PC passiert nichts (nächste Runde probiert es
+     * wieder, sobald wieder alles da ist).
+     */
+    suspend fun relayLive(session: PcTrackerClient.LiveSessionSync?): LiveRelayOutcome {
+        val connection = _connection.value ?: return LiveRelayOutcome.NotSent
+        if (!prefs.isAutoSyncEnabled()) {
+            return LiveRelayOutcome.NotSent
+        }
+        return try {
+            LiveRelayOutcome.Delivered(
+                client.relayLive(
+                    host = connection.host,
+                    port = connection.port,
+                    token = connection.token,
+                    clientName = connection.deviceName,
+                    session = session
+                )
+            )
+        } catch (_: Exception) {
+            // Funkloch, PC aus, Token weg — nie stören; der nächste Tick zählt.
+            LiveRelayOutcome.NotSent
         }
     }
 

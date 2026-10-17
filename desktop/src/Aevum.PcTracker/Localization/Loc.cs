@@ -297,6 +297,17 @@ public static class Loc
         ["s.man_started"] = "Manually started",
         ["s.dash_phone_activities"] = "{0} activities from your phone",
 
+        // Live vom Handy (PC 1.4.0) — Dashboard-Karte
+        ["s.plive_title"] = "ON YOUR PHONE",
+        ["s.plive_running"] = "Running since {0} · {1}",
+        ["s.plive_paused"] = "Paused — recorded until {0}",
+        ["s.plive_pause"] = "Pause",
+        ["s.plive_resume"] = "Resume",
+        ["s.plive_stop"] = "Stop",
+        ["s.plive_hint"] = "Live from your phone — controls apply within seconds (same Wi-Fi).",
+        ["s.plive_stale"] = "Last update {0} — control needs the same Wi-Fi.",
+        ["s.plive_busy"] = "Command sent — waiting for your phone…",
+
         // Updates (Einstellungen)
         ["s.upd_title"] = "UPDATES",
         ["s.upd_current"] = "Installed version {0}",
@@ -313,6 +324,7 @@ public static class Loc
         ["s.upd_error"] = "Could not check for updates (offline?).",
         ["s.upd_badge"] = "Update available",
         ["s.upd_open"] = "Open release page",
+        ["s.upd_keep"] = "Your settings and recordings are kept — the update only replaces the program files.",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -532,6 +544,17 @@ public static class Loc
         ["s.man_started"] = "Manuell gestartet",
         ["s.dash_phone_activities"] = "{0} Aktivitäten vom Handy",
 
+        // Live vom Handy (PC 1.4.0) — Dashboard-Karte
+        ["s.plive_title"] = "AUF DEINEM HANDY",
+        ["s.plive_running"] = "Läuft seit {0} · {1}",
+        ["s.plive_paused"] = "Pausiert — aufgezeichnet bis {0}",
+        ["s.plive_pause"] = "Pausieren",
+        ["s.plive_resume"] = "Fortsetzen",
+        ["s.plive_stop"] = "Stoppen",
+        ["s.plive_hint"] = "Live vom Handy — Steuerung wirkt in Sekunden (gleiches WLAN).",
+        ["s.plive_stale"] = "Letzte Meldung {0} — Steuerung braucht das gleiche WLAN.",
+        ["s.plive_busy"] = "Befehl gesendet — warte auf dein Handy…",
+
         ["s.upd_title"] = "AKTUALISIERUNGEN",
         ["s.upd_current"] = "Installierte Version {0}",
         ["s.upd_auto"] = "Wird bei jedem Start automatisch geprüft.",
@@ -547,5 +570,6 @@ public static class Loc
         ["s.upd_error"] = "Update-Prüfung fehlgeschlagen (offline?).",
         ["s.upd_badge"] = "Update verfügbar",
         ["s.upd_open"] = "Release-Seite öffnen",
+        ["s.upd_keep"] = "Deine Einstellungen und Aufzeichnungen bleiben erhalten — das Update ersetzt nur die Programmdateien.",
     };
 }

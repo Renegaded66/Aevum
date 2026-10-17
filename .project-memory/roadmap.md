@@ -31,3 +31,11 @@ Siehe `docs/ROADMAP.md`.
       DB v46 = DROP pm_node); App-Aufzeichnung zuverlässig (2-s-Poll,
       Nachprüfen + Nachfassen, Übergabe ≤5 s); Feuerrot nachgeschärft
       (#FF3B2E/#D32614)
+- [x] PC-Tracker 1.4.0 + App 1.0.34: Live-Kanal (laufende Handy-Session im
+      PC-Dashboard mit Stop/Pause/Fortsetzen, `POST /api/live`, Pull-Modell
+      bleibt) + In-App-Update der App aus öffentlichen GitHub-Releases
+      (ohne Token) + Sofort-Sync beim App-Öffnen (Gate 2 min/60 s,
+      In-Process statt WorkManager) + Desktop-Update-Hinweis
+      „Einstellungen bleiben erhalten“ (%APPDATA%-Daten, robocopy ohne
+      /PURGE). Bericht `docs/PC-TRACKER-1.4-ABSCHLUSSBERICHT.md`,
+      Protokoll §5e.

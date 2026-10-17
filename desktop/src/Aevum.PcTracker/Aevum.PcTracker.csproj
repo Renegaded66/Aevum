@@ -11,7 +11,7 @@
     <LangVersion>12</LangVersion>
     <RootNamespace>Aevum.PcTracker</RootNamespace>
     <AssemblyName>AevumPcTracker</AssemblyName>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>

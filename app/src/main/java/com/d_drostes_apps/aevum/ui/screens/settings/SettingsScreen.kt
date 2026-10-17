@@ -17,7 +17,9 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -39,11 +42,16 @@ import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.PlaceGeofence
 import com.d_drostes_apps.aevum.data.repository.LanguageRepository
 import com.d_drostes_apps.aevum.data.repository.PlaceGeofenceRepository
+import com.d_drostes_apps.aevum.data.update.AppUpdate
+import com.d_drostes_apps.aevum.data.update.AppUpdateChecker
+import com.d_drostes_apps.aevum.data.update.AppUpdateInstaller
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.lifecycle.ViewModel
@@ -188,6 +196,10 @@ fun SettingsScreen(
             item { SettingsSection(stringResource(R.string.settings_calendar_section), listOf(
                 SettingsEntry(stringResource(R.string.calendar_rules_title), stringResource(R.string.calendar_rules_desc), onOpenCalendarRules)
             )) }
+            // App 1.0.34: In-App-Update — sucht in den öffentlichen
+            // GitHub-Releases (ohne Konto/Token), lädt die passende APK und
+            // öffnet den System-Installationsdialog.
+            item { AppUpdateSection() }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }
@@ -330,6 +342,111 @@ private data class LanguageOption(
     val label: String
 )
 
+/**
+ * App 1.0.34 (Devon: „Außerdem will ich in den einstellungen einen button um
+ * nach updates zu suchen im github repo. Und natürlich auch herunterladen und
+ * installieren. Sauber durchdacht für beste usability. Ohne irgendwelche
+ * tokens, weil das alles veröffentlicht wird."): Update-Karte — ein Knopf,
+ * klare Rückmeldung, Installation über den System-Dialog (der die bereits
+ * gespeicherten Einstellungen der App unangetastet lässt — Updates ersetzen
+ * nie die Daten der App).
+ */
+@Composable
+private fun AppUpdateSection() {
+    val viewModel: SettingsViewModel = hiltViewModel()
+    val state by viewModel.appUpdateState.collectAsState()
+    val context = LocalContext.current
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                stringResource(R.string.settings_app_update),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(
+                    R.string.app_update_installed,
+                    com.d_drostes_apps.aevum.BuildConfig.VERSION_NAME
+                ),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            when (val s = state) {
+                is SettingsViewModel.AppUpdateState.Available -> {
+                    Text(
+                        stringResource(R.string.app_update_available, s.update.versionName),
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (s.update.notes.isNotBlank()) {
+                        Text(
+                            s.update.notes.trim(),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Button(onClick = { viewModel.downloadAndInstallUpdate(context) }) {
+                        Text(stringResource(R.string.app_update_download))
+                    }
+                }
+                is SettingsViewModel.AppUpdateState.Downloading -> {
+                    Text(
+                        stringResource(R.string.app_update_downloading, s.progress),
+                        fontWeight = FontWeight.Medium
+                    )
+                    LinearProgressIndicator(
+                        progress = { s.progress / 100f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                SettingsViewModel.AppUpdateState.Checking -> {
+                    Text(
+                        stringResource(R.string.app_update_checking),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                SettingsViewModel.AppUpdateState.InstallPrompt -> {
+                    Text(
+                        stringResource(R.string.app_update_install_prompt),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                SettingsViewModel.AppUpdateState.UpToDate -> {
+                    Text(
+                        stringResource(R.string.app_update_uptodate),
+                        fontWeight = FontWeight.Medium
+                    )
+                    OutlinedButton(onClick = { viewModel.checkForUpdates() }) {
+                        Text(stringResource(R.string.app_update_check))
+                    }
+                }
+                SettingsViewModel.AppUpdateState.Failed -> {
+                    Text(
+                        stringResource(R.string.app_update_failed),
+                        fontWeight = FontWeight.Medium
+                    )
+                    OutlinedButton(onClick = { viewModel.checkForUpdates() }) {
+                        Text(stringResource(R.string.app_update_check))
+                    }
+                }
+                SettingsViewModel.AppUpdateState.Idle -> {
+                    Button(onClick = { viewModel.checkForUpdates() }) {
+                        Text(stringResource(R.string.app_update_check))
+                    }
+                }
+            }
+            if (com.d_drostes_apps.aevum.BuildConfig.DEBUG) {
+                Text(
+                    stringResource(R.string.app_update_debug_hint),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun SettingsSection(title: String, entries: List<SettingsEntry>) {
     AevumCard {
@@ -380,7 +497,10 @@ class SettingsViewModel @Inject constructor(
     placeGeofenceRepository: PlaceGeofenceRepository,
     private val languageRepository: LanguageRepository,
     // M18.106: Theme-Auswahl (dark/light/system, Default dark).
-    private val themeRepository: com.d_drostes_apps.aevum.data.repository.ThemeRepository
+    private val themeRepository: com.d_drostes_apps.aevum.data.repository.ThemeRepository,
+    // App 1.0.34: In-App-Update aus den öffentlichen GitHub-Releases.
+    private val updateChecker: AppUpdateChecker,
+    private val updateInstaller: AppUpdateInstaller
 ) : ViewModel() {
     val geofences: StateFlow<List<PlaceGeofence>> = placeGeofenceRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -400,5 +520,59 @@ class SettingsViewModel @Inject constructor(
     /** M18.106: Theme persistieren (DataStore + synchroner Spiegel). */
     suspend fun setTheme(theme: String) {
         themeRepository.setTheme(theme)
+    }
+
+    // ---- App 1.0.34: In-App-Update (öffentliche GitHub-Releases) ----
+
+    /** Zustand der Update-Karte in den Einstellungen. */
+    sealed interface AppUpdateState {
+        data object Idle : AppUpdateState
+        data object Checking : AppUpdateState
+        data object UpToDate : AppUpdateState
+        data class Available(val update: AppUpdate) : AppUpdateState
+        data class Downloading(val progress: Int) : AppUpdateState
+        data object InstallPrompt : AppUpdateState
+        data object Failed : AppUpdateState
+    }
+
+    private val _appUpdateState = MutableStateFlow<AppUpdateState>(AppUpdateState.Idle)
+    val appUpdateState: StateFlow<AppUpdateState> = _appUpdateState.asStateFlow()
+
+    /** Sucht in den öffentlichen Releases nach einer neueren Version. */
+    fun checkForUpdates() {
+        val current = _appUpdateState.value
+        if (current is AppUpdateState.Checking || current is AppUpdateState.Downloading) {
+            return
+        }
+        _appUpdateState.value = AppUpdateState.Checking
+        viewModelScope.launch {
+            _appUpdateState.value = when (
+                val result = updateChecker.check(
+                    currentVersionName = com.d_drostes_apps.aevum.BuildConfig.VERSION_NAME,
+                    isDebugBuild = com.d_drostes_apps.aevum.BuildConfig.DEBUG
+                )
+            ) {
+                is AppUpdateChecker.Result.Available -> AppUpdateState.Available(result.update)
+                is AppUpdateChecker.Result.UpToDate -> AppUpdateState.UpToDate
+                is AppUpdateChecker.Result.Failed -> AppUpdateState.Failed
+            }
+        }
+    }
+
+    /** Lädt die gefundene Version und öffnet den System-Installationsdialog. */
+    fun downloadAndInstallUpdate(context: android.content.Context) {
+        val update = (_appUpdateState.value as? AppUpdateState.Available)?.update ?: return
+        _appUpdateState.value = AppUpdateState.Downloading(0)
+        viewModelScope.launch {
+            try {
+                val file = updateInstaller.download(context.applicationContext, update) { progress ->
+                    _appUpdateState.value = AppUpdateState.Downloading(progress)
+                }
+                updateInstaller.install(context.applicationContext, file)
+                _appUpdateState.value = AppUpdateState.InstallPrompt
+            } catch (_: Exception) {
+                _appUpdateState.value = AppUpdateState.Failed
+            }
+        }
     }
 }

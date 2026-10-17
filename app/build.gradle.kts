@@ -170,8 +170,12 @@ android {
         //   getrackte App ≤5s nach dem Öffnen übernimmt, nichts anderes
         //   zeichnet parallel auf. Feuerrot nachgeschärft (#FF3B2E/#D32614);
         //   der Schimmer wandert auf den Dashboard-Plus-Knopf.
-        versionCode = 34
-        versionName = "1.0.33"
+        // 1.0.34: Live-Kanal zum PC-Dashboard (laufende Handy-Session mit
+        //   Stop/Pause/Fortsetzen), stiller Sync beim App-Öffnen (Gate auf
+        //   2 min gelockert + sofortiger In-Process-Sync statt nur WorkManager),
+        //   In-App-Update aus den öffentlichen GitHub-Releases (ohne Token).
+        versionCode = 35
+        versionName = "1.0.34"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

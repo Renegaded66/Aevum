@@ -130,6 +130,8 @@
                     Command="{Binding OpenReleasePageCommand}"
                     IsVisible="{Binding UpdateManualVisible}" />
           </StackPanel>
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                     Text="{DynamicResource s.upd_keep}" />
           <ProgressBar Value="{Binding UpdateProgress}" Minimum="0" Maximum="100"
                        Height="6" IsVisible="{Binding UpdateProgressVisible}" />
           <TextBlock Text="{Binding UpdateStatus}" FontWeight="SemiBold" TextWrapping="Wrap" />

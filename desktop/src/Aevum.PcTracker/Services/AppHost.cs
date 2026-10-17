@@ -21,6 +21,8 @@ public sealed class AppHost : IAsyncDisposable
     public TrackerService Tracker { get; }
     public UpdateService Updates { get; }
     public UpdateInstaller Installer { get; }
+    /// <summary>PC 1.4.0: Live-Zustand der Handy-Aufzeichnung + Steuerbefehle (Dashboard-Karte).</summary>
+    public PhoneLiveRegistry PhoneLive { get; }
     public IClock Clock { get; } = SystemClock.Instance;
 
     /// <summary>Fehler beim Start des LAN-Servers (null = läuft).</summary>
@@ -39,7 +41,8 @@ public sealed class AppHost : IAsyncDisposable
         Store.Open();
         Settings = new SettingsService(Store, Clock);
         Tokens = new TokenService(Settings);
-        Server = new ApiServer(Store, Settings, Tokens, Pairing, Clock, Version);
+        PhoneLive = new PhoneLiveRegistry();
+        Server = new ApiServer(Store, Settings, Tokens, Pairing, Clock, Version, PhoneLive);
         Updates = new UpdateService();
         Installer = new UpdateInstaller();
         Discovery = new DiscoveryResponder(Settings.Current.DiscoveryPort, () => new AnnouncePayload(

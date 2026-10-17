@@ -145,3 +145,36 @@ Sekundär dunkel `#FF3B2E`, hell `#D32614`; Container mitgezogen;
 **Grund:** „die rote theme Farbe soll noch etwas röter. So feuerrot." — der
 Ton bleibt in der Familie der M19.2-Identität (Eisblau bleibt unangetastet),
 nur die Sättigung steigt.
+
+**Entscheidung:** Live-Kanal PC↔Handy bleibt strikt pull-basiert:
+Die App meldet per `POST /api/live` alle 7 s (15 s bei Screen aus) ihren
+Session-Zustand, die Antwort trägt den ausstehenden Befehl; am PC wartet der
+Befehl in der `PhoneLiveRegistry` bis zur Bestätigung und wird bei jeder
+Meldung erneut geliefert.
+**Grund:** „Es sollte es aber. Auch mit buttons zum stoppen und pausieren."
+— bei wenigen Sekunden Latenz fühlt sich die Steuerung direkt an, ohne die
+Architektur-Entscheidung („nur das Handy initiiert", kein eingehender Port am
+Handy) aufzugeben. Wiederhol-Lieferung macht Funklöcher verlustfrei.
+
+**Entscheidung:** „Fortsetzen" nach Pause startet eine NEUE Handy-Session
+(Split), die Registry akzeptiert den ID-Wechsel genau in diesem Fall.
+**Grund:** Konsistenz mit der bestehenden M18.62-Split-Logik des Handys
+(zwei getrennte Aufzeichnungsblöcke) — der PC spiegelt nur, er erfindet
+keine Semantik.
+
+**Entscheidung:** App-Updates ohne Token/Konto über die öffentlichen
+GitHub-Releases; Debug-Builds laden die Debug-APK, reguläre die Store-APK;
+Installation ausschließlich über den System-Dialog (FileProvider nur für
+`files/updates`).
+**Grund:** „Ohne irgendwelche tokens, weil das alles veröffentlicht wird."
++ „Sauber durchdacht für beste usability." — der Standardweg ist der
+sicherste; kein Eigenbau-Installer, keine gespeicherten Geheimnisse.
+
+**Entscheidung:** Sync-Kick beim App-Öffnen wird sofort im Prozess
+ausgeführt (Gate: 2 min Mindestabstand, 60 s Frisch-Fenster); der
+WorkManager-Kick bleibt nur als Zusatz.
+**Grund:** „spätestens wenn ich aevum auf dem handy öffne sollte der im
+hintergrund synchronisieren mit dem pc" — WorkManager darf das System
+verzögern (das war das „nicht gekoppelt"-Erlebnis), das 10-min-Gate machte
+einen einzelnen Fehlversuch stundenlang wirksam. In-Process-Sync +
+gelockertes Gate garantieren das Versprechen; der Sturm-Schutz bleibt.

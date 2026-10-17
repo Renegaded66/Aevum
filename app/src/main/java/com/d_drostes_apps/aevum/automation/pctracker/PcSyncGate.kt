@@ -10,8 +10,24 @@ package com.d_drostes_apps.aevum.automation.pctracker
  */
 object PcSyncGate {
 
-    /** Mindestabstand zwischen zwei stillen Sync-Versuchen (Erfolg wie Fehlschlag). */
-    const val MIN_GAP_MS = 10 * 60 * 1000L
+    /**
+     * Mindestabstand zwischen zwei stillen Sync-Versuchen (Erfolg wie Fehlschlag).
+     *
+     * PC 1.4.0: von 10 Minuten auf 2 Minuten gesenkt. Devon: „spätestens wenn ich
+     * aevum auf dem handy öffne sollte der im hintergrund synchronisieren mit dem
+     * pc." Mit 10 Minuten konnte ein einziger Fehlversuch (PC-Server noch nicht
+     * bereit, kurzer Funkausfall) das App-Öffnen stundenlang wirkungslos machen.
+     * 2 Minuten sind immer noch ein strikter Sturm-Schutz (ein Versuch pro
+     * Öffnen), erlauben aber ehrliches Nachholen.
+     */
+    const val MIN_GAP_MS = 2 * 60 * 1000L
+
+    /**
+     * Ein frischer erfolgreicher Sync blockiert nur kurz (PC 1.4.0: 60 s statt
+     * 10 Minuten) — wer die App öffnet, will das Ergebnis SEHEN, kein
+     * „vorhin war doch schon"-Gefühl.
+     */
+    const val FRESH_SYNC_MS = 60 * 1000L
 
     /**
      * @param nowMs            jetzt
@@ -29,7 +45,7 @@ object PcSyncGate {
     ): Boolean {
         if (!coupled || !autoSyncEnabled) return false
         if (nowMs - lastAttemptMs < MIN_GAP_MS) return false
-        if (nowMs - lastSyncMs < MIN_GAP_MS) return false
+        if (nowMs - lastSyncMs < FRESH_SYNC_MS) return false
         return true
     }
 }

@@ -129,4 +129,17 @@
     <string name="pc_tracker_install_open">Open download page</string>
     <string name="pc_tracker_autosync">Sync automatically in the background</string>
     <string name="pc_tracker_autosync_desc">Quietly fetches recordings whenever this PC is in the same Wi-Fi. Errors only show up for manual sync.</string>
+
+    <!-- App 1.0.34: In-App-Update (öffentliche GitHub-Releases, ohne Token) -->
+    <string name="settings_app_update">App update</string>
+    <string name="app_update_installed">Installed version: %1$s</string>
+    <string name="app_update_check">Check for updates</string>
+    <string name="app_update_checking">Checking for updates…</string>
+    <string name="app_update_uptodate">You are on the latest version.</string>
+    <string name="app_update_available">Version %1$s is available:</string>
+    <string name="app_update_download">Download &amp; install</string>
+    <string name="app_update_downloading">Downloading… %1$d %%</string>
+    <string name="app_update_install_prompt">Install dialog opened — please confirm there.</string>
+    <string name="app_update_failed">Could not check for updates (offline?).</string>
+    <string name="app_update_debug_hint">Test build: updates come directly from the public GitHub releases — no Play Store, no account.</string>
 </resources>
