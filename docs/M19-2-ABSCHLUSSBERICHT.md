@@ -293,6 +293,17 @@ Alt-Moduls „Todos" (Serien/Streaks), keine Levels/XP/Maskottchen.
    liegen sie in den Unterprojekten (`pm-seed-wohnung`) — der Test prüft jetzt
    die echte Struktur.
 
+**Ehrliche Test-Lücke (dokumentiert statt verschwiegen):** Der
+`assignActivity`-Persistenz-Fix im `AppTrackingViewModel` (legt beim Zuweisen
+einer Activity zu einer noch nicht getrackten App jetzt einen Eintrag mit
+`enabled = true` an) ist NICHT durch einen eigenen Unit-Test abgedeckt — es
+gibt in `app/src/test` keine `AppTrackingViewModel`-Testdatei (Suche nach
+`AppTrackingViewModel|assignActivity`: 0 Treffer), und ein Neubau dieser
+Verdrahtung (ViewModel + Sync-Service + Repository) stand bewusst außerhalb
+dieses Pakets. Belegt ist er durch Kompilierung und den Quellen-Scan in
+`AppTrackingDigitalWiringTest`; empfohlen ist eine eigene kleine Suite, sobald
+an `AppTrackingViewModel` das nächste Mal gearbeitet wird.
+
 ---
 
 ## 5. Verifikation
