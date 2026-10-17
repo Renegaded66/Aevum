@@ -122,3 +122,59 @@ public class UpdateServiceTests
         Assert.Null(UpdateService.SelectNewest("not json at all", new Version(1, 0, 0)));
     }
 }
+
+/// <summary>
+/// PC-Tracker 1.4.1: Das Austausch-Skript muss drei echte Fehlerfälle
+/// abdecken, die der Nutzer erlebt hat (Update lief an, aber der Ordner blieb
+/// alt; „app is already active in the system tray“-Dialog; zu kurzes
+/// 2-s-Timeout, während die App im Tray weiterlebte).
+/// </summary>
+public class UpdateSwapScriptTests
+{
+    private static string[] Lines()
+        => UpdateInstaller.BuildSwapScriptLines(
+            @"C:\Temp\AevumPcTracker-update",
+            @"C:\Apps\AevumPcTracker",
+            "AevumPcTracker.exe",
+            4242);
+
+    [Fact]
+    public void ScriptWartetAufDasEndeDesStarters()
+    {
+        var lines = Lines();
+        // Warteschleife auf die PID des Starters (statt festem timeout /t 2).
+        Assert.Contains(lines, l => l.Contains(":waitloop"));
+        Assert.Contains(lines, l => l.Contains("tasklist") && l.Contains("4242"));
+        Assert.Contains(lines, l => l.Contains("goto waitloop"));
+        // Notfall-Abbruch nach der Wartephase — und nur genau diese PID.
+        Assert.Contains(lines, l => l.Contains("taskkill /PID 4242 /F"));
+        // Reihenfolge: kill vor Kopieren, Start erst nach dem Kopieren.
+        var killIndex = System.Array.FindIndex(lines, l => l.Contains("taskkill"));
+        var copyIndex = System.Array.FindIndex(lines, l => l.Contains("robocopy"));
+        var startIndex = System.Array.FindIndex(lines, l => l.TrimStart().StartsWith("start "));
+        Assert.True(killIndex < copyIndex, "taskkill muss vor robocopy stehen");
+        Assert.True(copyIndex < startIndex, "die neue EXE darf erst nach dem Kopieren starten");
+    }
+
+    [Fact]
+    public void ScriptSpiegeltDenOrdnerUndLoeschtAlteDateien()
+    {
+        var lines = Lines();
+        var copy = Assert.Single(lines, l => l.Contains("robocopy"));
+        // /MIR = spiegeln: entfernt Dateien der alten Version, die es in der
+        // neuen nicht mehr gibt („alte Version soll verschwinden“).
+        Assert.Contains("/MIR", copy);
+        Assert.Contains(@"C:\Temp\AevumPcTracker-update", copy);
+        Assert.Contains(@"C:\Apps\AevumPcTracker", copy);
+    }
+
+    [Fact]
+    public void ScriptEnthaeltKeinFestesZweiSekundenTimeoutMehr()
+    {
+        var lines = Lines();
+        // Früher: ein einziges „timeout /t 2“ — viel zu kurz, wenn der Prozess
+        // im Tray weiterlebte. Jetzt nur noch 1-s-Schritte in der Warteschleife.
+        Assert.DoesNotContain(lines, l => l.Contains("timeout /t 2"));
+        Assert.Contains(lines, l => l.Contains("timeout /t 1"));
+    }
+}

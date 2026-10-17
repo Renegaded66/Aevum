@@ -174,14 +174,15 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
             UpdateProgressVisible = false;
             RenderUpdateStatus();
             UpdateInstaller.ApplyAndRestart(zipPath, appDir, exeName);
-            // Kurz stehen lassen, dann beenden — das Skript tauscht die Dateien
-            // aus und startet die neue Version.
+            // Kurz stehen lassen, dann HARt beenden — das Skript wartet auf
+            // das Prozessende, spiegelt die neue Version in den Ordner
+            // (alte Dateien werden entfernt) und startet die App neu.
+            // 1.4.1-Fix: NICHT nur desktop.Shutdown() — das X versteckt nur in
+            // den Tray, der Prozess lebte weiter und blockierte den Austausch.
             await Task.Delay(500);
-            if (Avalonia.Application.Current?.ApplicationLifetime
-                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.Shutdown();
-            }
+            (Avalonia.Application.Current as App)?.ShutdownForUpdate();
+            // Fallback, falls das Cast unerwartet fehlschlägt (z. B. Tests):
+            Environment.Exit(0);
         }
         catch (Exception)
         {

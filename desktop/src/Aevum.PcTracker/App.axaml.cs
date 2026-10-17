@@ -200,4 +200,36 @@ public partial class App : Application
         ShutdownHost();
         desktop.Shutdown();
     }
+
+    /// <summary>
+    /// Beendet die App für den Update-Austausch — verlässlich und hart.
+    ///
+    /// Warum das nötig ist (PC-Tracker 1.4.1, echter Nutzerbefund): Der
+    /// Update-Flow rief bisher nur <c>desktop.Shutdown()</c> auf. Da das X der
+    /// App in den Infobereich versteckt und <see cref="MainWindow.OnClosing"/>
+    /// das Schließen ohne <c>AllowClose</c> cancelt, endete der Prozess im
+    /// Tray NICHT — robocopy lief danach gegen die gelockte EXE/DLLs, nichts
+    /// wurde ersetzt, und die vom Skript gestartete alte EXE zeigte den
+    /// „läuft schon im Infobereich"-Dialog („the app is already active in the
+    /// system tray").
+    ///
+    /// Ablauf: Fenster zum Schließen freigeben, Dienste synchron-still
+    /// stoppen (Sessions werden dabei sauber abgeschlossen), dann den
+    /// Prozess per <see cref="Environment.Exit"/> garantieren — egal, welche
+    /// Tray-/Hintergrund-Reste den Avalonia-Loop überleben würden.
+    /// </summary>
+    public void ShutdownForUpdate()
+    {
+        if (_shutdownStarted)
+        {
+            return;
+        }
+        _shutdownStarted = true;
+        if (_mainWindow is not null)
+        {
+            _mainWindow.AllowClose = true;
+        }
+        ShutdownHost();
+        Environment.Exit(0);
+    }
 }

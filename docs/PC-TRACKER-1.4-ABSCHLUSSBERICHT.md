@@ -258,3 +258,59 @@ Tests: `data/update/AppUpdateCheckerTest.kt` (neu),
 
 **Doku:** `docs/PC-TRACKER-PROTOCOL.md` (§5e), `docs/CHANGELOG.md`,
 `desktop/README.md` („Neu in Version 1.4“), dieser Bericht.
+
+---
+
+## 6. Nachtrag (gleicher Tag) — Nutzerbefund nach dem ersten 1.4.0-Anlauf
+
+Devon meldete: In 1.3 das Update gesucht und installiert → Download lief,
+Fenster schloss sich, dann das Popup „the app is already active in the system
+tray. You can open or quit it there“ — und im Ordner lag weiterhin komplett
+1.3.0. Außerdem: Update-Knopf gehört **nur** in die PC-App (Handy weiter über
+den Play Store), und alte Versionen müssen beim Update ersetzt werden.
+
+### 6.1 Ursache (im Code bewiesen, nicht geraten)
+
+`desktop.Shutdown()` allein beendet die Tray-App nicht: Das X versteckt die
+App in den Infobereich (`MainWindow.OnClosing` cancelt das Schließen ohne
+`AllowClose`), und der Update-Flow setzte `AllowClose` nie. Der Prozess lebte
+also im Tray weiter → das Austausch-Skript (festes `timeout /t 2`) kopierte
+gegen **gelockte** EXE/DLLs → robocopy ersetzte nichts → das Skript startete
+die alte EXE → Einzelinstanz-Schutz → exakt das gemeldete Popup. Ordner blieb
+1.3.0.
+
+### 6.2 Fixes (PC-Tracker 1.4.1)
+
+- `App.ShutdownForUpdate()`: `AllowClose = true` → Dienste sauber stoppen
+  (`ShutdownHost`, Sessions werden abgeschlossen) → **`Environment.Exit(0)`**
+  als Garantie. Der Update-Pfad im SettingsViewModel nutzt nur noch diese
+  Methode (mit `Environment.Exit`-Fallback).
+- `UpdateInstaller.BuildSwapScriptLines()` (neu, testbar): Warteschleife auf
+  die Starter-PID (`tasklist`-Poll, 1-s-Schritte), nach ~45 s
+  Notfall-`taskkill /PID … /F`, **erst danach** `robocopy /MIR /R:3 /W:2`
+  (spiegelt → alte Dateien verschwinden), erst danach Start der neuen EXE.
+- 3 neue Tests `UpdateSwapScriptTests` (Warteschleife/Kill-Reihenfolge,
+  /MIR, kein 2-s-Timeout mehr) → **116/116 grün**.
+- Sichtbarer Hinweis bleibt: „Deine Einstellungen und Aufzeichnungen bleiben
+  erhalten — das Update ersetzt nur die Programmdateien.“
+
+### 6.3 Übergang für bestehende 1.3.0/1.4.0-Installationen
+
+Der Update-Ablauf wird von der **laufenden** Version ausgeführt — eine
+vorhandene 1.3.0 startet ihr nächstes Update also noch mit dem fehlerhaften
+Code. Deshalb für dieses eine Mal manuell: App im Infobereich beenden, neue
+ZIP herunterladen, den vorhandenen Programmordner-Inhalt mit dem ZIP-Inhalt
+überschreiben (alte Dateien vorher löschen); Einstellungen, Aufzeichnungen
+und Kopplung bleiben unangetastet (%APPDATA%). Ab 1.4.1 erledigt der
+Update-Knopf alles selbst — inklusive Entfernen der alten Dateien.
+
+### 6.4 App 1.0.35 (Android)
+
+„der update button sollte nur in der pc anwendung sein. Natürlich sollte die
+handy anwendung nach wie vor über play store heruntergeladen werden.“ —
+Der komplette In-App-Updater aus 1.0.34 ist wieder entfernt (Settings-Karte,
+`AppUpdateChecker`, `AppUpdateInstaller`, zugehörige Tests,
+`REQUEST_INSTALL_PACKAGES`, FileProvider, `file_paths.xml`, Strings DE/EN).
+Unverändert bleiben die Sync-Features (Live-Kanal, Sofort-Sync). Version
+1.0.35 (versionCode 36); **1148/1148 Tests grün**; Build
+`assembleDebug/Release/bundleRelease` grün.

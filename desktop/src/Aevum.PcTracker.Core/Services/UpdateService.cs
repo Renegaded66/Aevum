@@ -221,6 +221,55 @@ public sealed class UpdateInstaller : IDisposable
     }
 
     /// <summary>
+    /// Baut die Zeilen des Austausch-Skripts (ausgelagert, damit die Logik
+    /// testbar ist — der eigentliche cmd-Lauf bleibt Windows).
+    ///
+    /// Ablauf (PC-Tracker 1.4.1, Devon: „das fenster hat sich geschlossen,
+    /// dann kam das pop up ‚the app is already active in the system tray‘ […]
+    /// der ordner ist immer noch voll mit 1.3.0"):
+    /// 1. Auf das ENDE des Update-Starters (PID) warten — vorher war es ein
+    ///    festes „timeout /t 2": Wenn die App noch im Tray lief (Shutdown
+    ///    gecancelt, alter Bug), scheiterte robocopy an gelockten Dateien,
+    ///    nichts wurde ersetzt, und die danach gestartete alte EXE zeigte den
+    ///    „läuft schon"-Dialog. Jetzt: warten, bis der Prozess wirklich weg
+    ///    ist; nach ~45 s Notfall-`taskkill /F` genau dieser PID.
+    /// 2. robocopy mit /MIR: spiegelt den neuen Stand und LÖSCHT Dateien, die
+    ///    es in der neuen Version nicht mehr gibt — die alte Version
+    ///    verschwindet vollständig (Devon: „Alte versionen sollten auch
+    ///    überschrieben werden").
+    /// 3. Erst danach die neue EXE starten.
+    /// </summary>
+    internal static string[] BuildSwapScriptLines(
+        string updateDir, string appDir, string exeName, int processId)
+    {
+        return new[]
+        {
+            "@echo off",
+            "chcp 65001 >nul",
+            // Phase 1: warten, bis der Update-Starter beendet ist (max. ~45 s).
+            "set WAIT=0",
+            ":waitloop",
+            $"tasklist /FI \"PID eq {processId}\" 2>nul | find \"{processId}\" >nul",
+            "if errorlevel 1 goto copy",
+            "set /a WAIT+=1",
+            "if %WAIT% GEQ 45 goto kill",
+            "timeout /t 1 /nobreak >nul",
+            "goto waitloop",
+            ":kill",
+            // Notfall: Prozess hängt (Tray/Thread) → genau diese PID beenden.
+            $"taskkill /PID {processId} /F >nul 2>&1",
+            "timeout /t 1 /nobreak >nul",
+            ":copy",
+            // Phase 2: Programmdateien spiegeln — alte Dateien werden entfernt.
+            $"robocopy \"{updateDir}\" \"{appDir}\" /MIR /R:3 /W:2 /NFL /NDL /NJH /NJS >nul",
+            // Phase 3: neue Version starten, Aufräumen, Skript selbst löschen.
+            $"start \"\" \"{Path.Combine(appDir, exeName)}\"",
+            $"rmdir /s /q \"{updateDir}\"",
+            "(goto) 2>nul & del \"%~f0\"",
+        };
+    }
+
+    /// <summary>
     /// Entpackt das ZIP und stößt das Austausch-Skript an: Es wartet auf das
     /// Ende dieses Prozesses, kopiert die neuen Dateien über das Programm-
     /// verzeichnis und startet die App neu. Der Aufrufer beendet die App danach.
@@ -228,9 +277,10 @@ public sealed class UpdateInstaller : IDisposable
     /// Einstellungen bleiben dabei erhalten (Devon: „denke beim installieren
     /// eines updates der desktop app daran, dass die einstellungen übernommen
     /// werden sollen"): robocopy kopiert NUR die Dateien aus dem ZIP über das
-    /// Programmverzeichnis — ohne /PURGE wird nichts gelöscht. Alle Nutzerdaten
-    /// (pctracker.sqlite mit Einstellungen, Aufzeichnungen, Kopplung) liegen
-    /// ohnehin außerhalb, unter %APPDATA%\AevumPcTracker (AppHost.DefaultDataDirectory).
+    /// Programmverzeichnis. Alle Nutzerdaten (pctracker.sqlite mit
+    /// Einstellungen, Aufzeichnungen, Kopplung) liegen ohnehin außerhalb,
+    /// unter %APPDATA%\AevumPcTracker (AppHost.DefaultDataDirectory) — der
+    /// /MIR-Spiegel betrifft ausschließlich den Programmordner.
     /// </summary>
     public static void ApplyAndRestart(string zipPath, string appDir, string exeName)
     {
@@ -243,18 +293,10 @@ public sealed class UpdateInstaller : IDisposable
         System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, updateDir);
 
         var script = Path.Combine(Path.GetTempPath(), $"aevum-update-{Environment.ProcessId}.cmd");
-        // UTF-8 aktivieren, damit auch Sonderzeichen in Pfaden ankommen.
-        var lines = new[]
-        {
-            "@echo off",
-            "chcp 65001 >nul",
-            "timeout /t 2 /nobreak >nul",
-            $"robocopy \"{updateDir}\" \"{appDir}\" /E /IS /IT /R:10 /W:1 /NFL /NDL /NJH /NJS >nul",
-            $"start \"\" \"{Path.Combine(appDir, exeName)}\"",
-            $"rmdir /s /q \"{updateDir}\"",
-            "(goto) 2>nul & del \"%~f0\"",
-        };
-        File.WriteAllLines(script, lines, new UTF8Encoding(false));
+        File.WriteAllLines(
+            script,
+            BuildSwapScriptLines(updateDir, appDir, exeName, Environment.ProcessId),
+            new UTF8Encoding(false));
         Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{script}\"")
         {
             CreateNoWindow = true,

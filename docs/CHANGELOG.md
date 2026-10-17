@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.4.1 + App 1.0.35 — 2026-10-17 (Nachtrag)
+
+### Update-Installation repariert + Update-Knopf gehört nur in die PC-App
+
+**PC-Tracker 1.4.1 — echter Nutzerbefund:** „dann hat es auch heruntergeladen,
+das fenster hat sich geschlossen, dann kam aber das pop up ‚the app is already
+active in the system tray‘ […] wenn ich in den ordner gucke […] ist da halt
+immer noch alles voll mit 1.3.0. Alte versionen sollten auch überschrieben
+werden.“
+
+- **Ursache gefunden und behoben:** Der Update-Flow beendete die App nur über
+  `desktop.Shutdown()`. Da das X die App in den Infobereich versteckt und
+  `MainWindow.OnClosing` das Schließen ohne `AllowClose` cancelt, lebte der
+  Prozess im Tray weiter → robocopy lief gegen gelockte EXE/DLLs (Ordner
+  blieb voll auf 1.3.0), und die danach gestartete alte EXE zeigte über den
+  Einzelinstanz-Schutz genau diesen Dialog. Fix: `App.ShutdownForUpdate()` —
+  Fenster freigeben, Dienste sauber stoppen, Prozessende per
+  `Environment.Exit` erzwingen.
+- **Austausch-Skript wartet jetzt echt:** Warteschleife auf die Starter-PID
+  (statt festem `timeout /t 2`), Notfall-`taskkill /PID … /F` nach ~45 s,
+  Kopieren erst, wenn der Prozess wirklich beendet ist.
+- **Alte Version verschwindet:** robocopy mit `/MIR` — Dateien, die es in der
+  neuen Version nicht mehr gibt, werden entfernt.
+- 3 neue Tests (`UpdateSwapScriptTests`), gesamt 116/116 grün.
+- **Übergangshinweis:** Eine bestehende 1.3.0 führt ihr nächstes Update noch
+  mit dem alten Code aus — für dieses eine Mal manuell ersetzen (neue ZIP
+  über den vorhandenen Ordner entpacken; Einstellungen/Aufzeichnungen
+  bleiben, sie liegen in %APPDATA%).
+
+**App 1.0.35:** „der update button sollte nur in der pc anwendung sein.
+Natürlich sollte die handy anwendung nach wie vor über play store
+heruntergeladen werden.“ — Der In-App-Updater aus 1.0.34 (Karte,
+`AppUpdateChecker`/`AppUpdateInstaller`, `REQUEST_INSTALL_PACKAGES`,
+FileProvider) ist vollständig entfernt. Die Sync-Features aus 1.0.34 bleiben
+(Live-Kanal zum PC, Sofort-Sync beim App-Öffnen). versionCode 36; 1148/1148
+Tests grün.
+
 ## [Unreleased] — PC-Tracker 1.4.0 + App 1.0.34 — 2026-10-17
 
 ### Live vom Handy: laufende Aufzeichnung mit Stop/Pause am PC + In-App-Update

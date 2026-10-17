@@ -170,12 +170,12 @@ android {
         //   getrackte App ≤5s nach dem Öffnen übernimmt, nichts anderes
         //   zeichnet parallel auf. Feuerrot nachgeschärft (#FF3B2E/#D32614);
         //   der Schimmer wandert auf den Dashboard-Plus-Knopf.
-        // 1.0.34: Live-Kanal zum PC-Dashboard (laufende Handy-Session mit
-        //   Stop/Pause/Fortsetzen), stiller Sync beim App-Öffnen (Gate auf
-        //   2 min gelockert + sofortiger In-Process-Sync statt nur WorkManager),
-        //   In-App-Update aus den öffentlichen GitHub-Releases (ohne Token).
-        versionCode = 35
-        versionName = "1.0.34"
+        // 1.0.35: Update-Knopf gehört nur in die PC-App — der In-App-Updater
+        //   der 1.0.34 (GitHub-Releases, System-Installer) ist wieder entfernt;
+        //   die Handy-App kommt weiterhin über den Play Store. Sync-Features
+        //   aus 1.0.34 (Live-Kanal zum PC, Sofort-Sync beim Öffnen) bleiben.
+        versionCode = 36
+        versionName = "1.0.35"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

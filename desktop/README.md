@@ -47,6 +47,14 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
+## Neu in Version 1.4.1
+
+- **Update-Installation repariert:** Der Update-Knopf tauscht die neue
+  Version jetzt verlässlich ein — die App wird dabei wirklich beendet
+  (vorher konnte sie im Infobereich weiterlaufen und die Dateien blockieren),
+  das Austausch-Skript wartet darauf und entfernt beim Einspielen auch die
+  Dateien der alten Version.
+
 ## Neu in Version 1.4
 
 - **Live vom Handy:** Läuft in der Aevum-App gerade eine Aufzeichnung, zeigt
