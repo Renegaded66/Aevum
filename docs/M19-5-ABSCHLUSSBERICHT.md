@@ -174,7 +174,8 @@ Ein selbst erstellbares, interaktives Canvas-Wesen:
   Zeichenfehler"; Banner-Glyphen „perfekt zentriert (alle drei)"; Sheet-Kante
   „dezent blau/gold/rot durchschimmernd"; Kacheln mit Icon neben dem Wert
   „flacher, nichts gequetscht".
-- **Commit:** `{{COMMIT}}` auf `main` (Renegaded66/Aevum).
+- **Commit:** `77aacdd` auf `main` (Renegaded66/Aevum; 22 Dateien,
+  +2723/−641).
 
 ## 6. Von Tests & Sichtprüfung gefundene Fehler (und Fixes)
 
