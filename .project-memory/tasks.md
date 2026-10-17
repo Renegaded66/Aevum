@@ -120,3 +120,4 @@
       dort nicht!). Voll-Build Exit 0 (9m58s), Debug-APK kanonisch
       signiert, Release-APK + AAB im Build-Output; Screenshot-Kopien auf
       dem APK-Server. Bericht `docs/M19-4-ABSCHLUSSBERICHT.md`.
+      Commit `2b6e31d` (14 Dateien, +1973/−549), gepusht auf main.

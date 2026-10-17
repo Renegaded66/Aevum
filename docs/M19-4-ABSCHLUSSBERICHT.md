@@ -182,8 +182,9 @@ Glitzer; der Effekt liegt ohnehin in der Ruhephase der Endlos-Schleife
   `http://192.168.178.40:8098/Aevum-1.0.36-Debug.apk` (index.html aktualisiert);
   Screenshots `aevum-1.0.36-hero-dark.png`, `-hero-light.png`,
   `-sheet-over-hero.png` daneben.
-- **Git:** Repo `Renegaded66/Aevum` (öffentlich, keine Secrets), Commits
-  siehe Nachtrag unten.
+- **Git:** Repo `Renegaded66/Aevum` (öffentlich, keine Secrets) — Commit
+  `2b6e31d` („M19.4 … Tag-Cockpit + Sheet ueber Hero", 14 Dateien,
+  +1973/−549)
 
 ## 6. Von den Tests gefundene Fehler
 
