@@ -47,6 +47,18 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
+## Neu in Version 1.5.2
+
+- **Handy-Vorrang hält jetzt echte Sendelücken aus:** Der PC gibt sich nicht
+  mehr nach 45 Sekunden ohne Handy-Meldung frei (das führte zu den kurzen
+  „Digital"-Schnipseln im Minutentakt), sondern wartet geduldig bis zu
+  5 Minuten — erst dann gilt das Handy als wirklich weg. Mini-Schnipsel
+  unter 2 Sekunden werden gar nicht mehr gespeichert.
+- **Große Live-Timer im Dashboard:** Sowohl die PC- als auch die
+  Handy-Aufzeichnung zeigt jetzt eine große, mitlaufende Dauer im
+  Monospace-Stil (wie am Handy) — plus „Letzte Meldung vor X" auf der
+  Handy-Karte, damit du sofort siehst, wie frisch dein Handy meldet.
+
 ## Neu in Version 1.5.1
 
 - **Update-Austausch repariert:** Der Update-Knopf wartet jetzt wirklich, bis

@@ -29,6 +29,22 @@ public sealed class PhoneLiveRegistry
     /// <summary>Ohne Meldung für diese Zeit gilt der Zustand als veraltet (Steuerung aus).</summary>
     public const long StaleAfterMs = 45_000;
 
+    /// <summary>
+    /// PC 1.5.2: So lange gilt eine gemeldete Handy-Aufzeichnung für den
+    /// VORRANG als laufend, auch wenn die Anzeige schon „veraltet" sagt.
+    ///
+    /// Devon-Befund: „irgendwie zeichnet der pc trotzdem jede minute für
+    /// ganz wenige sekunden kurz digital auf." Ursache: Bei 45 s Karenz
+    /// reichte EINE Sendelücke des Handys (Standby/Netz/Service-Neustart;
+    /// ein fehlgeschlagener Versuch kostet allein 3–11 s), damit der PC sich
+    /// „frei" fühlte und die allgemeine Aufzeichnung startete — die nächste
+    /// Handy-Meldung beendete sie sofort wieder. Ergebnis: kurze Digital-
+    /// Schnipsel im Minuten-Takt. Jetzt: Solange die letzte Handy-Meldung
+    /// keine 5 Minuten alt ist, startet der PC nichts. Erst danach gilt das
+    /// Handy als wirklich weg (die UI zeigt die Stufe ehrlich an).
+    /// </summary>
+    public const long PriorityWindowMs = 5 * 60_000;
+
     /// <summary>Ein unbeantworteter Befehl wird nach dieser Zeit verworfen.</summary>
     public const long CommandTtlMs = 60_000;
 
@@ -70,6 +86,27 @@ public sealed class PhoneLiveRegistry
         {
             _pending = command;
             _pendingSetMs = nowMs;
+        }
+    }
+
+    /// <summary>
+    /// PC 1.5.2: Zeichnet das Handy für den VORRANG auf? Das ist die weiche,
+    /// geduldige Variante von „läuft": Solange die letzte Meldung nicht
+    /// älter als <see cref="PriorityWindowMs"/> ist (5 Minuten), zählt die
+    /// Handy-Aufzeichnung als laufend und der PC startet nichts. Die
+    /// strickte 45-s-Anzeige (<c>Stale</c>) bleibt unberührt für die
+    /// UI-Karte und die Steuerungs-Knöpfe.
+    /// </summary>
+    public bool IsRecordingForPriority(long nowMs)
+    {
+        lock (_lock)
+        {
+            if (_session is null)
+            {
+                return false;
+            }
+            var age = nowMs - _session.LastUpdateMs;
+            return age >= 0 && age <= PriorityWindowMs;
         }
     }
 

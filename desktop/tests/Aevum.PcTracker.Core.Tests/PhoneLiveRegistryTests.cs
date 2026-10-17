@@ -56,6 +56,47 @@ public class PhoneLiveRegistryTests
         Assert.True(reg.GetStatus(10_000 + PhoneLiveRegistry.StaleAfterMs + 1).Stale);
     }
 
+    /// <summary>
+    /// PC 1.5.2 (Devon-Befund „pc zeichnet jede minute kurz digital auf"):
+    /// Die Vorrang-Bewertung ist geduldiger als die 45-s-Anzeige — solange
+    /// die letzte Meldung keine 5 Minuten alt ist, gilt das Handy als
+    /// aufzeichnend und der PC startet nichts (Sendelücken werden
+    /// überbrückt, statt in kurze Falsch-Aufzeichnungen zu kippen).
+    /// </summary>
+    [Fact]
+    public void PriorityWindow_IsPatientBeyondStale_UntilFiveMinutes()
+    {
+        var reg = new PhoneLiveRegistry();
+        reg.HandleRelay(Session(), 10_000);
+
+        // Frisch: Priorität ja.
+        Assert.True(reg.IsRecordingForPriority(12_000));
+
+        // Nach 45 s ist die STEUERUNG stale — der Vorrang gilt weiter.
+        Assert.True(reg.GetStatus(10_000 + PhoneLiveRegistry.StaleAfterMs + 1).Stale);
+        Assert.True(reg.IsRecordingForPriority(10_000 + PhoneLiveRegistry.StaleAfterMs + 1));
+
+        // Kurz vor dem Fünf-Minuten-Fenster: immer noch Vorrang.
+        Assert.True(reg.IsRecordingForPriority(10_000 + PhoneLiveRegistry.PriorityWindowMs));
+
+        // Danach: das Handy gilt als weg, der PC ist frei.
+        Assert.False(reg.IsRecordingForPriority(10_000 + PhoneLiveRegistry.PriorityWindowMs + 1));
+    }
+
+    [Fact]
+    public void PriorityWindow_WithoutSessionOrAfterExplicitEnd_IsFree()
+    {
+        var reg = new PhoneLiveRegistry();
+        Assert.False(reg.IsRecordingForPriority(10_000));
+
+        reg.HandleRelay(Session(), 10_000);
+        Assert.True(reg.IsRecordingForPriority(10_000));
+
+        // Meldung „keine Session mehr" gibt sofort frei.
+        reg.HandleRelay(null, 11_000);
+        Assert.False(reg.IsRecordingForPriority(11_000));
+    }
+
     [Fact]
     public void Pause_IsDeliveredUntilConfirmed()
     {

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Aevum.PcTracker.ViewModels"
+             xmlns:conv="using:Avalonia.Data.Converters"
              x:Class="Aevum.PcTracker.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
   <ScrollViewer>
@@ -38,9 +39,17 @@
               </StackPanel>
               <TextBlock Text="{Binding PhoneLiveTitle}" FontSize="23" FontWeight="Bold"
                          TextWrapping="Wrap" />
+              <!-- PC 1.5.2: große tickende Dauer der Handy-Aufzeichnung. -->
+              <TextBlock Text="{Binding PhoneTimerText}" FontSize="34" FontWeight="Bold"
+                         FontFamily="Cascadia Mono,Consolas,DejaVu Sans Mono,monospace"
+                         Foreground="#5EEAD4"
+                         IsVisible="{Binding PhoneTimerText, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
               <TextBlock Text="{Binding PhoneLiveLine}" Classes="muted" TextWrapping="Wrap" />
               <TextBlock Text="{Binding PhoneLiveHint}" Classes="muted" FontSize="12"
                          TextWrapping="Wrap" />
+              <!-- Diagnose/Transparenz: zeigt live, wie frisch die letzte Handy-Meldung ist. -->
+              <TextBlock Text="{Binding PhoneLastSeenText}" Classes="muted" FontSize="11"
+                         IsVisible="{Binding PhoneLastSeenText, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
             <Button Grid.Column="2" Classes="ghost" Content="{Binding PhonePauseResumeLabel}"
                     Command="{Binding PhonePauseResumeCommand}" IsEnabled="{Binding !PhoneLiveStale}"
@@ -100,6 +109,11 @@
               </StackPanel>
               <TextBlock Text="{Binding NowTitle}" FontSize="23" FontWeight="Bold"
                          TextWrapping="Wrap" />
+              <!-- PC 1.5.2: große tickende Dauer der PC-Aufzeichnung. -->
+              <TextBlock Text="{Binding NowTimerText}" FontSize="34" FontWeight="Bold"
+                         FontFamily="Cascadia Mono,Consolas,DejaVu Sans Mono,monospace"
+                         Foreground="#5EEAD4"
+                         IsVisible="{Binding NowTimerText, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
               <TextBlock Text="{Binding NowLine}" Classes="muted" TextWrapping="Wrap" />
             </StackPanel>
             <!-- PC 1.3.0: Stop-Knopf — beendet die manuell gestartete Aktivität sofort -->

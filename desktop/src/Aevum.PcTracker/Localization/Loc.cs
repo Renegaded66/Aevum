@@ -313,6 +313,8 @@ public static class Loc
         ["s.plive_stop"] = "Stop",
         ["s.plive_hint"] = "Live from your phone — controls apply within seconds (same Wi-Fi).",
         ["s.plive_stale"] = "Last update {0} — control needs the same Wi-Fi.",
+        // PC 1.5.2: Transparenz — wie frisch ist die letzte Handy-Meldung
+        ["s.plive_last_seen"] = "Last ping {0}",
         ["s.plive_busy"] = "Command sent — waiting for your phone…",
         ["s.plive_badge"] = "● LIVE",
 
@@ -579,6 +581,8 @@ public static class Loc
         ["s.plive_stop"] = "Stoppen",
         ["s.plive_hint"] = "Live vom Handy — Steuerung wirkt in Sekunden (gleiches WLAN).",
         ["s.plive_stale"] = "Letzte Meldung {0} — Steuerung braucht das gleiche WLAN.",
+        // PC 1.5.2: Transparenz — wie frisch ist die letzte Handy-Meldung
+        ["s.plive_last_seen"] = "Letzte Meldung {0}",
         ["s.plive_busy"] = "Befehl gesendet — warte auf dein Handy…",
         ["s.plive_badge"] = "● LIVE",
 

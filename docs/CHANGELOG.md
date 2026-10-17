@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.5.2 — 2026-10-17
+
+### Handy-Vorrang hält jetzt echte Sendelücken aus + große Live-Timer im Dashboard
+
+Devon-Befund: „irgendwie zeichnet der pc trotzdem jede minute für ganz wenige
+sekunden kurz digital auf und synchronisiert das auch so mit dem handy" —
+obwohl am Handy seit Stunden „Studium" lief. Außerdem: „im dashboard wirklich
+irgendwas fancy […], wo auch deutlich die dauer der aufzeichnung sichtbar
+ist (egal ob handy oder pc aufzeichnung)".
+
+- **Ursache des Pendelns:** Die Vorrang-Bewertung gab den PC schon nach 45 s
+  ohne Handy-Meldung frei. Das Handy-Relay sendet zwar alle 7–15 s, aber jede
+  Sendelücke (Standby, WLAN-Schlaf, Service-Neustart — ein fehlgeschlagener
+  Versuch kostet allein 3–11 s) reichte: Der PC startete die allgemeine
+  Aufzeichnung (Digital), die nächste Handy-Meldung beendete sie sofort →
+  kurze Digital-Schnipsel im Minutentakt, die auch noch zum Handy syncten.
+- **Fix: Prioritätsfenster 5 Minuten statt 45 s.** Für den VORRANG gilt eine
+  Handy-Aufzeichnung erst als beendet, wenn 5 Minuten keine Meldung kam (die
+  UI zeigt die strengere 45-s-Frische weiterhin ehrlich an — Steuerung,
+  „letzte Meldung"). Live verifiziert: 65 s Funkstille bei aktivem
+  General-Toggle → keine einzige PC-Session; erst das ausdrückliche
+  Session-Ende gibt den PC frei (und die allgemeine Aufzeichnung läuft dann
+  korrekt weiter).
+- **Mini-Artefakt-Filter:** Sessions, die der Vorrang beendet und die unter
+  2 s alt sind, werden gar nicht mehr gespeichert (Grenzfall „PC startete
+  Sekunden vor der Handy-Meldung") — kein Müll in Verlauf oder Handy-Sync.
+- **Übergangs-Logging:** `phone-priority.log` (im Datenordner) notiert jeden
+  Wechsel „Handy-Aufzeichnung erkannt" / „PC wieder frei" mit der Age der
+  letzten Meldung — Funkstille-Fälle sind nie wieder Rätselraten.
+- **Dashboard: große Live-Timer (fancy):** Sowohl die Handy-Karte als auch
+  die PC-Live-Karte zeigen jetzt eine große tickende Dauer im
+  Monospace-Stil (türkis, `MM:SS` / `H:MM:SS`) — wie am Android-Dashboard.
+  Bei Pause friert der Timer auf dem letzten Stand ein.
+- **Dashboard: „Letzte Meldung vor X"** auf der Handy-Karte — live sichtbar,
+  wie frisch das Handy meldet.
+- Tests: **134/134 grün** (+3: Prioritätsfenster-Fensterlogik, explizites
+  Ende gibt sofort frei, Mini-Artefakt wird verworfen).
+
 ## [Unreleased] — PC-Tracker 1.5.1 — 2026-10-17
 
 ### Update-Austausch komplett neu: wartet, kopiert mit Fallback, verifiziert, protokolliert

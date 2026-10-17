@@ -39,6 +39,30 @@ public static class UpdateLog
             // Logging ist Best-Effort.
         }
     }
+
+    /// <summary>
+    /// PC 1.5.2: Schreibt in eine eigene Diagnose-Datei (z. B.
+    /// „phone-priority.log") — mit einfacher Größen-Rotation, damit sie
+    /// nie unbegrenzt wächst.
+    /// </summary>
+    public static void AppendTo(string dataDirectory, string fileName, string message)
+    {
+        try
+        {
+            var path = Path.Combine(dataDirectory, fileName);
+            if (File.Exists(path) && new FileInfo(path).Length > 512 * 1024)
+            {
+                File.Delete(path); // Rotation: frisch beginnen statt riesig werden
+            }
+            File.AppendAllText(
+                path,
+                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Logging ist Best-Effort.
+        }
+    }
 }
 
 /// <summary>Der gemerkter Update-Auftrag (Ziel + Startzeitpunkt des Austauschs).</summary>

@@ -77,6 +77,9 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
     [ObservableProperty] private string _nowIcon = "🖥";
     [ObservableProperty] private string _nowTitle = "—";
     [ObservableProperty] private string _nowLine = "";
+    // PC 1.5.2: große tickende Dauer der PC-Aufzeichnung (wie am Handy) —
+    // leer, wenn nichts aufgezeichnet wird.
+    [ObservableProperty] private string _nowTimerText = "";
 
     [ObservableProperty] private string _todayCountText = "0";
     [ObservableProperty] private string _todayTotalText = "0 min";
@@ -334,6 +337,10 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
     [ObservableProperty] private string _phoneLiveLine = "";
     [ObservableProperty] private string _phoneLiveHint = "";
     [ObservableProperty] private string _phonePauseResumeLabel = "";
+    // PC 1.5.2: großer tickender Timer + „letzte Meldung" (Diagnose/Transparenz).
+    [ObservableProperty] private string _phoneTimerText = "";
+    [ObservableProperty] private string _phoneLastSeenText = "";
+    private long _phoneTimerFrozenMs;
 
     private void UpdatePhoneLive(long now)
     {
@@ -343,6 +350,9 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         PhoneLiveActive = session is not null && !status.Stale;
         if (session is null)
         {
+            PhoneTimerText = "";
+            PhoneLastSeenText = "";
+            _phoneTimerFrozenMs = 0;
             return;
         }
         PhoneLiveStale = status.Stale;
@@ -351,6 +361,19 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         PhoneLiveLine = session.IsPaused
             ? Loc.F("s.plive_paused", UiFormat.Clock(session.BlockEndAtMs > 0 ? session.BlockEndAtMs : session.StartAtMs))
             : Loc.F("s.plive_running", UiFormat.Clock(session.StartAtMs), UiFormat.Duration(now - session.StartAtMs));
+        // Großer Timer: läuft mit; bei Pause friert er auf dem letzten Stand ein.
+        if (session.IsPaused)
+        {
+            PhoneTimerText = _phoneTimerFrozenMs > 0
+                ? UiFormat.Timer(_phoneTimerFrozenMs)
+                : UiFormat.Timer(session.BlockEndAtMs > session.StartAtMs ? session.BlockEndAtMs - session.StartAtMs : 0);
+        }
+        else
+        {
+            _phoneTimerFrozenMs = Math.Max(0, now - session.StartAtMs);
+            PhoneTimerText = UiFormat.Timer(_phoneTimerFrozenMs);
+        }
+        PhoneLastSeenText = Loc.F("s.plive_last_seen", UiFormat.Ago(session.LastUpdateMs, now));
         PhonePauseResumeLabel = Loc.S(session.IsPaused ? "s.plive_resume" : "s.plive_pause");
         PhoneLiveHint = status.PendingCommand is not null
             ? Loc.S("s.plive_busy")
@@ -395,6 +418,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         CheckPendingStart(now);
         IsManualActive = _host.Tracker.ActiveSession?.ProgramKey == SessionEngine.ManualProgramKey;
         UpdatePhoneLive(now);
+        NowTimerText = ""; // nur die aktiven Zweige unten setzen ihn
 
         // PC 1.3.0: Eine MANUELLE Session wird immer angezeigt — sie hängt nicht
         // an der Windows-Probe (der Linux-Smoke-Test zeigte: ohne diesen Vorrang
@@ -412,6 +436,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
             NowIcon = manualIcon;
             NowTitle = manualName;
             NowLine = $"{Loc.S("s.man_started")} · {Loc.F("s.row_since", UiFormat.Clock(manual.StartAtMs))} · {UiFormat.Duration(now - manual.StartAtMs)}";
+            NowTimerText = UiFormat.Timer(now - manual.StartAtMs);
             return;
         }
 
@@ -464,6 +489,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
                 ? Loc.S("s.gen_in_use")
                 : active.ProgramName;
             NowLine = $"{subject} · {Loc.F("s.row_since", UiFormat.Clock(active.StartAtMs))} · {UiFormat.Duration(now - active.StartAtMs)}";
+            NowTimerText = UiFormat.Timer(now - active.StartAtMs);
         }
         else
         {

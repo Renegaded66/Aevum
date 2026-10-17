@@ -80,6 +80,14 @@ public sealed class SessionEngine
     /// <summary>Die allgemeine Aufzeichnung endet nach dieser Ruhezeit (Maus/Tastatur still und kein Ton).</summary>
     public const long GeneralIdleMs = 60_000;
 
+    /// <summary>
+    /// PC 1.5.2: Sessions, die der Handy-Vorrang beendet, werden unter dieser
+    /// Länge gar nicht gespeichert — nur der Grenzfall „PC startete Sekunden
+    /// vor einer Handy-Meldung" fällt darunter, und solche Mini-Schnipsel
+    /// sollen weder im Verlauf noch im Handy-Sync auftauchen.
+    /// </summary>
+    public const long MinSavedPreemptionMs = 2_000;
+
     private readonly Func<string> _idFactory;
 
     public SessionEngine(Func<string>? idFactory = null)
@@ -295,7 +303,15 @@ public sealed class SessionEngine
             {
                 var endedPhone = Finalize(Active, t.NowMs);
                 _lastSessionEndMs = endedPhone.EndAtMs ?? 0;
-                upserts.Add(endedPhone);
+                // PC 1.5.2: Mini-Artefakte (unter 2 s) gar nicht erst speichern.
+                // Sie entstehen nur im Grenzfall „PC startete kurz vor einer
+                // Handy-Meldung" und sind in Verlauf und Handy-Sync nur Müll.
+                // Echte (auch kurze) Aufzeichnungen sind davon unberührt —
+                // nur dieser Vorrang-Sonderfall filtert.
+                if ((endedPhone.EndAtMs ?? 0) - endedPhone.StartAtMs >= MinSavedPreemptionMs)
+                {
+                    upserts.Add(endedPhone);
+                }
                 Active = null;
             }
             ResetVisibilityClock(t.NowMs);

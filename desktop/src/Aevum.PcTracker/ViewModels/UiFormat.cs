@@ -25,6 +25,18 @@ public static class UiFormat
     public static string Clock(long ms) =>
         DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("HH:mm", CultureInfo.CurrentCulture);
 
+    /// <summary>
+    /// PC 1.5.2: Laufende Dauer als tickende Uhr — „07:12" oder „1:07:12" —
+    /// für die große Live-Anzeige im Dashboard (wie am Handy).
+    /// </summary>
+    public static string Timer(long ms)
+    {
+        var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
+        return t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
+            : $"{t.Minutes:00}:{t.Seconds:00}";
+    }
+
     public static string Ago(long thenMs, long nowMs)
     {
         var d = Math.Max(0, nowMs - thenMs);

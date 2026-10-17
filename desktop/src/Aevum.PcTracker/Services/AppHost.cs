@@ -52,25 +52,39 @@ public sealed class AppHost : IAsyncDisposable
             Pairing.Enabled));
         // PC 1.5.0: Handy-Vorrang — der Tracker fragt bei jedem Tick (und vor
         // jedem manuellen Start), ob das Handy gerade aufzeichnet.
+        // PC 1.5.2: Dafür gilt das geduldige Prioritätsfenster (5 min statt
+        // 45 s) — plus Übergangs-Logging, damit Funkstille-Fälle nie wieder
+        // Rätselraten sind.
         Tracker = new TrackerService(ProbeFactory.Create(), Store, Settings, Clock,
             phoneRecording: now =>
             {
-                var status = PhoneLive.GetStatus(now);
-                return status.Session is not null && !status.Stale;
+                var recording = PhoneLive.IsRecordingForPriority(now);
+                if (_lastPhoneRecording != recording)
+                {
+                    var status = PhoneLive.GetStatus(now);
+                    var age = status.Session is null ? -1 : now - status.Session.LastUpdateMs;
+                    UpdateLog.AppendTo(DataDirectory, "phone-priority.log",
+                        recording
+                            ? $"vorrang: Handy-Aufzeichnung erkannt (letzte Meldung vor {age / 1000}s)"
+                            : $"vorrang: PC wieder frei — {(age < 0 ? "Handy meldete keine Session" : $"letzte Meldung vor {age / 1000}s (> {PhoneLiveRegistry.PriorityWindowMs / 60_000} min)")}");
+                    _lastPhoneRecording = recording;
+                }
+                return recording;
             });
     }
 
+    private bool? _lastPhoneRecording;
+
     /// <summary>
-    /// PC 1.5.0: Zeichnet gerade das Handy auf? (frische Live-Meldung, nicht
-    /// älter als die Stale-Schwelle). Quelle ist der Live-Kanal
-    /// (<c>POST /api/live</c>); ohne Meldung ist der PC sofort wieder frei —
-    /// so bleibt „es läuft immer nur eine Aufzeichnung" auch nach einem
-    /// Handy-Absturz ehrlich.
+    /// PC 1.5.0/1.5.2: Zeichnet gerade das Handy auf? Für den Vorrang zählt
+    /// die letzte Live-Meldung bis 5 Minuten nach Eingang (PriorityWindow) —
+    /// Sendelücken des Handys (Standby/Netz) dürfen den PC nicht in kurze
+    /// Falsch-Aufzeichnungen treiben. Die UI zeigt die strengere 45-s-Stufe
+    /// separat und ehrlich an.
     /// </summary>
     public bool IsPhoneRecording()
     {
-        var status = PhoneLive.GetStatus(Clock.NowMs);
-        return status.Session is not null && !status.Stale;
+        return PhoneLive.IsRecordingForPriority(Clock.NowMs);
     }
 
     public static string DefaultDataDirectory()

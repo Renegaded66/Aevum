@@ -111,6 +111,24 @@ public class PhonePriorityTests
         Assert.Null(engine.Active);
     }
 
+    /// <summary>
+    /// PC 1.5.2: Der Grenzfall „PC startete Sekunden vor einer Handy-Meldung"
+    /// (typisch nach Funkstille) darf KEINEN Mini-Eintrag hinterlassen —
+    /// unter 2 s wird die vom Vorrang beendete Session verworfen.
+    /// </summary>
+    [Fact]
+    public void MiniArtefaktDurchVorrangWirdNichtGespeichert()
+    {
+        var engine = NewEngine();
+        engine.StartManual("work", TZ, 1_000);
+
+        // Session ist beim Vorrang-Tick erst 1,5 s alt.
+        var upserts = engine.Tick(Tick(2_500, null, Array.Empty<TrackingRule>(), phoneRecording: true));
+
+        Assert.Empty(upserts);      // kein Eintrag im Verlauf / Handy-Sync
+        Assert.Null(engine.Active); // beendet wird sie trotzdem
+    }
+
     [Fact]
     public void WaehrendHandyAufzeichnungStartetNichtsNeues()
     {
