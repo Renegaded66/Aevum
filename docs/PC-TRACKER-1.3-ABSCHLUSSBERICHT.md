@@ -133,7 +133,18 @@ Beide Fixes sind im XAML/Code mit Begründung kommentiert.
 
 ## 4. Auslieferung
 
-PLATZHALTER_RELEASE
+- **Windows-Paket:** `AevumPcTracker-1.3.0-win-x64.zip` — **57.478.315 B
+  (57,5 MB)**, self-contained `win-x64` (ohne PDB), Assembly-Version 1.3.0.0.
+- **GitHub-Release:** Tag **`pc-tracker-1.3.0`** (Commit `aa8687c`, gepusht),
+  Release „Aevum PC-Tracker 1.3.0" mit dem ZIP als Asset — per API angelegt,
+  Asset-Upload verifiziert (Größe stimmt Byte für Byte, `state: uploaded`).
+- **UpdateService live geprüft:** Die Auswahl-Logik findet aus Sicht einer
+  installierten 1.2.0 das Release `pc-tracker-1.3.0` samt
+  `AevumPcTracker-1.3.0-win-x64.zip` → „Herunterladen & neu starten"
+  funktioniert für Bestandsinstallationen ohne manuellen Download.
+- **Lokaler Download (Heimnetz):**
+  `http://192.168.178.40:8098/AevumPcTracker-1.3.0-win-x64.zip`
+  (`index.html` auf 1.3.0 aktualisiert, „Neu in 1.3"-Karte).
 
 ## 5. Ehrliche Abgrenzungen
 
