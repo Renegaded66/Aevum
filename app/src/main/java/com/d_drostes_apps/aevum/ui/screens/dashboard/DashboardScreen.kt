@@ -94,11 +94,13 @@ import com.d_drostes_apps.aevum.ui.theme.AevumTheme
  *   "Wie gut habe ich meine Zeit heute genutzt?"
  *
  * Layout (Top → Bottom, nach Wichtigkeit):
- *  1. Live-Banner — wenn eine Session läuft, ist DAS die wichtigste Info.
- *     Gleitet von oben rein, mit Timer + Pause/Stop.
- *  2. Puls-Hero — QualityRing (Zeitqualität) + die 3 fundamentalen
- *     Zeit-Blöcke eines Tages (Erfasst / Schlaf / Bildschirm) + Tagesfluss
- *     + Tagesfortschritt. Eine Karte, vier Aussagen.
+ *  1. Puls-Hero (M19.5: beim Scrollen GEPINNT — „der komplette obere
+ *     bereich bleibt stehen", das Sheet rutscht darüber) — Tag-Navigation,
+ *     die 3 fundamentalen Zeit-Blöcke (Erfasst / Schlaf / Bildschirm),
+ *     das Güte-Gauge (Maskottchen, wenn aktiviert) und darunter der
+ *     Live-Banner (Aufnahme läuft) bzw. die Bereitschafts-Zeile.
+ *     QualityRing (Zeitqualität) + Tagesfluss + Tagesfortschritt: eine
+ *     Karte, vier Aussagen.
  *  3. Schnellstart — LiveActivityCard NUR wenn nichts läuft. Sonst
  *     übernimmt das Banner die Kontrolle (keine Dopplung).
  *  4. Reflexions-Karte — "Wo deine Zeit hingeht" (Top-5-Kategorien,
@@ -141,6 +143,9 @@ fun DashboardScreen(
     // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner
     val currentZone by viewModel.currentZone.collectAsState()
     val zoneDebugInfo by viewModel.zoneDebugInfo.collectAsState()
+    // M19.5: Maskottchen-Konfiguration (Default aus — dann verhält sich
+    // alles exakt wie vorher).
+    val mascotConfig by viewModel.mascotConfig.collectAsState()
     DashboardContent(
         modifier = modifier,
         state = state,
@@ -153,6 +158,7 @@ fun DashboardScreen(
         garminActivities = garminActivities,
         currentZone = currentZone,
         zoneDebugInfo = zoneDebugInfo,
+        mascotConfig = mascotConfig,
         onOpenTimeline = onOpenTimeline,
         onOpenReview = onOpenReview,
         onOpenSleepStatus = onOpenSleepStatus,
@@ -197,6 +203,10 @@ private fun DashboardContent(
     // M18.66-FIX3: Aktuelle Geofence-Zone für den Zone-Banner
     currentZone: com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider.ZoneInfo? = null,
     zoneDebugInfo: String = "",
+    // M19.5: Maskottchen-Konfiguration (enabled = false ⇒ exakt altes
+    // Verhalten: Güte-Zahl statt Wesen).
+    mascotConfig: com.d_drostes_apps.aevum.data.repository.MascotRepository.MascotConfig =
+        com.d_drostes_apps.aevum.data.repository.MascotRepository.MascotConfig(),
     onOpenTimeline: () -> Unit,
     onOpenReview: () -> Unit,
     onOpenSleepStatus: () -> Unit = {},
@@ -226,8 +236,6 @@ private fun DashboardContent(
     onSetDayQuality: (Int?) -> Unit = {}
 ) {
     val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
-    val slideIn = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn()
-    val slideOut = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
     // M18.58: Das +-Popup (fancy Bottom-Sheet mit allen Start-Optionen).
     var showStartPicker by remember { mutableStateOf(false) }
     // M18.60: Pauschal-Popup — welche Pauschale wurde angeklickt?
@@ -243,51 +251,35 @@ private fun DashboardContent(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             DashboardAtmosphere()
-            // M18.96/M18.100/M18.101, neu geordnet in M19.4: ZWEI-EBENEN-
-            // LAYOUT. Ebene 1 (hinten): die Deko-Farbfläche
+            // M18.96/M18.100/M18.101, neu geordnet in M19.4/M19.5:
+            // ZWEI-EBENEN-LAYOUT. Ebene 1 (hinten): die Deko-Farbfläche
             // (DashboardHeroBackground, fest am oberen Rand, mit Überstand
             // unter den Hero). Ebene 2 (vorn): die LazyColumn mit dem
             // Hero-INHALT als Item 0 (klickbar — die Pfeile waren vor
             // M18.100 unklickbar, weil die transparente
             // contentPadding-Fläche der LazyColumn alle Taps im
             // Hero-Bereich schluckte) und EINEM Sheet-Item, das sich beim
-            // Scrollen über den Hero legt. Der Hero-Inhalt wird per
-            // graphicsLayer schneller nach oben geschoben und ausgeblendet
-            // (Collapse) — die Deko bleibt mit 0.55× Parallax dahinter.
+            // Scrollen über den Hero legt. M19.5: Der Hero ist beim
+            // Scrollen GEPINNT (graphicsLayer-Kompensation gegen den
+            // Scroll) — er steht still, nur das Sheet rutscht darüber.
             val listState = rememberLazyListState()
             val density = androidx.compose.ui.platform.LocalDensity.current
-            // M19.4: Die Hero-Höhe wird GEMESSEN (das neue Cockpit ist
-            // höher als die alte Konstante) — Parallax, Deko-Fläche und
-            // Collapse hängen alle an heroItemHeightPx.
+            // M19.4/M19.5: Die Hero-Höhe wird GEMESSEN (das neue Cockpit
+            // ist höher als die alte Konstante) — Pinning-Kompensation und
+            // Deko-Fläche hängen beide an heroItemHeightPx.
             var heroItemHeightPx by remember { mutableIntStateOf(0) }
-            val heroHeightPx = heroItemHeightPx.toFloat()
-            // Collapse-Fortschritt: Sobald Item 0 (Hero) den Viewport
-            // verlässt (firstVisibleItemIndex > 0), ist er vollständig
-            // überdeckt → collapse = 1.
-            val heroCollapse by animateFloatAsState(
-                targetValue = DashboardHeroMetrics.collapseFor(
-                    offsetPx = listState.firstVisibleItemScrollOffset,
-                    heroHeightPx = heroItemHeightPx,
-                    belowHero = listState.firstVisibleItemIndex > 0
-                ),
-                animationSpec = tween(120),
-                label = "heroCollapse"
-            )
-            // Live-Info für den Hero-Chip (Time-Ansicht oben).
-            val liveTitle = when (liveState) {
-                is LiveActivityState.Running -> liveState.title
-                is LiveActivityState.Paused -> liveState.title
-                else -> ""
-            }
-            val liveActiveMs = when (liveState) {
-                is LiveActivityState.Running -> liveState.activeMs(nowMs)
-                is LiveActivityState.Paused -> liveState.activeMs(nowMs)
-                else -> 0L
-            }
-            // M19.4: Die Deko-Fläche reicht DashboardHeroPeek UNTER den
-            // Hero hinaus — durch die abgerundeten Sheet-Ecken schimmert
-            // sie hindurch, das Sheet liegt optisch ÜBER dem Farbbereich.
-            val heroBgPeekPx = with(density) { DashboardHeroPeek.toPx() }
+            // M19.5-DYNAMIK (Devon: „Ich will, wenn ich runter scrolle,
+            // dass der komplette obere bereich stehen bleibt und der untere
+            // bereich darüber rutscht."): KEIN Collapse mehr — der Hero
+            // wird per graphicsLayer EXAKT gegen den Scroll verschoben
+            // (netto steht er still, als wäre er gepinnt), und nur das
+            // Sheet-Item wandert beim Scrollen über ihn. Der frühere
+            // Fade-/Scale-/Parallax-Effekt ist komplett entfernt.
+            //
+            // Die Deko-Fläche bleibt FEST am oberen Rand stehen; sie reicht
+            // DashboardHeroPeek UNTER den Hero hinaus — durch die
+            // abgerundeten Sheet-Ecken schimmert sie hindurch, das Sheet
+            // liegt optisch ÜBER dem Farbbereich.
             val heroBgHeight = if (heroItemHeightPx > 0) {
                 with(density) { heroItemHeightPx.toDp() + DashboardHeroPeek }
             } else {
@@ -295,14 +287,7 @@ private fun DashboardContent(
             }
             DashboardHeroBackground(
                 height = heroBgHeight,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .graphicsLayer {
-                        // Parallax: Deko-Fläche schiebt sich mit 0.55x
-                        // der Scroll-Geschwindigkeit nach oben.
-                        translationY = -heroCollapse * (heroHeightPx + heroBgPeekPx) * 0.55f
-                        alpha = 1f - 0.45f * heroCollapse
-                    }
+                modifier = Modifier.align(Alignment.TopCenter)
             )
             // M18.60-FIX (User: "Tage wechseln — da sollte eine Animation
             // passieren, die das gesamte Fragment nach links/rechts
@@ -346,11 +331,11 @@ private fun DashboardContent(
             contentPadding = PaddingValues(bottom = AevumSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            // 0) M19.4: Hero-Inhalt als Item 0 — klickbar, misst sich
-            // selbst (Parallax + Deko-Höhe hängen an der ECHTEN Höhe des
-            // neuen Layouts). Beim Scrollen schiebt er sich schneller
-            // nach oben (0.5× zusätzlich) und blendet ab — das Sheet
-            // darunter holt auf und legt sich ÜBER ihn (Referenzbild).
+            // 0) M19.5: Hero-Inhalt als Item 0 — GEPINNT. Beim Scrollen
+            // wird er per graphicsLayer exakt gegen den Scroll verschoben
+            // (netto steht er still — „der komplette obere bereich bleibt
+            // stehen"), während das Sheet-Item unbeeinflusst über ihn
+            // rutscht („der untere bereich rutscht darüber").
             item(key = "hero") {
                 Box(
                     modifier = Modifier
@@ -358,22 +343,25 @@ private fun DashboardContent(
                             if (size.height > 0) heroItemHeightPx = size.height
                         }
                         .graphicsLayer {
-                            translationY = -heroHeightPx * 0.5f * heroCollapse
-                            alpha = 1f - 0.75f * heroCollapse
-                            val s = 1f - 0.05f * heroCollapse
-                            scaleX = s
-                            scaleY = s
+                            translationY = DashboardHeroMetrics.heroStickyTranslation(
+                                offsetPx = listState.firstVisibleItemScrollOffset,
+                                heroHeightPx = heroItemHeightPx,
+                                belowHero = listState.firstVisibleItemIndex > 0
+                            ).toFloat()
                         }
                 ) {
                     DashboardHeroContent(
                         state = state,
-                        isLive = isLive,
-                        isPaused = liveState is LiveActivityState.Paused,
-                        liveTitle = liveTitle,
-                        liveActiveMs = liveActiveMs,
+                        liveState = liveState,
+                        nowMs = nowMs,
                         currentZone = currentZone,
+                        mascot = mascotConfig,
                         onQualityClick = { showQualityDialog = true },
                         onOpenTimeline = onOpenTimeline,
+                        onPauseLive = onPauseLive,
+                        onResumeLive = onResumeLive,
+                        onStopLive = onStopLive,
+                        onSwitchLive = onSwitchLive,
                         onPreviousDay = { onNavigateDay(-1) },
                         onNextDay = { onNavigateDay(1) },
                         onResetToToday = onResetToToday,
@@ -388,22 +376,13 @@ private fun DashboardContent(
             item(key = "sheet") {
                 DashboardSheet {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-                        // Live-Banner — wichtigste Info zuerst (Steuerung
-                        // der laufenden Aufnahme; der Hero zeigt nur den
-                        // kompakten Status). Gleitet von oben rein.
-                        AnimatedVisibility(visible = isLive, enter = slideIn, exit = slideOut) {
-                            LiveActivityBanner(
-                                state = liveState,
-                                nowMs = nowMs,
-                                onPause = onPauseLive,
-                                onResume = onResumeLive,
-                                onStop = onStopLive,
-                                // M18.60: Wechsel-Button im Banner (wie Benachrichtigung)
-                                onSwitch = onSwitchLive,
-                                activityTypes = state.activityTypes
-                            )
-                        }
-
+                        // M19.5 (Devon: „unter der anzeige der güte nicht
+                        // das … sondern der kasten … der mit der animation
+                        // die aktuelle aufzeichnung anzeigt"): Der Live-
+                        // Banner lebt jetzt IM HERO (direkt unter dem
+                        // Güte-Gauge) — im Sheet bleibt er weg, damit
+                        // nichts doppelt erscheint.
+                        //
                         // M18.100/M19.4: Nur die Deko-Farbfläche liegt als
                         // eigene Ebene HINTER der LazyColumn
                         // (DashboardHeroBackground) und wird beim Scrollen
@@ -933,228 +912,6 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                 )
             }
         }
-    }
-}
-
-/**
- * M18.4: LiveActivityBanner — der "richtig deutlich sichtbare Banner" in
- * der App. Gleitet von oben rein (AnimatedVisibility), zeigt:
- *  - Aktivitätstitel + Live-Timer (aktualisiert jede Sekunde)
- *  - Pause/Fortsetzen + Stoppen Buttons (groß, klar)
- *  - Farbverlauf je nach Session-Typ (Auto = primary, manuell = tertiary)
- */
-@Composable
-private fun LiveActivityBanner(
-    state: LiveActivityState,
-    nowMs: Long,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onStop: () -> Unit,
-    // M18.60: Wechsel-Button wie in der Benachrichtigung — oeffnet das
-    // Switch-Sheet, beendet die aktuelle Session und startet die neue.
-    onSwitch: (String, String?) -> Unit = { _, _ -> },
-    activityTypes: List<com.d_drostes_apps.aevum.data.model.ActivityType> = emptyList()
-) {
-    // M18.93v3 FANCY-BANNER: Das kompakte Viereck ("Aufnahme läuft" + Punkt
-    // + 3 Buttons) ist durch ein echtes Auflade-Erlebnis ersetzt:
-    // ChargingRing (Füll-Ring um das Activity-Icon, Glow-Komet wandert in
-    // einem Orbit, Kern pulsiert) + Titel/Timer daneben + Buttons unten.
-    // Fraction = aktive Aufzeichnungszeit / 60 Min (volle Stunde = voller
-    // Ring, danach bleibt er voll — kein irritierender Reset).
-    val title = when (state) {
-        is LiveActivityState.Running -> state.title
-        is LiveActivityState.Paused -> state.title
-        else -> return
-    }
-    val isPaused = state is LiveActivityState.Paused
-    // M18.60: State fuer das Wechsel-Sheet
-    var showSwitchSheet by remember { mutableStateOf(false) }
-    // M18.93v3: Puls für ChargingRing + Status-Text (atmet sanft).
-    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "bannerPulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            androidx.compose.animation.core.tween(1400),
-            androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "bannerPulseAlpha"
-    )
-    val accent = if (isPaused) {
-        MaterialTheme.colorScheme.tertiary
-    } else {
-        MaterialTheme.colorScheme.primary
-    }
-    val activityIcon = when (state) {
-        is LiveActivityState.Running ->
-            activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
-        is LiveActivityState.Paused ->
-            activityTypes.firstOrNull { it.name == state.title }?.icon ?: ""
-        else -> ""
-    }
-    val activeMs = when (state) {
-        is LiveActivityState.Running -> state.activeMs(nowMs)
-        is LiveActivityState.Paused -> state.activeMs(nowMs)
-        else -> 0L
-    }
-    val timerText = "%02d:%02d:%02d".format(
-        activeMs / 3_600_000,
-        (activeMs % 3_600_000) / 60_000,
-        (activeMs % 60_000) / 1000
-    )
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AevumRadius.lg),
-        color = Color.Transparent,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            accent.copy(alpha = 0.6f)
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            accent.copy(alpha = 0.42f),
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.24f)
-                        )
-                    )
-                )
-                .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.md)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                // M18.93v4 ZWEI-ICON-HERO mit BUBBLE-STREAM: Links das
-                // Activity-Icon (in pulsierendem Halo), rechts der Zeit-Tank
-                // (⏳ in leisem Ring); dazwischen fliegt endlos ein Strom
-                // von Energie-Blubberblasen von links nach rechts — "die
-                // Aktivität lädt den Tank auf". KEIN Fortschritt, kein Balken:
-                // reine Dauerauflade-Animation. Bei Pause: Blasen stehen.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
-                ) {
-                    // Icon 1: Aktivität (Glow-Kern).
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .scale(0.96f + 0.05f * pulseAlpha)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(
-                                        accent.copy(alpha = 0.32f),
-                                        accent.copy(alpha = 0.10f)
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(activityIcon.ifBlank { "\u23F1" }, fontSize = 24.sp)
-                    }
-
-                    // Blubber-Strom (füllt den Zwischenraum) — fliegt immer.
-                    BubbleStream(
-                        color = accent,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp),
-                        animate = !isPaused
-                    )
-
-                    // Icon 2: Zeit-Tank (statisch, leiser Ring — das Ziel).
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .border(2.dp, accent.copy(alpha = 0.55f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("\u23F1", fontSize = 22.sp, color = accent)
-                    }
-                }
-
-                // Titel + Status + Timer (kompakt darunter).
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text(
-                            if (isPaused) stringResource(R.string.dashboard_paused)
-                            else stringResource(R.string.dashboard_recording),
-                            fontSize = 10.sp,
-                            letterSpacing = 1.0.sp,
-                            color = accent,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.alpha(0.55f + 0.45f * pulseAlpha)
-                        )
-                        Text(
-                            title,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    // M18.93v5 FLIP-CLOCK: Ziffern klappen analog um.
-                    FlipTimeText(timeText = timerText, accent = accent)
-                }
-                // Zeile 2: Aktionen — volle Breite, nichts wird gequetscht.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-                ) {
-                    // Pause/Fortsetzen
-                    Button(
-                        onClick = if (isPaused) onResume else onPause,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp)
-                    ) {
-                        Text(if (isPaused) "▶" else "⏸", fontSize = 14.sp)
-                    }
-                    // M18.60: Wechsel-Button — wie in der Benachrichtigung.
-                    // Oeffnet das Switch-Sheet (alle Aktivitaeten).
-                    OutlinedButton(
-                        onClick = { showSwitchSheet = true },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp)
-                    ) {
-                        Text("⇄", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                    // Stoppen
-                    OutlinedButton(
-                        onClick = onStop,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp)
-                    ) {
-                        Text("■", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-        }
-    }
-
-    // M18.60: Wechsel-Sheet — gleiche Auswahl wie in der Benachrichtigung.
-    if (showSwitchSheet) {
-        SwitchActivityPickerSheet(
-            currentTitle = title,
-            activityTypes = activityTypes,
-            onSwitch = { newTypeId, newCategoryId ->
-                onSwitch(newTypeId, newCategoryId)
-                showSwitchSheet = false
-            },
-            onDismiss = { showSwitchSheet = false }
-        )
     }
 }
 

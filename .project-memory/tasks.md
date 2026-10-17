@@ -121,3 +121,22 @@
       signiert, Release-APK + AAB im Build-Output; Screenshot-Kopien auf
       dem APK-Server. Bericht `docs/M19-4-ABSCHLUSSBERICHT.md`.
       Commit `2b6e31d` (14 Dateien, +1973/−549), gepusht auf main.
+- [x] M19.5 (App 1.0.37, vc 38): Devon-Feinschliff + Maskottchen —
+      Pinning (Hero exakt gegen Scroll kompensiert; Integrationstest
+      scrollBy 400dp → Position ±4px konstant), Blubber-Banner in den
+      Hero unter das Gauge (Headline + alter Status-Balken entfernt),
+      Emoji-Zentrierung ⏸/⇄/■ (contentPadding 0 + includeFontPadding
+      false; Screenshot „perfekt zentriert"), Maskottchen-Feature in
+      Einstellungen (Default aus): Canvas-Wesen im Gauge (lächelt mit
+      Güte, atmet/blinzelt/schaut, 3 Tipp-Reaktionen, Nachtschlaf 22–6
+      außer bei Aufzeichnung, 8 Farben/3 Ohren/Bäckchen), Kacheln
+      flacher (Icon neben Wert) + Gauge größer (248×148). Tests +22 →
+      1187/1187 grün (0 Fehler; 6 Metrik, 19 Hero-UI inkl. Pinning-Test
+      + 6 Screenshots, 7 Mascot-View inkl. 4 Screenshots, 7 MascotBehavior).
+      Voll-Build Exit 0 (9m12s), Debug-APK 123.626.258 B kanonisch
+      signiert (apksigner-bestätigt), Release 52.027.783 B, AAB
+      24.283.749 B; 10 Screenshots als aevum-1.0.37-*.png auf dem
+      APK-Server (HTTP 200). Bericht `docs/M19-5-ABSCHLUSSBERICHT.md`.
+      WICHTIG fürs nächste Mal: Screenshot-Sichtprüfung bei sehr
+      großen Bildern → Crop als eigene Datei (PIL) statt Region-Param;
+      Pinning-Beweis = scrollBy-Integrationstest (boundsInRoot.top ±4px).

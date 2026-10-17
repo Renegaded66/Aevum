@@ -468,3 +468,60 @@ object AevumChartColors { val palette = listOf(Color(...), ...) }
   - [ ] Monospace Zahlen
   - [ ] Skeleton Loading für async Content
   - [ ] Empty/Error States definiert
+
+---
+
+## M19.5 — Pinning-Dynamik, Maskottchen, Feinschliff
+
+### Scroll-Pinning (Hero steht still)
+
+Der Dashboard-Hero ist beim Scrollen GEPINNT: Die LazyColumn verschiebt
+Item 0 um −offset nach oben, ein graphicsLayer kompensiert exakt mit
++offset (`DashboardHeroMetrics.heroStickyTranslation`). Netto bleibt die
+Bildschirmposition 0 über die gesamte Scroll-Strecke — nur das Sheet-Item
+wandert darüber. Der M19.4-Collapse (Fade/Scale/Alpha/Parallax) wurde
+komplett entfernt: „der komplette obere bereich bleibt stehen" verlangt
+exaktes Pinning, keinen Kompromiss.
+
+Randnotizen:
+- Kompensation läuft in der draw-Phase (das graphicsLayer-Lambda liest den
+  Scroll-State) → keine Rekompositions-Kosten pro Frame.
+- Der Hero verlässt den Viewport erst, wenn das Sheet ihn vollständig
+  verdeckt (Culling bei offset ≥ Item-Höhe; der sichtbare Rest ist dann
+  reine Hintergrund-Deko).
+- Beweis: Integrationstest mit echter LazyColumn (scrollBy 400dp →
+  Hero-Position konstant ±4px; Sheet sichtbar nach oben gewandert).
+
+### Maskottchen-Design (Canvas, kein Asset)
+
+- Weiches Blob-Wesen: Ohr-Varianten rund (Kreis), spitz (Dreieck-Pfad),
+  lang (rotierte RoundRects). Körper-Oval mit Vertikalverlauf, dunklerem
+  Umriss (lerp(base, #1B2433, 0.35)), Bäuchlein, weicher Bodenschatten.
+- Gesicht: dunkle Ovals mit Weiß-Glanzpunkt (+ Extra-Funkeln ab Güte 85);
+  geschlossene Augen als 200°–340°-Bögen (Schlaf UND Freuden-Augen).
+- Mund: quadratische Bézier, Breite/Tiefe wachsen mit der Güte
+  (`MascotBehavior.smileLevel` = geklemmte Güte/100); im Schlaf klein/flach.
+- Bäckchen: Rosa-Kreise (#FB7185, Alpha 0.38), beim Bäckchen-Pop bis 0.9.
+- Farben: feste 8er-Palette in Aevum-Tönen (Eisblau = Brand-Anker).
+- Reaktionen: Partikel als Text-Glyphen (♥ rosa, ✦ gold) über
+  graphicsLayer-Offsets; Hüpfer −0.16×Höhe, Wackeln ±9°, Pop +7 %.
+- Schlaf: Alpha-Blende + drei aufsteigende „z" (Phase je 0.33 versetzt).
+- Determinismus: Dauer-Effekte über rememberInfiniteTransition, Reaktions-
+  Fortschritt als Animatable(1700 ms, Linear) — unter der Test-Uhr exakt
+  reproduzierbar.
+
+### Glyphen-Zentrierung in Buttons
+
+Emoji-Glyphen (⏸ ⇄ ■) liefen wegen Font-Leading sichtbar aus der Mitte.
+Rezept: `contentPadding = PaddingValues(0.dp)` + `Box(fillMaxSize,
+Center)` + `lineHeight = fontSize` + `PlatformTextStyle(includeFontPadding
+= false)`. Prüfung: Robolectric-Screenshot + Sichturteil („perfekt
+zentriert" für alle drei Glyphen) — kein Nudge-je-Glyphe.
+
+### Verlauf-Tail des Hero-Dekors
+
+Der sichtbare Überstands-Band (DashboardHeroPeek 44dp) liegt bei höherem
+Hero (Banner im Hero) relativ weiter unten im Gradienten — Tail-Stopp
+0.965 statt 0.92, damit die Farbe bis ins Band reicht und nur die letzten
+3,5 % weich ausblenden (Sichtprüfung: Farbschein blau/gold/rot neben der
+Sheet-Kante sichtbar).

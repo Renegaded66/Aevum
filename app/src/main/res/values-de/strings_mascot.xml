@@ -1,0 +1,16 @@
+<resources>
+    <!-- M19.5: Maskottchen (Einstellungen + Dashboard) -->
+    <string name="settings_mascot_title">Maskottchen</string>
+    <string name="settings_mascot_desc">Ein kleines Wesen auf deinem Dashboard — es lächelt mehr, wenn dein Tag gut läuft.</string>
+    <string name="settings_mascot_preview_hint">Tippe die Vorschau an — es reagiert!</string>
+    <string name="settings_mascot_color">Farbe</string>
+    <string name="settings_mascot_ears">Ohren</string>
+    <string name="settings_mascot_ears_round">Rund</string>
+    <string name="settings_mascot_ears_pointy">Spitz</string>
+    <string name="settings_mascot_ears_long">Lang</string>
+    <string name="settings_mascot_cheeks">Bäckchen</string>
+    <string name="mascot_cd">Maskottchen</string>
+    <string name="mascot_cd_score">Dein Maskottchen. Tagesgüte: %1$d von 100.</string>
+    <string name="mascot_state_sleeping">schläft</string>
+    <string name="mascot_state_awake">ist wach</string>
+</resources>

@@ -1,5 +1,56 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.37 (M19.5) — 2026-10-17
+
+### Dashboard-Feinschliff: Pinning-Dynamik, Banner unter der Güte, Maskottchen
+
+Nutzerwunsch (wörtlich): „Ich meinte eigentlich, dass unter der anzeige der
+güte nicht das hin kommt, was aktuell da ist (das kann komplett weg), sondern
+der kasten dadrunter, der mit der animation die aktuelle aufzeichnung anzeigt.
+[…] Ich will, wenn ich runter scrolle, dass der komplette obere bereich stehen
+bleibt und der untere bereich darüber rutscht. […] Und zwar ein maskottchen
+feature. Das man in den einstellungen ein und ausschalten kann. default aus.
+[…] so ein richtig süßes putziges wesen. […] Das soll dann im dashboard dort
+erscheinen, wo aktuell die zahl der güte ist, und je besser die güte, desto
+mehr soll das maskottchen lächeln. […] hin und her schauen, blinzeln, atmen.
+[…] Zwischen 22 und 6 Uhr soll das maskottchen schlafen, außer es wird etwas
+aufgezeichnet. […] und in dem feld mit der animation mit den blubber blasen
+[…] da müssen die emojis für pause, wechsel und stop angepasst werden,
+irgendwie sind die alle nicht 100% mittig."
+
+- **Scroll-Dynamik (Pinning):** Der komplette obere Bereich steht beim
+  Scrollen still — der Hero wird per graphicsLayer exakt gegen den
+  Scroll-Offset kompensiert (`DashboardHeroMetrics.heroStickyTranslation`,
+  netto 0 über die ganze Strecke); nur das Sheet-Item rutscht darüber.
+  Der bisherige Collapse (Fade/Scale/Parallax/Alpha) ist KOMPLETT weg.
+  Verifiziert durch einen echten LazyColumn-Integrationstest
+  (scrollBy 400dp → Hero-Position unverändert, Sheet wandert darüber).
+- **Aufnahme-Banner im Hero:** Der Blubber-Banner (Timer, Pause/Wechsel/
+  Stop) wohnt jetzt DIREKT unter dem Güte-Gauge; die alte Headline-Zeile
+  ist ersatzlos entfernt, im Sheet erscheint nichts doppelt. Idle zeigt
+  die Bereitschaftszeile mit Tagesfortschritt; der Wechsel ist weich
+  animiert (expand/shrink vertikal).
+- **Emoji-Zentrierung gefixt:** ⏸/▶/⇄/■ saßen nicht exakt mittig
+  (Font-Leading). Lösung: Button-contentPadding 0 + fillMaxSize-
+  Zentrierbox + lineHeight = fontSize + includeFontPadding = false.
+  Sichtprüfung per Screenshot: alle drei Glyphen „perfekt zentriert".
+- **Maskottchen (Default AUS):** In den Einstellungen aktivierbar und
+  selbst erstellbar (8 Körperfarben, 3 Ohrenformen rund/spitz/lang,
+  Bäckchen). Es wohnt im Güte-Gauge an der Stelle der großen Zahl (die
+  kleine Zahl-Zeile bleibt als Datenanker), lächelt mit der Güte (ab 85
+  funkeln Extra-Glanzpunkte), atmet, blinzelt (~alle 4,3 s), schaut
+  umher, reagiert auf Tippen mit drei zyklischen Reaktionen
+  (Hüpf-Herzchen, Wackel-Funkeln, Bäckchen-Pop) und SCHLÄFT zwischen 22
+  und 6 Uhr — außer eine Aufzeichnung läuft (wechselt live mit
+  Start/Stop; gilt für „Heute"). Ohne Maskottchen-Modus: alles exakt
+  wie bisher.
+- **Layout-Feinschliff (beide Modi):** Die drei Kacheln (Erfasst/Schlaf/
+  Bildschirm) sind kompakter (Icon 13sp statt 15sp, engere Abstände, 7dp
+  vertikal statt 10dp), das Gauge größer (248×148 statt 216×126), damit
+  das Wesen darunter passt. Deko-Verlauf-Tail auf 0.965 gezogen, damit
+  der Farbbereich im Sheet-Überstand weiterhin sichtbar durchschimmert.
+- Keine DB-, Navigations- oder Domänen-Änderungen; DB bleibt v46.
+
 ## [Unreleased] — Aevum 1.0.36 (M19.4) — 2026-10-17
 
 ### Dashboard-Hero 2.0: „Tag-Cockpit" nach Devons Skizze + Karten-Fläche über dem Hero

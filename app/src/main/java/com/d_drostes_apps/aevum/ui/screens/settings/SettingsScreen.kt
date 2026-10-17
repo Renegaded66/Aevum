@@ -127,6 +127,29 @@ fun SettingsScreen(
                     }
                 )
             }
+            // M19.5: Maskottchen — eigenes Wesen fürs Dashboard (Devon:
+            // „ein und ausschalten … default aus. Wenn ein, dann kann man
+            // sich selber ein maskottchen erstellen").
+            item {
+                val viewModel: SettingsViewModel = hiltViewModel()
+                val mascotConfig by viewModel.mascotConfig.collectAsState()
+                val scope = rememberCoroutineScope()
+                MascotSettingsCard(
+                    config = mascotConfig,
+                    onToggle = { enabled ->
+                        scope.launch { viewModel.setMascotEnabled(enabled) }
+                    },
+                    onSelectColor = { colorId ->
+                        scope.launch { viewModel.setMascotColor(colorId) }
+                    },
+                    onSelectEarStyle = { style ->
+                        scope.launch { viewModel.setMascotEarStyle(style) }
+                    },
+                    onToggleCheeks = { cheeks ->
+                        scope.launch { viewModel.setMascotCheeks(cheeks) }
+                    }
+                )
+            }
             // M18.44-RESTRUKTURIERUNG (User: "Einstellungen besser sortieren und
             // gruppieren"): Vorher standen Automatisierung, Aktivitäten und
             // Erweitert gleichwertig nebeneinander — Überladung. Jetzt:
@@ -387,7 +410,9 @@ class SettingsViewModel @Inject constructor(
     placeGeofenceRepository: PlaceGeofenceRepository,
     private val languageRepository: LanguageRepository,
     // M18.106: Theme-Auswahl (dark/light/system, Default dark).
-    private val themeRepository: com.d_drostes_apps.aevum.data.repository.ThemeRepository
+    private val themeRepository: com.d_drostes_apps.aevum.data.repository.ThemeRepository,
+    // M19.5: Maskottchen (an/aus + Erstellen: Farbe/Ohren/Bäckchen).
+    private val mascotRepository: com.d_drostes_apps.aevum.data.repository.MascotRepository
 ) : ViewModel() {
     val geofences: StateFlow<List<PlaceGeofence>> = placeGeofenceRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -400,6 +425,14 @@ class SettingsViewModel @Inject constructor(
     val theme: StateFlow<String> = themeRepository.theme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DEFAULT)
 
+    /** M19.5: Maskottchen-Konfiguration (Default aus ⇒ alles wie bisher). */
+    val mascotConfig: StateFlow<com.d_drostes_apps.aevum.data.repository.MascotRepository.MascotConfig> =
+        mascotRepository.config.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            mascotRepository.currentSync()
+        )
+
     suspend fun setLanguage(language: String) {
         languageRepository.setLanguage(language)
     }
@@ -407,5 +440,25 @@ class SettingsViewModel @Inject constructor(
     /** M18.106: Theme persistieren (DataStore + synchroner Spiegel). */
     suspend fun setTheme(theme: String) {
         themeRepository.setTheme(theme)
+    }
+
+    /** M19.5: Maskottchen aktivieren/deaktivieren (Default aus). */
+    suspend fun setMascotEnabled(enabled: Boolean) {
+        mascotRepository.setEnabled(enabled)
+    }
+
+    /** M19.5: Körperfarbe des Maskottchens persistieren. */
+    suspend fun setMascotColor(colorId: String) {
+        mascotRepository.setColor(colorId)
+    }
+
+    /** M19.5: Ohrenform des Maskottchens persistieren. */
+    suspend fun setMascotEarStyle(style: String) {
+        mascotRepository.setEarStyle(style)
+    }
+
+    /** M19.5: Bäckchen an/aus. */
+    suspend fun setMascotCheeks(cheeks: Boolean) {
+        mascotRepository.setCheeks(cheeks)
     }
 }

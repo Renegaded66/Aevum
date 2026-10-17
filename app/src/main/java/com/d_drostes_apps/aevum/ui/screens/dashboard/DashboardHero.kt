@@ -10,8 +10,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -72,6 +74,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.automation.geofence.CurrentZoneProvider
+import com.d_drostes_apps.aevum.data.repository.MascotRepository
+import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
+import com.d_drostes_apps.aevum.domain.mascot.MascotBehavior
 import com.d_drostes_apps.aevum.ui.components.positivityColor
 import com.d_drostes_apps.aevum.ui.components.shimmering
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -82,35 +87,44 @@ import kotlin.math.sin
 
 /**
  * M19.4 — DASHBOARD-HERO 2.0 („Tag-Cockpit", nach Devons Skizze).
+ * M19.5 — gepinnt + Maskottchen + kompakter (Devon-Feedback).
  *
- * Aufbau (Top → Bottom, exakt die Skizzen-Struktur):
+ * Aufbau (Top → Bottom):
  *  1. ‹ Heute › — zentrierte Tages-Navigation (Kalender-Popup bleibt).
  *  2. Drei versetzte Glas-Kacheln: Erfasst | Schlaf | Bildschirm —
- *     die mittlere sitzt tiefer (Skizzen-Detail), jede mit Farbverlauf,
- *     farbigem Glow, Zähler-Animation, Mini-Balken und Schimmer.
+ *     M19.5 KOMPAKTER (kleineres Icon, engere Abstände; gilt bewusst
+ *     auch ohne Maskottchen-Modus), die mittlere sitzt tiefer.
  *  3. Zentrales 180°-Gauge: roter→grüner Bogen (fester Skala-Farbraum
- *     wie in der Skizze), leuchtender Marker + Nadel am Wert, große
- *     Güte-Zahl (positivityColor), ✎-Badge bei Override, Tap öffnet den
- *     Güte-Dialog. Rechts daneben der Zonen-Chip (📍 Zuhause/Abwesend).
- *  4. Tagesleiste: 24h-Ribbon mit Segment-Blöcken, sanft gedimmter
- *     Zukunft rechts vom Jetzt-Marker (pulsierender Glow-Punkt) und
- *     Stundenlabels 0/6/12/18/24. Tap öffnet die Timeline.
- *  5. Aufnahme-Status als unterer Abschluss (Skizzen-Grünbox):
- *     live = grüner Glas-Balken „Aufnahme läuft" + Timer + Schimmer,
- *     pausiert = Amber-Variante, idle = ruhige Zeile „Aufnahme bereit"
- *     mit Tagesfortschritt rechts.
+ *     wie in der Skizze), leuchtender Marker + Nadel am Wert, ✎-Badge
+ *     bei Override, Tap öffnet den Güte-Dialog, rechts der Zonen-Chip.
+ *     M19.5: GRÖSSER (248×148 statt 216×126) und mit Maskottchen-Modus —
+ *     wenn aktiviert, wohnt das Wesen (MascotView) genau dort, wo sonst
+ *     die Güte-Zahl steht: Es lächelt mit der Güte, atmet, blinzelt,
+ *     schaut umher, schläft nachts (22–6 Uhr, außer es läuft eine
+ *     Aufzeichnung) und reagiert süß auf Tippen; die kleine Zahl-Zeile
+ *     darunter bleibt als Datenanker.
+ *  4. Aufnahme-Bereich DIREKT unter dem Gauge (Devon: „unter der anzeige
+ *     der güte … der kasten … der mit der animation die aktuelle
+ *     aufzeichnung anzeigt"): Live → der Blubber-Banner (Timer +
+ *     Pause/Wechsel/Stop); sonst die ruhige Bereitschafts-Zeile mit
+ *     Tagesfortschritt. Weich animiert beim Start/Ende einer Aufnahme.
+ *  5. Tagesleiste: 24h-Ribbon mit Segment-Blöcken, Stundenlabels
+ *     0/6/12/18/24, pulsierender Jetzt-Marker. Tap → Timeline.
+ *
+ * ENTFERNT in M19.5: die Headline-Zeile (Devon: „das kann komplett weg")
+ * und der frühere Status-Balken am Hero-Ende (Aufnahme sitzt jetzt unter
+ * dem Gauge; der Collapse-Fade ist dem Pinning gewichen).
  *
  * Gestaltungs-Entscheidungen (bewusst, mit Alternative im Kopf):
- *  - Keine neue Grafik-Bibliothek: Gauge/Ribbon sind Canvas-Bordmittel,
- *    passend zum Offline-Minimal-Dependency-Pfad des Projekts.
+ *  - Keine neue Grafik-Bibliothek: Gauge/Ribbon/Maskottchen sind
+ *    Canvas-Bordmittel, passend zum Offline-Minimal-Dependency-Pfad.
  *  - Gauge mit FESTEM Rot→Grün-Farbraum (statt Farbe=Wert wie beim alten
  *    QualityRing): Die Skizze zeigt eine Skala, auf der der Marker steht —
  *    das liest sich wie ein Messgerät und bleibt auch bei 0/100 lesbar.
  *  - Farben strikt aus der App-Identität (M19.2: Eisblau/Feuerrot/Gold +
- *    Kategoriefarben); die alte Lila/Mint-Atmosphäre der Ur-Screens wurde
- *    auf dieselbe Palette gezogen.
- *  - Schimmer ist dosiert: Kacheln (desynchronisierte Perioden), Live-
- *    Status-Balken und der bestehende FAB — kein Dauer-Glitzer.
+ *    Kategoriefarben).
+ *  - Schimmer dosiert: Kacheln (desynchronisierte Perioden), Banner —
+ *    kein Dauer-Glitzer.
  */
 
 /**
@@ -128,7 +142,10 @@ internal val DashboardHeroFallbackHeight = 500.dp
 // M19.4: Test-Tags für die Robolectric-UI-Suite.
 internal const val DASHBOARD_HERO_GAUGE_TEST_TAG = "dashboard-hero-gauge"
 internal const val DASHBOARD_HERO_TIMELINE_TEST_TAG = "dashboard-hero-timeline"
-internal const val DASHBOARD_HERO_STATUS_TEST_TAG = "dashboard-hero-status"
+// M19.5: Der frühere Status-Balken ist jetzt der Aufnahme-Slot unter dem
+// Gauge (Live-Banner ↔ Bereitschaftszeile) + das Maskottchen im Gauge.
+internal const val DASHBOARD_HERO_RECORDING_SLOT_TEST_TAG = "dashboard-hero-recording-slot"
+internal const val DASHBOARD_HERO_MASCOT_TEST_TAG = "dashboard-hero-mascot"
 internal const val DASHBOARD_HERO_ZONE_TEST_TAG = "dashboard-hero-zone"
 internal const val DASHBOARD_HERO_TILE_CAPTURED_TEST_TAG = "dashboard-hero-tile-captured"
 internal const val DASHBOARD_HERO_TILE_SLEEP_TEST_TAG = "dashboard-hero-tile-sleep"
@@ -153,14 +170,17 @@ internal object DashboardHeroMetrics {
         180f + 180f * gaugeSweepFraction(score)
 
     /**
-     * Collapse-Fortschritt aus der Liste: 1, sobald der Hero-Index
-     * verlassen ist; sonst Offset/Höhe (0..1). Bei ungemessener Höhe
-     * (0) bleibt es 0 — kein Sprung im ersten Frame.
+     * M19.5-PINNING: Der Hero steht beim Scrollen STILL. Die LazyColumn
+     * verschiebt ihn um -offset nach oben; diese Funktion liefert die
+     * exakte Gegen-Verschiebung (+offset) für den graphicsLayer, sodass
+     * netto 0 bleibt — nur das Sheet rutscht darüber („der komplette
+     * obere bereich bleibt stehen, der untere rutscht darüber").
+     * Sobald Item 0 komplett durchgescrollt ist (belowHero), wird die
+     * volle Höhe kompensiert (der Hero ist dann ohnedies überdeckt).
      */
-    fun collapseFor(offsetPx: Int, heroHeightPx: Int, belowHero: Boolean): Float {
-        if (belowHero) return 1f
-        if (heroHeightPx <= 0) return 0f
-        return (offsetPx.toFloat() / heroHeightPx.toFloat()).coerceIn(0f, 1f)
+    fun heroStickyTranslation(offsetPx: Int, heroHeightPx: Int, belowHero: Boolean): Int {
+        if (belowHero) return heroHeightPx.coerceAtLeast(0)
+        return offsetPx.coerceAtLeast(0)
     }
 
     /** Tagesfortschritt (0..1) → Prozentanzeige (0..100). */
@@ -189,19 +209,32 @@ internal fun DashboardHeroBackground(
 @Composable
 internal fun DashboardHeroContent(
     state: DashboardUiState,
-    isLive: Boolean,
-    isPaused: Boolean,
-    liveTitle: String,
-    liveActiveMs: Long,
+    liveState: LiveActivityState,
+    nowMs: Long,
     currentZone: CurrentZoneProvider.ZoneInfo?,
+    mascot: MascotRepository.MascotConfig = MascotRepository.MascotConfig(),
     onQualityClick: () -> Unit,
     onOpenTimeline: () -> Unit,
+    onPauseLive: () -> Unit = {},
+    onResumeLive: () -> Unit = {},
+    onStopLive: () -> Unit = {},
+    onSwitchLive: (String, String?) -> Unit = { _, _ -> },
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
     onResetToToday: () -> Unit,
     onDateClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isLive = liveState is LiveActivityState.Running || liveState is LiveActivityState.Paused
+    // M19.5: Nachtschlaf des Maskottchens (22–6 Uhr) — NUR für „Heute"
+    // (beim Blättern in alte Tage gibt es kein Jetzt), und eine laufende
+    // Aufzeichnung übersteuert den Schlaf jederzeit live (wechselnd mit
+    // Start/Stop der Session).
+    val isToday = state.displayedDate == java.time.LocalDate.now()
+    val mascotSleeping = isToday && MascotBehavior.shouldSleep(
+        hourOfDay = MascotBehavior.hourOfDay(state.currentMinute),
+        isRecording = isLive
+    )
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -224,9 +257,12 @@ internal fun DashboardHeroContent(
 
         // 2) Die drei fundamentalen Zeit-Blöcke — versetzt (Skizze:
         // die mittlere Kachel sitzt tiefer), als Glas-Kacheln.
+        // M19.5: KOMPAKTER (Devon: „von der höhe ein wenig reduzieren,
+        // das icon kann [kleiner], abstände einen ganz klein wenig
+        // geringer") — gilt auch ohne Maskottchen-Modus.
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Top
         ) {
             HeroMetricTile(
@@ -254,7 +290,7 @@ internal fun DashboardHeroContent(
                 // Skizzen-Detail: die mittlere Kachel sitzt tiefer.
                 modifier = Modifier
                     .weight(1f)
-                    .offset(y = 10.dp)
+                    .offset(y = 8.dp)
                     .testTag(DASHBOARD_HERO_TILE_SLEEP_TEST_TAG)
             )
             HeroMetricTile(
@@ -272,16 +308,19 @@ internal fun DashboardHeroContent(
             )
         }
 
-        // 3) Zentrum: Güte-Gauge + Zonen-Chip (📍 Zuhause rechts).
+        // 3) Zentrum: Güte-Gauge (M19.5 größer; mit Maskottchen-Modus
+        // wohnt das Wesen genau an der Stelle der Güte-Zahl) + Zonen-Chip.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp)
-                .height(126.dp)
+                .height(148.dp)
         ) {
             HeroGauge(
                 score = state.qualityScore,
                 overrideBadge = if (state.hasDayQualityOverride) "✎" else null,
+                mascot = mascot,
+                mascotSleeping = mascotSleeping,
                 onClick = onQualityClick,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -296,41 +335,56 @@ internal fun DashboardHeroContent(
             )
         }
 
-        // Kurze Tages-Erzählung als eine ruhige Zeile (ersetzt den alten
-        // Ring-Headline-Block; Inhalt unverändert aus dem ViewModel).
-        val headline = state.headline.ifEmpty {
-            stringResource(R.string.dashboard_narrative_empty_title)
+        // 4) Aufnahme-Bereich — DIREKT unter dem Gauge (Devon: „unter der
+        // anzeige der güte … der kasten … der mit der animation die
+        // aktuelle aufzeichnung anzeigt"). Live → Blubber-Banner mit
+        // Timer + Pause/Wechsel/Stop; sonst die ruhige Bereitschafts-Zeile.
+        // Weich animiert beim Start/Ende einer Aufnahme. Die frühere
+        // Headline-Zeile ist komplett entfernt (Devon: „das kann weg").
+        AnimatedContent(
+            targetState = isLive,
+            transitionSpec = {
+                (
+                    expandVertically(
+                        expandFrom = Alignment.Top,
+                        animationSpec = tween(260)
+                    ) + fadeIn(animationSpec = tween(260))
+                    ) togetherWith (
+                    shrinkVertically(
+                        shrinkTowards = Alignment.Top,
+                        animationSpec = tween(220)
+                    ) + fadeOut(animationSpec = tween(200))
+                    )
+            },
+            label = "heroRecordingSlot",
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(DASHBOARD_HERO_RECORDING_SLOT_TEST_TAG)
+        ) { recording ->
+            if (recording) {
+                LiveActivityBanner(
+                    state = liveState,
+                    nowMs = nowMs,
+                    onPause = onPauseLive,
+                    onResume = onResumeLive,
+                    onStop = onStopLive,
+                    onSwitch = onSwitchLive,
+                    activityTypes = state.activityTypes
+                )
+            } else {
+                ReadyStatusContent(
+                    dayProgressPercent = DashboardHeroMetrics.dayProgressPercent(state.dayProgress)
+                )
+            }
         }
-        Text(
-            headline,
-            modifier = Modifier.fillMaxWidth(),
-            fontSize = 11.sp,
-            lineHeight = 15.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
 
-        // 4) Tagesleiste (24h-Ribbon mit Stundenlabels), Tap → Timeline.
+        // 5) Tagesleiste (24h-Ribbon mit Stundenlabels), Tap → Timeline.
         HeroDayFlowStrip(
             segments = state.flowSegments,
             currentMinute = state.currentMinute,
             emptyText = stringResource(R.string.dashboard_flow_empty),
             onClick = onOpenTimeline,
             modifier = Modifier.testTag(DASHBOARD_HERO_TIMELINE_TEST_TAG)
-        )
-
-        // 5) Aufnahme-Status (Skizzen-Grünbox) — live/pausiert/bereit.
-        HeroStatusBar(
-            isLive = isLive,
-            isPaused = isPaused,
-            liveTitle = liveTitle,
-            liveActiveMs = liveActiveMs,
-            dayProgressPercent = DashboardHeroMetrics.dayProgressPercent(state.dayProgress),
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(DASHBOARD_HERO_STATUS_TEST_TAG)
         )
     }
 }
@@ -388,6 +442,10 @@ private fun HeroBackground(modifier: Modifier = Modifier) {
     // den Überstand UNTER dem Hero erhalten (DashboardHeroPeek) und wird
     // durch die abgerundeten Sheet-Ecken sichtbar; erst die letzte
     // Strecke blendet weich aus. Farbwanderung: Eisblau → Gold → Feuerrot.
+    // M19.5: Tail-Stopp von 0.92 auf 0.965 gezogen — der Hero ist höher
+    // geworden (Banner im Hero), das sichtbare Überstands-Band liegt
+    // relativ zum Gesamtverlauf weiter unten und lag sonst schon im
+    // Ausblend-Bereich (Deko schimmerte kaum noch durch).
     val topColor = lerpColor(primary.copy(alpha = 0.30f), tertiary.copy(alpha = 0.26f), t)
     val midColor = lerpColor(secondary.copy(alpha = 0.18f), primary.copy(alpha = 0.15f), t)
     val tailColor = lerpColor(primary.copy(alpha = 0.22f), tertiary.copy(alpha = 0.18f), t)
@@ -399,8 +457,8 @@ private fun HeroBackground(modifier: Modifier = Modifier) {
                 0.55f to midColor,
                 // Farbe bleibt bis in den Überstand unter dem Hero
                 // erhalten (sichtbar neben den Sheet-Ecken), erst das
-                // letzte Stück blendet weich aus.
-                0.92f to tailColor,
+                // letzte Stück (M19.5: 3,5 %) blendet weich aus.
+                0.965f to tailColor,
                 1f to Color.Transparent
             )
         )
@@ -449,16 +507,20 @@ private fun lerpColor(a: Color, b: Color, t: Float): Color = Color(
 
 /**
  * M19.4: 180°-Güte-Gauge (Skizzen-Zentrum).
+ * M19.5: Größer (248×148) und mit Maskottchen-Modus — das Wesen wohnt
+ * dort, wo sonst die große Güte-Zahl steht (Devon: „dort erscheinen, wo
+ * aktuell die zahl der güte ist"), mit kleiner Zahl-Zeile darunter.
  *
  * Roter→gelber→grüner Bogen als FESTE Skala (sweepGradient auf den
  * absoluten Winkelpositionen 180°/270°/360°), animierter Füll-Sweep,
  * leuchtender End-Marker mit Nadel (Skizzen-Pfeil) und Puls-Glow.
- * Die Zahl ist der Interessenpunkt — Klick öffnet den Güte-Dialog.
  */
 @Composable
 private fun HeroGauge(
     score: Int,
     overrideBadge: String?,
+    mascot: MascotRepository.MascotConfig,
+    mascotSleeping: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -489,8 +551,8 @@ private fun HeroGauge(
 
     Box(
         modifier = modifier
-            .width(216.dp)
-            .height(126.dp)
+            .width(248.dp)
+            .height(148.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -567,38 +629,86 @@ private fun HeroGauge(
             )
         }
 
-        // Zahl + Label im offenen Halbkreis.
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 2.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    score.toString(),
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = scoreColor
+        if (mascot.enabled) {
+            // M19.5: Maskottchen-Modus — das Wesen wohnt dort, wo sonst
+            // die große Güte-Zahl steht; darunter eine kleine Zahl-Zeile
+            // als Datenanker (Güte bleibt ablesbar + Tap-Fläche für den
+            // Güte-Dialog).
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 1.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                MascotView(
+                    config = mascot,
+                    smileLevel = MascotBehavior.smileLevel(score),
+                    sleeping = mascotSleeping,
+                    mascotSize = 92.dp,
+                    contentDescription = stringResource(R.string.mascot_cd_score, score),
+                    testTag = DASHBOARD_HERO_MASCOT_TEST_TAG
                 )
-                if (overrideBadge != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        overrideBadge,
-                        fontSize = 15.sp,
+                        score.toString(),
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 3.dp)
+                        fontFamily = FontFamily.Monospace,
+                        color = scoreColor
+                    )
+                    if (overrideBadge != null) {
+                        Text(
+                            overrideBadge,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        stringResource(R.string.dashboard_quality_label),
+                        fontSize = 9.sp,
+                        letterSpacing = 1.4.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            Text(
-                stringResource(R.string.dashboard_quality_label),
-                fontSize = 9.sp,
-                letterSpacing = 1.6.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        } else {
+            // Zahl + Label im offenen Halbkreis (klassischer Modus).
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        score.toString(),
+                        fontSize = 46.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = scoreColor
+                    )
+                    if (overrideBadge != null) {
+                        Text(
+                            overrideBadge,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 3.dp)
+                        )
+                    }
+                }
+                Text(
+                    stringResource(R.string.dashboard_quality_label),
+                    fontSize = 9.sp,
+                    letterSpacing = 1.6.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -740,30 +850,40 @@ private fun HeroMetricTile(
                 sheenColor = Color.White,
                 intensity = 0.13f
             )
-            .padding(horizontal = AevumSpacing.sm + 2.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+            .padding(horizontal = AevumSpacing.sm + 2.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(icon, fontSize = 15.sp)
-        Text(
-            displayValue,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            label,
-            fontSize = 9.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
-        )
-        Spacer(Modifier.height(2.dp))
+        // M19.5: Icon NEBEN dem Wert (Devon: „das icon kann neben der
+        // zeit") — Wert + Label stehen rechts vom Icon, die Kachel wird
+        // dadurch deutlich flacher (fast ein Drittel weniger Höhe).
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(icon, fontSize = 13.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    displayValue,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    label,
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+        }
+        Spacer(Modifier.height(1.dp))
         // Mini-Balken: Anteil an 24h.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(3.dp)
+                .height(2.5.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
@@ -771,146 +891,12 @@ private fun HeroMetricTile(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(barFill)
-                        .height(3.dp)
+                        .height(2.5.dp)
                         .clip(CircleShape)
                         .background(color)
                 )
             }
         }
-    }
-}
-
-/**
- * M19.4: Aufnahme-Status-Balken (Skizzen-Grünbox) als unterer
- * Hero-Abschluss.
- *
- *  - live: grüner Glas-Balken „Aufnahme läuft" + Titel + Timer, mit
- *    atmendem Punkt und langsam wanderndem Schimmer.
- *  - pausiert: dieselbe Form in Amber, Timer eingefroren.
- *  - bereit: ruhige, neutrale Zeile „Aufnahme bereit" rechts der
- *    Tagesfortschritt (ersetzt die alte Fortschritts-Zeile).
- */
-@Composable
-private fun HeroStatusBar(
-    isLive: Boolean,
-    isPaused: Boolean,
-    liveTitle: String,
-    liveActiveMs: Long,
-    dayProgressPercent: Int,
-    modifier: Modifier = Modifier
-) {
-    val kind = when {
-        isLive && isPaused -> HeroStatusKind.Paused
-        isLive -> HeroStatusKind.Live
-        else -> HeroStatusKind.Ready
-    }
-    Crossfade(
-        targetState = kind,
-        animationSpec = tween(320),
-        label = "heroStatusKind"
-    ) { state ->
-        when (state) {
-            HeroStatusKind.Live -> LiveStatusContent(
-                paused = false,
-                title = liveTitle,
-                activeMs = liveActiveMs,
-                modifier = modifier
-            )
-            HeroStatusKind.Paused -> LiveStatusContent(
-                paused = true,
-                title = liveTitle,
-                activeMs = liveActiveMs,
-                modifier = modifier
-            )
-            HeroStatusKind.Ready -> ReadyStatusContent(
-                dayProgressPercent = dayProgressPercent,
-                modifier = modifier
-            )
-        }
-    }
-}
-
-private enum class HeroStatusKind { Live, Paused, Ready }
-
-@Composable
-private fun LiveStatusContent(
-    paused: Boolean,
-    title: String,
-    activeMs: Long,
-    modifier: Modifier = Modifier
-) {
-    // M19.4: Akzent je Theme — dunkel leuchtet, hell gräbt tiefer
-    // (dieselben Grün-/Amber-Familien, nur mit Kontrast auf Weiß).
-    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val accent = when {
-        paused -> if (darkTheme) Color(0xFFFBBF24) else Color(0xFFB45309)
-        else -> if (darkTheme) Color(0xFF4ADE80) else Color(0xFF16A34A)
-    }
-    val textColor = when {
-        paused -> if (darkTheme) Color(0xFFFCD34D) else Color(0xFF92400E)
-        else -> if (darkTheme) Color(0xFF86EFAC) else Color(0xFF166534)
-    }
-    val shape = RoundedCornerShape(AevumRadius.full)
-    val pulse = rememberInfiniteTransition(label = "heroStatusPulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1100), RepeatMode.Reverse),
-        label = "heroStatusDot"
-    )
-    val timerText = formatTimer(activeMs)
-
-    Row(
-        modifier = modifier
-            .shadow(
-                elevation = 12.dp,
-                shape = shape,
-                ambientColor = accent.copy(alpha = 0.5f),
-                spotColor = accent.copy(alpha = 0.5f)
-            )
-            .clip(shape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        accent.copy(alpha = 0.22f),
-                        accent.copy(alpha = 0.08f)
-                    )
-                )
-            )
-            .border(1.dp, accent.copy(alpha = 0.52f), shape)
-            .shimmering(periodMillis = 2600, sheenColor = Color.White, intensity = 0.20f)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(accent.copy(alpha = pulseAlpha))
-        )
-        Text(
-            stringResource(if (paused) R.string.dashboard_paused else R.string.dashboard_recording),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = textColor,
-            maxLines = 1
-        )
-        Text(
-            title,
-            modifier = Modifier.weight(1f),
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            timerText,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            color = textColor
-        )
     }
 }
 
@@ -1177,10 +1163,3 @@ private fun formatHours(ms: Long): String {
         else -> "${minutes}m"
     }
 }
-
-/** Helper: Live-Timer „01:23:45". */
-private fun formatTimer(ms: Long): String = "%02d:%02d:%02d".format(
-    ms / 3_600_000,
-    (ms % 3_600_000) / 60_000,
-    (ms % 60_000) / 1_000
-)

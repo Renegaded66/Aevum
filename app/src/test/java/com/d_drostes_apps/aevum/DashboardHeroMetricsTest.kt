@@ -6,10 +6,12 @@ import org.junit.Test
 
 /**
  * M19.4: Reine JVM-Suite für die Hero-Arithmetik (kein Android nötig).
+ * M19.5: Collapse ist dem Pinning gewichen — geprüft wird jetzt die
+ * Sticky-Kompensation (Hero bleibt beim Scrollen stehen).
  *
- * Geprüft wird, was die Canvas-/Parallax-Geometrie wirklich steuert:
+ * Geprüft wird, was die Canvas-/Pinning-Geometrie wirklich steuert:
  *  - Gauge-Füllgrad und Marker-Winkel des 180°-Bogens,
- *  - Collapse-Fortschritt der Liste (Parallax hängt daran),
+ *  - Sticky-Translation der Liste (Pinning hängt daran),
  *  - Prozent-Formatierung des Tagesfortschritts.
  *
  * Grenzfälle inklusive (unter 0, über 100, ungemessene Höhe) — genau
@@ -37,28 +39,36 @@ class DashboardHeroMetricsTest {
     }
 
     @Test
-    fun collapseGrowsWithScrollAndCapsAtOne() {
-        // Ausgangslage: Hero voll sichtbar.
-        assertThat(DashboardHeroMetrics.collapseFor(0, 2000, false)).isEqualTo(0f)
-        // Halb gescrollt: halber Collapse.
-        assertThat(DashboardHeroMetrics.collapseFor(1000, 2000, false)).isEqualTo(0.5f)
-        // Über die Höhe hinaus: geklemmt auf 1.
-        assertThat(DashboardHeroMetrics.collapseFor(2500, 2000, false)).isEqualTo(1f)
-        // Negativer Offset (Overscroll) darf nicht unter 0 rutschen.
-        assertThat(DashboardHeroMetrics.collapseFor(-50, 2000, false)).isEqualTo(0f)
+    fun stickyTranslationTracksScrollExactly() {
+        // M19.5-Pinning: Kompensation = exakt der Scroll-Offset → netto
+        // steht der Hero still, während das Sheet darüber rutscht.
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(0, 2000, false)).isEqualTo(0)
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(500, 2000, false)).isEqualTo(500)
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(1999, 2000, false)).isEqualTo(1999)
+        // Negativer Offset (Overscroll) darf die Verschiebung nicht ins
+        // Negative ziehen (Hero darf nicht nach UNTEN wandern).
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(-50, 2000, false)).isEqualTo(0)
     }
 
     @Test
-    fun collapseIsOneOnceHeroItemIsLeftBehind() {
-        assertThat(DashboardHeroMetrics.collapseFor(0, 2000, true)).isEqualTo(1f)
-        assertThat(DashboardHeroMetrics.collapseFor(10, 2000, true)).isEqualTo(1f)
+    fun stickyTranslationKeepsHeroStationaryAcrossScroll() {
+        // Netto-Position = Layout(-offset) + Translation(+offset) = 0 für
+        // jede Scroll-Position, solange Item 0 sichtbar ist.
+        val height = 1800
+        listOf(0, 1, 137, 900, 1799).forEach { offset ->
+            val translation = DashboardHeroMetrics.heroStickyTranslation(offset, height, false)
+            assertThat(translation - offset).isEqualTo(0)
+        }
     }
 
     @Test
-    fun collapseStaysZeroWhileHeightIsUnmeasured() {
-        // Vor der ersten Messung (Höhe 0) darf der Hero nicht wegspringen.
-        assertThat(DashboardHeroMetrics.collapseFor(500, 0, false)).isEqualTo(0f)
-        assertThat(DashboardHeroMetrics.collapseFor(0, 0, false)).isEqualTo(0f)
+    fun stickyTranslationCompensatesFullHeightOnceHeroIsLeftBehind() {
+        // Sobald Item 0 durchgescrollt ist, volle Kompensation (Hero ist
+        // dann ohnedies vom Sheet überdeckt bzw. ge-cullt).
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(2001, 2000, true)).isEqualTo(2000)
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(0, 2000, true)).isEqualTo(2000)
+        // Unmessbare Höhe (erster Frame) darf keinen Sprung erzeugen.
+        assertThat(DashboardHeroMetrics.heroStickyTranslation(0, 0, true)).isEqualTo(0)
     }
 
     @Test

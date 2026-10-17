@@ -257,3 +257,36 @@ Dauer-Auto-Check). Die damalige Umsetzung im Detail — Struktur, Tagesplan,
 Glas, Drag & Drop — steht vollständig in der Git-Historie (M19.1/M19.2) und
 in `docs/M19-2-ABSCHLUSSBERICHT.md`; die zugehörige Tabelle hat die Datenbank
 mit Version 46 wieder verloren (`MIGRATION_45_46`, siehe `docs/DATABASE.md`).
+
+
+## Maskottchen (M19.5, App 1.0.37) — optional, Default AUS
+
+Ein selbst erstellbares, interaktives Wesen fürs Dashboard. Aktivierbar in
+den Einstellungen (direkt unter „App-Einstellungen"); standardmäßig ist es
+AUS und die App verhält sich exakt wie zuvor.
+
+- **Wohnort:** genau dort, wo sonst die große Güte-Zahl steht — im
+  Güte-Gauge; die kleine Zahl-Zeile (Güte + QUALITY) bleibt darunter als
+  Datenanker und Tap-Fläche für den Güte-Dialog.
+- **Stimmung:** Das Lächeln wächst mit der Tages-Güte; ab Güte 85 funkeln
+  Extra-Glanzpunkte in den Augen.
+- **Lebendig:** Atmen (sanftes Scale), Blinzeln (kurz, alle ~4,3 s),
+  langsames Umherschauen. Komplett Canvas-gezeichnet, keine Assets.
+- **Interaktiv:** Tippen löst drei zyklische, niedliche Reaktionen aus —
+  Hüpf-Herzchen ♥, Wackel-Funkeln ✦, Bäckchen-Pop.
+- **Schlafenszeit:** Zwischen 22 und 6 Uhr schläft es (geschlossene
+  Augen, aufsteigende „z z z"; gilt beim Anzeigen von HEUTE). Läuft eine
+  Aufzeichnung, ist es wach; endet sie, schläft es wieder — der Zustand
+  wechselt live mit Start/Stop der Session.
+- **Erstellen:** 8 Körperfarben (Eisblau, Minze, Apfelgrün, Sonnengelb,
+  Pfirsich, Koralle, Rosé, Lavendel), Ohrenform (rund/spitz/lang),
+  Bäckchen an/aus — mit interaktiver Live-Vorschau in den Einstellungen
+  (antippen löst die Reaktion aus!).
+
+### Dashboard-Dynamik (M19.5)
+
+Beim Scrollen bleibt der komplette obere Bereich (Tag-Navigation,
+Kacheln, Güte-Gauge, Aufnahme-Bereich, Tagesleiste) gepinnt stehen; nur
+die Karten-Fläche (Sheet) rutscht darüber. Der Aufnahme-Banner
+(Blubber-Bläschen, Timer, Pause/Wechsel/Stop) sitzt direkt unter dem
+Güte-Gauge; die frühere Headline-Zeile ist entfernt.

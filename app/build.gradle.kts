@@ -187,8 +187,29 @@ android {
         //   Hero-Höhe, Deko-Rest schimmert durch die Sheet-Ecken).
         //   Atmosphere-Orbs jetzt in Eisblau/Feuerrot/Gold. Keine DB-,
         //   Navigations- oder Domänen-Änderung.
-        versionCode = 37
-        versionName = "1.0.36"
+        // M19.5 (App 1.0.37): Devon-Feinschliff am Dashboard + Maskottchen —
+        //   1) Scroll-Dynamik: der komplette obere Bereich (Hero) ist beim
+        //      Scrollen GEPINNT (exakte graphicsLayer-Kompensation gegen
+        //      den Scroll), nur das Sheet rutscht darüber (vorher: Collapse
+        //      mit Fade/Scale/Parallax — komplett entfernt).
+        //   2) Der Blubber-Banner (Live-Aufzeichnung) wohnt jetzt IM HERO
+        //      direkt unter dem Güte-Gauge (Headline-Zeile entfernt, im
+        //      Sheet erscheint nichts doppelt). Emoji-Glyphen ⏸/⇄/■ der
+        //      Banner-Buttons exakt zentriert (contentPadding 0 +
+        //      fillMaxSize-Box + includeFontPadding aus).
+        //   3) Maskottchen (Einstellungen, Default AUS): selbst erstellbares
+        //      Canvas-Wesen im Güte-Gauge — lächelt mit der Güte, atmet,
+        //      blinzelt, schaut umher, reagiert auf Tippen (Hüpfer+Herzchen,
+        //      Wackel+Funkeln, Bäckchen-Pop), schläft 22–6 Uhr außer bei
+        //      laufender Aufzeichnung (wechselt live mit Start/Stop); Farbe
+        //      (8 Töne), Ohrenform und Bäckchen in den Einstellungen
+        //      wählbar. Ohne Maskottchen: alles exakt wie bisher.
+        //   4) Kacheln Erfasst/Schlaf/Bildschirm kompakter (kleineres Icon,
+        //      engere Abstände — gilt in beiden Modi), Gauge größer (248×148),
+        //      damit das Wesen darunter passt.
+        //   Keine DB-, Navigations- oder Domänen-Änderungen.
+        versionCode = 38
+        versionName = "1.0.37"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

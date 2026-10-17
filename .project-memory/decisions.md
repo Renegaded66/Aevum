@@ -269,3 +269,43 @@ nicht) und FIXIERTER Test-Uhr (autoAdvance=false, 2 s vorgespult).
 **Grund:** Diese Maschine hat kein /dev/kvm (kein Emulator) — Robolectric-View-Draw
 ist der einzige echte Pixel-Beweis; der feste Zeitpunkt macht Wert-Assertions und
 Sichtprüfung reproduzierbar (Endlos-Animationen sonst zeitabhängig).
+
+**Entscheidung (M19.5):** Der Hero wird beim Scrollen per graphicsLayer EXAKT
+gegen den Scroll-Offset kompensiert (translationY = +offset); der M19.4-Collapse
+(Fade/Scale/Alpha/Parallax) wird komplett entfernt.
+**Grund:** Devon: „Ich will, wenn ich runter scrolle, dass der komplette obere
+bereich stehen bleibt und der untere bereich darüber rutscht." — das ist exaktes
+Pinning; der Collapse hat den Hero stattdessen beschleunigt nach oben geschoben.
+**Naheliegende Alternative:** `stickyHeader` aus Foundation — verworfen: pinnt
+nur innerhalb des Headers und liefert nicht die Karten-ÜBER-Inhalt-Optik; die
+graphicsLayer-Kompensation ist exakt (Integrationstest: Position ±4px konstant)
+und läuft in der draw-Phase (kein Rekompositionsaufwand pro Frame).
+
+**Entscheidung (M19.5):** Der Live-Banner (Blubber) wandert vom Sheet in den
+Hero DIREKT unter das Güte-Gauge; die Headline-Zeile entfällt ersatzlos; der
+alte Hero-Status-Balken (HeroStatusBar/LiveStatusContent) wird entfernt.
+**Grund:** Devon: „unter der anzeige der güte … der kasten … mit der animation
+die aktuelle aufzeichnung" und „das kann komplett weg" (Headline) — genau EINE
+Steuer-Fläche, keine Dopplung.
+**Alternative:** Banner zusätzlich im Sheet lassen — verworfen (Dopplung,
+widerspricht dem wörtlichen Auftrag).
+
+**Entscheidung (M19.5):** Maskottchen-Schlaf (22–6 Uhr) gilt nur für „Heute"
+(displayedDate == heute) und wird aus state.currentMinute abgeleitet
+(MascotBehavior.shouldSleep — pure, JVM-getestet); eine Aufzeichnung übersteuert
+den Schlaf live.
+**Grund:** Beim Blättern in alte Tage gibt es kein „Jetzt" (currentMinute =
+1440 → 23 Uhr → das Wesen schliefe am Nachmittag grundlos); deterministische
+Tests: die Test-Uhr fixiert currentMinute, kein LocalTime.now.
+
+**Entscheidung (M19.5):** Emoji-Zentrierung über contentPadding 0 +
+fillMaxSize-Zentrierbox + includeFontPadding = false (statt numerischer
+Pixel-Offsets je Glyphe).
+**Grund:** Robolectric-Screenshot belegt „perfekt zentriert" für alle drei
+Glyphen; Nudge-Werte je Glyphe wären font-abhängig und brächen still.
+
+**Entscheidung (M19.5):** Deko-Verlauf-Tail von 0.92 auf 0.965 gezogen.
+**Grund:** Der Hero wuchs (Banner im Hero); das sichtbare Überstands-Band
+(DashboardHeroPeek) lag danach im Ausblend-Bereich des Gradienten („kaum Farbe
+durchschimmernd" in der Sichtprüfung). Mit 0.965 liegt das Band in der vollen
+Farbe; die letzten 3,5 % blenden weich aus (Sichtprüfung: „Ja, dezent").

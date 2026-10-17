@@ -72,11 +72,23 @@ class DashboardViewModel @Inject constructor(
     // M18.75: ActivityRecognitionBridge — für den Blackout-Fix nach
     // manuellem Stop einer Auto-Session (driveActive zurücksetzen).
     private val activityRecognitionBridge: com.d_drostes_apps.aevum.automation.activityrecognition.ActivityRecognitionBridge,
+    // M19.5: Maskottchen-Konfiguration (Dashboard-Gauge — an/aus, Farbe,
+    // Ohren, Bäckchen; Default aus ⇒ exakt altes Verhalten).
+    private val mascotRepository: com.d_drostes_apps.aevum.data.repository.MascotRepository,
     // L10N-RUNTIME-FIX: Sprach-Flow — bei Sprachwechsel zur Laufzeit wird
     // der komplette uiState (inkl. application.getString-Texte) neu gebaut.
     languageRepository: com.d_drostes_apps.aevum.data.repository.LanguageRepository
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
+
+    /** M19.5: Maskottchen-Konfiguration — Dashboard-Gauge (StateFlow;
+     *  Default aus ⇒ exakt altes Verhalten). */
+    val mascotConfig: StateFlow<com.d_drostes_apps.aevum.data.repository.MascotRepository.MascotConfig> =
+        mascotRepository.config.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            mascotRepository.currentSync()
+        )
     // M18.43-FIX (Root Cause "abgehakte wiederkehrende Todo zeigt im
     // Dashboard noch offen"): `today`/`start`/`end` wurden EINMAL beim
     // ViewModel-Init berechnet. Wenn das Dashboard über Mitternacht
