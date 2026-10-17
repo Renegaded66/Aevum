@@ -157,3 +157,26 @@
       AAB 24.284.037 B; 10 Screenshots aevum-1.0.38-* auf dem APK-Server
       (HTTP 200). Bericht `docs/M19-6-ABSCHLUSSBERICHT.md`.
       Commit `2cd96e6` (18 Dateien, +670/−324), gepusht auf main.
+- [x] PC-Tracker 1.6.0 + App 1.0.39 (Verifikations-Gate): Devon: „erst
+      erlauben … wenn die desktop app verifiziert hat, das auf dem handy
+      nichts läuft, ansonsten meldung." — Desktop fail-closed: ohne frische
+      „nichts läuft"-Bestätigung (≤ 30 min, IdleVerificationWindowMs) startet
+      NICHTS Neues (Regel/allgemein/manuell; ManualStartOutcome); veraltetes
+      „zeichnet auf" zählt nie mehr als frei; Gate erst nach erstem
+      Handy-Kontakt (PhoneKnownAtMs); laufende Sessions überleben einen
+      Bestätigungs-Abriss; UI „HANDY NICHT VERIFIZIERT" + gesperrte
+      Start-Karte (Disabled-Styles — Fund aus Xvfb) + „✓ Handy verifiziert";
+      Urteils-Wechsel im phone-priority.log. App 1.0.39: Verifikations-Ping
+      nach jedem erfolgreichen Sync (Auto + App-Öffnen-Kick) über den
+      bestehenden /api/live-Endpunkt; gemeinsamer Snapshot-Bauer PcLiveState.
+      Tests: Desktop 149/149 (+15 Gate-Tests), Android 1187/1187.
+      Xvfb-Smoke: 4 Zustände + Klick-Tests + Auto-Stop-Beweis (DB: manuelle
+      Session durch Handy-Vorrang geschlossen). Release `pc-tracker-1.6.0`
+      (Release-ID 415980506; ZIP 57.495.461 B; Asset-Upload + Updater-
+      Simulation verifiziert: Client 1.5.2 findet 1.6.0, Client 1.6.0 findet
+      nichts) + `Aevum-1.0.39-Debug.apk` (vc 40, kanonisch, HTTP 200).
+      Bericht `docs/PC-TRACKER-1.6.0-ABSCHLUSSBERICHT.md`. Commit `91983b6`.
+      WICHTIG fürs nächste Mal: nie 2 App-Instanzen im Smoke-Test (zweite
+      bindet Nachbarport; ihr Fenster lag über der ersten — „tote" UI war
+      nur die Instanz ohne API-Traffic; Settings-Blob-Persist einer
+      Altinstanz überschreibt außerdem die Datei komplett).

@@ -160,9 +160,19 @@ Alle Screenshots per Vision geprüft (Layout, Texte, gedimmte Zustände).
 
 ### Messwerte
 - ZIP: **57.495.461 B (~57,5 MB)**, entpackt ~127 MB, Version 1.6.0 in der
-  Assembly verifiziert (UTF-16-strings-Check).
-- Android: Bau + volle Test-Suite im Voll-Build (siehe Bericht-Nachtrag /
-  CHANGELOG); App 1.0.39 (versionCode 40), kanonisch signiert.
+  Assembly verifiziert (UTF-16-strings-Check). GitHub-Release
+  `pc-tracker-1.6.0` (ID 415980506, nicht draft/prerelease); Asset-Upload
+  verifiziert (state=uploaded, Byte-Gleichheit); **Updater-Auswahllogik
+  end-to-end simuliert: Client auf 1.5.2 findet 1.6.0 samt ZIP, Client auf
+  1.6.0 findet nichts Neues.**
+- Android: **1187/1187 Tests grün** im Voll-Build (Exit 0), Debug-APK
+  **123.626.270 B** (versionCode 40 / 1.0.39 verifiziert per aapt2),
+  kanonisch signiert (apksigner SHA-1 9C:30:55:C4…), HTTP 200 auf dem
+  APK-Server (Aevum-1.0.39-Debug.apk); PC-ZIP zusätzlich unter
+  AevumPcTracker-1.6.0-win-x64.zip.
+- **Commit:** `91983b6` (26 Dateien) auf `main` gepusht; Tag
+  `pc-tracker-1.6.0` gepusht. Screenshots der vier Gate-Zustände im
+  Smoke-Ordner (20-unver, 21-ver, 22-select/22b-manual, 23-priority).
 
 ## 7. Geänderte/neue Dateien (Kern)
 
