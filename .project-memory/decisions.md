@@ -220,3 +220,14 @@ Handy (kein Rückkanal, bewusst).
 **Grund:** Laufende Sessions überleben ein Delete nicht (Heartbeat schreibt
 sie zurück) — die Bedingung `end_at IS NOT NULL` macht das auf Store-Ebene
 ehrlich; die UI bietet den Knopf nur dort an, wo er wirkt.
+
+**Entscheidung:** Der Update-Austausch ist PowerShell (nicht Batch) und
+protokolliert + verifiziert sich selbst: Warten per Get-Process-Schleife,
+robocopy /MIR mit Copy-Item-Fallback, Größen-Abgleich der neuen EXE, alles
+nach `%APPDATA%\AevumPcTracker\update.log`; `pending-update.txt` + rotes
+Fehlerband in den Einstellungen, wenn der Austausch nicht durchkam.
+**Grund:** Der Batch-Mechanismus (seit 1.2) verschluckte alle Fehler
+(`>nul`) und kopierte beim Nutzer deterministisch nichts — ohne jede Spur.
+Lehre: Ein stiller Auto-Updater ohne Protokoll ist nicht diagnostizierbar;
+ein Update, das scheitern kann, MUSS seinen Fehlschlag sichtbar melden.
+Batch-Fallstricke (timeout/Pipe/Quoting) entfallen mit PowerShell ohnehin.

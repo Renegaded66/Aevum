@@ -84,3 +84,13 @@
       Handy-Meldung beendete General (1,1 s) und Manual, Start blockiert,
       Löschung 8→7, Schimmer sichtbar — 1 Anzeige-Bug gefunden+gefixt.
       Release-ID 415785691, ZIP 57.309.054 B.
+- [x] PC-Tracker 1.5.1 (Nutzerbefund: 1.4.1-Update kopierte nichts, startete
+      wieder 1.4.1; 2x): Austausch-Mechanismus von Batch auf PowerShell
+      ersetzt — echtes Warten (Get-Process, 90 s), robocopy /MIR +
+      Copy-Item-Fallback, Größen-Verifikation der neuen EXE, update.log
+      (jede Station), pending-update.txt + rotes Fehlerband in den
+      Einstellungen bei Fehlschlag (nie mehr still). Extract als Ursache
+      ausgeschlossen (.NET-8-Nachstellung: 362/362). 131/131 Tests.
+      Release-ID 415812156, ZIP 57.312.239 B. WICHTIG: PS-Skript konnte auf
+      Windows nicht ausgeführt werden (kein Wine/pwsh; pwsh-Download
+      geblockt) — Restrisiko dokumentiert, Log+Fehlerband decken es auf.
