@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.38 (M19.6) — 2026-10-17
+
+### Maskottchen im PAG-Vorbild (Sternchen statt Herzen, größer)
+
+Nutzerwunsch (wörtlich): „Die sehen mir nicht gut genug aus. Halte dich
+vielleicht an das maskottchen aus PAG. Das fand ich gut. Das einfach leicht
+personalisierbar. und ohne herzen bitte, vielleicht mit sternchen oder so.
+Im dashboard kann das auch ein stück größer sein."
+
+- **PAG-Nachbau:** Das Wesen folgt jetzt dem Büro-Maskottchen aus dem
+  Personal-AI-Gateway (gleiche Anatomie in Canvas, ohne Assets: runder
+  Körper mit weichem Vertikal-Verlauf und OHNE Umriss, Antenne mit
+  leuchtender Gold-Spitze, große weiße Augen mit dunklen Pupillen und
+  Blick-Wanderung, kleine Smile-Kurve, rosa Wangen, weicher Bodenschatten).
+  Die M19.5-Ohren entfallen — das Vorbild hat eine Antenne.
+- **Personalisierung (leicht gehalten):** Farbe (8 Töne; Vorgabe ist das
+  PAG-Blau #5E7CE8) + Antennen-Spitze (Kugel/Stern/Blitz) + Bäckchen
+  an/aus, mit interaktiver Live-Vorschau in den Einstellungen.
+- **Sternchen statt Herzen:** Die drei Tipp-Reaktionen sind jetzt
+  Sternchen-Hüpfer (★ gold), Wackel+Funkeln (✦ gold) und Bäckchen-Pop
+  (Freuden-Linien-Augen + Wangen-Glühen).
+- **Größer im Dashboard:** 108 statt 92 dp im Güte-Gauge (die Antenne
+  bleibt vollständig im Halbkreis, nichts klebt am Bogen);
+  Einstellungen-Vorschau 120 dp.
+- Alte „Ohren"-Werte aus 1.0.37 fallen automatisch auf die Kugel zurück
+  (Validierung mit Default-Fallback). Keine DB-, Navigations- oder
+  Domänen-Änderungen.
+
 ## [Unreleased] — Aevum 1.0.37 (M19.5) — 2026-10-17
 
 ### Dashboard-Feinschliff: Pinning-Dynamik, Banner unter der Güte, Maskottchen

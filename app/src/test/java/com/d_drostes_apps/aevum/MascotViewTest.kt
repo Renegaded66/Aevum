@@ -43,10 +43,10 @@ import org.robolectric.annotation.GraphicsMode
  *  - Rendern + Tippen ruft den Callback (Reaktions-Trigger),
  *  - Schlaf-Semantik wechselt live („schläft" ↔ „ist wach") — der
  *    Zustand aus der 22–6-Regel,
- *  - alle drei Ohrenformen rendern,
+ *  - alle drei Antennen-Spitzen rendern (M19.6: Kugel/Stern/Blitz),
  *  - Sichtprüfungs-Screenshots: wach (lächelnd), schlafend (z z z),
- *    mitten in der Hüpf-Herzchen-Reaktion und ein Stil-Streifen
- *    (rund/spitz/lang) für den Erstellen-Bereich.
+ *    mitten in der Sternchen-Hüpf-Reaktion und ein Stil-Streifen
+ *    (Kugel/Stern/Blitz) für den Erstellen-Bereich.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w400dp-h900dp-xxhdpi")
@@ -60,11 +60,11 @@ class MascotViewTest {
         get() = ApplicationProvider.getApplicationContext<android.content.Context>()
 
     private fun config(
-        colorId: String = "ice",
-        earStyle: String = MascotRepository.EARS_ROUND,
+        colorId: String = "blue",
+        antennaStyle: String = MascotRepository.ANTENNA_BALL,
         cheeks: Boolean = true
     ) = MascotRepository.MascotConfig(
-        enabled = true, colorId = colorId, earStyle = earStyle, cheeks = cheeks
+        enabled = true, colorId = colorId, antennaStyle = antennaStyle, cheeks = cheeks
     )
 
     @Test
@@ -117,7 +117,7 @@ class MascotViewTest {
     }
 
     @Test
-    fun allEarStylesRender() {
+    fun allAntennaStylesRender() {
         composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             AevumTheme(darkTheme = true) {
@@ -126,28 +126,28 @@ class MascotViewTest {
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         MascotView(
-                            config = config(earStyle = MascotRepository.EARS_ROUND),
+                            config = config(antennaStyle = MascotRepository.ANTENNA_BALL),
                             smileLevel = 0.7f, sleeping = false,
-                            testTag = "mascot-round"
+                            testTag = "mascot-ball"
                         )
                         MascotView(
-                            config = config(colorId = "sun", earStyle = MascotRepository.EARS_POINTY),
+                            config = config(colorId = "sun", antennaStyle = MascotRepository.ANTENNA_STAR),
                             smileLevel = 0.7f, sleeping = false,
-                            testTag = "mascot-pointy"
+                            testTag = "mascot-star"
                         )
                         MascotView(
-                            config = config(colorId = "lavender", earStyle = MascotRepository.EARS_LONG),
+                            config = config(colorId = "lavender", antennaStyle = MascotRepository.ANTENNA_BOLT),
                             smileLevel = 0.7f, sleeping = false,
-                            testTag = "mascot-long"
+                            testTag = "mascot-bolt"
                         )
                     }
                 }
             }
         }
         composeRule.mainClock.advanceTimeBy(1_000)
-        composeRule.onNodeWithTag("mascot-round").assertExists()
-        composeRule.onNodeWithTag("mascot-pointy").assertExists()
-        composeRule.onNodeWithTag("mascot-long").assertExists()
+        composeRule.onNodeWithTag("mascot-ball").assertExists()
+        composeRule.onNodeWithTag("mascot-star").assertExists()
+        composeRule.onNodeWithTag("mascot-bolt").assertExists()
     }
 
     @Test
@@ -162,8 +162,8 @@ class MascotViewTest {
 
     @Test
     fun mascotScreenshotReactionHearts() {
-        // Mitten in der ersten Tipp-Reaktion (Hüpfer + Herzchen): kurz nach
-        // dem Klick einfrieren — die Partikel schweben sichtbar.
+        // Mitten in der ersten Tipp-Reaktion (Sternchen-Hüpfer, M19.6):
+        // kurz nach dem Klick einfrieren — die Sterne schweben sichtbar.
         composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             AevumTheme(darkTheme = true) {
@@ -193,7 +193,7 @@ class MascotViewTest {
         // Reaktion dauert 1700 ms — bei ~700 ms schweben alle drei
         // Herzchen sichtbar (gestaffelt, am höchsten Punkt).
         composeRule.mainClock.advanceTimeBy(700)
-        captureMascotRootToFile("mascot-reaction-hearts.png", minBytes = 3_000L)
+        captureMascotRootToFile("mascot-reaction-stars.png", minBytes = 3_000L)
     }
 
     @Test
@@ -210,26 +210,26 @@ class MascotViewTest {
                             .fillMaxSize()
                             .padding(16.dp)
                             .testTag(MASCOT_SHOT_ROOT),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         MascotView(
-                            config = config(earStyle = MascotRepository.EARS_ROUND),
-                            smileLevel = 0.7f, sleeping = false, mascotSize = 140.dp
+                            config = config(antennaStyle = MascotRepository.ANTENNA_BALL),
+                            smileLevel = 0.7f, sleeping = false, mascotSize = 112.dp
                         )
                         MascotView(
-                            config = config(colorId = "sun", earStyle = MascotRepository.EARS_POINTY),
-                            smileLevel = 0.7f, sleeping = false, mascotSize = 140.dp
+                            config = config(colorId = "sun", antennaStyle = MascotRepository.ANTENNA_STAR),
+                            smileLevel = 0.7f, sleeping = false, mascotSize = 112.dp
                         )
                         MascotView(
-                            config = config(colorId = "lavender", earStyle = MascotRepository.EARS_LONG),
-                            smileLevel = 0.7f, sleeping = false, mascotSize = 140.dp
+                            config = config(colorId = "lavender", antennaStyle = MascotRepository.ANTENNA_BOLT),
+                            smileLevel = 0.7f, sleeping = false, mascotSize = 112.dp
                         )
                     }
                 }
             }
         }
-        composeRule.mainClock.advanceTimeBy(1_000)
+        composeRule.mainClock.advanceTimeBy(3_650)
         captureMascotRootToFile("mascot-styles.png", minBytes = 5_000L)
     }
 
@@ -257,9 +257,11 @@ class MascotViewTest {
                 }
             }
         }
-        // 1,2 s: Atmen/Blinzeln an einem friedlichen Punkt; bei Schlaf
-        // schweben die ersten „z" bereits auf.
-        composeRule.mainClock.advanceTimeBy(1_200)
+        // 3,65 s: Atmen/Blinzeln an einem friedlichen Punkt UND die
+        // Blick-Wanderung exakt in Mittelstellung (Antenne steht gerade —
+        // sonst wirkt der eingefrorene Stand schief); bei Schlaf schweben
+        // die „z" bereits auf.
+        composeRule.mainClock.advanceTimeBy(3_650)
         captureMascotRootToFile(fileName, minBytes = 3_000L)
     }
 

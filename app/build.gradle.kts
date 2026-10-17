@@ -208,8 +208,16 @@ android {
         //      engere Abstände — gilt in beiden Modi), Gauge größer (248×148),
         //      damit das Wesen darunter passt.
         //   Keine DB-, Navigations- oder Domänen-Änderungen.
-        versionCode = 38
-        versionName = "1.0.37"
+        // M19.6 (App 1.0.38): Maskottchen im PAG-Vorbild-Stil (Devon:
+        //   „Halte dich vielleicht an das maskottchen aus PAG") — runder
+        //   Körper mit weichem Verlauf (kein Umriss), Antenne mit
+        //   leuchtender Spitze (statt Ohren; personalisierbar Kugel/Stern/
+        //   Blitz), große weiße Augen mit Pupillen, rosa Wangen, kleiner
+        //   Güte-Smile; Reaktionen mit Sternchen statt Herzen
+        //   (STAR_HOP/WIGGLE_SPARKLES/BLUSH_POP); Vorgabefarbe PAG-Blau;
+        //   im Dashboard größer (108 statt 92 dp). Keine DB-Änderungen.
+        versionCode = 39
+        versionName = "1.0.38"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

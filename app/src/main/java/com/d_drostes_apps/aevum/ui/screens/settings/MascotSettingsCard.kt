@@ -38,7 +38,7 @@ import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 internal const val MASCOT_SETTINGS_SWITCH_TEST_TAG = "mascot-settings-switch"
 internal const val MASCOT_SETTINGS_CHEEKS_TEST_TAG = "mascot-settings-cheeks"
 internal fun mascotColorTestTag(colorId: String) = "mascot-color-$colorId"
-internal fun mascotEarTestTag(style: String) = "mascot-ears-$style"
+internal fun mascotAntennaTestTag(style: String) = "mascot-antenna-$style"
 
 /**
  * M19.5: Maskottchen-Sektion der Einstellungen (Devon: „ein und
@@ -49,16 +49,17 @@ internal fun mascotEarTestTag(style: String) = "mascot-ears-$style"
  *
  * Aufbau: Titel + Beschreibung + Schalter (Default aus ⇒ alles bleibt
  * wie bisher); bei aktiviertem Modus: interaktive Vorschau (Tippen →
- * niedliche Reaktion), Farb-Palette (8 Töne), Ohrenform (rund/spitz/
- * lang) und Bäckchen-Schalter. Alle Änderungen wirken sofort im
- * Dashboard (ein DataStore-Flow speist beide Screens).
+ * niedliche Reaktion), Farb-Palette (8 Töne), Antennen-Spitze
+ * (Kugel/Stern/Blitz — M19.6, PAG-Vorbild) und Bäckchen-Schalter.
+ * Alle Änderungen wirken sofort im Dashboard (ein DataStore-Flow speist
+ * beide Screens).
  */
 @Composable
 internal fun MascotSettingsCard(
     config: MascotRepository.MascotConfig,
     onToggle: (Boolean) -> Unit,
     onSelectColor: (String) -> Unit,
-    onSelectEarStyle: (String) -> Unit,
+    onSelectAntennaStyle: (String) -> Unit,
     onToggleCheeks: (Boolean) -> Unit
 ) {
     AevumCard(variant = CardVariant.Elevated) {
@@ -90,7 +91,7 @@ internal fun MascotSettingsCard(
             AnimatedVisibility(visible = config.enabled) {
                 Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                     // Interaktive Vorschau — Tippen löst die süßen
-                    // Reaktionen aus (Hüpfer+Herzen, Wackel+Funkeln,
+                    // Reaktionen aus (Sternchen-Hüpfer, Wackel+Funkeln,
                     // Bäckchen-Pop).
                     Box(
                         modifier = Modifier.fillMaxWidth(),
@@ -100,7 +101,7 @@ internal fun MascotSettingsCard(
                             config = config,
                             smileLevel = 0.85f,
                             sleeping = false,
-                            mascotSize = 116.dp,
+                            mascotSize = 120.dp,
                             testTag = MASCOT_SETTINGS_PREVIEW_TEST_TAG
                         )
                     }
@@ -143,21 +144,21 @@ internal fun MascotSettingsCard(
 
                     // Ohren — rund / spitz / lang.
                     Text(
-                        stringResource(R.string.settings_mascot_ears),
+                        stringResource(R.string.settings_mascot_antenna),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MascotRepository.EAR_STYLES.forEach { style ->
-                            val selected = style == config.earStyle
+                        MascotRepository.ANTENNA_STYLES.forEach { style ->
+                            val selected = style == config.antennaStyle
                             val label = when (style) {
-                                MascotRepository.EARS_POINTY ->
-                                    stringResource(R.string.settings_mascot_ears_pointy)
-                                MascotRepository.EARS_LONG ->
-                                    stringResource(R.string.settings_mascot_ears_long)
+                                MascotRepository.ANTENNA_STAR ->
+                                    stringResource(R.string.settings_mascot_antenna_star)
+                                MascotRepository.ANTENNA_BOLT ->
+                                    stringResource(R.string.settings_mascot_antenna_bolt)
                                 else ->
-                                    stringResource(R.string.settings_mascot_ears_round)
+                                    stringResource(R.string.settings_mascot_antenna_ball)
                             }
                             val pillShape = RoundedCornerShape(AevumRadius.full)
                             Box(
@@ -179,9 +180,9 @@ internal fun MascotSettingsCard(
                                         },
                                         pillShape
                                     )
-                                    .clickable { onSelectEarStyle(style) }
+                                    .clickable { onSelectAntennaStyle(style) }
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
-                                    .testTag(mascotEarTestTag(style))
+                                    .testTag(mascotAntennaTestTag(style))
                             ) {
                                 Text(
                                     label,

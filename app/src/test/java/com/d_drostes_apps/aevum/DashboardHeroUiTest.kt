@@ -148,7 +148,7 @@ class DashboardHeroUiTest {
     private fun mascotEnabled() = MascotRepository.MascotConfig(
         enabled = true,
         colorId = "ice",
-        earStyle = MascotRepository.EARS_ROUND,
+        antennaStyle = MascotRepository.ANTENNA_BALL,
         cheeks = true
     )
 
@@ -544,7 +544,11 @@ class DashboardHeroUiTest {
                 }
             }
         }
-        composeRule.mainClock.advanceTimeBy(2_000)
+        // 3,65 s: Kaskade + Zähler sicher fertig, Endlos-Effekte an einem
+        // deterministischen Punkt — und die Blick-Wanderung des
+        // Maskottchens exakt in Mittelstellung (Antenne steht gerade,
+        // Screenshot wirkt ausbalanciert).
+        composeRule.mainClock.advanceTimeBy(3_650)
         captureTaggedAreaToFile(HERO_SHOT_ROOT, fileName, minBytes = 10_000L)
     }
 

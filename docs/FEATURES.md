@@ -259,29 +259,36 @@ in `docs/M19-2-ABSCHLUSSBERICHT.md`; die zugehörige Tabelle hat die Datenbank
 mit Version 46 wieder verloren (`MIGRATION_45_46`, siehe `docs/DATABASE.md`).
 
 
-## Maskottchen (M19.5, App 1.0.37) — optional, Default AUS
+## Maskottchen (M19.5/M19.6, App 1.0.38) — optional, Default AUS
 
-Ein selbst erstellbares, interaktives Wesen fürs Dashboard. Aktivierbar in
-den Einstellungen (direkt unter „App-Einstellungen"); standardmäßig ist es
-AUS und die App verhält sich exakt wie zuvor.
+Ein selbst erstellbares, interaktives Wesen fürs Dashboard — im Stil des
+PAG-Büro-Maskottchens (Devon: „Halte dich vielleicht an das maskottchen
+aus PAG. Das fand ich gut."). Aktivierbar in den Einstellungen (direkt
+unter „App-Einstellungen"); standardmäßig ist es AUS und die App verhält
+sich exakt wie zuvor.
 
 - **Wohnort:** genau dort, wo sonst die große Güte-Zahl steht — im
-  Güte-Gauge; die kleine Zahl-Zeile (Güte + QUALITY) bleibt darunter als
-  Datenanker und Tap-Fläche für den Güte-Dialog.
+  Güte-Gauge (108 dp, M19.6: „kann ein stück größer sein"); die kleine
+  Zahl-Zeile (Güte + QUALITY) bleibt darunter als Datenanker und
+  Tap-Fläche für den Güte-Dialog.
+- **Aussehen (PAG-Anatomie):** runder Körper mit weichem Farbverlauf ohne
+  Umriss, Antenne mit leuchtender Gold-Spitze, große weiße Augen mit
+  dunklen Pupillen, kleine Smile-Kurve, rosa Bäckchen, weicher Schatten.
 - **Stimmung:** Das Lächeln wächst mit der Tages-Güte; ab Güte 85 funkeln
   Extra-Glanzpunkte in den Augen.
-- **Lebendig:** Atmen (sanftes Scale), Blinzeln (kurz, alle ~4,3 s),
-  langsames Umherschauen. Komplett Canvas-gezeichnet, keine Assets.
-- **Interaktiv:** Tippen löst drei zyklische, niedliche Reaktionen aus —
-  Hüpf-Herzchen ♥, Wackel-Funkeln ✦, Bäckchen-Pop.
-- **Schlafenszeit:** Zwischen 22 und 6 Uhr schläft es (geschlossene
-  Augen, aufsteigende „z z z"; gilt beim Anzeigen von HEUTE). Läuft eine
+- **Lebendig:** Atmen (sehr subtil), Blinzeln (kurz, alle ~4,3 s),
+  langsames Umherschauen (die Antenne neigt sich mit). Komplett
+  Canvas-gezeichnet, keine Assets.
+- **Interaktiv (M19.6: „ohne herzen"):** Tippen löst drei zyklische
+  Reaktionen aus — Sternchen-Hüpfer ★, Wackel+Funkeln ✦, Bäckchen-Pop.
+- **Schlafenszeit:** Zwischen 22 und 6 Uhr schläft es (ruhige Augen-
+  Linien, aufsteigende „z"; gilt beim Anzeigen von HEUTE). Läuft eine
   Aufzeichnung, ist es wach; endet sie, schläft es wieder — der Zustand
   wechselt live mit Start/Stop der Session.
-- **Erstellen:** 8 Körperfarben (Eisblau, Minze, Apfelgrün, Sonnengelb,
-  Pfirsich, Koralle, Rosé, Lavendel), Ohrenform (rund/spitz/lang),
-  Bäckchen an/aus — mit interaktiver Live-Vorschau in den Einstellungen
-  (antippen löst die Reaktion aus!).
+- **Erstellen (leicht personalisierbar):** 8 Körperfarben (Vorgabe:
+  PAG-Blau; dazu Eisblau, Minze, Sonnengelb, Pfirsich, Koralle, Rosé,
+  Lavendel), Antennen-Spitze (Kugel/Stern/Blitz), Bäckchen an/aus — mit
+  interaktiver Live-Vorschau in den Einstellungen (antippen!).
 
 ### Dashboard-Dynamik (M19.5)
 

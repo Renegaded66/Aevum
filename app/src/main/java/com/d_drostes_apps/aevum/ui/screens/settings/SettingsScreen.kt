@@ -142,8 +142,8 @@ fun SettingsScreen(
                     onSelectColor = { colorId ->
                         scope.launch { viewModel.setMascotColor(colorId) }
                     },
-                    onSelectEarStyle = { style ->
-                        scope.launch { viewModel.setMascotEarStyle(style) }
+                    onSelectAntennaStyle = { style ->
+                        scope.launch { viewModel.setMascotAntennaStyle(style) }
                     },
                     onToggleCheeks = { cheeks ->
                         scope.launch { viewModel.setMascotCheeks(cheeks) }
@@ -452,9 +452,9 @@ class SettingsViewModel @Inject constructor(
         mascotRepository.setColor(colorId)
     }
 
-    /** M19.5: Ohrenform des Maskottchens persistieren. */
-    suspend fun setMascotEarStyle(style: String) {
-        mascotRepository.setEarStyle(style)
+    /** M19.6: Antennen-Spitze des Maskottchens persistieren. */
+    suspend fun setMascotAntennaStyle(style: String) {
+        mascotRepository.setAntennaStyle(style)
     }
 
     /** M19.5: Bäckchen an/aus. */

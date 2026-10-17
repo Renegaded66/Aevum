@@ -4,10 +4,10 @@
     <string name="settings_mascot_desc">A tiny creature on your dashboard — it smiles more when your day is going well.</string>
     <string name="settings_mascot_preview_hint">Tap the preview — it reacts!</string>
     <string name="settings_mascot_color">Color</string>
-    <string name="settings_mascot_ears">Ears</string>
-    <string name="settings_mascot_ears_round">Round</string>
-    <string name="settings_mascot_ears_pointy">Pointy</string>
-    <string name="settings_mascot_ears_long">Long</string>
+    <string name="settings_mascot_antenna">Antenna</string>
+    <string name="settings_mascot_antenna_ball">Ball</string>
+    <string name="settings_mascot_antenna_star">Star</string>
+    <string name="settings_mascot_antenna_bolt">Bolt</string>
     <string name="settings_mascot_cheeks">Cheeks</string>
     <string name="mascot_cd">Mascot</string>
     <string name="mascot_cd_score">Your mascot. Day quality: %1$d of 100.</string>

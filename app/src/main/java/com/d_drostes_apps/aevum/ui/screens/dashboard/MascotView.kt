@@ -25,21 +25,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,22 +57,41 @@ import kotlin.math.sin
 internal const val MASCOT_TEST_TAG = "mascot-view"
 internal const val MASCOT_SETTINGS_PREVIEW_TEST_TAG = "mascot-settings-preview"
 
+// PAG-Palette (M19.6): exakt die Töne des Vorbild-Maskottchens.
+private val PAG_INK = Color(0xFF1B2333)
+private val PAG_EYE_WHITE = Color(0xFFF4F8FF)
+private val PAG_PUPIL = Color(0xFF232B3A)
+private val PAG_ANTENNA_LINE = Color(0xFF9FB0C6)
+private val PAG_GOLD = Color(0xFFFFD166)
+private val PAG_CHEEK = Color(0xFFFF8FA3)
+private val PAG_ZZZ = Color(0xFFDEE7F2)
+
 /**
- * M19.5 — DAS MASKOTTCHEN (Devon: „so ein richtig süßes putziges wesen").
+ * M19.5/M19.6 — DAS MASKOTTCHEN, im Stil des PAG-Maskottchens
+ * (Devon: „Halte dich vielleicht an das maskottchen aus PAG. Das fand ich
+ * gut. Das einfach leicht personalisierbar. und ohne herzen bitte,
+ * vielleicht mit sternchen oder so.").
  *
- * Ein weiches Blob-Wesen, komplett in Canvas gezeichnet — keine Assets,
- * anpassbar über [MascotRepository.MascotConfig] (Farbe, Ohren, Bäckchen).
+ * Anatomie (an [personal-ai-gateway/android/mascot] angelehnt, ohne Assets):
+ *  - EIN runder Körper mit weichem Vertikal-Verlauf (kein Umriss),
+ *    Bauchlicht-Oval unten — Farben aus [MascotRepository.COLOR_PALETTE],
+ *    Vorgabe ist das PAG-Blau.
+ *  - Antenne, die sich in Blickrichtung neigt und leicht nachfedert; die
+ *    Spitze ist personalisierbar: Kugel (PAG-Original), Stern oder Blitz.
+ *  - Große weiße Augen mit dunklen Pupillen, die der Blick-Wanderung
+ *    folgen; Blinzeln schiebt das Lid zu (geschlossene Augen = ruhige
+ *    Linie, wie im PAG-Original). Ab sehr guter Güte funkeln Extra-Glints.
+ *  - Kleiner Smile-Mund, dessen Breite/Tiefe mit [smileLevel] wächst
+ *    („je besser die güte, desto mehr soll das maskottchen lächeln");
+ *    im Schlaf ein kleiner Mund-Punkt.
+ *  - Rosa Bäckchen (abschaltbar), weicher Bodenschatten, langsames,
+ *    subtiles Atmen.
  *
- * Verhalten:
- *  - Lächeln wächst mit [smileLevel] (Tages-Güte, 0..1) — „je besser die
- *    güte, desto mehr soll das maskottchen lächeln". Ab sehr guter Güte
- *    funkeln kleine Glanzpunkte in den Augen.
- *  - Lebendig: atmet (Scale), blinzelt (alle ~4,3 s kurz), schaut umher
- *    (langsame Blick-Wanderung), Bäckchen bei aktivierter Option.
- *  - [sleeping] (22–6 Uhr ohne Aufzeichnung): geschlossene Augen, ruhigeres
- *    Atmen, kleine „z z z" schweben auf. Wechselt live mit dem Zustand.
- *  - Tippen: zyklische niedliche Reaktionen (Hüpfer+Herzen, Wackel+Funkeln,
- *    Bäckchen-Pop) — pure Auswahl in [MascotBehavior.reactionFor].
+ * Verhalten: schaut umher (langsame Blick-Wanderung), blinzelt (~alle
+ * 4,3 s); [sleeping] (22–6 Uhr ohne Aufzeichnung): geschlossene Augen +
+ * aufsteigende „z"; Tippen löste drei zyklische Reaktionen aus —
+ * Sternchen-Hüpfer (STAR_HOP), Wackel-Funkeln (WIGGLE_SPARKLES),
+ * Bäckchen-Pop (BLUSH_POP) — „ohne herzen".
  */
 @Composable
 internal fun MascotView(
@@ -102,12 +123,14 @@ internal fun MascotView(
     )
 
     // Dauer-Animationen: Atmen, Blinzeln, Umherschauen, Zzz.
+    // Atem-Tempo wie im PAG-Original: sehr langsam und subtil
+    // (sin-Periode ~10,7 s wach / ~16,3 s schlafend).
     val bodyT = rememberInfiniteTransition(label = "mascotBody")
     val breath by bodyT.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (sleeping) 3600 else 2600, easing = FastOutSlowInEasing),
+            animation = tween(if (sleeping) 8200 else 5300, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "mascotBreath"
@@ -129,7 +152,7 @@ internal fun MascotView(
     )
     val zzzPhase by bodyT.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(2700, easing = LinearEasing), RepeatMode.Restart),
         label = "mascotZzz"
     )
     // Blinzeln: sehr kurzes Zukneifen im späten Zyklus.
@@ -140,9 +163,8 @@ internal fun MascotView(
         else -> 0f
     }
 
-    val baseColor = MascotRepository.colorFor(config.colorId)
-    val darkColor = lerpMascotColor(baseColor, Color(0xFF1B2433), 0.74f)
-    val outlineColor = lerpMascotColor(baseColor, Color(0xFF1B2433), 0.35f)
+    val bodyColor = MascotRepository.colorFor(config.colorId)
+    val bodyBottomColor = lerpMascotColor(bodyColor, PAG_PUPIL, 0.34f)
     val scaleFactor = mascotSize.value / 96f
 
     val p = reactionProgress.value
@@ -171,243 +193,218 @@ internal fun MascotView(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val breathScale = 1f + (if (sleeping) 0.022f else 0.03f) * breath
+            val cx = w / 2f
+            val baseCy = h * 0.545f
+            val r0 = w * 0.31f
+            val breathScale = 1f + 0.014f * breath
             val popScale = if (activeReaction == MascotReaction.BLUSH_POP) {
-                1f + 0.07f * sin(PI * p).toFloat()
+                1f + 0.06f * sin(PI * p).toFloat()
             } else 1f
-            val hop = if (activeReaction == MascotReaction.BOUNCE_HEARTS) {
-                -sin(PI * p).toFloat() * h * 0.16f
+            val r = r0 * breathScale * popScale
+            val hop = if (activeReaction == MascotReaction.STAR_HOP) {
+                -sin(PI * p).toFloat() * r0 * 0.92f
             } else 0f
             val wiggle = if (activeReaction == MascotReaction.WIGGLE_SPARKLES) {
-                sin(p * PI.toFloat() * 3f) * (1f - p) * 9f
+                sin(p * PI.toFloat() * 3f) * (1f - p) * 8f
             } else 0f
+            val cy = baseCy + hop
 
-            val groundPad = h * 0.07f
-            val bottomY = h - groundPad
-            val bodyW = w * 0.70f
-            val bodyH = h * 0.56f * breathScale * popScale
-            val cx = w / 2f
-            val bodyCy = bottomY - bodyH / 2f + hop
-            val bodyTopY = bodyCy - bodyH / 2f
-
-            // Bodenschatten (bleibt am Boden, verkleinert sich beim Hüpfer).
-            val hopFactor = (-hop / (h * 0.16f)).coerceIn(0f, 1f)
-            val shadowW = bodyW * 0.84f * (1f - 0.15f * hopFactor)
+            // Bodenschatten — bleibt am Boden stehen (PAG-Stil).
             drawOval(
-                color = Color.Black.copy(alpha = 0.26f * (1f - 0.55f * hopFactor)),
-                topLeft = Offset(cx - shadowW / 2f, bottomY - h * 0.035f),
-                size = Size(shadowW, h * 0.07f)
+                color = Color(0x40000000),
+                topLeft = Offset(cx - r0 * 1.02f, baseCy + r0 * 0.86f),
+                size = Size(r0 * 2.04f, r0 * 0.40f)
             )
 
-            rotate(degrees = wiggle, pivot = Offset(cx, bottomY)) {
-                // Ohren (hinter dem Körper).
-                when (config.earStyle) {
-                    MascotRepository.EARS_POINTY -> {
-                        listOf(-1f, 1f).forEach { side ->
-                            val ex = cx + side * bodyW * 0.30f
-                            val ey = bodyTopY + h * 0.06f
-                            val path = Path().apply {
-                                moveTo(ex - w * 0.085f, ey)
-                                lineTo(ex + w * 0.085f, ey)
-                                lineTo(ex, ey - h * 0.20f)
-                                close()
-                            }
-                            drawPath(path, color = baseColor)
-                            drawPath(path, color = outlineColor, style = Stroke(width = 2.5.dp.toPx()))
-                        }
-                    }
-                    MascotRepository.EARS_LONG -> {
-                        listOf(-1f, 1f).forEach { side ->
-                            val ex = cx + side * bodyW * 0.36f
-                            val ey = bodyTopY - h * 0.06f
-                            rotate(degrees = side * 20f, pivot = Offset(ex, ey)) {
-                                val earTopLeft = Offset(ex - w * 0.075f, ey - h * 0.24f)
-                                val earSize = Size(w * 0.15f, h * 0.32f)
-                                val earRadius = CornerRadius(w * 0.075f, w * 0.075f)
-                                drawRoundRect(
-                                    color = baseColor,
-                                    topLeft = earTopLeft,
-                                    size = earSize,
-                                    cornerRadius = earRadius
-                                )
-                                drawRoundRect(
-                                    color = outlineColor,
-                                    topLeft = earTopLeft,
-                                    size = earSize,
-                                    cornerRadius = earRadius,
-                                    style = Stroke(width = 2.5.dp.toPx())
-                                )
-                            }
-                        }
-                    }
-                    else -> { // EARS_ROUND
-                        listOf(-1f, 1f).forEach { side ->
-                            val ex = cx + side * bodyW * 0.30f
-                            val ey = bodyTopY + h * 0.045f
-                            drawCircle(color = baseColor, radius = w * 0.135f, center = Offset(ex, ey))
-                            drawCircle(
-                                color = outlineColor, radius = w * 0.135f,
-                                center = Offset(ex, ey), style = Stroke(width = 2.5.dp.toPx())
-                            )
-                        }
-                    }
+            rotate(degrees = wiggle, pivot = Offset(cx, cy + r)) {
+                val lookVX = if (sleeping) 0f else (lookX - 0.5f) * 2f
+                val lookVY = if (sleeping) 0f else (lookY - 0.5f) * 2f
+
+                // Antenne (hinter dem Körper; neigt sich in Blickrichtung,
+                // die Spitze eilt leicht nach — wie im PAG-Original).
+                val antennaBase = Offset(cx + lookVX * r * 0.10f, cy - r * 0.98f)
+                val antennaTip = Offset(
+                    cx + lookVX * r * 0.55f,
+                    cy - r * 1.42f + lookVY * r * 0.10f + breath * r * 0.012f
+                )
+                val antenna = Path().apply {
+                    moveTo(antennaBase.x, antennaBase.y)
+                    quadraticBezierTo(
+                        cx + lookVX * r * 0.22f, cy - r * 1.26f,
+                        antennaTip.x, antennaTip.y
+                    )
                 }
+                drawPath(
+                    path = antenna,
+                    color = PAG_ANTENNA_LINE,
+                    style = Stroke(
+                        width = (w * 0.008f).coerceAtLeast(1.1.dp.toPx()),
+                        cap = StrokeCap.Round
+                    )
+                )
+                drawAntennaTip(config.antennaStyle, antennaTip, r)
 
-                // Körper (weicher Blob) + Umriss + Bäuchlein.
-                val bodyTopLeft = Offset(cx - bodyW / 2f, bodyTopY)
-                val bodySize = Size(bodyW, bodyH)
-                drawOval(
+                // Körper: weicher Vertikal-Verlauf, bewusst OHNE Umriss
+                // (PAG-Stil wirkt flach und weich).
+                drawCircle(
                     brush = Brush.verticalGradient(
-                        listOf(lerpMascotColor(baseColor, Color.White, 0.12f), baseColor)
+                        colors = listOf(bodyColor, bodyBottomColor),
+                        startY = cy - r,
+                        endY = cy + r
                     ),
-                    topLeft = bodyTopLeft,
-                    size = bodySize
+                    radius = r,
+                    center = Offset(cx, cy)
                 )
+                // Bauchlicht.
                 drawOval(
-                    color = outlineColor,
-                    topLeft = bodyTopLeft,
-                    size = bodySize,
-                    style = Stroke(width = 2.5.dp.toPx())
-                )
-                drawOval(
-                    color = lerpMascotColor(baseColor, Color.White, 0.45f).copy(alpha = 0.55f),
-                    topLeft = Offset(cx - bodyW * 0.26f, bodyCy + bodyH * 0.02f),
-                    size = Size(bodyW * 0.52f, bodyH * 0.38f)
+                    color = Color(0x26BFE3FF),
+                    topLeft = Offset(cx - r * 0.55f, cy + r * 0.10f),
+                    size = Size(r * 1.10f, r * 0.72f)
                 )
 
-                // Gesicht.
-                val eyeY = bodyCy - bodyH * 0.07f
-                val eyeDX = bodyW * 0.195f
-                val eyeW = w * 0.095f
-                val eyeH = h * 0.095f * (1f - 0.92f * blink)
-                val lookShiftX = if (sleeping) 0f else (lookX - 0.5f) * 2f * w * 0.018f
-                val lookShiftY = if (sleeping) 0f else (lookY - 0.5f) * 2f * h * 0.012f
-                val happyEyes = activeReaction == MascotReaction.BLUSH_POP && p in 0.12f..0.78f
+                // Gesicht (PAG-Proportionen: große Augen, kleine Kurve).
+                val eyeDX = r * 0.42f
+                val eyeY = cy - r * 0.10f
+                val eyeR = r * 0.30f
+                val blinkEff = if (sleeping) 1f else blink
+                val eyeOpen = 1f - blinkEff * 0.97f
+                val happySquint = activeReaction == MascotReaction.BLUSH_POP && p in 0.12f..0.78f
+                val pupilX = lookVX * eyeR * 0.36f
+                val pupilY = lookVY * eyeR * 0.34f
 
                 listOf(-1f, 1f).forEach { side ->
-                    val ex = cx + side * eyeDX + lookShiftX
-                    val ey = eyeY + lookShiftY
-                    if (sleeping || happyEyes) {
-                        // Geschlossene / Freuden-Augen: freundlicher Bogen.
-                        drawArc(
-                            color = darkColor,
-                            startAngle = 200f,
-                            sweepAngle = 140f,
-                            useCenter = false,
-                            topLeft = Offset(ex - eyeW * 0.62f, ey - eyeW * 0.45f),
-                            size = Size(eyeW * 1.24f, eyeW * 0.9f),
-                            style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round)
+                    val ex = cx + side * eyeDX
+                    if (blinkEff > 0.9f || happySquint) {
+                        // Geschlossene / Freuden-Augen: ruhige Linie.
+                        drawLine(
+                            color = PAG_INK,
+                            start = Offset(ex - eyeR * 0.62f, eyeY),
+                            end = Offset(ex + eyeR * 0.62f, eyeY),
+                            strokeWidth = (w * 0.010f).coerceAtLeast(1.2.dp.toPx()),
+                            cap = StrokeCap.Round
                         )
                     } else {
                         drawOval(
-                            color = darkColor,
-                            topLeft = Offset(ex - eyeW / 2f, ey - eyeH / 2f),
-                            size = Size(eyeW, eyeH)
+                            color = PAG_EYE_WHITE,
+                            topLeft = Offset(ex - eyeR, eyeY - eyeR * eyeOpen),
+                            size = Size(eyeR * 2f, eyeR * 2f * eyeOpen)
                         )
-                        // Glanzpunkt (+ extra Funkeln bei sehr guter Güte).
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.92f),
-                            radius = eyeW * 0.20f,
-                            center = Offset(ex - eyeW * 0.20f, ey - eyeH * 0.22f)
-                        )
-                        if (smile >= 0.85f) {
+                        if (blinkEff < 0.75f) {
+                            val pupilR = eyeR * 0.46f * (1f - blinkEff * 0.5f)
+                            val px = ex + pupilX
+                            val py = eyeY + pupilY
+                            drawCircle(PAG_PUPIL, pupilR, Offset(px, py))
                             drawCircle(
-                                color = Color.White.copy(alpha = 0.45f + 0.35f * breath),
-                                radius = eyeW * 0.11f,
-                                center = Offset(ex + eyeW * 0.18f, ey + eyeH * 0.16f)
+                                Color(0xE6FFFFFF), pupilR * 0.30f,
+                                Offset(px - pupilR * 0.30f, py - pupilR * 0.32f)
                             )
+                            // Extra-Funkeln bei sehr guter Güte (und beim
+                            // Bäckchen-Pop) — Devons „je besser, desto
+                            // fröhlicher".
+                            if (smile >= 0.85f || activeReaction == MascotReaction.BLUSH_POP) {
+                                drawCircle(
+                                    Color.White.copy(alpha = 0.40f + 0.35f * breath),
+                                    pupilR * 0.22f,
+                                    Offset(px + pupilR * 0.55f, py + pupilR * 0.50f)
+                                )
+                            }
                         }
                     }
                 }
 
-                // Mund: Lächeln wächst mit der Güte.
-                val my = bodyCy + bodyH * 0.16f
-                val mw: Float
-                val depth: Float
-                if (sleeping) {
-                    mw = w * 0.085f
-                    depth = h * 0.018f
-                } else {
-                    mw = w * (0.11f + 0.15f * smile)
-                    depth = h * (0.015f + 0.085f * smile)
-                }
-                val mouth = Path().apply {
-                    moveTo(cx - mw / 2f, my)
-                    quadraticBezierTo(cx, my + depth * 2f, cx + mw / 2f, my)
-                }
-                drawPath(
-                    path = mouth,
-                    color = darkColor,
-                    style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round)
-                )
-
-                // Bäckchen (optional): sanftes Rosa; beim Bäckchen-Pop glühen sie.
-                if (config.cheeks) {
+                // Wangen (optional): PAG-Rosa; beim Bäckchen-Pop glühen sie.
+                if (config.cheeks && !sleeping) {
                     val blushBoost = if (activeReaction == MascotReaction.BLUSH_POP) {
                         0.45f * sin(PI * p).toFloat()
                     } else 0f
+                    val cheekAlpha = (0.30f + blushBoost).coerceAtMost(0.85f)
                     listOf(-1f, 1f).forEach { side ->
                         drawCircle(
-                            color = Color(0xFFFB7185).copy(alpha = (0.38f + blushBoost).coerceAtMost(0.9f)),
-                            radius = w * 0.055f,
-                            center = Offset(cx + side * bodyW * 0.335f, my - h * 0.03f)
+                            color = PAG_CHEEK.copy(alpha = cheekAlpha),
+                            radius = r * 0.125f,
+                            center = Offset(cx + side * r * 0.64f, eyeY + r * 0.44f)
                         )
                     }
+                }
+
+                // Mund: kleiner Smile, wächst mit der Güte; im Schlaf ein
+                // ruhiger Mund-Punkt (PAG-Original).
+                val my = cy + r * 0.46f
+                if (sleeping) {
+                    drawCircle(PAG_INK, r * 0.065f, Offset(cx, my))
+                } else {
+                    val hw = r * (0.13f + 0.16f * smile)
+                    val depth = r * (0.045f + 0.075f * smile)
+                    val mouth = Path().apply {
+                        moveTo(cx - hw, my - r * 0.02f)
+                        quadraticBezierTo(cx, my + depth * 2f, cx + hw, my - r * 0.02f)
+                    }
+                    drawPath(
+                        path = mouth,
+                        color = PAG_INK,
+                        style = Stroke(
+                            width = (w * 0.010f).coerceAtLeast(1.2.dp.toPx()),
+                            cap = StrokeCap.Round
+                        )
+                    )
                 }
             }
         }
 
-        // „z z z" — nur im Schlaf (weich ein-/ausblenden beim Zustandswechsel).
+        // „z z z" — nur im Schlaf (weich ein-/ausblenden beim Wechsel);
+        // steigen rechts vom Kopf auf und verblassen (PAG-Original).
         val zzzAlpha by animateFloatAsState(
             targetValue = if (sleeping) 1f else 0f,
             animationSpec = tween(500),
             label = "mascotZzzAlpha"
         )
         if (zzzAlpha > 0.01f) {
+            val density = LocalDensity.current
+            val px = with(density) { mascotSize.toPx() }
+            val rPx = px * 0.31f
+            val zFontSize = with(density) { (px * 0.070f).toSp() }
             listOf(0, 1, 2).forEach { i ->
-                val phase = ((zzzPhase + i * 0.33f) % 1f)
-                val alpha = sin(PI * phase).toFloat() * 0.85f * zzzAlpha
-                if (alpha > 0.01f) {
+                val t = ((zzzPhase * 2.7f) + i * 0.9f) % 2.7f
+                val frac = t / 2.7f
+                val alpha = (1f - frac) * 0.78f * zzzAlpha
+                if (alpha > 0.02f) {
                     Text(
                         text = "z",
-                        fontSize = ((10f + 6f * phase) * scaleFactor).sp,
-                        color = lerpMascotColor(baseColor, Color(0xFF1B2433), 0.45f).copy(alpha = alpha),
+                        fontSize = zFontSize,
+                        fontWeight = FontWeight.Bold,
+                        color = PAG_ZZZ.copy(alpha = alpha),
                         modifier = Modifier
                             .align(Alignment.Center)
                             .graphicsLayer {
-                                val px = mascotSize.toPx()
-                                translationX = px * (0.30f + i * 0.06f)
-                                translationY = -px * (0.22f * phase + 0.12f * (i + 1))
-                                rotationZ = 12f
+                                translationX = rPx * (0.5f + frac * 0.5f)
+                                translationY = px * 0.045f - rPx * (0.85f + 0.85f * frac)
                             }
                     )
                 }
             }
         }
 
-        // Reaktions-Partikel (Herzen / Funkelsterne) — laufen mit p aus.
+        // Reaktions-Partikel (Sternchen / Funkelsterne) — laufen mit p aus.
         if (activeReaction != null && p > 0f && p < 1f) {
-            if (activeReaction == MascotReaction.BOUNCE_HEARTS) {
+            if (activeReaction == MascotReaction.STAR_HOP) {
                 listOf(0, 1, 2).forEach { i ->
-                    // M19.5: Staffelung kompakt (0.06 statt 0.12) — alle
-                    // drei Herzchen sind gemeinsam klar sichtbar, statt
-                    // dass das letzte (fast transparent über dem dunklen
-                    // Grund) als „schwarzes" Herz wahrgenommen wird.
+                    // Staffelung kompakt, damit alle drei Sternchen klar
+                    // sichtbar sind (Lesson aus M19.5).
                     val prog = ((p - i * 0.06f) / 0.94f).coerceIn(0f, 1f)
                     val visible = p >= i * 0.06f
-                    val alpha = if (visible) sin(PI * prog).toFloat() * 0.9f else 0f
+                    val alpha = if (visible) sin(PI * prog).toFloat() * 0.95f else 0f
                     if (alpha > 0.02f) {
                         Text(
-                            text = "\u2665",
-                            fontSize = ((14f + 4f * prog) * scaleFactor).sp,
-                            color = Color(0xFFFB7185).copy(alpha = alpha),
+                            text = "\u2605",
+                            fontSize = ((13f + 4f * prog) * scaleFactor).sp,
+                            color = PAG_GOLD.copy(alpha = alpha),
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .graphicsLayer {
                                     val px = mascotSize.toPx()
-                                    translationX = (i - 1) * px * 0.34f +
+                                    translationX = (i - 1) * px * 0.36f +
                                         sin(prog * PI.toFloat() * 2f) * px * 0.03f
-                                    translationY = -px * (0.30f + 0.34f * prog)
+                                    translationY = -px * (0.34f + 0.36f * prog)
                                 }
                         )
                     }
@@ -420,7 +417,7 @@ internal fun MascotView(
                         Text(
                             text = "\u2726",
                             fontSize = ((10f + 3f * p) * scaleFactor).sp,
-                            color = Color(0xFFFDE047).copy(alpha = alpha),
+                            color = PAG_GOLD.copy(alpha = alpha),
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .graphicsLayer {
@@ -436,6 +433,74 @@ internal fun MascotView(
             }
         }
     }
+}
+
+/**
+ * M19.6: Antennen-Spitze je Personalisierung — Kugel (PAG-Original),
+ * Sternchen oder Blitz, jeweils mit warmem Gold-Glow.
+ */
+private fun DrawScope.drawAntennaTip(style: String, tip: Offset, r: Float) {
+    when (style) {
+        MascotRepository.ANTENNA_STAR -> {
+            drawCircle(PAG_GOLD.copy(alpha = 0.18f), r * 0.17f, tip)
+            val star = starPath(tip, r * 0.135f)
+            drawPath(star, PAG_GOLD)
+            drawPath(
+                star,
+                Color.White.copy(alpha = 0.40f),
+                style = Stroke(width = (r * 0.012f).coerceAtLeast(1f))
+            )
+        }
+        MascotRepository.ANTENNA_BOLT -> {
+            drawCircle(PAG_GOLD.copy(alpha = 0.16f), r * 0.17f, tip)
+            drawPath(boltPath(tip, r * 1.10f), PAG_GOLD)
+        }
+        else -> { // ANTENNA_BALL — exakt wie im PAG-Original.
+            drawCircle(PAG_GOLD.copy(alpha = 0.20f), r * 0.133f, tip)
+            drawCircle(PAG_GOLD, r * 0.070f, tip)
+            drawCircle(
+                Color.White.copy(alpha = 0.75f),
+                r * 0.022f,
+                Offset(tip.x - r * 0.025f, tip.y - r * 0.030f)
+            )
+        }
+    }
+}
+
+/** Fünfzackiger Stern um [center] (Spitze oben). */
+private fun starPath(center: Offset, radius: Float): Path {
+    val path = Path()
+    val points = 5
+    for (i in 0 until points * 2) {
+        val rad = if (i % 2 == 0) radius else radius * 0.45f
+        val angle = (-90.0 + i * 180.0 / points) * PI / 180.0
+        val x = center.x + (rad * cos(angle)).toFloat()
+        val y = center.y + (rad * sin(angle)).toFloat()
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    return path
+}
+
+/** Kompakte Blitz-Silhouette um [center] — Kantenlänge skaliert mit [unit]. */
+private fun boltPath(center: Offset, unit: Float): Path {
+    val points = listOf(
+        -0.025f to -0.20f,
+        0.100f to -0.20f,
+        0.020f to -0.03f,
+        0.125f to -0.03f,
+        -0.025f to 0.20f,
+        0.0125f to 0.02f,
+        -0.075f to 0.02f
+    )
+    val path = Path()
+    points.forEachIndexed { i, (dx, dy) ->
+        val x = center.x + dx * unit
+        val y = center.y + dy * unit
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    return path
 }
 
 /** Linearer Farb-Mix (lokal — DashboardHero hat denselben als private). */

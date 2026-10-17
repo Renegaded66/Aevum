@@ -644,7 +644,10 @@ private fun HeroGauge(
                     config = mascot,
                     smileLevel = MascotBehavior.smileLevel(score),
                     sleeping = mascotSleeping,
-                    mascotSize = 92.dp,
+                    // M19.6: „Im dashboard kann das auch ein stück größer
+                    // sein" — 108 statt 92 dp (passt samt Antenne in den
+                    // vergrößerten Gauge-Halbkreis).
+                    mascotSize = 108.dp,
                     contentDescription = stringResource(R.string.mascot_cd_score, score),
                     testTag = DASHBOARD_HERO_MASCOT_TEST_TAG
                 )

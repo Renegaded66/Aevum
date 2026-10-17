@@ -309,3 +309,37 @@ Glyphen; Nudge-Werte je Glyphe wären font-abhängig und brächen still.
 (DashboardHeroPeek) lag danach im Ausblend-Bereich des Gradienten („kaum Farbe
 durchschimmernd" in der Sichtprüfung). Mit 0.965 liegt das Band in der vollen
 Farbe; die letzten 3,5 % blenden weich aus (Sichtprüfung: „Ja, dezent").
+
+**Entscheidung (M19.6):** Das Maskottchen wird 1:1 an das PAG-Büro-Maskottchen
+angelehnt (Anatomie und Kernfarben aus dessen geprüftem Compose-Code übernommen:
+runder Körper 0.31 R, Augen-Radius 0.30 R, Pupille 46 %, Augen-Abstand 0.42 R,
+Mund ±0.20 R, Antenne mit Gold-Kugel #FFD166, Töne #F4F8FF/#232B3A/#9FB0C6/
+#FF8FA3; flach, OHNE Umriss); die M19.5-Ohren entfallen ersatzlos.
+**Grund:** Devon: „Die sehen mir nicht gut genug aus. Halte dich vielleicht an
+das maskottchen aus PAG. Das fand ich gut." — das Vorbild existiert als
+geprüfter Code auf dieser Maschine; Übernehmen ist risikoärmer als neu erfinden.
+**Alternative:** Eigenständigen Stil behalten und nur Details ändern — verworfen:
+genau die Anatomie (runde Kugel, Antenne, große weiße Augen, kein Umriss) war
+das, was Devon am PAG-Wesen mochte.
+
+**Entscheidung (M19.6):** Personalisierung leicht gehalten: Farbe (8 Töne,
+Vorgabe PAG-Blau #5E7CE8) + Antennen-Spitze (Kugel/Stern/Blitz) + Bäckchen —
+die Ohren-Optionen werden durch Antennen-Spitzen ersetzt; alte Werte
+(round/pointy/long) validieren auf Default (Kugel).
+**Grund:** „Das einfach leicht personalisierbar." Drei klare Achsen reichen;
+die Antennen-Spitze ist das natürliche Pendant zu den Ohren und knüpft an
+Devons Sternchen-Wunsch an.
+
+**Entscheidung (M19.6):** Alle Tipp-Reaktionen herzfrei — Sternchen-Hüpfer
+(★ gold), Wackel+Funkeln (✦ gold), Bäckchen-Pop mit Freuden-LINIEN-Augen
+(statt der M19.5-∩-Bögen).
+**Grund:** „ohne herzen bitte, vielleicht mit sternchen oder so." Die
+Bögen-Augen wurden durch PAG-konforme Linien-Augen ersetzt, damit die
+Design-Sprache des Vorbilds überall konsistent bleibt.
+
+**Entscheidung (M19.6):** Screenshot-Freeze auf 3,65 s (statt 1,2–2,0 s):
+dann steht die Blick-Wanderung exakt in Mittelstellung (Antenne gerade),
+Kaskaden/Zähler sind fertig.
+**Grund:** Die Sichtprüfung stufte die eingefrorene Antenne (mitten im
+Schwung) als „verrutscht" ein; bei 3,65 s sind Antenne/Pupillen symmetrisch.
+Reine Test-/Doku-Maßnahme, kein App-Verhalten.

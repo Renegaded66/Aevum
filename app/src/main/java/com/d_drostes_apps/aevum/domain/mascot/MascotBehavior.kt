@@ -1,7 +1,7 @@
 package com.d_drostes_apps.aevum.domain.mascot
 
 /**
- * M19.5 — Reine Verhaltens-Logik des Maskottchens (testbar ohne Android).
+ * M19.5/M19.6 — Reine Verhaltens-Logik des Maskottchens (testbar ohne Android).
  *
  * Drei Regeln aus dem Devon-Auftrag:
  *  1. „Zwischen 22 und 6 Uhr soll das maskottchen schlafen, außer es wird
@@ -12,6 +12,8 @@ package com.d_drostes_apps.aevum.domain.mascot
  *     Lächel-Level 0..1 ist die (geklemmte) Güte.
  *  3. Tippen löst abwechselnde, niedliche Reaktionen aus (deterministischer
  *     Zyklus — besser testbar und fühlt sich trotzdem lebendig an).
+ *     M19.6: Sternchen statt Herzchen (Devon: „ohne herzen bitte,
+ *     vielleicht mit sternchen oder so").
  */
 object MascotBehavior {
 
@@ -53,8 +55,8 @@ object MascotBehavior {
 
 /** Die drei niedlichen Tipp-Reaktionen (bewusst klein gehalten). */
 enum class MascotReaction {
-    /** Hüpfer + schwebende Herzchen. */
-    BOUNCE_HEARTS,
+    /** Hüpfer + aufsteigende Sternchen (M19.6: statt Herzchen). */
+    STAR_HOP,
 
     /** Wackel-Tanz + goldene Funkelsterne. */
     WIGGLE_SPARKLES,

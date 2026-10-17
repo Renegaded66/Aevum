@@ -492,23 +492,40 @@ Randnotizen:
 - Beweis: Integrationstest mit echter LazyColumn (scrollBy 400dp →
   Hero-Position konstant ±4px; Sheet sichtbar nach oben gewandert).
 
-### Maskottchen-Design (Canvas, kein Asset)
+### Maskottchen-Design (Canvas, kein Asset — M19.6: PAG-Vorbild)
 
-- Weiches Blob-Wesen: Ohr-Varianten rund (Kreis), spitz (Dreieck-Pfad),
-  lang (rotierte RoundRects). Körper-Oval mit Vertikalverlauf, dunklerem
-  Umriss (lerp(base, #1B2433, 0.35)), Bäuchlein, weicher Bodenschatten.
-- Gesicht: dunkle Ovals mit Weiß-Glanzpunkt (+ Extra-Funkeln ab Güte 85);
-  geschlossene Augen als 200°–340°-Bögen (Schlaf UND Freuden-Augen).
-- Mund: quadratische Bézier, Breite/Tiefe wachsen mit der Güte
-  (`MascotBehavior.smileLevel` = geklemmte Güte/100); im Schlaf klein/flach.
-- Bäckchen: Rosa-Kreise (#FB7185, Alpha 0.38), beim Bäckchen-Pop bis 0.9.
-- Farben: feste 8er-Palette in Aevum-Tönen (Eisblau = Brand-Anker).
-- Reaktionen: Partikel als Text-Glyphen (♥ rosa, ✦ gold) über
-  graphicsLayer-Offsets; Hüpfer −0.16×Höhe, Wackeln ±9°, Pop +7 %.
-- Schlaf: Alpha-Blende + drei aufsteigende „z" (Phase je 0.33 versetzt).
-- Determinismus: Dauer-Effekte über rememberInfiniteTransition, Reaktions-
-  Fortschritt als Animatable(1700 ms, Linear) — unter der Test-Uhr exakt
-  reproduzierbar.
+M19.5 baute ein eigenes Blob-Wesen; M19.6 ersetzt es durch den Stil des
+PAG-Büro-Maskottchens (`personal-ai-gateway/android/mascot`; Devon: „Halte
+dich vielleicht an das maskottchen aus PAG. Das fand ich gut."):
+
+- EIN runder Körper (Radius 0.31×Breite) mit weichem Vertikal-Verlauf und
+  bewusst KEINEM Umriss; Bauchlicht-Oval (0x26BFE3FF) — PAG-Proportionen
+  (Augen-Radius 0.30×Körperradius, Pupille 46 % davon, Wangen bei ±0.64 R,
+  Mund-Kurve ±0.20 R, Schatten-Oval 2.04 R × 0.40 R).
+- Antenne (quadratische Bézier) neigt sich in Blickrichtung, die Spitze
+  eilt nach; personalisierbar: Kugel (PAG exakt, Gold #FFD166 mit Glow),
+  Sternchen (5-Zack-Pfad) oder Blitz (Zickzack-Pfad) — ersetzt die
+  M19.5-Ohren (das Vorbild hat eine Antenne).
+- Große weiße Augen (#F4F8FF) mit dunklen Pupillen (#232B3A), die der
+  Blick-Wanderung folgen (×0.36 R); Glanzpunkt; Blinzeln = Lid-Squash,
+  geschlossen = ruhige Linie (PAG-Stil); ab Güte 85 (+ Bäckchen-Pop)
+  Extra-Funkeln in der Pupille.
+- Mund: kleine Smile-Kurve (#1B2333), Breite/Tiefe wachsen mit der Güte
+  (`MascotBehavior.smileLevel` = geklemmte Güte/100); im Schlaf ein
+  Mund-Punkt (PAG-Original).
+- Bäckchen: Rosa #FF8FA3, Basis-Alpha 0.30, beim Bäckchen-Pop bis 0.85.
+- Farben: feste 8er-Palette; Vorgabe PAG-Blau #5E7CE8 (Devons Vorbild).
+- Reaktionen (M19.6: „ohne herzen, vielleicht mit sternchen"): Sternchen-
+  Hüpfer (★ gold, Hüpfer −0.92 R), Wackel+Funkelsterne (✦ gold, ±8°),
+  Bäckchen-Pop (Freuden-Linien-Augen + Wangen-Glühen + Pop +6 %).
+- Schlaf: Augen-Linien + drei aufsteigende „z" (weiß→transparent,
+  x = cx + 0.5..1.0 R, y = cy − 0.85..1.7 R, 2,7-s-Zyklus — PAG-Formel).
+- Atmen: sehr subtil (Scale 1 ± 0.014; ~10,7 s wach / ~16,3 s schlafend —
+  PAG-Tempo statt der früheren 2,6 s).
+- Determinismus: Dauer-Effekte über rememberInfiniteTransition; alle
+  Screenshots frieren bei 3,65 s ein (Blick-Wanderung exakt in
+  Mittelstellung = Antenne steht gerade); Reaktion = Animatable(1700 ms,
+  LinearEasing) — unter der Test-Uhr exakt reproduzierbar.
 
 ### Glyphen-Zentrierung in Buttons
 

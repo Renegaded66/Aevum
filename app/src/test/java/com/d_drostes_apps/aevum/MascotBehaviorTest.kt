@@ -14,7 +14,8 @@ import org.junit.Test
  *  - „solange was aufgezeichnet wird schläft es nicht … sobald nicht mehr
  *    schläft es" (isRecording übersteuert),
  *  - „je besser die güte, desto mehr soll das maskottchen lächeln",
- *  - deterministischer Reaktions-Zyklus beim Tippen.
+ *  - deterministischer Reaktions-Zyklus beim Tippen (M19.6: Sternchen
+ *    statt Herzchen).
  */
 class MascotBehaviorTest {
 
@@ -70,12 +71,12 @@ class MascotBehaviorTest {
     fun reactionForCyclesDeterministically() {
         assertThat(MascotBehavior.reactionFor(0)).isNull()
         assertThat(MascotBehavior.reactionFor(-1)).isNull()
-        assertThat(MascotBehavior.reactionFor(1)).isEqualTo(MascotReaction.BOUNCE_HEARTS)
+        assertThat(MascotBehavior.reactionFor(1)).isEqualTo(MascotReaction.STAR_HOP)
         assertThat(MascotBehavior.reactionFor(2)).isEqualTo(MascotReaction.WIGGLE_SPARKLES)
         assertThat(MascotBehavior.reactionFor(3)).isEqualTo(MascotReaction.BLUSH_POP)
         // Zyklisch: der 4. Tipp beginnt wieder bei der ersten Reaktion.
-        assertThat(MascotBehavior.reactionFor(4)).isEqualTo(MascotReaction.BOUNCE_HEARTS)
-        assertThat(MascotBehavior.reactionFor(7)).isEqualTo(MascotReaction.BOUNCE_HEARTS)
+        assertThat(MascotBehavior.reactionFor(4)).isEqualTo(MascotReaction.STAR_HOP)
+        assertThat(MascotBehavior.reactionFor(7)).isEqualTo(MascotReaction.STAR_HOP)
     }
 
     @Test

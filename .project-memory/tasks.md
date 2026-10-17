@@ -140,3 +140,19 @@
       WICHTIG fürs nächste Mal: Screenshot-Sichtprüfung bei sehr
       großen Bildern → Crop als eigene Datei (PIL) statt Region-Param;
       Pinning-Beweis = scrollBy-Integrationstest (boundsInRoot.top ±4px).
+- [x] M19.6 (App 1.0.38, vc 39): Maskottchen im PAG-Vorbild (Devon:
+      „Halte dich vielleicht an das maskottchen aus PAG. Das fand ich
+      gut.") — Canvas-Wesen 1:1 im PAG-Stil (runder Körper ohne Umriss,
+      Antenne mit leuchtender Gold-Spitze, weiße Augen mit Pupillen +
+      Blick-Wanderung, Smile mit Güte-Tiefe, rosa Wangen, subtiles
+      PAG-Atmen ~10,7s); Personalisierung leicht gehalten: 8 Farben
+      (Vorgabe PAG-Blau #5E7CE8), Antennen-Spitze Kugel/Stern/Blitz
+      (ersetzt die M19.5-Ohren; Alt-Werte validieren auf Kugel),
+      Bäckchen; Reaktionen herzfrei (Sternchen-Hüpfer ★, Wackel+Funkeln
+      ✦, Bäckchen-Pop mit Linien-Augen); im Dashboard 108dp (größer),
+      Settings-Vorschau 120dp. Screenshot-Freeze 3,65s (Blick-Wanderung
+      in Mittelstellung — sonst wirkt die Antenne „verrutscht").
+      1187/1187 Tests grün, Voll-Build Exit 0 (8m41s), Debug-APK
+      123.626.270 B kanonisch signiert (apksigner), Release 52.027.795 B,
+      AAB 24.284.037 B; 10 Screenshots aevum-1.0.38-* auf dem APK-Server
+      (HTTP 200). Bericht `docs/M19-6-ABSCHLUSSBERICHT.md`.
