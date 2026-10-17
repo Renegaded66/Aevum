@@ -1,3 +1,4 @@
+using Aevum.PcTracker.Core.Models;
 using Aevum.PcTracker.Core.Services;
 
 namespace Aevum.PcTracker.Services;
@@ -51,29 +52,44 @@ public sealed class AppHost : IAsyncDisposable
             Server.IsRunning && Server.BoundPort > 0 ? Server.BoundPort : Settings.Current.ApiPort,
             Pairing.Enabled));
         // PC 1.5.0: Handy-Vorrang — der Tracker fragt bei jedem Tick (und vor
-        // jedem manuellen Start), ob das Handy gerade aufzeichnet.
-        // PC 1.5.2: Dafür gilt das geduldige Prioritätsfenster (5 min statt
-        // 45 s) — plus Übergangs-Logging, damit Funkstille-Fälle nie wieder
-        // Rätselraten sind.
+        // jedem manuellen Start) nach dem Urteil des Live-Kanals.
+        // PC 1.5.2: Dafür gilt das geduldige Prioritätsfenster (5 min).
+        // PC 1.6.0: VERIFIKATIONS-GATE — der PC startet nur noch, wenn frisch
+        // bestätigt ist, dass am Handy nichts läuft (Devon: „erst erlauben […]
+        // wenn die desktop app verifiziert hat, das auf dem handy nichts
+        // läuft, ansonsten […] meldung"). Das Gate ist erst aktiv, nachdem
+        // ein Handy den PC einmal kontaktiert hat (PhoneKnownAtMs) — ein PC
+        // ohne Kopplung zeichnet wie immer auf. Jeder Urteils-Wechsel landet
+        // im phone-priority.log.
         Tracker = new TrackerService(ProbeFactory.Create(), Store, Settings, Clock,
-            phoneRecording: now =>
+            phoneGate: now =>
             {
-                var recording = PhoneLive.IsRecordingForPriority(now);
-                if (_lastPhoneRecording != recording)
+                var verdict = PhoneLive.GetGateVerdict(now, Settings.Current.PhoneKnownAtMs > 0);
+                if (_lastPhoneGate != verdict)
                 {
                     var status = PhoneLive.GetStatus(now);
                     var age = status.Session is null ? -1 : now - status.Session.LastUpdateMs;
-                    UpdateLog.AppendTo(DataDirectory, "phone-priority.log",
-                        recording
-                            ? $"vorrang: Handy-Aufzeichnung erkannt (letzte Meldung vor {age / 1000}s)"
-                            : $"vorrang: PC wieder frei — {(age < 0 ? "Handy meldete keine Session" : $"letzte Meldung vor {age / 1000}s (> {PhoneLiveRegistry.PriorityWindowMs / 60_000} min)")}");
-                    _lastPhoneRecording = recording;
+                    UpdateLog.AppendTo(DataDirectory, "phone-priority.log", verdict switch
+                    {
+                        PhoneGateVerdict.Recording =>
+                            $"vorrang: Handy-Aufzeichnung erkannt (letzte Meldung vor {age / 1000}s)",
+                        PhoneGateVerdict.VerifiedIdle =>
+                            $"verifiziert: am Handy läuft nichts (Bestätigung vor {status.IdleVerifiedAgeMs / 1000}s) — PC darf starten",
+                        PhoneGateVerdict.Unverified when age >= 0 =>
+                            $"verifikation fehlt: letzte Handy-Meldung vor {age / 1000}s (zeichnete auf) — PC startet nichts",
+                        PhoneGateVerdict.Unverified when status.IdleVerifiedAgeMs >= 0 =>
+                            $"verifikation fehlt: letzte Bestätigung vor {status.IdleVerifiedAgeMs / 60_000} min — PC startet nichts",
+                        PhoneGateVerdict.Unverified =>
+                            "verifikation fehlt: noch keine Bestätigung vom Handy — PC startet nichts",
+                        _ => "verifikation: kein Handy gekoppelt — Gate aus",
+                    });
+                    _lastPhoneGate = verdict;
                 }
-                return recording;
+                return verdict;
             });
     }
 
-    private bool? _lastPhoneRecording;
+    private PhoneGateVerdict? _lastPhoneGate;
 
     /// <summary>
     /// PC 1.5.0/1.5.2: Zeichnet gerade das Handy auf? Für den Vorrang zählt
@@ -85,6 +101,12 @@ public sealed class AppHost : IAsyncDisposable
     public bool IsPhoneRecording()
     {
         return PhoneLive.IsRecordingForPriority(Clock.NowMs);
+    }
+
+    /// <summary>PC 1.6.0: Das Gate-Urteil fürs Dashboard (Vorrang/Verifikation).</summary>
+    public PhoneGateVerdict GetPhoneVerdict()
+    {
+        return PhoneLive.GetGateVerdict(Clock.NowMs, Settings.Current.PhoneKnownAtMs > 0);
     }
 
     public static string DefaultDataDirectory()

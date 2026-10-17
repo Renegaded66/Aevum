@@ -23,6 +23,12 @@ namespace Aevum.PcTracker.Core.Services;
 ///     isPaused=true, Stop → keine Session) → Befehl erledigt.
 ///  4. Nach [CommandTtlMs] ohne Bestätigung wird der Befehl verworfen —
 ///     das Dashboard zeigt das ehrlich als „keine Rückmeldung".
+///
+/// PC 1.6.0: Dieselbe Meldung trägt jetzt auch das VERIFIKATIONS-GATE:
+/// Die App bestätigt nach jedem Sync ausdrücklich auch „nichts läuft"
+/// (session:null) — nur mit frischer Bestätigung darf der PC starten
+/// (siehe <see cref="GetGateVerdict"/>). Ein veraltetes „zeichnet auf"
+/// zählt dabei NIE als frei.
 /// </summary>
 public sealed class PhoneLiveRegistry
 {
@@ -45,6 +51,15 @@ public sealed class PhoneLiveRegistry
     /// </summary>
     public const long PriorityWindowMs = 5 * 60_000;
 
+    /// <summary>
+    /// PC 1.6.0: So lange gilt eine „nichts läuft"-Bestätigung des Handys
+    /// für das Verifikations-Gate als frisch. Die App bestätigt nach jedem
+    /// Sync (Auto-Sync ~alle 15 min + App-Öffnen) ausdrücklich auch den
+    /// Leerlauf; das Fenster deckt zwei verpasste Takte (Doze/WLAN) ab.
+    /// Älter als das → der PC startet nichts und meldet „nicht verifiziert".
+    /// </summary>
+    public const long IdleVerificationWindowMs = 30 * 60_000;
+
     /// <summary>Ein unbeantworteter Befehl wird nach dieser Zeit verworfen.</summary>
     public const long CommandTtlMs = 60_000;
 
@@ -56,6 +71,9 @@ public sealed class PhoneLiveRegistry
     private PhoneLiveCommand? _pending;
     private long _pendingSetMs;
 
+    /// <summary>PC 1.6.0: Zeitpunkt der letzten „nichts läuft"-Bestätigung (0 = nie).</summary>
+    private long _lastIdleReportMs;
+
     /// <summary>
     /// Verarbeitet eine Meldung der App (null = „keine Session mehr").
     /// Rückgabe: der ausstehende Befehl, den die App jetzt ausführen soll.
@@ -66,8 +84,11 @@ public sealed class PhoneLiveRegistry
         {
             if (session is null)
             {
-                // Die App meldet ausdrücklich „nichts läuft mehr".
+                // Die App meldet ausdrücklich „nichts läuft mehr" — das ist
+                // die Bestätigung, die das Verifikations-Gate (PC 1.6.0)
+                // verlangt; jede Wiederholung (Sync-Ping) frischt sie auf.
                 _session = null;
+                _lastIdleReportMs = nowMs;
             }
             else
             {
@@ -110,6 +131,40 @@ public sealed class PhoneLiveRegistry
         }
     }
 
+    /// <summary>
+    /// PC 1.6.0: Das Verifikations-Gate. Devon: „erst erlauben […] wenn die
+    /// desktop app verifiziert hat, das auf dem handy nichts läuft, ansonsten
+    /// […] meldung das der stand des handys nicht verifiziert werden konnte."
+    ///
+    /// Wichtig: Ein veraltetes „zeichnet auf" zählt NICHT als frei — ohne
+    /// frische Bestätigung bleibt es bei „nicht verifiziert" (fail-closed)
+    /// und der PC startet nichts Neues. Genau das macht die früheren
+    /// Minuten-Falschaufzeichnungen strukturell unmöglich.
+    /// </summary>
+    public PhoneGateVerdict GetGateVerdict(long nowMs, bool coupled)
+    {
+        if (!coupled)
+        {
+            return PhoneGateVerdict.NotCoupled;
+        }
+        lock (_lock)
+        {
+            if (_session is not null)
+            {
+                var age = nowMs - _session.LastUpdateMs;
+                return age >= 0 && age <= PriorityWindowMs
+                    ? PhoneGateVerdict.Recording
+                    : PhoneGateVerdict.Unverified;
+            }
+            if (_lastIdleReportMs > 0 && nowMs >= _lastIdleReportMs
+                && nowMs - _lastIdleReportMs <= IdleVerificationWindowMs)
+            {
+                return PhoneGateVerdict.VerifiedIdle;
+            }
+            return PhoneGateVerdict.Unverified;
+        }
+    }
+
     /// <summary>Momentaufnahme fürs Dashboard (Sekunden-Takt).</summary>
     public PhoneLiveStatus GetStatus(long nowMs)
     {
@@ -127,7 +182,8 @@ public sealed class PhoneLiveRegistry
                 _session,
                 stale,
                 _pending,
-                _pending is null ? 0 : Math.Max(0, nowMs - _pendingSetMs));
+                _pending is null ? 0 : Math.Max(0, nowMs - _pendingSetMs),
+                _lastIdleReportMs == 0 ? -1 : Math.Max(0, nowMs - _lastIdleReportMs));
         }
     }
 

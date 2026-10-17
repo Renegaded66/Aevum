@@ -343,3 +343,44 @@ Kaskaden/Zähler sind fertig.
 **Grund:** Die Sichtprüfung stufte die eingefrorene Antenne (mitten im
 Schwung) als „verrutscht" ein; bei 3,65 s sind Antenne/Pupillen symmetrisch.
 Reine Test-/Doku-Maßnahme, kein App-Verhalten.
+
+**Entscheidung (PC 1.6.0):** Verifikations-Gate **fail-closed** statt
+längerer Karenz: Der PC startet gar nichts Neues (Regel, allgemein,
+manuell), solange keine FRISCHE Bestätigung „am Handy läuft nichts" (≤ 30
+min) vorliegt; ein veraltetes „zeichnet auf" zählt NIE als frei.
+**Grund:** Devon wörtlich: „erst erlauben … wenn verifiziert … ansonsten
+Meldung. Damit das problem nicht weiterhin besteht." 1.5.2 (5-min-Karenz)
+dämpfte nur — jede Sendelücke > Karenz reproduzierte den Bug.
+**Alternative:** Karenz auf 30–60 min erhöhen — verworfen (Pflaster;
+Verifikation würde entwertet).
+
+**Entscheidung (PC 1.6.0):** LAUFENDE PC-Sessions überleben einen
+Bestätigungs-Abriss; nur NEUE Starts brauchen die Bestätigung.
+**Grund:** Sonst schneidet jede Sync-Verzögerung (Doze, WLAN) eine gesunde
+Aufzeichnung ab. Echte Doppel-Aufzeichnungen verhindert weiterhin der
+frische Handy-Vorrang, sobald eine Meldung ankommt.
+
+**Entscheidung (PC 1.6.0):** Bestätigungsfenster = 30 min
+(`PhoneLiveRegistry.IdleVerificationWindowMs`) — zwei verpasste 15-min-
+Sync-Takte inkl. Doze-Spielraum; EINE nachjustierbare Konstante.
+
+**Entscheidung (PC 1.6.0):** Gate erst nach erstem Handy-Kontakt aktiv
+(`AppSettings.PhoneKnownAtMs`, gesetzt von der ersten token-authentifizierten
+Anfrage); PCs ohne Kopplung zeichnen wie immer.
+**Grund:** Kein Regress für reine PC-Installationen; danach dauerhafte
+Verifikationspflicht.
+
+**Entscheidung (App 1.0.39):** Verifikations-Ping über den BESTEHENDEN
+`/api/live`-Endpunkt (`session:null`), gesendet nach jedem erfolgreichen
+Sync (Auto + App-Öffnen-Kick); gemeinsamer Snapshot-Bauer `PcLiveState`.
+**Grund:** Kein Protokoll-Sprung, kein neuer Endpunkt; das positive
+Leerlauf-Signal ist die Voraussetzung des Gates.
+
+**Xvfb-Smoke-Funde (PC 1.6.0):** (1) „Jetzt starten"-Zeile war nicht am
+Gate gebunden → klickbar ohne Wirkung; jetzt `IsStartEnabled` + sichtbar
+deaktiviert. (2) Chips/Ghost-Buttons hatten KEINE Disabled-Styles → jetzt
+Opacity-Stile. (3) Zwei App-Instanzen (zweite bindet Nachbarport; ihr
+Fenster lag oben) führten zu einer scheinbar „eingefrorenen" UI — Test-
+Fallstrick, kein App-Bug: Einstellungs-Blob wird beim Persist komplett
+geschrieben (alte In-Memory-Sprache einer Altinstanz überschrieb die
+Datei).

@@ -47,6 +47,15 @@ public sealed class AppSettings
     /// <summary>Token für die Kopplung (32 Byte hex). Nie anzeigen, nie loggen.</summary>
     public string ApiToken { get; set; } = "";
     public long CreatedAtMs { get; set; }
+
+    /// <summary>
+    /// PC-Tracker 1.6.0: Zeitpunkt des ersten echten Handy-Kontakts (token-
+    /// authentifizierte Anfrage; 0 = noch nie). Erst danach greift das
+    /// Verifikations-Gate — ein PC ganz ohne Handy-Kopplung zeichnet wie
+    /// immer auf. Fehlt das Feld in älteren JSON-Blobs, bleibt es 0
+    /// (Migration ohne Schema-Änderung).
+    /// </summary>
+    public long PhoneKnownAtMs { get; set; }
 }
 
 /// <summary>Erlaubte Threshold-Stufen für die UI (Sekunden).</summary>

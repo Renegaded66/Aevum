@@ -316,7 +316,9 @@ Antwort:
   (`PhoneLiveRegistry.GoneAfter`).
 - **Still ohne Kopplung:** Keine Kopplung gespeichert oder Schalter
   „Automatisch synchronisieren" aus → die App sendet nichts; ohne laufende
-  Session wird gar kein HTTP ausgelöst.
+  Session löst auch der Relay-Takt kein HTTP aus. **Ab App 1.0.39** meldet
+  die App zusätzlich nach jedem erfolgreichen Sync ausdrücklich ihren Stand
+  — auch „nichts läuft" (Verifikations-Gate, siehe §5g).
 
 ---
 
@@ -346,6 +348,42 @@ handy hat vorrang."
   mit türkisem Rahmen, RECORDING-Badge und wanderndem Schimmer deutlich
   markiert (§ 1.5.0, Devon: „oben sollte das wirklich ganz deutlich sichtbar
   sein, mit farbe und schimmer").
+
+---
+
+### 5g. Verifikations-Gate — der PC startet nur mit bestätigtem Handy-Stand (ab PC-Tracker 1.6.0 / App 1.0.39)
+
+Devon: „Die desktop app zeichnet immer noch manchmal auf obwohl das handy
+gerade aufzeichnet. […] Am besten sollte die desktop app erst erlauben,
+überhaupt irgendwas aufzuzeichnen, also sowohl das automatische als auch
+das manuelle, wenn die desktop app verifiziert hat, das auf dem handy
+nichts läuft, ansonsten kommt eine meldung das der stand des handys nicht
+verifiziert werden konnte."
+
+- **Fail-closed:** Ohne FRISCHE Bestätigung „am Handy läuft nichts" startet
+  der PC **nichts Neues** — Regel-, allgemeine und manuelle Aufzeichnung.
+  Ein veraltetes „zeichnet auf" (> Prioritätsfenster) zählt NIE als frei;
+  genau das macht die früheren Minuten-Falschaufzeichnungen strukturell
+  unmöglich.
+- **Quelle der Bestätigung:** `POST /api/live` mit `session: null` — die App
+  sendet das jetzt ausdrücklich: (a) beim Session-Ende (unverändert),
+  (b) nach jedem erfolgreichen Sync (Auto-Sync ~15 min + App-Öffnen-Kick —
+  der neue Verifikations-Ping ab App 1.0.39). Gültigkeit:
+  `IdleVerificationWindowMs` = 30 Minuten (deckt zwei verpasste Sync-Takte
+  inkl. Doze ab).
+- **Gate-Aktivierung:** erst nach dem ersten echten Handy-Kontakt
+  (`AppSettings.PhoneKnownAtMs`, gesetzt von jeder token-authentifizierten
+  Anfrage) — ein PC ganz ohne Kopplung zeichnet wie immer auf.
+- **Laufende Sessions** werden NICHT abgeschnitten, wenn die Bestätigung
+  abreißt; beendet werden sie weiterhin nur vom frischen Handy-Vorrang
+  (§5f) bzw. den normalen Regeln. Grund: Eine Sync-Verzögerung darf keine
+  gesunde PC-Aufzeichnung abschneiden; echte Doppel-Aufzeichnungen
+  verhindert der Vorrang, sobald wieder eine Meldung ankommt.
+- **UI:** Dashboard-Karte „HANDY NICHT VERIFIZIERT" (mit letzter
+  Bestätigung bzw. letztem Lebenszeichen), Start-Karte gesperrt mit gelbem
+  Hinweis, Chips + „Jetzt starten" sichtbar deaktiviert; bei bestätigtem
+  Stand dezent „✓ Handy verifiziert". Jeder Urteils-Wechsel landet im
+  `phone-priority.log`. Kein Protokoll-Sprung — derselbe Endpunkt.
 
 ---
 

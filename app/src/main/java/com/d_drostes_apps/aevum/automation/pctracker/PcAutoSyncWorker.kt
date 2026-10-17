@@ -3,8 +3,10 @@ package com.d_drostes_apps.aevum.automation.pctracker
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.d_drostes_apps.aevum.data.pc.PcLiveState
 import com.d_drostes_apps.aevum.data.pc.PcTrackerPrefs
 import com.d_drostes_apps.aevum.data.repository.PcTrackerRepository
+import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -33,6 +35,9 @@ class PcAutoSyncWorker(
     interface Deps {
         fun pcTrackerRepository(): PcTrackerRepository
         fun pcTrackerPrefs(): PcTrackerPrefs
+
+        /** PC 1.6.0: für den Verifikations-Ping nach dem Sync. */
+        fun liveActivityManager(): LiveActivityManager
     }
 
     companion object {
@@ -54,9 +59,20 @@ class PcAutoSyncWorker(
         // (Erfolg wie Fehlschlag; gedrosselt wird der VERSUCH, nicht nur der Erfolg).
         prefs.setLastAttemptAt(System.currentTimeMillis())
         return try {
-            // Ergebnis (Success/NotReachable/…) wird bewusst ignoriert — der
-            // nächste Lauf probiert es einfach wieder. Keine Meldungen.
-            deps.pcTrackerRepository().syncNow()
+            // Ergebnis nur auswerten, um bei Erfolg den Verifikations-Ping zu
+            // schicken; Fehlschläge bleiben bewusst still (der nächste Lauf
+            // probiert es einfach wieder — keine Meldungen).
+            when (deps.pcTrackerRepository().syncNow()) {
+                is PcTrackerRepository.SyncOutcome.Success -> {
+                    // PC 1.6.0: Verifikations-Ping — dem PC frisch bestätigen,
+                    // was am Handy läuft (oder ausdrücklich: nichts läuft).
+                    // Ohne diese Bestätigung startet der PC (ab 1.6.0) gar nichts.
+                    deps.pcTrackerRepository().relayLive(
+                        PcLiveState.snapshot(deps.liveActivityManager())
+                    )
+                }
+                else -> Unit
+            }
             Result.success()
         } catch (_: Exception) {
             // Auch unerwartete Fehler bleiben still; WorkManager-Retry würde

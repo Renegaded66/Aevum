@@ -20,8 +20,8 @@ im **Releases-Bereich** des Repositories:
 
 **➜ [github.com/Renegaded66/Aevum/releases](https://github.com/Renegaded66/Aevum/releases)**
 
-Dort das Release **`pc-tracker-1.3.0`** öffnen und
-**`AevumPcTracker-1.3.0-win-x64.zip`** (ca. 55 MB) herunterladen. Darin steckt
+Dort das Release **`pc-tracker-1.6.0`** öffnen und
+**`AevumPcTracker-1.6.0-win-x64.zip`** (ca. 57 MB) herunterladen. Darin steckt
 die komplette App inklusive Laufzeitumgebung — es muss **nichts zusätzlich
 installiert** werden (kein .NET, kein Setup-Programm).
 
@@ -46,6 +46,26 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 **Update:** Wenn eine neue Version erscheint, einfach die neue ZIP aus dem
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
+
+## Neu in Version 1.6.0
+
+- **Der PC zeichnet erst, wenn dein Handy bestätigt hat, dass dort nichts
+  läuft:** Ohne frische Bestätigung startet der PC überhaupt nichts mehr —
+  weder automatisch noch manuell. Damit sind die kurzen „Digital"-Schnipsel
+  endgültig weg, die trotz laufender Handy-Aufzeichnung in Sendelücken
+  entstehen konnten. Die App bestätigt nach jedem Sync ausdrücklich auch
+  den Leerlauf (alle ~15 Minuten + beim App-Öffnen).
+- **Klare Meldung statt Rätselraten:** Kann der Stand deines Handys nicht
+  verifiziert werden (Handy außer Reichweite, Funkstille), zeigt das
+  Dashboard deutlich **„HANDY NICHT VERIFIZIERT"** samt letzter Bestätigung
+  — und die Start-Karte ist ausgegraut, bis wieder verifiziert ist.
+- **✓-Hinweis bei bestätigtem Stand:** Ist alles frisch bestätigt, steht
+  dezent „✓ Handy verifiziert — dort läuft gerade nichts." auf der
+  Start-Karte.
+- **Wichtig:** Für die Bestätigungen bitte die **Aevum-App auf 1.0.39 oder
+  neuer** aktualisieren — ältere App-Versionen melden ihren Zustand nicht
+  regelmäßig, dann bleibt der PC (korrekt, aber streng) bei „HANDY NICHT
+  VERIFIZIERT".
 
 ## Neu in Version 1.5.2
 

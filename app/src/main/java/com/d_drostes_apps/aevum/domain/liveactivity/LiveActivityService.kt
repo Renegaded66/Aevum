@@ -291,19 +291,9 @@ class LiveActivityService : Service() {
         if (session == null && lastRelayedSessionId == null) {
             return // nichts zu melden — kein HTTP im Leerlauf
         }
-        val type = session?.activityTypeId?.let { liveActivityManager.cachedActivityType(it) }
-        val dto = session?.let {
-            com.d_drostes_apps.aevum.data.pc.PcTrackerClient.LiveSessionSync(
-                sessionId = it.id,
-                activityKey = it.activityTypeId.orEmpty(),
-                activityName = type?.name ?: it.title,
-                icon = type?.icon.orEmpty(),
-                categoryKey = type?.defaultCategoryId.orEmpty(),
-                startAtMs = it.startAt,
-                isPaused = it.isPaused,
-                blockEndAtMs = it.endAt ?: 0L
-            )
-        }
+        // PC 1.6.0: Derselbe Snapshot-Bauer wie beim Sync-Ping (PcLiveState) —
+        // eine Quelle für beide Meldungs-Wege.
+        val dto = com.d_drostes_apps.aevum.data.pc.PcLiveState.snapshot(liveActivityManager)
         val deps = dagger.hilt.android.EntryPointAccessors.fromApplication(
             applicationContext,
             PcRelayEntryPoint::class.java

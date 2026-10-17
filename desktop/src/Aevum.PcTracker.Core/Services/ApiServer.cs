@@ -306,6 +306,13 @@ public sealed class ApiServer : IAsyncDisposable
         {
             LastClientName = name;
         }
+        // PC 1.6.0: Der erste echte Handy-Kontakt aktiviert dauerhaft das
+        // Verifikations-Gate (siehe AppSettings.PhoneKnownAtMs) — vorher
+        // zeichnet der PC wie immer auf (kein Handy in dieser Installation).
+        if (_settings.Current.PhoneKnownAtMs == 0)
+        {
+            _settings.Update(s => s.PhoneKnownAtMs = _clock.NowMs);
+        }
         ClientAccessed?.Invoke();
     }
 

@@ -154,6 +154,12 @@
           <!-- PC 1.5.0: Handy-Vorrang — gleiche Stelle, Türkis statt Warn-Gelb -->
           <TextBlock Text="{DynamicResource s.start_phone_priority}" TextWrapping="Wrap"
                      Foreground="#5EEAD4" IsVisible="{Binding PhonePriorityActive}" />
+          <!-- PC 1.6.0: Verifikations-Gate — der Start wartet auf eine frische
+               Bestätigung des Handy-Stands (bzw. zeigt dezent, dass er frei ist). -->
+          <TextBlock Text="{DynamicResource s.start_unverified}" TextWrapping="Wrap"
+                     Foreground="#FFC85C" IsVisible="{Binding PhoneUnverifiedActive}" />
+          <TextBlock Text="{DynamicResource s.start_phone_verified}" TextWrapping="Wrap"
+                     Classes="muted" IsVisible="{Binding PhoneVerifiedFree}" />
 
           <!-- Vorlaufzeit läuft: Countdown + Abbrechen -->
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding HasPendingStart}">
@@ -180,8 +186,12 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-          <!-- Start-Optionen der gewählten Aktivität: sofort oder mit Vorlaufzeit -->
-          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasSelectedStartActivity}">
+          <!-- Start-Optionen der gewählten Aktivität: sofort oder mit Vorlaufzeit.
+               PC 1.6.0: am Verifikations-Gate hängen — sonst wäre „Jetzt starten"
+               bei nicht verifiziertem Handy-Stand klickbar, täte aber still nichts
+               (Fund aus dem Xvfb-Smoke-Test). -->
+          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasSelectedStartActivity}"
+                      IsEnabled="{Binding IsStartEnabled}">
             <TextBlock Text="{Binding SelectedStartActivity.Label}" FontWeight="SemiBold"
                        VerticalAlignment="Center" />
             <Button Classes="primary" Content="{DynamicResource s.start_now}"

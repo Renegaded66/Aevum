@@ -303,9 +303,9 @@ public class TrackerServicePhonePriorityTests : IDisposable
         var clock = new FakeClock();
         var settings = new SettingsService(store, clock);
         var tracker = new TrackerService(new FakeProbe(), store, settings, clock,
-            phoneRecording: _ => true);
+            phoneGate: _ => PhoneGateVerdict.Recording);
 
-        Assert.False(tracker.StartManualActivity("arbeit"));
+        Assert.Equal(ManualStartOutcome.BlockedByPhone, tracker.StartManualActivity("arbeit"));
         Assert.Null(tracker.ActiveSession);
         Assert.True(tracker.IsPhoneRecording);
     }
@@ -316,11 +316,46 @@ public class TrackerServicePhonePriorityTests : IDisposable
         using var store = NewStore();
         var clock = new FakeClock();
         var settings = new SettingsService(store, clock);
+        // PC 1.6.0: Der Start braucht eine frische „nichts läuft"-Bestätigung.
         var tracker = new TrackerService(new FakeProbe(), store, settings, clock,
-            phoneRecording: _ => false);
+            phoneGate: _ => PhoneGateVerdict.VerifiedIdle);
 
-        Assert.True(tracker.StartManualActivity("arbeit"));
+        Assert.Equal(ManualStartOutcome.Started, tracker.StartManualActivity("arbeit"));
         Assert.NotNull(tracker.ActiveSession);
         Assert.False(tracker.IsPhoneRecording);
+    }
+
+    /// <summary>
+    /// PC 1.6.0: Ohne frische Bestätigung („Stand nicht verifiziert") lehnt
+    /// auch der manuelle Start ab — mit eigenem Grund, die UI erklärt ihn.
+    /// </summary>
+    [Fact]
+    public void ManuellerStartOhneVerifikationWirdAbgelehnt()
+    {
+        using var store = NewStore();
+        var clock = new FakeClock();
+        var settings = new SettingsService(store, clock);
+        var tracker = new TrackerService(new FakeProbe(), store, settings, clock,
+            phoneGate: _ => PhoneGateVerdict.Unverified);
+
+        Assert.Equal(ManualStartOutcome.Unverified, tracker.StartManualActivity("arbeit"));
+        Assert.Null(tracker.ActiveSession);
+    }
+
+    /// <summary>
+    /// PC 1.6.0: Ganz ohne Handy-Kopplung ist das Gate aus (NotCoupled) —
+    /// der PC zeichnet wie immer auf.
+    /// </summary>
+    [Fact]
+    public void OhneKopplungStartetDerManuelleStartNormal()
+    {
+        using var store = NewStore();
+        var clock = new FakeClock();
+        var settings = new SettingsService(store, clock);
+        var tracker = new TrackerService(new FakeProbe(), store, settings, clock,
+            phoneGate: _ => PhoneGateVerdict.NotCoupled);
+
+        Assert.Equal(ManualStartOutcome.Started, tracker.StartManualActivity("arbeit"));
+        Assert.NotNull(tracker.ActiveSession);
     }
 }

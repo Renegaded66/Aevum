@@ -30,6 +30,16 @@ public sealed record EngineTick
     /// der PC beendet alle eigenen Sessions und startet nichts Neues.
     /// </summary>
     public bool PhoneRecording { get; init; }
+
+    /// <summary>
+    /// PC-Tracker 1.6.0: Frisch bestätigt, dass am Handy NICHTS läuft
+    /// (Live-Kanal; ohne Handy-Kopplung immer true). Nur dann startet
+    /// irgendetwas Neues — ohne Bestätigung bleibt der PC standhaft und
+    /// die UI erklärt ehrlich warum („Stand des Handys nicht verifiziert").
+    /// Vorgabe true = Gate aus (rückwärtskompatibel für reine Engine-Tests;
+    /// der Host setzt den echten Wert bei jedem Tick).
+    /// </summary>
+    public bool PhoneVerifiedIdle { get; init; } = true;
 }
 
 /// <summary>
@@ -56,6 +66,8 @@ public sealed record EngineTick
 ///    endet zum Startzeitpunkt, Regel- und Allgemein-Starts sind blockiert,
 ///    Idle beendet sie nicht — beendet wird sie über den Stop-Knopf, die
 ///    Pause oder das App-Ende (Flush).
+///  • Verifikations-Gate (PC 1.6.0): Ohne frische Bestätigung „am Handy läuft
+///    nichts" startet nichts Neues; laufende Sessions laufen weiter.
 /// </summary>
 public sealed class SessionEngine
 {
@@ -318,6 +330,23 @@ public sealed class SessionEngine
             return upserts;
         }
 
+        // 0b) VERIFIKATIONS-GATE (PC-Tracker 1.6.0). Devon: „Am besten sollte
+        //     die desktop app erst erlauben, überhaupt irgendwas aufzuzeichnen
+        //     […] wenn die desktop app verifiziert hat, das auf dem handy
+        //     nichts läuft, ansonsten kommt eine meldung das der stand des
+        //     handys nicht verifiziert werden konnte."
+        //     Ohne frische Bestätigung startet NICHTS Neues (weder Regel noch
+        //     allgemein). Laufende Sessions bleiben aber am Leben — nur der
+        //     frische Handy-Vorrang (Schritt 0) beendet sie; sonst würde eine
+        //     verzögerte Sync-Bestätigung eine gesunde PC-Aufzeichnung
+        //     abschneiden. Die Sichtbarkeit zählt ab jetzt: Nach der nächsten
+        //     Bestätigung startet nichts rückwirkend über die unbestätigte
+        //     Zeit (gleiche Semantik wie der Handy-Vorrang).
+        if (!t.PhoneVerifiedIdle)
+        {
+            ResetVisibilityClock(t.NowMs);
+        }
+
         // 1) Laufende Session pflegen. (Die allgemeine Aufzeichnung wird in
         //    Schritt 6 gepflegt, die manuelle hier direkt — beide folgen nicht
         //    den Regel-Thresholds.)
@@ -406,7 +435,8 @@ public sealed class SessionEngine
 
         // 5) Neue Regel-Session starten. Läuft gerade die allgemeine Aufzeichnung,
         //    endet sie zum Startzeitpunkt der Regel — Regeln haben Vorrang.
-        if (Active is null or { ProgramKey: GeneralProgramKey } && !t.Paused && !idleBlocked)
+        if (Active is null or { ProgramKey: GeneralProgramKey } && !t.Paused && !idleBlocked
+            && t.PhoneVerifiedIdle)
         {
             string? startKey = null;
             string startName = "";
@@ -484,7 +514,7 @@ public sealed class SessionEngine
                 upserts.Add(Active);
             }
         }
-        if (Active is null && generalRequested && userActive && !t.Paused)
+        if (Active is null && generalRequested && userActive && !t.Paused && t.PhoneVerifiedIdle)
         {
             Active = new TrackedSession
             {

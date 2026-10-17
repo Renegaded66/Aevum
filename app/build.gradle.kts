@@ -216,8 +216,13 @@ android {
         //   Güte-Smile; Reaktionen mit Sternchen statt Herzen
         //   (STAR_HOP/WIGGLE_SPARKLES/BLUSH_POP); Vorgabefarbe PAG-Blau;
         //   im Dashboard größer (108 statt 92 dp). Keine DB-Änderungen.
-        versionCode = 39
-        versionName = "1.0.38"
+        // M19.7 (App 1.0.39): PC-Tracker-Verifikation — nach jedem Sync
+        //   (Auto-Sync + App-Öffnen-Kick) meldet die App dem PC ausdrücklich
+        //   ihren Live-Stand, auch „nichts läuft" (POST /api/live,
+        //   session:null). Der PC (ab 1.6.0) startet nur noch mit dieser
+        //   frischen Bestätigung. Kein neues UI, keine DB-Änderungen.
+        versionCode = 40
+        versionName = "1.0.39"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

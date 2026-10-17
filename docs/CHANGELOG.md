@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.6.0 + Aevum 1.0.39 — 2026-10-17
+
+### Verifikations-Gate: Der PC startet nur noch mit bestätigtem Handy-Stand
+
+Nutzerwunsch (wörtlich): „Die desktop app zeichnet immer noch manchmal auf
+obwohl das handy gerade aufzeichnet. […] Am besten sollte die desktop app
+erst erlauben, überhaupt irgendwas aufzuzeichnen, also sowohl das
+automatische als auch das manuelle, wenn die desktop app verifiziert hat,
+das auf dem handy nichts läuft, ansonsten kommt eine meldung das der stand
+des handys nicht verifiziert werden konnte. Damit das problem nicht
+weiterhin besteht."
+
+**PC-Tracker 1.6.0 (Desktop):**
+- **Fail-closed:** Der PC startet **nichts** mehr ohne frische Bestätigung
+  „am Handy läuft nichts" — gilt für Regel-, allgemeine UND manuelle
+  Aufzeichnung. Ein veraltetes „zeichnet auf" zählt nie mehr als frei;
+  damit sind die kurzen „Digital"-Falschaufzeichnungen strukturell
+  ausgeschlossen (nicht nur gedämpft wie in 1.5.2).
+- **Neuer Zustand „nicht verifiziert":** Dashboard-Karte „HANDY NICHT
+  VERIFIZIERT" mit letzter Bestätigung bzw. letztem Lebenszeichen; die
+  Start-Karte ist gesperrt (Chips sichtbar gedimmt — neu auch „Jetzt
+  starten" und mit Disabled-Styles, Fund aus dem Xvfb-Smoke-Test).
+- **Laufende Sessions bleiben am Leben,** wenn die Bestätigung mal
+  abreißt (Sync-Verzögerung schneidet keine gesunde Aufzeichnung ab) —
+  beendet wird weiterhin nur vom frischen Handy-Vorrang.
+- **Gate aktiv erst nach dem ersten Handy-Kontakt** (`PhoneKnownAtMs`,
+  von jeder token-authentifizierten Anfrage gesetzt) — ein PC ohne
+  Kopplung zeichnet wie immer auf.
+- Bestätigungsfenster **30 Minuten**; jede Sync-Meldung frischt auf.
+  Jeder Urteils-Wechsel steht im `phone-priority.log`.
+
+**Aevum 1.0.39 (App):**
+- Nach jedem erfolgreichen Sync (Auto-Sync + App-Öffnen-Kick) meldet die
+  App dem PC ausdrücklich ihren Live-Stand — auch „nichts läuft"
+  (`POST /api/live`, `session: null`). Gemeinsamer Snapshot-Bauer
+  (`PcLiveState`) für Service-Relay und Sync-Ping.
+- Kein neues UI, keine DB-Änderungen. **Für PC-Tracker 1.6.0 nötig.**
+
 ## [Unreleased] — Aevum 1.0.38 (M19.6) — 2026-10-17
 
 ### Maskottchen im PAG-Vorbild (Sternchen statt Herzen, größer)

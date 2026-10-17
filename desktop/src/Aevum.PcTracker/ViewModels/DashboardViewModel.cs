@@ -412,9 +412,14 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         IsPaused = _host.Settings.Current.TrackingPaused;
         // PC 1.5.0: Handy-Vorrang — zeichnet das Handy auf, pausiert auch die
         // Start-Karte („immer nur eine Sache gleichzeitig, Handy hat Vorrang").
-        var phonePriority = _host.Tracker.IsPhoneRecording;
-        PhonePriorityActive = phonePriority;
-        IsStartEnabled = !IsPaused && !phonePriority;
+        // PC 1.6.0: Dazu das Verifikations-Gate — ohne frische Bestätigung
+        // („am Handy läuft nichts") startet der PC ebenfalls nichts und SAGT es.
+        var verdict = _host.GetPhoneVerdict();
+        PhonePriorityActive = verdict == PhoneGateVerdict.Recording;
+        PhoneUnverifiedActive = verdict == PhoneGateVerdict.Unverified;
+        PhoneVerifiedFree = verdict == PhoneGateVerdict.VerifiedIdle;
+        IsStartEnabled = !IsPaused
+            && verdict is PhoneGateVerdict.VerifiedIdle or PhoneGateVerdict.NotCoupled;
         CheckPendingStart(now);
         IsManualActive = _host.Tracker.ActiveSession?.ProgramKey == SessionEngine.ManualProgramKey;
         UpdatePhoneLive(now);
@@ -452,6 +457,37 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
             NowIcon = "📱";
             NowTitle = Loc.S("s.dash_phone_recording");
             NowLine = Loc.S("s.dash_phone_priority");
+            return;
+        }
+
+        // PC 1.6.0: Stand nicht verifiziert — der PC startet nichts Neues und
+        // erklärt ehrlich warum (Devon: „ansonsten kommt eine meldung das der
+        // stand des handys nicht verifiziert werden konnte"). Eine bereits
+        // laufende Session (startete, als verifiziert war) bleibt am Leben —
+        // dieser Zweig greift nur, wenn gerade nichts läuft (sonst zeigt der
+        // Aktiv-Bereich unten die laufende Aufzeichnung).
+        if (PhoneUnverifiedActive && _host.Tracker.ActiveSession is null)
+        {
+            IsRecording = false;
+            NowLabel = Loc.S("s.dash_unverified_label");
+            NowLabelBrush = new SolidColorBrush(Color.Parse("#FFC85C"));
+            NowIcon = "⚠";
+            NowTitle = Loc.S("s.dash_phone_unverified");
+            var status = _host.PhoneLive.GetStatus(now);
+            string detail;
+            if (status.Session is not null)
+            {
+                detail = Loc.F("s.dash_verify_last_report", UiFormat.Ago(status.Session.LastUpdateMs, now));
+            }
+            else if (status.IdleVerifiedAgeMs >= 0)
+            {
+                detail = Loc.F("s.dash_verify_last_confirmation", UiFormat.Ago(now - status.IdleVerifiedAgeMs, now));
+            }
+            else
+            {
+                detail = Loc.S("s.dash_verify_never");
+            }
+            NowLine = $"{Loc.S("s.dash_phone_unverified_line")} {detail}";
             return;
         }
 
@@ -517,6 +553,12 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
 
     /// <summary>PC 1.5.0: Handy zeichnet gerade auf — PC hat Start-Stopp (Hinweis auf der Start-Karte).</summary>
     [ObservableProperty] private bool _phonePriorityActive;
+
+    /// <summary>PC 1.6.0: Handy-Stand nicht frisch verifiziert — PC startet nichts (Meldung sichtbar).</summary>
+    [ObservableProperty] private bool _phoneUnverifiedActive;
+
+    /// <summary>PC 1.6.0: Handy frisch verifiziert „nichts läuft" — Start ist frei (kleiner ✓-Hinweis).</summary>
+    [ObservableProperty] private bool _phoneVerifiedFree;
 
     private static readonly IBrush LiveBrush = new SolidColorBrush(Color.Parse("#5EEAD4"));
     private static readonly IBrush IdleBrush = new SolidColorBrush(Color.Parse("#9491A5"));

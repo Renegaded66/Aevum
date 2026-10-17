@@ -91,6 +91,16 @@
     <Setter Property="Background" Value="#232848" />
   </Style>
 
+  <!-- PC 1.6.0: Verifikations-Gate — deaktivierte Chips/Ghost-Buttons sichtbar
+       absetzen (der gelbe Hinweis auf der Start-Karte erklärt das Warum;
+       ohne diese Stile sähen sie aktiv aus — Fund aus dem Xvfb-Smoke-Test). -->
+  <Style Selector="Button.chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.42" />
+  </Style>
+  <Style Selector="Button.ghost:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+
   <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="#7B4A4A" />

@@ -136,7 +136,17 @@ class MainActivity : LocalizedActivity() {
                         prefs.setLastAttemptAt(now)
                         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                             try {
-                                deps.pcTrackerRepository().syncNow()
+                                val outcome = deps.pcTrackerRepository().syncNow()
+                                if (outcome is com.d_drostes_apps.aevum.data.repository.PcTrackerRepository.SyncOutcome.Success) {
+                                    // PC 1.6.0: Verifikations-Ping — dem PC frisch
+                                    // bestätigen, was am Handy läuft (oder: nichts
+                                    // läuft). Ohne Bestätigung startet der PC nichts.
+                                    deps.pcTrackerRepository().relayLive(
+                                        com.d_drostes_apps.aevum.data.pc.PcLiveState.snapshot(
+                                            deps.liveActivityManager()
+                                        )
+                                    )
+                                }
                             } catch (_: Exception) {
                                 // Still: nächster Versuch beim nächsten Öffnen/Takt.
                             }

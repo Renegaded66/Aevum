@@ -3,6 +3,19 @@ using Aevum.PcTracker.Core.Models;
 namespace Aevum.PcTracker.Core.Services;
 
 /// <summary>
+/// Ergebnis eines manuellen Starts (PC 1.6.0: benannte Gründe statt bool —
+/// die UI unterscheidet „Handy hat Vorrang" und „Stand nicht verifiziert").
+/// </summary>
+public enum ManualStartOutcome
+{
+    Started = 0,
+    /// <summary>Das Handy zeichnet gerade auf (frische Meldung) — Vorrang.</summary>
+    BlockedByPhone,
+    /// <summary>Handy-Stand nicht frisch bestätigt — der PC startet nichts.</summary>
+    Unverified,
+}
+
+/// <summary>
 /// Der laufende Aufzeichnungsdienst: alle 2 Sekunden Probe → Engine → Store.
 /// Er tut nichts weiter — die gesamte Entscheidungslogik liegt in der Engine
 /// (testbar), hier ist nur der Takt und die Persistenz.
@@ -18,11 +31,11 @@ public sealed class TrackerService : IDisposable
     private readonly SessionEngine _engine = new();
 
     /// <summary>
-    /// PC 1.5.0: Liefert „zeichnet gerade das Handy auf?" zum Zeitpunkt X
-    /// (Live-Kanal). Null = kein Kanal angeschlossen (Tests/Headless) →
-    /// Handy-Vorrang greift nie.
+    /// PC 1.5.0/1.6.0: Liefert das Verifikations-Urteil des Live-Kanals zum
+    /// Zeitpunkt X. Null = kein Kanal angeschlossen (Tests/Headless) →
+    /// wie „nicht gekoppelt": der PC zeichnet normal auf.
     /// </summary>
-    private readonly Func<long, bool>? _phoneRecording;
+    private readonly Func<long, PhoneGateVerdict>? _phoneGate;
 
     private Timer? _timer;
     private long _lastCatalogWriteMs;
@@ -36,21 +49,27 @@ public sealed class TrackerService : IDisposable
         SessionStore store,
         SettingsService settings,
         IClock clock,
-        Func<long, bool>? phoneRecording = null)
+        Func<long, PhoneGateVerdict>? phoneGate = null)
     {
         _probe = probe;
         _store = store;
         _settings = settings;
         _clock = clock;
-        _phoneRecording = phoneRecording;
+        _phoneGate = phoneGate;
     }
 
     public TrackedSession? ActiveSession => _engine.Active;
     public ForegroundSample? LastForeground { get; private set; }
     public long LastIdleMs { get; private set; }
 
+    /// <summary>
+    /// PC 1.6.0: Das aktuelle Gate-Urteil des Live-Kanals (Dashboard +
+    /// Start-Erlaubnis). Ohne Kanal = NotCoupled (PC zeichnet wie immer).
+    /// </summary>
+    public PhoneGateVerdict PhoneVerdict => _phoneGate?.Invoke(_clock.NowMs) ?? PhoneGateVerdict.NotCoupled;
+
     /// <summary>PC 1.5.0: Zeichnet gerade das Handy auf? (Handy hat Vorrang)</summary>
-    public bool IsPhoneRecording => _phoneRecording?.Invoke(_clock.NowMs) == true;
+    public bool IsPhoneRecording => PhoneVerdict == PhoneGateVerdict.Recording;
 
     /// <summary>Läuft die echte (Windows-)Probe? Sonst zeigt die UI einen Hinweis.</summary>
     public bool ProbeAvailable => _probe is not NullForegroundProbe;
@@ -100,15 +119,22 @@ public sealed class TrackerService : IDisposable
     /// (<see cref="StopActiveSession"/>) oder die Pause.
     ///
     /// PC 1.5.0: Zeichnet gerade das HANDY auf, wird der Start abgelehnt
-    /// (Rückgabe false) — „immer nur eine Sache, Handy hat Vorrang". Die UI
-    /// zeigt den Hinweis; so blitzt keine 2-Sekunden-Session auf, die der
-    /// nächste Tick sofort wieder beenden müsste.
+    /// — „immer nur eine Sache, Handy hat Vorrang". PC 1.6.0: Dazu das
+    /// Verifikations-Gate — ohne frische Bestätigung („am Handy läuft
+    /// nichts") startet auch der manuelle Weg nichts (eigener Grund, die
+    /// UI erklärt ihn). So blitzt nie eine Session auf, die der nächste
+    /// Tick sofort wieder beenden müsste.
     /// </summary>
-    public bool StartManualActivity(string activityKey)
+    public ManualStartOutcome StartManualActivity(string activityKey)
     {
-        if (IsPhoneRecording)
+        var verdict = PhoneVerdict;
+        if (verdict == PhoneGateVerdict.Recording)
         {
-            return false;
+            return ManualStartOutcome.BlockedByPhone;
+        }
+        if (verdict == PhoneGateVerdict.Unverified)
+        {
+            return ManualStartOutcome.Unverified;
         }
         var upserts = _engine.StartManual(activityKey, TimeHelper.LocalIanaTimeZoneId(), _clock.NowMs);
         if (upserts.Count > 0)
@@ -116,7 +142,7 @@ public sealed class TrackerService : IDisposable
             _store.Apply(upserts);
         }
         StateChanged?.Invoke();
-        return true;
+        return ManualStartOutcome.Started;
     }
 
     /// <summary>PC 1.3.0 (M20): Stop-Knopf — die laufende (manuelle) Session endet jetzt.</summary>
@@ -183,6 +209,9 @@ public sealed class TrackerService : IDisposable
             runningKeys = _probe.GetRunningPrograms().Select(p => p.ProgramKey).ToList();
         }
 
+        // PC 1.6.0: Ein Urteil pro Tick — Engine und UI sehen denselben Stand.
+        var verdict = _phoneGate?.Invoke(now) ?? PhoneGateVerdict.NotCoupled;
+
         var upserts = _engine.Tick(new EngineTick
         {
             NowMs = now,
@@ -199,7 +228,11 @@ public sealed class TrackerService : IDisposable
             AudioActive = _probe.IsAudioPlaying(),
             // PC 1.5.0: Handy-Vorrang — während einer Handy-Aufzeichnung stoppt
             // die Engine alle PC-Sessions und startet nichts Neues.
-            PhoneRecording = _phoneRecording?.Invoke(now) == true,
+            // PC 1.6.0: Verifikations-Gate — nur mit frischer „nichts läuft"-
+            // Bestätigung startet überhaupt etwas Neues.
+            PhoneRecording = verdict == PhoneGateVerdict.Recording,
+            PhoneVerifiedIdle = verdict is PhoneGateVerdict.VerifiedIdle
+                or PhoneGateVerdict.NotCoupled,
         });
         if (upserts.Count > 0)
         {
