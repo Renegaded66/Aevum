@@ -201,10 +201,17 @@ Server auf 47827), simuliertes Handy per `curl`:
 
 ### 2.3 Release
 
-- Git-Tag `pc-tracker-1.4.0`; GitHub-Release mit Asset
-  `AevumPcTracker-1.4.0-win-x64.zip`.
-- Auslieferungsserver: ZIP + `Aevum-1.0.34-Debug.apk` unter derselben
-  Download-Seite, `index.html` aktualisiert.
+- Git-Tag `pc-tracker-1.4.0` (Commit `a0ef87d`); GitHub-Release **ID
+  415755160** — https://github.com/Renegaded66/Aevum/releases/tag/pc-tracker-1.4.0
+  mit Asset `AevumPcTracker-1.4.0-win-x64.zip` (57.305.209 B, state
+  `uploaded`). Update-Erkennung des laufenden 1.3.0 live gegen die API
+  bestätigt (findet 1.4.0 inkl. ZIP-Asset).
+- Auslieferungsserver `/srv/aevum-apk/`: `AevumPcTracker-1.4.0-win-x64.zip`
+  + `Aevum-1.0.34-Debug.apk` (123.526.458 B); `index.html` auf 1.0.34
+  (versionCode 35) und PC-Tracker 1.4.0 aktualisiert. Downloads geprüft
+  (HTTP 200):
+  - `http://192.168.178.40:8098/Aevum-1.0.34-Debug.apk`
+  - `http://192.168.178.40:8098/AevumPcTracker-1.4.0-win-x64.zip`
 
 ---
 
