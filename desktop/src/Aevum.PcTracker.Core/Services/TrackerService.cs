@@ -76,6 +76,34 @@ public sealed class TrackerService : IDisposable
     /// <summary>Nach Regel-Änderungen: Zählung beginnt ab jetzt (keine rückwirkende Aufzeichnung).</summary>
     public void NotifyRulesChanged() => _engine.NotifyRulesChanged(_clock.NowMs);
 
+    /// <summary>
+    /// PC 1.3.0 (M20): Der Nutzer startet eine Aktivität aus dem Dashboard —
+    /// sofort oder nach Vorlaufzeit (den Countdown zählt das UI; hier kommt nur
+    /// der Ablauf an). Manuelle Sessions haben Vorrang vor Regeln und allgemeiner
+    /// Aufzeichnung; beendet werden sie über den Stop-Knopf
+    /// (<see cref="StopActiveSession"/>) oder die Pause.
+    /// </summary>
+    public void StartManualActivity(string activityKey)
+    {
+        var upserts = _engine.StartManual(activityKey, TimeHelper.LocalIanaTimeZoneId(), _clock.NowMs);
+        if (upserts.Count > 0)
+        {
+            _store.Apply(upserts);
+        }
+        StateChanged?.Invoke();
+    }
+
+    /// <summary>PC 1.3.0 (M20): Stop-Knopf — die laufende (manuelle) Session endet jetzt.</summary>
+    public void StopActiveSession()
+    {
+        var upserts = _engine.StopActive(_clock.NowMs);
+        if (upserts.Count > 0)
+        {
+            _store.Apply(upserts);
+        }
+        StateChanged?.Invoke();
+    }
+
     /// <summary>Beim Beenden der App: laufende Session sauber abschließen.</summary>
     public void FlushOnExit()
     {

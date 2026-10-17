@@ -40,6 +40,29 @@ public sealed class GeneralActivityOption
     }
 }
 
+/// <summary>
+/// PC 1.3.0: eine startbare Aktivität im Dashboard. Die Liste kommt vom Handy
+/// („Die möglichen Activitys sollten vom handy synchronisiert sein"), ohne
+/// jemals erfolgten Sync fällt sie auf den lokalen Katalog zurück. Jeder Chip
+/// trägt seinen eigenen Command (CommunityToolkit-Muster) — kein Parent-Binding,
+/// keine CodeBehind-Handler.
+/// </summary>
+public sealed class StartActivityOption
+{
+    public string Key { get; }
+    public string Name { get; }
+    public string Label { get; }
+    public System.Windows.Input.ICommand SelectCommand { get; }
+
+    public StartActivityOption(string key, string name, string label, System.Windows.Input.ICommand selectCommand)
+    {
+        Key = key;
+        Name = name;
+        Label = label;
+        SelectCommand = selectCommand;
+    }
+}
+
 public partial class DashboardViewModel : ObservableObject, IRefreshable
 {
     private const double BarMaxWidth = 200;
@@ -96,6 +119,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         ReloadToday();
         UpdatePhone();
         LoadGeneral();
+        LoadStartActivities();
     }
 
     // ------------------------------------------------- Allgemeine Aufzeichnung
@@ -161,6 +185,134 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         _host.Settings.Update(s => s.GeneralActivityKey = value.Key);
     }
 
+    // ------------------------------------------------ Aktivität starten (M20)
+
+    /// <summary>Alle startbaren Aktivitäten (vom Handy gespiegelt, sonst Katalog).</summary>
+    public ObservableCollection<StartActivityOption> StartActivities { get; } = new();
+
+    [ObservableProperty] private StartActivityOption? _selectedStartActivity;
+    [ObservableProperty] private bool _hasSelectedStartActivity;
+
+    /// <summary>Läuft gerade eine MANUELL gestartete Aktivität? (steuert den Stop-Knopf)</summary>
+    [ObservableProperty] private bool _isManualActive;
+
+    /// <summary>Start-Karte bedienbar? (bei globaler Pause nein — erst fortsetzen)</summary>
+    [ObservableProperty] private bool _isStartEnabled = true;
+
+    // Vorlaufzeit („+5/15/30 Min"): Der Countdown lebt nur im UI (Sekunden-Timer);
+    // beim Ablauf startet der Tracker. Ein App-Neustart verwirft einen laufenden
+    // Countdown bewusst — eine halb gestartete Aktivität wäre schlimmer als keine.
+    [ObservableProperty] private bool _hasPendingStart;
+    [ObservableProperty] private string _pendingStartText = "";
+    private string? _pendingStartKey;
+    private string _pendingStartName = "";
+    private long _pendingStartAtMs;
+
+    /// <summary>Lädt die Chips (nur bei echter Änderung neu aufbauen — sonst flackert das Hover).</summary>
+    private void LoadStartActivities()
+    {
+        var synced = _host.Store.GetSyncedActivities();
+        var items = synced.Count > 0
+            ? synced.Select(a => (a.Key, a.Name, a.Icon)).ToList()
+            : ActivityCatalog.All.Select(c => (c.Key, c.Name, c.Icon)).ToList();
+        var currentKeys = StartActivities.Select(o => o.Key).ToList();
+        if (currentKeys.SequenceEqual(items.Select(i => i.Key), StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        StartActivities.Clear();
+        foreach (var (key, name, icon) in items)
+        {
+            var label = string.IsNullOrWhiteSpace(icon) ? name : $"{icon}  {name}";
+            StartActivities.Add(new StartActivityOption(key, name, label, SelectStartActivityCommand));
+        }
+        if (SelectedStartActivity is not null &&
+            !items.Any(i => string.Equals(i.Key, SelectedStartActivity.Key, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectedStartActivity = null;
+            HasSelectedStartActivity = false;
+        }
+    }
+
+    [RelayCommand]
+    private void SelectStartActivity(StartActivityOption? option)
+    {
+        if (option is null)
+        {
+            return;
+        }
+        SelectedStartActivity = option;
+        HasSelectedStartActivity = true;
+    }
+
+    [RelayCommand] private void StartNow() => BeginStart(0);
+    [RelayCommand] private void StartIn5() => BeginStart(5);
+    [RelayCommand] private void StartIn15() => BeginStart(15);
+    [RelayCommand] private void StartIn30() => BeginStart(30);
+
+    /// <summary>Sofort (minutes = 0) oder mit Vorlaufzeit — der Countdown läuft, Abbrechen möglich.</summary>
+    private void BeginStart(int minutes)
+    {
+        var option = SelectedStartActivity;
+        if (option is null)
+        {
+            return;
+        }
+        if (minutes <= 0)
+        {
+            ClearPendingStart();
+            _host.Tracker.StartManualActivity(option.Key);
+            return; // Refresh kommt über Tracker.StateChanged
+        }
+        _pendingStartKey = option.Key;
+        _pendingStartName = option.Name;
+        _pendingStartAtMs = _host.Clock.NowMs + minutes * 60_000L;
+        UpdatePendingText(_host.Clock.NowMs);
+    }
+
+    [RelayCommand]
+    private void CancelPendingStart() => ClearPendingStart();
+
+    /// <summary>Stop-Knopf: die laufende (manuelle) Session endet sofort.</summary>
+    [RelayCommand]
+    private void StopSession() => _host.Tracker.StopActiveSession();
+
+    private void ClearPendingStart()
+    {
+        _pendingStartKey = null;
+        HasPendingStart = false;
+        PendingStartText = "";
+    }
+
+    /// <summary>Aus dem Sekunden-Timer: Countdown anzeigen und bei Ablauf starten.</summary>
+    private void CheckPendingStart(long now)
+    {
+        if (_pendingStartKey is null)
+        {
+            return;
+        }
+        if (now >= _pendingStartAtMs)
+        {
+            var key = _pendingStartKey;
+            ClearPendingStart();
+            _host.Tracker.StartManualActivity(key);
+            return; // Anzeige aktualisiert der StateChanged-getriebene Refresh
+        }
+        UpdatePendingText(now);
+    }
+
+    private void UpdatePendingText(long now)
+    {
+        if (_pendingStartKey is null)
+        {
+            return;
+        }
+        var remaining = Math.Max(0, _pendingStartAtMs - now);
+        var clock = $"{remaining / 60_000}:{remaining % 60_000 / 1000:00}";
+        PendingStartText = Loc.F("s.start_pending", _pendingStartName, clock);
+        HasPendingStart = true;
+    }
+
     /// <summary>Aktivitätsname+Icon aus Sicht der App: synchronisierte zuerst, sonst Katalog.</summary>
     private (string Icon, string Name) ActivityDisplay(string activityKey)
     {
@@ -174,6 +326,28 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         var now = _host.Clock.NowMs;
         ProbeAvailable = _host.Tracker.ProbeAvailable;
         IsPaused = _host.Settings.Current.TrackingPaused;
+        IsStartEnabled = !IsPaused;
+        CheckPendingStart(now);
+        IsManualActive = _host.Tracker.ActiveSession?.ProgramKey == SessionEngine.ManualProgramKey;
+
+        // PC 1.3.0: Eine MANUELLE Session wird immer angezeigt — sie hängt nicht
+        // an der Windows-Probe (der Linux-Smoke-Test zeigte: ohne diesen Vorrang
+        // startete die Aktivität, blieb aber unsichtbar) und auch nicht an der
+        // Regel-/Idle-Logik.
+        var manual = _host.Tracker.ActiveSession is { ProgramKey: SessionEngine.ManualProgramKey }
+            ? _host.Tracker.ActiveSession
+            : null;
+        if (manual is not null)
+        {
+            var (manualIcon, manualName) = ActivityDisplay(manual.ActivityKey);
+            IsRecording = true;
+            NowLabel = Loc.S("s.dash_now");
+            NowLabelBrush = LiveBrush;
+            NowIcon = manualIcon;
+            NowTitle = manualName;
+            NowLine = $"{Loc.S("s.man_started")} · {Loc.F("s.row_since", UiFormat.Clock(manual.StartAtMs))} · {UiFormat.Duration(now - manual.StartAtMs)}";
+            return;
+        }
 
         if (!ProbeAvailable)
         {
@@ -320,7 +494,13 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
             var name = server.LastClientName;
             PhoneStatusText = Loc.S("s.dash_phone_connected")
                 .Replace("{0}", name.Length > 0 ? name : "…");
-            PhoneDetailText = Loc.F("s.dash_phone_detail", UiFormat.Ago(last, now));
+            // Stand der gespiegelten Aktivitäten zeigen — macht den regelmäßigen
+            // Sync sichtbar („der pc soll regelmäßig mit dem handy synchronisieren").
+            var activityCount = _host.Store.GetSyncedActivities().Count;
+            var activitiesText = activityCount > 0
+                ? $" · {Loc.F("s.dash_phone_activities", activityCount)}"
+                : "";
+            PhoneDetailText = Loc.F("s.dash_phone_detail", UiFormat.Ago(last, now)) + activitiesText;
             PhoneDotBrush = new SolidColorBrush(Color.Parse(connected ? "#5EEAD4" : "#9491A5"));
         }
     }

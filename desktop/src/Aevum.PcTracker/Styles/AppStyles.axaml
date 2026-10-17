@@ -104,6 +104,24 @@
     <Setter Property="Foreground" Value="#FFB4B4" />
   </Style>
 
+  <Style Selector="Button.chip">
+    <Setter Property="Padding" Value="13,6" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceVariantBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Padding" Value="13,6" />
+  </Style>
+  <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#232848" />
+  </Style>
+  <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#2D3260" />
+  </Style>
+
   <Style Selector="Button.nav">
     <!-- Volle Sidebar-Breite: sonst ist die Klickfläche nur so breit wie der Text. -->
     <Setter Property="HorizontalAlignment" Value="Stretch" />

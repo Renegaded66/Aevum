@@ -1,4 +1,5 @@
 using Aevum.PcTracker.Core.Models;
+using Aevum.PcTracker.Core.Services;
 using Aevum.PcTracker.Localization;
 
 namespace Aevum.PcTracker.ViewModels;
@@ -34,10 +35,18 @@ public sealed class SessionRowViewModel
         var when = session.IsOpen
             ? Loc.F("s.row_since", start)
             : $"{start} – {UiFormat.Clock(session.EndAtMs ?? session.LastSeenAtMs)}";
+        // PC 1.3.0: Sonder-Keys lokalisiert anzeigen („Manuell gestartet"/„PC wird
+        // benutzt") — die Datenbank behält bewusst die sprachneutralen Werte.
+        var subtitle = session.ProgramKey switch
+        {
+            SessionEngine.ManualProgramKey => Loc.S("s.man_started"),
+            SessionEngine.GeneralProgramKey => Loc.S("s.gen_in_use"),
+            _ => session.ProgramName,
+        };
         return new SessionRowViewModel(
             icon,
             name,
-            session.ProgramName,
+            subtitle,
             when,
             UiFormat.Duration(durationMs),
             session.IsOpen);

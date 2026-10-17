@@ -45,14 +45,31 @@ public sealed record EngineTick
 ///  • Allgemeine Aufzeichnung: läuft nur, wenn KEINE Regel greift, mit der vom
 ///    Nutzer gewählten Aktivität; aktiv solange Maus/Tastatur benutzt werden
 ///    oder Ton läuft; endet nach 1 Minute ohne Aktivität.
+///  • Manuelle Aktivität (PC 1.3.0): Der Nutzer startet sie im Dashboard
+///    (sofort oder mit Vorlaufzeit). Sie hat VORRANG: eine laufende Session
+///    endet zum Startzeitpunkt, Regel- und Allgemein-Starts sind blockiert,
+///    Idle beendet sie nicht — beendet wird sie über den Stop-Knopf, die
+///    Pause oder das App-Ende (Flush).
 /// </summary>
 public sealed class SessionEngine
 {
     /// <summary>Programm-Key der allgemeinen Aufzeichnung (kollidiert nie mit exe-Keys).</summary>
     public const string GeneralProgramKey = "__general__";
 
+    /// <summary>
+    /// Programm-Key MANUELL gestarteter Aktivitäten (PC 1.3.0, Dashboard „Aktivität
+    /// starten"). Devon: „Ich will also auch dort activitys starten können
+    /// (entweder direkt oder mit vorlaufzeit)." — bewusst ein eigener Key:
+    /// Die Session gehört keinem Programm, sondern dem Nutzer; sie läuft, bis
+    /// er sie stoppt (oder Pause/App-Ende sie beendet). Idle beendet sie NICHT.
+    /// </summary>
+    public const string ManualProgramKey = "__manual__";
+
     /// <summary>Anzeigename der allgemeinen Aufzeichnung (erscheint in Verlauf/Handy).</summary>
     public const string GeneralProgramName = "General use";
+
+    /// <summary>Anzeigename manuell gestarteter Sessions (erscheint in Verlauf/Handy).</summary>
+    public const string ManualProgramName = "Manual start";
 
     /// <summary>Die allgemeine Aufzeichnung endet nach dieser Ruhezeit (Maus/Tastatur still und kein Ton).</summary>
     public const long GeneralIdleMs = 60_000;
@@ -127,6 +144,65 @@ public sealed class SessionEngine
         return new[] { ended };
     }
 
+    /// <summary>
+    /// PC 1.3.0 (M20): Startet eine Aktivität MANUELL — sofort oder nach
+    /// Vorlaufzeit (der Countdown läuft im Dashboard; hier kommt nur der
+    /// Ablauf an). Vorrang-Regel: Eine laufende Session (Regel wie allgemein)
+    /// endet mit dem Startzeitpunkt — der Nutzerentscheid gewinnt. Die manuelle
+    /// Session blockiert danach Regel- UND Allgemein-Starts, bis sie gestoppt
+    /// wird (Stop-Knopf, Pause oder App-Ende).
+    /// </summary>
+    public IReadOnlyList<TrackedSession> StartManual(string activityKey, string timezoneId, long nowMs)
+    {
+        var upserts = new List<TrackedSession>(2);
+        if (Active is not null)
+        {
+            var ended = Finalize(Active, Math.Max(Active.StartAtMs, nowMs));
+            _lastSessionEndMs = ended.EndAtMs ?? 0;
+            upserts.Add(ended);
+            Active = null;
+        }
+        // Sichtbarkeits-Zählung ab jetzt: Endet die manuelle Session später,
+        // startet eine Regel-Session NICHT rückwirkend über sie hinweg (sonst
+        // überlappten sich „Arbeit" und die nachlaufende Programm-Session).
+        ResetVisibilityClock(nowMs);
+        Active = new TrackedSession
+        {
+            Id = _idFactory(),
+            ProgramKey = ManualProgramKey,
+            ProgramName = ManualProgramName,
+            ActivityKey = activityKey,
+            StartAtMs = nowMs,
+            LastSeenAtMs = nowMs,
+            EndAtMs = null,
+            TimezoneId = timezoneId,
+            CreatedAtMs = nowMs,
+        };
+        upserts.Add(Active);
+        return upserts;
+    }
+
+    /// <summary>
+    /// PC 1.3.0 (M20): Beendet die laufende Session SOFORT (Stop-Knopf im
+    /// Dashboard, Ende = jetzt). Anders als <see cref="Flush"/> (App-Ende,
+    /// Ende = letzte Sicht) erwartet der Nutzer beim Stop-Knopf, dass „jetzt"
+    /// das Ende ist.
+    /// </summary>
+    public IReadOnlyList<TrackedSession> StopActive(long nowMs)
+    {
+        if (Active is null)
+        {
+            return Array.Empty<TrackedSession>();
+        }
+        var ended = Finalize(Active, nowMs);
+        _lastSessionEndMs = ended.EndAtMs ?? 0;
+        Active = null;
+        // Gleiche Logik wie in StartManual: Die nächste Regel-Session zählt ab
+        // jetzt, nicht rückwirkend bis zur ersten Sicht des Programms.
+        ResetVisibilityClock(nowMs);
+        return new[] { ended };
+    }
+
     public IReadOnlyList<TrackedSession> Tick(EngineTick t)
     {
         var upserts = new List<TrackedSession>(2);
@@ -194,8 +270,17 @@ public sealed class SessionEngine
                 && running.Contains(s.ProgramKey));
 
         // 1) Laufende Session pflegen. (Die allgemeine Aufzeichnung wird in
-        //    Schritt 6 gepflegt — sie folgt nicht den Regel-Thresholds.)
-        if (Active is not null && Active.ProgramKey != GeneralProgramKey)
+        //    Schritt 6 gepflegt, die manuelle hier direkt — beide folgen nicht
+        //    den Regel-Thresholds.)
+        if (Active is { ProgramKey: ManualProgramKey })
+        {
+            // M20: Manuell gestartete Aktivität — nur der Nutzer beendet sie
+            // (Stop-Knopf/Pause/App-Ende). Der Heartbeat hält last_seen frisch,
+            // damit ein Absturz sie am letzten Lebenszeichen schließt.
+            Active = Active with { LastSeenAtMs = t.NowMs };
+            upserts.Add(Active);
+        }
+        else if (Active is not null && Active.ProgramKey != GeneralProgramKey)
         {
             if (!ruleMap.ContainsKey(Active.ProgramKey))
             {
@@ -211,9 +296,13 @@ public sealed class SessionEngine
         }
 
         // 2) Inaktivität beendet die Session (Zeitpunkt der letzten Eingabe).
-        //    Ausnahme: Die allgemeine Aufzeichnung hat ihre eigene Ruhe-Logik
-        //    (1 Minute bzw. Ton) und wird hier nicht von der globalen Schwelle beendet.
-        if (Active is not null && Active.ProgramKey != GeneralProgramKey && idleBlocked)
+        //    Ausnahmen: Die allgemeine Aufzeichnung hat ihre eigene Ruhe-Logik
+        //    (1 Minute bzw. Ton) und wird hier nicht von der globalen Schwelle
+        //    beendet; eine MANUELLE Session läuft, bis der Nutzer sie stoppt —
+        //    wer „Arbeit" startet, meint es so (Devon: „Hauptsache nichts
+        //    anderes wird aufgezeichnet" — seine Ansage gewinnt).
+        if (Active is not null && Active.ProgramKey != GeneralProgramKey
+            && Active.ProgramKey != ManualProgramKey && idleBlocked)
         {
             var endAt = SeenNow(Active) ? t.NowMs - t.IdleMs : Active.LastSeenAtMs;
             var ended = Finalize(Active, endAt);
@@ -236,7 +325,9 @@ public sealed class SessionEngine
         _wasIdleBlocked = idleBlocked;
 
         // 3) Threshold-Ende: Programm ist länger weg als sein Threshold.
-        if (Active is not null && Active.ProgramKey != GeneralProgramKey && !SeenNow(Active))
+        //    (Nur Regel-Sessions — General und manuelle kennen keinen Threshold.)
+        if (Active is not null && Active.ProgramKey != GeneralProgramKey
+            && Active.ProgramKey != ManualProgramKey && !SeenNow(Active))
         {
             var rule = ruleMap[Active.ProgramKey];
             var thresholdMs = Math.Max(1, rule.ThresholdSeconds) * 1000L;
@@ -385,6 +476,20 @@ public sealed class SessionEngine
             CreatedAtMs = t.NowMs,
         };
         upserts.Add(Active);
+    }
+
+    /// <summary>
+    /// Setzt die Sichtbarkeits-Zählung auf „jetzt": Nach einem manuellen
+    /// Eingriff (Start/Stop) beginnt die nächste Regel-Session mit dem Moment
+    /// des Eingriffs statt rückwirkend mit der ersten Sicht des Programms.
+    /// </summary>
+    private void ResetVisibilityClock(long nowMs)
+    {
+        _fgSinceMs = nowMs;
+        foreach (var key in _lastRunning)
+        {
+            _runSince[key] = nowMs;
+        }
     }
 
     private static string ProgramNameFor(EngineTick t, string programKey)

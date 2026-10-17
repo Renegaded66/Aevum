@@ -12,7 +12,7 @@
 
       <!-- Live-Karte: was gerade aufgezeichnet wird (Puls-Animation bei Aufnahme) -->
       <Border Classes="card" Padding="22">
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">
           <Grid Width="66" Height="66" VerticalAlignment="Center">
             <Border Classes="pulseGlow" Width="66" Height="66" CornerRadius="33"
                     Background="#5EEAD4" Opacity="0.15" IsVisible="{Binding IsRecording}" />
@@ -35,7 +35,64 @@
                        TextWrapping="Wrap" />
             <TextBlock Text="{Binding NowLine}" Classes="muted" TextWrapping="Wrap" />
           </StackPanel>
+          <!-- PC 1.3.0: Stop-Knopf — beendet die manuell gestartete Aktivität sofort -->
+          <Button Grid.Column="2" Classes="danger" Content="{DynamicResource s.start_stop}"
+                  Command="{Binding StopSessionCommand}" IsVisible="{Binding IsManualActive}"
+                  VerticalAlignment="Center" />
         </Grid>
+      </Border>
+
+      <!-- Aktivität starten (PC 1.3.0): synchronisierte Aktivitäten aus Aevum,
+           sofort oder mit Vorlaufzeit — analog zum Start auf dem Handy. -->
+      <Border Classes="card" Padding="22,18">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{DynamicResource s.start_title}" Classes="section-label" />
+          <TextBlock Text="{DynamicResource s.start_desc}" Classes="muted" TextWrapping="Wrap" />
+          <TextBlock Text="{DynamicResource s.start_paused}" TextWrapping="Wrap"
+                     Foreground="#FFC85C" IsVisible="{Binding !IsStartEnabled}" />
+
+          <!-- Vorlaufzeit läuft: Countdown + Abbrechen -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding HasPendingStart}">
+            <TextBlock Text="{Binding PendingStartText}" FontWeight="SemiBold"
+                       Foreground="#5EEAD4" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="ghost" Content="{DynamicResource s.start_cancel}"
+                    Command="{Binding CancelPendingStartCommand}" />
+          </Grid>
+
+          <!-- Aktivitäts-Chips (vom Handy synchronisiert) -->
+          <ItemsControl ItemsSource="{Binding StartActivities}" IsEnabled="{Binding IsStartEnabled}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StartActivityOption">
+                <!-- CommandParameter nötig: Avalonia übergibt den DataContext NICHT
+                     automatisch — ohne ihn käme beim Command null an (Klick ohne Wirkung). -->
+                <Button Classes="chip" Content="{Binding Label}" Command="{Binding SelectCommand}"
+                        CommandParameter="{Binding}" Margin="0,0,8,8" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <!-- Start-Optionen der gewählten Aktivität: sofort oder mit Vorlaufzeit -->
+          <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasSelectedStartActivity}">
+            <TextBlock Text="{Binding SelectedStartActivity.Label}" FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <Button Classes="primary" Content="{DynamicResource s.start_now}"
+                    Command="{Binding StartNowCommand}" />
+            <Button Classes="ghost" Content="{DynamicResource s.start_in_5}"
+                    Command="{Binding StartIn5Command}" />
+            <Button Classes="ghost" Content="{DynamicResource s.start_in_15}"
+                    Command="{Binding StartIn15Command}" />
+            <Button Classes="ghost" Content="{DynamicResource s.start_in_30}"
+                    Command="{Binding StartIn30Command}" />
+          </StackPanel>
+
+          <TextBlock Text="{DynamicResource s.start_hint}" Classes="muted" FontSize="12"
+                     TextWrapping="Wrap" />
+        </StackPanel>
       </Border>
 
       <!-- Allgemeine Aufzeichnung: eine Aktivität für „alles andere“ -->

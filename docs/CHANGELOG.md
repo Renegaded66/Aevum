@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.3.0 — 2026-10-17
+
+### Aktivitäten starten, Android-ähnliches Dashboard, sichtbarer Sync
+
+- **Aktivitäten am PC starten (Nutzerwunsch):** „Ich will also auch dort
+  activitys starten können (entweder direkt oder mit vorlaufzeit)." Neue
+  Dashboard-Karte „Aktivität starten": Chips mit den aus Aevum gespiegelten
+  Aktivitäten (ohne Sync: lokaler Katalog), Start-Optionen **Sofort / +5 / +15
+  / +30 Min** mit laufendem, abbrechbarem Countdown. Manuelle Session mit
+  eigenem `programKey` `__manual__` (Name „Manual start") in der Engine:
+  Vorrang vor Regeln (laufende Session endet zum Startzeitpunkt), blockiert
+  Regel- UND allgemeine Starts, Idle beendet sie nicht; Ende über Stop-Knopf
+  (Ende = jetzt), Pause oder App-Ende. Nach dem Ende zählt die Sichtbarkeit ab
+  jetzt (keine rückwirkende Überlappung). 12 neue Engine-Tests
+  (`ManualSessionTests`), Live unter Xvfb verifiziert (Chip → Start now →
+  „RECORDING NOW · Manually started" → Stop → Session in „Heute").
+- **Dashboard wie auf Android:** Live-Karte mit Stop-Knopf für die manuelle
+  Aktivität (Anzeige hat Vorrang vor dem Windows-Probe-/Pause-Hinweis),
+  „Manuell gestartet" lokalisiert in Live-Zeile und Verlaufszeilen (DB behält
+  sprachneutrale Werte), Start-Karte als Herzstück unter der Live-Karte.
+- **„Die möglichen Activitys sollten vom handy synchronisiert sein":** erfüllt
+  über den bestehenden Aktivitäts-Spiegel (`POST /api/activities`); die Karte
+  nutzt exakt dieselbe Liste wie das General-Dropdown.
+- **Regelmäßiger Sync sichtbar:** „Dein Handy"-Karte zeigt zusätzlich die Zahl
+  der übernommenen Aktivitäten; der Hinweistext erklärt den Automatik-Abgleich
+  (App holt im WLAN alle 15 Minuten automatisch ab und spiegelt den Katalog
+  herüber — reine Handy-Initiation, Architektur unverändert). Protokoll um
+  Abschnitt 5d ergänzt; Sessions-API und Import bleiben unverändert.
+- **Version 1.3.0** (`Aevum.PcTracker.csproj`).
+
+### Verified
+
+- **104/104 Windows-Tests grün** (92 vorhandene + 12 neue `ManualSessionTests`).
+- Build: `dotnet build` 0 Warnungen/0 Fehler; UI-Smoke-Test unter Xvfb
+  (Avalonia unter Linux): Dashboard gerendert, Start-Karte mit 11 Chips,
+  Klick-Pfad live durchgespielt (Hover → Auswahl → Start → Live-Karte → Stop).
+  Zwei echte Bugs dabei gefunden und behoben: fehlender `CommandParameter` am
+  Chip (Klick ohne Wirkung) und manuelle Session unsichtbar, wenn der
+  Windows-Probe-Hinweis früh zurückkehrte.
+- Release `pc-tracker-1.3.0` mit `AevumPcTracker-1.3.0-win-x64.zip` (Details im
+  Bericht `docs/PC-TRACKER-1.3-ABSCHLUSSBERICHT.md`).
+
 ## [Unreleased] — M19.3 — 2026-10-17
 
 ### Projektmanagement KOMPLETT entfernt + zuverlässige App-Aufzeichnung + Feuerrot

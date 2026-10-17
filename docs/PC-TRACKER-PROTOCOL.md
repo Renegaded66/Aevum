@@ -224,6 +224,44 @@ Jede Regel hat einen Modus:
   - Ende wie sonst: Prozess weg länger als der Threshold bzw. Inaktivitäts-/
     Pausen-Regeln. Es bleibt immer höchstens **eine** Session aktiv.
 
+### 5d. Manuell gestartete Aktivitäten (ab PC-Tracker 1.3.0)
+
+Das PC-Dashboard hat eine Karte **„Aktivität starten"**: Die Aktivitäten kommen
+aus Aevum (Spiegel aus 5b — wurde noch nie synchronisiert, zeigt die Karte den
+lokalen Katalog als Rückfall). Ein Klick auf eine Aktivität öffnet die
+Start-Optionen **Sofort / +5 / +15 / +30 Minuten**; bei Vorlaufzeit läuft ein
+abbrechbarer Countdown. So startet der Nutzer am PC dieselben Aktivitäten wie
+am Handy.
+
+**Datenmodell:** Eine manuelle Session ist eine normale Session mit dem festen
+`programKey` **`__manual__`** (Anzeigename „Manual start") und `activityKey` =
+ActivityType-ID der App. Der Import in Aevum (Abschnitt 6) läuft **unverändert**:
+`title = activityName`, `description = "Manual start"` (am PC lokalisiert
+angezeigt: „Manuell gestartet"). Kein Protokoll-Sprung nötig — die Sessions-API
+liefert manuelle Sessions wie jede andere, sobald sie abgeschlossen sind
+(`endAt` gesetzt).
+
+**Verhaltensregeln (in der Engine festgenagelt):**
+- Manuelle Starts haben **Vorrang**: Eine laufende Regel-Session endet mit dem
+Startzeitpunkt; die manuelle Session übernimmt.
+- Während sie läuft, starten **weder Regel- noch allgemeine Aufzeichnung** —
+es wird genau eine Aktivität aufgezeichnet.
+- **Idle beendet sie nicht** (eine Ansage wie „Arbeit" gilt, bis der Nutzer sie
+beendet); beendet wird sie über den **Stop-Knopf** im Dashboard (Ende =
+jetzt), die **Pause** oder das **App-Ende** (Ende = letzte Sicht).
+- Endet sie, zählt die Sichtbarkeit der Programme **ab jetzt** — eine folgende
+Regel-Session beginnt nicht rückwirkend und überlappt die manuelle Session
+nicht.
+- Wird der PC während einer manuellen Session beendet/neu gestartet, schließt
+die Start-Reparatur sie am letzten Lebenszeichen (wie jede offene Session).
+
+**Regelmäßiger Abgleich:** Der Abruf bleibt vollständig auf der Handy-Seite
+(Architektur-Entscheidung, siehe Abschnitt 1): Die Aevum-App synchronisiert im
+WLAN **automatisch alle 15 Minuten** (WorkManager, UNMETERED) plus gedrosselte
+Zusatz-Kicks beim App-Öffnen — sie holt Aufzeichnungen ab und spiegelt zugleich
+den Aktivitätskatalog zum PC. Das PC-Dashboard zeigt den Stand an („Letzte
+Synchronisierung …, N Aktivitäten vom Handy").
+
 ---
 
 ## 6. Import in Aevum (idempotent)

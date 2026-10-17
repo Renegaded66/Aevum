@@ -20,8 +20,8 @@ im **Releases-Bereich** des Repositories:
 
 **➜ [github.com/Renegaded66/Aevum/releases](https://github.com/Renegaded66/Aevum/releases)**
 
-Dort das Release **`pc-tracker-1.1.0`** öffnen und
-**`AevumPcTracker-1.1.0-win-x64.zip`** (ca. 55 MB) herunterladen. Darin steckt
+Dort das Release **`pc-tracker-1.3.0`** öffnen und
+**`AevumPcTracker-1.3.0-win-x64.zip`** (ca. 55 MB) herunterladen. Darin steckt
 die komplette App inklusive Laufzeitumgebung — es muss **nichts zusätzlich
 installiert** werden (kein .NET, kein Setup-Programm).
 
@@ -46,6 +46,19 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 **Update:** Wenn eine neue Version erscheint, einfach die neue ZIP aus dem
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
+
+## Neu in Version 1.3
+
+- **Aktivitäten direkt am PC starten:** Neue Karte „Aktivität starten" auf dem
+  Dashboard — dieselben Aktivitäten wie in deiner Aevum-App (vom Handy
+  synchronisiert), **sofort oder mit Vorlaufzeit** (+5/+15/+30 Min mit
+  Countdown und Abbrechen). Die laufende Aktivität erscheint oben im Dashboard
+  mit Stop-Knopf und wird beim nächsten Sync automatisch ans Handy übertragen.
+  Solange sie läuft, ruhen Programm-Aufzeichnung und allgemeine Aufzeichnung —
+  es wird genau diese eine Aktivität erfasst.
+- **Sync-Status im Dashboard:** Die „Dein Handy"-Karte zeigt jetzt zusätzlich,
+  wie viele Aktivitäten vom Handy übernommen wurden — die App gleicht im WLAN
+  automatisch alle 15 Minuten ab (plus beim Öffnen der App).
 
 ## Neu in Version 1.2
 

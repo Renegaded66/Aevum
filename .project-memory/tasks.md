@@ -40,3 +40,15 @@
       nichts anderes zeichnet parallel auf). Feuerrot nachgeschärft
       (#FF3B2E/#D32614), Schimmer auf dem Dashboard-Plus-Knopf.
       Bericht `docs/M19-3-ABSCHLUSSBERICHT.md`.
+- [x] PC-Tracker 1.3.0: Aktivitäten am PC starten („activitys starten …
+      entweder direkt oder mit vorlaufzeit") — Dashboard-Karte mit
+      Handy-synchronisierten Aktivitäts-Chips, Sofort/+5/+15/+30 mit
+      Countdown; Engine: manuelle Sessions (`__manual__`) mit Vorrang,
+      blockieren Regel+General, Idle-Ausnahme, Stop-Knopf/Pause/App-Ende,
+      ResetVisibilityClock gegen rückwirkende Überlappung. Live-Karte
+      mit Stop + „Manuell gestartet"; Sync-Status zeigt Aktivitäten-Stand
+      („der pc soll regelmäßig mit dem handy synchronisieren" — App holt
+      im WLAN alle 15 Min automatisch, Architektur unverändert).
+      104/104 Tests (+12 ManualSessionTests), Xvfb-Smoke-Test mit
+      gefundenen+gefixten Bugs (CommandParameter, Sichtbarkeits-Vorrang).
+      Bericht `docs/PC-TRACKER-1.3-ABSCHLUSSBERICHT.md`, Protokoll §5d.
