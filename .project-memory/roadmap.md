@@ -23,3 +23,6 @@ Siehe `docs/ROADMAP.md`.
 
 - [x] M19.1 Projektmanagement (Projekt/Unterprojekt/Kategorie/Aufgabe/Schritte,
       Tagesplan, Glas mit Juwelen, Feuerwerk, Fortschrittsbalken)
+- [x] M19.2 Eisblau/Feuerrot-Theme + Schimmer; PM-Umbau (nur Projekte+Aufgaben,
+      To-do-Listen mit Drag&Drop/Inline-Eingabe/Löschen, Dashboard nur heute,
+      schmales Glas, generische Vorlage); Digital-Balance-Revival

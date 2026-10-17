@@ -70,3 +70,41 @@ verpuffen.
 EIGENEN `PmEntryViewModel`.
 **Grund:** Minimaler Eingriff in das 77-KB-DashboardViewModel, kein Risiko für
 die bestehenden Tests; der Zähler macht den Tag ohne einen Tipp ablesbar.
+
+## M19.2 (17.10.2026)
+
+**Entscheidung:** PM-Hierarchie auf ZWEI Knotenarten reduziert (`PROJECT` =
+Container, `TASK` = abhakbares Blatt); `CATEGORY` und die alte „Aufgabe mit
+Schritten" entfallen.
+**Grund:** Nutzerentscheidung wörtlich („Ich möchte keine Unterscheidung
+zwischen Projekt, Kategorie und Aufgabe"). Weniger Typen = weniger
+Sonderfälle in jeder Query, jedem Test und jeder späteren Oberfläche.
+**Konsequenz:** Migration 44→45 ist eine REINE Daten-Migration (drei
+UPDATEs: CATEGORY→PROJECT, TASK-mit-Kindern→PROJECT, TODO→TASK);
+Schema bleibt identisch, Room-Validierung kann nicht brechen. Zwei Tests
+sichern zu: `PmMigrationSchemaTest` (Element-Gleichheit 44≡45) und
+`PmMigrationDataTest` (echte Migration auf SQLite aus `44.json`).
+
+**Entscheidung:** Baum-Regeln (Umzug an die Wurzel nur für Projekte, unter
+Aufgaben nichts, Geschwister-Nummerierung, exakt-Liste beim Neusortieren)
+leben im Repository, nicht in der Oberfläche.
+**Grund:** Die nächste Oberfläche (Widget, Import, Automation) erbt dieselben
+Regeln; ein Mutex serialisiert alle Lese→Rechne→Schreib-Zyklen.
+
+**Entscheidung:** Die gezogene Reihenfolge (`sort_order` per Drag & Drop) ist
+die EINZIGE Ordnung; „übernommene zuerst" entfällt.
+**Grund:** Eine Automatik hätte die gezogene Ordnung beim nächsten Öffnen
+wieder überschrieben — der Nutzer sieht seine Anordnung und meint, die App
+ignoriert ihn. Übernahme bleibt als Chip sichtbar.
+
+**Entscheidung:** `done_at` bleibt nur an Aufgaben; `setDone` auf ein Projekt
+ist ein No-Op.
+**Grund:** Das Glas zählt Aufgaben, keine Container; verhindert, dass ein
+„fertiges" Projekt Juwelen erzeugt, die niemand abgehakt hat.
+
+**Entscheidung:** Digital-Balance-Revival über DREI äußere Netze (Boot/
+PACKAGE_REPLACED, 15-Minuten-Watchdog mit KEEP, Screen-On-Nudge), alle mit
+`isAlive()`-Guard; Kernlogik (`AppTrackingTakeoverPolicy`, `ForegroundTracker`,
+`ScreenRecordingWorker`) unangetastet.
+**Grund:** Der Rückfall war ein Lifecycle-Problem (nur zwei Startpfade); die
+M18.151-Logik ist ausgetestet und darf nicht riskiert werden.
