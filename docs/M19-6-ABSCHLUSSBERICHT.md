@@ -122,7 +122,7 @@ anderer Einstellungen. Keine DB-Änderungen.
   Stile „gleich groß, Stern am schönsten, Blitz klar erkennbar, keine
   kaputt"; Sterne-Reaktion „drei goldene Sterne, keine Herzen"; Hero
   „deutlich präsenter, Antenne vollständig, nichts klebt am Bogen".
-- **Commit:** {{COMMIT_LINE}}
+- **Commit:** `2cd96e6` (18 Dateien, +670/−324) direkt auf `main` gepusht.
 
 ## 6. Von Tests & Sichtprüfung gefundene Punkte (und Fixes)
 

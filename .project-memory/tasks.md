@@ -156,3 +156,4 @@
       123.626.270 B kanonisch signiert (apksigner), Release 52.027.795 B,
       AAB 24.284.037 B; 10 Screenshots aevum-1.0.38-* auf dem APK-Server
       (HTTP 200). Bericht `docs/M19-6-ABSCHLUSSBERICHT.md`.
+      Commit `2cd96e6` (18 Dateien, +670/−324), gepusht auf main.
