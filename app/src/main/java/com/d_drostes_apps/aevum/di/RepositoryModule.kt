@@ -83,7 +83,6 @@ import com.d_drostes_apps.aevum.data.db.LocationTrackPointDao
 import com.d_drostes_apps.aevum.data.db.CalendarRuleDao
 import com.d_drostes_apps.aevum.data.db.CalendarEventCacheDao
 import com.d_drostes_apps.aevum.data.db.CalendarEventPinDao
-import com.d_drostes_apps.aevum.data.db.PmNodeDao
 // M18.129: AppDatabase für die neuen DAO-Provider — in dieser Datei
 // bisher nicht referenziert (alle anderen Provider bekommen DAOs direkt
 // von Hilt), daher fehlte der Import und kapt brach mit
@@ -221,21 +220,4 @@ object RepositoryModule {
         dao: CalendarEventPinDao
     ): com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepository =
         com.d_drostes_apps.aevum.data.repository.CalendarEventPinRepositoryImpl(dao)
-
-    // M19.1: Projektmanagement. Eigene DAO + eigenes Repository, weil der
-    // PM-Baum eine eigene Semantik hat (selbstreferenzieller Baum,
-    // Massenzuweisung, Umzugsregeln) und ausdrücklich NICHT mit dem
-    // bestehenden Todos-Modul (Serien/Streaks/Dauer-Auto-Check) vermischt wird.
-    // M19.2: Die Titel der Vorlage kommen lokalisiert aus den
-    // String-Ressourcen (values/ Englisch, values-de/ Deutsch) — PmSeed
-    // selbst bleibt dadurch rein und JVM-testbar.
-    @Provides @Singleton
-    fun providePmNodeDao(database: AppDatabase): PmNodeDao = database.pmNodeDao()
-
-    @Provides @Singleton
-    fun providePmRepository(
-        dao: PmNodeDao,
-        seedTitles: com.d_drostes_apps.aevum.data.repository.AndroidPmSeedTitles
-    ): com.d_drostes_apps.aevum.data.repository.PmRepository =
-        com.d_drostes_apps.aevum.data.repository.PmRepositoryImpl(dao, seedTitles)
 }

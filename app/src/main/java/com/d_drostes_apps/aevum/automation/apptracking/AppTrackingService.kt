@@ -81,6 +81,26 @@ import javax.inject.Inject
  * Dafür pflegt der Service prozess-lokale Liveness-Marker im Companion
  * (alive/lastPollAtMs, siehe unten) — die Gates der Revival-Pfade, damit
  * ein lebender Service nie doppelt angestoßen wird.
+ *
+ * M19.3 (User-Report: „Oft zeichnet der einfach weiter digital auf obwohl
+ * ich etwas bestimmtes geöffnet habe. […] dann will ich, dass die
+ * Aufzeichnung Handynutzung 5 Sekunden nach dem öffnen auch startet, egal
+ * ob digital oder eine andere App oder nichts aufgezeichnet wird,
+ * Hauptsache nichts anderes wird aufgezeichnet."): Drei Schrauben gegen die
+ * Unzuverlässigkeit:
+ *  1. POLL_INTERVAL_MS 15s → 2s — eine frisch geöffnete App wurde vorher im
+ *     Mittel erst nach 7,5s erkannt (schlechtester Fall 15s); gefordert
+ *     ist ein Start ≤5s nach dem Öffnen.
+ *  2. Auch wenn die getrackte App schon „aktuell" ist, wird der Zustand
+ *     nachgeprüft ([AppTrackingTakeoverPolicy.onRepeatedForeground]): ist
+ *     zwischenzeitlich wieder „Digital" angelaufen (Neuansatz nach
+ *     App-Ende, Screen-Zyklus), wird innerhalb eines Poll-Takts
+ *     übernommen — vorher kehrte dieser Zweig blind zurück und Digital
+ *     lief die komplette App-Sitzung weiter.
+ *  3. Schlägt der Digital-Stopp im Race-Fenster fehl, wird frisch
+ *     nachgesehen und EINMAL nachgefasst
+ *     ([AppTrackingTakeoverPolicy.onStopRace]); der frühere stille
+ *     Abbruch verlor die Übergabe sonst für die gesamte App-Sitzung.
  */
 @AndroidEntryPoint
 class AppTrackingService : Service() {
@@ -124,11 +144,15 @@ class AppTrackingService : Service() {
         private const val TAG = "AppTrackingSvc"
         private const val CHANNEL_ID = "aevum_app_tracking"
         private const val NOTIFICATION_ID = 6401
-        // M18.93v11 (User: "Akkuverbrauch weiter drosseln"): 5s-Polling
-        // war überdimensioniert — App-Wechsel werden auch mit 15s
-        // zuverlässig erkannt (der User bleibt i.d.R. Minuten in einer
-        // App), aber mit 3x weniger Wakes/Stunde.
-        private const val POLL_INTERVAL_MS = 15_000L
+        // M19.3 (Nutzeranforderung: „… dass die Aufzeichnung Handynutzung
+        // 5 Sekunden nach dem öffnen auch startet"): zurück auf einen
+        // 2-Sekunden-Takt. Der 15-s-Takt aus M18.93v11 (Akkusparmaßnahme)
+        // machte die Übergabe unzuverlässig — im Mittel 7,5s, im
+        // schlechtesten Fall 15s Latenz, gefühlt „manchmal klappt es,
+        // manchmal nicht". Der Takt läuft NUR bei eingeschaltetem
+        // Bildschirm und mindestens einer getrackten App (Gate in
+        // start()/onStartCommand) — nachts und ohne Feature keine Last.
+        private const val POLL_INTERVAL_MS = 2_000L
         // M18.104 (Akku-Redesign): Screen aus → nur alle 10 Min prüfen, ob
         // der Screen wieder an ist (der Loop muss laufen, um den Zustand
         // im Auge zu behalten, aber pollForegroundApp() wird übersprun-
@@ -315,8 +339,9 @@ class AppTrackingService : Service() {
             // M18.104 (Akku-Redesign): Screen-gesteuertes Polling. Vorher
             // lief der 15s-Loop rund um die Uhr (5.760 UsageStats-Abfragen/
             // Tag), obwohl nachts niemand Apps wechselt. Jetzt:
-            //   • Screen AN  → normaler 15s-Poll (App-Wechsel-Erkennung
-            //     wie gehabt).
+            //   • Screen AN  → 2s-Poll (M19.3; vorher 15s — siehe
+            //     POLL_INTERVAL_MS: eine frisch geöffnete getrackte App
+            //     muss binnen ≤5s übernommen sein).
             //   • Screen AUS → KEIN Poll. Der letzte Vordergrund-Status
             //     bleibt eingefroren: Die Session der zuletzt genutzten
             //     getrackten App läuft weiter (korrekt — der User hat die
@@ -482,8 +507,28 @@ class AppTrackingService : Service() {
 
         // App ist getrackt.
         if (currentTrackedApp == foreground) {
-            // Gleiche App wie beim letzten Poll — nichts tun.
-            return
+            // M19.3: Gleiche App wie beim letzten Poll — trotzdem kurz
+            // NACHPRÜFEN: Zwischen zwei Polls kann „Digital" erneut
+            // angelaufen sein (Neuansatz nach App-Ende, Screen-Zyklus),
+            // während diese App durchgehend im Vordergrund blieb. Vorher
+            // kehrte dieser Zweig blind zurück — das Digital lief dann die
+            // KOMPLETTE App-Sitzung weiter („Oft zeichnet der einfach
+            // weiter digital auf obwohl ich etwas bestimmtes geöffnet
+            // habe"). Die reine Regel liegt in [AppTrackingTakeoverPolicy]:
+            //  - eigene Session läuft oder gar nichts (auch: bewusst
+            //    manuell gestoppt) → nichts tun,
+            //  - wieder Digital → unten übernehmen,
+            //  - fremde Quelle → Rangfolge, nichts anfassen.
+            val liveNow = liveActivityManager.liveSession.value
+            val repeatAction = AppTrackingTakeoverPolicy.onRepeatedForeground(
+                liveSourceType = liveNow?.sourceType,
+                liveIsLive = liveNow?.isLive == true,
+                isOwnSession = liveNow != null && (liveNow.id == trackedSessionId ||
+                    liveNow.sourceType == AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING)
+            ) ?: return
+            if (repeatAction != AppTrackingTakeoverPolicy.Action.TAKE_OVER_DIGITAL) return
+            // Sonst: unten läuft dieselbe Übergabe (liest den Live-Zustand
+            // erneut frisch und stoppt das Digital race-sicher).
         }
 
         // Neue getrackte App im Vordergrund — M18.151: Übergabe-Regeln
@@ -516,9 +561,35 @@ class AppTrackingService : Service() {
                 // Race-Schutz: NUR stoppen, wenn EXAKT diese Session noch
                 // live ist — hat in der Zwischenzeit z. B. die Fahrterkennung
                 // übernommen, wird sie nie angefasst.
-                if (!liveActivityManager.stopIfLive(digital.id)) {
+                var stopped = liveActivityManager.stopIfLive(digital.id)
+                if (!stopped) {
+                    // M19.3: Der Stopp greift NUR ins Leere, wenn die
+                    // Session im Race-Fenster gewechselt hat. Statt die
+                    // Übergabe dann still zu verlieren (der frühere Abbruch
+                    // ließ Digital über die gesamte App-Sitzung
+                    // weiterlaufen), frisch nachsehen und laut Policy
+                    // entscheiden:
+                    //  - gar nichts mehr live → Ziel erreicht,
+                    //  - wieder Digital angelaufen → EINMAL nachfassen,
+                    //  - Höherpriores läuft → Rangfolge, nichts anfassen.
+                    val fresh = liveActivityManager.liveSession.value
+                    when (AppTrackingTakeoverPolicy.onStopRace(
+                        freshSourceType = fresh?.sourceType,
+                        freshIsLive = fresh?.isLive == true
+                    )) {
+                        AppTrackingTakeoverPolicy.StopRace.OBJECTIVE_MET -> stopped = true
+                        AppTrackingTakeoverPolicy.StopRace.RETRY_STOP ->
+                            stopped = fresh != null && liveActivityManager.stopIfLive(fresh.id)
+                        AppTrackingTakeoverPolicy.StopRace.KEEP_FOREIGN -> Unit
+                    }
+                }
+                if (!stopped) {
                     Log.d(TAG, "Digital-Übergabe abgebrochen — Live-Session hat inzwischen gewechselt")
-                    currentTrackedApp = foreground
+                    // M19.3: NICHT als „erledigt" markieren — der nächste
+                    // 2-s-Poll bewertet den Zustand neu (Selbstheilung),
+                    // sonst bliebe das Digital bis zum nächsten App-Wechsel
+                    // unangetastet.
+                    currentTrackedApp = null
                     return
                 }
                 Log.d(TAG, "Digital (${digital.id}) SOFORT gestoppt — App-Aufzeichnung $foreground übernimmt")

@@ -644,3 +644,33 @@ hält fest, dass `44.json` und `45.json` Element für Element gleich sind
 die Migration auf einer echten SQLite-Datenbank durch — aufgebaut aus
 `44.json`, Altdaten eingefüllt, über Room geöffnet — und prüft Typen, Datum,
 Erledigung und Sortierung des Ergebnisses.
+
+
+## M19.3 — Projektmanagement-Rückbau (Version 46)
+
+Nutzerentscheidung: „Ich nehme es zurück. Ich will das ganze PM Management
+doch nicht. Also alles davon." Das Modul ist komplett raus — Datenbank-seitig
+bleibt EIN Schritt übrig:
+
+**Migration 45 → 46** (`MIGRATION_45_46`) löscht die Tabelle `pm_node` samt
+Inhalt:
+
+```sql
+DROP TABLE IF EXISTS `pm_node`
+```
+
+Bewusst DROP statt verwaister Tabelle: eine jahrelang unbenutzte Tabelle
+läge sonst in jedem JSON-Export und jedem ZIP-Backup mit. Der zugehörige
+Code (Entity, DAO, Repository, Migrations-Kommentare 43→44/44→45) bleibt als
+historische Kette erhalten — Bestandsgeräte von ≤44 fahren weiterhin
+43→44 (Tabelle anlegen) → 44→45 (Typen umdeuten) → 45→46 (Tabelle löschen).
+
+Zwei Tests sichern den Rückbau ab:
+
+- `SchemaV46Test`: `46.json` ist Element für Element `45.json` MINUS genau
+  `pm_node` (Spalten, Indizes, Fremdschlüssel, Reihenfolge, Views,
+  Setup-Abfragen — nur die Identitäts-Hash ändert sich, wie sie muss).
+- `PmRemovalMigrationTest`: baut eine echte v45-Datenbank aus `45.json`,
+  füllt einen Alt-Baum ein und öffnet sie über Room — danach ist `pm_node`
+  verschwunden, die übrigen 38 Tabellen stehen unangetastet, die Datenbank
+  meldet Version 46 mit der erwarteten Identitäts-Hash.

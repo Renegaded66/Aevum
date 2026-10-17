@@ -36,6 +36,21 @@ package com.d_drostes_apps.aevum.automation.apptracking
  * ein Fallback („läuft, wenn nichts anderes läuft") und hatte schon vor
  * M18.151 Vorrang vor den Smartphone-Aufzeichnungen — daran ändert diese
  * Übergabe nichts.
+ *
+ * M19.3 (User-Report: „Oft zeichnet der einfach weiter digital auf obwohl
+ * ich etwas bestimmtes geöffnet habe. […] Hauptsache nichts anderes wird
+ * aufgezeichnet."): Zwei Nachfass-Regeln gegen die beobachtete
+ * Unzuverlässigkeit — beide bewusst als PURE Funktionen hier, damit sie
+ * per Unit-Test festgenagelt sind:
+ *
+ *  - [onRepeatedForeground]: Auch wenn DIESE getrackte App bereits als
+ *    „aktuell" gilt, wird der Aufzeichnungs-Zustand nachgeprüft; ist
+ *    zwischenzeitlich wieder „Digital" angelaufen, wird übernommen
+ *    (Rückgabe TAKE_OVER_DIGITAL), sonst null (nichts tun).
+ *  - [onStopRace]: Schlägt ein Digital-Stopp im Race-Fenster fehl, sagt
+ *    diese Regel, was der frische Zustand bedeutet: Ziel erreicht
+ *    (nichts läuft mehr), erneut nachfassen (wieder Digital) oder
+ *    Rangfolge (fremde Quelle).
  */
 object AppTrackingTakeoverPolicy {
 
@@ -59,6 +74,18 @@ object AppTrackingTakeoverPolicy {
         KEEP_FOREIGN
     }
 
+    /** M19.3: Ergebnis der Nachprüfung nach einem ins Leere gegriffenen Digital-Stopp. */
+    enum class StopRace {
+        /** Es läuft nichts (mehr) — „nichts anderes wird aufgezeichnet" ist bereits erreicht. */
+        OBJECTIVE_MET,
+
+        /** Wieder „Digital" angelaufen — der Stopp muss EINMAL nachfassen. */
+        RETRY_STOP,
+
+        /** Höherpriore Session hat übernommen — Rangfolge, nichts anfassen. */
+        KEEP_FOREIGN
+    }
+
     /**
      * @param liveSourceType sourceType der aktuell laufenden Session
      *        (null = keine Session live).
@@ -70,5 +97,56 @@ object AppTrackingTakeoverPolicy {
         isOwnSession -> Action.STOP_AND_START
         liveSourceType == SOURCE_SCREEN_AUTO -> Action.TAKE_OVER_DIGITAL
         else -> Action.KEEP_FOREIGN
+    }
+
+    /**
+     * M19.3: Was bedeutet der FRISCHE Live-Zustand, wenn ein Digital-Stopp
+     * ins Leere griff (die Session wechselte im Race-Fenster)?
+     *
+     * @param freshSourceType sourceType des frisch gelesenen Zustands
+     *        (null = keine Session).
+     * @param freshIsLive lebt der frisch gelesene Zustand überhaupt?
+     */
+    fun onStopRace(freshSourceType: String?, freshIsLive: Boolean): StopRace = when {
+        // Nichts (mehr) live — das Ziel ist bereits erreicht; der frühere
+        // stille Abbruch hätte hier fälschlich „aufgegeben".
+        !freshIsLive -> StopRace.OBJECTIVE_MET
+        // „Digital" ist wieder da (Neuansatz) → genau EINMAL nachfassen.
+        freshSourceType == SOURCE_SCREEN_AUTO -> StopRace.RETRY_STOP
+        // Etwas Höherpriores hat übernommen → Rangfolge, nichts anfassen.
+        else -> StopRace.KEEP_FOREIGN
+    }
+
+    /**
+     * M19.3: Nachprüfung, wenn die getrackte App schon „aktuell" ist
+     * ([currentTrackedApp] == Vordergrund), aber zwischen zwei Polls Zeit
+     * vergangen ist. Rückgabe: TAKE_OVER_DIGITAL (übernehmen) oder null
+     * (nichts tun).
+     *
+     * WARUM: Mit dem 2-s-Takt aus M19.3 kann innerhalb einer App-Sitzung
+     * mehrfach passieren, dass „Digital" erneut angelaufen ist (der
+     * Digital-Neuansatz nach einem früheren App-Ende ist asynchron). Ein
+     * blindes „gleiche App → return" ließ es dann bis zum nächsten
+     * App-Wechsel weiterlaufen.
+     *
+     * @param liveSourceType sourceType der laufenden Session (null = keine).
+     * @param liveIsLive lebt die Session überhaupt?
+     * @param isOwnSession läuft die eigene App-Tracking-Session?
+     */
+    fun onRepeatedForeground(
+        liveSourceType: String?,
+        liveIsLive: Boolean,
+        isOwnSession: Boolean
+    ): Action? = when {
+        // Gar nichts live: Nichts zu tun — auch ein bewusst/manuell
+        // gestoppter Zustand wird nicht automatisch neu gestartet.
+        !liveIsLive -> null
+        // Unsere Aufzeichnung läuft — alles korrekt.
+        isOwnSession -> null
+        // „Digital" läuft, obwohl diese getrackte App im Vordergrund ist
+        // → übernehmen (unten läuft die race-sichere Übergabe).
+        liveSourceType == SOURCE_SCREEN_AUTO -> Action.TAKE_OVER_DIGITAL
+        // Fremde Quelle (Geofence/Fahrt/Sport/manuell/Kalender) → Rangfolge.
+        else -> null
     }
 }

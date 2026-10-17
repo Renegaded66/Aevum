@@ -60,10 +60,9 @@ import com.d_drostes_apps.aevum.data.model.*
         CalendarRule::class,
         CalendarEventCache::class,
         // M18.131: manuell markierte Einzel-Termine (Kalender → Activity)
-        CalendarEventPin::class,
-        // M19.1: Projektmanagement (ein selbstreferenzieller Baum für
-        // Ober-/Unterprojekte, Kategorien, Aufgaben und Todos)
-        PmNode::class
+        CalendarEventPin::class
+        // M19.3: pm_node (Projektmanagement) wieder ENTFERNT — MIGRATION_45_46
+        // löscht die Tabelle; die Entity ist Geschichte (Nutzerentscheidung).
     ],
     // M18.60-CRASH-FIX 2: v25 — repariert die bereits installierte
     // kaputte v24 (allowance_day_override ohne FK).
@@ -97,12 +96,12 @@ import com.d_drostes_apps.aevum.data.model.*
     // wiederkehrenden Terminen. FK auf activity_type mit SET NULL, damit
     // dann das Löschen einer Aktivität die Markierung nicht mitreißt.
     // M19.1: v44 — pm_node (Projektmanagement: Ober-/Unterprojekte,
-    // Kategorien, Aufgaben, Todos in EINEM selbstreferenziellen Baum).
-    // Rein additive Migration; kein Bestandsdatum wird angefasst. Der Baum
-    // wird in Kotlin indexiert (PmTree), deshalb braucht die Migration keine
-    // Datenumformung, nur Tabelle + Indizes. Die Übereinstimmung mit dem
-    // erwarteten Schema wird von PmMigrationSchemaTest gegen 44.json geprüft.
-    version = 45,
+    // Kategorien, Aufgaben, Todos in EINEM selbstreferenziellen Baum; rein
+    // additive Migration). M19.3: v46 — das Projektmanagement wurde auf
+    // Nutzerwunsch wieder ENTFERNT („Ich nehme es zurück. Ich will das ganze
+    // PM Management doch nicht. Also alles davon."): MIGRATION_45_46 löscht
+    // die Tabelle samt Inhalt, das übrige Schema bleibt unverändert.
+    version = 46,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -145,8 +144,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun calendarEventCacheDao(): CalendarEventCacheDao
     // M18.131: manuell markierte Einzel-Termine
     abstract fun calendarEventPinDao(): CalendarEventPinDao
-    // M19.1: Projektmanagement (ein Baum für Projekte → Aufgaben → Todos)
-    abstract fun pmNodeDao(): PmNodeDao
     companion object {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1643,17 +1640,22 @@ abstract class AppDatabase : RoomDatabase() {
         )
 
         /**
-         * M19.1: v43 → v44 — Projektmanagement-Baum.
+         * M19.1: v43 → v44 — Projektmanagement-Baum (die Entity PmNode und
+         * die gesamte SQL dazu sind mit M19.3 wieder aus dem Projekt
+         * verschwunden; die Migration bleibt als historischer Schritt der
+         * Kette erhalten, weil Bestandsgeräte von ≤44 weiterhin über sie
+         * laufen: 43→44 anlegen, 44→45 umdeuten, 45→46 löschen).
          *
          * Rein additiv: eine neue Tabelle, kein Bestandsdatum wird angefasst.
          *
-         * Die SQL-Strings sind Zeichen für Zeichen das, was Room aus [PmNode]
-         * erzeugt (Spaltenreihenfolge = Deklarationsreihenfolge, NOT NULL für
-         * alle nicht-nullbaren Kotlin-Eigenschaften, kein DEFAULT, Primärschlüssel
-         * am Ende, Fremdschlüssel inklusive ON DELETE CASCADE).
+         * Die SQL-Strings waren Zeichen für Zeichen das, was Room aus der
+         * Entity erzeugte (Spaltenreihenfolge = Deklarationsreihenfolge,
+         * NOT NULL für alle nicht-nullbaren Kotlin-Eigenschaften, kein
+         * DEFAULT, Primärschlüssel am Ende, Fremdschlüssel inklusive
+         * ON DELETE CASCADE).
          *
-         * ON DELETE CASCADE auf den Selbstbezug: Löschen eines Projekts räumt
-         * den kompletten Teilbaum ab, ohne Nacharbeit im Code.
+         * ON DELETE CASCADE auf den Selbstbezug: Löschen eines Projekts
+         * räumt den kompletten Teilbaum ab, ohne Nacharbeit im Code.
          */
         val MIGRATION_43_44 = object : Migration(43, 44) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -1701,5 +1703,26 @@ abstract class AppDatabase : RoomDatabase() {
         /** Alte Todos sind jetzt die abhakbaren Aufgaben. */
         const val SQL_PM_44_45_TODO_TO_TASK =
             "UPDATE pm_node SET type = 'TASK' WHERE type = 'TODO'"
+
+        // ── 45 → 46: Projektmanagement-Rückbau (M19.3) ────────────────────
+        //
+        // Nutzerentscheidung („Ich nehme es zurück. Ich will das ganze PM
+        // Management doch nicht. Also alles davon."): Das Feature ist raus,
+        // die Tabelle wird GELÖSCHT — ein sauberer Schnitt statt einer
+        // jahrelang verwaisten Tabelle in jedem Export/Backup. Der Code des
+        // Features bleibt in der Git-Historie (M19.1/M19.2-Commits) erhalten;
+        // ein Zurück wäre ein Revert, kein Daten-Archäologie-Projekt.
+        //
+        // Die Migration läuft auch auf Geräten, die direkt von ≤44 kommen:
+        // Room fährt die Kette 43→44 (Tabelle anlegen) → 44→45 (Typen
+        // umdeuten) → 45→46 (Tabelle löschen).
+        val MIGRATION_45_46 = object : Migration(45, 46) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(SQL_PM_45_46_DROP)
+            }
+        }
+
+        /** Entfernt den Projektmanagement-Baum samt Inhalt (M19.3). */
+        const val SQL_PM_45_46_DROP = "DROP TABLE IF EXISTS `pm_node`"
     }
 }

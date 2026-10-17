@@ -1,5 +1,60 @@
 # CHANGELOG
 
+## [Unreleased] — M19.3 — 2026-10-17
+
+### Projektmanagement KOMPLETT entfernt + zuverlässige App-Aufzeichnung + Feuerrot
+
+- **Projektmanagement komplett zurückgenommen:** „Ich nehme es zurück. Ich
+  will das ganze PM Management doch nicht. Also alles davon." Entfernt sind
+  der Einstiegsknopf auf dem Dashboard (samt schwebendem Nachfolger beim
+  Scrollen), der Eintrag Zahnrad → Erweitert, alle drei Routen
+  (`projects`, `projects/node/{nodeId}`, `pm_editor`), sämtliche Screens
+  (Projects/PmNodeDetail/PmEditor), ViewModels, Domänenlogik (PmTree,
+  PmTodayPlan, PmSeed, PmDragDrop), Repository/DAO/Entity, die
+  PM-Komponenten (GemGlass, PlayfulProgressBar, FireworksOverlay, PmCheckbox,
+  PmEntryButton, PmRows, PmDateControls, PmPalette) und die PM-Strings
+  (DE/EN). **Datenbank v46:** `MIGRATION_45_46` löscht die Tabelle `pm_node`
+  samt Inhalt — sauberer Schnitt statt verwaister Tabelle in jedem Backup.
+- **App-Aufzeichnung zuverlässig („Digital Balance"):** Ursache der
+  Unzuverlässigkeit war der 15-Sekunden-Poll — bis zu 15 s nach dem Öffnen
+  einer getrackten App lief die Aufzeichnung noch als „Digital" weiter.
+  Jetzt: `POLL_INTERVAL_MS = 2_000L` (Ø 1 s bis zum Erkennen, Worst Case 2 s
+  — weit unter den geforderten 5 s), Nachprüfung auch bei UNVERÄNDERTER
+  Vordergrund-App (später angelaufenes „Digital" wird übernommen statt als
+  „eigene Session" ignoriert) und einmaliges Nachfassen, wenn die alte
+  Aufzeichnung gerade in der Stopp-Phase hängt (Stopp-Races). Die Regeln
+  liegen als reine Funktionen in `AppTrackingTakeoverPolicy`
+  (`onRepeatedForeground`, `onStopRace`) und sind per Unit-Test festgenagelt
+  (`AppTrackingDigitalWiringTest` Test 11 TEMPO + Test 12 NACHPFASSEN).
+  Erwartetes Verhalten: Activity „Handynutzung" + Instagram zugeordnet →
+  Aufzeichnung „Handynutzung" startet ≤5 s nach dem Öffnen von Instagram,
+  unabhängig davon, was vorher lief (Digital, andere App oder nichts).
+- **Feuerrot nachgeschärft:** „die rote theme Farbe soll noch etwas röter.
+  So feuerrot." Sekundärfarbe dunkel `#F87171` → `#FF3B2E`, hell `#DC2626` →
+  `#D32614` (plus Container/onContainer-Abstimmung); `DesignTokens[1]` und
+  `AevumThemeTest`-Pins mitgezogen.
+- **Schimmer umgezogen:** Der wandernde Schimmer saß auf dem entfallenen
+  PM-Knopf — er wandert auf den runden Plus-Knopf des Dashboards („gerne
+  auch mit schimmern bei manchen Buttons und so"), respektiert weiterhin
+  „Animationen aus".
+
+### Verified
+
+- **1145/1145 Unit-Tests grün** (0 Fehler; 107 Klassen; 1 Skip = Altbestand
+  `@Ignore`; −10 PM-Testklassen, +`SchemaV46Test` und
+  `PmRemovalMigrationTest`).
+- `SchemaV46Test`: `46.json` = `45.json` MINUS genau `pm_node` — Element für
+  Element (inkl. Views/Setup-Abfragen strukturell identisch, Identitäts-Hash
+  wechselt wie erwartet).
+- `PmRemovalMigrationTest`: echte v45-Datenbank aus `45.json` mit Alt-Baum →
+  über Room mit `MIGRATION_45_46` geöffnet → `pm_node` weg, übrige 38
+  Tabellen unangetastet, Version 46 + korrekte Identitäts-Hash.
+- Build `aevum-m193` (`testDebugUnitTest assembleDebug assembleRelease
+  bundleRelease`): **BUILD SUCCESSFUL in 5m** (exit 0); Debug-APK 123,4 MB
+  kanonisch signiert (`9c3055c4…fbe0e8`), Release-APK 52,0 MB (Upload-Key
+  `c8430d35…61ffe9`, versionCode 34), AAB 24,2 MB.
+- Download: `http://192.168.178.40:8098/Aevum-1.0.33-Debug.apk`.
+
 ## [Unreleased] — M19.2 — 2026-10-17
 
 ### Neu — Eisblau/Feuerrot, Projektmanagement-Umbau, Digital-Balance-Revival

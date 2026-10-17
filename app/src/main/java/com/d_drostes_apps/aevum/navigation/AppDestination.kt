@@ -68,13 +68,8 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     // M18.83: Orts-Timeline (Google-Maps-artige Tag-Story)
     PlaceTimeline("place_timeline", R.string.place_timeline_title),
     // M18.146: Detail-Statistikseite einer Aktivität (fancy Verlaufsgraph)
-    ActivityStats("stats/{activityTypeId}", R.string.activity_stats_title),
-    // M19.1/M19.2: Projektmanagement (Sheet von unten) — Wurzel, Detailseite, Editor.
-    // Der Editor trägt seine Absicht in der Route (mode), damit eine einzige
-    // Seite alle Fälle abdeckt: Projekt neu, Projekt bearbeiten, Aufgabe
-    // bearbeiten. (Die alten Modi „todos_new"/„todo_edit" aus M19.1 werden
-    // beim Einlesen weiterhin toleriert, siehe PmEditorMode.from.)
-    Projects("projects", R.string.projects_title),
-    ProjectsNode("projects/node/{nodeId}", R.string.pm_task_details),
-    PmEditor("pm_editor?mode={mode}&nodeId={nodeId}&parentId={parentId}", R.string.pm_editor_edit_node)
+    ActivityStats("stats/{activityTypeId}", R.string.activity_stats_title)
+    // M19.3: Projektmanagement-Routen (Projects/ProjectsNode/PmEditor) wieder
+    // ENTFERNT — Nutzerentscheidung („Ich will das ganze PM Management doch
+    // nicht. Also alles davon.").
 }

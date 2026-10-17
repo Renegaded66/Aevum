@@ -16,6 +16,11 @@ import androidx.compose.ui.graphics.Color
  * Auszeichnung, kein Grundton. Hell wickelt dieselbe Identität in Tagesform:
  * gedecktes Eisblau auf fast weißem Papier, Feuerrot als kräftiger Akzent.
  *
+ * M19.3-Nachschärfung (Nutzer: „die rote theme Farbe soll noch etwas röter.
+ * So feuerrot."): secondary ist von den weichen Salbei-Tönen (#F87171/#DC2626)
+ * auf sattes Feuerrot (#FF3B2E dunkel / #D32614 hell) gezogen — mehr
+ * Sättigung, tiefere Glut, deutlich als „Feuer" lesbar.
+ *
  * `internal` bewusst statt `private`: AevumThemeTest pinnt die Kernfarben
  * in der reinen JVM-Suite (Compose.Color ist eine Value-Klasse, kein Android
  * nötig) — die Identität lässt sich so nicht unbemerkt verschieben.
@@ -25,10 +30,10 @@ internal val DarkColorScheme = darkColorScheme(
     onPrimary = Color(0xFF06283D),
     primaryContainer = Color(0xFF0D3D5C),
     onPrimaryContainer = Color(0xFFCDEAFF),
-    secondary = Color(0xFFF87171),      // Feuerrot — warmer Gegenpol
+    secondary = Color(0xFFFF3B2E),      // Feuerrot, nachgeschärft (M19.3)
     onSecondary = Color(0xFF4A0B0B),
-    secondaryContainer = Color(0xFF5F1714),
-    onSecondaryContainer = Color(0xFFFFD9D3),
+    secondaryContainer = Color(0xFF6E140B),
+    onSecondaryContainer = Color(0xFFFFDAD5),
     tertiary = Color(0xFFFBBF24),       // Gold — Auszeichnung, kein Grundton
     onTertiary = Color(0xFF3D2A00),
     tertiaryContainer = Color(0xFF5A430B),
@@ -58,7 +63,7 @@ internal val LightColorScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD7EDFF),
     onPrimaryContainer = Color(0xFF00344D),
-    secondary = Color(0xFFDC2626),      // Feuerrot (kräftig)
+    secondary = Color(0xFFD32614),      // Feuerrot, nachgeschärft (M19.3)
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFFFE1DD),
     onSecondaryContainer = Color(0xFF5C120C),

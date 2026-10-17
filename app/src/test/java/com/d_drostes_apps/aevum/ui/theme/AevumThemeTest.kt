@@ -6,6 +6,8 @@ import org.junit.Test
 
 /**
  * M19.2: Die Identität ist angelötet — Eisblau und Feuerrot.
+ * M19.3: Feuerrot nachgeschärft (Nutzer: „soll noch etwas röter. So feuerrot.")
+ * — die Pins halten jetzt die Feuer-Fassung fest.
  *
  * WARUM: Genau diese vier Werte machen den Look wiedererkennbar; wenn ein
  * Refactor die Palette verschiebt, failt der Test lauter, als die Optik
@@ -20,12 +22,12 @@ class AevumThemeTest {
     @Test
     fun darkSchemePinsIceBlueAndFireRed() {
         assertThat(DarkColorScheme.primary).isEqualTo(Color(0xFF7DD3FC))
-        assertThat(DarkColorScheme.secondary).isEqualTo(Color(0xFFF87171))
+        assertThat(DarkColorScheme.secondary).isEqualTo(Color(0xFFFF3B2E))
     }
 
     @Test
     fun lightSchemePinsDeepIceAndFireRed() {
         assertThat(LightColorScheme.primary).isEqualTo(Color(0xFF0369A1))
-        assertThat(LightColorScheme.secondary).isEqualTo(Color(0xFFDC2626))
+        assertThat(LightColorScheme.secondary).isEqualTo(Color(0xFFD32614))
     }
 }

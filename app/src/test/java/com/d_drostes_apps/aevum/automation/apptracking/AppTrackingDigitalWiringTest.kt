@@ -48,6 +48,19 @@ import java.io.File
  *     getEnabledOnce()-Leere und AppTrackingService.isAlive().
  * 10. LIVENESS: Der Service pflegt alive (onCreate/onDestroy) und
  *     lastPollAtMs (Poll) — Grundlage der Gates der Revival-Pfade.
+ *
+ * M19.3 (User-Report: „Oft zeichnet der einfach weiter digital auf obwohl
+ * ich etwas bestimmtes geöffnet habe. […] dann will ich, dass die
+ * Aufzeichnung Handynutzung 5 Sekunden nach dem öffnen auch startet […]
+ * Hauptsache nichts anderes wird aufgezeichnet."): Gesichert wird zusätzlich
+ *  11. TEMPO: Der Poll-Takt steht auf 2 Sekunden (vorher 15s — bis zu 15s
+ *      Latenz; gefordert ist der Start ≤5s nach dem Öffnen).
+ *  12. NACHPFASSEN: Der Same-App-Zweig prüft regelmäßig nach
+ *      (onRepeatedForeground) — wieder angelaufenes Digital wird innerhalb
+ *      eines Takts übernommen, statt die ganze App-Sitzung weiterzulaufen.
+ *      Ein ins Leere gegriffener Digital-Stopp fasst EINMAL nach
+ *      (onStopRace) und markiert den Zustand NICHT als erledigt
+ *      (currentTrackedApp = null → Selbstheilung im nächsten Poll).
  */
 class AppTrackingDigitalWiringTest {
 
@@ -332,5 +345,53 @@ class AppTrackingDigitalWiringTest {
             .that(pollBlock).contains("lastPollAtMs = System.currentTimeMillis()")
         assertWithMessage("lastPollAtMs muss als ERSTE Anweisung im Poll gepflegt werden (auch ein Abbruch danach ist dann sichtbar)")
             .that(pollBlock.indexOf("lastPollAtMs = System.currentTimeMillis()") < pollBlock.indexOf("processForegroundEvents()")).isTrue()
+    }
+
+    // ── 11) M19.3: TEMPO — der 2-Sekunden-Takt ───────────────────
+
+    @Test
+    fun `Service pollt im Zwei-Sekunden-Takt fuer die Fuenf-Sekunden-Anforderung`() {
+        val src = serviceSource()
+        assertWithMessage("POLL_INTERVAL_MS = 2_000L fehlt — der 15-s-Takt erkannte eine frisch geöffnete App erst nach durchschnittlich 7,5s (Nutzeranforderung: Start ≤5s nach dem Öffnen)")
+            .that(src).contains("POLL_INTERVAL_MS = 2_000L")
+        assertWithMessage("Der alte 15-s-Takt darf nicht zurückkehren").that(src).doesNotContain("POLL_INTERVAL_MS = 15_000L")
+    }
+
+    // ── 12) M19.3: NACHPFASSEN — Digital nie die App-Sitzung überlassen
+
+    @Test
+    fun `Same-App-Nachpruefung - spaeter angelaufenes Digital wird aus der Sitzung entfernt`() {
+        val src = serviceSource()
+        assertWithMessage("onRepeatedForeground fehlt im Service — der Same-App-Zweig kehrt sonst blind zurück und ein später angelaufenes Digital läuft die KOMPLETTE App-Sitzung weiter")
+            .that(src).contains("AppTrackingTakeoverPolicy.onRepeatedForeground(")
+        val policy = policySource()
+        assertWithMessage("Die reine Nachprüf-Regel fehlt in der Policy (JVM-getestet in AppTrackingTakeoverPolicyTest)")
+            .that(policy).contains("fun onRepeatedForeground(")
+        assertWithMessage("Der Nachprüf-Zweig muss vor dem gleichen Übergabe-Code liegen wie eine neu geöffnete App (durchfallen, nicht eigener Start)")
+            .that(src.indexOf("onRepeatedForeground(") < src.indexOf("AppTrackingTakeoverPolicy.onTrackedForeground(")).isTrue()
+    }
+
+    @Test
+    fun `Digital-Stopp-Race - frisch nachsehen, einmal nachfassen, Zustand nicht als erledigt markieren`() {
+        val src = serviceSource()
+        assertWithMessage("onStopRace fehlt — ein ins Leere gegriffener Digital-Stopp verlor die Übergabe sonst still für die ganze Sitzung")
+            .that(src).contains("AppTrackingTakeoverPolicy.onStopRace(")
+        assertWithMessage("Die reine Race-Regel fehlt in der Policy (JVM-getestet in AppTrackingTakeoverPolicyTest)")
+            .that(policySource()).contains("fun onStopRace(")
+        val abortIdx = src.indexOf("Digital-Übergabe abgebrochen")
+        assertWithMessage("Der Abbruch-Log fehlt im Stopp-Pfad").that(abortIdx).isAtLeast(0)
+        val abortBlock = src.substring(abortIdx, (abortIdx + 700).coerceAtMost(src.length))
+        assertWithMessage("Nach dem endgültigen Fehlschlag muss currentTrackedApp = null gesetzt werden — der nächste 2-s-Poll heilt den Zustand sonst nie (früher: = foreground, Digital lief bis zum nächsten App-Wechsel weiter)")
+            .that(abortBlock).contains("currentTrackedApp = null")
+        assertWithMessage("Der alte Fehlpfad (currentTrackedApp = foreground unmittelbar nach dem Abbruch) darf nicht zurückkehren")
+            .that(abortBlock).doesNotContain("currentTrackedApp = foreground")
+    }
+
+    @Test
+    fun `Digital-Stopp-Race - Rangfolge bleibt gewahrt (fremde Quelle wird nie angefasst oder uebernommen)`() {
+        val policy = policySource()
+        assertWithMessage("StopRace-KEEP_FOREIGN fehlt — eine zwischenzeitlich gestartete Fahrt/Sport-Session darf der Nachfass nie stoppen").that(policy).contains("StopRace.KEEP_FOREIGN")
+        assertWithMessage("Der Nachfass-Stopp muss exakt die frisch gelesene Session treffen (stopIfLive mit frischer ID), nie ein unbedingtes stop()")
+            .that(serviceSource()).contains("liveActivityManager.stopIfLive(fresh.id)")
     }
 }

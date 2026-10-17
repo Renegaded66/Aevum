@@ -33,21 +33,26 @@ Das Design System ist in M3 als Compose-Basis implementiert. Zentrale Tokens lie
 
 | Rolle | Dark | Light | Zweck |
 |-------|------|-------|-------|
-| **Primary** | `#8B7CFF` | `#6D5DF6` | Zeit, Fokus, Haupt-CTAs |
-| **Secondary** | `#2DD4BF` | `#14B8A6` | Wachstum, Bewusstsein, positive Metriken |
-| **Tertiary** | `#FBBF24` | `#F59E0B` | Fortschritt, Bucket List, Warnungen |
-| **Background** | `#080A10` | `#F7F7FB` | App-Hintergrund |
-| **Surface** | `#121521` | `#FFFFFF` | Karten, Sheets, Dialoge |
-| **SurfaceVariant** | `#1B2030` | `#E0E2EC` | Sekundäre Flächen, Inputs |
-| **OnBackground** | `#E6E6EB` | `#1A1C1E` | Primärer Text |
-| **OnSurface** | `#E6E6EB` | `#1A1C1E` | Text auf Karten |
-| **OnSurfaceVariant** | `#C4C6D6` | `#44474F` | Sekundärer Text, Labels |
-| **Outline** | `#8E90A1` | `#74777F` | Borders, Divider |
-| **OutlineVariant** | `#4A4C5D` | `#C4C7CF` | Subtile Borders |
+| **Primary** | `#7DD3FC` | `#0369A1` | Eisblau — Zeit, Fokus, Haupt-CTAs |
+| **Secondary** | `#FF3B2E` | `#D32614` | Feuerrot (M19.3 nachgeschärft) — Energie, Akzente, Schimmer |
+| **Tertiary** | `#FBBF24` | `#B87500` | Gold — Auszeichnung, Fortschritt |
+| **Background** | `#080D17` | `#F5F9FF` | App-Hintergrund |
+| **Surface** | `#101726` | `#FFFFFF` | Karten, Sheets, Dialoge |
+| **SurfaceVariant** | `#1A2436` | `#E3EDF8` | Sekundäre Flächen, Inputs |
+| **OnBackground** | `#E6EEF8` | `#0C1B2A` | Primärer Text |
+| **OnSurface** | `#E6EEF8` | `#0C1B2A` | Text auf Karten |
+| **OnSurfaceVariant** | `#B7C4D6` | `#44566B` | Sekundärer Text, Labels |
+| **Outline** | `#8496AB` | `#74869B` | Borders, Divider |
+| **OutlineVariant** | `#334056` | `#C6D3E1` | Subtile Borders |
 | **Success** | `#4ADE80` | `#16A34A` | Erreicht, positiv |
-| **Warning** | `#FBBF24` | `#F59E0B` | Hinweise, partielle Erfüllung |
-| **Error** | `#F87171` | `#DC2626` | Fehler, kritisch |
+| **Warning** | `#FBBF24` | `#B87500` | Hinweise, partielle Erfüllung |
+| **Error** | `#FFB4AB` | `#B3261E` | Fehler, kritisch |
 | **Scrim** | `#000000` | `#000000` | Modal Overlays |
+
+> **M19.2/M19.3:** Seit M19.2 gibt es kein `dynamicColor` mehr — die App
+> trägt immer die Eisblau→Feuerrot-Identität. In M19.3 wurde das Feuer auf
+> Nutzerwunsch nachgeschärft („die rote theme Farbe soll noch etwas röter.
+> So feuerrot."): Sekundärfarbe jetzt `#FF3B2E` (dunkel) / `#D32614` (hell).
 
 ### Kategorie-Farben (fixe Zuordnung für Konsistenz)
 

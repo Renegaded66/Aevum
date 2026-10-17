@@ -124,11 +124,6 @@ internal fun DashboardHeroContent(
     onResetToToday: () -> Unit,
     // M18.100: Klick auf das Datum in der Mitte → Kalender-Popup.
     onDateClick: () -> Unit,
-    // M19.1: Projektmanagement-Knopf (rechte obere Ecke) mit dem Zähler der
-    // noch offenen Todos des Tages.
-    pmPending: Int = 0,
-    pmHasPlan: Boolean = false,
-    onOpenProjects: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -159,17 +154,6 @@ internal fun DashboardHeroContent(
                 Spacer(Modifier.width(AevumSpacing.sm))
                 LiveStatusChip(title = liveTitle, activeMs = liveActiveMs)
             }
-            // M19.1: Der Projektmanagement-Knopf sitzt in der rechten oberen
-            // Ecke des Dashboards. Er zeigt zugleich, wie viele Schritte heute
-            // noch offen sind — der Tag ist damit ohne einen einzigen Tipp
-            // ablesbar.
-            Spacer(Modifier.width(AevumSpacing.xs))
-            com.d_drostes_apps.aevum.ui.components.PmEntryButton(
-                pendingCount = pmPending,
-                hasPlan = pmHasPlan,
-                onClick = onOpenProjects,
-                size = 38.dp
-            )
         }
 
             // Ring-Zeile: QualityRing (Kern-Kennzahl) + Headline.

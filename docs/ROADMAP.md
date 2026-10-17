@@ -321,26 +321,36 @@ Ergebnis: erfolgreich. Debug APK existiert und wurde per `aapt`/`apksigner` gepr
 
 **Definition of Done:** verifizierte installierbare APK liegt vor.
 
-## M19.1 — Projektmanagement
+## M19.1 — Projektmanagement — ZURÜCKGENOMMEN in M19.3
 
-**Ziel:** Große Vorhaben in kleinste abhakbare Schritte zerlegen, jeden Tag
-sichtbar machen, was ansteht — und den Fortschritt spürbar wachsen lassen.
+**Ziel (damals):** Große Vorhaben in kleinste abhakbare Schritte zerlegen,
+jeden Tag sichtbar machen, was ansteht — und den Fortschritt spürbar wachsen
+lassen.
 
-**Status:** Abgeschlossen (siehe `docs/M19-1-ABSCHLUSSBERICHT.md` und die
-Spezifikation `docs/M19-1-PROJEKTMANAGEMENT.md`).
+**Status:** Aufgebaut in M19.1 (`pm_node`, DB v44), umgebaut in M19.2 (nur
+Projekte + Aufgaben, DB v45) — und in **M19.3 auf Nutzerwunsch KOMPLETT
+wieder entfernt**: „Ich nehme es zurück. Ich will das ganze PM Management
+doch nicht. Also alles davon." Die Tabelle ist mit DB v46 gelöscht
+(`MIGRATION_45_46` = DROP `pm_node`). Die damalige Spezifikation und die
+Abschlussberichte bleiben als Historie erhalten:
+`docs/M19-1-PROJEKTMANAGEMENT.md`, `docs/M19-1-ABSCHLUSSBERICHT.md`,
+`docs/M19-2-ABSCHLUSSBERICHT.md`.
 
-**Aufgaben:** Baum-Datenmodell (`pm_node`, DB v44), Domänenlogik (Baum,
-Tagesplan, Fortschritt, Feier-Gate), Repository mit Massenoperationen,
-Dashboard-Einstieg mit Zähler, PM-Sheet als Fragment-Ersatz mit
-Von-unten-Animation, Tages-Karussell mit Swipe, Glas mit Juwelen und
-Feuerwerk, Backlog, Tag-planen-Sheet, Sammel-Eingabe, Editor.
+## M19.2 — Eisblau/Feuerrot-Theme, PM-Umbau, Digital-Balance-Revival
 
-**Tests:** `PmTreeTest`, `PmTodayPlanTest`, `PmCelebrationGateTest`,
-`PmColorsTest`, `PmSeedTest`, `PmRepositoryRoomTest` (echte Room-DB),
-`PmMigrationSchemaTest` (Migration gegen das Compiler-Schema),
-`PmProjectsViewModelTest` (Komplettablauf DB → Repository → ViewModel).
+**Status:** Abgeschlossen (App 1.0.32). Bericht
+`docs/M19-2-ABSCHLUSSBERICHT.md`.
 
-**Definition of Done:** Alle Schritte eines Tages sind an einem Ort
-abhakbar, das Glas füllt sich je Schritt und feiert genau einmal bei vollem
-Glas, Fortschrittsbalken wachsen über Tage hinweg, 25 Schritte sind mit einem
-Tipp planbar. Erfüllt.
+## M19.3 — Projektmanagement-Rückbau, zuverlässige Aufzeichnung, Feuerrot
+
+**Status:** Abgeschlossen (App 1.0.33, DB v46). Bericht
+`docs/M19-3-ABSCHLUSSBERICHT.md`.
+
+**Aufgaben:** Projektmanagement komplett entfernt (Dashboard-Knopf,
+Settings-Eintrag, Routen, Screens, Domäne, Repository, Vorlage, Komponenten,
+Strings, Tests; `MIGRATION_45_46` = DROP `pm_node`) · App-Aufzeichnung
+zuverlässig (`POLL_INTERVAL_MS` 15 s → **2 s**, `onRepeatedForeground` +
+`onStopRace` in der Takeover-Policy — getrackte Activity übernimmt ≤5 s nach
+dem Öffnen, unabhängig vom Vorzustand) · Feuerrot nachgeschärft
+(`#FF3B2E` dunkel / `#D32614` hell), Schimmer auf den Dashboard-Plus-Knopf
+umgezogen.

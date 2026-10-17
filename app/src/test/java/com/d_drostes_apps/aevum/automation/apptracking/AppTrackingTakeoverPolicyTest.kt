@@ -135,4 +135,83 @@ class AppTrackingTakeoverPolicyTest {
         assertThat(AppTrackingTakeoverPolicy.SOURCE_SCREEN_AUTO).isEqualTo("SCREEN_AUTO")
         assertThat(AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING).isEqualTo("APP_TRACKING")
     }
+
+    // ── M19.3: Nachfassen gegen die beobachtete Unzuverlässigkeit ─
+
+    @Test
+    fun `Wiederholungs-Check - Digital laeuft trotz aktueller App - uebernehmen`() {
+        // Der M19.3-Report: „Oft zeichnet der einfach weiter digital auf
+        // obwohl ich etwas bestimmtes geöffnet habe." — die getrackte App
+        // ist bereits „aktuell", Digital ist aber wieder angelaufen.
+        assertThat(
+            AppTrackingTakeoverPolicy.onRepeatedForeground(
+                liveSourceType = AppTrackingTakeoverPolicy.SOURCE_SCREEN_AUTO,
+                liveIsLive = true,
+                isOwnSession = false
+            )
+        ).isEqualTo(AppTrackingTakeoverPolicy.Action.TAKE_OVER_DIGITAL)
+    }
+
+    @Test
+    fun `Wiederholungs-Check - eigene Session laeuft - nichts tun`() {
+        assertThat(
+            AppTrackingTakeoverPolicy.onRepeatedForeground(
+                liveSourceType = AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING,
+                liveIsLive = true,
+                isOwnSession = true
+            )
+        ).isNull()
+    }
+
+    @Test
+    fun `Wiederholungs-Check - gar nichts live - nichts tun (kein Auto-Neustart)`() {
+        // Wichtig: Ein bewusst/manuell gestoppter Zustand darf auf keinen
+        // Fall automatisch neu starten — sonst kämpfte der Nutzer alle 2s
+        // gegen den Service.
+        assertThat(
+            AppTrackingTakeoverPolicy.onRepeatedForeground(
+                liveSourceType = null,
+                liveIsLive = false,
+                isOwnSession = false
+            )
+        ).isNull()
+    }
+
+    @Test
+    fun `Wiederholungs-Check - fremde Quelle laeuft - Rangfolge, nichts tun`() {
+        assertThat(
+            AppTrackingTakeoverPolicy.onRepeatedForeground(
+                liveSourceType = "GEOFENCE_AUTO",
+                liveIsLive = true,
+                isOwnSession = false
+            )
+        ).isNull()
+    }
+
+    @Test
+    fun `Stopp-Race - nichts mehr live - Ziel bereits erreicht`() {
+        assertThat(
+            AppTrackingTakeoverPolicy.onStopRace(freshSourceType = null, freshIsLive = false)
+        ).isEqualTo(AppTrackingTakeoverPolicy.StopRace.OBJECTIVE_MET)
+    }
+
+    @Test
+    fun `Stopp-Race - wieder Digital angelaufen - einmal nachfassen`() {
+        assertThat(
+            AppTrackingTakeoverPolicy.onStopRace(
+                freshSourceType = AppTrackingTakeoverPolicy.SOURCE_SCREEN_AUTO,
+                freshIsLive = true
+            )
+        ).isEqualTo(AppTrackingTakeoverPolicy.StopRace.RETRY_STOP)
+    }
+
+    @Test
+    fun `Stopp-Race - Hoeherpriores hat uebernommen - Rangfolge`() {
+        assertThat(
+            AppTrackingTakeoverPolicy.onStopRace(
+                freshSourceType = "ACTIVITY_RECOGNITION_AUTO",
+                freshIsLive = true
+            )
+        ).isEqualTo(AppTrackingTakeoverPolicy.StopRace.KEEP_FOREIGN)
+    }
 }

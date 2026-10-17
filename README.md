@@ -37,15 +37,6 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 
 ---
 
-### 🧩 Projektmanagement
-- **Große Aufgaben zerlegen** — Oberprojekte → Unterprojekte → Kategorien → Aufgaben → kleinste Schritte, beliebig tief, in einem Baum
-- **Glas mit Juwelen** — jeder abgehakte Schritt füllt das Gefäß; ist es voll, feiert ein kurzes Feuerwerk (genau einmal — keine Dauerbeschallung)
-- **Tagesplan** — Schritte einem Tag zuweisen oder im Backlog lassen; nicht erledigte werden übernommen, erledigte verschwinden am Folgetag
-- **Aufgaben-Karussell** — Wischen nach links/rechts wechselt zwischen den Aufgaben des Tages
-- **Fortschritt, der wächst** — Balken je Aufgabe und Projekt über alle Schritte, nicht nur über die von heute
-- **Kein 25-mal-Tippen** — Sammel-Eingabe (eine Zeile = ein Schritt), „Alle offenen → heute", „Tag planen"-Sheet mit Vorauswahl
-- **Ohne Spielereien** — keine Levels, keine Erfahrungspunkte, keine Maskottchen
-
 ## 🖼 Screenshots
 
 <!-- TODO: Screenshots hier einfügen, z. B.

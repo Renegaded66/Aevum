@@ -231,78 +231,17 @@ die Regeln bleiben dabei erhalten. Aevum **liest** den Kalender nur; es legt
 niemals Termine an oder verändert sie.
 
 
-## Projektmanagement (M19.2)
+## Projektmanagement — aufgebaut in M19.2, ENTFERNT in M19.3
 
-**Ziel:** Große, lähmende Vorhaben (Studium, Präsentation, Hausarbeit) in
-kleinste Schritte zerlegen und sichtbar fertig bekommen.
+Es gab in Aevum kurzzeitig ein Projektmanagement-Modul (zweistufiger Baum aus
+Projekten und Aufgaben, Tagesplan, Juwelen-Glas). Der Nutzer hat es komplett
+zurückgenommen: „Ich nehme es zurück. Ich will das ganze PM Management doch
+nicht. Also alles davon." — inklusive des Einstiegsknopfs auf dem Dashboard
+und des Eintrags unter Zahnrad → Erweitert.
 
-**Das Problem, das dieses Feature löst:** „Ich kann mich überhaupt nicht
-fokussieren. Es scheint kein Ende zu haben und ich scheine keinen Fortschritt
-zu machen." Große Aufgaben sind keine Aufgaben, sondern Zustände — sie haben
-keinen Anfang, kein Ende und keine abhakbare Einheit. Projektmanagement macht
-daraus eine Kette kleiner, einzeln abhakbarer Schritte.
-
-### Struktur (seit M19.2: nur Projekte und Aufgaben)
-
-Zwei Knotenarten in EINEM Baum — Projekte sind Container, Aufgaben sind
-abhakbare Blätter:
-
-```text
-Haushalt & Alltag                 PROJECT  (Projekt — beliebig verschachtelbar)
- └ Wohnung                        PROJECT  (Unterprojekt)
-    ├ Einkaufsliste schreiben     TASK     (Aufgabe, abhakbar, tagzuweisbar)
-    └ Wäsche waschen              TASK
-```
-
-Es gibt keine Kategorien und keine „Aufgaben mit Schritten" mehr: Jedes
-Unterprojekt übernimmt die Rolle, die früher Kategorie oder Aufgabe hatte —
-„Ich möchte keine Unterscheidung zwischen Projekt, Kategorie und Aufgabe."
-
-### Tagesplan
-
-- Todos lassen sich einem Tag zuweisen — oder ohne Datum im **Backlog** liegen
-  bleiben.
-- **Übernahme:** Nicht erledigte Todos von gestern und früher erscheinen
-  weiterhin (markiert mit „übernommen"), erledigte verschwinden am Folgetag.
-- Das **Glas** füllt sich mit jedem erledigten Schritt um ein Juwel in der
-  Farbe der Aufgabe; offene Schritte liegen als leere Fassungen darüber (die
-  sichtbare Lücke ist der Antrieb).
-- Bei vollem Glas: kurze Feuerwerk-Animation — genau einmal pro erreichtem
-  Stand, nicht bei jeder Neukomposition.
-- **Nur heute:** Das PM-Dashboard zeigt ausschließlich für heute (oder als
-  übernommen markierte) Aufgaben — alles andere lebt im Baum bzw. im
-  „Tag planen"-Sheet.
-- **Manuelle Reihenfolge:** Innerhalb einer Projekt-Gruppe gilt die per
-  Drag & Drop gezogene Ordnung (sofort gespeichert), nicht eine automatische
-  Sortierung.
-- **Glas neben den Todos:** schmale Spalte rechts neben den Listen
-  (max. 3 Juwelen-Spalten, Todos bleiben voll lesbar), animiertes Füllen bei
-  jedem Abhaken.
-- 7-Tage-Streifen: wie viele Schritte wurden an den letzten Tagen erledigt
-  (aus den Erledigungszeitpunkten abgeleitet, keine zusätzliche Tabelle).
-
-### Fortschritt
-
-Jede Aufgabe und jedes Projekt trägt einen Balken über ALLE enthaltenen
-Schritte (nicht nur die heutigen) — damit wird langfristiger Fortschritt
-sichtbar, nicht nur Tageserfolg.
-
-### Aufgaben pflegen (M19.2)
-
-- **Inline-Eingabe:** Am Ende jeder To-do-Liste steht eine Eingabezeile
-  („Neue Aufgabe…"); Enter hängt die Aufgabe an, der nächste Platzhalter
-  erscheint — kein separates Textfeld, keine Dialoge.
-- **Drag & Drop:** Aufgaben lassen sich innerhalb ihrer Projekt-Gruppe an
-  jede Position ziehen; die Ordnung wird sofort in die Datenbank geschrieben.
-- **Löschen:** jede Aufgabenzeile hat den Löschweg; ein Projekt löscht seinen
-  kompletten Teilbaum (FK-Kaskade).
-- **„Alle offenen → heute":** ein Tipp auf der Projektkarte bzw. im Backlog.
-- **„Tag planen"-Sheet:** alle offenen Aufgaben gruppiert, bereits geplante
-  vorausgewählt, Gruppen-Schalter, Datum wählbar — eine Bestätigung.
-
-### Ausdrücklich NICHT Bestandteil
-
-Keine Levels, Erfahrungspunkte, Maskottchen, Währungen oder Shop. Keine
-Zeiterfassung in PM-Schritten, keine Wiederholung/Serien, keine Erinnerungen,
-keine Abhängigkeiten zwischen Schritten, keine Freigabe/Teilen. Das bestehende
-Modul „Todos" (Serien, Streaks, Dauer-Auto-Check) bleibt davon unberührt.
+**Aevum kennt daher keine Projekte, Kategorien oder PM-Aufgaben.** Das
+einzige Aufgaben-Modul ist weiterhin **Todos** (Serien, Streaks,
+Dauer-Auto-Check). Die damalige Umsetzung im Detail — Struktur, Tagesplan,
+Glas, Drag & Drop — steht vollständig in der Git-Historie (M19.1/M19.2) und
+in `docs/M19-2-ABSCHLUSSBERICHT.md`; die zugehörige Tabelle hat die Datenbank
+mit Version 46 wieder verloren (`MIGRATION_45_46`, siehe `docs/DATABASE.md`).

@@ -108,3 +108,40 @@ PACKAGE_REPLACED, 15-Minuten-Watchdog mit KEEP, Screen-On-Nudge), alle mit
 `ScreenRecordingWorker`) unangetastet.
 **Grund:** Der Rückfall war ein Lifecycle-Problem (nur zwei Startpfade); die
 M18.151-Logik ist ausgetestet und darf nicht riskiert werden.
+
+---
+
+## M19.3 (17.10.2026)
+
+**Entscheidung:** Das Projektmanagement wird KOMPLETT entfernt — Code, UI,
+Routen, Einstiegsknopf, Vorlage, Tests UND die Tabelle (`MIGRATION_45_46` =
+`DROP TABLE pm_node`). Kein Hintertürchen, kein Ausgrauen, kein Feature-Flag.
+**Grund:** „Ich nehme es zurück. Ich will das ganze PM Management doch nicht.
+Also alles davon." Ein halb entferntes Feature kostet Pflege (Migrationen,
+Tests, Kompilierzeit) und verwirrt; die Git-Historie (M19.1/M19.2) hält die
+Umsetzung vollständig fest, ein Zurück wäre ein Revert.
+
+**Entscheidung:** Die 15-s-Poll-Drosselung von M18.93v11 wird für die
+Digital-Übergabe aufgehoben → `POLL_INTERVAL_MS = 2_000L`.
+**Grund:** Die Drosselung war eine Akku-Maßnahme, aber sie machte das
+Kernversprechen kaputt: Bis zu 15 s lief „Digital" nach dem Öffnen einer
+getrackten App weiter („oft zeichnet der einfach weiter digital auf obwohl
+ich etwas bestimmtes geöffnet habe"). Der Nutzer verlangt ≤5 s; 2 s Worst
+Case bei Takt NUR während Screen AN + aktiver getrackter App ist vertretbar.
+
+**Entscheidung:** Zwei neue reine Regeln in `AppTrackingTakeoverPolicy` statt
+Logik im Service: `onRepeatedForeground` (auch bei UNVERÄNDERTER
+Vordergrund-App nachprüfen) und `onStopRace` (einmaliges Nachfassen während
+der Stopp-Phase der eigenen Session).
+**Grund:** Beide Fälle („manchmal klappt es dann direkt. Aber dann wieder
+nicht.") entstanden durch Ereignis-Lücken — App war schon vorn, als die
+Session startete (kein Wechsel-Trigger), bzw. die Übergabe kam während des
+Stopps an. Als reine Funktionen sind sie unit-testbar festgenagelt
+(Wiring-Tests 11/12) statt im Service versteckt.
+
+**Entscheidung:** Feuerrot wird nicht neu erfunden, sondern nachgeschärft:
+Sekundär dunkel `#FF3B2E`, hell `#D32614`; Container mitgezogen;
+`DesignTokens[1]` angepasst.
+**Grund:** „die rote theme Farbe soll noch etwas röter. So feuerrot." — der
+Ton bleibt in der Familie der M19.2-Identität (Eisblau bleibt unangetastet),
+nur die Sättigung steigt.

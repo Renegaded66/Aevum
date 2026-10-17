@@ -14,7 +14,35 @@ PC-Tracker (Windows-Begleiter): Der Ordner `desktop/` enthält eine eigenständi
 
 ---
 
-## M19.1 — Projektmanagement (17.10.2026)
+## M19.3 — Projektmanagement zurückgenommen, Aufzeichnung zuverlässig (17.10.2026)
+
+**Projektmanagement ist KOMPLETT entfernt** (Nutzerentscheidung: „Ich nehme
+es zurück. Ich will das ganze PM Management doch nicht. Also alles davon."):
+Dashboard-Knopf + schwebender Nachfolger, Settings-Eintrag, die drei Routen,
+alle Screens/ViewModels/Domäne/Repository/DAO/Entity, alle PM-Komponenten und
+Strings — die folgenden M19.1/M19.2-Abschnitte sind deshalb HISTORIE, keine
+Beschreibung des aktuellen Stands. Datenbank: **v46**, `MIGRATION_45_46` =
+`DROP TABLE pm_node` (Kette 43→44→45→46 bleibt für Bestandsgeräte intakt);
+Schema-Guard `SchemaV46Test` (46 = 45 minus pm_node, Element für Element),
+Daten-Beweis `PmRemovalMigrationTest` (echte SQLite aus 45.json → Room).
+
+**App-Aufzeichnung (Digital-Übergabe) zuverlässig:** `POLL_INTERVAL_MS`
+15 s → **2 s** (Ziel ≤5 s nach App-Öffnen, Worst Case 2 s; Takt läuft nur bei
+Screen AN und mindestens einer getrackten App). Dazu zwei neue reine Regeln
+in `AppTrackingTakeoverPolicy`: `onRepeatedForeground` (auch bei UNVERÄNDERTER
+Vordergrund-App nachprüfen — später angelaufenes „Digital" wird übernommen)
+und `onStopRace` (einmaliges Nachfassen, wenn die eigene Session gerade in
+der Stopp-Phase steckt). Gepinnt in `AppTrackingDigitalWiringTest`
+(Test 11 TEMPO, Test 12 NACHPFASSEN) + `AppTrackingTakeoverPolicyTest`.
+
+**Theme:** Feuerrot nachgeschärft — dunkel `#FF3B2E` (war `#F87171`), hell
+`#D32614` (war `#DC2626`), Container/onContainer angepasst; `DesignTokens[1]`
+= `#FF3B2E`; Pins in `AevumThemeTest`. Der Schimmer (`shimmering`, respektiert
+„Animationen aus") sitzt jetzt auf dem Dashboard-Plus-Knopf.
+
+---
+
+## M19.1 — Projektmanagement (17.10.2026) — HISTORIE, in M19.3 wieder ENTFERNT
 
 Neues Teilsystem neben der Aktivitäts-Erfassung: **Projektmanagement**.
 

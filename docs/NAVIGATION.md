@@ -157,42 +157,13 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 - Insights-Heatmap öffnet den gewählten Tag in der Timeline.
 - Weekly Review ist aus Insights erreichbar und öffnet Timeline-Tage sowie Review Inbox.
 
-## Projektmanagement (M19.2)
+## Projektmanagement — ENTFERNT (M19.3)
 
-Drei Routen, ein Einstieg:
-
-```text
-Dashboard (Knopf oben rechts, Zähler der offenen Aufgaben)
-   └── Projects            "projects"                    — Sheet von unten
-        ├── ProjectsNode   "projects/node/{nodeId}"       — Hierarchie (Push)
-        └── PmEditor       "pm_editor?mode={mode}&nodeId={nodeId}&parentId={parentId}"
-```
-
-M19.2: Der Editor kennt keinen `type`-Parameter mehr (nur noch Projekte und
-Aufgaben); alte Links mit `&type=` werden beim Einlesen toleriert
-(`PmEditorMode.from`).
-
-**Übergänge** (bewusst nur für diese Routen gesetzt, alles andere bleibt beim
-App-Standard):
-
-- `Projects` erscheint mit `slideInVertically` von unten und fährt beim
-  Schließen wieder nach unten heraus — die geforderte „Animation von unten
-  nach oben".
-- `PmEditor` benutzt denselben vertikalen Übergang (Modal-Charakter).
-- `ProjectsNode` nutzt den normalen horizontalen Push (Hierarchie-Gefühl).
-
-**Bedeutung der Editor-Route:** Eine einzige Seite deckt vier Fälle ab, weil
-die Absicht in der Route steht:
-
-| `mode` | Fall | Argumente |
-|---|---|---|
-| `node_new` | Projekt/Kategorie/Aufgabe anlegen | `parentId`, `type` |
-| `node_edit` | Knoten bearbeiten | `nodeId` |
-| `todos_new` | Schritte sammeln (eine Zeile = ein Schritt) | `parentId` |
-| `todo_edit` | einzelnen Schritt bearbeiten | `nodeId` |
-
-**Weitere Einstiege:** Zahnrad → „Projektmanagement" (Abschnitt Erweitert).
-
-**Zurück-Verhalten:** Editor kehrt nach dem Speichern zurück (`popBackStack`),
-die Detailseite nach dem Löschen des Knotens, das Sheet schließt über den
-Pfeil, den Griff (Herunterziehen) oder den System-Zurück.
+Das Projektmanagement (die Routen `projects`, `projects/node/{nodeId}`,
+`pm_editor`, der Einstieg über den Dashboard-Knopf und der Eintrag unter
+Zahnrad → „Erweitert") wurde auf Nutzerwunsch komplett zurückgenommen: „Ich
+will das ganze PM Management doch nicht. Also alles davon." Die App
+navigiert ausschließlich über die oben genannten Ziele; von den PM-Routen
+ist nichts übrig geblieben. Die damalige Umsetzung (Sheet-Übergänge,
+Editor-Modi) ist in der Git-Historie und in `docs/M19-2-ABSCHLUSSBERICHT.md`
+nachlesbar.

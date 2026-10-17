@@ -1,6 +1,7 @@
 # Roadmap
 
-Aktueller Stand: M0–M18 abgeschlossen, M19.1 (Projektmanagement) abgeschlossen.
+Aktueller Stand: M0–M19 abgeschlossen. **M19.3 hat das Projektmanagement
+(M19.1/M19.2) wieder komplett entfernt** — die App hat es nicht mehr.
 Maßgeblich ist `docs/ROADMAP.md` — diese Datei ist nur eine Kurzfassung.
 
 Abgeschlossener Meilenstein: M2 Android-Projektgrundlage für Aevum.
@@ -26,3 +27,7 @@ Siehe `docs/ROADMAP.md`.
 - [x] M19.2 Eisblau/Feuerrot-Theme + Schimmer; PM-Umbau (nur Projekte+Aufgaben,
       To-do-Listen mit Drag&Drop/Inline-Eingabe/Löschen, Dashboard nur heute,
       schmales Glas, generische Vorlage); Digital-Balance-Revival
+- [x] M19.3 Projektmanagement-Rückbau (Dashboard-Knopf, Routen, Screens,
+      DB v46 = DROP pm_node); App-Aufzeichnung zuverlässig (2-s-Poll,
+      Nachprüfen + Nachfassen, Übergabe ≤5 s); Feuerrot nachgeschärft
+      (#FF3B2E/#D32614)

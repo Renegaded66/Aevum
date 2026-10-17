@@ -159,8 +159,19 @@ android {
         //   BootReceiver + 15-Minuten-Watchdog + Screen-On-Nudge; DB v45
         //   (reine Daten-Migration: CATEGORY→PROJECT, TASK-mit-Kindern→
         //   PROJECT, TODO→TASK).
-        versionCode = 33
-        versionName = "1.0.32"
+        // M19.3 (App 1.0.33): Projektmanagement KOMPLETT wieder entfernt
+        //   („Ich nehme es zurück. Ich will das ganze PM Management doch
+        //   nicht. Also alles davon.") — Dashboard-Knopf, Settings-Eintrag,
+        //   Routen, Screens, Domäne, Repository, Vorlage und Tests sind weg;
+        //   DB v46 (MIGRATION_45_46 = DROP der Tabelle pm_node samt Inhalt).
+        //   App-Aufzeichnung zuverlässig: 2-s-Poll statt 15s, Nachprüfung
+        //   auch bei unveränderter App (später angelaufenes „Digital" wird
+        //   übernommen) und einmaliges Nachfassen bei Stopp-Races — Ziel:
+        //   getrackte App ≤5s nach dem Öffnen übernimmt, nichts anderes
+        //   zeichnet parallel auf. Feuerrot nachgeschärft (#FF3B2E/#D32614);
+        //   der Schimmer wandert auf den Dashboard-Plus-Knopf.
+        versionCode = 34
+        versionName = "1.0.33"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

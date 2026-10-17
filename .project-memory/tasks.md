@@ -30,3 +30,13 @@
       DB v45 reine Daten-Migration); Digital-Balance-Revival (Boot/
       PACKAGE_REPLACED + 15-min-Watchdog + Screen-On-Nudge). Bericht
       `docs/M19-2-ABSCHLUSSBERICHT.md`.
+- [x] M19.3 (App 1.0.33): Projektmanagement KOMPLETT zurückgenommen
+      („Ich will das ganze PM Management doch nicht. Also alles davon.")
+      — Dashboard-Knopf, Settings-Eintrag, Routen, Screens, Domäne,
+      Repository, Vorlage, PM-Komponenten und Strings entfernt; DB v46
+      (MIGRATION_45_46 = DROP pm_node) mit SchemaV46Test +
+      PmRemovalMigrationTest. App-Aufzeichnung zuverlässig: 2-s-Poll
+      statt 15 s, onRepeatedForeground + onStopRace (Übergabe ≤5 s,
+      nichts anderes zeichnet parallel auf). Feuerrot nachgeschärft
+      (#FF3B2E/#D32614), Schimmer auf dem Dashboard-Plus-Knopf.
+      Bericht `docs/M19-3-ABSCHLUSSBERICHT.md`.
