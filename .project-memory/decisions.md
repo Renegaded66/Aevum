@@ -195,3 +195,28 @@ wurde ersetzt, die gestartete alte EXE zeigte den Einzelinstanz-Dialog
 („app is already active in the system tray"). Warten auf das echte
 Prozessende + /MIR = „alte Version verschwindet" ist die einzige
 deterministische Lösung; ein Timeout ist immer eine Wette.
+
+**Entscheidung:** „Es läuft immer nur eine Aufzeichnung — Handy hat
+Vorrang": Der PC leitet den Vorrang aus dem BESTEHENDEN Live-Kanal ab
+(frische Meldung, ≤ 45 s alt); keine neue Schnittstelle, kein Push. Nach
+45 s Funkstille ist der PC wieder frei (ehrlich bei App-Absturz statt
+Dauer-Blockade).
+**Grund:** „handy hat vorrang […] immer nur eine sache gleichzeitig." Der
+Live-Kanal läuft ohnehin alle 7 s während jeder Handy-Session — er ist die
+natürliche Wahrheitsquelle; ein zweiter Mechanismus wäre doppelte Wahrheit.
+
+**Entscheidung:** Ausnahmen gibt es beim Vorrang KEINE — auch eine manuell
+am PC gestartete Session endet, wenn das Handy startet (Ende = jetzt), und
+manuelle Starts während der Handy-Aufzeichnung werden abgelehnt (Engine
+liefert false + UI zeigt Hinweis).
+**Grund:** Der Vorrang ist eine Ansage des Nutzers („sobald ich am handy
+was starte hat das vorrang"), kein technischer Sonderfall; halbe Ausnahmen
+erzeugen überlappende Aufzeichnungen und Datenmüll.
+
+**Entscheidung:** Verlauf-Löschung nur für abgeschlossene Sessions; die
+Sync-Auslieferung ans Handy basiert auf denselben abgeschlossenen Zeilen —
+Gelöschtes wird also nicht mehr ausgeliefert, bereits Importiertes bleibt am
+Handy (kein Rückkanal, bewusst).
+**Grund:** Laufende Sessions überleben ein Delete nicht (Heartbeat schreibt
+sie zurück) — die Bedingung `end_at IS NOT NULL` macht das auf Store-Ebene
+ehrlich; die UI bietet den Knopf nur dort an, wo er wirkt.

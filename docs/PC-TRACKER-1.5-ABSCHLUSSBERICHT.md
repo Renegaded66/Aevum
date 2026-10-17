@@ -142,11 +142,15 @@ Behoben: hängt jetzt am echten Pause-Zustand; Screenshot-Nachprüfung: weg ✔.
 
 ## 3. Release
 
-(siehe `docs/CHANGELOG.md` und GitHub-Release `pc-tracker-1.5.0`)
-
-- Git-Tag `pc-tracker-1.5.0`; GitHub-Release mit Asset
-  `AevumPcTracker-1.5.0-win-x64.zip`.
-- Auslieferungsserver `/srv/aevum-apk/` + Download-Seite aktualisiert.
+- Git-Tag `pc-tracker-1.5.0` (Commit `ac0004f`); GitHub-Release **ID
+  415785691** — https://github.com/Renegaded66/Aevum/releases/tag/pc-tracker-1.5.0
+  mit Asset `AevumPcTracker-1.5.0-win-x64.zip` (**57.309.054 B**, 362
+  Dateien, exe-Hash ZIP=Platte verifiziert, state `uploaded`).
+  Update-Erkennung der Vorversion live gegen die API bestätigt (findet 1.5.0
+  inkl. ZIP-Asset).
+- Auslieferungsserver `/srv/aevum-apk/AevumPcTracker-1.5.0-win-x64.zip`
+  + Download-Seite (`index.html`) auf 1.5.0 aktualisiert; Download geprüft
+  (HTTP 200).
 
 ---
 

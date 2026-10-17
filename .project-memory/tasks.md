@@ -74,3 +74,13 @@
       sonst sein kaputtes Update aus). App 1.0.35 (vc36): In-App-Updater
       wieder ENTFERNT (Update-Knopf nur PC-App, Handy über Play Store);
       Sync-Features bleiben; 1148/1148 Tests.
+- [x] PC-Tracker 1.5.0: Handy-Vorrang (Handy-Aufzeichnung stoppt JEDE
+      PC-Session sofort; nichts startet währenddessen; Sichtbarkeit danach
+      frisch; manuelle Starts abgelehnt; Quelle = Live-Kanal, Protokoll §5f)
+      + General-Activity VOR dem Schalter wählbar + Verlauf-Entfernen
+      (DeleteSessionById nur completed, zweistufige UI, gelöschte nicht mehr
+      ausgeliefert) + deutliche Aufnahme-Anzeige (Türkis-Rahmen, RECORDING-
+      Badge, Schimmer auf beiden Live-Karten). 127/127 Tests; Xvfb-E2E:
+      Handy-Meldung beendete General (1,1 s) und Manual, Start blockiert,
+      Löschung 8→7, Schimmer sichtbar — 1 Anzeige-Bug gefunden+gefixt.
+      Release-ID 415785691, ZIP 57.309.054 B.
