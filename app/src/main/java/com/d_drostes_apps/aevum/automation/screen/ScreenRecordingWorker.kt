@@ -83,22 +83,33 @@ class ScreenRecordingWorker(
                 return Result.success()
             }
 
-            // M18.151: Läuft gerade eine GETRACKTE App im Vordergrund? Dann
+            // M18.151/M20: Läuft gerade eine GETRACKTE App im Vordergrund? Dann
             // gehört diese Zeit der App-Aufzeichnung, NICHT dem Standard-
-            // Digital. Zwei Quellen (siehe ForegroundAppProbe/AppTrackingService):
-            //  1. Event-Faltung der letzten 2 Minuten (ForegroundAppProbe) —
-            //     sieht einen gerade geöffneten ODER gerade verlassenen
-            //     Vordergrund sofort.
-            //  2. Poll-Schnappschuss des AppTrackingService (frisch ≤ 90s) —
-            //     deckt „App seit Stunden ruhig im Vordergrund" ab, wo es
-            //     keine Übergangs-Events gibt.
-            // Treffer → NICHT starten und den AppTrackingService anstupsen
-            // (er übernimmt die Aufzeichnung; läuft er gerade nicht, startet
-            // ihn der Nudge — das Gate prüft getrackte Apps selbst).
-            val foreground = com.d_drostes_apps.aevum.automation.apptracking.ForegroundAppProbe
-                .currentForeground(applicationContext)
-                ?: com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService
-                    .recentPollSnapshot(90_000L)
+            // Digital. Die Auflösung ist seit M20 gestuft (genau diese Stelle
+            // verhinderte im Nutzer-Report NICHT den falschen Digital-Start):
+            //  1. FRISCHER Schnappschuss des AppTrackingService (≤15 s, der
+            //     Service pollt im 2-s-Takt): AUTORITATIV — auch ein „null"
+            //     (Homescreen) ist eine belastbare Aussage.
+            //  2. Sonst kurze Faltung (2 min): gerade geöffnete/verlassene
+            //     App.
+            //  3. Sonst WEITE Faltung (12 h Baseline): App „ruhig offen",
+            //     seit >2 min kein Übergangs-Event — der alte Check lieferte
+            //     hier null und ließ Digital fälschlich starten.
+            // Die Kombinations-Regel ist rein und getestet
+            // (AppForegroundResolution).
+            val snapshot = com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService
+                .currentSnapshot(15_000L)
+            val shortFold = if (snapshot.fresh) null
+                else com.d_drostes_apps.aevum.automation.apptracking.ForegroundAppProbe
+                    .currentForeground(applicationContext)
+            val wideFold = if (snapshot.fresh || shortFold != null) null
+                else com.d_drostes_apps.aevum.automation.apptracking.ForegroundAppProbe
+                    .currentForeground(
+                        applicationContext,
+                        com.d_drostes_apps.aevum.automation.apptracking.ForegroundAppProbe.WIDE_LOOKBACK_MS
+                    )
+            val foreground = com.d_drostes_apps.aevum.automation.apptracking.AppForegroundResolution
+                .pick(snapshot.fresh, snapshot.packageName, shortFold, wideFold)
             if (foreground != null) {
                 val trackedPackages = try {
                     deps.appTrackingEntryRepository().getEnabledOnce().map { it.packageName }
@@ -107,9 +118,13 @@ class ScreenRecordingWorker(
                     emptyList()
                 }
                 if (foreground in trackedPackages) {
-                    Log.i(TAG, "Screen-Aufzeichnung SKIPPED: getrackte App '$foreground' im Vordergrund — App-Aufzeichnung übernimmt (M18.151)")
+                    Log.i(TAG, "Screen-Aufzeichnung SKIPPED: getrackte App '$foreground' im Vordergrund — App-Aufzeichnung übernimmt (M18.151/M20)")
+                    com.d_drostes_apps.aevum.automation.apptracking.AppTrackingLog.i(
+                        applicationContext,
+                        "Digital-Skip: getrackte App '$foreground' im Vordergrund (snapFrisch=${snapshot.fresh})"
+                    )
                     com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService
-                        .start(applicationContext)
+                        .ensureAlive(applicationContext, "screen-worker")
                     return Result.success()
                 }
             }

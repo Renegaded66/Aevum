@@ -71,6 +71,33 @@
     <string name="apptracking_permission_desc">Aevum needs usage access to detect which app is currently open.</string>
     <string name="apptracking_permission_grant">Grant usage access</string>
 
+    <!-- M20: Hintergrund-Zuverlässigkeit & Diagnose der App-Aufzeichnung -->
+    <string name="apptracking_diag_title">Background &amp; diagnostics</string>
+    <string name="apptracking_diag_subtitle">Status of the automatic recording</string>
+    <string name="apptracking_diag_service">Recording service</string>
+    <string name="apptracking_diag_active">active</string>
+    <string name="apptracking_diag_inactive">inactive</string>
+    <string name="apptracking_diag_lastpoll">Last check: %1$s</string>
+    <string name="apptracking_diag_never">never</string>
+    <string name="apptracking_diag_foreground">Foreground</string>
+    <string name="apptracking_diag_foreground_none">— (home screen)</string>
+    <string name="apptracking_diag_battery">Battery optimization</string>
+    <string name="apptracking_diag_battery_exempt">exempt (good)</string>
+    <string name="apptracking_diag_battery_restricted">restricted</string>
+    <string name="apptracking_diag_battery_unknown">unknown</string>
+    <string name="apptracking_diag_battery_button">Open battery settings</string>
+    <string name="apptracking_diag_hint">Without an exemption, Android may block the recording in the background. If "restricted" is shown, set Aevum to "not optimized" in the system settings.</string>
+    <string name="apptracking_diag_log">Log</string>
+    <string name="apptracking_diag_copy">Copy log</string>
+    <string name="apptracking_diag_copied">Copied ✓</string>
+    <string name="apptracking_diag_clear">Clear</string>
+    <string name="apptracking_diag_empty">No entries yet.</string>
+    <string name="apptracking_diag_show">Show</string>
+    <string name="apptracking_diag_hide">Hide</string>
+    <string name="apptracking_diag_age_seconds">%1$ds ago</string>
+    <string name="apptracking_diag_age_minutes">%1$dm ago</string>
+    <string name="apptracking_diag_age_hours">%1$dh ago</string>
+
     <!-- DigitalBalanceScreen -->
     <string name="balance_tab_balance">Balance</string>
     <string name="balance_tab_pomodoro">Pomodoro</string>

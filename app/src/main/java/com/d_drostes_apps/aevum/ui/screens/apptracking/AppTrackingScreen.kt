@@ -2,6 +2,8 @@ package com.d_drostes_apps.aevum.ui.screens.apptracking
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,6 +84,18 @@ fun AppTrackingScreen(
     viewModel: AppTrackingViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // M20: Diagnose live halten, solange der Screen sichtbar ist (2-s-Takt) —
+    // „läuft die Aufzeichnung GERADE?" ist die Frage, die dieser Screen
+    // beantworten muss, wenn die automatische Aufzeichnung sich komisch
+    // verhält.
+    val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        while (true) {
+            viewModel.refreshDiagnostics()
+            kotlinx.coroutines.delay(2_000L)
+        }
+    }
 
     // M18.147: Beim Öffnen still aktualisieren (im ViewModel gedrosselt) —
     // neu installierte Apps tauchen auf. Die Liste selbst füllt sich
@@ -142,6 +160,15 @@ fun AppTrackingScreen(
             }
             return
         }
+
+        // M20: Hintergrund & Diagnose — Status der automatischen Aufzeichnung,
+        // Akku-Optimierungs-Ausnahme (der Hebel für zuverlässige Hintergrund-
+        // Starts seit Android 12) und das Diagnose-Protokoll zum Kopieren.
+        AppTrackingDiagnosticsCard(
+            diagnostics = diagnostics,
+            onOpenBattery = { viewModel.openBatterySettings() },
+            onClear = { viewModel.clearDiagnostics() }
+        )
 
         // Suchleiste
         OutlinedTextField(
@@ -444,5 +471,208 @@ private fun PermissionHint(onOpenSettings: () -> Unit) {
         androidx.compose.material3.Button(onClick = onOpenSettings) {
             Text(stringResource(R.string.apptracking_permission_grant))
         }
+    }
+}
+
+/**
+ * M20: „Hintergrund & Diagnose"-Karte — Service-Zustand, letzter Poll,
+ * Vordergrund-Schnappschuss, Akku-Optimierungs-Ausnahme (der entscheidende
+ * Hebel für Hintergrund-Starts ab Android 12) und das Diagnose-Protokoll
+ * (kopierbar — damit der nächste „klappt nicht"-Report mit Belegen kommt
+ * statt mit Vermutungen).
+ */
+@Composable
+private fun AppTrackingDiagnosticsCard(
+    diagnostics: AppTrackingDiagnosticsState,
+    onOpenBattery: () -> Unit,
+    onClear: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    AevumCard(
+        variant = CardVariant.Outlined,
+        contentPadding = PaddingValues(AevumSpacing.md),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.xs)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.apptracking_diag_title),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        stringResource(R.string.apptracking_diag_subtitle),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(
+                        stringResource(if (expanded) R.string.apptracking_diag_hide else R.string.apptracking_diag_show),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            DiagRow(
+                label = stringResource(R.string.apptracking_diag_service),
+                value = stringResource(
+                    if (diagnostics.serviceAlive) R.string.apptracking_diag_active
+                    else R.string.apptracking_diag_inactive
+                ) + " · " + stringResource(
+                    R.string.apptracking_diag_lastpoll,
+                    diagnostics.pollAgeMs.let { age ->
+                        when {
+                            age < 0L -> stringResource(R.string.apptracking_diag_never)
+                            age < 60_000L -> stringResource(R.string.apptracking_diag_age_seconds, (age / 1000).coerceAtLeast(0))
+                            age < 3_600_000L -> stringResource(R.string.apptracking_diag_age_minutes, age / 60_000)
+                            else -> stringResource(R.string.apptracking_diag_age_hours, age / 3_600_000)
+                        }
+                    }
+                ),
+                ok = diagnostics.serviceAlive
+            )
+
+            DiagRow(
+                label = stringResource(R.string.apptracking_diag_foreground),
+                value = diagnostics.snapshotPackage
+                    ?: stringResource(R.string.apptracking_diag_foreground_none),
+                ok = null
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.apptracking_diag_battery),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        stringResource(
+                            when (diagnostics.batteryExempt) {
+                                true -> R.string.apptracking_diag_battery_exempt
+                                false -> R.string.apptracking_diag_battery_restricted
+                                null -> R.string.apptracking_diag_battery_unknown
+                            }
+                        ),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = when (diagnostics.batteryExempt) {
+                            true -> MaterialTheme.colorScheme.secondary
+                            false -> MaterialTheme.colorScheme.error
+                            null -> MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+                TextButton(onClick = onOpenBattery) {
+                    Text(stringResource(R.string.apptracking_diag_battery_button), fontSize = 11.sp)
+                }
+            }
+
+            Text(
+                stringResource(R.string.apptracking_diag_hint),
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (expanded) {
+                Text(
+                    stringResource(R.string.apptracking_diag_log),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (diagnostics.logLines.isEmpty()) {
+                    Text(
+                        stringResource(R.string.apptracking_diag_empty),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 180.dp)
+                            .clip(RoundedCornerShape(AevumRadius.sm))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .padding(AevumSpacing.sm)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            diagnostics.logLines.reversed().joinToString("\n"),
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+                ) {
+                    TextButton(onClick = {
+                        try {
+                            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            cm.setPrimaryClip(
+                                android.content.ClipData.newPlainText(
+                                    "Aevum App-Aufzeichnung",
+                                    diagnostics.logLines.joinToString("\n")
+                                )
+                            )
+                            copied = true
+                        } catch (_: Exception) {
+                        }
+                    }) {
+                        Text(
+                            stringResource(if (copied) R.string.apptracking_diag_copied else R.string.apptracking_diag_copy),
+                            fontSize = 12.sp
+                        )
+                    }
+                    TextButton(onClick = {
+                        copied = false
+                        onClear()
+                    }) {
+                        Text(stringResource(R.string.apptracking_diag_clear), fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagRow(label: String, value: String, ok: Boolean?) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = when (ok) {
+                true -> MaterialTheme.colorScheme.secondary
+                false -> MaterialTheme.colorScheme.error
+                null -> MaterialTheme.colorScheme.onSurface
+            }
+        )
     }
 }

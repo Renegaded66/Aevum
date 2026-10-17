@@ -35,6 +35,15 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
+        M20: WakeLock für den Boot-Pfad der App-Aufzeichnung. Aggressive
+        OEM-ROMs können den Prozess zwischen BOOT_COMPLETED und etablierter
+        FGS-Etablierung beenden; ein 60-s-PARTIAL_WAKE_LOCK (BootReceiver,
+        released per Timeout) hält genau dieses Fenster wach. Normale
+        Berechtigung, kein Play-Prüfpunkt.
+    -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
         M18.129: Kalender-Integration — lesender Zugriff auf die Termine.
         READ_CALENDAR ist eine dangerous-Permission und wird zur Laufzeit
         angefragt (CalendarRulesScreen, 4-State-Flow mit Settings-Deep-Link).

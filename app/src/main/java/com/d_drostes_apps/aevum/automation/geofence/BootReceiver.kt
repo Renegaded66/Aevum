@@ -45,6 +45,13 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private fun handleBoot(context: Context) {
+        // M20: 60-Sekunden-Partial-WakeLock über die Boot-Verarbeitung.
+        // Aggressive OEM-ROMs (Samsung „Sleeping/Deep sleeping apps") können
+        // den Prozess zwischen BOOT_COMPLETED-Broadcast und etabliertem
+        // Foreground-Service beenden — der Wakelock hält den Prozess in
+        // genau diesem Fenster wach. Zeitablauf released automatisch
+        // (kein Leck-Risiko); Muster wie bei etablierten Standort-Apps.
+        acquireBootWakelock(context)
         // Android 15 verbietet es BOOT_COMPLETED-Receivern, einen Location-FGS
         // zu starten. Die Geofence-Registrierung bei Google Play Services ist
         // davon unabhängig und bleibt nach dem Reboot weiterhin möglich. Der
@@ -113,7 +120,7 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "DriveProbeWorker schedule failed: ${e.message}")
         }
-        // M19.2 (User-Report: „… wird einfach weiterhin nur Digital
+        // M19.2/M20 (User-Report: „… wird einfach weiterhin nur Digital
         // aufgezeichnet — die zugewiesene Activity startet nicht mehr"):
         // App-Aufzeichnung nach Boot/Update neu anstoßen. Der Service hatte
         // bisher nur Start-Pfade beim App-Prozess-Start und in den
@@ -123,13 +130,40 @@ class BootReceiver : BroadcastReceiver() {
         // neu anstoßen). MY_PACKAGE_REPLACED läuft ebenfalls hier ein
         // (Intent-Filter im AndroidManifest, siehe dort).
         //   (a) Sofort-Start: Der FGS ist specialUse und darf aus dem
-        //       Boot-Pfad gestartet werden (anders als ein Location-FGS,
-        //       siehe oben); schlägt das fehl, holt der Watchdog nach.
+        //       Boot-Pfad gestartet werden (Android-Ausnahmenliste:
+        //       BOOT_COMPLETED/MY_PACKAGE_REPLACED); schlägt das fehl, holen
+        //       Watchdog und Boot-Check nach.
         //   (b) Watchdog-Takt (neu-)einplanen — KEEP macht es idempotent.
+        //   (c) M20: Einmal-Check nach 60 s — belegt/repariert den Zustand
+        //       auch dann, wenn der Prozess zwischen Broadcast und
+        //       FGS-Etablierung von einem OEM-Manager beendet wurde
+        //       (Samsung „Sleeping apps"; vorher unsichtbar).
+        //   (d) M20: 2,5 s nach dem Start nachsehen und EINMAL nachfassen —
+        //       der Boot-Broadcast ist der einzige Startpfad, der ganz ohne
+        //       Nutzerinteraktion auskommen muss; ein zweiter Versuch im
+        //       selben (ausnahmefähigen) Receiver-Kontext kostet nichts.
         try {
-            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.start(context)
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.start(context, "boot")
             com.d_drostes_apps.aevum.automation.apptracking.AppTrackingWatchdogWorker.schedule(context)
-            debugLogger.log("BOOT", "App-Aufzeichnung nach Boot/Update wiederbelebt (M19.2)")
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingBootCheckWorker.schedule(context)
+            debugLogger.log("BOOT", "App-Aufzeichnung nach Boot/Update angestoßen (M20)")
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    kotlinx.coroutines.delay(2_500L)
+                    if (com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.isAlive()) {
+                        com.d_drostes_apps.aevum.automation.apptracking.AppTrackingLog.i(
+                            context, "Boot-Verifikation: Service lebt"
+                        )
+                    } else {
+                        com.d_drostes_apps.aevum.automation.apptracking.AppTrackingLog.w(
+                            context, "Boot-Verifikation: Service NICHT gestartet — ein Nachfassen"
+                        )
+                        com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService
+                            .start(context, "boot-retry")
+                    }
+                } catch (_: Exception) {
+                }
+            }
         } catch (e: Exception) {
             debugLogger.log("BOOT", "AppTracking revival failed: ${e.message}")
         }
@@ -155,6 +189,23 @@ class BootReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 debugLogger.log("BOOT", "Kalender-Scheduler failed: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * M20: kurzer Boot-WakeLock — begrenzt auf 60 s, released sich durch
+     * den Timeout selbst. Nur CPU-Wachhalten (PARTIAL_WAKE_LOCK), kein
+     * Screen-On; WAKE_LOCK ist eine normale Manifest-Berechtigung.
+     */
+    private fun acquireBootWakelock(context: Context) {
+        try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                ?: return
+            @Suppress("DEPRECATION")
+            pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "aevum:boot")
+                .acquire(60_000L)
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "Boot-WakeLock nicht verfügbar: ${e.message}")
         }
     }
 

@@ -11,29 +11,24 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 
 /**
- * M19.2: WATCHDOG der App-Aufzeichnung — 15-Minuten-Takt, der den
- * [AppTrackingService] wiederbelebt, wenn er tot ist.
+ * M19.2/M20: WATCHDOG der App-Aufzeichnung — 15-Minuten-Takt, der den
+ * [AppTrackingService] wiederbelebt, wenn er tot ist oder sein Poll-Loop
+ * hängt.
  *
- * User-Report: „… wird einfach weiterhin nur Digital aufgezeichnet — der
- * Start der zugewiesenen Activity für Instagram kommt nicht mehr.“ Die
- * Ursache: Der Service hatte nur zwei Start-Pfade (App-Prozess-Start in
- * AevumApplication + Settings-Änderungen im AppTrackingViewModel); nach
- * Reboot / App-Update (MY_PACKAGE_REPLACED) / OEM-Kill blieb er deshalb
- * dauerhaft tot, während „Digital“ über den Manifest-Receiver
- * (ScreenEventReceiver + ScreenRecordingWorker) von selbst weiterlief —
- * genau diese Asymmetrie schließt der Watchdog. Er läuft bewusst im
- * selben WorkManager-Ökosystem wie „Digital“: Auch nach Kill/Reboot/
- * Update feuert er und stößt den Service nach. Doppel-Aufrufe sind
- * idempotent (UniqueWork + KEEP): Eingesteckt wird er von
- * AevumApplication (App-Start) und BootReceiver (Boot /
- * MY_PACKAGE_REPLACED). Im Normalbetrieb ist ein Lauf ein No-Op:
+ * M20 (Nutzerfall „Handy eingeschaltet … Digital startete statt der
+ * zugewiesenen Activity"): Zwei Lücken gegenüber M19.2 geschlossen:
+ *  1. Der alte Gate „isAlive()" übersah den Zustand „Service LEBT, pollt
+ *     aber nicht mehr" (hängender/beendeter Loop, stuck screenOn—Flag) —
+ *     KEIN Pfad fasste je nach. Jetzt entscheidet [AppTrackingService.isPollFresh]
+ *     (echte Poll-Frische; bei ausgeschaltetem Bildschirm ist Stille normal).
+ *  2. Der Start läuft über [AppTrackingService.ensureAlive], das Fehlschläge
+ *     protokolliert — u. a. das Android-Hintergrund-Startverbot
+ *     (ForegroundServiceStartNotAllowed), das hier ohne Ausnahme (z. B.
+ *     „Akku-Optimierung aus") greift und bisher still verschluckt wurde.
  *
- *  1. Keine getrackten Apps ([AppTrackingEntryRepository.getEnabledOnce]
- *     leer) → No-Op. Der Service beendet sich im Gate von onStartCommand
- *     ohnehin sofort selbst — ein Start wäre sinnlos.
- *  2. [AppTrackingService.isAlive] → No-Op (prozess-lokal; der Worker
- *     läuft im selben Prozess wie der Service — der Flag genügt, kein
- *     Systemaufruf nötig; siehe AppTrackingService-Companion).
+ * Doppel-Aufrufe sind idempotent (UniqueWork + KEEP; ensureAlive startet nur
+ * bei Bedarf). Eingesteckt wird er von AevumApplication (App-Start),
+ * BootReceiver (Boot / MY_PACKAGE_REPLACED) und dem Boot-Check.
  */
 class AppTrackingWatchdogWorker(
     appContext: Context,
@@ -61,15 +56,23 @@ class AppTrackingWatchdogWorker(
                 Log.d(TAG, "Watchdog: keine getrackten Apps — No-Op")
                 return Result.success()
             }
-            // Gate 2: Service lebt und pollt — nichts zu tun. isAlive()
-            // ist prozess-lokal und genau deshalb hier korrekt: Der Worker
-            // teilt sich den Prozess mit dem Service.
-            if (AppTrackingService.isAlive()) {
-                Log.d(TAG, "Watchdog: Service lebt — No-Op")
+            // Gate 2: Service lebt UND pollt frisch — nichts zu tun.
+            // M20: isPollFresh statt isAlive — ein lebender Service mit
+            // hängendem Poll-Loop wurde vorher für gesund gehalten und nie
+            // nachgefasst. Bei ausgeschaltetem Bildschirm zählt Stille als
+            // normal (der Loop schläft dann bewusst).
+            val interactive = (applicationContext.getSystemService(Context.POWER_SERVICE)
+                as? android.os.PowerManager)?.isInteractive ?: true
+            if (AppTrackingService.isPollFresh(interactive)) {
+                Log.d(TAG, "Watchdog: Service läuft (Poll frisch) — No-Op")
                 return Result.success()
             }
-            Log.d(TAG, "Watchdog: Service tot bei ${tracked.size} getrackten Apps — Wiederbelebung (M19.2)")
-            AppTrackingService.start(applicationContext)
+            Log.d(TAG, "Watchdog: Service tot oder Poll hängt bei ${tracked.size} getrackten Apps — Wiederbelebung (M20)")
+            AppTrackingLog.w(
+                applicationContext,
+                "Watchdog: Service tot oder Poll hängt (${tracked.size} App(s)) — Wiederbelebung"
+            )
+            AppTrackingService.ensureAlive(applicationContext, "watchdog")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Watchdog-Lauf fehlgeschlagen", e)

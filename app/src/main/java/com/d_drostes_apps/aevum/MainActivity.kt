@@ -107,6 +107,17 @@ class MainActivity : LocalizedActivity() {
         super.onResume()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
+                // M20: App-Aufzeichnung beim Öffnen der App heilen. Die App
+                // ist jetzt sichtbar — einer der wenigen FGS-Startkontexte,
+                // die Android aus dem Hintergrund immer erlaubt. Damit ist
+                // „Aevum einmal öffnen" der garantierte Reset-Knopf, wenn
+                // ein OEM-Manager den Dienst zuvor beendet hat.
+                try {
+                    com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService
+                        .ensureAlive(applicationContext, "app-vordergrund")
+                } catch (_: Exception) {
+                    // Still — der reguläre Watchdog deckt den Rest ab.
+                }
                 val deps = EntryPointAccessors.fromApplication(application, Deps::class.java)
                 // M18.147: Stiller PC-Sync-Kick beim App-Öffnen — gedrosselt
                 // (PcSyncGate), nur im WLAN, ohne jede Meldung. Eigener

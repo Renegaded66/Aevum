@@ -43,9 +43,26 @@ data class AppTrackingUiState(
     val activityTypes: List<ActivityType> = emptyList(),
     val loading: Boolean = true,
     // M18.147: true, solange der App-Scan läuft — die Listen füllen sich
-    // chunkweise nach ("immer mehr ploppen auf"), ein dezenter Spinner
+    // chunkweise nach („immer mehr ploppen auf"), ein dezenter Spinner
     // erklärt das Nachladen.
     val scanning: Boolean = false
+)
+
+/**
+ * M20: Diagnose-Zustand der App-Aufzeichnung — Service-Liveness, letzter
+ * Poll/Vordergrund-Schnappschuss, Akku-Optimierungs-Ausnahme und das
+ * Ringpuffer-Protokoll. Grundlage der „Hintergrund & Diagnose"-Karte im
+ * Screen: Belege statt Vermutungen (der Grund für wiederkehrende
+ * „klappt manchmal nicht"-Reports waren unsichtbare Startverbote).
+ */
+data class AppTrackingDiagnosticsState(
+    val serviceAlive: Boolean = false,
+    val pollAgeMs: Long = -1L,
+    val snapshotPackage: String? = null,
+    val snapshotAgeMs: Long = -1L,
+    val batteryExempt: Boolean? = null,
+    val trackedCount: Int = 0,
+    val logLines: List<String> = emptyList()
 )
 
 /**
@@ -108,6 +125,57 @@ class AppTrackingViewModel @Inject constructor(
         val scanningNow = values[5] as Boolean
         buildState(query, installed, overridesNow, entries, types, scanningNow)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppTrackingUiState())
+
+    // ── M20: Diagnose ────────────────────────────────────────────────
+
+    private val _diagnostics = MutableStateFlow(AppTrackingDiagnosticsState())
+    val diagnostics: StateFlow<AppTrackingDiagnosticsState> = _diagnostics
+
+    /**
+     * M20: Aktualisiert die Diagnose-Karte (Service-Zustand, letzter Poll,
+     * Vordergrund-Schnappschuss, Akku-Ausnahme, Protokoll). Wird vom Screen
+     * im 2-s-Takt angestoßen, solange er sichtbar ist — die Werte sind
+     * bewusst live („läuft die Aufzeichnung GERADE?").
+     */
+    fun refreshDiagnostics() {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val svc = com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService
+            val snap = svc.snapshotForDisplay()
+            val pm = app.getSystemService(Application.POWER_SERVICE) as? android.os.PowerManager
+            val tracked = try {
+                trackingRepository.getEnabledOnce().size
+            } catch (_: Exception) {
+                0
+            }
+            _diagnostics.value = AppTrackingDiagnosticsState(
+                serviceAlive = svc.isAlive(),
+                pollAgeMs = svc.lastPollAtMs().takeIf { it > 0L }
+                    ?.let { System.currentTimeMillis() - it } ?: -1L,
+                snapshotPackage = snap.packageName,
+                snapshotAgeMs = svc.snapshotAgeMs(),
+                batteryExempt = pm?.isIgnoringBatteryOptimizations(app.packageName),
+                trackedCount = tracked,
+                logLines = com.d_drostes_apps.aevum.automation.apptracking.AppTrackingLog.read(app)
+            )
+        }
+    }
+
+    fun clearDiagnostics() {
+        com.d_drostes_apps.aevum.automation.apptracking.AppTrackingLog.clear(getApplication())
+        refreshDiagnostics()
+    }
+
+    /** Öffnet die System-Liste „Akku-Optimierung" (ohne Sonder-Berechtigung). */
+    fun openBatterySettings() {
+        try {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(intent)
+        } catch (_: Exception) {
+            // Kein passender Screen — kein Drama, die Diagnose zeigt den Zustand trotzdem.
+        }
+    }
 
     init {
         refreshInstalled(force = true)

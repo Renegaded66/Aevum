@@ -101,6 +101,40 @@ import javax.inject.Inject
  *     nachgesehen und EINMAL nachgefasst
  *     ([AppTrackingTakeoverPolicy.onStopRace]); der frühere stille
  *     Abbruch verlor die Übergabe sonst für die gesamte App-Sitzung.
+ *
+ * M20 (User-Report: „Handy eingeschaltet, nach 10 Sekunden Duolingo geöffnet
+ * [Duolingo ist „lernen" zugewiesen] … nach 2 Minuten hat die Aufzeichnung
+ * digital gestartet … irgendwann hat dann doch lernen angefangen, aber nur
+ * die letzten paar Sekunden."): Vier strukturelle Befunde aus der
+ * Code-Analyse, alle adressiert:
+ *  1. HINTERGRUND-STARTVERBOT SICHTBAR GEMACHT: Die Wiederbelebungs-Pfade
+ *     (Watchdog, Screen-On-Nudge) starten den FGS aus dem HINTERGRUND —
+ *     das ist seit Android 12 nur mit Ausnahme erlaubt (u. a.:
+ *     Batterie-Optimierung für die App aus, BOOT_COMPLETED, Nutzeraktion,
+ *     Geofence/AR-Event). Fehlschläge wurden bisher still verschluckt;
+ *     jetzt protokolliert [AppTrackingLog] sie („blockiert — …"), und
+ *     [ensureAlive] ist der eine Einstiegspunkt für ALLE Wiederbelebungen
+ *     (Service tot ODER Poll-Loop hängt — der bisherige isAlive()-Check
+ *     verpasste den „lebt, pollt aber nicht"-Fall vollständig).
+ *  2. FALTUNG AUF ACTIVITY-EBENE: [ForegroundTracker] unterscheidet jetzt
+ *     Paket + Activity-Klasse — der Splash→Main-Wechsel einer App kann den
+ *     Vordergrund nicht mehr auf null setzen (Details dort). Zusätzlich
+ *     wird das Event-Fenster „seit dem letzten Abruf" (+2 s Überlappung,
+ *     max. 6 h) abgefragt statt eines fixen 4-s-Fensters (das KDoc
+ *     versprach das schon immer, der Code tat es nie — Events aus
+ *     Screen-OFF-Lücken gingen verloren) und bei leerem Zustand hebt eine
+ *     weite Einmal-Faltung (12 h, höchstens alle 2 min) einen verlorenen
+ *     Vordergrund selbstheilend wieder auf („Rebaseline").
+ *  3. DIGITAL-VORPRÜFUNG MIT BASELINE: [ForegroundAppProbe.resolve] (kurz
+ *     2 min → weit 12 h) + der AUTORITATIVE Service-Schnappschuss
+ *     ([currentSnapshot]); die Kombinations-Regel liegt geprüft in
+ *     [AppForegroundResolution]. Der frühere „nur 2-min-Fenster"-Check ließ
+ *     „Digital" starten, wenn die getrackte App seit >2 min ruhig offen war.
+ *  4. BOOT-PFAD + BELEGE: BootReceiver hält den Prozess mit einem kurzen
+ *     WakeLock (60 s) über die FGS-Etablierung, verifiziert den Start nach
+ *     2,5 s und plant einen Einmal-Check (60 s, [AppTrackingBootCheckWorker]);
+ *     MainActivity heilt beim App-Öffnen ([ensureAlive] „app-vordergrund").
+ *     Alles landet im Diagnose-Protokoll (in der App einsehbar).
  */
 @AndroidEntryPoint
 class AppTrackingService : Service() {
@@ -137,8 +171,19 @@ class AppTrackingService : Service() {
     // → Methode lieferte null → Service stoppte die Session nach ~15s.
     // Jetzt: Events dienen nur für Übergänge (FOREGROUND/BACKGROUND).
     // Keine Events = App noch im Vordergrund = Status bleibt.
-    private var lastKnownForeground: String? = null
+    // M20: Zustand auf ACTIVITY-Ebene ([Foreground]) — der Splash→Main-
+    // Wechsel einer App leert den Vordergrund nicht mehr (siehe
+    // ForegroundTracker); nach außen zählt weiter der Paketname.
+    private var lastKnownForeground: Foreground? = null
     private var isFirstPoll = true
+    // M20: Zeitpunkt des letzten Event-Abrufs — das Fenster ist jetzt
+    // „seit dem letzten Abruf" statt eines fixen 4-s-Fensters.
+    private var lastEventQueryAtMs = 0L
+    // M20: letzte weite Re-Baseline (Selbstheilung bei leerem Zustand).
+    private var lastRebaselineAtMs = 0L
+    // M20: letzter Vordergrund, der ins Diagnose-Protokoll ging (nur
+    // ZUSTANDSWECHSEL loggen — sonst wäre der Puffer in Minuten voll).
+    private var lastLoggedForeground: String? = null
 
     companion object {
         private const val TAG = "AppTrackingSvc"
@@ -159,10 +204,26 @@ class AppTrackingService : Service() {
         // gen — UsageStats-I/O fällt weg). 10 Min reichen locker: Der
         // SCREEN_ON-Broadcast weckt den Sofort-Poll sofort.
         private const val POLL_INTERVAL_SCREEN_OFF_MS = 10L * 60 * 1000
+        // M20: Event-Fenster — „seit dem letzten Abruf" + Überlappung
+        // (doppelt gelieferte Events sind für die Faltung stabil), gedeckelt
+        // auf 6 h (nach langen Bildschirm-Aus-Phasen zählen die frischen
+        // Wake-Übergänge, nicht die Stunden davor).
+        private const val EVENT_QUERY_OVERLAP_MS = 2_000L
+        private const val EVENT_QUERY_MAX_MS = 6L * 60 * 60 * 1000
+        // M20: Re-Baseline-Intervall, wenn der Faltungs-Zustand leer ist
+        // (Selbstheilung via [ForegroundAppProbe]-Weitfenster).
+        private const val REBASELINE_INTERVAL_MS = 120_000L
+        // M20: Ab dieser Poll-Stille gilt ein LEBENDER Service als „hängt"
+        // (Poll-Takt ist 2 s; bei ausgeschaltetem Bildschirm ist Stille normal
+        // und wird von [isPollFresh] gesondert behandelt).
+        private const val POLL_STALE_MS = 150_000L
         // M18.122 (D3): Marker-Action für app-interne Starts — der
         // Sticky-Guard bricht NUR Intents OHNE Action (System-Rebirth).
         // JEDER interne Start setzt sie, siehe start().
         const val ACTION_INTERNAL_START = "com.d_drostes_apps.aevum.APP_TRACKING_INTERNAL_START"
+
+        /** M20: Startgrund (Boot/Worker/Watchdog/App-Öffnen …) fürs Protokoll. */
+        const val EXTRA_START_REASON = "com.d_drostes_apps.aevum.APP_TRACKING_START_REASON"
 
         // M18.151: Letzter Vordergrund-Schnappschuss des Polls —
         // PROZESS-LOKAL. Der ScreenRecordingWorker (gleicher Prozess) darf
@@ -203,18 +264,33 @@ class AppTrackingService : Service() {
         @Volatile private var alive = false
         @Volatile private var lastPollAtMs = 0L
 
+        // M20: Zeitpunkt von onCreate — Grundlage von [isPollFresh] für die
+        // kurze Phase zwischen Service-Start und erstem Poll.
+        @Volatile private var serviceStartedAtMs = 0L
+
         /** M19.2: Lebt der Service gerade in diesem Prozess? */
         fun isAlive(): Boolean = alive
 
         /** M19.2: Zeitpunkt des letzten Foreground-Polls (0 = nie gepollt). */
         fun lastPollAtMs(): Long = lastPollAtMs
 
-        fun start(context: Context) {
+        fun start(context: Context) = start(context, "direkt")
+
+        /**
+         * M20: Start mit Grund — der Grund wandert in Intent-Extra und
+         * Diagnose-Protokoll; Fehlschläge (v. a.
+         * `ForegroundServiceStartNotAllowedException` aus dem Hintergrund)
+         * werden NICHT mehr still verschluckt, sondern protokolliert:
+         * „START(boot-check) blockiert — Android-Hintergrund-Startverbot
+         * (Akku-Optimierung für Aevum ausschalten hilft)".
+         */
+        fun start(context: Context, reason: String) {
             // M18.122 (D3): Interne Starts tragen explizit
             // ACTION_INTERNAL_START — null-Action bleibt damit dem
             // System-Rebirth vorbehalten (START_STICKY nach Prozess-Kill).
             val intent = Intent(context, AppTrackingService::class.java)
                 .setAction(ACTION_INTERNAL_START)
+                .putExtra(EXTRA_START_REASON, reason)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent)
@@ -222,9 +298,85 @@ class AppTrackingService : Service() {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Start fehlgeschlagen: ${e.message}")
+                // M20: Android 12+ verbietet FGS-Starts aus dem Hintergrund
+                // ohne Ausnahme. Das ist der wichtigste denkbare Beleg im
+                // Diagnose-Protokoll — deshalb explizit benannt, nicht nur
+                // als generische Fehlermeldung.
+                val blocked = e.javaClass.name.contains("ForegroundServiceStartNotAllowed")
+                if (blocked) {
+                    AppTrackingLog.w(
+                        context,
+                        "START($reason) blockiert — Android-Hintergrund-Startverbot. " +
+                            "Ausnahme „Akku-Optimierung aus“ in den System-Einstellungen setzen."
+                    )
+                } else {
+                    AppTrackingLog.w(context, "START($reason) fehlgeschlagen: ${e.message}")
+                }
+                Log.w(TAG, "Start($reason) fehlgeschlagen: ${e.message}")
             }
         }
+
+        /**
+         * M20: DER EINE Einstiegspunkt aller Wiederbelebungs-Pfade
+         * (App-Prozess, Boot, Screen-On, Watchdog, Worker-Nudge, App-Öffnen).
+         *
+         * Unterschied zum bisherigen Muster `if (!isAlive()) start()`: Ein
+         * Service kann LEBEN, während sein Poll-Loop hängt oder beendet ist
+         * (screenOn-Flag, abgebrochener Coroutine-Job) — isAlive() sah das
+         * nicht, und damit hat KEIN Pfad je nachgefasst („irgendwann hat
+         * dann doch lernen angefangen" — statt „sofort"). [isPollFresh]
+         * misst stattdessen die Frische des letzten Polls; bei hängendem
+         * Loop startet start() den onStartCommand-Pfad neu, der startPolling()
+         * den Loop wieder aufnimmt.
+         */
+        fun ensureAlive(context: Context, reason: String) {
+            try {
+                val interactive = appTrackingScreenInteractive(context)
+                if (isPollFresh(interactive)) return
+                if (alive) {
+                    AppTrackingLog.w(context, "ensureAlive($reason): Poll-Loop hängt — Neustart")
+                } else {
+                    AppTrackingLog.i(context, "ensureAlive($reason): Service tot — Start")
+                }
+                start(context, reason)
+            } catch (t: Throwable) {
+                AppTrackingLog.w(context, "ensureAlive($reason) fehlgeschlagen: ${t.message}")
+            }
+        }
+
+        /**
+         * M20: Ist der Service da UND arbeitet? Bei ausgeschaltetem Bildschirm
+         * ist Poll-Stille normal (der Loop schläft) — dann genügt, dass er
+         * lebt. Am Tag gilt ein lebender Service mit Poll-Stille > [maxAgeMs]
+         * als hängend (Grundlage der Nachfass-Pfade).
+         */
+        fun isPollFresh(interactive: Boolean, maxAgeMs: Long = POLL_STALE_MS): Boolean {
+            if (!alive) return false
+            if (!interactive) return true
+            val baseline = maxOf(lastPollAtMs, serviceStartedAtMs)
+            if (baseline <= 0L) return false
+            return System.currentTimeMillis() - baseline <= maxAgeMs
+        }
+
+        /**
+         * M20: Schnappschuss-Zustand für den ScreenRecordingWorker mit
+         * eindeutiger Frische-Aussage. (Der alte recentPollSnapshot() warf
+         * „Service sagt Homescreen" und „zu alt/nie gepollt" in dasselbe
+         * `null` — die Unterscheidung ist für die neue Vorprüfung zentral.)
+         */
+        data class PollSnapshot(val fresh: Boolean, val packageName: String?)
+
+        fun currentSnapshot(maxAgeMs: Long): PollSnapshot {
+            val fresh = pollSnapshotValid &&
+                (System.currentTimeMillis() - pollSnapshotAtMs <= maxAgeMs)
+            return PollSnapshot(fresh, if (fresh) pollSnapshotPackage else null)
+        }
+
+        /** M20: Für die Diagnose-Anzeige (auch veraltete Werte, mit Alter). */
+        fun snapshotForDisplay(): PollSnapshot = PollSnapshot(pollSnapshotValid, pollSnapshotPackage)
+
+        fun snapshotAgeMs(): Long =
+            if (pollSnapshotValid) System.currentTimeMillis() - pollSnapshotAtMs else -1L
 
         fun stop(context: Context) {
             context.stopService(Intent(context, AppTrackingService::class.java))
@@ -241,6 +393,13 @@ class AppTrackingService : Service() {
         // doppelt anstoßen; ab hier gilt der Service als „lebendig“.
         alive = true
         processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
+        // M20: Liveness-Basis + realer Screen-Zustand (statt blind "an") —
+        // ein Neustart bei ausgeschaltetem Bildschirm soll nicht pollen,
+        // und isPollFresh() bekommt einen belastbaren Startzeitpunkt.
+        serviceStartedAtMs = System.currentTimeMillis()
+        screenOn = (getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)
+            ?.isInteractive ?: true
+        AppTrackingLog.i(this, "Service onCreate (screenOn=$screenOn)")
         // M18.123-CRASHFIX: Guard erst hier konstruieren — ab onCreate
         // ist der Context garantiert attacht (Property-Init crasht mit
         // NPE, siehe StickyGuards.kt-Doku).
@@ -292,20 +451,48 @@ class AppTrackingService : Service() {
         stickyGuard.markLegitStart()
 
         scope.launch {
-            val enabled = try {
-                trackingRepository.getEnabledOnce().isNotEmpty()
-            } catch (e: Exception) {
-                Log.e(TAG, "Gate-Check fehlgeschlagen", e)
-                false
-            }
+            // M20: Das Gate darf bei einem DB-Fehler im frisch gestarteten
+            // Prozess (Boot-Race) nicht sofort aufgeben — die alte Fassung
+            // stoppte den Service, der dann bis zum nächsten Revival-Pfad
+            // tot blieb (beobachteter Nutzerfall: „nichts wurde aufgezeichnet").
+            val enabled = gateEnabledWithRetry()
             if (!enabled) {
                 Log.d(TAG, "Keine getrackten Apps — Service beendet sich")
                 stopSelf()
                 return@launch
             }
+            // M20: Startgrund ins Protokoll (boot / screen-on / watchdog /
+            // app-vordergrund / screen-worker …) — wer den Dienst wann
+            // angestoßen hat, ist die halbe Diagnose.
+            val startReason = intent?.getStringExtra(EXTRA_START_REASON)
+                ?: if (intent?.action == null) "system-rebirth" else "intern"
+            AppTrackingLog.i(this@AppTrackingService, "Service läuft (Start: $startReason)")
             startPolling()
         }
         return START_STICKY
+    }
+
+    /**
+     * M20: Gate „mindestens eine App getrackt?" mit drei kurzen Versuchen.
+     * Ein einzelner DB-Fehler direkt nach Prozessstart (Boot) soll den
+     * Dienst nicht dauerhaft ausfallen lassen.
+     */
+    private suspend fun gateEnabledWithRetry(): Boolean {
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                return trackingRepository.getEnabledOnce().isNotEmpty()
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) delay(4_000L)
+            }
+        }
+        Log.e(TAG, "Gate-Check nach 3 Versuchen fehlgeschlagen", lastError)
+        AppTrackingLog.w(
+            this,
+            "Gate-Check fehlgeschlagen (${lastError?.message}) — Service stoppt (nächster Revival-Pfad übernimmt)"
+        )
+        return false
     }
 
     private fun startForegroundCompat() {
@@ -354,15 +541,29 @@ class AppTrackingService : Service() {
             //   • Der Screen-Receiver ist ein System-Broadcast — registriert
             //     in onCreate des laufenden FGS, null Kosten im Schlaf.
             while (isActive) {
-                val screenOn = screenOn
-                if (screenOn) {
+                // M20: Selbstheilung gegen ein hängen gebliebenes
+                // screenOn=false (z. B. verpasster SCREEN_ON-Broadcast, wenn
+                // der Receiver beim Einschalten gerade nicht registriert
+                // war): dann pollte der Loop NIE wieder — exakt das Muster
+                // „lange nichts aufgezeichnet, irgendwann plötzlich doch".
+                // Beim gedrosselten Takt den echten Zustand nachlesen.
+                if (!screenOn) {
+                    val realOn = (getSystemService(Context.POWER_SERVICE)
+                        as? android.os.PowerManager)?.isInteractive ?: false
+                    if (realOn) {
+                        screenOn = true
+                        AppTrackingLog.i(this@AppTrackingService, "ScreenOn-Flag geheilt (Screen ist an)")
+                    }
+                }
+                val screenOnNow = screenOn
+                if (screenOnNow) {
                     try {
                         pollForegroundApp()
                     } catch (e: Exception) {
                         Log.e(TAG, "Poll-Fehler", e)
                     }
                 }
-                delay(if (screenOn) POLL_INTERVAL_MS else POLL_INTERVAL_SCREEN_OFF_MS)
+                delay(if (screenOnNow) POLL_INTERVAL_MS else POLL_INTERVAL_SCREEN_OFF_MS)
             }
         }
     }
@@ -407,7 +608,7 @@ class AppTrackingService : Service() {
                         if (pollingJob?.isActive == true) {
                             scope.launch {
                                 try {
-                                    stopOwnSessionIfRunning()
+                                    stopOwnSessionIfRunning("Screen aus")
                                     currentTrackedApp = null
                                 } catch (e: Exception) {
                                     Log.w(TAG, "Screen-OFF-Stop fehlgeschlagen: ${e.message}")
@@ -443,13 +644,29 @@ class AppTrackingService : Service() {
      * Beim allerersten Poll wird ein größeres Fenster (24h) abgefragt,
      * um den aktuellen Foreground-Status zu initialisieren (falls die
      * App schon vor Service-Start geöffnet war).
+     *
+     * M20: Das Fenster ist jetzt WIRKLICH „seit dem letzten Abruf"
+     * (+2 s Überlappung, gedeckelt auf 6 h). Vorher stand hier ein fixes
+     * 4-s-Fenster — das KDoc versprach „seit dem letzten Poll", der Code
+     * tat es nie: Nach einer Screen-OFF-Pause (Poll-Loop schläft) gingen
+     * alle Übergänge der Pause verloren. Doppelt gelieferte Events sind
+     * für die Faltung unschädlich (idempotent für die Event-Typen).
      */
     private fun processForegroundEvents() {
         val usageStats = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return
         val now = System.currentTimeMillis()
-        val lookback = if (isFirstPoll) now - 24 * 60 * 60 * 1000L else now - POLL_INTERVAL_MS - 2_000L
-        val events = usageStats.queryEvents(lookback, now) ?: return
+        val lookback = if (isFirstPoll || lastEventQueryAtMs <= 0L) {
+            24 * 60 * 60 * 1000L
+        } else {
+            (now - lastEventQueryAtMs + EVENT_QUERY_OVERLAP_MS)
+                .coerceIn(EVENT_QUERY_OVERLAP_MS, EVENT_QUERY_MAX_MS)
+        }
+        lastEventQueryAtMs = now
+        val events = usageStats.queryEvents(now - lookback, now) ?: run {
+            isFirstPoll = false
+            return
+        }
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
@@ -457,9 +674,12 @@ class AppTrackingService : Service() {
             // unit-getestet) — identische Semantik wie zuvor, jetzt aber auch
             // vom [ForegroundAppProbe] (ScreenRecordingWorker) genutzt, damit
             // es nur EINE Definition von „Vordergrund" gibt.
+            // M20: auf Activity-Ebene (Paket + Klasse) — Splash→Main-Wechsel
+            // kann den Vordergrund nicht mehr fälschlich leeren.
             lastKnownForeground = ForegroundTracker.next(
                 current = lastKnownForeground,
                 packageName = event.packageName ?: "",
+                className = event.className,
                 isForegroundEvent = event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
                     event.eventType == UsageEvents.Event.ACTIVITY_RESUMED,
                 isBackgroundEvent = event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND ||
@@ -476,16 +696,47 @@ class AppTrackingService : Service() {
         // Service tatsächlich noch arbeitet.
         lastPollAtMs = System.currentTimeMillis()
         processForegroundEvents()
+
+        // M20: RE-BASELINE (Selbstheilung) — hängt der Zustand auf „nichts
+        // im Vordergrund", obwohl der Nutzer in einer App ist, kamen dafür
+        // keine weiteren Übergangs-Events mehr (Faltungs-Verlust ohne
+        // Folge-Events). Eine weite Einmal-Faltung (12 h) holt den echten
+        // Vordergrund zurück; spätestens alle [REBASELINE_INTERVAL_MS] und
+        // nur solange der Zustand leer ist (Kosten: eine Event-Abfrage).
+        var fg = lastKnownForeground?.packageName
+        if (fg == null && System.currentTimeMillis() - lastRebaselineAtMs >= REBASELINE_INTERVAL_MS) {
+            lastRebaselineAtMs = System.currentTimeMillis()
+            val wide = ForegroundAppProbe.currentForeground(this, ForegroundAppProbe.WIDE_LOOKBACK_MS)
+            if (wide != null) {
+                lastKnownForeground = ForegroundTracker.next(
+                    current = null, packageName = wide, className = null,
+                    isForegroundEvent = true, isBackgroundEvent = false
+                )
+                fg = wide
+                AppTrackingLog.i(this, "Rebaseline: Vordergrund=$wide (weite 12-h-Faltung)")
+            }
+        }
+
         // M18.151: Schnappschuss für den ScreenRecordingWorker (gleicher
         // Prozess) — VOR den frühen Returns, damit JEDER Poll den Stand
         // aktualisiert (auch „Homescreen").
         rememberForegroundSnapshot()
-        val foreground = lastKnownForeground ?: run {
-            // Keine App im Vordergrund (Homescreen/Sperrbildschirm) →
-            // eigene Session stoppen, falls eine läuft.
-            stopOwnSessionIfRunning()
+        val foreground = fg ?: run {
+            // Keine App im Vordergrund (Homescreen/Sperrbildschirm) → eigene
+            // Session stoppen, falls eine läuft.
+            stopOwnSessionIfRunning("Vordergrund leer (Homescreen/Sperrbildschirm)")
             currentTrackedApp = null
+            if (lastLoggedForeground != null) {
+                AppTrackingLog.i(this, "Vordergrund: — (Homescreen)")
+                lastLoggedForeground = null
+            }
             return
+        }
+        // M20: Zustandswechsel ins Diagnose-Protokoll (nur Änderungen —
+        // sonst wäre der Ringpuffer in Minuten voll).
+        if (foreground != lastLoggedForeground) {
+            AppTrackingLog.i(this, "Vordergrund: $foreground")
+            lastLoggedForeground = foreground
         }
 
         // Getrackte Apps frisch laden (reagiert sofort auf UI-Änderungen)
@@ -500,7 +751,7 @@ class AppTrackingService : Service() {
         if (entry == null) {
             // Aktuelle App ist NICHT getrackt → eigene Session stoppen
             // (falls die vorherige getrackte App verlassen wurde).
-            stopOwnSessionIfRunning()
+            stopOwnSessionIfRunning("$foreground ist nicht getrackt")
             currentTrackedApp = null
             return
         }
@@ -585,6 +836,7 @@ class AppTrackingService : Service() {
                 }
                 if (!stopped) {
                     Log.d(TAG, "Digital-Übergabe abgebrochen — Live-Session hat inzwischen gewechselt")
+                    AppTrackingLog.w(this, "Digital-Übergabe abgebrochen (Live-Session wechselte im Race) — nächster Poll prüft erneut")
                     // M19.3: NICHT als „erledigt" markieren — der nächste
                     // 2-s-Poll bewertet den Zustand neu (Selbstheilung),
                     // sonst bliebe das Digital bis zum nächsten App-Wechsel
@@ -593,10 +845,11 @@ class AppTrackingService : Service() {
                     return
                 }
                 Log.d(TAG, "Digital (${digital.id}) SOFORT gestoppt — App-Aufzeichnung $foreground übernimmt")
+                AppTrackingLog.i(this, "Digital gestoppt — $foreground übernimmt (Übergabe)")
             }
             AppTrackingTakeoverPolicy.Action.STOP_AND_START -> {
                 // Eigene Session stoppen (Wechsel getrackte App A → B)
-                stopOwnSessionIfRunning()
+                stopOwnSessionIfRunning("Wechsel zu getrackter App $foreground")
             }
             AppTrackingTakeoverPolicy.Action.START_APP -> Unit // nichts zuvor zu tun
         }
@@ -618,6 +871,7 @@ class AppTrackingService : Service() {
             // der Service ohnehin — der Aufruf ist dann ein No-Op.
             com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService.start(applicationContext)
             Log.d(TAG, "Auto-Start: $foreground → Session ${session.id} (Typ $typeId)")
+            AppTrackingLog.i(this, "Session gestartet: $foreground → $typeId (${session.id})")
         } catch (e: Exception) {
             Log.e(TAG, "Auto-Start fehlgeschlagen für $foreground", e)
             trackedSessionId = null
@@ -627,13 +881,20 @@ class AppTrackingService : Service() {
 
     /** M18.151: Letzten Vordergrund-Stand für externe Konsumenten ablegen. */
     private fun rememberForegroundSnapshot() {
-        pollSnapshotPackage = lastKnownForeground
+        // M20: nach außen zählt der Paketname (der Zustand ist intern auf
+        // Activity-Ebene).
+        pollSnapshotPackage = lastKnownForeground?.packageName
         pollSnapshotAtMs = System.currentTimeMillis()
         pollSnapshotValid = true
     }
 
-    /** Stoppt die eigene Session, falls sie noch live ist. */
-    private suspend fun stopOwnSessionIfRunning() {
+    /**
+     * Stoppt die eigene Session, falls sie noch live ist.
+     *
+     * M20: mit [reason] — der Grund landet im Diagnose-Protokoll
+     * („Warum endete die Aufzeichnung?" ist die häufigste Nutzerfrage).
+     */
+    private suspend fun stopOwnSessionIfRunning(reason: String) {
         // M18.151: Ziel bestimmen — die eigene Session (getrackte ID) ODER
         // eine verwaiste App-Tracking-Session (Service-Neustart:
         // trackedSessionId ist leer, die Session lebt aber weiter; sie
@@ -660,6 +921,7 @@ class AppTrackingService : Service() {
                 com.d_drostes_apps.aevum.automation.calendar.CalendarAutoRunScheduler
                     .restartNow(applicationContext)
                 Log.d(TAG, "Auto-Stop: Session $targetId")
+                AppTrackingLog.i(this, "Session gestoppt: $targetId ($reason)")
                 // M18.151 (User-Spec: „Falls dann 2 Minuten das Display an
                 // ist ohne eine ausgewählte App, dann soll Digital wieder
                 // starten."): Digital-Neuansatz einplanen. Ohne diesen
@@ -731,6 +993,7 @@ class AppTrackingService : Service() {
         // bewusst beendete App-Aufzeichnung (letzte getrackte App entfernt)
         // würde sofort wiederbelebt, statt zu bleiben.
         alive = false
+        AppTrackingLog.i(this, "Service onDestroy")
         pollingJob?.cancel()
         // M18.104: Screen-Receiver sauber deregistrieren.
         screenReceiver?.let {
@@ -741,3 +1004,19 @@ class AppTrackingService : Service() {
         super.onDestroy()
     }
 }
+
+/**
+ * M20: Bildschirm-Interaktivität für [AppTrackingService.ensureAlive].
+ *
+ * Bewusst als TOP-LEVEL-Funktion am Dateiende — nicht im Companion:
+ * [com.d_drostes_apps.aevum.automation.StickyGuardInitRegressionTest]
+ * verbietet Context-Zugriffe im Quelltext VOR `onCreate()` (dort wäre
+ * jeder Context-Zugriff der M18.122-NPE-Crash beim Service-Aufbau; der
+ * Scan kann Funktionskörper des Companions nicht von Property-Init
+ * unterscheiden). Diese Funktion erhält beide Zusagen: die gescannte
+ * Zone bleibt Context-frei, und zur Laufzeit (immer mit gültigem
+ * Context aufgerufen, nie beim Konstruieren) ist es exakt dieselbe
+ * Abfrage wie zuvor.
+ */
+private fun appTrackingScreenInteractive(context: Context): Boolean =
+    (context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isInteractive ?: true

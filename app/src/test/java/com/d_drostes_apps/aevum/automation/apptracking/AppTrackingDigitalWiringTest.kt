@@ -151,8 +151,8 @@ class AppTrackingDigitalWiringTest {
         val idx = src.indexOf("Intent.ACTION_SCREEN_OFF -> {")
         assertWithMessage("SCREEN_OFF-Zweig fehlt in registerScreenReceiver").that(idx).isAtLeast(0)
         val block = src.substring(idx, (idx + 1_400).coerceAtMost(src.length))
-        assertWithMessage("Der Screen-OFF-Zweig muss stopOwnSessionIfRunning() aufrufen")
-            .that(block).contains("stopOwnSessionIfRunning()")
+        assertWithMessage("Der Screen-OFF-Zweig muss stopOwnSessionIfRunning(…) aufrufen")
+            .that(block).contains("stopOwnSessionIfRunning(")
         assertWithMessage("Der Screen-OFF-Zweig muss currentTrackedApp zurücksetzen (sonst wird der Wiedereinstieg nach dem Entsperren verschluckt)")
             .that(block).contains("currentTrackedApp = null")
     }
@@ -186,15 +186,19 @@ class AppTrackingDigitalWiringTest {
     fun `Worker startet kein Digital wenn eine getrackte App im Vordergrund ist`() {
         val src = workerSource()
         assertWithMessage("ForegroundAppProbe fehlt im Worker").that(src).contains("ForegroundAppProbe")
-        assertWithMessage("Poll-Schnappschuss-Fallback fehlt (Fall „App seit Stunden ruhig im Vordergrund“)")
-            .that(src).contains("recentPollSnapshot(90_000L)")
+        assertWithMessage("M20: Frischer Schnappschuss muss über currentSnapshot gelesen werden (fresh/package statt null-Zweideutigkeit)")
+            .that(src).contains("currentSnapshot(15_000L)")
+        assertWithMessage("M20: Die Auflösung muss über die getestete AppForegroundResolution.pick laufen")
+            .that(src).contains("AppForegroundResolution")
+        assertWithMessage("M20: Die WEITE Baseline-Faltung (12 h) fehlt — ohne sie startete Digital, wenn die App seit >2 min ruhig offen war (Nutzerfall)")
+            .that(src).contains("WIDE_LOOKBACK_MS")
         assertWithMessage("Der Tracked-Check muss VOR dem Digital-Start stehen")
-            .that(src.indexOf(".currentForeground(applicationContext)"))
+            .that(src.indexOf("AppForegroundResolution"))
             .isLessThan(src.indexOf("val session = deps.liveActivityManager().start("))
         assertWithMessage("Der Worker muss den AppTrackingService anstupsen, wenn er wegen einer getrackten App überspringt")
             .that(src).contains("AppTrackingService")
-        assertWithMessage("Der Nudge muss den Service STARTEN (nicht stoppen)")
-            .that(src).contains(".start(applicationContext)")
+        assertWithMessage("Der Nudge muss über ensureAlive laufen (M20: startet nur bei Bedarf und protokolliert Startverbote)")
+            .that(src).contains("ensureAlive(applicationContext, \"screen-worker\")")
     }
 
     @Test
@@ -249,19 +253,25 @@ class AppTrackingDigitalWiringTest {
     @Test
     fun `AevumApplication und BootReceiver beleben die App-Aufzeichnung nach Boot und Update`() {
         val app = appSource()
-        assertWithMessage("AevumApplication muss den AppTrackingService starten (App-Prozess-Start, M18.67-Pfad muss bleiben)")
-            .that(app).contains("AppTrackingService.start(this)")
+        assertWithMessage("AevumApplication muss die App-Aufzeichnung sicherstellen (M20: über ensureAlive — startet nur bei Bedarf)")
+            .that(app).contains("AppTrackingService.ensureAlive(this, \"app-prozess\")")
         assertWithMessage("AevumApplication muss den Watchdog einplanen — sonst bleibt die App-Aufzeichnung nach dem nächsten Kill/Reboot/Update wieder tot (nur Digital läuft weiter)")
             .that(app).contains("AppTrackingWatchdogWorker.schedule(this)")
         val boot = bootSource()
         assertWithMessage("BootReceiver muss den AppTrackingService starten — Boot und MY_PACKAGE_REPLACED sind die einzigen System-Anlässe, wenn die App selbst nie geöffnet wird")
-            .that(boot).contains("AppTrackingService.start(context)")
+            .that(boot).contains("AppTrackingService.start(context, \"boot\")")
         assertWithMessage("BootReceiver muss den Watchdog einplanen (Takt nach Boot/Update neu anstoßen, KEEP macht es idempotent)")
             .that(boot).contains("AppTrackingWatchdogWorker.schedule(context)")
+        assertWithMessage("M20: BootReceiver muss den Einmal-Boot-Check einplanen (Beleg/Reparatur ~60 s nach Boot — OEM-Kill-Fenster wird sonst nie sichtbar)")
+            .that(boot).contains("AppTrackingBootCheckWorker.schedule(context)")
+        assertWithMessage("M20: BootReceiver muss den Start nach 2,5 s verifizieren und einmal nachfassen")
+            .that(boot).contains("boot-retry")
+        assertWithMessage("M20: BootReceiver muss den kurzen WakeLock holen (Kill-Fenster zwischen BOOT_COMPLETED und FGS-Etablierung)")
+            .that(boot).contains("acquireBootWakelock(context)")
         assertWithMessage("Die Wiederbelebung muss IM handleBoot-Pfad stehen (onReceive leitet nur weiter)")
-            .that(boot.indexOf("private fun handleBoot(context: Context)") < boot.indexOf("AppTrackingService.start(context)")).isTrue()
+            .that(boot.indexOf("private fun handleBoot(context: Context)") < boot.indexOf("AppTrackingService.start(context")).isTrue()
         assertWithMessage("Sofort-Start muss VOR dem Watchdog-Einplan stehen (erst Service beleben, dann Takt)")
-            .that(boot.indexOf("AppTrackingService.start(context)") < boot.indexOf("AppTrackingWatchdogWorker.schedule(context)")).isTrue()
+            .that(boot.indexOf("AppTrackingService.start(context") < boot.indexOf("AppTrackingWatchdogWorker.schedule(context")).isTrue()
         assertWithMessage("Der bewusste Verzicht auf den Location-FGS-Start nach Boot darf nicht entfernt werden (Android-15-Richtlinie)")
             .that(boot).contains("Location-FGS nach Boot bewusst übersprungen")
     }
@@ -279,25 +289,23 @@ class AppTrackingDigitalWiringTest {
     }
 
     @Test
-    fun `ScreenEventReceiver nudged beim Screen-On sofort — Wiederbelebung mit isAlive-Guard`() {
+    fun `ScreenEventReceiver nudged beim Screen-On sofort — Wiederbelebung mit ensureAlive`() {
         val src = receiverSource()
         assertWithMessage("Deps-Zugang zum AppTrackingEntryRepository fehlt (Gate: nur bei getrackten Apps beleben)")
             .that(src).contains("fun appTrackingEntryRepository(): com.d_drostes_apps.aevum.data.repository.AppTrackingEntryRepository")
-        assertWithMessage("isAlive-Guard fehlt — jeder Screen-On würde im Normalbetrieb den laufenden Service doppelt anstoßen")
-            .that(src).contains("!com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.isAlive()")
         assertWithMessage("Der Nudge muss getrackte Apps als Gate prüfen (getEnabledOnce) — sonst startet er den Service, der sich im Gate sofort wieder selbst beendet")
             .that(src).contains("deps.appTrackingEntryRepository().getEnabledOnce()")
-        assertWithMessage("Der Nudge muss den Service STARTEN (AppTrackingService.start(appContext))")
-            .that(src).contains("AppTrackingService.start(appContext)")
+        assertWithMessage("M20: Der Nudge muss über ensureAlive laufen — er erkennt AUCH einen lebenden Service mit hängendem Poll-Loop (isAlive() allein tat das nie)")
+            .that(src).contains("ensureAlive(appContext, \"screen-\$type\")")
         val scheduleIdx = src.indexOf(".schedule(appContext, minutes")
         val offIdx = src.indexOf("} else if (type == \"OFF\") {")
-        val nudgeIdx = src.indexOf("AppTrackingService.isAlive()")
+        val nudgeIdx = src.indexOf("ensureAlive(appContext")
         assertWithMessage("Der Nudge muss im ON/UNLOCK-Zweig der Bildschirm-Aufzeichnung liegen (nach dem Digital-Einplan, vor dem OFF-Zweig) — genau dort weiß das System, dass der Screen gerade an ging")
             .that(scheduleIdx in 0 until nudgeIdx && nudgeIdx < offIdx).isTrue()
     }
 
     @Test
-    fun `Watchdog-Worker ist 15-Minuten-Periodikarbeit mit KEEP und gated auf getrackte Apps und isAlive`() {
+    fun `Watchdog-Worker belebt toten oder haengenden Service wieder - 15-Minuten-Periodikarbeit mit KEEP`() {
         val src = watchdogSource()
         assertWithMessage("Der UniqueWork-Name app_tracking_watchdog fehlt")
             .that(src).contains("const val WORK_NAME = \"app_tracking_watchdog\"")
@@ -313,12 +321,12 @@ class AppTrackingDigitalWiringTest {
             .that(src).contains("getEnabledOnce()")
         assertWithMessage("Gate 1 fehlt: ohne getrackte Apps muss der Worker ein No-Op sein (if (tracked.isEmpty()))")
             .that(src).contains("if (tracked.isEmpty())")
-        assertWithMessage("Gate 2 fehlt: lebt der Service schon (isAlive), darf nicht doppelt gestartet werden")
-            .that(src).contains("AppTrackingService.isAlive()")
-        assertWithMessage("Die Wiederbelebung muss den Service STARTEN")
-            .that(src).contains("AppTrackingService.start(applicationContext)")
-        assertWithMessage("Gate-Reihenfolge falsch: erst der Leere-Check (getrackte Apps), dann isAlive")
-            .that(src.indexOf("if (tracked.isEmpty())") < src.indexOf("AppTrackingService.isAlive()")).isTrue()
+        assertWithMessage("M20: Gate 2 muss die POLL-Frische prüfen (isPollFresh) — isAlive() hielt einen lebenden Service mit hängendem Poll-Loop für gesund")
+            .that(src).contains("AppTrackingService.isPollFresh(")
+        assertWithMessage("Die Wiederbelebung muss über ensureAlive laufen (einheitlicher Einstieg + Diagnose-Protokoll)")
+            .that(src).contains("AppTrackingService.ensureAlive(applicationContext, \"watchdog\")")
+        assertWithMessage("Gate-Reihenfolge falsch: erst der Leere-Check (getrackte Apps), dann die Liveness-Prüfung")
+            .that(src.indexOf("if (tracked.isEmpty())") < src.indexOf("AppTrackingService.isPollFresh(")).isTrue()
     }
 
     @Test
@@ -393,5 +401,73 @@ class AppTrackingDigitalWiringTest {
         assertWithMessage("StopRace-KEEP_FOREIGN fehlt — eine zwischenzeitlich gestartete Fahrt/Sport-Session darf der Nachfass nie stoppen").that(policy).contains("StopRace.KEEP_FOREIGN")
         assertWithMessage("Der Nachfass-Stopp muss exakt die frisch gelesene Session treffen (stopIfLive mit frischer ID), nie ein unbedingtes stop()")
             .that(serviceSource()).contains("liveActivityManager.stopIfLive(fresh.id)")
+    }
+
+    // ── 13) M20: Hintergrund-Start-Realität, einheitliche Wiederbelebung, Belege ──
+
+    @Test
+    fun `ensureAlive ist der eine Wiederbelebungs-Einstieg und protokolliert Startverbote`() {
+        val src = serviceSource()
+        assertWithMessage("ensureAlive(context, reason) fehlt — alle Revival-Pfade müssen über EINEN Einstieg laufen")
+            .that(src).contains("fun ensureAlive(context: Context, reason: String)")
+        assertWithMessage("isPollFresh fehlt — Grundlage für den „lebt, pollt aber nicht“-Fall (der alte isAlive-Gate verpasste ihn komplett)")
+            .that(src).contains("fun isPollFresh(")
+        assertWithMessage("Das Android-Hintergrund-Startverbot muss als solches protokolliert werden (ForegroundServiceStartNotAllowed)")
+            .that(src).contains("ForegroundServiceStartNotAllowed")
+        assertWithMessage("Start-Fehlschläge müssen ins Diagnose-Protokoll (AppTrackingLog)")
+            .that(src).contains("AppTrackingLog")
+        assertWithMessage("Der Startgrund muss als Intent-Extra mitlaufen (EXTRA_START_REASON)")
+            .that(src).contains("EXTRA_START_REASON")
+    }
+
+    @Test
+    fun `Faltung auf Activity-Ebene, Event-Fenster seit dem letzten Abruf, Rebaseline bei leerem Zustand`() {
+        val src = serviceSource()
+        assertWithMessage("className muss an die Faltung übergeben werden (Activity-Ebene — Splash→Main leerte sonst den Vordergrund)")
+            .that(src).contains("className = event.className")
+        assertWithMessage("Event-Fenster „seit dem letzten Abruf“ fehlt (EVENT_QUERY_OVERLAP_MS)")
+            .that(src).contains("EVENT_QUERY_OVERLAP_MS")
+        assertWithMessage("Das frühere fixe 4-s-Fenster darf nicht zurückkehren (verlor Events aus Screen-OFF-Lücken)")
+            .that(src).doesNotContain("now - POLL_INTERVAL_MS - 2_000L")
+        assertWithMessage("Rebaseline bei leerem Zustand fehlt (weite 12-h-Faltung als Selbstheilung)")
+            .that(src).contains("Rebaseline")
+        assertWithMessage("ScreenOn-Flag-Selbstheilung fehlt (ein hängendes screenOn=false ließ den Loop nie wieder pollen)")
+            .that(src).contains("ScreenOn-Flag geheilt")
+    }
+
+    @Test
+    fun `MainActivity heilt die App-Aufzeichnung beim Oeffnen`() {
+        val src = source("MainActivity.kt")
+        assertWithMessage("MainActivity.onResume muss ensureAlive(„app-vordergrund“) aufrufen — das App-Öffnen ist der garantierte Reset-Knopf gegen OEM-Kills")
+            .that(src).contains("ensureAlive(applicationContext, \"app-vordergrund\")")
+    }
+
+    @Test
+    fun `Diagnose-Karte im Screen nutzt Log und Akku-Ausnahme`() {
+        val vm = source("ui/screens/apptracking/AppTrackingViewModel.kt")
+        assertWithMessage("ViewModel muss den Diagnose-Zustand liefern").that(vm).contains("AppTrackingDiagnosticsState")
+        assertWithMessage("Akku-Ausnahme muss gelesen werden (isIgnoringBatteryOptimizations)")
+            .that(vm).contains("isIgnoringBatteryOptimizations")
+        assertWithMessage("ViewModel muss das Ringpuffer-Protokoll lesen").that(vm).contains("AppTrackingLog.read(")
+        val screen = source("ui/screens/apptracking/AppTrackingScreen.kt")
+        assertWithMessage("Diagnose-Karte fehlt im Screen").that(screen).contains("AppTrackingDiagnosticsCard(")
+        assertWithMessage("Kopieren-Button fehlt (Belege für den nächsten Report)")
+            .that(screen).contains("ClipboardManager")
+    }
+
+    @Test
+    fun `Boot-Check-Worker existiert mit 60-Sekunden-Planung und Frischepruefung`() {
+        val src = source("automation/apptracking/AppTrackingBootCheckWorker.kt")
+        assertWithMessage("Boot-Check fehlt").that(src).contains("class AppTrackingBootCheckWorker")
+        assertWithMessage("60-s-Delay fehlt").that(src).contains("setInitialDelay(60")
+        assertWithMessage("Frischeprüfung fehlt").that(src).contains("isPollFresh(")
+        assertWithMessage("Wiederbelebung fehlt").that(src).contains("ensureAlive(applicationContext, \"boot-check\")")
+    }
+
+    @Test
+    fun `WAKE_LOCK-Berechtigung fuer den Boot-WakeLock ist im Manifest`() {
+        val manifest = manifestSource()
+        assertWithMessage("WAKE_LOCK fehlt — acquireBootWakelock() würde mit SecurityException scheitern")
+            .that(manifest).contains("android.permission.WAKE_LOCK")
     }
 }

@@ -481,14 +481,17 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.w("AevumApplication", "M18.86: Track-Retention-Scheduler fehlgeschlagen: ${e.message}")
         }
-        // M18.67: App-Aufzeichnung — ForegroundService starten. Der Service
-        // beendet sich selbst, wenn keine App getrackt ist (Gate in
-        // onStartCommand). Startet die Aufzeichnung nach App-Neustart
-        // automatisch wieder, solange mindestens eine App getrackt ist.
+        // M18.67/M20: App-Aufzeichnung — ForegroundService (wieder) starten.
+        // Der Service beendet sich selbst, wenn keine App getrackt ist (Gate
+        // in onStartCommand). ensureAlive statt start(): startet NUR, wenn
+        // der Service tot ist oder sein Poll-Loop hängt (M20) — der
+        // App-Prozess-Start ist einer der wenigen Android-ERLAUBTEN
+        // FGS-Startkontexte (App wird sichtbar), deshalb heilt das Öffnen
+        // der App die Aufzeichnung sofort.
         try {
-            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.start(this)
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.ensureAlive(this, "app-prozess")
         } catch (e: Exception) {
-            Log.e("AevumApplication", "AppTrackingService start failed — continuing", e)
+            Log.e("AevumApplication", "AppTrackingService ensureAlive failed — continuing", e)
         }
         // M19.2 (User-Report: „App-Aufzeichnung wird ignoriert — nach
         // Reboot/App-Update/Kill lief nur noch Digital"): Watchdog-Takt

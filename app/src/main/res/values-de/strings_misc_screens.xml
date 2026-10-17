@@ -71,6 +71,33 @@
     <string name="apptracking_permission_desc">Aevum braucht den Nutzungszugriff, um zu erkennen, welche App gerade geöffnet ist.</string>
     <string name="apptracking_permission_grant">Nutzungszugriff erteilen</string>
 
+    <!-- M20: Hintergrund-Zuverlässigkeit & Diagnose der App-Aufzeichnung -->
+    <string name="apptracking_diag_title">Hintergrund &amp; Diagnose</string>
+    <string name="apptracking_diag_subtitle">Status der automatischen Aufzeichnung</string>
+    <string name="apptracking_diag_service">Aufzeichnungs-Dienst</string>
+    <string name="apptracking_diag_active">aktiv</string>
+    <string name="apptracking_diag_inactive">inaktiv</string>
+    <string name="apptracking_diag_lastpoll">Letzter Abruf: %1$s</string>
+    <string name="apptracking_diag_never">nie</string>
+    <string name="apptracking_diag_foreground">Vordergrund</string>
+    <string name="apptracking_diag_foreground_none">— (Homescreen)</string>
+    <string name="apptracking_diag_battery">Akku-Optimierung</string>
+    <string name="apptracking_diag_battery_exempt">ausgenommen (gut)</string>
+    <string name="apptracking_diag_battery_restricted">eingeschränkt</string>
+    <string name="apptracking_diag_battery_unknown">unbekannt</string>
+    <string name="apptracking_diag_battery_button">Zu den Akku-Einstellungen</string>
+    <string name="apptracking_diag_hint">Ohne Ausnahme darf Android die Aufzeichnung im Hintergrund blockieren. Steht hier "eingeschränkt": Aevum in den System-Einstellungen auf "Nicht optimiert" stellen — dann klappt auch der Start nach dem Einschalten des Handys zuverlässig.</string>
+    <string name="apptracking_diag_log">Protokoll</string>
+    <string name="apptracking_diag_copy">Protokoll kopieren</string>
+    <string name="apptracking_diag_copied">Kopiert ✓</string>
+    <string name="apptracking_diag_clear">Leeren</string>
+    <string name="apptracking_diag_empty">Noch keine Einträge.</string>
+    <string name="apptracking_diag_show">Anzeigen</string>
+    <string name="apptracking_diag_hide">Ausblenden</string>
+    <string name="apptracking_diag_age_seconds">vor %1$ds</string>
+    <string name="apptracking_diag_age_minutes">vor %1$dm</string>
+    <string name="apptracking_diag_age_hours">vor %1$dh</string>
+
     <!-- DigitalBalanceScreen -->
     <string name="balance_tab_balance">Balance</string>
     <string name="balance_tab_pomodoro">Pomodoro</string>
