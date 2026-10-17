@@ -65,3 +65,12 @@
       Desktop: s.upd_keep-Hinweis „Einstellungen bleiben erhalten“ (Daten in
       %APPDATA%\AevumPcTracker, robocopy ohne /PURGE). Tests: 1158/1158
       Android, 113/113 Desktop; ZIP 57.305.209 B; Tag pc-tracker-1.4.0.
+- [x] Nachtrag (Nutzerbefund): PC-Tracker 1.4.1 — Update-INSTALLATION
+      repariert: App.ShutdownForUpdate() (AllowClose + Dienst-Stop +
+      Environment.Exit) statt nur desktop.Shutdown(); BuildSwapScriptLines
+      wartet auf Starter-PID (tasklist-Poll, taskkill-Fallback nach 45 s),
+      robocopy /MIR (alte Version wird ersetzt). 116/116 Tests. Release-ID
+      415765752. Übergang 1.3.0: einmal manuell entpacken (alter Code führt
+      sonst sein kaputtes Update aus). App 1.0.35 (vc36): In-App-Updater
+      wieder ENTFERNT (Update-Knopf nur PC-App, Handy über Play Store);
+      Sync-Features bleiben; 1148/1148 Tests.

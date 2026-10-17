@@ -178,3 +178,20 @@ hintergrund synchronisieren mit dem pc" — WorkManager darf das System
 verzögern (das war das „nicht gekoppelt"-Erlebnis), das 10-min-Gate machte
 einen einzelnen Fehlversuch stundenlang wirksam. In-Process-Sync +
 gelockertes Gate garantieren das Versprechen; der Sturm-Schutz bleibt.
+
+**Entscheidung:** Update-Knopf existiert NUR im PC-Tracker; der
+In-App-Updater der App 1.0.34 wurde in 1.0.35 restlos zurückgebaut.
+**Grund:** „der update button sollte nur in der pc anwendung sein. Natürlich
+sollte die handy anwendung nach wie vor über play store heruntergeladen
+werden." — Ein zweiter Update-Kanal in der Handy-App wäre ein Sonderweg
+neben dem Play Store; der gehört der Desktop-App (ZIP außerhalb des Stores).
+
+**Entscheidung:** PC-Update beendet den Prozess hart
+(`Environment.Exit` nach sauberem Dienst-Stop) und das Austausch-Skript
+wartet per PID-Poll statt per festem Timeout; Kopieren mit `/MIR`.
+**Grund:** Echter Nutzerbefund: `desktop.Shutdown()` beendete die Tray-App
+nicht (OnClosing-Cancel), robocopy lief gegen gelockte Dateien, nichts
+wurde ersetzt, die gestartete alte EXE zeigte den Einzelinstanz-Dialog
+(„app is already active in the system tray"). Warten auf das echte
+Prozessende + /MIR = „alte Version verschwindet" ist die einzige
+deterministische Lösung; ein Timeout ist immer eine Wette.
