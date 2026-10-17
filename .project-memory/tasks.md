@@ -94,3 +94,15 @@
       Release-ID 415812156, ZIP 57.312.239 B. WICHTIG: PS-Skript konnte auf
       Windows nicht ausgeführt werden (kein Wine/pwsh; pwsh-Download
       geblockt) — Restrisiko dokumentiert, Log+Fehlerband decken es auf.
+- [x] PC-Tracker 1.5.2 (Befund: PC zeichnete jede Minute kurz digital trotz
+      laufender Handy-Aufzeichnung + Wunsch große Dauer-Anzeige): Vorrang
+      gab nach 45 s frei → Sendelücken erzeugten Falsch-Sessions im
+      Minutentakt. Fix: PriorityWindowMs=5min für Vorrang; Mini-Artefakte
+      <2 s verworfen; phone-priority.log (Übergänge mit Age). Feature:
+      große tickende Timer (Monospace/türkis) auf PC-+Handy-Karte, Pause
+      friert ein; „Letzte Meldung vor X". 134/134 Tests. Xvfb-E2E: 65 s
+      Funkstille + General AN → 0 Sessions; Timer 2:02:13/00:07 belegt.
+      Release-ID 415864490, ZIP 57.313.609 B.
+      WICHTIG fürs nächste Mal: Handy-Relay effektiv oft langsamer als
+      7–15 s (Standby) — PC-Politik muss Sendelücken aushalten (getan);
+      phone-priority.log bei erneutem Befund zuerst prüfen.
