@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -63,42 +64,43 @@ import java.time.LocalDate
 data class PmRowAction(val label: String, val onClick: () -> Unit)
 
 /**
- * M19.1: Eine Todo-Zeile im Projektmanagement.
+ * M19.2: Eine AUFGABEN-Zeile im Projektmanagement — die To-do-Zeile.
  *
- * EINE Zeile für alle drei Orte (Karussell, Detailseite, Tag-planen), damit sich
- * die Bedienung nie unterschiedlich anfühlt:
+ * EINE Zeile für alle Orte (Heute-Liste, Projekt-Detailseite, Tag-planen),
+ * damit sich die Bedienung nie unterschiedlich anfühlt:
  *  - Tipp auf das Häkchen oder die Zeile = erledigt/rückgängig (die Kernhandlung)
  *  - Langdruck = Mehrfachauswahl (nur wo [selectionMode] aktiv ist)
- *  - „⌄" = Datum setzen/entfernen
+ *  - „⋮⋮" rechts = ziehen (Drag & Drop, siehe [pmDragHandle]) — der Griff
+ *    wird nur dort gezeigt, wo sortiert werden darf
+ *  - „⌄" = Menü der Zeile (Datum, Bearbeiten, Löschen)
  *
- * Der Funke ([burst]) läuft nur für das zuletzt abgehakte Todo — gesteuert über
- * den ViewModel-Zustand, nicht über die Komposition (sonst würde jede
+ * Der Funke ([burst]) läuft nur für die zuletzt abgehakte Aufgabe — gesteuert
+ * über den ViewModel-Zustand, nicht über die Komposition (sonst würde jede
  * Neukomposition funkeln).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PmTodoRowView(
-    todo: PmNode,
+fun PmTaskRowView(
+    task: PmNode,
     accent: Color,
     modifier: Modifier = Modifier,
     rolloverDays: Int = 0,
     burst: Boolean = false,
     selectionMode: Boolean = false,
     selected: Boolean = true,
-    showCheckbox: Boolean = true,
-    showGemDot: Boolean = true,
     dateChip: String? = null,
     menuActions: List<PmRowAction> = emptyList(),
+    dragHandle: (@Composable () -> Unit)? = null,
     onToggle: () -> Unit = {},
     onLongPress: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
-    val done = todo.doneAt != null
+    val done = task.doneAt != null
     val titleColor by animateColorAsState(
         targetValue = if (done) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
         else MaterialTheme.colorScheme.onSurface,
         animationSpec = tween(240),
-        label = "pm-todo-title"
+        label = "pm-task-title"
     )
     val haptics = LocalHapticFeedback.current
     var menuOpen by remember { mutableStateOf(false) }
@@ -125,14 +127,7 @@ fun PmTodoRowView(
             .padding(horizontal = AevumSpacing.xs, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (showCheckbox) {
-            PmCheckbox(
-                checked = done,
-                accent = accent,
-                onToggle = onToggle,
-                size = 26.dp
-            )
-        } else if (selectionMode) {
+        if (selectionMode) {
             Box(
                 modifier = Modifier
                     .size(26.dp)
@@ -152,16 +147,23 @@ fun PmTodoRowView(
                 }
             }
             Spacer(Modifier.width(AevumSpacing.xs))
+        } else {
+            PmCheckbox(
+                checked = done,
+                accent = accent,
+                onToggle = onToggle,
+                size = 26.dp
+            )
         }
 
-        if (showGemDot && !selectionMode) {
+        if (!selectionMode) {
             PmColorDot(color = accent, modifier = Modifier.padding(horizontal = 4.dp))
             Spacer(Modifier.width(AevumSpacing.xs))
         }
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = todo.title,
+                text = task.title,
                 fontSize = 15.sp,
                 lineHeight = 19.sp,
                 color = titleColor,
@@ -211,13 +213,36 @@ fun PmTodoRowView(
                 }
             }
         }
+
+        dragHandle?.invoke()
     }
 }
 
 /**
- * M19.1: Eine Container-Zeile (Projekt, Kategorie, Aufgabe) für Baum- und
- * Detail-Listen — mit Fortschrittsbalken: „dass das Projekt tatsächlich
- * fortschreitet" ist die eigentliche Anforderung hinter dem Balken.
+ * M19.2: Der Zieh-Griff einer Aufgaben-Zeile („⋮⋮"). Nur hier beginnt das
+ * Ziehen — Tippen und Scrollen der Liste bleiben unberührt.
+ */
+@Composable
+fun PmDragHandleIcon(
+    controller: PmDragController,
+    key: String,
+    modifier: Modifier = Modifier
+) {
+    Icon(
+        imageVector = Icons.Filled.DragHandle,
+        contentDescription = androidx.compose.ui.res.stringResource(R.string.pm_drag_to_sort),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
+        modifier = modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .pmDragHandle(controller, key)
+    )
+}
+
+/**
+ * M19.1: Eine Container-Zeile (Projekt) für Baum- und Detail-Listen — mit
+ * Fortschrittsbalken: „dass das Projekt tatsächlich fortschreitet" ist die
+ * eigentliche Anforderung hinter dem Balken.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -384,8 +409,6 @@ fun PmChip(
 /** Symbol je Knotenart — bewusst Textzeichen, damit es in jedem Theme sitzt. */
 internal fun pmTypeGlyph(type: String): String = when (type) {
     PmType.PROJECT -> "📁"
-    PmType.CATEGORY -> "🗂"
-    PmType.TASK -> "🎯"
     else -> "•"
 }
 
@@ -415,7 +438,7 @@ internal fun pmDueLabel(dueDate: String?, today: LocalDate): String? {
         " · " + relative
 }
 
-/** Fortschrittsbalken-Zeile für Köpfe (Glas, Detailseite). */
+/** Fortschrittsbalken-Zeile für Köpfe (Detailseite). */
 @Composable
 fun PmProgressRow(
     progress: PmProgress,

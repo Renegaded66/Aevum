@@ -47,6 +47,9 @@ class ScreenEventReceiver : BroadcastReceiver() {
         fun sleepHeuristicEngine(): SleepHeuristicEngine
         fun liveActivityManager(): LiveActivityManager
         fun automationSettingsDao(): com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
+        // M19.2: Gate für den Screen-On-Wiederbelebens-Nudge der App-
+        // Aufzeichnung (nur beleben, wenn tatsächlich Apps getrackt sind).
+        fun appTrackingEntryRepository(): com.d_drostes_apps.aevum.data.repository.AppTrackingEntryRepository
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -127,6 +130,27 @@ class ScreenEventReceiver : BroadcastReceiver() {
                             com.d_drostes_apps.aevum.automation.screen.ScreenRecordingWorker
                                 .schedule(appContext, minutes.coerceAtLeast(0).toLong())
                             Log.d(TAG, "Screen-Aufzeichnung geplant (Vorlauf=${minutes}min)")
+                        }
+                        // M19.2 (User-Report: „… wird einfach weiterhin nur Digital
+                        // aufgezeichnet — die zugewiesene Activity startet nicht
+                        // mehr“, nach Reboot/App-Update/Kill): Schnelle Wieder-
+                        // belebung beim nächsten Screen-On, damit das Öffnen einer
+                        // getrackten App SOFORT aufzeichnet (vorher: nur Watchdog-
+                        // Takt ≤15 min — bzw. gar nichts, wenn auch der Watchdog
+                        // fehlte). Der isAlive-Guard verhindert den Doppelstart im
+                        // Normalbetrieb; ohne getrackte Apps bleibt der Service
+                        // ohnehin weg (er beendet sich im Gate von onStartCommand
+                        // selbst).
+                        try {
+                            if (!com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.isAlive()) {
+                                val tracked = deps.appTrackingEntryRepository().getEnabledOnce()
+                                if (tracked.isNotEmpty()) {
+                                    com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.start(appContext)
+                                    Log.d(TAG, "App-Aufzeichnung wiederbelebt (Screen-On-Nudge, M19.2)")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "AppTracking-Nudge fehlgeschlagen für $type", e)
                         }
                     } else if (type == "OFF") {
                         // M18.138 (User-Spec: „Allerdings soll die Aufzeichnung

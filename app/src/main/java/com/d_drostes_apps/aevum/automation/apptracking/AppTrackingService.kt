@@ -66,6 +66,21 @@ import javax.inject.Inject
  * alle 15s. Kein GPS, kein ActivityRecognition — nur die Event-API, die
  * auch Digital Balance nutzt. Der Service läuft nur, wenn mindestens
  * eine App getrackt ist (Gate in start()/onStartCommand).
+ *
+ * M19.2 (User-Report: „… wird einfach weiterhin nur Digital aufgezeichnet —
+ * die zugewiesene Activity startet nicht mehr"): Der Service hatte nur
+ * zwei Start-Pfade (App-Prozess-Start in AevumApplication + Settings-
+ * Änderungen im AppTrackingViewModel). Nach Reboot / App-Update /
+ * OEM-Kill blieb er deshalb dauerhaft tot, während „Digital" über den
+ * Manifest-Receiver (ScreenEventReceiver + ScreenRecordingWorker) von
+ * selbst weiterlief. Ergänzt werden rein ADDITIVE Revival-Pfade (die
+ * M18.151-Übergabe-Semantik bleibt unverändert):
+ *  - Boot/MY_PACKAGE_REPLACED → BootReceiver startet neu (M19.2),
+ *  - 15-Minuten-Watchdog → AppTrackingWatchdogWorker (M19.2),
+ *  - Screen-On-Nudge → ScreenEventReceiver (M19.2).
+ * Dafür pflegt der Service prozess-lokale Liveness-Marker im Companion
+ * (alive/lastPollAtMs, siehe unten) — die Gates der Revival-Pfade, damit
+ * ein lebender Service nie doppelt angestoßen wird.
  */
 @AndroidEntryPoint
 class AppTrackingService : Service() {
@@ -147,6 +162,29 @@ class AppTrackingService : Service() {
             } else null
         }
 
+        // M19.2 (User-Report: „… wird einfach weiterhin nur Digital
+        // aufgezeichnet — die zugewiesene Activity startet nicht mehr"):
+        // Prozess-lokale Liveness-Marker. Der Watchdog
+        // ([AppTrackingWatchdogWorker]) und der Screen-On-Nudge
+        // ([ScreenEventReceiver]) laufen im selben Prozess wie dieser
+        // Service — über diese Flags sehen sie OHNE Systemaufruf, ob der
+        // Service noch lebt bzw. wirklich pollt, und beleben ihn sonst
+        // sofort wieder, statt blind doppelt zu starten. Absichtlich NICHT
+        // persistiert: Nach einem Prozess-Kill ist „false“ der korrekte
+        // Anfangszustand — genau der Zustand, auf den die Wiederbelebung
+        // reagieren soll. WARUM zwei Marker: isAlive() allein sagt nichts
+        // über einen tatsächlich arbeitenden Poll-Loop (onCreate lebt auch
+        // beim Self-Stopp ohne getrackte Apps); lastPollAtMs() macht das
+        // sichtbar und hilft bei der Log-Diagnose des Reports.
+        @Volatile private var alive = false
+        @Volatile private var lastPollAtMs = 0L
+
+        /** M19.2: Lebt der Service gerade in diesem Prozess? */
+        fun isAlive(): Boolean = alive
+
+        /** M19.2: Zeitpunkt des letzten Foreground-Polls (0 = nie gepollt). */
+        fun lastPollAtMs(): Long = lastPollAtMs
+
         fun start(context: Context) {
             // M18.122 (D3): Interne Starts tragen explizit
             // ACTION_INTERNAL_START — null-Action bleibt damit dem
@@ -173,6 +211,11 @@ class AppTrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // M19.2: Liveness-Marker setzen — die Gates des Watchdogs
+        // ([AppTrackingWatchdogWorker]) und des Screen-On-Nudges
+        // ([ScreenEventReceiver]) dürfen einen laufenden Service nicht
+        // doppelt anstoßen; ab hier gilt der Service als „lebendig“.
+        alive = true
         processStartedAtRealtime = android.os.SystemClock.elapsedRealtime()
         // M18.123-CRASHFIX: Guard erst hier konstruieren — ab onCreate
         // ist der Context garantiert attacht (Property-Init crasht mit
@@ -403,6 +446,10 @@ class AppTrackingService : Service() {
     }
 
     private suspend fun pollForegroundApp() {
+        // M19.2: Zuerst den Liveness-Zeitstempel pflegen — Watchdog und
+        // Screen-On-Nudge erkennen daran (letzte Poll-Zeit), dass der
+        // Service tatsächlich noch arbeitet.
+        lastPollAtMs = System.currentTimeMillis()
         processForegroundEvents()
         // M18.151: Schnappschuss für den ScreenRecordingWorker (gleicher
         // Prozess) — VOR den frühen Returns, damit JEDER Poll den Stand
@@ -608,6 +655,11 @@ class AppTrackingService : Service() {
     }
 
     override fun onDestroy() {
+        // M19.2: Liveness-Marker zurücksetzen — sonst glauben Watchdog und
+        // Screen-On-Nudge fälschlich, der Service lebe noch, und eine
+        // bewusst beendete App-Aufzeichnung (letzte getrackte App entfernt)
+        // würde sofort wiederbelebt, statt zu bleiben.
+        alive = false
         pollingJob?.cancel()
         // M18.104: Screen-Receiver sauber deregistrieren.
         screenReceiver?.let {

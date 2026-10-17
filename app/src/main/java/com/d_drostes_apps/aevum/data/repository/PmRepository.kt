@@ -4,12 +4,15 @@ import com.d_drostes_apps.aevum.data.model.PmNode
 import kotlinx.coroutines.flow.Flow
 
 /**
- * M19.1: Projektmanagement-Schnittstelle.
+ * M19.1/M19.2: Projektmanagement-Schnittstelle.
  *
  * Absicht: Die Screens kennen nur diese Schnittstelle plus den reinen Baum
  * ([com.d_drostes_apps.aevum.domain.projects.PmTree]) — Baum-Regeln,
- * Massenzuweisung und Umzugsprüfung liegen hier, nicht im UI und nicht in
- * jedem ViewModel neu.
+ * Massenzuweisung, Reihenfolge und Umzugsprüfung liegen hier, nicht im UI und
+ * nicht in jedem ViewModel neu.
+ *
+ * M19.2-Wortschatz: Es gibt nur noch Projekte (Container) und Aufgaben
+ * (abhakbare Blätter). „Todos"/„Kategorien" existieren nicht mehr.
  */
 interface PmRepository {
 
@@ -20,7 +23,10 @@ interface PmRepository {
 
     suspend fun getById(id: String): PmNode?
 
-    /** Legt einen Knoten an und gibt die neue ID zurück. */
+    /**
+     * Legt einen Knoten an und gibt die neue ID zurück.
+     * An der Wurzel entstehen nur Projekte; Aufgaben liegen unter Projekten.
+     */
     suspend fun createNode(
         parentId: String?,
         type: String,
@@ -32,12 +38,12 @@ interface PmRepository {
     ): String
 
     /**
-     * M19.1-KERNKOMFORT: legt **mehrere** Todos auf einmal an — eine Zeile
-     * = ein Todo. Damit ist eine eingefügte Schrittliste („erste Hälfte
-     * lesen", „Entwurf aufschreiben", …) ein einziger Vorgang.
-     * Leere Zeilen werden verworfen, Reihenfolge bleibt erhalten.
+     * Legt **mehrere** Aufgaben auf einmal an (eine Zeile = eine Aufgabe).
+     * Genutzt von der Inline-Eingabe der To-do-Liste (jede Eingabe einzeln)
+     * und vom Import größerer Listen. Leere Zeilen werden verworfen,
+     * Reihenfolge bleibt erhalten.
      */
-    suspend fun createTodos(
+    suspend fun createTasks(
         parentId: String?,
         titles: List<String>,
         scheduledDate: String? = null
@@ -45,29 +51,42 @@ interface PmRepository {
 
     suspend fun updateNode(id: String, title: String, note: String, color: String?, dueDate: String?)
 
-    /** Abhaken / Rückgängig. Nur für Todos sinnvoll (Container sind nicht abhakbar). */
+    /** Abhaken / Rückgängig. Nur für Aufgaben (Projekte sind nicht abhakbar). */
     suspend fun setDone(id: String, done: Boolean)
 
-    /** Datum setzen oder entfernen (null = Backlog). Nur Todos. */
+    /** Datum setzen oder entfernen (null = Backlog). Nur Aufgaben. */
     suspend fun setScheduled(ids: List<String>, date: String?)
 
     /**
-     * Alle offenen (oder alle) Todos unterhalb von [rootId] auf ein Datum
-     * setzen — „alle offenen Schritte dieser Aufgabe heute" mit einem Tipp.
+     * Alle offenen (oder alle) Aufgaben unterhalb von [rootId] auf ein Datum
+     * setzen — „alle offenen → heute" mit einem Tipp.
      */
     suspend fun setScheduledForSubtree(rootId: String, date: String?, onlyOpen: Boolean = true): Int
 
     /**
+     * M19.2 (Drag & Drop): setzt die REIHENFOLGE der offenen Aufgaben eines
+     * Projekts neu. [orderedOpenIds] muss exakt alle offenen Aufgaben des
+     * Projekts enthalten (in neuer Anzeige-Reihenfolge); erledigte Aufgaben
+     * werden dahinter einsortiert, damit die manuelle Reihenfolge stabil
+     * bleibt und die nächste Anzeige exakt der gezogenen entspricht.
+     *
+     * @return false, wenn die Liste nicht exakt zum Bestand passt — es wird
+     *         dann NICHTS geschrieben (die Anzeige bleibt die Wahrheit).
+     */
+    suspend fun reorderTasks(parentId: String?, orderedOpenIds: List<String>): Boolean
+
+    /**
      * Verschiebt [id] unter [newParentId] an Position [newIndex].
      * @return false, wenn die Verschiebung unzulässig ist (eigener Teilbaum,
-     *         Ziel ist ein Todo). Es wird dann NICHTS geschrieben.
+     *         Ziel ist kein Projekt-Container, Aufgabe an die Wurzel).
+     *         Es wird dann NICHTS geschrieben.
      */
     suspend fun move(id: String, newParentId: String?, newIndex: Int): Boolean
 
     /** Löscht einen Knoten samt Teilbaum (Fremdschlüssel CASCADE). */
     suspend fun delete(id: String)
 
-    /** Legt die Beispielstruktur an (idempotent, feste IDs). */
+    /** Legt die Vorlage an (idempotent, feste IDs, Titel lokalisiert). */
     suspend fun insertExample()
 
     /** Löscht den kompletten PM-Baum. */

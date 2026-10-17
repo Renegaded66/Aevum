@@ -37,31 +37,25 @@ enum class PmTab(val key: String) {
 }
 
 /**
- * M19.1: Zustand des Projektmanagement-Sheets.
+ * M19.1/M19.2: Zustand des Projektmanagement-Sheets.
  *
- * Eine einzige Ableitung aus den Daten — Glas, Karussell, Backlog und Baum
- * werden IMMER aus demselben Baum gerechnet. Dadurch kann der Fortschritt im
- * Glas nicht von dem auf der Karte abweichen.
+ * Eine einzige Ableitung aus den Daten — Glas, Tagesliste und Baum werden
+ * IMMER aus demselben Baum gerechnet. Dadurch kann der Fortschritt im Glas
+ * nicht von dem in der Liste abweichen.
  */
 data class PmProjectsUiState(
     val loaded: Boolean = false,
     val today: LocalDate = LocalDate.now(),
     val tab: PmTab = PmTab.TODAY,
     val todayState: PmTodayState? = null,
-    /** Aufgaben mit den heutigen Todos (Karussell), inkl. Farbe und Gesamtfortschritt. */
+    /** Projekte mit den heutigen Aufgaben (To-do-Liste), inkl. Farbe und Gesamtfortschritt. */
     val groups: List<PmTodayGroupUi> = emptyList(),
     /** Reihenfolge des Abhakens — erzählt den Tagesverlauf. */
     val gems: List<PmGem> = emptyList(),
     val ghostCount: Int = 0,
     val history: List<PmDayHistory> = emptyList(),
     /**
-     * Offene Todos, die NICHT im heutigen Plan stehen (Backlog-Abschnitt:
-     * „was noch kommt") — gruppiert nach Aufgabe.
-     */
-    val backlog: List<PmPlanningGroup> = emptyList(),
-    val backlogTotal: Int = 0,
-    /**
-     * ALLE offenen Todos, gruppiert nach Aufgabe — Grundlage des
+     * ALLE offenen Aufgaben, gruppiert nach Projekt — Grundlage des
      * Tag-planen-Sheets (dort müssen auch die heutigen sichtbar und
      * vorausgewählt sein).
      */
@@ -71,10 +65,8 @@ data class PmProjectsUiState(
     val expanded: Set<String> = emptySet(),
     val projectCount: Int = 0,
     val taskCount: Int = 0,
-    val totalTodos: Int = 0,
-    val doneTodos: Int = 0,
     val celebrating: Boolean = false,
-    /** Zuletzt abgehaktes Todo (für den Funkenstoß, genau ein Mal). */
+    /** Zuletzt abgehakte Aufgabe (für den Funkenstoß, genau ein Mal). */
     val lastCompletedId: String? = null,
     val isCompletelyEmpty: Boolean = false,
     /** Tag-planen-Sheet */
@@ -91,7 +83,7 @@ data class PmProjectsUiState(
     val allDone: Boolean get() = todayState?.isComplete == true
 }
 
-/** Eine Aufgabe des Tages mit Farbe und Gesamtfortschritt (alle Todos, nicht nur heute). */
+/** Ein Projekt des Tages mit Farbe und Gesamtfortschritt (alle Aufgaben, nicht nur heute). */
 data class PmTodayGroupUi(
     val group: PmTodayGroup,
     val colorHex: String,
@@ -110,7 +102,8 @@ data class PmTreeRowUi(
     val progress: PmProgress,
     val colorHex: String,
     val expanded: Boolean,
-    val isLastWithChildren: Boolean = false
+    /** Pfad über der Zeile (nur für tiefere Ebenen — Wurzelprojekte zeigen keinen). */
+    val breadcrumb: String? = null
 ) {
     val node: PmNode get() = row.node
     val depth: Int get() = row.depth
@@ -118,7 +111,7 @@ data class PmTreeRowUi(
 }
 
 /**
- * M19.1: Wurzel-ViewModel des Projektmanagements.
+ * M19.1/M19.2: Wurzel-ViewModel des Projektmanagements.
  *
  * ZWEI DINGE, DIE HIER BEWUSST GELÖST SIND:
  *
@@ -196,33 +189,67 @@ class ProjectsViewModel @Inject constructor(
     }
 
     /** Abhaken bzw. Rückgängig. Der Funke läuft genau ein Mal pro Abhaken. */
-    fun toggleTodo(todo: PmNode) {
-        val target = todo.doneAt == null
+    fun toggleTask(task: PmNode) {
+        val target = task.doneAt == null
         viewModelScope.launch {
-            repository.setDone(todo.id, target)
+            repository.setDone(task.id, target)
             if (target) {
-                screen.value = screen.value.copy(lastCompletedId = todo.id)
+                screen.value = screen.value.copy(lastCompletedId = task.id)
                 viewModelScope.launch {
                     delay(1400L)
-                    if (screen.value.lastCompletedId == todo.id) {
+                    if (screen.value.lastCompletedId == task.id) {
                         screen.value = screen.value.copy(lastCompletedId = null)
                     }
                 }
-            } else if (screen.value.lastCompletedId == todo.id) {
+            } else if (screen.value.lastCompletedId == task.id) {
                 screen.value = screen.value.copy(lastCompletedId = null)
             }
         }
     }
 
-    /** Einzelne oder mehrere Todos auf ein Datum setzen (null = Backlog). */
+    /** Einzelne oder mehrere Aufgaben auf ein Datum setzen (null = Backlog). */
     fun schedule(ids: List<String>, date: String?) {
         if (ids.isEmpty()) return
         viewModelScope.launch { repository.setScheduled(ids, date) }
     }
 
-    /** „Alle offenen Schritte dieser Aufgabe heute" — der Ein-Tipp-Weg. */
+    /** „Alle offenen Aufgaben dieses Projekts → heute" — der Ein-Tipp-Weg. */
     fun scheduleAllOpen(nodeId: String, date: String?) {
         viewModelScope.launch { repository.setScheduledForSubtree(nodeId, date, onlyOpen = true) }
+    }
+
+    /**
+     * M19.2 (Drag & Drop in der Heute-Liste): verschiebt eine Aufgabe
+     * INNERHALB ihrer Projekt-Gruppe. [from]/[to] sind lokale Indizes in der
+     * Anzeige-Reihenfolge der Gruppe.
+     *
+     * WICHTIG: Das Repository verlangt die EXAKTE Liste aller offenen
+     * Aufgaben des Projekts. Deshalb werden Aufgaben desselben Projekts, die
+     * heute NICHT anstehen (Backlog/andere Tage), hinter der gezogenen
+     * Reihenfolge angehängt — so bleibt die heutige Sicht exakt die gezogene.
+     */
+    fun reorderToday(groupId: String, from: Int, to: Int) {
+        viewModelScope.launch {
+            try {
+                val nodes = repository.getAllOnce()
+                val tree = PmTree(nodes)
+                val parentId = if (groupId == PmTree.UNASSIGNED_TASK_ID) null else groupId
+                val group = PmToday.plan(tree, LocalDate.now()).firstOrNull { it.id == groupId }
+                    ?: return@launch
+                val shownOpen = group.rows.filter { !it.done }.map { it.node.id }
+                if (from !in shownOpen.indices || to !in shownOpen.indices) return@launch
+                val moved = PmReorder.applyMove(shownOpen, from, to)
+                val shownSet = shownOpen.toSet()
+                val rest = tree.children(parentId)
+                    .filter { it.isTask && it.doneAt == null && it.id !in shownSet }
+                    .sortedWith(compareBy({ it.sortOrder }, { it.createdAt }))
+                    .map { it.id }
+                repository.reorderTasks(parentId, moved + rest)
+            } catch (_: Exception) {
+                // Kein stiller Datenverlust: ohne Schreibvorgang bleibt die
+                // Anzeige exakt der Bestand (siehe Repository-Strenge).
+            }
+        }
     }
 
     fun createExample() {
@@ -234,7 +261,7 @@ class ProjectsViewModel @Inject constructor(
 
     // ── Tag planen (Morgenritual) ──────────────────────────────────────────
 
-    /** Öffnet das Sheet und wählt die bereits geplanten Schritte vor. */
+    /** Öffnet das Sheet und wählt die bereits geplanten Aufgaben vor. */
     fun openPlanner() {
         viewModelScope.launch {
             val today = LocalDate.now()
@@ -275,7 +302,7 @@ class ProjectsViewModel @Inject constructor(
         viewModelScope.launch { repository.setScheduled(ids, date) }
     }
 
-    /** Gewählte Schritte wieder aus dem Tag nehmen (zurück in den Backlog). */
+    /** Gewählte Aufgaben wieder aus dem Tag nehmen (zurück in den Backlog). */
     fun removeFromPlan(ids: List<String>) {
         if (ids.isEmpty()) return
         viewModelScope.launch { repository.setScheduled(ids, null) }
@@ -285,8 +312,8 @@ class ProjectsViewModel @Inject constructor(
         screen.value = screen.value.copy(celebrating = false, dismissedCelebration = true)
     }
 
-    fun deleteTodo(todo: PmNode) {
-        viewModelScope.launch { repository.delete(todo.id) }
+    fun deleteTask(task: PmNode) {
+        viewModelScope.launch { repository.delete(task.id) }
     }
 
     // ── Ableitung ─────────────────────────────────────────────────────────
@@ -315,32 +342,17 @@ class ProjectsViewModel @Inject constructor(
             PmGem(id = row.node.id, colorHex = PmColors.resolve(row.node, tree), label = row.node.title)
         }
 
-        // Zwei Sichten auf dieselben offenen Todos — bewusst getrennt:
-        // Das Sheet braucht ALLE (sonst wären die heutigen nicht auswählbar),
-        // der Backlog-Abschnitt nur die, die heute NICHT anstehen (sonst
-        // stünden die heutigen Schritte doppelt auf dem Bildschirm).
         val plannerGroups = PmToday.planningGroups(tree, today)
-        val todayOpenIds = todayState.groups
-            .flatMap { it.rows }
-            .filter { !it.done }
-            .map { it.node.id }
-            .toSet()
-        val backlog = plannerGroups.mapNotNull { group ->
-            val rest = group.todos.filter { it.id !in todayOpenIds }
-            if (rest.isEmpty()) null else group.copy(todos = rest)
-        }
-        val backlogTotal = backlog.sumOf { it.todos.size }
 
         val treeRows = tree.visibleRows(screenState.expanded).map { row ->
             PmTreeRowUi(
                 row = row,
                 progress = tree.progress(row.node.id),
                 colorHex = PmColors.resolve(row.node, tree),
-                expanded = screenState.expanded.contains(row.node.id)
+                expanded = screenState.expanded.contains(row.node.id),
+                breadcrumb = if (row.depth > 0) tree.breadcrumb(row.node.id) else null
             )
         }
-
-        val allTodos = tree.allTodos()
 
         return PmProjectsUiState(
             loaded = true,
@@ -351,15 +363,11 @@ class ProjectsViewModel @Inject constructor(
             gems = gems,
             ghostCount = todayState.pending,
             history = PmToday.history(tree, today, days = 7),
-            backlog = backlog,
-            backlogTotal = backlogTotal,
             plannerGroups = plannerGroups,
             treeRows = treeRows,
             expanded = screenState.expanded,
             projectCount = tree.byType(PmType.PROJECT).size,
             taskCount = tree.byType(PmType.TASK).size,
-            totalTodos = allTodos.size,
-            doneTodos = allTodos.count { it.isDone },
             celebrating = screenState.celebrating || celebrated,
             lastCompletedId = screenState.lastCompletedId,
             isCompletelyEmpty = nodes.isEmpty(),
@@ -387,7 +395,7 @@ class ProjectsViewModel @Inject constructor(
     }
 
     companion object {
-        /** Beim Einfügen des Beispiels gleich die passenden Ebenen aufklappen. */
-        val SEED_EXPAND = setOf("pm-seed-studium", "pm-seed-semester", "pm-seed-projektgruppe", "pm-seed-praesentation")
+        /** Beim Einfügen der Vorlage gleich die Wurzelprojekte aufklappen. */
+        val SEED_EXPAND = setOf("pm-seed-alltag", "pm-seed-arbeit", "pm-seed-gesundheit", "pm-seed-finanzen")
     }
 }

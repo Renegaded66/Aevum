@@ -281,7 +281,20 @@ class AppTrackingViewModel @Inject constructor(
         }
     }
 
-    /** Activity für eine getrackte App zuordnen (3-Punkte-Menü) — sofort sichtbar. */
+    /**
+     * Activity für eine getrackte App zuordnen (3-Punkte-Menü) — sofort
+     * sichtbar.
+     *
+     * M19.2 (User-Report: die zugewiesene Activity startete beim Öffnen
+     * der App nicht — für Apps, die noch NICHT in der rechten Spalte
+     * stehen, blieb die Zuweisung ein reiner UI-Override und erreichte
+     * die DB nicht): Existiert kein DB-Eintrag, legt die Zuweisung ihn
+     * jetzt AN (enabled=true) — nur so kann der AppTrackingService beim
+     * Öffnen der App die Activity überhaupt starten (sein Gate liest
+     * getEnabledOnce()). Danach syncService(): Falls die App damit
+     * neu getrackt ist, muss der Service (re)starten; das Optimismus-
+     * Verhalten (Override zuerst, UI sofort) bleibt unverändert.
+     */
     fun assignActivity(packageName: String, activityTypeId: String) {
         overrides.update {
             it + (packageName to TrackedOverride(tracked = true, activityTypeId = activityTypeId))
@@ -297,6 +310,18 @@ class AppTrackingViewModel @Inject constructor(
                                 updatedAt = System.currentTimeMillis()
                             )
                         )
+                    } else {
+                        // M19.2: App war noch nicht getrackt — die reine
+                        // Zuweisung erzeugt den Eintrag mit enabled=true
+                        // (sonst startet die Activity nie; siehe KDoc).
+                        trackingRepository.upsert(
+                            AppTrackingEntry(
+                                packageName = packageName,
+                                activityTypeId = activityTypeId,
+                                enabled = true,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
                     }
                 }
             } catch (ce: CancellationException) {
@@ -304,6 +329,10 @@ class AppTrackingViewModel @Inject constructor(
             } catch (_: Exception) {
                 overrides.update { it - packageName }
             }
+            // M19.2: Service-Sync wie in addApp/removeApp — ein neu
+            // getrackter Eintrag muss den Service (re)starten (sein Gate
+            // entscheidet selbst über enabled).
+            syncService()
         }
     }
 

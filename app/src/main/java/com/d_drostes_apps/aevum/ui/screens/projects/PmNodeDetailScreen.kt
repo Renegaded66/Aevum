@@ -24,14 +24,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -51,15 +55,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
-import com.d_drostes_apps.aevum.data.model.PmNode
 import com.d_drostes_apps.aevum.data.model.PmType
 import com.d_drostes_apps.aevum.ui.components.PlayfulProgressBar
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -67,20 +75,20 @@ import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.theme.PmPalette
 
 /**
- * M19.1: Detailseite eines Projekts, einer Kategorie oder einer Aufgabe.
+ * M19.1/M19.2: Detailseite eines Projekts (oder einer Aufgabe).
  *
- * DER NUTZEN: Im Baum sieht man die Struktur, hier sieht man die ARBEIT. Alle
- * Schritte einer Aufgabe liegen an einem Ort, in einer Reihenfolge (offene
- * zuerst, übernommene oben), mit Fortschritt, Frist und Notiz. Hier passiert
- * auch die Mehrfachzuweisung von Tagen: Langdruck markiert, ein Datum wählen,
- * fertig — statt 25 Einzelklicks.
+ * DER NUTZEN: Im Baum sieht man die Struktur, hier sieht man die ARBEIT. Die
+ * Aufgaben des Projekts liegen als To-do-Liste an einem Ort: abhaken, per
+ * Griff verschieben, über das Zeilenmenü löschen. Neue Aufgaben tippt man
+ * direkt in die unterste Zeile („Neue Aufgabe …" + Enter) — der nächste
+ * Platzhalter erscheint von selbst. Unterprojekte entstehen über die Schalt-
+ * fläche darunter.
  */
 @Composable
 fun PmNodeDetailScreen(
     onBack: () -> Unit,
     onEditNode: (String) -> Unit,
-    onNewTodos: (String) -> Unit,
-    onEditTodo: (String) -> Unit,
+    onEditTask: (String) -> Unit,
     onNewChild: (parentId: String, type: String) -> Unit,
     onOpenNode: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -88,6 +96,14 @@ fun PmNodeDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val accent = PmPalette.color(state.colorHex)
+    val listState = rememberLazyListState()
+
+    // Ziehbare Zeilen der Aufgaben-Liste (offene Aufgaben in Anzeige-Reihenfolge).
+    val openKeys = state.tasks.filter { !it.done }.map { it.node.id }
+    val groupOf = state.tasks.filter { !it.done }.associate { it.node.id to viewModel.nodeId }
+    val drag = rememberPmDragController(listState, openKeys, groupOf) { _, from, to ->
+        viewModel.reorderTasks(from, to)
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -122,19 +138,16 @@ fun PmNodeDetailScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding(),
+            state = listState,
             contentPadding = PaddingValues(
                 start = AevumSpacing.md,
                 end = AevumSpacing.md,
                 bottom = AevumSpacing.xxl
             ),
-            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
         ) {
             item(key = "progress") {
-                PmDetailProgressCard(
-                    state = state,
-                    accent = accent,
-                    onOpenPlannerHint = { onNewTodos(state.node?.id.orEmpty()) }
-                )
+                PmDetailProgressCard(state = state, accent = accent)
             }
 
             item(key = "quick-actions") {
@@ -150,7 +163,7 @@ fun PmNodeDetailScreen(
                     ) {
                         Text(stringResource(R.string.pm_pull_all_today), fontSize = 12.sp)
                     }
-                    if (state.todos.isNotEmpty()) {
+                    if (state.tasks.isNotEmpty()) {
                         OutlinedButton(
                             onClick = viewModel::selectAll,
                             shape = RoundedCornerShape(percent = 50)
@@ -166,119 +179,114 @@ fun PmNodeDetailScreen(
 
             if (state.children.isNotEmpty()) {
                 item(key = "children-header") {
-                    SectionTitle(stringResource(R.string.pm_node_subs), count = state.children.size)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SectionTitle(
+                            text = stringResource(R.string.pm_node_subs),
+                            count = state.children.size,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = {
+                            state.node?.let { onNewChild(it.id, PmType.PROJECT) }
+                        }) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(R.string.pm_node_new_sub), fontSize = 12.sp)
+                        }
+                    }
                 }
                 items(state.children, key = { "child-" + it.node.id }) { child ->
                     PmContainerRowView(
                         node = child.node,
                         progress = child.progress,
                         accent = PmPalette.color(child.colorHex),
-                        breadcrumb = pmTypeLabel(child.node.type),
                         hasChildren = child.progress.total > 0,
                         onClick = { onOpenNode(child.node.id) },
                         menuActions = listOf(
-                            PmRowAction(stringResource(R.string.pm_edit)) { onEditNode(child.node.id) },
-                            PmRowAction(stringResource(R.string.pm_node_add_todo)) { onNewTodos(child.node.id) }
+                            PmRowAction(stringResource(R.string.pm_edit)) { onEditNode(child.node.id) }
                         )
                     )
                 }
             }
 
-            item(key = "todos-header") {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle(
-                        text = stringResource(R.string.pm_node_todos),
-                        count = state.todos.size,
-                        modifier = Modifier.weight(1f)
+            item(key = "tasks-header") {
+                SectionTitle(
+                    text = stringResource(R.string.pm_node_todos),
+                    count = state.tasks.size
+                )
+            }
+
+            if (state.tasks.isEmpty()) {
+                item(key = "tasks-empty-hint") {
+                    Text(
+                        text = stringResource(R.string.pm_node_empty_tasks_hint),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    TextButton(onClick = { onNewTodos(state.node?.id.orEmpty()) }) {
+                }
+            }
+
+            items(state.tasks, key = { "task-" + it.node.id }) { task ->
+                val draggable = !task.done && !state.selectionMode
+                PmTaskRowView(
+                    task = task.node,
+                    accent = accent,
+                    rolloverDays = task.rolloverDays,
+                    burst = state.lastCompletedId == task.node.id,
+                    selectionMode = state.selectionMode,
+                    selected = state.selection.contains(task.node.id),
+                    dateChip = task.dateChip,
+                    menuActions = listOf(
+                        PmRowAction(stringResource(R.string.pm_today)) {
+                            viewModel.scheduleOne(task.node.id, state.today.toString())
+                        },
+                        PmRowAction(stringResource(R.string.pm_tomorrow)) {
+                            viewModel.scheduleOne(task.node.id, state.today.plusDays(1).toString())
+                        },
+                        PmRowAction(stringResource(R.string.pm_date_none)) {
+                            viewModel.scheduleOne(task.node.id, null)
+                        },
+                        PmRowAction(stringResource(R.string.pm_edit)) { onEditTask(task.node.id) },
+                        PmRowAction(stringResource(R.string.pm_delete)) { viewModel.deleteTask(task.node) }
+                    ),
+                    dragHandle = if (draggable) {
+                        { PmDragHandleIcon(controller = drag, key = task.node.id) }
+                    } else null,
+                    onToggle = { viewModel.toggleTask(task.node) },
+                    onLongPress = { viewModel.select(task.node.id) },
+                    onClick = {
+                        if (state.selectionMode) viewModel.select(task.node.id)
+                        else viewModel.toggleTask(task.node)
+                    },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AevumRadius.md))
+                        .background(
+                            if (state.selection.contains(task.node.id)) {
+                                PmPalette.soft(accent, 0.16f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
+                            }
+                        )
+                        .pmDragFloat(drag, task.node.id)
+                )
+            }
+
+            if (state.isContainer) {
+                item(key = "inline-add") {
+                    PmInlineAddRow(accent = accent, onAdd = viewModel::addTask)
+                }
+                item(key = "add-inside") {
+                    OutlinedButton(
+                        onClick = { state.node?.let { onNewChild(it.id, PmType.PROJECT) } },
+                        shape = RoundedCornerShape(percent = 50),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.pm_node_add_todo), fontSize = 12.sp)
+                        Text(stringResource(R.string.pm_node_new_sub), fontSize = 12.sp)
                     }
                 }
-            }
-
-            if (state.todos.isEmpty()) {
-                item(key = "todos-empty") {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(AevumRadius.lg),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(AevumSpacing.md),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = stringResource(R.string.pm_node_empty_todos),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = stringResource(R.string.pm_node_empty_todos_hint),
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(AevumSpacing.sm))
-                            Button(
-                                onClick = { onNewTodos(state.node?.id.orEmpty()) },
-                                shape = RoundedCornerShape(percent = 50)
-                            ) {
-                                Text(stringResource(R.string.pm_node_add_todo))
-                            }
-                        }
-                    }
-                }
-            } else {
-                items(state.todos, key = { "todo-" + it.node.id }) { todo ->
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(AevumRadius.md))
-                            .clickable { viewModel.toggleDone(todo.node) },
-                        shape = RoundedCornerShape(AevumRadius.md),
-                        color = if (state.selection.contains(todo.node.id)) {
-                            PmPalette.soft(accent, 0.16f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
-                        }
-                    ) {
-                        PmTodoRowView(
-                            todo = todo.node,
-                            accent = accent,
-                            rolloverDays = todo.rolloverDays,
-                            burst = state.lastCompletedId == todo.node.id,
-                            selectionMode = state.selectionMode,
-                            selected = state.selection.contains(todo.node.id),
-                            dateChip = todo.dateChip,
-                            menuActions = listOf(
-                                PmRowAction(stringResource(R.string.pm_today)) {
-                                    viewModel.scheduleOne(todo.node.id, state.today.toString())
-                                },
-                                PmRowAction(stringResource(R.string.pm_tomorrow)) {
-                                    viewModel.scheduleOne(todo.node.id, state.today.plusDays(1).toString())
-                                },
-                                PmRowAction(stringResource(R.string.pm_date_none)) {
-                                    viewModel.scheduleOne(todo.node.id, null)
-                                },
-                                PmRowAction(stringResource(R.string.pm_edit)) { onEditTodo(todo.node.id) }
-                            ),
-                            onToggle = { viewModel.toggleDone(todo.node) },
-                            onLongPress = { viewModel.select(todo.node.id) },
-                            onClick = {
-                                if (state.selectionMode) viewModel.select(todo.node.id)
-                                else viewModel.toggleDone(todo.node)
-                            }
-                        )
-                    }
-                }
-            }
-
-            item(key = "add-inside") {
-                PmAddInsideRow(onAdd = { type -> onNewChild(state.node?.id.orEmpty(), type) })
             }
         }
     }
@@ -299,6 +307,87 @@ fun PmNodeDetailScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * M19.2: Die Inline-Eingabezeile („ganz unten ein Platzhalter für das nächste
+ * To-do"): ausfüllen, Enter, fertig — die Zeile leert sich und BLEIBT als
+ * nächster Platzhalter stehen. Kein Dialog, kein mehrzeiliges Textfeld.
+ */
+@Composable
+private fun PmInlineAddRow(
+    accent: androidx.compose.ui.graphics.Color,
+    onAdd: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AevumRadius.md))
+            .background(PmPalette.soft(accent, 0.10f))
+            .padding(horizontal = AevumSpacing.xs, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(PmPalette.soft(accent, 0.28f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(Modifier.width(AevumSpacing.sm))
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focusRequester),
+            singleLine = true,
+            textStyle = TextStyle(
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp
+            ),
+            cursorBrush = SolidColor(accent),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = {
+                if (text.isNotBlank()) {
+                    onAdd(text)
+                    // Die Zeile ist der NÄCHSTE Platzhalter: leeren und
+                    // fokussiert lassen, damit man sofort weitertippen kann.
+                    text = ""
+                    focusRequester.requestFocus()
+                }
+            }),
+            decorationBox = { inner ->
+                Box {
+                    if (text.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.pm_inline_add_hint),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                            fontSize = 15.sp
+                        )
+                    }
+                    inner()
+                }
+            }
+        )
+        if (text.isNotEmpty()) {
+            Text(
+                text = "⏎",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
     }
 }
 
@@ -399,12 +488,11 @@ private fun PmDetailTopBar(
     }
 }
 
-/** Fortschritt, Kennzahlen, Frist, Notiz — der Überblick der Aufgabe. */
+/** Fortschritt, Kennzahlen, Frist, Notiz — der Überblick des Projekts. */
 @Composable
 private fun PmDetailProgressCard(
     state: PmNodeDetailUiState,
-    accent: androidx.compose.ui.graphics.Color,
-    onOpenPlannerHint: () -> Unit
+    accent: androidx.compose.ui.graphics.Color
 ) {
     val animated by animateFloatAsState(
         targetValue = state.progress.fraction,
@@ -444,7 +532,7 @@ private fun PmDetailProgressCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = pmTypeLabel(state.node?.type ?: PmType.TASK),
+                        text = pmTypeLabel(state.node?.type ?: PmType.PROJECT),
                         fontSize = 10.sp,
                         color = accent
                     )
@@ -460,13 +548,13 @@ private fun PmDetailProgressCard(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.pm_task_open, state.openTodos),
+                    text = stringResource(R.string.pm_task_open, state.openTasks),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.width(AevumSpacing.md))
                 Text(
-                    text = stringResource(R.string.pm_done_today) + ": " + state.doneTodos,
+                    text = stringResource(R.string.pm_done_today) + ": " + state.doneTasks,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -482,11 +570,6 @@ private fun PmDetailProgressCard(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            if (state.scheduledToday == 0 && state.openTodos > 0) {
-                TextButton(onClick = onOpenPlannerHint) {
-                    Text(stringResource(R.string.pm_no_todos_today) + " · " + stringResource(R.string.pm_plan_day), fontSize = 11.sp)
-                }
             }
         }
     }
@@ -526,49 +609,6 @@ private fun PmSelectionBar(
                     text = stringResource(R.string.pm_scheduled_on, todayIso),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PmAddInsideRow(onAdd: (String) -> Unit) {
-    var menuOpen by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-    ) {
-        OutlinedButton(
-            onClick = { onAdd(PmType.TASK) },
-            shape = RoundedCornerShape(percent = 50),
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(stringResource(R.string.pm_editor_new_task), fontSize = 12.sp)
-        }
-        Box {
-            OutlinedButton(
-                onClick = { menuOpen = true },
-                shape = RoundedCornerShape(percent = 50)
-            ) {
-                Text(stringResource(R.string.pm_node_add_sub), fontSize = 12.sp)
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.pm_type_project), fontSize = 14.sp) },
-                    onClick = {
-                        menuOpen = false
-                        onAdd(PmType.PROJECT)
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.pm_type_category), fontSize = 14.sp) },
-                    onClick = {
-                        menuOpen = false
-                        onAdd(PmType.CATEGORY)
-                    }
                 )
             }
         }

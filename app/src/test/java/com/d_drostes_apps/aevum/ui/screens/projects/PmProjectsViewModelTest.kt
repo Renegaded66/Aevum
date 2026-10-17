@@ -6,6 +6,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.d_drostes_apps.aevum.data.db.AppDatabase
 import com.d_drostes_apps.aevum.data.repository.PmCelebrationStore
 import com.d_drostes_apps.aevum.data.repository.PmRepositoryImpl
+import com.d_drostes_apps.aevum.data.repository.PmSeedTitles
+import com.d_drostes_apps.aevum.domain.projects.PmProgress
+import com.d_drostes_apps.aevum.domain.projects.PmSeed
+import com.d_drostes_apps.aevum.domain.projects.PmTree
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,7 +26,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * M19.1: Der komplette Tagesablauf gegen echte Datenbank + echtes ViewModel.
+ * M19.1/M19.2: Der komplette Tagesablauf gegen echte Datenbank + echtes ViewModel.
  *
  * ── WARUM DIESE SUITE NEBEN DEN DOMAIN-TESTS EXISTIERT ────────────────────
  *
@@ -35,13 +39,19 @@ import org.robolectric.annotation.Config
  *     sitzt im ViewModel (persistierter [PmCelebrationStore]) — die reine
  *     Gate-Logik ist getestet, ihre Benutzung hier.
  *  2. **Morgenritual.** `openPlanner` wählt vor, `applyPlanner` schreibt — ein
- *     Tipp muss die gewählten Schritte wirklich auf den Tag setzen.
- *  3. **Ein-Tipp-Massenweg.** „Alle offenen Schritte einer Aufgabe → heute".
+ *     Tipp muss die gewählten Aufgaben wirklich auf den Tag setzen.
+ *  3. **Ein-Tipp-Massenweg.** „Alle offenen Aufgaben eines Projekts → heute".
  *  4. **Glas-Kennzahl.** Sie muss sich nach jedem Abhaken ändern (Juwel dazu,
  *     Gegenplatz weg) und bei vollständigem Tag auf 1,0 stehen.
+ *  5. **Drag & Drop (M19.2).** `reorderToday` muss die gezogene Reihenfolge
+ *     wirklich in die Datenbank schreiben — sonst springt die Liste beim
+ *     nächsten Öffnen zurück.
  *
  * ZEIT: Es wird mit dem ECHTEN heutigen Datum gerechnet, weil `setDone` die
  * Wanduhr stempelt (Robolectric kann die Wanduhr nicht verschieben).
+ *
+ * M19.2: Vorlage = generische Lebensbereiche (Haushalt · Arbeit · Gesundheit ·
+ * Finanzen); Tagesgruppen sind die unmittelbaren Projekte der Aufgaben.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -59,7 +69,7 @@ class PmProjectsViewModelTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repo = PmRepositoryImpl(db.pmNodeDao())
+        repo = PmRepositoryImpl(db.pmNodeDao(), PmSeedTitles { key -> PmSeed.defaultTitle(key) })
         store = PmCelebrationStore(context)
         store.reset()
     }
@@ -91,33 +101,40 @@ class PmProjectsViewModelTest {
         result!!
     }
 
-    // ── Beispielstruktur → Tagesplan ───────────────────────────────────────
+    // ── Vorlage → Tagesplan ────────────────────────────────────────────────
 
     @Test
-    fun `Beispielstruktur-erzeugt-einen-Tagesplan-mit-zehn-Schritten`(): Unit = runBlocking {
+    fun `Vorlage-erzeugt-einen-Tagesplan-mit-sechs-Aufgaben`(): Unit = runBlocking {
         val vm = viewModel()
         repo.insertExample()
 
         val state = vm.await { it.totalToday > 0 }
 
-        assertThat(state.totalToday).isEqualTo(10)
+        assertThat(state.totalToday).isEqualTo(6)
         assertThat(state.doneToday).isEqualTo(0)
-        assertThat(state.pendingToday).isEqualTo(10)
+        assertThat(state.pendingToday).isEqualTo(6)
         assertThat(state.gems).isEmpty()
-        assertThat(state.ghostCount).isEqualTo(10)
+        assertThat(state.ghostCount).isEqualTo(6)
         assertThat(state.fraction).isEqualTo(0f)
-        assertThat(state.groups).hasSize(1)
-        assertThat(state.groups.first().title).isEqualTo("Präsentation")
-        // Gesamtfortschritt der Aufgabe: 15 Schritte insgesamt, keiner erledigt.
-        assertThat(state.groups.first().progress.total).isEqualTo(15)
-        // Drei Projekte: Studium, 2. Semester (Unterprojekt!) und Privat —
-        // die Struktur ist absichtlich offen, Unterprojekte sind Projekt-Knoten.
-        assertThat(state.projectCount).isEqualTo(3)
-        assertThat(state.taskCount).isEqualTo(3)
-        assertThat(state.totalTodos).isEqualTo(23)
-        // Der Baum steht an der Wurzel und der Rückstand ist sichtbar.
-        assertThat(state.treeRows.map { it.node.title }).containsExactly("Studium", "Privat")
-        assertThat(state.backlogTotal).isEqualTo(13)
+
+        // Fünf Projekte tragen die sechs heutigen Aufgaben (die Aufgaben liegen
+        // in den Unterprojekten — Home, Projekt, …).
+        assertThat(state.groups).hasSize(5)
+        assertThat(state.groups.map { it.title }).containsExactly(
+            "Home", "Household & Daily Life", "Current project", "Health", "Finances"
+        )
+
+        val home = state.groups.first { it.id == "pm-seed-wohnung" }
+        assertThat(home.rows.map { it.node.title }).containsExactly("Write a shopping list")
+        // Fortschritt zeigt IMMER den ganzen Teilbaum, nicht nur heute.
+        assertThat(home.progress).isEqualTo(PmProgress(0, 4))
+
+        assertThat(state.projectCount).isEqualTo(7)
+        assertThat(state.taskCount).isEqualTo(17)
+        // Der Baum steht an der Wurzel (4 Lebensbereiche).
+        assertThat(state.treeRows.map { it.node.title }).containsExactly(
+            "Household & Daily Life", "Work & Education", "Health", "Finances"
+        )
     }
 
     @Test
@@ -134,25 +151,26 @@ class PmProjectsViewModelTest {
     // ── Abhaken → Juwelen → volles Glas ────────────────────────────────────
 
     @Test
-    fun `Abhaken-erzeugt-ein-Juwel-in-der-Farbe-der-Aufgabe`(): Unit = runBlocking {
+    fun `Abhaken-erzeugt-ein-Juwel-in-der-Farbe-des-Projekts`(): Unit = runBlocking {
         val vm = viewModel()
         repo.insertExample()
         val start = vm.await { it.totalToday > 0 }
-        val firstTodo = start.todayState!!.groups.first().rows.first { !it.done }.node
+        val firstTask = start.groups.first { it.id == "pm-seed-wohnung" }
+            .rows.first { !it.done }.node
 
-        vm.toggleTodo(firstTodo)
+        vm.toggleTask(firstTask)
 
         val state = vm.await { it.doneToday == 1 }
         assertThat(state.gems).hasSize(1)
-        assertThat(state.gems.first().id).isEqualTo(firstTodo.id)
-        assertThat(state.gems.first().label).isEqualTo(firstTodo.title)
-        // Die Präsentation trägt im Beispiel die Farbe #FBBF24 — das Juwel
+        assertThat(state.gems.first().id).isEqualTo(firstTask.id)
+        assertThat(state.gems.first().label).isEqualTo(firstTask.title)
+        // „Haushalt & Alltag" trägt die Eisblau-Identität (#38BDF8) — das Juwel
         // verrät damit, woran der Tag gearbeitet wurde.
-        assertThat(state.gems.first().colorHex).isEqualTo("#fbbf24")
-        assertThat(state.ghostCount).isEqualTo(9)
-        assertThat(state.fraction).isWithin(0.0001f).of(0.1f)
+        assertThat(state.gems.first().colorHex).isEqualTo("#38bdf8")
+        assertThat(state.ghostCount).isEqualTo(5)
+        assertThat(state.fraction).isWithin(0.0001f).of(1f / 6f)
         // Der Funke darf genau einmal laufen.
-        assertThat(state.lastCompletedId).isEqualTo(firstTodo.id)
+        assertThat(state.lastCompletedId).isEqualTo(firstTask.id)
         // Kein Feuerwerk, solange nicht alles erledigt ist.
         assertThat(state.celebrating).isFalse()
     }
@@ -162,15 +180,16 @@ class PmProjectsViewModelTest {
         val vm = viewModel()
         repo.insertExample()
         val start = vm.await { it.totalToday > 0 }
-        val firstTodo = start.todayState!!.groups.first().rows.first { !it.done }.node
+        val firstTask = start.groups.first { it.id == "pm-seed-wohnung" }
+            .rows.first { !it.done }.node
 
-        vm.toggleTodo(firstTodo)
+        vm.toggleTask(firstTask)
         vm.await { it.doneToday == 1 }
-        vm.toggleTodo(repo.getById(firstTodo.id)!!)
+        vm.toggleTask(repo.getById(firstTask.id)!!)
 
         val state = vm.await { it.doneToday == 0 }
         assertThat(state.gems).isEmpty()
-        assertThat(state.ghostCount).isEqualTo(10)
+        assertThat(state.ghostCount).isEqualTo(6)
         assertThat(state.lastCompletedId).isNull()
     }
 
@@ -179,17 +198,17 @@ class PmProjectsViewModelTest {
         val vm = viewModel()
         repo.insertExample()
         val start = vm.await { it.totalToday > 0 }
-        val rows = start.todayState!!.groups.flatMap { it.rows }.filter { !it.done }
+        val rows = start.groups.flatMap { it.rows }.filter { !it.done }
 
-        rows.forEach { row -> vm.toggleTodo(row.node) }
+        rows.forEach { row -> vm.toggleTask(row.node) }
 
         val full = vm.await { it.allDone }
         assertThat(full.celebrating).isTrue()
         assertThat(full.fraction).isEqualTo(1f)
-        assertThat(full.gems).hasSize(10)
+        assertThat(full.gems).hasSize(6)
         assertThat(full.ghostCount).isEqualTo(0)
         // Der Feierstand ist festgehalten (überlebt Prozess-Neustart).
-        assertThat(store.state().celebratedDone).isEqualTo(10)
+        assertThat(store.state().celebratedDone).isEqualTo(6)
 
         // Neuer ViewModel (z. B. nach erneutem Öffnen der Seite): NICHT noch
         // einmal feiern — der Beweis, dass kein Dauerfeuerwerk entsteht.
@@ -201,7 +220,7 @@ class PmProjectsViewModelTest {
         second.finishCelebration()
         val quiet = second.await { !it.celebrating && it.allDone }
         assertThat(quiet.celebrating).isFalse()
-        assertThat(quiet.gems).hasSize(10)
+        assertThat(quiet.gems).hasSize(6)
     }
 
     // ── Morgenritual (Tag planen) ───────────────────────────────────────────
@@ -214,21 +233,22 @@ class PmProjectsViewModelTest {
 
         vm.openPlanner()
         val plannerState = vm.await { it.plannerOpen }
-        // Vorausgewählt sind genau die bereits geplanten Schritte.
-        assertThat(plannerState.plannerSelection).hasSize(10)
+        // Vorausgewählt sind genau die bereits geplanten Aufgaben.
+        assertThat(plannerState.plannerSelection).hasSize(6)
         assertThat(plannerState.plannerDate).isNull()
-        assertThat(plannerState.backlog).hasSize(3)
+        // Angeboten werden ALLE offenen Aufgaben, gruppiert nach Projekt.
+        val allOpen = plannerState.plannerGroups.flatMap { group -> group.tasks.map { it.id } }
+        assertThat(allOpen).hasSize(17)
+        assertThat(plannerState.plannerGroups).hasSize(6)
 
-        // Nutzer will heute mehr schaffen: komplette Rückstände dazunehmen.
-        val backlogIds = plannerState.backlog.flatMap { group -> group.todos.map { it.id } }
-        vm.setPlannerSelection(backlogIds, selected = true)
+        // Nutzer will heute mehr schaffen: alles dazunehmen.
+        vm.setPlannerSelection(allOpen, selected = true)
         vm.applyPlanner()
 
-        val afterPlan = vm.await { it.totalToday == 23 }
+        val afterPlan = vm.await { it.totalToday == 17 }
         assertThat(afterPlan.plannerOpen).isFalse()
-        assertThat(afterPlan.backlogTotal).isEqualTo(0)
-        assertThat(afterPlan.groups).hasSize(3)
-        assertThat(afterPlan.pendingToday).isEqualTo(23)
+        assertThat(afterPlan.pendingToday).isEqualTo(17)
+        assertThat(afterPlan.groups).hasSize(6)
     }
 
     @Test
@@ -242,10 +262,10 @@ class PmProjectsViewModelTest {
         vm.setPlannerDate(java.time.LocalDate.now().plusDays(1).toString())
         vm.applyPlanner()
 
-        val state = vm.await { it.totalToday == 0 }
-        // Nichts mehr für heute — alle 23 offenen Schritte stehen jetzt als
-        // "was noch kommt" im Backlog (die 10 alten sind mitgewandert).
-        assertThat(state.backlogTotal).isEqualTo(23)
+        val state = vm.await { !it.plannerOpen && it.totalToday == 0 }
+        // Nichts geht verloren: die Aufgaben stehen mit Datum im Planer.
+        val open = state.plannerGroups.flatMap { group -> group.tasks.map { it.id } }
+        assertThat(open).hasSize(17)
     }
 
     @Test
@@ -257,47 +277,77 @@ class PmProjectsViewModelTest {
         vm.await { it.plannerOpen }
         vm.closePlanner()
         val state = vm.await { !it.plannerOpen }
-        assertThat(state.totalToday).isEqualTo(10)
+        assertThat(state.totalToday).isEqualTo(6)
     }
 
-    // ── Ein-Tipp-Massenweg ────────────────────────────────────────────────
+    // ── Ein-Tipp-Massenweg und Einzel-Datum ────────────────────────────────
 
     @Test
-    fun `alle-offenen-Schritte-einer-Aufgabe-auf-heute-mit-einem-Tipp`(): Unit = runBlocking {
+    fun `alle-offenen-Aufgaben-eines-Projekts-auf-heute-mit-einem-Tipp`(): Unit = runBlocking {
         val vm = viewModel()
         repo.insertExample()
-        val start = vm.await { it.totalToday > 0 }
-        val taskId = start.groups.first().group.node!!.id
-        val today = start.today.toString()
+        vm.await { it.totalToday > 0 }
 
-        // Ausgangslage herstellen: alle Schritte der Aufgabe in den Backlog.
-        vm.removeFromPlan(repo.getAllOnce().filter { it.isTodo }.map { it.id })
+        // Ausgangslage herstellen: alles in den Backlog.
+        vm.removeFromPlan(repo.getAllOnce().filter { it.isTask }.map { it.id })
         val clean = vm.await { it.totalToday == 0 }
-        assertThat(clean.backlogTotal).isEqualTo(23)
+        assertThat(clean.taskCount).isEqualTo(17)
 
-        // Ein Tipp auf der Aufgabenkarte.
-        vm.scheduleAllOpen(taskId, today)
+        // Ein Tipp auf der Projektkarte (Arbeit & Ausbildung hat 6 Aufgaben).
+        vm.scheduleAllOpen("pm-seed-arbeit", stateToday(vm))
 
-        val state = vm.await { it.totalToday > 0 }
-        assertThat(state.totalToday).isEqualTo(15)
-        assertThat(state.groups).hasSize(1)
-        assertThat(state.groups.first().progress.total).isEqualTo(15)
+        val state = vm.await { it.totalToday == 6 }
+        assertThat(state.groups).hasSize(2) // projekt (4) + lernen (2)
+        assertThat(state.groups.map { it.progress.total }.sum()).isEqualTo(6)
     }
 
     @Test
-    fun `einzelne-Schritte-lassen-sich-einem-Tag-zuweisen-und-wieder-entfernen`(): Unit = runBlocking {
+    fun `einzelne-Aufgaben-lassen-sich-einem-Tag-zuweisen-und-wieder-entfernen`(): Unit = runBlocking {
         val vm = viewModel()
         repo.insertExample()
         val start = vm.await { it.totalToday > 0 }
-        val backlogTodo = start.backlog.flatMap { it.todos }.first()
+        val backlogTask = repo.getAllOnce().first { it.isTask && it.scheduledDate == null }
 
-        vm.schedule(listOf(backlogTodo.id), start.today.toString())
-        val planned = vm.await { it.totalToday == 11 }
-        assertThat(planned.backlogTotal).isEqualTo(12)
+        vm.schedule(listOf(backlogTask.id), start.today.toString())
+        val planned = vm.await { it.totalToday == 7 }
+        assertThat(planned.taskCount).isEqualTo(17)
 
-        vm.schedule(listOf(backlogTodo.id), null)
-        val unplanned = vm.await { it.totalToday == 10 }
-        assertThat(unplanned.backlogTotal).isEqualTo(13)
+        vm.schedule(listOf(backlogTask.id), null)
+        val unplanned = vm.await { it.totalToday == 6 }
+        assertThat(unplanned.groups.flatMap { it.rows }.map { it.node.id })
+            .doesNotContain(backlogTask.id)
+    }
+
+    // ── Drag & Drop (M19.2) ────────────────────────────────────────────────
+
+    @Test
+    fun `reorderToday-schreibt-die-gezogene-Reihenfolge-in-die-Datenbank`(): Unit = runBlocking {
+        val vm = viewModel()
+        repo.insertExample()
+        val start = vm.await { it.totalToday > 0 }
+        // Im Projekt „Current project" stehen heute zwei Aufgaben.
+        val group = start.groups.first { it.id == "pm-seed-projekt" }
+        assertThat(group.rows.map { it.node.id })
+            .containsExactly("pm-seed-schritt", "pm-seed-wochenziele").inOrder()
+
+        // Die zweite Aufgabe nach oben ziehen.
+        vm.reorderToday("pm-seed-projekt", from = 0, to = 1)
+
+        val state = vm.await { s ->
+            s.groups.firstOrNull { it.id == "pm-seed-projekt" }
+                ?.rows?.map { it.node.id } == listOf("pm-seed-wochenziele", "pm-seed-schritt")
+        }
+        assertThat(state.totalToday).isEqualTo(6)
+
+        // Und die Ordnung überlebt einen frischen Blick auf die Datenbank:
+        // die restlichen offenen Aufgaben hängen dahinter.
+        val open = repo.getAllOnce()
+            .filter { it.parentId == "pm-seed-projekt" && it.doneAt == null }
+            .sortedBy { it.sortOrder }
+            .map { it.id }
+        assertThat(open).containsExactly(
+            "pm-seed-wochenziele", "pm-seed-schritt", "pm-seed-offenepunkte", "pm-seed-ergebnis"
+        ).inOrder()
     }
 
     // ── Struktur ──────────────────────────────────────────────────────────
@@ -307,62 +357,76 @@ class PmProjectsViewModelTest {
         val vm = viewModel()
         repo.insertExample()
         val collapsed = vm.await { it.treeRows.isNotEmpty() }
-        assertThat(collapsed.treeRows).hasSize(2)
+        assertThat(collapsed.treeRows).hasSize(4)
 
-        vm.toggleExpand("pm-seed-studium")
-        val one = vm.await { it.treeRows.size > 2 }
-        assertThat(one.treeRows.map { it.node.title }).containsExactly("Studium", "2. Semester", "Privat")
+        vm.toggleExpand("pm-seed-alltag")
+        val one = vm.await { it.treeRows.size > 4 }
+        assertThat(one.treeRows.map { it.node.title }).containsExactly(
+            "Household & Daily Life", "Home", "Plan the week's appointments",
+            "Work & Education", "Health", "Finances"
+        ).inOrder()
 
         vm.collapseAll()
-        val back = vm.await { it.treeRows.size == 2 }
-        assertThat(back.treeRows).hasSize(2)
+        val back = vm.await { it.treeRows.size == 4 }
+        assertThat(back.treeRows).hasSize(4)
     }
 
     @Test
-    fun `Beispiel-einfuegen-klappt-die-Struktur-auf`(): Unit = runBlocking {
+    fun `Vorlage-einfuegen-klappt-die-Lebensbereiche-auf`(): Unit = runBlocking {
         val vm = viewModel()
         vm.createExample()
-        val state = vm.await { it.treeRows.size > 2 }
-        // Der Weg bis zur Aufgabe ist sichtbar: Studium → Semester → Gruppe → Präsentation
+        val state = vm.await { it.treeRows.size > 4 }
+        // Der Weg bis zu den Unterprojekten ist sofort sichtbar.
         assertThat(state.treeRows.map { it.node.title }).containsAtLeast(
-            "Studium", "2. Semester", "Projektgruppe", "Präsentation"
+            "Household & Daily Life", "Home", "Current project", "Further Education", "Health", "Finances"
         )
     }
 
     @Test
-    fun `Loeschen-eines-Zweigs-aktualisiert-Glas-und-Baum`(): Unit = runBlocking {
+    fun `Loeschen-einer-Aufgabe-aktualisiert-Glas-und-Baum`(): Unit = runBlocking {
         val vm = viewModel()
         repo.insertExample()
-        vm.await { it.totalToday == 10 }
+        vm.await { it.totalToday == 6 }
 
-        vm.deleteTodo(repo.getAllOnce().first { it.title == "Deckblatt und Gliederung entwerfen" })
+        vm.deleteTask(repo.getAllOnce().first { it.id == "pm-seed-einkauf" })
 
-        val state = vm.await { it.groups.first().progress.total == 14 }
-        assertThat(state.groups.first().progress.total).isEqualTo(14)
-        assertThat(state.totalTodos).isEqualTo(22)
+        val state = vm.await { it.totalToday == 5 }
+        // Die einzige heutige Aufgabe von „Home" ist weg — die Gruppe
+        // verschwindet aus der Heute-Liste, der Projektfortschritt bleibt
+        // als Bestand (nur noch 3 Aufgaben).
+        assertThat(state.groups.none { it.id == "pm-seed-wohnung" }).isTrue()
+        assertThat(PmTree(repo.getAllOnce()).progress("pm-seed-wohnung"))
+            .isEqualTo(PmProgress(0, 3))
+        assertThat(state.taskCount).isEqualTo(16)
     }
 
     @Test
-    fun `Fortschritt-der-Aufgabe-bleibt-ueber-Tage-hinweg-erhalten`(): Unit = runBlocking {
+    fun `Fortschritt-des-Projekts-bleibt-ohne-Tagesplan-erhalten`(): Unit = runBlocking {
         val vm = viewModel()
         repo.insertExample()
         val start = vm.await { it.totalToday > 0 }
-        val task = start.groups.first()
+        val home = start.groups.first { it.id == "pm-seed-wohnung" }
+        val first = home.rows.first { !it.done }.node
 
-        // Zwei Schritte abhaken und den Rest in den Backlog schieben:
-        // der Tagesplan wird leer, der Aufgabenfortschritt bleibt stehen.
-        val first = task.rows.first { !it.done }.node
-        vm.toggleTodo(first)
-        vm.await { it.doneToday == 1 }
-        val rest = repo.getAllOnce()
-            .filter { it.isTodo && it.parentId == task.group.node!!.id && it.doneAt == null }
-            .map { it.id }
-        vm.removeFromPlan(rest)
+        // Aufgabe aus dem Tagesplan nehmen: die Gruppe verschwindet aus der
+        // Heute-Liste — der Baum selbst bleibt natürlich stehen.
+        vm.removeFromPlan(listOf(first.id))
+        val removed = vm.await { it.totalToday == 5 }
+        assertThat(removed.groups.none { it.id == "pm-seed-wohnung" }).isTrue()
 
-        val empty = vm.await { it.totalToday == 1 } // nur der erledigte bleibt heute
-        assertThat(empty.doneToday).isEqualTo(1)
-        assertThat(empty.groups.first().progress).isEqualTo(
-            com.d_drostes_apps.aevum.domain.projects.PmProgress(done = 1, total = 15)
-        )
+        // Nun die (nicht geplante) Aufgabe abhaken: ihr Fortschritt zählt
+        // sofort mit, und weil sie HEUTE erledigt wurde, erscheint sie als
+        // erledigte Zeile samt Juwel im Tagesplan (Regel: heute erledigt
+        // zählt auch ohne Datum).
+        vm.toggleTask(repo.getById(first.id)!!)
+        val done = vm.await { it.doneToday == 1 }
+        assertThat(done.totalToday).isEqualTo(6) // 5 geplante + die erledigte
+        assertThat(done.groups.first { it.id == "pm-seed-wohnung" }.progress)
+            .isEqualTo(PmProgress(done = 1, total = 4))
+    }
+
+    /** Kleiner Helfer: heutiges ISO-Datum direkt aus dem Repository (ohne Wartezeit). */
+    private fun stateToday(vm: ProjectsViewModel): String = runBlocking {
+        vm.uiState.first { it.loaded }.today.toString()
     }
 }

@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  M19.1: Projektmanagement (Projekte → Aufgaben → kleinste Schritte).
+  M19.1/M19.2: Projektmanagement (Projekte → Unterprojekte → Aufgaben).
   Englisch ist der Standard (values/), Deutsch liegt in values-de/.
+  M19.2: Keine „Kategorien"/„Schritte" mehr — nur noch Projekte und Aufgaben;
+  Aufgaben entstehen inline in der To-do-Liste, die Beispielstruktur ist eine
+  generische Vorlage (Haushalt/Arbeit/Gesundheit/Finanzen).
 -->
 <resources>
     <!-- Einstieg & Navigation -->
@@ -15,49 +18,34 @@
     <string name="pm_tab_today">Today</string>
     <string name="pm_tab_projects">Projects</string>
 
-    <!-- Glas -->
-    <string name="pm_glass_title">Your glass</string>
-    <string name="pm_counter">%1$d / %2$d</string>
-    <string name="pm_counter_label">steps done</string>
-    <string name="pm_gems_remaining">%1$d missing</string>
+    <!-- Glas (schmale Spalte neben den Todos) -->
+    <string name="pm_counter">%1$d/%2$d</string>
+    <string name="pm_counter_label">tasks done</string>
+    <string name="pm_gems_remaining">%1$d still open</string>
     <string name="pm_glass_empty">Nothing planned for today yet</string>
-    <string name="pm_glass_empty_hint">Plan your steps — then the glass fills up.</string>
+    <string name="pm_glass_empty_hint">Plan your tasks — then the glass fills up.</string>
     <string name="pm_all_done">All done!</string>
     <string name="pm_all_done_sub">The glass is full.</string>
     <string name="pm_rollover_chip">%1$d carried over</string>
     <string name="pm_history">Last 7 days</string>
-    <string name="pm_history_day_content_desc">%1$d steps done</string>
+    <string name="pm_glass_short">GLASS</string>
 
-    <!-- Tages-Karussell -->
-    <string name="pm_today_tasks">Your tasks today</string>
-    <string name="pm_task_progress">%1$d of %2$d steps</string>
-    <string name="pm_task_done">Complete</string>
+    <!-- Heute-Liste -->
     <string name="pm_task_open">%1$d open</string>
     <string name="pm_task_details">Details</string>
     <string name="pm_pull_all_today">All open → today</string>
     <string name="pm_no_todos_today">Nothing planned for today</string>
     <string name="pm_no_todos_today_hint">Tap “Plan day” and pick what is on for today.</string>
-    <string name="pm_swipe_hint">Swipe left/right for your next task</string>
-
-    <!-- Backlog -->
-    <string name="pm_backlog_title">From the backlog</string>
-    <string name="pm_backlog_hint">Not assigned to a day yet</string>
-    <string name="pm_backlog_empty">Nothing pending — everything is planned.</string>
-    <string name="pm_pull_today">+ Today</string>
-    <string name="pm_more_todos">%1$d more</string>
-
-    <!-- Erledigt -->
     <string name="pm_done_today">Done today</string>
-    <string name="pm_undo">Undo</string>
 
     <!-- Baum -->
-    <string name="pm_tree_hint">Tap opens a node, the chevron expands it</string>
+    <string name="pm_tree_hint">Tap opens a project, the chevron expands it</string>
     <string name="pm_expand_all">Expand all</string>
     <string name="pm_collapse_all">Collapse</string>
     <string name="pm_empty_title">No project yet</string>
-    <string name="pm_empty_body">Create a project — or use the example structure (studies → semester → project group → presentation) and tick off your first step within seconds.</string>
-    <string name="pm_example_insert">Add example structure</string>
-    <string name="pm_structure_summary">%1$d projects · %2$d tasks · %3$d steps</string>
+    <string name="pm_empty_body">Create a project — or insert the template (household, work, health, finances) and tick off your first task within seconds.</string>
+    <string name="pm_example_insert">Insert template</string>
+    <string name="pm_structure_summary">%1$d projects · %2$d tasks</string>
 
     <!-- Frist -->
     <string name="pm_due">Due %1$s</string>
@@ -66,23 +54,22 @@
     <string name="pm_due_today">today</string>
     <string name="pm_due_over">%1$d days over</string>
 
-    <!-- Detailseite -->
-    <string name="pm_node_todos">Steps</string>
-    <string name="pm_node_subs">Nested inside</string>
-    <string name="pm_node_add_sub">Add something inside</string>
-    <string name="pm_node_add_todo">Add steps</string>
-    <string name="pm_node_empty_todos">No steps yet</string>
-    <string name="pm_node_empty_todos_hint">Small steps are the whole point. Write them down one per line.</string>
+    <!-- Detailseite (To-do-Liste) -->
+    <string name="pm_node_todos">Tasks</string>
+    <string name="pm_node_subs">Sub-projects</string>
+    <string name="pm_node_new_sub">Sub-project</string>
+    <string name="pm_node_empty_tasks_hint">Write your first small task — right here in the last line of the list.</string>
+    <string name="pm_inline_add_hint">New task — press Enter to add</string>
+    <string name="pm_drag_to_sort">Drag to reorder</string>
     <string name="pm_edit">Edit</string>
     <string name="pm_delete">Delete</string>
     <string name="pm_delete_confirm_title">Delete for real?</string>
-    <string name="pm_delete_confirm_body">Everything inside is removed as well — including all steps below it.</string>
+    <string name="pm_delete_confirm_body">The complete content is removed as well — including all sub-projects and tasks.</string>
     <string name="pm_move_up">Move up</string>
     <string name="pm_move_down">Move down</string>
     <string name="pm_select_all">All</string>
     <string name="pm_selected_count">%1$d selected</string>
     <string name="pm_cancel">Cancel</string>
-    <string name="pm_note_label">Note</string>
 
     <!-- Datum -->
     <string name="pm_date_none">No day</string>
@@ -94,27 +81,16 @@
 
     <!-- Editor -->
     <string name="pm_editor_new_project">New project</string>
-    <string name="pm_editor_new_category">New category</string>
-    <string name="pm_editor_new_task">New task</string>
-    <string name="pm_editor_new_todos">New steps</string>
+    <string name="pm_editor_new_subproject">New sub-project</string>
     <string name="pm_editor_edit_node">Edit</string>
-    <string name="pm_editor_edit_todo">Edit step</string>
+    <string name="pm_editor_edit_task">Edit task</string>
     <string name="pm_field_title">Title</string>
     <string name="pm_field_note">Note (optional)</string>
     <string name="pm_field_color">Colour</string>
-    <string name="pm_field_type">Kind</string>
     <string name="pm_field_due">Due date (optional)</string>
     <string name="pm_field_day">Day (optional)</string>
     <string name="pm_type_project">Project</string>
-    <string name="pm_type_category">Category</string>
     <string name="pm_type_task">Task</string>
-    <string name="pm_type_todo">Step</string>
-    <string name="pm_color_auto">Automatic</string>
-    <string name="pm_color_pick">Colour %1$d</string>
-    <string name="pm_bulk_label">One line = one step</string>
-    <string name="pm_bulk_hint">Read first half\nRead second half\nThink about the outline\nWrite the outline …</string>
-    <string name="pm_bulk_count">%1$d steps</string>
-    <string name="pm_bulk_plan_today">Schedule all for today</string>
     <string name="pm_save">Save</string>
     <string name="pm_create">Create</string>
     <string name="pm_parent_label">Inside</string>
@@ -125,12 +101,39 @@
     <!-- Tag planen -->
     <string name="pm_planner_title">Plan day</string>
     <string name="pm_planner_sub">What do you want to get done today?</string>
-    <string name="pm_planner_hint">Steps already planned are pre-selected.</string>
+    <string name="pm_planner_hint">Tasks already planned are pre-selected.</string>
     <string name="pm_planner_select_group_all">All</string>
     <string name="pm_planner_apply">Take over</string>
     <string name="pm_planner_remove">Remove from today</string>
-    <string name="pm_planner_empty">No open steps to plan. Create a few small ones first.</string>
-    <string name="pm_selected_summary">%1$d steps for today</string>
+    <string name="pm_planner_empty">No open tasks to plan. Create a few small ones first.</string>
+    <string name="pm_selected_summary">%1$d tasks for today</string>
+
+    <!-- Vorlage (Beispielstruktur) — generische Lebensbereiche -->
+    <string name="pm_seed_alltag">Household &amp; Daily Life</string>
+    <string name="pm_seed_wohnung">Home</string>
+    <string name="pm_seed_einkauf">Write a shopping list</string>
+    <string name="pm_seed_aufraeumen">Tidy up the apartment</string>
+    <string name="pm_seed_waesche">Do the laundry</string>
+    <string name="pm_seed_papiere">Sort paperwork</string>
+    <string name="pm_seed_termine">Plan the week’s appointments</string>
+    <string name="pm_seed_arbeit">Work &amp; Education</string>
+    <string name="pm_seed_projekt">Current project</string>
+    <string name="pm_seed_schritt">Define the next work step</string>
+    <string name="pm_seed_wochenziele">Note down weekly goals</string>
+    <string name="pm_seed_offenepunkte">Go through open points</string>
+    <string name="pm_seed_ergebnis">Write down the result briefly</string>
+    <string name="pm_seed_lernen">Further Education</string>
+    <string name="pm_seed_lernziel">Set a learning goal for this week</string>
+    <string name="pm_seed_lektion">Work through the first lesson</string>
+    <string name="pm_seed_gesundheit">Health</string>
+    <string name="pm_seed_sport">Schedule sport for this week</string>
+    <string name="pm_seed_spaziergang">Go for a walk</string>
+    <string name="pm_seed_vorsorge">Book a check-up appointment</string>
+    <string name="pm_seed_finanzen">Finances</string>
+    <string name="pm_seed_budget">Plan the month’s budget</string>
+    <string name="pm_seed_rechnungen">File invoices</string>
+    <string name="pm_seed_vertraege">Review contracts and subscriptions</string>
+
     <!-- Einstellungen -->
     <string name="settings_projects">Projects</string>
     <string name="settings_projects_desc">Break big tasks into small steps</string>

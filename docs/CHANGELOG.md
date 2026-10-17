@@ -1,6 +1,58 @@
 # CHANGELOG
 
-## [Unreleased] — M19.1 — 2026-10-17
+## [Unreleased] — M19.2 — 2026-10-17
+
+### Neu — Eisblau/Feuerrot, Projektmanagement-Umbau, Digital-Balance-Revival
+
+- **Theme (Nutzerwunsch):** „ich möchte nicht mehr, dass die Theme Farbe der
+  App das Standard Android ist, ich möchte einen schönen Kontrast aus
+  eiskalten blau und feuerrot". Dark- UND Light-Schema vollständig auf eine
+  Eisblau→Feuerrot-Identität umgestellt (primary `#7DD3FC`/`#0369A1`, kein
+  dynamicColor), Hauptknöpfe mit wanderndem Schimmer (`Shimmer.kt`,
+  respektiert „Animationen aus").
+- **Projektmanagement auf zwei Knotenarten umgebaut:** „Ich möchte keine
+  Unterscheidung zwischen Projekt, Kategorie und Aufgabe." Nur noch
+  **Projekte** (Container, beliebig verschachtelbar) und **Aufgaben**
+  (abhakbare Blätter). DB **v45 als reine Daten-Migration** ohne
+  Schema-Änderung: CATEGORY→PROJECT, TASK-mit-Kindern→PROJECT, TODO→TASK.
+- **To-do-Listen statt Textfeld:** Aufgaben sind abhakbare Zeilen mit
+  **Drag & Drop** (neue, sofort persistierte Reihenfolge), **Löschen** und
+  **Inline-Eingabezeile** („wenn man enter klickt ist es hinzugefügt und der
+  nächste Platzhalter erscheint") — die Sammel-Eingabe entfällt.
+- **PM-Dashboard zeigt nur heute:** „Im PM Dashboard sollten NUR für heute
+  zugewiesene Aufgaben angezeigt werden." Gruppen mit den meisten offenen
+  Aufgaben oben, innerhalb der Gruppe die gezogene Reihenfolge.
+- **Glas schmal neben den Todos:** Das Juwelen-Glas sitzt als schmale Spalte
+  rechts der Listen (max. 3 Spalten, Todos bleiben lesbar) und animiert sich
+  beim Abhaken voll.
+- **Neue Vorlage:** generische Struktur für die meisten Menschen (Haushalt &
+  Alltag · Arbeit & Ausbildung · Gesundheit · Finanzen) statt der
+  persönlichen Studien-Vorlage — für den Play Store, lokalisiert über
+  `PmSeedTitles` (DE/EN).
+- **Digital Balance repariert:** Die App-Aufzeichnung wurde nach Reboot,
+  App-Update oder Prozess-Kill nie neu gestartet (nur zwei Startpfade, kein
+  Watchdog). Jetzt: `BootReceiver` + `MY_PACKAGE_REPLACED` planen einen
+  15-Minuten-Watchdog (`AppTrackingWatchdogWorker`, KEEP, gated auf aktive
+  getrackte Apps), Screen-On-Nudge im `ScreenEventReceiver`,
+  `AppTrackingService.isAlive()`/`lastPollAtMs` als Grundlage; Zuweisung
+  einer Activity übersteht den Revival. Übergabe-Kernlogik unangetastet.
+
+### Verified
+
+- **1273/1273 Unit-Tests grün** (0 Fehler; +33 neue; u. a. `PmReorderTest`,
+  `PmMigrationDataTest` — echte 44→45-Migration auf SQLite aus `44.json`,
+  `PmShimmerTest`, `AevumThemeTest`).
+- `PmMigrationSchemaTest`: `44.json` und `45.json` Element für Element
+  identisch (nur `version` unterscheidet sich).
+- Build `aevum-m192b`: `testDebugUnitTest assembleDebug assembleRelease
+  bundleRelease` **BUILD SUCCESSFUL in 7m 47s** (exit 0); Debug-APK kanonisch
+  signiert (`9c3055c4…`), Release-APK Upload-Key (`c8430d35…`),
+  AAB 24,6 MB.
+- Download: `http://192.168.178.40:8098/Aevum-1.0.32-Debug.apk`.
+- Nebenbefund dokumentiert (nicht Teil des Auftrags): `lintDebug` findet
+  5 Altbestands-Fehler außerhalb dieser Änderung (2× MissingPermission
+  ActivityRecognition, 1× RegisterReceiver-Flag-Fehlalarm) — Empfehlung:
+  eigenes kleines Paket.
 
 ### Neu — Projektmanagement
 

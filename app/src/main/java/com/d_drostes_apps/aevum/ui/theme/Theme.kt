@@ -7,68 +7,82 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFFA99CFF),
-    onPrimary = Color(0xFF171329),
-    primaryContainer = Color(0xFF3A326B),
-    onPrimaryContainer = Color(0xFFE8E4FF),
-    secondary = Color(0xFF5EEAD4),
-    onSecondary = Color(0xFF00201D),
-    secondaryContainer = Color(0xFF134D48),
-    onSecondaryContainer = Color(0xFFA7F3E9),
-    tertiary = Color(0xFFFFC85C),
-    onTertiary = Color(0xFF2E2100),
+/**
+ * M19.2 — feste Eisblau/Feuerrot-Identität statt Standard-Look (Nutzerwunsch).
+ *
+ * Der frühere Lila/Teal-Look war ein generisches Material-Schema und machte
+ * die App austauschbar. Jetzt gilt: Dunkel ist tiefes Nachtblau, primary ist
+ * glasklares Eisblau, secondary ist Feuerrot; Gold bleibt (wie im PM)
+ * Auszeichnung, kein Grundton. Hell wickelt dieselbe Identität in Tagesform:
+ * gedecktes Eisblau auf fast weißem Papier, Feuerrot als kräftiger Akzent.
+ *
+ * `internal` bewusst statt `private`: AevumThemeTest pinnt die Kernfarben
+ * in der reinen JVM-Suite (Compose.Color ist eine Value-Klasse, kein Android
+ * nötig) — die Identität lässt sich so nicht unbemerkt verschieben.
+ */
+internal val DarkColorScheme = darkColorScheme(
+    primary = Color(0xFF7DD3FC),        // Eisblau — Hauptfarbe
+    onPrimary = Color(0xFF06283D),
+    primaryContainer = Color(0xFF0D3D5C),
+    onPrimaryContainer = Color(0xFFCDEAFF),
+    secondary = Color(0xFFF87171),      // Feuerrot — warmer Gegenpol
+    onSecondary = Color(0xFF4A0B0B),
+    secondaryContainer = Color(0xFF5F1714),
+    onSecondaryContainer = Color(0xFFFFD9D3),
+    tertiary = Color(0xFFFBBF24),       // Gold — Auszeichnung, kein Grundton
+    onTertiary = Color(0xFF3D2A00),
     tertiaryContainer = Color(0xFF5A430B),
     onTertiaryContainer = Color(0xFFFFE2A6),
-    error = Color(0xFFF87171),
-    onError = Color(0xFF4B0000),
-    errorContainer = Color(0xFF7B0000),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF090B16),
-    onBackground = Color(0xFFF0EFF8),
-    surface = Color(0xFF121526),
-    onSurface = Color(0xFFF0EFF8),
-    surfaceVariant = Color(0xFF1D2136),
-    onSurfaceVariant = Color(0xFFCAC8D8),
-    outline = Color(0xFF9491A5),
-    outlineVariant = Color(0xFF3B4057),
+    background = Color(0xFF080D17),
+    onBackground = Color(0xFFE6EEF8),
+    surface = Color(0xFF101726),
+    onSurface = Color(0xFFE6EEF8),
+    surfaceVariant = Color(0xFF1A2436),
+    onSurfaceVariant = Color(0xFFB7C4D6),
+    outline = Color(0xFF8496AB),
+    outlineVariant = Color(0xFF334056),
     scrim = Color.Black,
-    inverseSurface = Color(0xFFE6E6EB),
-    inverseOnSurface = Color(0xFF1A1C26),
-    inversePrimary = Color(0xFF5446D5),
-    surfaceTint = Color(0xFFA99CFF)
+    inverseSurface = Color(0xFFE6EEF8),
+    inverseOnSurface = Color(0xFF1B2433),
+    inversePrimary = Color(0xFF0369A1),
+    surfaceTint = Color(0xFF7DD3FC)
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF6756E8),
+/** Das helle Gegenstück: dasselbe Eis in Tagesform, dasselbe Feuer. */
+internal val LightColorScheme = lightColorScheme(
+    primary = Color(0xFF0369A1),        // Eisblau (gedeckt, lesbar)
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFE9E6FF),
-    onPrimaryContainer = Color(0xFF251A7D),
-    secondary = Color(0xFF0F9F91),
+    primaryContainer = Color(0xFFD7EDFF),
+    onPrimaryContainer = Color(0xFF00344D),
+    secondary = Color(0xFFDC2626),      // Feuerrot (kräftig)
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFC9F7F0),
-    onSecondaryContainer = Color(0xFF00201D),
-    tertiary = Color(0xFFB87500),
+    secondaryContainer = Color(0xFFFFE1DD),
+    onSecondaryContainer = Color(0xFF5C120C),
+    tertiary = Color(0xFFB87500),       // Gold
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFFFE8B2),
     onTertiaryContainer = Color(0xFF3D2A00),
-    error = Color(0xFFDC2626),
+    error = Color(0xFFB3261E),
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF4B0000),
-    background = Color(0xFFF8F7FC),
-    onBackground = Color(0xFF1B1B27),
-    surface = Color(0xFFFFFBFF),
-    onSurface = Color(0xFF1B1B27),
-    surfaceVariant = Color(0xFFE8E6F0),
-    onSurfaceVariant = Color(0xFF474653),
-    outline = Color(0xFF777482),
-    outlineVariant = Color(0xFFC9C6D3),
+    onErrorContainer = Color(0xFF410E0B),
+    background = Color(0xFFF5F9FF),
+    onBackground = Color(0xFF0C1B2A),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF0C1B2A),
+    surfaceVariant = Color(0xFFE3EDF8),
+    onSurfaceVariant = Color(0xFF44566B),
+    outline = Color(0xFF74869B),
+    outlineVariant = Color(0xFFC6D3E1),
     scrim = Color.Black,
-    inverseSurface = Color(0xFF2E3033),
-    inverseOnSurface = Color(0xFFF1F0F4),
-    inversePrimary = Color(0xFFC3BBFF),
-    surfaceTint = Color(0xFF6756E8)
+    inverseSurface = Color(0xFF2C3138),
+    inverseOnSurface = Color(0xFFEEF1F6),
+    inversePrimary = Color(0xFF7DD3FC),
+    surfaceTint = Color(0xFF0369A1)
 )
 
 @Composable

@@ -94,6 +94,10 @@ fun PmEntryButton(
                         )
                     )
                 )
+                // M19.2: Der Schimmer wandert zyklisch über den Juwel-Knopf.
+                // Clippen kann sich der Aufrufer hier sparen — das
+                // CircleShape-clip weiter oben in der Kette begrenzt das Band.
+                .shimmering(intensity = 0.22f)
                 .clickable(
                     interactionSource = interaction,
                     indication = LocalIndication.current,

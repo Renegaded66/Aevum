@@ -4,28 +4,43 @@ import com.d_drostes_apps.aevum.data.model.PmNode
 import com.d_drostes_apps.aevum.data.model.PmType
 
 /**
- * M19.1: Beispielstruktur auf Knopfdruck.
+ * M19.2: Beispielstruktur („Vorlage") auf Knopfdruck.
  *
  * WARUM ES DIESE DATEI GIBT: Der leere Zustand eines Projektbaums ist eine
- * Zumutung — der Nutzer müsste fünf Ebenen selbst erfinden, bevor er die
- * erste Kleinigkeit abhaken darf. Genau daran scheitert Fokussierung.
- * Deshalb: EIN Tipp im leeren Zustand legt exakt die Struktur an, die im
- * Anwendungsfall beschrieben wurde (Studium → 2. Semester → Projektgruppe →
- * Präsentation → kleinste Schritte), damit die erste Handlung nicht
+ * Zumutung — der Nutzer müsste sich erst eine Struktur ausdenken, bevor er
+ * die erste Kleinigkeit abhaken darf. EIN Tipp im leeren Zustand legt
+ * deshalb einen fertigen Startpunkt an, damit die erste Handlung nicht
  * „organisieren", sondern „abhaken" ist.
  *
+ * NEU IN M19.2 (Nutzer-Entscheidung, wörtlich): „deine Beispielstruktur ist
+ * exakt mein Beispiel gewesen. […] die App kommt in den Play Store, da
+ * möchte ich das nicht so haben, denke dir eine Struktur aus die auf die
+ * meisten Menschen möglicherweise zutrifft." Deshalb steht hier KEINE
+ * persönliche Studien-Struktur mehr, sondern eine Vorlage aus den vier
+ * Lebensbereichen, die fast jeden betreffen:
+ *
+ *   Haushalt & Alltag · Arbeit & Ausbildung · Gesundheit · Finanzen
+ *
+ * Je Bereich 1–2 Unterprojekte und ein paar glaubwürdige Aufgaben, von denen
+ * wenige für HEUTE eingeplant sind. Dadurch sieht der Nutzer am ersten Tag
+ * sofort Tagesplan UND Backlog-Regel — ohne dass die Vorlage nach einem
+ * fremden Leben aussieht.
+ *
+ * TITEL SIND LOKALISIERT: Die Titel kommen NICHT aus dieser Datei, sondern
+ * über [titleOf] (im echten Betrieb aus den String-Ressourcen — Deutsch in
+ * values-de/, Englisch als Standard). [DEFAULT_TITLES] ist nur der reine
+ * Fallback für Domain-Tests.
+ *
  * EIGENSCHAFTEN (und warum):
- *  - **Feste IDs** ([PREFIX] + laufende Nummer): zweimal tippen erzeugt KEINE
+ *  - **Feste IDs** ([PREFIX] + Schlüssel): zweimal tippen erzeugt KEINE
  *    Dubletten (Room schreibt mit REPLACE). Nichts ist schlimmer als ein
  *    doppelter Beispielbaum.
- *  - **10 Todos sind für heute eingeplant**, 13 bewusst nicht. Der Nutzer
- *    sieht also am ersten Tag sofort einen Tagesplan UND die Backlog-Regel
- *    („Zukünftige müssen nicht zwingend mit Datum versehen sein") — inklusive
- *    Karussell mit mehr als einer Seite, sobald er eine zweite Aufgabe
- *    dazuholt.
- *  - **Bewusst grob gekörnt**: die Schritte sind so klein, dass jeder einzelne
- *    an einem Abend schaffbar ist. Genau das ist die Anforderung.
- *  - Kein Beispiel-Todo ist vorab erledigt → das Glas startet leer und ehrlich.
+ *  - **Sechs Aufgaben sind für heute eingeplant**, der Rest bewusst nicht
+ *    (Backlog). Keine Aufgabe ist vorab erledigt → das Glas startet leer
+ *    und ehrlich.
+ *  - **Bewusst grob gekörnt**: Jede Aufgabe ist an einem Abend schaffbar.
+ *    Genau das ist die Anforderung („jede kleinste Aufgabe schriftlich
+ *    festhalten und abarbeiten").
  */
 object PmSeed {
 
@@ -34,18 +49,58 @@ object PmSeed {
     fun isSeedNode(id: String): Boolean = id.startsWith(PREFIX)
 
     /**
-     * Die komplette Beispielstruktur. Rein: alles wird aus [now] und dem
-     * heutigen Datum abgeleitet, damit Tests reproduzierbar sind.
+     * Englischer Standard-Fallback (entspricht values/). Im Betrieb liefert
+     * der Android-Titel-Resolver die zur Gerätesprache passende Fassung.
      */
-    fun example(now: Long = System.currentTimeMillis(), todayIso: String = PmToday.todayIso(now)): List<PmNode> {
+    val DEFAULT_TITLES: Map<String, String> = mapOf(
+        // Haushalt & Alltag
+        "alltag" to "Household & Daily Life",
+        "wohnung" to "Home",
+        "einkauf" to "Write a shopping list",
+        "aufraeumen" to "Tidy up the apartment",
+        "waesche" to "Do the laundry",
+        "papiere" to "Sort paperwork",
+        "termine" to "Plan the week's appointments",
+        // Arbeit & Ausbildung
+        "arbeit" to "Work & Education",
+        "projekt" to "Current project",
+        "schritt" to "Define the next work step",
+        "wochenziele" to "Note down weekly goals",
+        "offenepunkte" to "Go through open points",
+        "ergebnis" to "Write down the result briefly",
+        "lernen" to "Further Education",
+        "lernziel" to "Set a learning goal for this week",
+        "lektion" to "Work through the first lesson",
+        // Gesundheit
+        "gesundheit" to "Health",
+        "sport" to "Schedule sport for this week",
+        "spaziergang" to "Go for a walk",
+        "vorsorge" to "Book a check-up appointment",
+        // Finanzen
+        "finanzen" to "Finances",
+        "budget" to "Plan the month's budget",
+        "rechnungen" to "File invoices",
+        "vertraege" to "Review contracts and subscriptions"
+    )
+
+    fun defaultTitle(key: String): String = DEFAULT_TITLES[key] ?: key
+
+    /**
+     * Die komplette Vorlage. Rein: alles wird aus [now] und dem heutigen
+     * Datum abgeleitet, damit Tests reproduzierbar sind.
+     */
+    fun example(
+        now: Long = System.currentTimeMillis(),
+        todayIso: String = PmToday.todayIso(now),
+        titleOf: (String) -> String = ::defaultTitle
+    ): List<PmNode> {
         val nodes = mutableListOf<PmNode>()
         var order = 0
         fun add(
             id: String,
             parent: String?,
             type: String,
-            title: String,
-            note: String = "",
+            titleKey: String,
             color: String? = null,
             scheduled: String? = null,
             due: String? = null
@@ -55,8 +110,7 @@ object PmSeed {
                     id = id,
                     parentId = parent,
                     type = type,
-                    title = title,
-                    note = note,
+                    title = titleOf(titleKey),
                     color = color,
                     sortOrder = order++,
                     scheduledDate = scheduled,
@@ -68,52 +122,37 @@ object PmSeed {
             )
         }
 
-        val inTenDays = java.time.LocalDate.parse(todayIso).plusDays(10).toString()
+        // ── Haushalt & Alltag ─────────────────────────────────────────────
+        add("${PREFIX}alltag", null, PmType.PROJECT, "alltag", color = "#38BDF8")
+        add("${PREFIX}wohnung", "${PREFIX}alltag", PmType.PROJECT, "wohnung")
+        add("${PREFIX}einkauf", "${PREFIX}wohnung", PmType.TASK, "einkauf", scheduled = todayIso)
+        add("${PREFIX}aufraeumen", "${PREFIX}wohnung", PmType.TASK, "aufraeumen")
+        add("${PREFIX}waesche", "${PREFIX}wohnung", PmType.TASK, "waesche")
+        add("${PREFIX}papiere", "${PREFIX}wohnung", PmType.TASK, "papiere")
+        add("${PREFIX}termine", "${PREFIX}alltag", PmType.TASK, "termine", scheduled = todayIso)
 
-        // ── Studium ───────────────────────────────────────────────────────
-        add("${PREFIX}studium", null, PmType.PROJECT, "Studium",
-            note = "Alles, was mit der Uni zu tun hat.", color = "#8B7CFF")
-        add("${PREFIX}semester", "${PREFIX}studium", PmType.PROJECT, "2. Semester",
-            note = "Laufendes Semester.")
-        add("${PREFIX}projektgruppe", "${PREFIX}semester", PmType.CATEGORY, "Projektgruppe")
+        // ── Arbeit & Ausbildung ────────────────────────────────────────────
+        add("${PREFIX}arbeit", null, PmType.PROJECT, "arbeit", color = "#F87171")
+        add("${PREFIX}projekt", "${PREFIX}arbeit", PmType.PROJECT, "projekt")
+        add("${PREFIX}schritt", "${PREFIX}projekt", PmType.TASK, "schritt", scheduled = todayIso)
+        add("${PREFIX}wochenziele", "${PREFIX}projekt", PmType.TASK, "wochenziele", scheduled = todayIso)
+        add("${PREFIX}offenepunkte", "${PREFIX}projekt", PmType.TASK, "offenepunkte")
+        add("${PREFIX}ergebnis", "${PREFIX}projekt", PmType.TASK, "ergebnis")
+        add("${PREFIX}lernen", "${PREFIX}arbeit", PmType.PROJECT, "lernen")
+        add("${PREFIX}lernziel", "${PREFIX}lernen", PmType.TASK, "lernziel")
+        add("${PREFIX}lektion", "${PREFIX}lernen", PmType.TASK, "lektion")
 
-        add("${PREFIX}praesentation", "${PREFIX}projektgruppe", PmType.TASK, "Präsentation",
-            note = "Ziel ist nicht perfekt, sondern FERTIG.", color = "#FBBF24", due = inTenDays)
+        // ── Gesundheit ─────────────────────────────────────────────────────
+        add("${PREFIX}gesundheit", null, PmType.PROJECT, "gesundheit", color = "#34D399")
+        add("${PREFIX}sport", "${PREFIX}gesundheit", PmType.TASK, "sport", scheduled = todayIso)
+        add("${PREFIX}spaziergang", "${PREFIX}gesundheit", PmType.TASK, "spaziergang")
+        add("${PREFIX}vorsorge", "${PREFIX}gesundheit", PmType.TASK, "vorsorge")
 
-        // Heute eingeplant — die erste Hälfte des Weges (verstehen + entwerfen).
-        add("${PREFIX}t01", "${PREFIX}praesentation", PmType.TODO, "Deckblatt und Gliederung entwerfen", scheduled = todayIso)
-        add("${PREFIX}t02", "${PREFIX}praesentation", PmType.TODO, "Erste Hälfte der Quelle lesen", scheduled = todayIso)
-        add("${PREFIX}t03", "${PREFIX}praesentation", PmType.TODO, "Zweite Hälfte der Quelle lesen", scheduled = todayIso)
-        add("${PREFIX}t04", "${PREFIX}praesentation", PmType.TODO, "Themen für die Abschnitte sammeln", scheduled = todayIso)
-        add("${PREFIX}t05", "${PREFIX}praesentation", PmType.TODO, "Thema 1 recherchieren", scheduled = todayIso)
-        add("${PREFIX}t06", "${PREFIX}praesentation", PmType.TODO, "Thema 2 recherchieren", scheduled = todayIso)
-        add("${PREFIX}t07", "${PREFIX}praesentation", PmType.TODO, "Stichpunkte ordnen", scheduled = todayIso)
-        add("${PREFIX}t08", "${PREFIX}praesentation", PmType.TODO, "Rohentwurf aufschreiben", scheduled = todayIso)
-        add("${PREFIX}t09", "${PREFIX}praesentation", PmType.TODO, "Entwurf kürzen", scheduled = todayIso)
-        add("${PREFIX}t10", "${PREFIX}praesentation", PmType.TODO, "Einleitung und Schluss formulieren", scheduled = todayIso)
-
-        // Bewusst OHNE Datum: Backlog (später planen, wenn es so weit ist).
-        add("${PREFIX}t11", "${PREFIX}praesentation", PmType.TODO, "Folien bauen")
-        add("${PREFIX}t12", "${PREFIX}praesentation", PmType.TODO, "Bilder und Grafiken einfügen")
-        add("${PREFIX}t13", "${PREFIX}praesentation", PmType.TODO, "Quellenverzeichnis anlegen")
-        add("${PREFIX}t14", "${PREFIX}praesentation", PmType.TODO, "Probevortrag halten")
-        add("${PREFIX}t15", "${PREFIX}praesentation", PmType.TODO, "Rechtschreibung und Format prüfen")
-
-        add("${PREFIX}bericht", "${PREFIX}projektgruppe", PmType.TASK, "Projektbericht",
-            note = "Parallel zur Präsentation.", color = "#38BDF8")
-        add("${PREFIX}b01", "${PREFIX}bericht", PmType.TODO, "Gliederung mit dem Betreuer abgleichen")
-        add("${PREFIX}b02", "${PREFIX}bericht", PmType.TODO, "Einleitung schreiben")
-        add("${PREFIX}b03", "${PREFIX}bericht", PmType.TODO, "Methodik beschreiben")
-        add("${PREFIX}b04", "${PREFIX}bericht", PmType.TODO, "Auswertung und Diagramme erstellen")
-
-        // ── Privat ────────────────────────────────────────────────────────
-        add("${PREFIX}privat", null, PmType.PROJECT, "Privat", color = "#2DD4BF")
-        add("${PREFIX}wohnung", "${PREFIX}privat", PmType.CATEGORY, "Wohnung")
-        add("${PREFIX}ordnung", "${PREFIX}wohnung", PmType.TASK, "Ausmisten und Ordnung", color = "#34D399")
-        add("${PREFIX}o01", "${PREFIX}ordnung", PmType.TODO, "Schreibtisch aufräumen")
-        add("${PREFIX}o02", "${PREFIX}ordnung", PmType.TODO, "Kleiderschrank ausmisten")
-        add("${PREFIX}o03", "${PREFIX}ordnung", PmType.TODO, "Papiere sortieren")
-        add("${PREFIX}o04", "${PREFIX}ordnung", PmType.TODO, "Alte Kabel aussortieren")
+        // ── Finanzen ───────────────────────────────────────────────────────
+        add("${PREFIX}finanzen", null, PmType.PROJECT, "finanzen", color = "#FBBF24")
+        add("${PREFIX}budget", "${PREFIX}finanzen", PmType.TASK, "budget", scheduled = todayIso)
+        add("${PREFIX}rechnungen", "${PREFIX}finanzen", PmType.TASK, "rechnungen")
+        add("${PREFIX}vertraege", "${PREFIX}finanzen", PmType.TASK, "vertraege")
 
         return nodes
     }

@@ -3,13 +3,17 @@ package com.d_drostes_apps.aevum.domain.projects
 import com.d_drostes_apps.aevum.data.model.PmNode
 
 /**
- * M19.1: Farbregeln für Knoten und Juwelen. REIN — kein Compose, kein Android.
+ * M19.1/M19.2: Farbregeln für Knoten und Juwelen. REIN — kein Compose, kein Android.
  *
  * WARUM ÜBERHAUPT EINE FARBREGEL: Der Nutzer will „möglichst schön farbig"
  * und ausdrücklich KEINE Level/XP. Farbe ist hier die Belohnung ohne Zahlen-
  * system: die Juwelenfarbe im Glas verrät ihm, WORAN er heute gearbeitet hat.
- * Deshalb ist die Farbe nicht zufällig, sondern eine Eigenschaft der Aufgabe
- * bzw. des Projekts (Vererbung nach unten).
+ * Deshalb ist die Farbe nicht zufällig, sondern eine Eigenschaft des Projekts
+ * bzw. der Aufgabe (Vererbung nach unten).
+ *
+ * M19.2: Die Palette beginnt mit der neuen App-Identität Eisblau → Feuerrot
+ * (Nutzerwunsch) und bleibt danach bewusst bunt — die Juwelen sollen
+ * unterscheidbar bleiben.
  *
  * Auflösungsreihenfolge:
  *  1. eigene Farbe des Knotens ([PmNode.color])
@@ -19,14 +23,14 @@ import com.d_drostes_apps.aevum.data.model.PmNode
 object PmColors {
 
     val PALETTE: List<String> = listOf(
-        "#8B7CFF", // violett (Primärfarbe der App)
-        "#2DD4BF", // türkis (Sekundärfarbe der App)
-        "#FBBF24", // gold (Tertiärfarbe der App)
-        "#FF6B9D", // pink
-        "#38BDF8", // himmelblau
+        "#38BDF8", // eisblau (App-Identität)
+        "#F87171", // feuerrot (App-Identität)
+        "#FBBF24", // gold (Auszeichnung — siehe PmPalette.complete)
+        "#2DD4BF", // türkis
         "#A78BFA", // lavendel
+        "#FB923C", // orange
         "#34D399", // grün
-        "#FB923C"  // orange
+        "#F472B6"  // pink
     )
 
     /** Stabiler Farbwert aus einer ID (Java-String-Hash ist spezifiziert → stabil). */
@@ -47,7 +51,7 @@ object PmColors {
         return colorFor(rootId)
     }
 
-    /** Gruppe eines Todos (Aufgabe) — gleiche Farbe wie die Juwelen im Glas. */
+    /** Gruppe einer Aufgabe (Projekt) — gleiche Farbe wie die Juwelen im Glas. */
     fun groupColor(group: PmTodayGroup, tree: PmTree): String {
         val node = group.node ?: return colorFor(group.id)
         return resolve(node, tree)

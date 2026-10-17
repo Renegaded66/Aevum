@@ -39,3 +39,39 @@ Neues Teilsystem neben der Aktivitäts-Erfassung: **Projektmanagement**.
   gefeierten Stand — das Feuerwerk erscheint nur beim Übergang auf „voll".
 - **Abgrenzung:** Das bestehende Todos-Modul (Serien, Streaks,
   Dauer-Auto-Check) bleibt unverändert; PM-Schritte sind einmalig.
+
+---
+
+## M19.2 — Eisblau/Feuerrot, PM-Umbau auf zwei Knotenarten, Digital-Balance-Revival (17.10.2026)
+
+App 1.0.32 (versionCode 33), DB **v45**.
+
+- **Theme:** Dark- und Light-Schema vollständig auf Eisblau→Feuerrot
+  umgestellt (`ui/theme/Theme.kt`, Token-Werte fest, kein „dynamic color");
+  Hauptknöpfe mit wanderndem Schimmer (`ui/components/Shimmer.kt`,
+  `Modifier.shimmering`; Intensität ~0.22, respektiert System-Animationen).
+  `PmPalette`-Fallback = Eisblau `#38BDF8`, `DesignTokens` [0]=Eis, [1]=Feuer.
+- **PM-Umbau:** Nur noch `PROJECT`/`TASK` in `pm_node`. Regeln unverändert im
+  Repository (Mutex, Massenzuweisung, `reorderTasks` mit exakt-Liste-Prüfung);
+  Migration 44→45 als reine Daten-Migration. UI: Heute-Tab = nur heutige
+  Aufgaben in Projekt-Gruppen (offene vor erledigten, dann `sort_order`),
+  Drag & Drop (`PmDragDrop.kt`, `PmReorder` reine Mathematik, Controller mit
+  Auto-Scroll), Inline-Eingabezeile statt Sammel-Eingabe, Löschen je Zeile,
+  Glas als schmale Spalte (`GemGlass` mit `maxGems`/`maxColumns`).
+  Vorlage = vier Lebensbereiche (Haushalt & Alltag, Arbeit & Ausbildung,
+  Gesundheit, Finanzen), Lokalisierung über `PmSeedTitles` (EN in `values/`,
+  DE in `values-de/`).
+- **Digital Balance:** Revival-Kette komplett — `BootReceiver` +
+  `MY_PACKAGE_REPLACED` → `AppTrackingWatchdogWorker.schedule` (15-min
+  Periodik, KEEP, gated auf aktive getrackte Apps), Screen-On-Nudge im
+  `ScreenEventReceiver`, `AppTrackingService.isAlive()`/`lastPollAtMs` als
+  `@Volatile`-Status, `AevumApplication` plant Watchdog beim Prozessstart.
+  `assignActivity`-Persistenz beim Zuweisen korrigiert.
+- **Tests:** neue Suiten `PmReorderTest`, `PmMigrationDataTest` (echte
+  SQLite-Migration aus 44.json), `PmShimmerTest`, `AevumThemeTest`;
+  erweitert: `PmTreeTest`, `PmTodayPlanTest`, `PmSeedTest`, `PmColorsTest`,
+  `PmRepositoryRoomTest`, `PmProjectsViewModelTest`,
+  `AppTrackingDigitalWiringTest` (16 Tests).
+- **Abgrenzung:** Alt-Modul „Todos" (Serien/Streaks) unberührt; Digital-
+  Balance-Kern (`AppTrackingTakeoverPolicy`, `ForegroundTracker`,
+  `ScreenRecordingWorker`-Logik) unangetastet.

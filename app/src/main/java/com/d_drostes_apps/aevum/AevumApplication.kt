@@ -490,6 +490,18 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "AppTrackingService start failed — continuing", e)
         }
+        // M19.2 (User-Report: „App-Aufzeichnung wird ignoriert — nach
+        // Reboot/App-Update/Kill lief nur noch Digital"): Watchdog-Takt
+        // einplanen — ohne Watchdog bleibt die App-Aufzeichnung nach
+        // Kill/Reboot/Update tot, während „Digital“ über den Manifest-
+        // Receiver weiterläuft. Der start() oben deckt nur den App-
+        // Prozess-Start ab; der 15-Minuten-Watchdog ist das Sicherheits-
+        // netz für alles danach. KEEP macht Doppel-Aufrufe idempotent.
+        try {
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingWatchdogWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "AppTrackingWatchdogWorker schedule failed — continuing", e)
+        }
         // M17.4: Initial-Activity-Snapshot — falls der User gerade im Auto
         // sitzt und die App frisch startet (Cold-Start), soll das ebenfalls
         // erkannt werden. Idempotent dank KEEP-Policy im Scheduler.

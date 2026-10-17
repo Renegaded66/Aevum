@@ -145,8 +145,22 @@ android {
         //   Dauerfeuer), Backlog, Tag-planen-Sheet, Sammel-Eingabe und
         //   Fortschrittsbalken je Aufgabe und Projekt. Keine Levels, keine
         //   XP, keine Maskottchen — abhakbare Arbeit statt Spielerei.
-        versionCode = 32
-        versionName = "1.0.31"
+        // M19.2 (App 1.0.32): Umbau des Projektmanagements auf ZWEI Knoten-
+        //   arten (Projekt = Container, Aufgabe = Blatt) — Nutzerwunsch:
+        //   „Ich möchte keine Unterscheidung zwischen Projekt, Kategorie und
+        //   Aufgabe." Dazu: To-do-Listen mit Drag & Drop, Löschen und
+        //   Inline-Eingabezeile statt Sammel-Textfeld; PM-Dashboard zeigt nur
+        //   für heute zugewiesene Aufgaben; das Juwelen-Glas sitzt als
+        //   schmale Spalte neben den Todos und füllt sich animiert beim
+        //   Abhaken; generische Vorlage aus vier Lebensbereichen (statt der
+        //   persönlichen Studien-Struktur, App geht in den Play Store);
+        //   App-Theme in Eisblau/Feuerrot mit Schimmer auf Hauptknöpfen;
+        //   Digital-Balance: Wiederbelebung nach Reboot/Update/Kill über
+        //   BootReceiver + 15-Minuten-Watchdog + Screen-On-Nudge; DB v45
+        //   (reine Daten-Migration: CATEGORY→PROJECT, TASK-mit-Kindern→
+        //   PROJECT, TODO→TASK).
+        versionCode = 33
+        versionName = "1.0.32"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

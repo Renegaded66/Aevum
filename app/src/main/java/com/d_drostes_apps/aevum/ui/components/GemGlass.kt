@@ -70,7 +70,8 @@ fun GemGlass(
     ghostCount: Int,
     modifier: Modifier = Modifier,
     full: Boolean = false,
-    maxGems: Int = 60
+    maxGems: Int = 60,
+    maxColumns: Int = 0
 ) {
     val shown = remember(gems, maxGems) { gems.take(maxGems) }
     val ghosts = remember(ghostCount, shown.size, maxGems) {
@@ -113,7 +114,8 @@ fun GemGlass(
             ghostCount = ghosts,
             dropProgress = drop.value,
             full = full,
-            sparkle = sparkle
+            sparkle = sparkle,
+            maxColumns = maxColumns
         )
     }
 }
@@ -125,7 +127,8 @@ private fun DrawScope.drawGlass(
     ghostCount: Int,
     dropProgress: Float,
     full: Boolean,
-    sparkle: Float
+    sparkle: Float,
+    maxColumns: Int
 ) {
     val w = size.width
     val h = size.height
@@ -138,8 +141,8 @@ private fun DrawScope.drawGlass(
     val availW = (right - left) - 2f * innerPad
     val availH = (bottom - top) - lip - 2f * innerPad
     val total = gems.size + ghostCount
-    val gem = gemSizeFor(availW, availH, total)
-    val cols = ((availW / (gem * 1.06f)).toInt()).coerceAtLeast(1)
+    val gem = gemSizeFor(availW, availH, total, maxColumns)
+    val cols = colCount(availW, gem, maxColumns)
     val pileSquash = (1f - dropProgress) * gem * 0.10f
 
     val vessel = Path().apply {
@@ -442,15 +445,24 @@ private fun pileSlot(
 }
 
 /** Kleinste Juwelengröße, die alle Steine in das Glas passt. */
-private fun gemSizeFor(availW: Float, availH: Float, total: Int): Float {
-    var gem = (availW / 6f).coerceAtMost(availH / 4.5f)
+private fun gemSizeFor(availW: Float, availH: Float, total: Int, maxColumns: Int): Float {
+    // M19.2: Die schmale Seitenspalte („Glas neben den Todos") bekommt ein
+    // Spaltenlimit — sonst würden die Juwelen dort zu winzigen Krümeln.
+    val startCols = if (maxColumns > 0) maxColumns.toFloat() else 6f
+    var gem = (availW / startCols).coerceAtMost(availH / 4.5f)
     var guard = 0
     while (guard < 60 && gem > 4f) {
-        val cols = ((availW / (gem * 1.06f)).toInt()).coerceAtLeast(1)
+        val cols = colCount(availW, gem, maxColumns)
         val rows = ((availH / (gem * 0.82f)).toInt()).coerceAtLeast(1)
         if (cols * rows + rows / 2 >= total) break
         gem *= 0.9f
         guard++
     }
     return gem
+}
+
+/** Spaltenzahl für eine Juwelengröße — optional auf [maxColumns] begrenzt. */
+private fun colCount(availW: Float, gem: Float, maxColumns: Int): Int {
+    val natural = ((availW / (gem * 1.06f)).toInt()).coerceAtLeast(1)
+    return if (maxColumns > 0) natural.coerceAtMost(maxColumns) else natural
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,14 +28,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Button
@@ -70,12 +68,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
+import com.d_drostes_apps.aevum.data.model.PmNode
 import com.d_drostes_apps.aevum.data.model.PmType
 import com.d_drostes_apps.aevum.domain.projects.PmDayHistory
 import com.d_drostes_apps.aevum.ui.components.FireworksOverlay
 import com.d_drostes_apps.aevum.ui.components.GemGlass
 import com.d_drostes_apps.aevum.ui.components.PlayfulProgressBar
 import com.d_drostes_apps.aevum.ui.components.PmColorDot
+import com.d_drostes_apps.aevum.ui.components.shimmering
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.theme.PmPalette
@@ -84,7 +84,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * M19.1: Projektmanagement — das neue Fragment.
+ * M19.1/M19.2: Projektmanagement — das neue Fragment.
  *
  * ÖFFNET SICH VON UNTEN: Der Übergang selbst passiert in der Navigation
  * (`AppNavHost`, eigener enterTransition für diese Route: Slide von unten).
@@ -92,10 +92,11 @@ import java.time.format.DateTimeFormatter
  * Kopf, Herunterziehen am Kopf schließt die Seite wieder. Bewusst NUR am Kopf
  * ziehbar — sonst würde jede Scroll-Geste zum Schließen führen.
  *
- * AUFBAU (siehe docs/M19-1-PROJEKTMANAGEMENT.md §4.2):
- *  - Tab „Heute" (Standard): Glas mit Juwelen und Gegenplätzen, Tages-Karussell
- *    je Aufgabe (Swipe links/rechts), Backlog zum Hereinziehen.
- *  - Tab „Projekte": der komplette Baum, beliebig tief.
+ * AUFBAU (M19.2):
+ *  - Tab „Heute": NUR die für heute zugewiesenen Aufgaben als To-do-Liste
+ *    (abhaken, ziehen, löschen) — und daneben, SEHR SCHMAL, das Glas, das
+ *    sich mit jedem abgehakten Schritt sichtbar füllt.
+ *  - Tab „Projekte": der komplette Baum (Projekte + Aufgaben), beliebig tief.
  */
 @Composable
 fun ProjectsScreen(
@@ -103,23 +104,21 @@ fun ProjectsScreen(
     onOpenNode: (String) -> Unit,
     onNewChild: (parentId: String?, type: String) -> Unit,
     onEditNode: (String) -> Unit,
-    onNewTodos: (parentId: String?) -> Unit,
-    onEditTodo: (String) -> Unit,
+    onEditTask: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProjectsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    val actions = remember(onClose, onOpenNode, onNewChild, onEditNode, onNewTodos, onEditTodo) {
+    val actions = remember(onClose, onOpenNode, onNewChild, onEditNode, onEditTask) {
         PmActions(
             onClose = onClose,
             onOpenNode = onOpenNode,
             onNewChild = onNewChild,
             onEditNode = onEditNode,
-            onNewTodos = onNewTodos,
-            onEditTodo = onEditTodo,
+            onEditTask = onEditTask,
             onTab = viewModel::setTab,
-            onToggle = viewModel::toggleTodo,
+            onToggle = viewModel::toggleTask,
             onSchedule = viewModel::schedule,
             onScheduleAll = viewModel::scheduleAllOpen,
             onExpand = viewModel::toggleExpand,
@@ -134,7 +133,8 @@ fun ProjectsScreen(
             onRemoveFromPlan = viewModel::removeFromPlan,
             onExample = viewModel::createExample,
             onFinishCelebration = viewModel::finishCelebration,
-            onDeleteTodo = viewModel::deleteTodo
+            onDeleteTask = viewModel::deleteTask,
+            onReorderToday = viewModel::reorderToday
         )
     }
     ProjectsContent(state = state, actions = actions, modifier = modifier)
@@ -144,12 +144,12 @@ fun ProjectsScreen(
 data class PmActions(
     val onClose: () -> Unit = {},
     val onOpenNode: (String) -> Unit = {},
+    /** Öffnet den Editor für ein neues (Unter-)Projekt — Aufgaben entstehen inline in der Liste. */
     val onNewChild: (String?, String) -> Unit = { _, _ -> },
     val onEditNode: (String) -> Unit = {},
-    val onNewTodos: (String?) -> Unit = {},
-    val onEditTodo: (String) -> Unit = {},
+    val onEditTask: (String) -> Unit = {},
     val onTab: (PmTab) -> Unit = {},
-    val onToggle: (com.d_drostes_apps.aevum.data.model.PmNode) -> Unit = {},
+    val onToggle: (PmNode) -> Unit = {},
     val onSchedule: (List<String>, String?) -> Unit = { _, _ -> },
     val onScheduleAll: (String, String?) -> Unit = { _, _ -> },
     val onExpand: (String) -> Unit = {},
@@ -164,7 +164,9 @@ data class PmActions(
     val onRemoveFromPlan: (List<String>) -> Unit = {},
     val onExample: () -> Unit = {},
     val onFinishCelebration: () -> Unit = {},
-    val onDeleteTodo: (com.d_drostes_apps.aevum.data.model.PmNode) -> Unit = {}
+    val onDeleteTask: (PmNode) -> Unit = {},
+    /** Drag & Drop in der Heute-Liste: lokale Indizes innerhalb der Projekt-Gruppe. */
+    val onReorderToday: (String, Int, Int) -> Unit = { _, _, _ -> }
 )
 
 @Composable
@@ -298,8 +300,7 @@ private fun PmTopBar(state: PmProjectsUiState, actions: PmActions) {
                     stringResource(
                         R.string.pm_structure_summary,
                         state.projectCount,
-                        state.taskCount,
-                        state.totalTodos
+                        state.taskCount
                     ),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -403,161 +404,222 @@ private fun PmTabButton(
     }
 }
 
-
 // ── Tab „Heute" ────────────────────────────────────────────────────────────
 
+/**
+ * M19.2: Nur Aufgaben, die HEUTE dran sind (inkl. übernommener vom Vortag) —
+ * als To-do-Liste zum Abhaken, Verschieben und Löschen. Daneben die schmale
+ * Glas-Spalte: Jeder Haken lässt ein Juwel hineinfallen.
+ */
 @Composable
 private fun ProjectsTodayTab(state: PmProjectsUiState, actions: PmActions) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = AevumSpacing.md,
-            end = AevumSpacing.md,
-            top = AevumSpacing.sm,
-            bottom = AevumSpacing.xxl
-        ),
-        verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
-    ) {
-        item(key = "glass") {
-            PmGlassHero(state = state, actions = actions)
-        }
-        if (state.groups.isNotEmpty()) {
-            item(key = "carousel-header") {
-                Column {
-                    Text(
-                        text = stringResource(R.string.pm_today_tasks),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = stringResource(R.string.pm_swipe_hint),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+    val listState = rememberLazyListState()
+
+    // Ziehbare Zeilen: die OFFENEN Aufgaben in Anzeige-Reihenfolge, mit ihrer
+    // Projekt-Gruppe (Grenzen bleiben innerhalb der Gruppe).
+    val openKeys = state.groups.flatMap { group ->
+        group.rows.filter { !it.done }.map { it.node.id }
+    }
+    val groupOf = state.groups.flatMap { group ->
+        group.rows.filter { !it.done }.map { it.node.id to group.id }
+    }.toMap()
+    val drag = rememberPmDragController(listState, openKeys, groupOf, actions.onReorderToday)
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            state = listState,
+            contentPadding = PaddingValues(
+                start = AevumSpacing.md,
+                end = AevumSpacing.sm,
+                top = AevumSpacing.sm,
+                bottom = AevumSpacing.xxl
+            ),
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+        ) {
+            item(key = "today-status") {
+                PmTodayStatus(state = state, actions = actions)
+            }
+
+            if (state.groups.isNotEmpty()) {
+                state.groups.forEach { group ->
+                    val accent = PmPalette.color(group.colorHex)
+                    item(key = "group-" + group.id) {
+                        PmTodayGroupHeader(group = group, accent = accent, actions = actions)
+                    }
+                    items(group.rows, key = { "task-" + it.node.id }) { row ->
+                        val draggable = !row.done
+                        PmTaskRowView(
+                            task = row.node,
+                            accent = accent,
+                            rolloverDays = row.rolloverDays,
+                            burst = state.lastCompletedId == row.node.id,
+                            dateChip = pmShortDate(row.node.scheduledDate),
+                            menuActions = pmTodayMenuActions(row.node, state, actions),
+                            dragHandle = if (draggable) {
+                                { PmDragHandleIcon(controller = drag, key = row.node.id) }
+                            } else null,
+                            onToggle = { actions.onToggle(row.node) },
+                            modifier = Modifier.pmDragFloat(drag, row.node.id)
+                        )
+                    }
+                }
+            } else if (!state.isCompletelyEmpty) {
+                item(key = "no-plan") {
+                    PmNoPlanCard(state = state, actions = actions)
                 }
             }
-            item(key = "carousel") {
-                PmTaskCarousel(state = state, actions = actions)
+
+            if (state.isCompletelyEmpty) {
+                item(key = "empty") {
+                    PmEmptyProjects(actions = actions)
+                }
             }
+        }
+
+        PmGlassPanel(state = state)
+    }
+}
+
+/** Kopf der Heute-Liste: Zähler, Übernahme-Hinweis, dünner Balken, 7-Tage-Streifen. */
+@Composable
+private fun PmTodayStatus(state: PmProjectsUiState, actions: PmActions) {
+    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (state.totalToday > 0) {
+                    stringResource(R.string.pm_counter, state.doneToday, state.totalToday) + " · " +
+                        stringResource(R.string.pm_counter_label)
+                } else {
+                    stringResource(R.string.pm_glass_empty)
+                },
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (state.allDone) PmPalette.complete else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.weight(1f))
+            if (state.rolloverToday > 0) {
+                PmChip(
+                    text = stringResource(R.string.pm_rollover_chip, state.rolloverToday),
+                    color = PmPalette.rollover,
+                    filled = true
+                )
+            }
+        }
+        if (state.totalToday == 0) {
+            Text(
+                text = stringResource(R.string.pm_glass_empty_hint),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (state.allDone) {
+            Text(
+                text = stringResource(R.string.pm_all_done_sub),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PmPalette.complete
+            )
         } else {
-            item(key = "no-today") {
-                PmNoPlanCard(state = state, actions = actions)
+            Text(
+                text = stringResource(R.string.pm_gems_remaining, state.pendingToday),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (state.totalToday > 0) {
+            PlayfulProgressBar(
+                progress = state.fraction,
+                accent = MaterialTheme.colorScheme.primary,
+                height = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+            )
+        }
+        PmDayStrip(history = state.history)
+    }
+}
+
+/** Kopf einer Projekt-Gruppe in der Heute-Liste. */
+@Composable
+private fun PmTodayGroupHeader(group: PmTodayGroupUi, accent: Color, actions: PmActions) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = AevumSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PmColorDot(color = accent, size = 10.dp)
+        Spacer(Modifier.width(AevumSpacing.xs))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = group.title.ifEmpty { stringResource(R.string.pm_no_parent) },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (group.breadcrumb.isNotEmpty()) {
+                Text(
+                    text = group.breadcrumb,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
             }
         }
-        if (state.backlog.isNotEmpty()) {
-            item(key = "backlog") {
-                PmBacklogSection(state = state, actions = actions)
-            }
+        if (group.progress.total > 0) {
+            Text(
+                text = group.progress.label,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        if (state.isCompletelyEmpty) {
-            item(key = "empty") {
-                PmEmptyProjects(actions = actions)
+        if (group.group.node != null) {
+            TextButton(onClick = { actions.onOpenNode(group.id) }) {
+                Text(stringResource(R.string.pm_task_details), fontSize = 11.sp)
             }
         }
     }
 }
 
 /**
- * Das Glas mit allem, was in einem Blick da sein muss:
- * Zähler, Gefäß mit Juwelen und Gegenplätzen, Balken, 7-Tage-Streifen.
+ * Das schmale Glas NEBEN den Todos (Nutzerwunsch: „sehr schmal, dass man auch
+ * die Todos richtig lesen kann; beim Abhaken kommt die Animation, wie das
+ * Glas voller wird").
  */
 @Composable
-private fun PmGlassHero(state: PmProjectsUiState, actions: PmActions) {
-    val accent = MaterialTheme.colorScheme.primary
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AevumRadius.xl),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (state.allDone) PmPalette.complete.copy(alpha = 0.55f) else accent.copy(alpha = 0.25f)
-        )
+private fun PmGlassPanel(state: PmProjectsUiState) {
+    Column(
+        modifier = Modifier
+            .width(74.dp)
+            .fillMaxHeight()
+            .padding(horizontal = 6.dp, vertical = AevumSpacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
     ) {
-        Column(
-            modifier = Modifier.padding(AevumSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.pm_glass_title),
-                    fontSize = 13.sp,
-                    letterSpacing = 1.2.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.weight(1f))
-                if (state.rolloverToday > 0) {
-                    PmChip(
-                        text = stringResource(R.string.pm_rollover_chip, state.rolloverToday),
-                        color = PmPalette.rollover,
-                        filled = true
-                    )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = state.doneToday.toString(),
-                    fontSize = 40.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = if (state.allDone) PmPalette.complete else MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.width(AevumSpacing.sm))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (state.totalToday > 0) {
-                            stringResource(R.string.pm_counter, state.doneToday, state.totalToday) + " · " +
-                                stringResource(R.string.pm_counter_label)
-                        } else {
-                            stringResource(R.string.pm_glass_empty)
-                        },
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (state.allDone) stringResource(R.string.pm_all_done_sub)
-                        else if (state.totalToday > 0) stringResource(R.string.pm_gems_remaining, state.pendingToday)
-                        else stringResource(R.string.pm_glass_empty_hint),
-                        fontSize = 11.sp,
-                        color = if (state.allDone) PmPalette.complete else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            GemGlass(
-                gems = state.gems,
-                ghostCount = state.ghostCount,
-                full = state.allDone,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(196.dp),
-                maxGems = 60
-            )
-
-            PlayfulProgressBar(
-                progress = state.fraction,
-                accent = accent,
-                height = 11.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(11.dp)
-            )
-
-            PmDayStrip(history = state.history)
-
-            OutlinedButton(
-                onClick = actions.onOpenPlanner,
-                shape = RoundedCornerShape(percent = 50),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.pm_plan_day), fontSize = 13.sp)
-            }
-        }
+        Text(
+            text = stringResource(R.string.pm_counter, state.doneToday, state.totalToday),
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            color = if (state.allDone) PmPalette.complete else MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = stringResource(R.string.pm_glass_short),
+            fontSize = 9.sp,
+            letterSpacing = 1.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        GemGlass(
+            gems = state.gems,
+            ghostCount = state.ghostCount,
+            full = state.allDone,
+            maxColumns = 3,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        )
     }
 }
 
@@ -581,7 +643,7 @@ private fun PmDayStrip(history: List<PmDayHistory>) {
             history.forEach { day ->
                 val fill = if (max <= 0) 0f else (day.done.toFloat() / max).coerceIn(0f, 1f)
                 val height by animateDpAsState(
-                    targetValue = (4 + 30 * fill).dp,
+                    targetValue = (4 + 26 * fill).dp,
                     animationSpec = tween(600),
                     label = "pm-day-bar"
                 )
@@ -592,7 +654,7 @@ private fun PmDayStrip(history: List<PmDayHistory>) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(34.dp),
+                            .height(30.dp),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Box(
@@ -672,290 +734,26 @@ private fun PmNoPlanCard(state: PmProjectsUiState, actions: PmActions) {
             ) {
                 Text(stringResource(R.string.pm_plan_day))
             }
-            if (state.totalTodos > 0 && state.backlogTotal == 0) {
-                // Alles ist verplant, aber nichts für heute → Tag bewusst leer.
-                Text(
-                    text = stringResource(R.string.pm_backlog_empty),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
 
 /**
- * Das Karussell: eine Karte je Aufgabe mit heutigen Todos.
- * Swipe nach links/rechts wechselt die Aufgabe (Anforderung des Nutzers).
+ * Datumsmenü einer Heute-Zeile — inklusive Bearbeiten und LÖSCHEN
+ * (Nutzerwunsch: „und auch die Möglichkeit zum löschen").
  */
 @Composable
-private fun PmTaskCarousel(state: PmProjectsUiState, actions: PmActions) {
-    val groups = state.groups
-    if (groups.isEmpty()) return
-    val pagerState = rememberPagerState(pageCount = { groups.size })
-
-    Column {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(380.dp),
-            pageSpacing = AevumSpacing.md
-        ) { page ->
-            val group = groups[page]
-            PmTaskCard(group = group, state = state, actions = actions)
-        }
-        Spacer(Modifier.height(AevumSpacing.sm))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            groups.forEachIndexed { index, group ->
-                val active = index == pagerState.currentPage
-                val size by animateDpAsState(
-                    targetValue = if (active) 22.dp else 8.dp,
-                    animationSpec = tween(220),
-                    label = "pm-dot"
-                )
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 3.dp)
-                        .width(size)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(
-                            if (active) PmPalette.color(group.colorHex)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-                        )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PmTaskCard(
-    group: PmTodayGroupUi,
-    state: PmProjectsUiState,
-    actions: PmActions
-) {
-    val accent = PmPalette.color(group.colorHex)
-    val doneCount = group.rows.count { it.done }
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        shape = RoundedCornerShape(AevumRadius.xl),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.padding(
-                    start = AevumSpacing.md,
-                    end = AevumSpacing.md,
-                    top = AevumSpacing.md,
-                    bottom = AevumSpacing.sm
-                ),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = group.breadcrumb.ifEmpty { stringResource(R.string.pm_no_parent) },
-                    fontSize = 10.sp,
-                    letterSpacing = 0.8.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = group.title.ifEmpty { stringResource(R.string.pm_no_parent) },
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    val due = pmDueLabel(group.group.node?.dueDate, state.today)
-                    if (due != null) {
-                        PmChip(text = due, color = PmPalette.rollover, filled = true)
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PlayfulProgressBar(
-                        progress = group.progress.fraction,
-                        accent = accent,
-                        height = 12.dp,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(12.dp)
-                    )
-                    Spacer(Modifier.width(AevumSpacing.sm))
-                    Text(
-                        text = stringResource(
-                            R.string.pm_task_progress,
-                            group.progress.done,
-                            group.progress.total
-                        ),
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (group.progress.isComplete) PmPalette.complete
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (group.progress.isComplete) {
-                    Text(
-                        text = "✓ " + stringResource(R.string.pm_task_done),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = PmPalette.complete
-                    )
-                }
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = AevumSpacing.sm),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                items(group.rows, key = { it.node.id }) { row ->
-                    PmTodoRowView(
-                        todo = row.node,
-                        accent = accent,
-                        rolloverDays = row.rolloverDays,
-                        burst = state.lastCompletedId == row.node.id,
-                        dateChip = pmShortDate(row.node.scheduledDate),
-                        menuActions = pmTodoMenuActions(row.node, state, actions),
-                        onToggle = { actions.onToggle(row.node) }
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = {
-                    group.group.node?.let { actions.onScheduleAll(it.id, state.today.toString()) }
-                }) {
-                    Text(stringResource(R.string.pm_pull_all_today), fontSize = 12.sp)
-                }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = {
-                    val target = group.group.node?.id
-                    if (target != null) actions.onOpenNode(target) else actions.onOpenPlanner()
-                }) {
-                    Text(stringResource(R.string.pm_task_details), fontSize = 12.sp)
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp))
-                }
-            }
-        }
-    }
-}
-
-/**
- * Backlog: offene Todos ohne Datum, gruppiert je Aufgabe.
- * Hier zieht Devon morgens die Schritte in den Tag — einzeln oder komplett.
- */
-@Composable
-private fun PmBacklogSection(state: PmProjectsUiState, actions: PmActions) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AevumRadius.xl),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
-    ) {
-        Column(modifier = Modifier.padding(AevumSpacing.md)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.pm_backlog_title),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = stringResource(R.string.pm_backlog_hint),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                PmChip(
-                    text = state.backlogTotal.toString(),
-                    color = MaterialTheme.colorScheme.primary,
-                    filled = true
-                )
-            }
-            Spacer(Modifier.height(AevumSpacing.sm))
-            state.backlog.forEach { group ->
-                val accent = PmPalette.color(
-                    group.group.node?.color ?: com.d_drostes_apps.aevum.domain.projects.PmColors.colorFor(group.group.id)
-                )
-                Column(modifier = Modifier.padding(bottom = AevumSpacing.sm)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        PmColorDot(color = accent)
-                        Spacer(Modifier.width(AevumSpacing.xs))
-                        Text(
-                            text = group.group.title.ifEmpty { stringResource(R.string.pm_no_parent) },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = {
-                            group.group.node?.let { actions.onScheduleAll(it.id, state.today.toString()) }
-                        }) {
-                            Text(stringResource(R.string.pm_pull_all_today), fontSize = 11.sp)
-                        }
-                    }
-                    group.todos.take(6).forEach { todo ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            PmTodoRowView(
-                                todo = todo,
-                                accent = accent,
-                                menuActions = pmTodoMenuActions(todo, state, actions),
-                                onToggle = { actions.onToggle(todo) },
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = { actions.onSchedule(listOf(todo.id), state.today.toString()) }) {
-                                Text(stringResource(R.string.pm_pull_today), fontSize = 11.sp)
-                            }
-                        }
-                    }
-                    if (group.todos.size > 6) {
-                        TextButton(onClick = {
-                            group.group.node?.let { actions.onOpenNode(it.id) }
-                        }) {
-                            Text(
-                                text = stringResource(R.string.pm_more_todos, group.todos.size - 6),
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Datumsmenü einer Zeile — der Einzeltipp-Weg zur Tageszuweisung.
- * Bewusst als @Composable: Die Beschriftungen kommen aus den Ressourcen,
- * damit die App auch in Englisch korrekt bleibt.
- */
-@Composable
-private fun pmTodoMenuActions(
-    todo: com.d_drostes_apps.aevum.data.model.PmNode,
+private fun pmTodayMenuActions(
+    task: PmNode,
     state: PmProjectsUiState,
     actions: PmActions
 ): List<PmRowAction> {
     val today = state.today
     return listOf(
-        PmRowAction(stringResource(R.string.pm_today)) { actions.onSchedule(listOf(todo.id), today.toString()) },
-        PmRowAction(stringResource(R.string.pm_tomorrow)) { actions.onSchedule(listOf(todo.id), today.plusDays(1).toString()) },
-        PmRowAction(stringResource(R.string.pm_date_none)) { actions.onSchedule(listOf(todo.id), null) },
-        PmRowAction(stringResource(R.string.pm_delete)) { actions.onDeleteTodo(todo) }
+        PmRowAction(stringResource(R.string.pm_tomorrow)) { actions.onSchedule(listOf(task.id), today.plusDays(1).toString()) },
+        PmRowAction(stringResource(R.string.pm_date_none)) { actions.onSchedule(listOf(task.id), null) },
+        PmRowAction(stringResource(R.string.pm_edit)) { actions.onEditTask(task.id) },
+        PmRowAction(stringResource(R.string.pm_delete)) { actions.onDeleteTask(task) }
     )
 }
 
@@ -1002,29 +800,50 @@ private fun ProjectsTreeTab(state: PmProjectsUiState, actions: PmActions) {
             }
         }
         items(state.treeRows, key = { it.node.id }) { row ->
-            PmContainerRowView(
-                node = row.node,
-                progress = row.progress,
-                accent = PmPalette.color(row.colorHex),
-                breadcrumb = if (row.node.type == PmType.TASK) null else pmTypeLabel(row.node.type),
-                dueLabel = pmDueLabel(row.node.dueDate, state.today),
-                hasChildren = row.hasChildren,
-                expanded = row.expanded,
-                showExpand = true,
-                onExpand = { actions.onExpand(row.node.id) },
-                onClick = { actions.onOpenNode(row.node.id) },
-                menuActions = listOf(
-                    PmRowAction(stringResource(R.string.pm_edit)) { actions.onEditNode(row.node.id) },
-                    PmRowAction(stringResource(R.string.pm_node_add_todo)) { actions.onNewTodos(row.node.id) }
-                ),
-                modifier = Modifier.padding(start = (row.depth * 14).dp)
-            )
+            if (row.node.isTask) {
+                PmTaskRowView(
+                    task = row.node,
+                    accent = PmPalette.color(row.colorHex),
+                    dateChip = pmShortDate(row.node.scheduledDate),
+                    burst = state.lastCompletedId == row.node.id,
+                    menuActions = listOf(
+                        PmRowAction(stringResource(R.string.pm_today)) { actions.onSchedule(listOf(row.node.id), state.today.toString()) },
+                        PmRowAction(stringResource(R.string.pm_tomorrow)) { actions.onSchedule(listOf(row.node.id), state.today.plusDays(1).toString()) },
+                        PmRowAction(stringResource(R.string.pm_date_none)) { actions.onSchedule(listOf(row.node.id), null) },
+                        PmRowAction(stringResource(R.string.pm_edit)) { actions.onEditTask(row.node.id) },
+                        PmRowAction(stringResource(R.string.pm_delete)) { actions.onDeleteTask(row.node) }
+                    ),
+                    onToggle = { actions.onToggle(row.node) },
+                    modifier = Modifier.padding(start = (row.depth * 14).dp)
+                )
+            } else {
+                PmContainerRowView(
+                    node = row.node,
+                    progress = row.progress,
+                    accent = PmPalette.color(row.colorHex),
+                    breadcrumb = row.breadcrumb,
+                    dueLabel = pmDueLabel(row.node.dueDate, state.today),
+                    hasChildren = row.hasChildren,
+                    expanded = row.expanded,
+                    showExpand = true,
+                    onExpand = { actions.onExpand(row.node.id) },
+                    onClick = { actions.onOpenNode(row.node.id) },
+                    menuActions = listOf(
+                        PmRowAction(stringResource(R.string.pm_edit)) { actions.onEditNode(row.node.id) },
+                        PmRowAction(stringResource(R.string.pm_node_new_sub)) { actions.onNewChild(row.node.id, PmType.PROJECT) }
+                    ),
+                    modifier = Modifier.padding(start = (row.depth * 14).dp)
+                )
+            }
         }
         item(key = "new-project") {
             Button(
                 onClick = { actions.onNewChild(null, PmType.PROJECT) },
                 shape = RoundedCornerShape(AevumRadius.lg),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.lg))
+                    .shimmering(intensity = 0.22f)
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
@@ -1062,7 +881,10 @@ private fun PmEmptyProjects(actions: PmActions) {
             Button(
                 onClick = actions.onExample,
                 shape = RoundedCornerShape(percent = 50),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(percent = 50))
+                    .shimmering(intensity = 0.26f)
             ) {
                 Text(stringResource(R.string.pm_example_insert))
             }
@@ -1138,11 +960,9 @@ private fun PmSky() {
     }
 }
 
-/** Beschriftung der Knotenart. */
+/** Beschriftung der Knotenart (nur noch zwei Arten). */
 @Composable
 internal fun pmTypeLabel(type: String): String = when (type) {
     PmType.PROJECT -> stringResource(R.string.pm_type_project)
-    PmType.CATEGORY -> stringResource(R.string.pm_type_category)
-    PmType.TASK -> stringResource(R.string.pm_type_task)
-    else -> stringResource(R.string.pm_type_todo)
+    else -> stringResource(R.string.pm_type_task)
 }

@@ -157,16 +157,20 @@ Nach Onboarding startet die App immer im Dashboard, da dies der zentrale Nutzwer
 - Insights-Heatmap öffnet den gewählten Tag in der Timeline.
 - Weekly Review ist aus Insights erreichbar und öffnet Timeline-Tage sowie Review Inbox.
 
-## Projektmanagement (M19.1)
+## Projektmanagement (M19.2)
 
 Drei Routen, ein Einstieg:
 
 ```text
-Dashboard (Knopf oben rechts, Zähler der offenen Todos)
+Dashboard (Knopf oben rechts, Zähler der offenen Aufgaben)
    └── Projects            "projects"                    — Sheet von unten
         ├── ProjectsNode   "projects/node/{nodeId}"       — Hierarchie (Push)
-        └── PmEditor       "pm_editor?mode={mode}&nodeId=&parentId=&type="
+        └── PmEditor       "pm_editor?mode={mode}&nodeId={nodeId}&parentId={parentId}"
 ```
+
+M19.2: Der Editor kennt keinen `type`-Parameter mehr (nur noch Projekte und
+Aufgaben); alte Links mit `&type=` werden beim Einlesen toleriert
+(`PmEditorMode.from`).
 
 **Übergänge** (bewusst nur für diese Routen gesetzt, alles andere bleibt beim
 App-Standard):

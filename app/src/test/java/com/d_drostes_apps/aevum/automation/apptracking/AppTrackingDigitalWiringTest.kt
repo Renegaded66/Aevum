@@ -30,8 +30,24 @@ import java.io.File
  *     nutzt.
  *  5. WORKER-GUARD: Der ScreenRecordingWorker startet kein Digital, wenn
  *     eine getrackte App im Vordergrund ist (Probe + Poll-Schnappschuss).
- *  6. EINE SEMANTIK: „Vordergrund" wird nur über [ForegroundTracker]
+ *  6. EINE SEMANTIK: „Vordergrund“ wird nur über [ForegroundTracker]
  *     gefaltet (Service + Probe).
+ *
+ * M19.2 (User-Report: „… wird einfach weiterhin nur Digital aufgezeichnet —
+ * die zugewiesene Activity startet nicht mehr“): Gesichert wird zusätzlich
+ * die WIEDERBELEBUNG der App-Aufzeichnung nach Reboot / App-Update / Kill:
+ *  7. REVIVAL: AevumApplication (App-Start) UND BootReceiver (Boot +
+ *     MY_PACKAGE_REPLACED, siehe Manifest) starten den Service und planen
+ *     den AppTrackingWatchdogWorker ein — der Service hatte vorher nur
+ *     Start-Pfade beim App-Prozess-Start und in den Settings, während
+ *     „Digital“ über den Manifest-Receiver von selbst weiterlief.
+ *  8. SCREEN-ON-NUDGE: Der ScreenEventReceiver belebt beim nächsten
+ *     Screen-On sofort (isAlive-Gate + getrackte-Apps-Gate) — vorher
+ *     waren es maximal 15 Minuten Watchdog-Takt.
+ *  9. WATCHDOG: 15-Minuten-Periodikarbeit mit KEEP; gated auf
+ *     getEnabledOnce()-Leere und AppTrackingService.isAlive().
+ * 10. LIVENESS: Der Service pflegt alive (onCreate/onDestroy) und
+ *     lastPollAtMs (Poll) — Grundlage der Gates der Revival-Pfade.
  */
 class AppTrackingDigitalWiringTest {
 
@@ -54,6 +70,24 @@ class AppTrackingDigitalWiringTest {
     private fun managerSource() = source("domain/liveactivity/LiveActivityManager.kt")
     private fun policySource() = source("automation/apptracking/AppTrackingTakeoverPolicy.kt")
     private fun probeSource() = source("automation/apptracking/ForegroundAppProbe.kt")
+
+    // ── M19.2-Quellen ─────────────────────────────────────────────
+
+    private fun watchdogSource() = source("automation/apptracking/AppTrackingWatchdogWorker.kt")
+    private fun appSource() = source("AevumApplication.kt")
+    private fun bootSource() = source("automation/geofence/BootReceiver.kt")
+
+    /** Manifest liegt (anders als die Kotlin-Sourcen) direkt unter src/main. */
+    private fun manifestSource(): String {
+        val candidates = listOf(
+            File("src/main/AndroidManifest.xml"),
+            File("app/src/main/AndroidManifest.xml")
+        )
+        val file = candidates.firstOrNull { it.exists() }
+        assertWithMessage("AndroidManifest.xml fehlt (${candidates.joinToString()})")
+            .that(file != null).isTrue()
+        return file!!.readText()
+    }
 
     // ── 1) Übergabe Digital → App ─────────────────────────────────
 
@@ -195,5 +229,108 @@ class AppTrackingDigitalWiringTest {
             .that(src).contains("rememberForegroundSnapshot()")
         assertWithMessage("recentPollSnapshot(maxAgeMs) fehlt")
             .that(src).contains("fun recentPollSnapshot(maxAgeMs: Long): String?")
+    }
+
+    // ── 9) M19.2: WIEDERBELEBUNG nach Boot/Update/Kill ────────────
+
+    @Test
+    fun `AevumApplication und BootReceiver beleben die App-Aufzeichnung nach Boot und Update`() {
+        val app = appSource()
+        assertWithMessage("AevumApplication muss den AppTrackingService starten (App-Prozess-Start, M18.67-Pfad muss bleiben)")
+            .that(app).contains("AppTrackingService.start(this)")
+        assertWithMessage("AevumApplication muss den Watchdog einplanen — sonst bleibt die App-Aufzeichnung nach dem nächsten Kill/Reboot/Update wieder tot (nur Digital läuft weiter)")
+            .that(app).contains("AppTrackingWatchdogWorker.schedule(this)")
+        val boot = bootSource()
+        assertWithMessage("BootReceiver muss den AppTrackingService starten — Boot und MY_PACKAGE_REPLACED sind die einzigen System-Anlässe, wenn die App selbst nie geöffnet wird")
+            .that(boot).contains("AppTrackingService.start(context)")
+        assertWithMessage("BootReceiver muss den Watchdog einplanen (Takt nach Boot/Update neu anstoßen, KEEP macht es idempotent)")
+            .that(boot).contains("AppTrackingWatchdogWorker.schedule(context)")
+        assertWithMessage("Die Wiederbelebung muss IM handleBoot-Pfad stehen (onReceive leitet nur weiter)")
+            .that(boot.indexOf("private fun handleBoot(context: Context)") < boot.indexOf("AppTrackingService.start(context)")).isTrue()
+        assertWithMessage("Sofort-Start muss VOR dem Watchdog-Einplan stehen (erst Service beleben, dann Takt)")
+            .that(boot.indexOf("AppTrackingService.start(context)") < boot.indexOf("AppTrackingWatchdogWorker.schedule(context)")).isTrue()
+        assertWithMessage("Der bewusste Verzicht auf den Location-FGS-Start nach Boot darf nicht entfernt werden (Android-15-Richtlinie)")
+            .that(boot).contains("Location-FGS nach Boot bewusst übersprungen")
+    }
+
+    @Test
+    fun `Manifest meldet MY_PACKAGE_REPLACED fuer den BootReceiver an`() {
+        val manifest = manifestSource()
+        val idx = manifest.indexOf(".automation.geofence.BootReceiver")
+        assertWithMessage("BootReceiver-Eintrag im Manifest fehlt").that(idx).isAtLeast(0)
+        val block = manifest.substring(idx, (idx + 800).coerceAtMost(manifest.length))
+        assertWithMessage("BOOT_COMPLETED fehlt im Intent-Filter des BootReceivers (bestehendes Verhalten)")
+            .that(block).contains("android.intent.action.BOOT_COMPLETED")
+        assertWithMessage("MY_PACKAGE_REPLACED fehlt — nach App-Update stirbt der Prozess, und ohne diese Action belebt nichts die App-Aufzeichnung neu (der Code im BootReceiver verarbeitet die Action bereits)")
+            .that(block).contains("android.intent.action.MY_PACKAGE_REPLACED")
+    }
+
+    @Test
+    fun `ScreenEventReceiver nudged beim Screen-On sofort — Wiederbelebung mit isAlive-Guard`() {
+        val src = receiverSource()
+        assertWithMessage("Deps-Zugang zum AppTrackingEntryRepository fehlt (Gate: nur bei getrackten Apps beleben)")
+            .that(src).contains("fun appTrackingEntryRepository(): com.d_drostes_apps.aevum.data.repository.AppTrackingEntryRepository")
+        assertWithMessage("isAlive-Guard fehlt — jeder Screen-On würde im Normalbetrieb den laufenden Service doppelt anstoßen")
+            .that(src).contains("!com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.isAlive()")
+        assertWithMessage("Der Nudge muss getrackte Apps als Gate prüfen (getEnabledOnce) — sonst startet er den Service, der sich im Gate sofort wieder selbst beendet")
+            .that(src).contains("deps.appTrackingEntryRepository().getEnabledOnce()")
+        assertWithMessage("Der Nudge muss den Service STARTEN (AppTrackingService.start(appContext))")
+            .that(src).contains("AppTrackingService.start(appContext)")
+        val scheduleIdx = src.indexOf(".schedule(appContext, minutes")
+        val offIdx = src.indexOf("} else if (type == \"OFF\") {")
+        val nudgeIdx = src.indexOf("AppTrackingService.isAlive()")
+        assertWithMessage("Der Nudge muss im ON/UNLOCK-Zweig der Bildschirm-Aufzeichnung liegen (nach dem Digital-Einplan, vor dem OFF-Zweig) — genau dort weiß das System, dass der Screen gerade an ging")
+            .that(scheduleIdx in 0 until nudgeIdx && nudgeIdx < offIdx).isTrue()
+    }
+
+    @Test
+    fun `Watchdog-Worker ist 15-Minuten-Periodikarbeit mit KEEP und gated auf getrackte Apps und isAlive`() {
+        val src = watchdogSource()
+        assertWithMessage("Der UniqueWork-Name app_tracking_watchdog fehlt")
+            .that(src).contains("const val WORK_NAME = \"app_tracking_watchdog\"")
+        assertWithMessage("Periodikarbeit fehlt — der Watchdog muss enqueueUniquePeriodicWork nutzen")
+            .that(src).contains("enqueueUniquePeriodicWork")
+        assertWithMessage("15-Minuten-Takt fehlt (Mindestintervall von WorkManager)")
+            .that(src).contains("15, java.util.concurrent.TimeUnit.MINUTES")
+        assertWithMessage("KEEP-Policy fehlt — erneutes Einstecken (App-Start + Boot) würde sonst den laufenden Takt zurücksetzen")
+            .that(src).contains("ExistingPeriodicWorkPolicy.KEEP")
+        assertWithMessage("schedule(context) fehlt — der zentrale Einplan-Punkt für AevumApplication und BootReceiver")
+            .that(src).contains("fun schedule(context: Context)")
+        assertWithMessage("Gate 1 fehlt: getEnabledOnce() als Quelle der getrackten Apps")
+            .that(src).contains("getEnabledOnce()")
+        assertWithMessage("Gate 1 fehlt: ohne getrackte Apps muss der Worker ein No-Op sein (if (tracked.isEmpty()))")
+            .that(src).contains("if (tracked.isEmpty())")
+        assertWithMessage("Gate 2 fehlt: lebt der Service schon (isAlive), darf nicht doppelt gestartet werden")
+            .that(src).contains("AppTrackingService.isAlive()")
+        assertWithMessage("Die Wiederbelebung muss den Service STARTEN")
+            .that(src).contains("AppTrackingService.start(applicationContext)")
+        assertWithMessage("Gate-Reihenfolge falsch: erst der Leere-Check (getrackte Apps), dann isAlive")
+            .that(src.indexOf("if (tracked.isEmpty())") < src.indexOf("AppTrackingService.isAlive()")).isTrue()
+    }
+
+    @Test
+    fun `Service setzt alive in onCreate und onDestroy und pflegt lastPollAtMs im Poll`() {
+        val src = serviceSource()
+        assertWithMessage("alive-Flag fehlt im Companion (@Volatile private var alive) — Grundlage des isAlive-Gates der Revival-Pfade")
+            .that(src).contains("@Volatile private var alive")
+        assertWithMessage("lastPollAtMs-Flag fehlt (@Volatile private var lastPollAtMs)")
+            .that(src).contains("@Volatile private var lastPollAtMs")
+        assertWithMessage("fun isAlive(): Boolean fehlt")
+            .that(src).contains("fun isAlive(): Boolean")
+        assertWithMessage("fun lastPollAtMs(): Long fehlt")
+            .that(src).contains("fun lastPollAtMs(): Long")
+        val createIdx = src.indexOf("override fun onCreate()")
+        val commandIdx = src.indexOf("override fun onStartCommand")
+        assertWithMessage("onCreate muss alive = true setzen — sonst hält der Watchdog den Service für Leichen im Normalbetrieb")
+            .that(src.substring(createIdx, commandIdx)).contains("alive = true")
+        val destroyIdx = src.indexOf("override fun onDestroy()")
+        assertWithMessage("onDestroy muss alive = false setzen — sonst würde eine bewusst beendete App-Aufzeichnung sofort wiederbelebt")
+            .that(src.substring(destroyIdx)).contains("alive = false")
+        val pollIdx = src.indexOf("private suspend fun pollForegroundApp()")
+        val pollBlock = src.substring(pollIdx, (pollIdx + 400).coerceAtMost(src.length))
+        assertWithMessage("pollForegroundApp muss lastPollAtMs pflegen (Watchdog/Nudge erkennen daran einen wirklich lebenden Service)")
+            .that(pollBlock).contains("lastPollAtMs = System.currentTimeMillis()")
+        assertWithMessage("lastPollAtMs muss als ERSTE Anweisung im Poll gepflegt werden (auch ein Abbruch danach ist dann sichtbar)")
+            .that(pollBlock.indexOf("lastPollAtMs = System.currentTimeMillis()") < pollBlock.indexOf("processForegroundEvents()")).isTrue()
     }
 }

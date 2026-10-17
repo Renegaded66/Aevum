@@ -617,3 +617,30 @@ abweichende Migration wäre also ein Startabsturz nach dem Update.
 **Export/Backup:** `DataManager` arbeitet auf der SQLite-Datei und erfasst
 alle Tabellen — `pm_node` ist damit automatisch in JSON-Export und ZIP-Backup
 enthalten, ohne eigenen Code.
+
+
+## M19.2 — Projektmanagement-Umbau (Version 45)
+
+Gleiches Schema, neue BEDEUTUNG: Das Projektmanagement kennt nur noch ZWEI
+Knotenarten — `PROJECT` (Container, beliebig verschachtelbar) und `TASK`
+(abhakbares Blatt). Die Spalte `type` trägt ab Version 45 ausschließlich
+diese zwei Werte.
+
+**Migration 44 → 45 ist eine reine Daten-Migration** (`MIGRATION_44_45`);
+das Tabellenschema bleibt Zeichen für Zeichen identisch:
+
+| alt (44) | neu (45) | Regel |
+|---|---|---|
+| `CATEGORY` | `PROJECT` | Kategorien werden Unterprojekte |
+| `TASK` mit Kindern | `PROJECT` | alte „Aufgabe mit Schritten" wird Unterprojekt, Kinder bleiben Aufgaben |
+| `TODO` | `TASK` | alte Schritte sind jetzt die abhakbaren Aufgaben |
+| `TASK` ohne Kinder | `TASK` | unverändert |
+
+Die drei UPDATE-Anweisungen stehen als Konstanten in `AppDatabase`
+(`SQL_PM_44_45_CATEGORY_TO_PROJECT`, `..._TASK_WITH_CHILDREN_TO_PROJECT`,
+`..._TODO_TO_TASK`). Zwei Tests sichern sie ab: `PmMigrationSchemaTest`
+hält fest, dass `44.json` und `45.json` Element für Element gleich sind
+(nur die Versionsnummer unterscheidet sich), und `PmMigrationDataTest` fährt
+die Migration auf einer echten SQLite-Datenbank durch — aufgebaut aus
+`44.json`, Altdaten eingefüllt, über Room geöffnet — und prüft Typen, Datum,
+Erledigung und Sortierung des Ergebnisses.

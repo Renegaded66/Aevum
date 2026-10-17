@@ -113,6 +113,26 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "DriveProbeWorker schedule failed: ${e.message}")
         }
+        // M19.2 (User-Report: „… wird einfach weiterhin nur Digital
+        // aufgezeichnet — die zugewiesene Activity startet nicht mehr"):
+        // App-Aufzeichnung nach Boot/Update neu anstoßen. Der Service hatte
+        // bisher nur Start-Pfade beim App-Prozess-Start und in den
+        // Settings — nach Kill/Reboot/APK-Update blieb er sonst tot,
+        // während „Digital“ über den Manifest-Receiver weiterlief (gleiche
+        // Lektion wie DriveProbeWorker/AR-Samples oben: nach Boot/Update
+        // neu anstoßen). MY_PACKAGE_REPLACED läuft ebenfalls hier ein
+        // (Intent-Filter im AndroidManifest, siehe dort).
+        //   (a) Sofort-Start: Der FGS ist specialUse und darf aus dem
+        //       Boot-Pfad gestartet werden (anders als ein Location-FGS,
+        //       siehe oben); schlägt das fehl, holt der Watchdog nach.
+        //   (b) Watchdog-Takt (neu-)einplanen — KEEP macht es idempotent.
+        try {
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingService.start(context)
+            com.d_drostes_apps.aevum.automation.apptracking.AppTrackingWatchdogWorker.schedule(context)
+            debugLogger.log("BOOT", "App-Aufzeichnung nach Boot/Update wiederbelebt (M19.2)")
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "AppTracking revival failed: ${e.message}")
+        }
         // M18.129: Kalender-Sync + Auto-Start-Takt nach Boot neu anstoßen.
         // WorkManager räumt beim Boot geplante Arbeiten ab — ohne diesen
         // Aufruf liefe der Kalender-Sync erst nach dem nächsten App-Start

@@ -450,23 +450,19 @@ fun AppNavHost(
                 onOpenNode = { nodeId ->
                     navController.navigate("projects/node/$nodeId")
                 },
-                onNewChild = { parentId, type ->
+                onNewChild = { parentId, _ ->
+                    // M19.2: Der Editor legt nur noch (Unter-)Projekte an —
+                    // Aufgaben entstehen inline in der To-do-Liste.
                     navController.navigate(
                         "pm_editor?mode=node_new" +
-                            (parentId?.let { "&parentId=$it" } ?: "") +
-                            "&type=$type"
+                            (parentId?.let { "&parentId=$it" } ?: "")
                     )
                 },
                 onEditNode = { nodeId ->
                     navController.navigate("pm_editor?mode=node_edit&nodeId=$nodeId")
                 },
-                onNewTodos = { parentId ->
-                    navController.navigate(
-                        "pm_editor?mode=todos_new" + (parentId?.let { "&parentId=$it" } ?: "")
-                    )
-                },
-                onEditTodo = { todoId ->
-                    navController.navigate("pm_editor?mode=todo_edit&nodeId=$todoId")
+                onEditTask = { taskId ->
+                    navController.navigate("pm_editor?mode=task_edit&nodeId=$taskId")
                 }
             )
         }
@@ -479,12 +475,9 @@ fun AppNavHost(
             com.d_drostes_apps.aevum.ui.screens.projects.PmNodeDetailScreen(
                 onBack = { navController.popBackStack() },
                 onEditNode = { id -> navController.navigate("pm_editor?mode=node_edit&nodeId=$id") },
-                onNewTodos = { parent ->
-                    navController.navigate("pm_editor?mode=todos_new&parentId=$parent")
-                },
-                onEditTodo = { id -> navController.navigate("pm_editor?mode=todo_edit&nodeId=$id") },
-                onNewChild = { parent, type ->
-                    navController.navigate("pm_editor?mode=node_new&parentId=$parent&type=$type")
+                onEditTask = { id -> navController.navigate("pm_editor?mode=task_edit&nodeId=$id") },
+                onNewChild = { parent, _ ->
+                    navController.navigate("pm_editor?mode=node_new&parentId=$parent")
                 },
                 onOpenNode = { id -> navController.navigate("projects/node/$id") }
             )
@@ -503,10 +496,6 @@ fun AppNavHost(
                 androidx.navigation.navArgument("parentId") {
                     type = androidx.navigation.NavType.StringType
                     defaultValue = ""
-                },
-                androidx.navigation.navArgument("type") {
-                    type = androidx.navigation.NavType.StringType
-                    defaultValue = com.d_drostes_apps.aevum.data.model.PmType.TASK
                 }
             ),
             enterTransition = {

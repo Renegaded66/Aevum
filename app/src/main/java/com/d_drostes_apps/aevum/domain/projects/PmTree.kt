@@ -4,7 +4,7 @@ import com.d_drostes_apps.aevum.data.model.PmNode
 import com.d_drostes_apps.aevum.data.model.PmType
 
 /**
- * M19.1: Fortschritt eines Knotens — erledigte / alle Todos im Teilbaum.
+ * M19.1: Fortschritt eines Knotens — erledigte / alle Aufgaben im Teilbaum.
  */
 data class PmProgress(val done: Int, val total: Int) {
     val fraction: Float
@@ -14,7 +14,7 @@ data class PmProgress(val done: Int, val total: Int) {
 
     val isComplete: Boolean get() = total > 0 && done >= total
 
-    /** Noch offene Schritte — treibt den Sog-Effekt („da fehlen noch 8"). */
+    /** Noch offene Aufgaben — treibt den Sog-Effekt („da fehlen noch 8"). */
     val open: Int get() = (total - done).coerceAtLeast(0)
 
     val label: String get() = "$done/$total"
@@ -25,15 +25,20 @@ data class PmProgress(val done: Int, val total: Int) {
 }
 
 /**
- * M19.1: Baum-Index über alle PM-Knoten. REINE Logik — keine Android-,
+ * M19.2: Baum-Index über alle PM-Knoten. REINE Logik — keine Android-,
  * Room- oder Compose-Abhängigkeit, damit die komplette Hierarchie-Semantik
  * ohne Gerät und ohne Datenbank prüfbar ist.
+ *
+ * Seit M19.2 gibt es nur noch zwei Arten ([PmType.PROJECT] = Container,
+ * [PmType.TASK] = abhakbares Blatt). Die alten Begriffe „Todo" und
+ * „Kategorie" sind aus dem Modell verschwunden — die Methoden heißen jetzt
+ * durchgehend nach AUFGABEN (tasks).
  *
  * WARUM IN KOTLIN UND NICHT IN SQL: Die Datenmenge (hunderte bis wenige
  * tausend Knoten) macht einen vollständig geladenen, im Speicher
  * indexierten Baum billiger als jede rekursive SQL-Query — und die
- * Fortschrittswerte ändern sich dadurch automatisch mit, sobald ein Todo
- * abgehakt wird (ein einziger Flow über die Tabelle).
+ * Fortschrittswerte ändern sich dadurch automatisch mit, sobald eine
+ * Aufgabe abgehakt wird (ein einziger Flow über die Tabelle).
  *
  * ROBUSTHEIT (bewusst, gegen kaputte Daten):
  *  - Ein Knoten, dessen Elter fehlt, gilt als Wurzel (kein Crash, nichts
@@ -121,48 +126,55 @@ class PmTree(val all: List<PmNode>) {
         return parts.joinToString(separator) { it.title }
     }
 
-    /** Direkte Kinder vom Typ Todo. */
-    fun todosOf(id: String): List<PmNode> = children(id).filter { it.isTodo }
+    /** Direkte Kinder vom Typ Aufgabe. */
+    fun tasksOf(id: String): List<PmNode> = children(id).filter { it.isTask }
 
-    /** Alle Todos im Teilbaum (inklusive [id] selbst, falls es ein Todo ist). */
-    fun subtreeTodos(id: String): List<PmNode> {
+    /** Alle Aufgaben im Teilbaum (inklusive [id] selbst, falls es eine ist). */
+    fun subtreeTasks(id: String): List<PmNode> {
         val self = index[id]
         val out = mutableListOf<PmNode>()
-        if (self != null && self.isTodo) out.add(self)
-        out.addAll(descendants(id).filter { it.isTodo })
+        if (self != null && self.isTask) out.add(self)
+        out.addAll(descendants(id).filter { it.isTask })
         return out
     }
 
-    /** Alle Todos im gesamten Baum. */
-    fun allTodos(): List<PmNode> = all.filter { it.isTodo }
+    /** Alle Aufgaben im gesamten Baum. */
+    fun allTasks(): List<PmNode> = all.filter { it.isTask }
 
-    /** Alle Container eines Typs. */
+    /** Alle Knoten eines Typs. */
     fun byType(type: String): List<PmNode> = all.filter { it.type == type }
 
-    /** Fortschritt = erledigte/alle Todos im Teilbaum (auch über Tage hinweg). */
+    /** Fortschritt = erledigte/alle Aufgaben im Teilbaum (auch über Tage hinweg). */
     fun progress(id: String): PmProgress {
-        val todos = subtreeTodos(id)
-        return PmProgress(done = todos.count { it.isDone }, total = todos.size)
+        val tasks = subtreeTasks(id)
+        return PmProgress(done = tasks.count { it.isDone }, total = tasks.size)
     }
 
-    /** Offene Todos im Teilbaum, in Baum-Reihenfolge. */
-    fun openTodos(id: String): List<PmNode> = subtreeTodos(id).filter { it.doneAt == null }
+    /** Offene Aufgaben im Teilbaum, in Baum-Reihenfolge. */
+    fun openTasks(id: String): List<PmNode> = subtreeTasks(id).filter { it.doneAt == null }
 
     /**
      * Darf [id] unter [newParentId] gehängt werden?
      *
-     * Verboten: auf sich selbst, in den eigenen Teilbaum, unter ein Todo —
-     * und unter einen Knoten, den es nicht gibt. Letzteres ist bewusst
-     * STRENG: Ein fehlendes Ziel darf nicht stillschweigend als „Wurzel"
-     * gedeutet werden, sonst verschiebt ein Tippfehler oder eine gelöschte
-     * Aufgabe den Knoten unbemerkt ganz woandershin (genau dieser Fall ist
-     * beim Bau durch PmRepositoryRoomTest aufgefallen).
+     * M19.2-Regeln (Nutzer: „nur Projekte anlegen, innerhalb Projekte
+     * Unterprojekte und Aufgaben"):
+     *  - An die Wurzel darf nur ein PROJEKT („Man soll nur Projekte anlegen
+     *    können").
+     *  - Unter etwas hängen darf man nur unter ein PROJEKT (Aufgaben sind
+     *    Blätter, Projekte sind Container).
+     *  - Verboten bleiben: auf sich selbst, in den eigenen Teilbaum — und
+     *    unter einen Knoten, den es nicht gibt. Letzteres ist bewusst
+     *    STRENG: Ein fehlendes Ziel darf nicht stillschweigend als „Wurzel"
+     *    gedeutet werden, sonst verschiebt ein Tippfehler oder eine gelöschte
+     *    Aufgabe den Knoten unbemerkt ganz woandershin (genau dieser Fall
+     *    ist beim Bau durch PmRepositoryRoomTest aufgefallen).
      */
     fun moveAllowed(id: String, newParentId: String?): Boolean {
-        if (newParentId == null) return true
+        val node = index[id] ?: return false
+        if (newParentId == null) return node.isContainer
         if (newParentId == id) return false
         val target = index[newParentId] ?: return false
-        if (target.isTodo) return false
+        if (!target.isContainer) return false
         return !isDescendantOf(newParentId, id)
     }
 
@@ -202,28 +214,28 @@ class PmTree(val all: List<PmNode>) {
     }
 
     /**
-     * Aufgaben (TASK) mit ihren offenen Todos — Basis für Karussell und
-     * Backlog. Todos, die direkt unter einem Projekt/einer Kategorie oder
-     * ohne Elternteil hängen, landen in einer synthetischen Gruppe
-     * ([UNASSIGNED_TASK_ID]) statt zu verschwinden.
+     * Aufgaben, gruppiert nach ihrem Projekt — Basis für den Tagesplan und
+     * das Tag-planen-Sheet. Aufgaben, die (aus Altbeständen) direkt an der
+     * Wurzel oder unter einem Nicht-Projekt hängen, landen in einer
+     * synthetischen Gruppe ([UNASSIGNED_TASK_ID]) statt zu verschwinden.
      */
     fun taskGroups(): List<PmTaskGroup> {
         val groups = LinkedHashMap<String, MutableList<PmNode>>()
-        val taskNodes = LinkedHashMap<String, PmNode>()
-        for (todo in allTodos()) {
-            val parent = byId(todo.parentId)
-            val groupId = if (parent != null && parent.type == PmType.TASK) parent.id else UNASSIGNED_TASK_ID
-            if (parent != null) taskNodes[parent.id] = parent
-            groups.getOrPut(groupId) { mutableListOf() }.add(todo)
+        val parents = LinkedHashMap<String, PmNode>()
+        for (task in allTasks()) {
+            val parent = byId(task.parentId)
+            val groupId = if (parent != null && parent.isContainer) parent.id else UNASSIGNED_TASK_ID
+            if (parent != null) parents[parent.id] = parent
+            groups.getOrPut(groupId) { mutableListOf() }.add(task)
         }
-        return groups.map { (groupId, todos) ->
-            val node = taskNodes[groupId]
+        return groups.map { (groupId, tasks) ->
+            val node = parents[groupId]
             PmTaskGroup(
                 id = groupId,
                 title = node?.title ?: "",
                 node = node,
                 breadcrumb = if (node != null) breadcrumb(node.id) else "",
-                todos = todos
+                tasks = tasks
             )
         }
     }
@@ -231,7 +243,7 @@ class PmTree(val all: List<PmNode>) {
     companion object {
         const val ROOT_KEY = "__pm_root__"
 
-        /** Synthetische Gruppe für Todos ohne Aufgabe. */
+        /** Synthetische Gruppe für Aufgaben ohne Projekt. */
         const val UNASSIGNED_TASK_ID = "__pm_unassigned__"
 
         val EMPTY = PmTree(emptyList())
@@ -245,13 +257,13 @@ data class PmTreeRow(
     val hasChildren: Boolean
 )
 
-/** Eine Aufgabe (oder die synthetische „ohne Aufgabe"-Gruppe) mit ihren Todos. */
+/** Ein Projekt (oder die synthetische „ohne Projekt"-Gruppe) mit seinen Aufgaben. */
 data class PmTaskGroup(
     val id: String,
     val title: String,
     val node: PmNode?,
     val breadcrumb: String,
-    val todos: List<PmNode>
+    val tasks: List<PmNode>
 ) {
     val isSynthetic: Boolean get() = node == null
 }

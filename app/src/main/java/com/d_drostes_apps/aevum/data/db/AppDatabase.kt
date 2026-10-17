@@ -102,7 +102,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // wird in Kotlin indexiert (PmTree), deshalb braucht die Migration keine
     // Datenumformung, nur Tabelle + Indizes. Die Übereinstimmung mit dem
     // erwarteten Schema wird von PmMigrationSchemaTest gegen 44.json geprüft.
-    version = 44,
+    version = 45,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1661,5 +1661,45 @@ abstract class AppDatabase : RoomDatabase() {
                 SQL_PM_NODE_INDICES.forEach { database.execSQL(it) }
             }
         }
+
+        // ── 44 → 45: Projektmanagement-Vereinfachung (M19.2) ───────────────
+        //
+        // REINE DATEN-MIGRATION — das Tabellen-Schema bleibt Zeichen für
+        // Zeichen unverändert (der Schema-Test vergleicht 44.json und 45.json
+        // daher Element für Element). Es ändert sich nur die BEDEUTUNG des
+        // `type`-Feldes: aus vier Typen werden zwei (Nutzer: „keine
+        // Unterscheidung zwischen Projekt, Kategorie und Aufgabe").
+        //
+        // Überführung von Bestandsdaten:
+        //  · CATEGORY → PROJECT  (Kategorien sind jetzt Unterprojekte)
+        //  · TASK mit Kindern → PROJECT (eine alte „Aufgabe mit Schritten"
+        //    wird zum Unterprojekt; ihre Schritte werden zu Aufgaben)
+        //  · TODO → TASK          (das abhakbare Blatt heißt jetzt Aufgabe)
+        //  · TASK ohne Kinder bleibt TASK (wird dadurch abhakbar — gewollt)
+        //
+        // Reihenfolge: erst die Kinder-Erkennung (die sieht nur TASK-Zeilen
+        // des Altbestands), dann die Umbenennung der TODOs. Beide Schritte
+        // sind idempotent — sollten sie je doppelt laufen, bleibt das
+        // Ergebnis dasselbe.
+        val MIGRATION_44_45 = object : Migration(44, 45) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(SQL_PM_44_45_CATEGORY_TO_PROJECT)
+                database.execSQL(SQL_PM_44_45_TASK_WITH_CHILDREN_TO_PROJECT)
+                database.execSQL(SQL_PM_44_45_TODO_TO_TASK)
+            }
+        }
+
+        /** Kategorien verschwinden — sie werden zu Unterprojekten. */
+        const val SQL_PM_44_45_CATEGORY_TO_PROJECT =
+            "UPDATE pm_node SET type = 'PROJECT' WHERE type = 'CATEGORY'"
+
+        /** Alte „Aufgabe mit Schritten" wird zum Unterprojekt (Kinder bleiben). */
+        const val SQL_PM_44_45_TASK_WITH_CHILDREN_TO_PROJECT =
+            "UPDATE pm_node SET type = 'PROJECT' WHERE type = 'TASK' AND id IN " +
+                "(SELECT parent_id FROM pm_node WHERE parent_id IS NOT NULL)"
+
+        /** Alte Todos sind jetzt die abhakbaren Aufgaben. */
+        const val SQL_PM_44_45_TODO_TO_TASK =
+            "UPDATE pm_node SET type = 'TASK' WHERE type = 'TODO'"
     }
 }

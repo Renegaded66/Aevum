@@ -46,13 +46,12 @@ class PmColorsTest {
         val tree = PmTree(
             listOf(
                 node("root", color = "#112233"),
-                node("mid", "root", PmType.CATEGORY),
-                node("task", "mid", PmType.TASK),
-                node("todo", "task", PmType.TODO)
+                node("mid", "root", PmType.PROJECT),
+                node("task", "mid", PmType.TASK)
             )
         )
-        assertThat(PmColors.resolve(tree.byId("todo")!!, tree)).isEqualTo("#112233")
         assertThat(PmColors.resolve(tree.byId("task")!!, tree)).isEqualTo("#112233")
+        assertThat(PmColors.resolve(tree.byId("mid")!!, tree)).isEqualTo("#112233")
     }
 
     @Test
@@ -68,9 +67,9 @@ class PmColorsTest {
 
     @Test
     fun `ohne-Farben-wird-die-Wurzel-ID-zur-Farbe`() {
-        val tree = PmTree(listOf(node("root"), node("task", "root", PmType.TASK), node("todo", "task", PmType.TODO)))
+        val tree = PmTree(listOf(node("root"), node("mid", "root", PmType.PROJECT), node("task", "mid", PmType.TASK)))
         val expected = PmColors.colorFor("root")
-        assertThat(PmColors.resolve(tree.byId("todo")!!, tree)).isEqualTo(expected)
+        assertThat(PmColors.resolve(tree.byId("task")!!, tree)).isEqualTo(expected)
         assertThat(PmColors.resolve(tree.byId("root")!!, tree)).isEqualTo(expected)
     }
 

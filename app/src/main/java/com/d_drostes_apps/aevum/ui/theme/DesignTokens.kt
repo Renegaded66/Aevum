@@ -39,8 +39,8 @@ object AevumCategoryColors {
 
 object AevumChartColors {
     val palette = listOf(
-        Color(0xFF8B7CFF), // primary
-        Color(0xFF2DD4BF), // secondary
+        Color(0xFF38BDF8), // Eis — Primärfarbe (M19.2)
+        Color(0xFFF87171), // Feuer — Sekundärfarbe (M19.2)
         Color(0xFFFBBF24), // tertiary
         Color(0xFF6366F1), // work
         Color(0xFF22C55E), // sport

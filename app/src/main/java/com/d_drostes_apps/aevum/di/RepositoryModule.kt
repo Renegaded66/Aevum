@@ -226,10 +226,16 @@ object RepositoryModule {
     // PM-Baum eine eigene Semantik hat (selbstreferenzieller Baum,
     // Massenzuweisung, Umzugsregeln) und ausdrücklich NICHT mit dem
     // bestehenden Todos-Modul (Serien/Streaks/Dauer-Auto-Check) vermischt wird.
+    // M19.2: Die Titel der Vorlage kommen lokalisiert aus den
+    // String-Ressourcen (values/ Englisch, values-de/ Deutsch) — PmSeed
+    // selbst bleibt dadurch rein und JVM-testbar.
     @Provides @Singleton
     fun providePmNodeDao(database: AppDatabase): PmNodeDao = database.pmNodeDao()
 
     @Provides @Singleton
-    fun providePmRepository(dao: PmNodeDao): com.d_drostes_apps.aevum.data.repository.PmRepository =
-        com.d_drostes_apps.aevum.data.repository.PmRepositoryImpl(dao)
+    fun providePmRepository(
+        dao: PmNodeDao,
+        seedTitles: com.d_drostes_apps.aevum.data.repository.AndroidPmSeedTitles
+    ): com.d_drostes_apps.aevum.data.repository.PmRepository =
+        com.d_drostes_apps.aevum.data.repository.PmRepositoryImpl(dao, seedTitles)
 }

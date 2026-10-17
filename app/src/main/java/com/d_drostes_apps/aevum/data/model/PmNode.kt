@@ -8,55 +8,63 @@ import androidx.room.PrimaryKey
 import java.io.Serializable
 
 /**
- * M19.1: Projektmanagement — Typen der Knoten.
+ * M19.2: Projektmanagement — nur noch ZWEI Arten von Knoten.
  *
- * DEVON-ANWENDUNGSFALL: „Oberprojekte, darunter Unterprojekte, darunter
- * Kategorien, darunter Aufgaben und darunter Todos" — also fünf Ebenen,
- * gleichzeitig aber eine OFFENE Hierarchie. Deshalb gibt es vier
- * semantische Typen statt fünf Tabellen:
+ * NUTZER-ENTSCHEIDUNG (wörtlich): „Ich möchte keine Unterscheidung zwischen
+ * Projekt, Kategorie und Aufgabe. Man soll nur Projekte anlegen können, und
+ * innerhalb Projekte kann man Unterprojekte und Aufgaben anlegen, natürlich
+ * zu den Unterprojekten auch Aufgaben."
  *
- *  - [PROJECT]    Oberprojekt UND Unterprojekt (beliebig tief verschachtelbar)
- *  - [CATEGORY]   Gliederung innerhalb eines Projekts
- *  - [TASK]       die abhakbare Einheit: eigener Fortschrittsbalken,
- *                 eigene Swipe-Karte im Tages-Karussell
- *  - [TODO]       Blatt, abhakbar, optional tagzuweisbar (Backlog wenn ohne Datum)
+ * Deshalb gibt es statt vier Typen (PROJECT/CATEGORY/TASK/TODO aus M19.1)
+ * genau zwei:
  *
- * Beispiel: Studium(PROJECT) → 2. Semester(PROJECT) →
- * Projektgruppe(CATEGORY) → Präsentation(TASK) → „erste Hälfte lesen"(TODO).
+ *  - [PROJECT]    Container (Ober- UND Unterprojekt, beliebig nestbar).
+ *                 Trägt einen Fortschrittsbalken über alle enthaltenen Aufgaben.
+ *  - [TASK]       Blatt, abhakbar, optional tagzuweisbar; erscheint als Zeile
+ *                 in der To-do-Liste seines Projekts (mit Häkchen, Drag & Drop
+ *                 und Löschen). Aufgaben liegen immer unter einem Projekt.
+ *
+ * Die alte Unterscheidung „Aufgabe als Container mit Schritten" ist damit
+ * GESCHICHTE: Eine Aufgabe ist selbst der kleinste Schritt. Bestandsdaten
+ * werden bei der Migration 44 → 45 überführt (CATEGORY → PROJECT,
+ * TASK mit Kindern → PROJECT, TODO → TASK).
  *
  * Regeln (erzwungen in [com.d_drostes_apps.aevum.domain.projects.PmTree] und
  * [com.d_drostes_apps.aevum.data.repository.PmRepositoryImpl]):
- *  1. Nur [TODO] ist abhakbar und kann ein Datum tragen.
- *  2. [TODO] ist immer Blatt.
- *  3. Container dürfen beliebig ineinander liegen.
- *  4. Ein Knoten kann nicht in seinen eigenen Teilbaum verschoben werden.
- *  5. Verwaiste Knoten (fehlender Elter) gelten als Wurzel.
+ *  1. Nur [TASK] ist abhakbar und kann ein Datum tragen.
+ *  2. [TASK] ist immer Blatt — nichts liegt unter einer Aufgabe.
+ *  3. Container (PROJECT) dürfen beliebig ineinander liegen.
+ *  4. Auf oberster Ebene stehen nur Projekte.
+ *  5. Ein Knoten kann nicht in seinen eigenen Teilbaum verschoben werden.
+ *  6. Verwaiste Knoten (fehlender Elter) gelten als Wurzel.
  */
 object PmType {
     const val PROJECT = "PROJECT"
-    const val CATEGORY = "CATEGORY"
     const val TASK = "TASK"
-    const val TODO = "TODO"
 
-    /** Alle Container-Typen (alles, was Kinder haben darf). */
-    val containers: List<String> = listOf(PROJECT, CATEGORY, TASK)
+    /** Alle Typen (nur noch zwei, siehe Migration 44 → 45). */
+    val all: List<String> = listOf(PROJECT, TASK)
 
-    fun isValid(type: String): Boolean = type == PROJECT || type == CATEGORY || type == TASK || type == TODO
+    fun isValid(type: String): Boolean = type == PROJECT || type == TASK
 
-    /** Container = alles außer Todo. */
-    fun isContainer(type: String): Boolean = type != TODO
+    /** Container = alles, was Kinder haben darf (nur das Projekt). */
+    fun isContainer(type: String): Boolean = type == PROJECT
 
-    fun isTodo(type: String): Boolean = type == TODO
+    /** Abhakbare Einheit (nur die Aufgabe). */
+    fun isTask(type: String): Boolean = type == TASK
 }
 
 /**
- * M19.1: Ein Knoten des Projektmanagement-Baums.
+ * M19.1/M19.2: Ein Knoten des Projektmanagement-Baums.
  *
  * Schema-Entscheidung (siehe docs/M19-1-PROJEKTMANAGEMENT.md §3): EIN
  * selbstreferenzieller Baum (Adjacency-List) statt fünf Tabellen.
- * Die Rekursion passiert in Kotlin über den vollständig geladenen Baum —
- * bei hunderten bis wenigen tausend Knoten ist das unter einer Millisekunde
- * und erspart fünf DAOs, fünf Repositories und fünf Editoren.
+ * Die Rekursion passiert in Kotlin über den vollständig geladenen Baum — bei
+ * hunderten bis wenigen tausend Knoten ist das unter einer Millisekunde.
+ *
+ * Das Schema bleibt gegenüber M19.1 UNVERÄNDERT (Migration 44 → 45 ist eine
+ * reine Daten-Migration, siehe AppDatabase) — nur die Bedeutung von `type`
+ * hat sich verengt.
  *
  * - [parentId] null = Wurzel. FK auf sich selbst, ON DELETE CASCADE: das
  *   Löschen eines Projekts räumt den kompletten Teilbaum ab.
@@ -100,7 +108,7 @@ data class PmNode(
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis()
 ) : Serializable {
 
-    val isTodo: Boolean get() = type == PmType.TODO
-    val isContainer: Boolean get() = type != PmType.TODO
+    val isTask: Boolean get() = type == PmType.TASK
+    val isContainer: Boolean get() = type == PmType.PROJECT
     val isDone: Boolean get() = doneAt != null
 }

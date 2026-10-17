@@ -16,29 +16,41 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** M19.1: Was der Editor gerade tut. */
+/**
+ * M19.2: Was der Editor gerade tut.
+ *
+ * NEU IN M19.2: Der Modus „Neue Schritte" (Sammel-Eingabe, mehrzeiliges
+ * Textfeld) ist ENTFALLEN — Aufgaben entstehen inline in der To-do-Liste
+ * (Nutzerwunsch: „Es soll kein Textfeld geben zum neue Aufgaben hinzufügen").
+ * Der Editor legt jetzt nur noch (Unter-)Projekte an bzw. bearbeitet einen
+ * Knoten.
+ */
 enum class PmEditorMode(val key: String) {
     NODE_NEW("node_new"),
     NODE_EDIT("node_edit"),
-    TODOS_NEW("todos_new"),
-    TODO_EDIT("todo_edit");
+    TASK_EDIT("task_edit");
 
-    val isTodoMode: Boolean get() = this == TODOS_NEW || this == TODO_EDIT
+    val isTaskEdit: Boolean get() = this == TASK_EDIT
 
     companion object {
-        fun from(key: String?): PmEditorMode = entries.firstOrNull { it.key == key } ?: NODE_NEW
+        fun from(key: String?): PmEditorMode = when (key) {
+            // Alt-Routen aus M19.1 (todos_new/todo_edit) bewusst mit abfangen,
+            // damit ein alter Deep-Link nicht ins Leere läuft.
+            "todos_new" -> NODE_NEW
+            "todo_edit" -> TASK_EDIT
+            else -> entries.firstOrNull { it.key == key } ?: NODE_NEW
+        }
     }
 }
 
-/** M19.1: Formularzustand (bewusst getrennt vom abgeleiteten Zustand). */
+/** M19.2: Formularzustand (bewusst getrennt vom abgeleiteten Zustand). */
 data class PmEditorForm(
-    val type: String = PmType.TASK,
+    val type: String = PmType.PROJECT,
     val title: String = "",
     val note: String = "",
     val colorHex: String? = null,
     val dueDate: String? = null,
     val scheduledDate: String? = null,
-    val bulkText: String = "",
     val done: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
@@ -46,7 +58,7 @@ data class PmEditorForm(
     val touched: Boolean = false
 )
 
-/** M19.1: Zustand des Editors. */
+/** M19.2: Zustand des Editors. */
 data class PmEditorUiState(
     val mode: PmEditorMode = PmEditorMode.NODE_NEW,
     val loaded: Boolean = false,
@@ -56,31 +68,20 @@ data class PmEditorUiState(
     val parentTitle: String = "",
     val parentBreadcrumb: String = "",
     val parentProgress: Int = 0,
-    val bulkCount: Int = 0,
     val palette: List<String> = PmColors.PALETTE
 ) {
-    val canSave: Boolean
-        get() = when (mode) {
-            PmEditorMode.TODOS_NEW -> bulkCount > 0
-            else -> form.title.isNotBlank()
-        }
+    val canSave: Boolean get() = form.title.isNotBlank()
     val showError: Boolean get() = form.touched && !canSave
 }
 
 /**
- * M19.1: Editor für Knoten und Schritte.
+ * M19.1/M19.2: Editor für (Unter-)Projekte und Aufgaben.
  *
- * ZWEI BESONDERHEITEN MIT ABSICHT:
- *
- * 1. **Sammel-Eingabe** (`TODOS_NEW`): ein mehrzeiliges Feld, eine Zeile = ein
- *    Schritt. Damit ist eine ganze, kopierte Schrittliste EIN Vorgang. Genau
- *    das macht die Anforderung „jede kleinste Aufgabe schriftlich festhalten"
- *    erst zumutbar — 20 Todos einzeln anzulegen wäre wieder Reibung.
- *
- * 2. **Rückmeldung statt Rätsel**: Ein Speichern, das nichts tut, weil der Titel
- *    fehlt, ist genau die Art stummen Fehlers, die den Nutzer glauben lässt,
- *    „es geht nicht". Deshalb: [PmEditorUiState.showError] und ein deutlicher
- *    Hinweis am Feld, sobald der Nutzer speichern wollte.
+ * Eine Besonderheit mit Absicht: **Rückmeldung statt Rätsel**. Ein
+ * Speichern, das nichts tut, weil der Titel fehlt, ist genau die Art
+ * stummen Fehlers, die den Nutzer glauben lässt, „es geht nicht". Deshalb:
+ * [PmEditorUiState.showError] und ein deutlicher Hinweis am Feld, sobald
+ * der Nutzer speichern wollte.
  */
 @HiltViewModel
 class PmEditorViewModel @Inject constructor(
@@ -93,9 +94,8 @@ class PmEditorViewModel @Inject constructor(
     // String an (Default-Wert), nicht als null → ausdrücklich normalisieren.
     private val nodeId: String? = savedStateHandle.get<String>("nodeId")?.takeIf { it.isNotBlank() }
     private val parentIdArg: String? = savedStateHandle.get<String>("parentId")?.takeIf { it.isNotBlank() }
-    private val typeArg: String = savedStateHandle.get<String>("type")?.takeIf { it.isNotBlank() } ?: PmType.TASK
 
-    private val form = MutableStateFlow(PmEditorForm(type = typeArg))
+    private val form = MutableStateFlow(PmEditorForm())
     private var preloaded = false
 
     val uiState: StateFlow<PmEditorUiState> = combine(
@@ -111,8 +111,8 @@ class PmEditorViewModel @Inject constructor(
         // Eingabe des Nutzers überschreiben).
         if (!preloaded) {
             preloaded = true
-            when (mode) {
-                PmEditorMode.NODE_EDIT, PmEditorMode.TODO_EDIT -> if (editing != null) {
+            if (mode == PmEditorMode.NODE_EDIT || mode == PmEditorMode.TASK_EDIT) {
+                if (editing != null) {
                     form.value = form.value.copy(
                         type = editing.type,
                         title = editing.title,
@@ -123,24 +123,18 @@ class PmEditorViewModel @Inject constructor(
                         done = editing.doneAt != null
                     )
                 }
-                else -> Unit
             }
         }
-
-        val bulkCount = currentForm.bulkText
-            .split('\n')
-            .count { it.trim().isNotEmpty() }
 
         PmEditorUiState(
             mode = mode,
             loaded = true,
-            exists = editing != null || mode == PmEditorMode.NODE_NEW || mode == PmEditorMode.TODOS_NEW,
+            exists = editing != null || mode == PmEditorMode.NODE_NEW,
             form = currentForm,
             parentId = parentId,
             parentTitle = parent?.title.orEmpty(),
             parentBreadcrumb = parentId?.let { tree.breadcrumb(it, includeSelf = true) }.orEmpty(),
-            parentProgress = parent?.let { tree.progress(it.id).percent } ?: 0,
-            bulkCount = bulkCount
+            parentProgress = parent?.let { tree.progress(it.id).percent } ?: 0
         )
     }.stateIn(
         scope = viewModelScope,
@@ -153,10 +147,8 @@ class PmEditorViewModel @Inject constructor(
     fun setTitle(value: String) = update { it.copy(title = value) }
     fun setNote(value: String) = update { it.copy(note = value) }
     fun setColor(hex: String?) = update { it.copy(colorHex = hex) }
-    fun setType(type: String) = update { it.copy(type = type) }
     fun setDueDate(iso: String?) = update { it.copy(dueDate = iso) }
     fun setScheduledDate(iso: String?) = update { it.copy(scheduledDate = iso) }
-    fun setBulkText(value: String) = update { it.copy(bulkText = value) }
     fun toggleDone() = update { it.copy(done = !it.done) }
     fun touch() = update { it.copy(touched = true) }
 
@@ -177,7 +169,7 @@ class PmEditorViewModel @Inject constructor(
                 when (mode) {
                     PmEditorMode.NODE_NEW -> repository.createNode(
                         parentId = state.parentId,
-                        type = current.type,
+                        type = PmType.PROJECT,
                         title = current.title,
                         note = current.note,
                         color = current.colorHex,
@@ -186,12 +178,7 @@ class PmEditorViewModel @Inject constructor(
                     PmEditorMode.NODE_EDIT -> nodeId?.let { id ->
                         repository.updateNode(id, current.title, current.note, current.colorHex, current.dueDate)
                     }
-                    PmEditorMode.TODOS_NEW -> repository.createTodos(
-                        parentId = state.parentId,
-                        titles = current.bulkText.split('\n'),
-                        scheduledDate = current.scheduledDate
-                    )
-                    PmEditorMode.TODO_EDIT -> nodeId?.let { id ->
+                    PmEditorMode.TASK_EDIT -> nodeId?.let { id ->
                         repository.updateNode(id, current.title, current.note, current.colorHex, current.dueDate)
                         repository.setScheduled(listOf(id), current.scheduledDate)
                         // Nur schreiben, wenn sich der Zustand wirklich ändert —

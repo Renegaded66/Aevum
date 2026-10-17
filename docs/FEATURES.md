@@ -231,7 +231,7 @@ die Regeln bleiben dabei erhalten. Aevum **liest** den Kalender nur; es legt
 niemals Termine an oder verändert sie.
 
 
-## Projektmanagement (M19.1)
+## Projektmanagement (M19.2)
 
 **Ziel:** Große, lähmende Vorhaben (Studium, Präsentation, Hausarbeit) in
 kleinste Schritte zerlegen und sichtbar fertig bekommen.
@@ -242,18 +242,21 @@ zu machen." Große Aufgaben sind keine Aufgaben, sondern Zustände — sie haben
 keinen Anfang, kein Ende und keine abhakbare Einheit. Projektmanagement macht
 daraus eine Kette kleiner, einzeln abhakbarer Schritte.
 
-### Struktur
+### Struktur (seit M19.2: nur Projekte und Aufgaben)
 
-Beliebig tiefe Hierarchie in EINEM Baum:
+Zwei Knotenarten in EINEM Baum — Projekte sind Container, Aufgaben sind
+abhakbare Blätter:
 
 ```text
-Studium                PROJECT   (Oberprojekt)
- └ 2. Semester         PROJECT   (Unterprojekt)
-    └ Projektgruppe    CATEGORY  (Kategorie)
-       └ Präsentation  TASK      (Aufgabe — Fortschrittsbalken, eigene Karte)
-          ├ erste Hälfte lesen      TODO (Schritt, abhakbar, tagzuweisbar)
-          └ Entwurf aufschreiben    TODO
+Haushalt & Alltag                 PROJECT  (Projekt — beliebig verschachtelbar)
+ └ Wohnung                        PROJECT  (Unterprojekt)
+    ├ Einkaufsliste schreiben     TASK     (Aufgabe, abhakbar, tagzuweisbar)
+    └ Wäsche waschen              TASK
 ```
+
+Es gibt keine Kategorien und keine „Aufgaben mit Schritten" mehr: Jedes
+Unterprojekt übernimmt die Rolle, die früher Kategorie oder Aufgabe hatte —
+„Ich möchte keine Unterscheidung zwischen Projekt, Kategorie und Aufgabe."
 
 ### Tagesplan
 
@@ -266,6 +269,15 @@ Studium                PROJECT   (Oberprojekt)
   sichtbare Lücke ist der Antrieb).
 - Bei vollem Glas: kurze Feuerwerk-Animation — genau einmal pro erreichtem
   Stand, nicht bei jeder Neukomposition.
+- **Nur heute:** Das PM-Dashboard zeigt ausschließlich für heute (oder als
+  übernommen markierte) Aufgaben — alles andere lebt im Baum bzw. im
+  „Tag planen"-Sheet.
+- **Manuelle Reihenfolge:** Innerhalb einer Projekt-Gruppe gilt die per
+  Drag & Drop gezogene Ordnung (sofort gespeichert), nicht eine automatische
+  Sortierung.
+- **Glas neben den Todos:** schmale Spalte rechts neben den Listen
+  (max. 3 Juwelen-Spalten, Todos bleiben voll lesbar), animiertes Füllen bei
+  jedem Abhaken.
 - 7-Tage-Streifen: wie viele Schritte wurden an den letzten Tagen erledigt
   (aus den Erledigungszeitpunkten abgeleitet, keine zusätzliche Tabelle).
 
@@ -275,13 +287,18 @@ Jede Aufgabe und jedes Projekt trägt einen Balken über ALLE enthaltenen
 Schritte (nicht nur die heutigen) — damit wird langfristiger Fortschritt
 sichtbar, nicht nur Tageserfolg.
 
-### Massenzuweisung (kein 25-mal-Tippen)
+### Aufgaben pflegen (M19.2)
 
-1. **Sammel-Eingabe:** mehrzeiliges Feld, eine Zeile = ein Schritt; optional
-   alle zusammen auf ein Datum.
-2. **„Alle offenen → heute":** ein Tipp auf der Aufgabenkarte bzw. im Backlog.
-3. **„Tag planen"-Sheet:** alle offenen Schritte gruppiert, bereits geplante
-   vorausgewählt, Gruppen-Schalter, Datum wählbar — eine Bestätigung.
+- **Inline-Eingabe:** Am Ende jeder To-do-Liste steht eine Eingabezeile
+  („Neue Aufgabe…"); Enter hängt die Aufgabe an, der nächste Platzhalter
+  erscheint — kein separates Textfeld, keine Dialoge.
+- **Drag & Drop:** Aufgaben lassen sich innerhalb ihrer Projekt-Gruppe an
+  jede Position ziehen; die Ordnung wird sofort in die Datenbank geschrieben.
+- **Löschen:** jede Aufgabenzeile hat den Löschweg; ein Projekt löscht seinen
+  kompletten Teilbaum (FK-Kaskade).
+- **„Alle offenen → heute":** ein Tipp auf der Projektkarte bzw. im Backlog.
+- **„Tag planen"-Sheet:** alle offenen Aufgaben gruppiert, bereits geplante
+  vorausgewählt, Gruppen-Schalter, Datum wählbar — eine Bestätigung.
 
 ### Ausdrücklich NICHT Bestandteil
 

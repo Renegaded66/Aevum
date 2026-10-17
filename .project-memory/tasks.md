@@ -24,3 +24,9 @@
       Swipe, Glas mit Juwelen + Feuerwerk (Feier-Gate), Backlog,
       Tag-planen-Sheet, Sammel-Eingabe, Detailseite, Editor.
       Spec `docs/M19-1-PROJEKTMANAGEMENT.md`, Bericht `docs/M19-1-ABSCHLUSSBERICHT.md`.
+- [x] M19.2 (App 1.0.32): Theme Eisblau/Feuerrot + Schimmer; PM-Umbau auf
+      nur Projekte+Aufgaben (To-do-Listen mit Drag&Drop/Inline-Eingabe/
+      Löschen, Dashboard nur heute, schmales Glas, generische Vorlage,
+      DB v45 reine Daten-Migration); Digital-Balance-Revival (Boot/
+      PACKAGE_REPLACED + 15-min-Watchdog + Screen-On-Nudge). Bericht
+      `docs/M19-2-ABSCHLUSSBERICHT.md`.

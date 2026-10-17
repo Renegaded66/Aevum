@@ -12,10 +12,14 @@ import com.d_drostes_apps.aevum.domain.projects.PmColors
  * das spielerische Design braucht (heller Gradient, weicher Hintergrund,
  * sattes Leuchten). Bewusst OHNE `android.graphics.Color.parseColor`, damit
  * Previews und Tests in der reinen JVM laufen.
+ *
+ * M19.2: Fallback und Himmel folgen der neuen Eisblau/Feuerrot-Identität
+ * (Nutzerwunsch) — Standard-Lila raus, tiefes Eis in der Nacht.
  */
 object PmPalette {
 
-    val fallback: Color = Color(0xFF8B7CFF)
+    /** M19.2: Eisblau — unbekannte Kategorien glänzen im neuen Grundton. */
+    val fallback: Color = Color(0xFF38BDF8)
 
     /** "#rrggbb" → Color; ungültige Werte fallen auf die Primärfarbe zurück. */
     fun color(hex: String?): Color {
@@ -44,8 +48,10 @@ object PmPalette {
     /** Übernommene Todos ("seit gestern") — Aufmerksamkeit ohne Panik. */
     val rollover: Color = Color(0xFFFB923C)
 
-    /** Hintergrund-Auren für den PM-Himmel (animiert). */
+    /** Hintergrund-Auren für den PM-Himmel (animiert). M19.2: tiefes Eis
+     *  in der Nacht — der dritte Ton glüht dunkel-feurig, damit der Himmel
+     *  nicht kalt leer wirkt. */
     val sky: List<Color> = listOf(
-        Color(0xFF1B1436), Color(0xFF0E1B33), Color(0xFF251537), Color(0xFF0B1A2A)
+        Color(0xFF0A1526), Color(0xFF081D33), Color(0xFF2A0F1A), Color(0xFF071120)
     )
 }

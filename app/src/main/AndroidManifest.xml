@@ -157,6 +157,10 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- M19.2: nach App-Update stirbt der Prozess — die
+                     App-Aufzeichnung muss sich neu anstoßen; der Code in
+                     BootReceiver verarbeitet MY_PACKAGE_REPLACED bereits. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
         <!-- M13: Screen On/Off receiver for sleep heuristic (no Health Connect required) -->

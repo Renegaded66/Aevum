@@ -117,7 +117,7 @@ fun PmDayPlannerSheet(state: PmProjectsUiState, actions: PmActions) {
                     verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
                 ) {
                     state.plannerGroups.forEach { group ->
-                        val groupIds = group.todos.map { it.id }
+                        val groupIds = group.tasks.map { it.id }
                         val accent = PmPalette.color(
                             group.group.node?.color ?: PmColors.colorFor(group.group.id)
                         )
@@ -168,7 +168,7 @@ fun PmDayPlannerSheet(state: PmProjectsUiState, actions: PmActions) {
                                 }
                             }
                         }
-                        group.todos.forEach { todo ->
+                        group.tasks.forEach { todo ->
                             val checked = selection.contains(todo.id)
                             item(key = "planner-" + todo.id) {
                                 Row(

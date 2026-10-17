@@ -20,35 +20,34 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
-/** M19.1: Ein Todo in der Detailansicht. */
-data class PmTodoUi(
+/** M19.2: Eine Aufgabe in der Detailansicht. */
+data class PmTaskUi(
     val node: PmNode,
     val done: Boolean,
     val rolloverDays: Int,
     val dateChip: String?
 )
 
-/** M19.1: Ein enthaltener Knoten (Unterprojekt, Kategorie, Aufgabe). */
+/** M19.2: Ein enthaltenes Unterprojekt. */
 data class PmChildUi(
     val node: PmNode,
     val progress: PmProgress,
     val colorHex: String
 )
 
-/** M19.1: Zustand der Detailseite eines Knotens. */
+/** M19.2: Zustand der Detailseite eines Knotens. */
 data class PmNodeDetailUiState(
     val loaded: Boolean = false,
     val exists: Boolean = false,
     val node: PmNode? = null,
     val breadcrumb: String = "",
     val progress: PmProgress = PmProgress.EMPTY,
-    val colorHex: String = "#8B7CFF",
+    val colorHex: String = "#38BDF8",
     val today: LocalDate = LocalDate.now(),
     val children: List<PmChildUi> = emptyList(),
-    val todos: List<PmTodoUi> = emptyList(),
-    val openTodos: Int = 0,
-    val doneTodos: Int = 0,
-    val scheduledToday: Int = 0,
+    val tasks: List<PmTaskUi> = emptyList(),
+    val openTasks: Int = 0,
+    val doneTasks: Int = 0,
     val selection: Set<String> = emptySet(),
     val lastCompletedId: String? = null,
     val deleteRequested: Boolean = false,
@@ -59,18 +58,20 @@ data class PmNodeDetailUiState(
 ) {
     val selectionMode: Boolean get() = selection.isNotEmpty()
     val hasChildren: Boolean get() = children.isNotEmpty()
-    val isTask: Boolean get() = node?.type == com.d_drostes_apps.aevum.data.model.PmType.TASK
-    val allSelected: Boolean get() = todos.isNotEmpty() && todos.all { selection.contains(it.node.id) }
+    val isContainer: Boolean get() = node?.isContainer == true
+    val allSelected: Boolean get() = tasks.isNotEmpty() && tasks.all { selection.contains(it.node.id) }
 }
 
 /**
- * M19.1: Detailseite eines Knotens — hier wird gearbeitet.
+ * M19.1/M19.2: Detailseite eines Projekts oder einer Aufgabe — hier wird
+ * gearbeitet.
  *
- * Sie zeigt genau den Ausschnitt, den der Nutzer im Kopf hat: den Pfad
- * (Studium › 2. Semester › Projektgruppe › Präsentation), den Gesamtfortschritt
- * der Aufgabe, die enthaltenen Ebenen und alle Schritte. Die Mehrfachauswahl
- * (Langdruck) ist der zweite Massenweg neben dem Tag-planen-Sheet: mehrere
- * Todos markieren, ein Datum wählen, fertig.
+ * M19.2: Die Seite ist die TO-DO-LISTE des Projekts: Aufgaben erscheinen als
+ * Zeilen zum Abhaken, per Griff verschiebbar (Drag & Drop) und über das
+ * Zeilenmenü löschbar. Neue Aufgaben entstehen INLINE am Listenende
+ * („Neue Aufgabe …" + Enter) — es gibt bewusst kein großes Textfeld mehr
+ * (Nutzerwunsch). Die Mehrfachauswahl (Langdruck) bleibt als Massenweg für
+ * die Tageszuweisung erhalten.
  */
 @HiltViewModel
 class PmNodeDetailViewModel @Inject constructor(
@@ -93,14 +94,14 @@ class PmNodeDetailViewModel @Inject constructor(
         val today = LocalDate.now()
         val tree = PmTree(nodes)
         val node = tree.byId(nodeId)
-        val todos = tree.todosOf(nodeId)
+        val tasks = tree.tasksOf(nodeId)
             .sortedWith(compareBy({ it.doneAt != null }, { it.sortOrder }, { it.createdAt }))
-            .map { todo ->
-                PmTodoUi(
-                    node = todo,
-                    done = todo.doneAt != null,
-                    rolloverDays = if (todo.doneAt == null) PmToday.rolloverDays(todo, today) else 0,
-                    dateChip = pmShortDate(todo.scheduledDate)
+            .map { task ->
+                PmTaskUi(
+                    node = task,
+                    done = task.doneAt != null,
+                    rolloverDays = if (task.doneAt == null) PmToday.rolloverDays(task, today) else 0,
+                    dateChip = pmShortDate(task.scheduledDate)
                 )
             }
         val siblings = tree.children(node?.parentId)
@@ -121,10 +122,9 @@ class PmNodeDetailViewModel @Inject constructor(
                     colorHex = PmColors.resolve(child, tree)
                 )
             },
-            todos = todos,
-            openTodos = todos.count { !it.done },
-            doneTodos = todos.count { it.done },
-            scheduledToday = todos.count { !it.done && it.node.scheduledDate == today.toString() },
+            tasks = tasks,
+            openTasks = tasks.count { !it.done },
+            doneTasks = tasks.count { it.done },
             selection = selected,
             lastCompletedId = last,
             deleteRequested = deleteWanted,
@@ -141,7 +141,7 @@ class PmNodeDetailViewModel @Inject constructor(
 
     // ── Aktionen ──────────────────────────────────────────────────────────
 
-    fun toggleDone(node: PmNode) {
+    fun toggleTask(node: PmNode) {
         val target = node.doneAt == null
         viewModelScope.launch {
             repository.setDone(node.id, target)
@@ -157,6 +157,40 @@ class PmNodeDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * M19.2 (Inline-Eingabe): legt EINE Aufgabe an — die Quelle der neuen
+     * To-do-Zeile. Leere Eingaben werden verworfen; die Zeile selbst bleibt
+     * als nächster Platzhalter stehen (das macht das UI).
+     */
+    fun addTask(title: String) {
+        val clean = title.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch {
+            repository.createTasks(parentId = nodeId, titles = listOf(clean))
+        }
+    }
+
+    /**
+     * M19.2 (Drag & Drop): neue Reihenfolge der Aufgaben dieses Projekts.
+     * [from]/[to] sind Indizes in der Anzeige-Reihenfolge der OFFENEN
+     * Aufgaben — die Detailseite zeigt alle offenen Aufgaben des Projekts,
+     * damit entspricht die Liste exakt den Bestandsdaten (Repository-Regel).
+     */
+    fun reorderTasks(from: Int, to: Int) {
+        viewModelScope.launch {
+            val current = uiState.value
+            val openIds = current.tasks.filter { !it.done }.map { it.node.id }
+            if (from !in openIds.indices || to !in openIds.indices) return@launch
+            val moved = PmReorder.applyMove(openIds, from, to)
+            repository.reorderTasks(nodeId, moved)
+        }
+    }
+
+    /** Löschen direkt aus der Zeile (Aufgaben sind Blätter — kein Teilbaum). */
+    fun deleteTask(task: PmNode) {
+        viewModelScope.launch { repository.delete(task.id) }
+    }
+
     fun select(id: String) {
         val current = selection.value
         selection.value = if (current.contains(id)) current - id else current + id
@@ -164,7 +198,7 @@ class PmNodeDetailViewModel @Inject constructor(
 
     fun selectAll() {
         val current = uiState.value
-        selection.value = if (current.allSelected) emptySet() else current.todos.map { it.node.id }.toSet()
+        selection.value = if (current.allSelected) emptySet() else current.tasks.map { it.node.id }.toSet()
     }
 
     fun clearSelection() {
@@ -202,7 +236,7 @@ class PmNodeDetailViewModel @Inject constructor(
         }
     }
 
-    /** Reihenfolge innerhalb einer Ebene ändern (Hoch/Runter statt Drag&Drop). */
+    /** Reihenfolge innerhalb einer Ebene ändern (Hoch/Runter im Kopfmenü). */
     fun move(delta: Int) {
         viewModelScope.launch {
             val current = uiState.value

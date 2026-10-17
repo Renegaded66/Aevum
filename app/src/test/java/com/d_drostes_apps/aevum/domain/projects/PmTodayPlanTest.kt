@@ -9,12 +9,14 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * M19.1: Tagesplan, Glas-Kennzahl und Verlauf.
+ * M19.1/M19.2: Tagesplan, Glas-Kennzahl und Verlauf.
  *
  * Der Kern der Nutzeranforderung: „diese 20 todos will ich heute schaffen" —
  * und „nicht abgehakte Todos werden am nächsten Tag weiterhin angezeigt, der
- * Rest nicht". Diese Suite legt jede Regel einzeln fest, inklusive der
- * ZEITZONE (der Test rechnet in Europe/Berlin, nicht in der Test-JVM-Zone).
+ * Rest nicht". M19.2 ergänzt: „Im PM Dashboard sollten NUR für heute
+ * zugewiesene Aufgaben angezeigt werden." Diese Suite legt jede Regel
+ * einzeln fest, inklusive der ZEITZONE (der Test rechnet in Europe/Berlin,
+ * nicht in der Test-JVM-Zone).
  */
 class PmTodayPlanTest {
 
@@ -27,17 +29,23 @@ class PmTodayPlanTest {
 
     private fun iso(date: LocalDate): String = date.toString()
 
-    private fun todo(
+    private fun project(id: String, title: String, parent: String? = null, order: Int = 0) = PmNode(
+        id = id, parentId = parent, type = PmType.PROJECT, title = title,
+        sortOrder = order, createdAt = created, updatedAt = created
+    )
+
+    /** Eine abhakbare Aufgabe unter einem Projekt (Default: „Präsentation"). */
+    private fun task(
         id: String,
         title: String = id,
-        parent: String? = "task",
+        parent: String? = "praes",
         scheduled: String? = null,
         doneAt: Long? = null,
         order: Int = 0
     ) = PmNode(
         id = id,
         parentId = parent,
-        type = PmType.TODO,
+        type = PmType.TASK,
         title = title,
         sortOrder = order,
         scheduledDate = scheduled,
@@ -46,27 +54,22 @@ class PmTodayPlanTest {
         updatedAt = created
     )
 
-    private fun task(id: String = "task", title: String = "Präsentation", order: Int = 0) = PmNode(
-        id = id, parentId = "gruppe", type = PmType.TASK, title = title,
-        sortOrder = order, createdAt = created, updatedAt = created
-    )
-
-    /** Gerüst: Studium → … → Projektgruppe → {Präsentation, Projektbericht}. */
-    private fun tree(vararg todos: PmNode) = PmTree(
+    /** Gerüst: Studium → 2. Semester → Projektgruppe → {Präsentation, Projektbericht}. */
+    private fun tree(vararg tasks: PmNode) = PmTree(
         listOf(
-            PmNode(id = "studium", parentId = null, type = PmType.PROJECT, title = "Studium", sortOrder = 0, createdAt = created, updatedAt = created),
-            PmNode(id = "semester", parentId = "studium", type = PmType.PROJECT, title = "2. Semester", sortOrder = 0, createdAt = created, updatedAt = created),
-            PmNode(id = "gruppe", parentId = "semester", type = PmType.CATEGORY, title = "Projektgruppe", sortOrder = 0, createdAt = created, updatedAt = created),
-            task(),
-            task(id = "bericht", title = "Projektbericht", order = 1)
-        ) + todos.toList()
+            project("studium", "Studium"),
+            project("semester", "2. Semester", "studium"),
+            project("gruppe", "Projektgruppe", "semester"),
+            project("praes", "Präsentation", "gruppe", order = 0),
+            project("bericht", "Projektbericht", "gruppe", order = 1)
+        ) + tasks.toList()
     )
 
     // ── Aufnahme in den Tagesplan ─────────────────────────────────────────
 
     @Test
-    fun `heute eingeplantes offenes Todo steht im Tagesplan`() {
-        val tree = tree(todo("a", scheduled = iso(today)))
+    fun `heute eingeplante offene Aufgabe steht im Tagesplan`() {
+        val tree = tree(task("a", scheduled = iso(today)))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(1)
         assertThat(state.done).isEqualTo(0)
@@ -76,8 +79,8 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `gestern faelliges offenes Todo wird uebernommen`() {
-        val tree = tree(todo("a", scheduled = iso(today.minusDays(1))))
+    fun `gestern faellige offene Aufgabe wird uebernommen`() {
+        val tree = tree(task("a", scheduled = iso(today.minusDays(1))))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(1)
         assertThat(state.rollover).isEqualTo(1)
@@ -88,15 +91,15 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `vor drei Tagen faelliges Todo meldet drei Tage Uebernahme`() {
-        val tree = tree(todo("a", scheduled = iso(today.minusDays(3))))
+    fun `vor drei Tagen faellige Aufgabe meldet drei Tage Uebernahme`() {
+        val tree = tree(task("a", scheduled = iso(today.minusDays(3))))
         val row = PmToday.state(tree, today, zone).groups.single().rows.single()
         assertThat(row.rolloverDays).isEqualTo(3)
     }
 
     @Test
-    fun `Todo ohne Datum ist NICHT im Tagesplan sondern im Backlog`() {
-        val tree = tree(todo("a"))
+    fun `Aufgabe ohne Datum ist NICHT im Tagesplan sondern im Backlog`() {
+        val tree = tree(task("a"))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(0)
         assertThat(state.isEmpty).isTrue()
@@ -105,16 +108,16 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `fuer spaeter geplantes Todo ist heute nicht sichtbar`() {
-        val tree = tree(todo("a", scheduled = iso(today.plusDays(1))))
+    fun `fuer spaeter geplante Aufgabe ist heute nicht sichtbar`() {
+        val tree = tree(task("a", scheduled = iso(today.plusDays(1))))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(0)
-        assertThat(state.unfiled).isEmpty() // es HAT ein Datum, gehört nur nicht zu heute
+        assertThat(state.unfiled).isEmpty() // sie HAT ein Datum, gehört nur nicht zu heute
     }
 
     @Test
-    fun `heute erledigtes Todo bleibt im Plan und zaehlt als Juwel`() {
-        val tree = tree(todo("a", scheduled = iso(today), doneAt = at(today, hour = 11)))
+    fun `heute erledigte Aufgabe bleibt im Plan und zaehlt als Juwel`() {
+        val tree = tree(task("a", scheduled = iso(today), doneAt = at(today, hour = 11)))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(1)
         assertThat(state.done).isEqualTo(1)
@@ -122,9 +125,9 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `heute erledigtes Todo ohne Datum zaehlt ebenfalls`() {
+    fun `heute erledigte Aufgabe ohne Datum zaehlt ebenfalls`() {
         // Wer etwas Ungeplantes heute schafft, soll es auch sehen.
-        val tree = tree(todo("a", doneAt = at(today, hour = 20)))
+        val tree = tree(task("a", doneAt = at(today, hour = 20)))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.done).isEqualTo(1)
         assertThat(state.total).isEqualTo(1)
@@ -132,10 +135,10 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `frueher erledigtes Todo ist heute nicht sichtbar`() {
+    fun `frueher erledigte Aufgabe ist heute nicht sichtbar`() {
         val tree = tree(
-            todo("a", scheduled = iso(today.minusDays(2)), doneAt = at(today.minusDays(2))),
-            todo("b", scheduled = iso(today.minusDays(2)), doneAt = at(today.minusDays(2), hour = 18))
+            task("a", scheduled = iso(today.minusDays(2)), doneAt = at(today.minusDays(2))),
+            task("b", scheduled = iso(today.minusDays(2)), doneAt = at(today.minusDays(2), hour = 18))
         )
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(0)
@@ -143,8 +146,8 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `spaeter geplantes aber heute vorab erledigtes Todo zaehlt`() {
-        val tree = tree(todo("a", scheduled = iso(today.plusDays(5)), doneAt = at(today, hour = 8)))
+    fun `spaeter geplante aber heute vorab erledigte Aufgabe zaehlt`() {
+        val tree = tree(task("a", scheduled = iso(today.plusDays(5)), doneAt = at(today, hour = 8)))
         val state = PmToday.state(tree, today, zone)
         assertThat(state.done).isEqualTo(1)
         assertThat(state.total).isEqualTo(1)
@@ -155,7 +158,7 @@ class PmTodayPlanTest {
         // 22:30 UTC am Vortag == 00:30 Berlin am heutigen Tag.
         val justAfterMidnightUtc = LocalDateTime.of(today.minusDays(1), java.time.LocalTime.of(22, 30))
             .atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
-        val tree = tree(todo("a", doneAt = justAfterMidnightUtc))
+        val tree = tree(task("a", doneAt = justAfterMidnightUtc))
         assertThat(PmToday.state(tree, today, zone).done).isEqualTo(1)
         // In UTC gerechnet wäre es noch gestern.
         assertThat(PmToday.state(tree, today, ZoneId.of("UTC")).done).isEqualTo(0)
@@ -166,10 +169,10 @@ class PmTodayPlanTest {
     @Test
     fun `glas-kennzahl ist erledigt durch geplant`() {
         val tree = tree(
-            todo("a", scheduled = iso(today), doneAt = at(today, hour = 10)),
-            todo("b", scheduled = iso(today), doneAt = at(today, hour = 12)),
-            todo("c", scheduled = iso(today)),
-            todo("d", scheduled = iso(today.minusDays(1)))
+            task("a", scheduled = iso(today), doneAt = at(today, hour = 10)),
+            task("b", scheduled = iso(today), doneAt = at(today, hour = 12)),
+            task("c", scheduled = iso(today)),
+            task("d", scheduled = iso(today.minusDays(1)))
         )
         val state = PmToday.state(tree, today, zone)
         assertThat(state.total).isEqualTo(4)
@@ -181,9 +184,9 @@ class PmTodayPlanTest {
     }
 
     @Test
-    fun `volles Glas-nur wenn alle Todos des Tages erledigt sind`() {
+    fun `volles Glas-nur wenn alle Aufgaben des Tages erledigt sind`() {
         val complete = PmToday.state(
-            tree(todo("a", scheduled = iso(today), doneAt = at(today)), todo("b", scheduled = iso(today), doneAt = at(today))),
+            tree(task("a", scheduled = iso(today), doneAt = at(today)), task("b", scheduled = iso(today), doneAt = at(today))),
             today, zone
         )
         assertThat(complete.isComplete).isTrue()
@@ -203,64 +206,70 @@ class PmTodayPlanTest {
     // ── Gruppen und Sortierung ────────────────────────────────────────────
 
     @Test
-    fun `aufgaben ohne heutige Todos erscheinen nicht im Karussell`() {
+    fun `projekte ohne heutige Aufgaben erscheinen nicht in der Liste`() {
         val tree = tree(
-            todo("a", parent = "task", scheduled = iso(today)),
-            todo("b", parent = "bericht", scheduled = iso(today.plusDays(3)))
+            task("a", parent = "praes", scheduled = iso(today)),
+            task("b", parent = "bericht", scheduled = iso(today.plusDays(3)))
         )
         val groups = PmToday.state(tree, today, zone).groups
-        assertThat(groups.map { it.id }).containsExactly("task")
+        assertThat(groups.map { it.id }).containsExactly("praes")
     }
 
     @Test
-    fun `offene Todos stehen vor erledigten`() {
+    fun `offene Aufgaben stehen vor erledigten`() {
         val tree = tree(
-            todo("done1", scheduled = iso(today), doneAt = at(today, hour = 9), order = 0),
-            todo("open1", scheduled = iso(today), order = 5)
+            task("done1", scheduled = iso(today), doneAt = at(today, hour = 9), order = 0),
+            task("open1", scheduled = iso(today), order = 5)
         )
         val rows = PmToday.state(tree, today, zone).groups.single().rows
         assertThat(rows.map { it.node.id }).containsExactly("open1", "done1").inOrder()
     }
 
     @Test
-    fun `uebernommene Todos stehen ueber den heute faelligen`() {
+    fun `innerhalb-der-gruppe-regiert-die-manuelle-reihenfolge`() {
+        // M19.2: Drag & Drop schreibt sortOrder — die Anzeige folgt ihr
+        // (nicht mehr „übernommene zuerst", das hätte die gezogene Ordnung
+        // beim nächsten Öffnen wieder überschrieben).
         val tree = tree(
-            todo("heute", scheduled = iso(today), order = 0),
-            todo("gestern", scheduled = iso(today.minusDays(1)), order = 1)
+            task("c", scheduled = iso(today), order = 2),
+            task("a", scheduled = iso(today), order = 0),
+            task("b", scheduled = iso(today.minusDays(3)), order = 1)
         )
         val rows = PmToday.state(tree, today, zone).groups.single().rows
-        assertThat(rows.map { it.node.id }).containsExactly("gestern", "heute").inOrder()
+        assertThat(rows.map { it.node.id }).containsExactly("a", "b", "c").inOrder()
+        // Der Übernahme-Hinweis bleibt trotzdem sichtbar (Chip an der Zeile).
+        assertThat(rows.first { it.node.id == "b" }.isRollover).isTrue()
     }
 
     @Test
-    fun `gruppen mit den meisten offenen Todos stehen oben`() {
+    fun `gruppen mit den meisten offenen Aufgaben stehen oben`() {
         val tree = tree(
-            todo("a1", parent = "task", scheduled = iso(today)),
-            todo("b1", parent = "bericht", scheduled = iso(today)),
-            todo("b2", parent = "bericht", scheduled = iso(today)),
-            todo("b3", parent = "bericht", scheduled = iso(today))
+            task("a1", parent = "praes", scheduled = iso(today)),
+            task("b1", parent = "bericht", scheduled = iso(today)),
+            task("b2", parent = "bericht", scheduled = iso(today)),
+            task("b3", parent = "bericht", scheduled = iso(today))
         )
         assertThat(PmToday.state(tree, today, zone).groups.map { it.id })
-            .containsExactly("bericht", "task").inOrder()
+            .containsExactly("bericht", "praes").inOrder()
     }
 
     @Test
-    fun `todos ohne Aufgabe landen in einer eigenen Gruppe statt zu verschwinden`() {
-        val tree = tree(todo("frei", parent = "gruppe", scheduled = iso(today)))
+    fun `aufgaben ohne projekt landen in einer eigenen gruppe statt zu verschwinden`() {
+        // Altbestand-Fall: Aufgabe hängt direkt an der Wurzel.
+        val tree = tree(task("frei", parent = null, scheduled = iso(today)))
         val state = PmToday.state(tree, today, zone)
         val group = state.groups.single()
+        assertThat(group.id).isEqualTo(PmTree.UNASSIGNED_TASK_ID)
         assertThat(group.isSynthetic).isTrue()
         assertThat(group.rows.map { it.node.id }).containsExactly("frei")
-        // Brotkrumen kommen aus dem echten Pfad, nicht aus der (fehlenden) Aufgabe.
-        assertThat(group.rows.single().breadcrumb).isEqualTo("Studium › 2. Semester › Projektgruppe")
     }
 
     @Test
-    fun `container-werden-nie-als-Todo-gelistet`() {
-        val tree = tree(todo("a", scheduled = iso(today)))
+    fun `projekte-werden-nie-als-aufgabe-gelistet`() {
+        val tree = tree(task("a", scheduled = iso(today)))
         val all = PmToday.state(tree, today, zone).groups.flatMap { it.rows }.map { it.node.id }
         assertThat(all).containsExactly("a")
-        assertThat(all).doesNotContain("task")
+        assertThat(all).doesNotContain("praes")
         assertThat(all).doesNotContain("gruppe")
     }
 
@@ -269,10 +278,10 @@ class PmTodayPlanTest {
     @Test
     fun `verlauf-zaehlt-Erledigungen-je-Tag-in-der-Systemzone`() {
         val tree = tree(
-            todo("a", doneAt = at(today, hour = 8)),
-            todo("b", doneAt = at(today, hour = 9)),
-            todo("c", doneAt = at(today.minusDays(2), hour = 12)),
-            todo("d", doneAt = at(today.minusDays(9), hour = 12))
+            task("a", doneAt = at(today, hour = 8)),
+            task("b", doneAt = at(today, hour = 9)),
+            task("c", doneAt = at(today.minusDays(2), hour = 12)),
+            task("d", doneAt = at(today.minusDays(9), hour = 12))
         )
         val history = PmToday.history(tree, today, days = 7, zone = zone)
         assertThat(history).hasSize(7)
@@ -297,32 +306,32 @@ class PmTodayPlanTest {
     @Test
     fun `planungsgruppen-schlagen-uebernommene-und-heutige-vor`() {
         val tree = tree(
-            todo("alt", parent = "task", scheduled = iso(today.minusDays(2))),
-            todo("heute", parent = "task", scheduled = iso(today)),
-            todo("spaeter", parent = "task", scheduled = iso(today.plusDays(3))),
-            todo("ohne", parent = "task"),
-            todo("erledigt", parent = "task", doneAt = at(today.minusDays(1)))
+            task("alt", parent = "praes", scheduled = iso(today.minusDays(2))),
+            task("heute", parent = "praes", scheduled = iso(today)),
+            task("spaeter", parent = "praes", scheduled = iso(today.plusDays(3))),
+            task("ohne", parent = "praes"),
+            task("erledigt", parent = "praes", doneAt = at(today.minusDays(1)))
         )
         val groups = PmToday.planningGroups(tree, today)
-        val group = groups.first { it.group.id == "task" }
-        assertThat(group.todos.map { it.id }).containsExactly("alt", "heute", "spaeter", "ohne")
+        val group = groups.first { it.group.id == "praes" }
+        assertThat(group.tasks.map { it.id }).containsExactly("alt", "heute", "spaeter", "ohne")
         assertThat(group.suggestedIds).containsExactly("alt", "heute")
     }
 
     @Test
-    fun `planungsgruppen-lassen-Aufgaben-ohne-offene-Todos-weg`() {
-        val tree = tree(todo("erledigt", parent = "task", doneAt = at(today.minusDays(1))))
+    fun `planungsgruppen-lassen-Projekte-ohne-offene-Aufgaben-weg`() {
+        val tree = tree(task("erledigt", parent = "praes", doneAt = at(today.minusDays(1))))
         assertThat(PmToday.planningGroups(tree, today)).isEmpty()
     }
 
     @Test
     fun `planungsgruppen-mit-Uebernommenem-stehen-oben`() {
         val tree = tree(
-            todo("a1", parent = "bericht", scheduled = iso(today)),
-            todo("t1", parent = "task", scheduled = iso(today.minusDays(4)))
+            task("a1", parent = "bericht", scheduled = iso(today)),
+            task("t1", parent = "praes", scheduled = iso(today.minusDays(4)))
         )
         assertThat(PmToday.planningGroups(tree, today).map { it.group.id })
-            .containsExactly("task", "bericht").inOrder()
+            .containsExactly("praes", "bericht").inOrder()
     }
 
     // ── Datums-Helfer ─────────────────────────────────────────────────────

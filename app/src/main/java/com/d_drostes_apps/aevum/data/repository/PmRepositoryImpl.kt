@@ -13,23 +13,25 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * M19.1: Umsetzung des Projektmanagement-Repositories.
+ * M19.1/M19.2: Umsetzung des Projektmanagement-Repositories.
  *
  * WARUM HIER EIN MUTEX STEHT: Alle Baum-Operationen sind „lesen → rechnen →
  * schreiben" (Umzug ordnet Geschwister neu, Sammel-Datum sammelt erst die
- * IDs ein). Zwei gleichzeitige Vorgänge (z. B. zwei schnelle Tipps auf
- * „alle offenen → heute") könnten sonst auf demselben Stand rechnen und sich
- * gegenseitig überschreiben — verlorene Aktualisierung, doppelte
- * Sortiernummern. Der Mutex macht jeden Vorgang atomar.
+ * IDs ein, Drag & Drop nummeriert die Liste neu). Zwei gleichzeitige Vorgänge
+ * könnten sonst auf demselben Stand rechnen und sich gegenseitig
+ * überschreiben — verlorene Aktualisierung, doppelte Sortiernummern. Der
+ * Mutex macht jeden Vorgang atomar.
  *
  * WARUM DIE REGELN HIER UND NICHT IM UI STEHEN: Damit jede Oberfläche, die
  * später dazukommt (Widget, Automation, Import), automatisch dieselben Regeln
- * bekommt: keine Todos unter Todos, keine Umzüge in den eigenen Teilbaum,
- * kein Datum an Containern.
+ * bekommt: keine Aufgaben unter Aufgaben, keine Umzüge in den eigenen
+ * Teilbaum, kein Datum an Projekten, Aufgaben an der Wurzel nur als
+ * Altbestand.
  */
 @Singleton
 class PmRepositoryImpl @Inject constructor(
-    private val dao: PmNodeDao
+    private val dao: PmNodeDao,
+    private val seedTitles: PmSeedTitles
 ) : PmRepository {
 
     private val writeLock = Mutex()
@@ -52,8 +54,14 @@ class PmRepositoryImpl @Inject constructor(
         val now = System.currentTimeMillis()
         val all = dao.getAllOnce()
         val id = UUID.randomUUID().toString()
-        val safeType = if (PmType.isValid(type)) type else PmType.TASK
         val safeParent = normalizeParent(parentId, all)
+        // Unbekannter Typ: an der Wurzel ein Projekt (die einzige Anlege-Art
+        // der Oberfläche), unter einem Projekt eine Aufgabe.
+        val safeType = if (PmType.isValid(type)) {
+            type
+        } else {
+            if (safeParent == null) PmType.PROJECT else PmType.TASK
+        }
         dao.upsert(
             PmNode(
                 id = id,
@@ -63,8 +71,8 @@ class PmRepositoryImpl @Inject constructor(
                 note = note,
                 color = color,
                 sortOrder = nextOrder(all, safeParent),
-                // Nur Todos tragen ein Datum (Regel 1 des Schemas).
-                scheduledDate = if (PmType.isTodo(safeType)) scheduledDate else null,
+                // Nur Aufgaben tragen ein Datum (Regel 1 des Schemas).
+                scheduledDate = if (PmType.isTask(safeType)) scheduledDate else null,
                 dueDate = dueDate,
                 doneAt = null,
                 createdAt = now,
@@ -74,7 +82,7 @@ class PmRepositoryImpl @Inject constructor(
         id
     }
 
-    override suspend fun createTodos(
+    override suspend fun createTasks(
         parentId: String?,
         titles: List<String>,
         scheduledDate: String?
@@ -92,7 +100,7 @@ class PmRepositoryImpl @Inject constructor(
             PmNode(
                 id = id,
                 parentId = safeParent,
-                type = PmType.TODO,
+                type = PmType.TASK,
                 title = title,
                 sortOrder = order++,
                 scheduledDate = scheduledDate,
@@ -117,7 +125,11 @@ class PmRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun setDone(id: String, done: Boolean) {
+    override suspend fun setDone(id: String, done: Boolean) = writeLock.withLock {
+        // Nur Aufgaben sind abhakbar — ein Projekt hat keinen Haken
+        // (Regel 1). Ein Aufruf auf einen Container wird verworfen.
+        val node = dao.getById(id) ?: return@withLock
+        if (!node.isTask) return@withLock
         val now = System.currentTimeMillis()
         dao.setDone(id = id, doneAt = if (done) now else null, now = now)
     }
@@ -125,7 +137,7 @@ class PmRepositoryImpl @Inject constructor(
     override suspend fun setScheduled(ids: List<String>, date: String?) = writeLock.withLock {
         if (ids.isEmpty()) return@withLock
         val targetIds = dao.getAllOnce()
-            .filter { it.id in ids && it.isTodo }
+            .filter { it.id in ids && it.isTask }
             .map { it.id }
         if (targetIds.isEmpty()) return@withLock
         dao.setScheduledDate(targetIds, date, System.currentTimeMillis())
@@ -136,12 +148,36 @@ class PmRepositoryImpl @Inject constructor(
             val all = dao.getAllOnce()
             val tree = PmTree(all)
             if (tree.byId(rootId) == null) return@withLock 0
-            val ids = tree.subtreeTodos(rootId)
+            val ids = tree.subtreeTasks(rootId)
                 .filter { !onlyOpen || it.doneAt == null }
                 .map { it.id }
             if (ids.isEmpty()) return@withLock 0
             dao.setScheduledDate(ids, date, System.currentTimeMillis())
             ids.size
+        }
+
+    override suspend fun reorderTasks(parentId: String?, orderedOpenIds: List<String>): Boolean =
+        writeLock.withLock {
+            val now = System.currentTimeMillis()
+            val all = dao.getAllOnce()
+            val tasks = all.filter { it.parentId == parentId && it.isTask }
+            val open = tasks.filter { it.doneAt == null }
+            val done = tasks.filter { it.doneAt != null }
+                .sortedWith(compareBy({ it.sortOrder }, { it.createdAt }))
+            // Streng: die gezogene Liste muss EXAKT den offenen Aufgaben
+            // entsprechen — sonst wird NICHTS geschrieben (statt still eine
+            // halbe Reihenfolge zu setzen).
+            if (open.map { it.id }.toSet() != orderedOpenIds.toSet() ||
+                open.size != orderedOpenIds.size
+            ) {
+                return@withLock false
+            }
+            val sequence = orderedOpenIds + done.map { it.id }
+            for ((position, id) in sequence.withIndex()) {
+                val node = tasks.firstOrNull { it.id == id } ?: return@withLock false
+                if (node.sortOrder != position) dao.setSortOrder(id, position, now)
+            }
+            true
         }
 
     override suspend fun move(id: String, newParentId: String?, newIndex: Int): Boolean = writeLock.withLock {
@@ -173,9 +209,9 @@ class PmRepositoryImpl @Inject constructor(
     override suspend fun insertExample() = writeLock.withLock {
         val existing = dao.getAllOnce().map { it.id }.toHashSet()
         // Nur fehlende Knoten anlegen: ein zweiter Tipp darf weder Dubletten
-        // erzeugen noch den bereits erreichten Fortschritt der Beispieldaten
+        // erzeugen noch den bereits erreichten Fortschritt der Vorlage
         // überschreiben (REPLACE würde done_at zurücksetzen).
-        val missing = PmSeed.example().filter { it.id !in existing }
+        val missing = PmSeed.example(titleOf = seedTitles::titleOf).filter { it.id !in existing }
         if (missing.isNotEmpty()) dao.upsertAll(missing)
     }
 
@@ -185,11 +221,15 @@ class PmRepositoryImpl @Inject constructor(
 
     // ── innere Helfer ──────────────────────────────────────────────────────
 
-    /** Eltern prüfen: fehlender oder unzulässiger Elter (Todo) → Wurzel. */
+    /**
+     * Eltern prüfen: fehlender oder unzulässiger Elter → Wurzel.
+     * Unzulässig ist alles, was kein Projekt-Container ist (Aufgaben sind
+     * Blätter — nichts liegt unter ihnen).
+     */
     private fun normalizeParent(parentId: String?, all: List<PmNode>): String? {
         if (parentId == null) return null
         val parent = all.firstOrNull { it.id == parentId } ?: return null
-        return if (parent.isTodo) null else parentId
+        return if (!parent.isContainer) null else parentId
     }
 
     private fun nextOrder(all: List<PmNode>, parentId: String?): Int =

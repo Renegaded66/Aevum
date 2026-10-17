@@ -6,13 +6,17 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 /**
- * M19.1: Regeln des PM-Baums.
+ * M19.1/M19.2: Regeln des PM-Baums.
  *
  * Diese Suite prüft die EIGENSCHAFTEN, auf die sich UI, Fortschrittsbalken und
  * Glas stützen: Sortierung, Pfad, Teilbaum, Fortschritt, Umzugsverbote — und
  * ausdrücklich das Verhalten bei KAPUTTEN Daten (Waise, Selbstbezug, Zyklus).
  * Ohne diese Robustheit könnte ein einziger falscher Datensatz die App in eine
  * Endlosschleife oder einen Stack-Overflow treiben.
+ *
+ * M19.2: Nur noch zwei Arten — PROJECT (Container) und TASK (abhakbares
+ * Blatt). Aufgaben liegen unter Projekten, Projekte dürfen beliebig
+ * verschachtelt werden; an die Wurzel darf nur ein Projekt.
  */
 class PmTreeTest {
 
@@ -41,23 +45,23 @@ class PmTreeTest {
     )
 
     /**
-     * Fixture aus dem Anwendungsfall:
-     * Studium → 2. Semester → Projektgruppe → {Präsentation, Projektbericht}
-     * privat → (Todo direkt unter dem Projekt → synthetische Gruppe)
+     * Fixture im neuen Modell:
+     * Studium → 2. Semester → Projektgruppe → {Präsentation → 3 Aufgaben, Projektbericht → 1 Aufgabe}
+     * Privat → 1 Aufgabe (direkt unter dem Projekt).
      */
     private fun fixture(): PmTree = PmTree(
         listOf(
             node("studium", null, PmType.PROJECT, "Studium", order = 0),
             node("semester", "studium", PmType.PROJECT, "2. Semester", order = 0),
-            node("gruppe", "semester", PmType.CATEGORY, "Projektgruppe", order = 0),
-            node("praes", "gruppe", PmType.TASK, "Präsentation", order = 0),
-            node("t1", "praes", PmType.TODO, "erste Hälfte lesen", order = 0, doneAt = created),
-            node("t2", "praes", PmType.TODO, "zweite Hälfte lesen", order = 1),
-            node("t3", "praes", PmType.TODO, "Entwurf aufschreiben", order = 2),
-            node("bericht", "gruppe", PmType.TASK, "Projektbericht", order = 1),
-            node("b1", "bericht", PmType.TODO, "Einleitung schreiben", order = 0),
+            node("gruppe", "semester", PmType.PROJECT, "Projektgruppe", order = 0),
+            node("praes", "gruppe", PmType.PROJECT, "Präsentation", order = 0),
+            node("t1", "praes", PmType.TASK, "erste Hälfte lesen", order = 0, doneAt = created),
+            node("t2", "praes", PmType.TASK, "zweite Hälfte lesen", order = 1),
+            node("t3", "praes", PmType.TASK, "Entwurf aufschreiben", order = 2),
+            node("bericht", "gruppe", PmType.PROJECT, "Projektbericht", order = 1),
+            node("b1", "bericht", PmType.TASK, "Einleitung schreiben", order = 0),
             node("privat", null, PmType.PROJECT, "Privat", order = 1),
-            node("p1", "privat", PmType.TODO, "Schreibtisch aufräumen", order = 0)
+            node("p1", "privat", PmType.TASK, "Schreibtisch aufräumen", order = 0)
         )
     )
 
@@ -129,20 +133,20 @@ class PmTreeTest {
         assertThat(tree.descendantsCount("studium")).isEqualTo(8)
     }
 
-    // ── Todos und Fortschritt ─────────────────────────────────────────────
+    // ── Aufgaben und Fortschritt ───────────────────────────────────────────
 
     @Test
-    fun `todos im teilbaum inklusive Knoten selbst wenn er ein Todo ist`() {
+    fun `aufgaben im teilbaum inklusive Knoten selbst wenn er eine Aufgabe ist`() {
         val tree = fixture()
-        assertThat(tree.subtreeTodos("praes").map { it.id }).containsExactly("t1", "t2", "t3").inOrder()
-        assertThat(tree.subtreeTodos("t1").map { it.id }).containsExactly("t1")
-        assertThat(tree.subtreeTodos("privat").map { it.id }).containsExactly("p1")
-        assertThat(tree.todosOf("praes").map { it.id }).containsExactly("t1", "t2", "t3").inOrder()
-        assertThat(tree.todosOf("gruppe")).isEmpty() // nur direkte Kinder
+        assertThat(tree.subtreeTasks("praes").map { it.id }).containsExactly("t1", "t2", "t3").inOrder()
+        assertThat(tree.subtreeTasks("t1").map { it.id }).containsExactly("t1")
+        assertThat(tree.subtreeTasks("privat").map { it.id }).containsExactly("p1")
+        assertThat(tree.tasksOf("praes").map { it.id }).containsExactly("t1", "t2", "t3").inOrder()
+        assertThat(tree.tasksOf("gruppe")).isEmpty() // nur direkte Kinder
     }
 
     @Test
-    fun `fortschritt zaehlt erledigte Todos im teilbaum`() {
+    fun `fortschritt zaehlt erledigte Aufgaben im teilbaum`() {
         val tree = fixture()
         assertThat(tree.progress("praes")).isEqualTo(PmProgress(done = 1, total = 3))
         assertThat(tree.progress("gruppe")).isEqualTo(PmProgress(done = 1, total = 4))
@@ -153,12 +157,12 @@ class PmTreeTest {
     }
 
     @Test
-    fun `fortschritt eines leeren Containers ist leer und nicht vollstaendig`() {
+    fun `fortschritt eines leeren Projekts ist leer und nicht vollstaendig`() {
         val empty = PmProgress.EMPTY
         assertThat(empty.total).isEqualTo(0)
         assertThat(empty.fraction).isEqualTo(0f)
-        // Wichtig für die UI: ein Container ohne Todos darf NICHT als "fertig"
-        // (100 %) gelten, sonst strahlen leere Kategorien Gold.
+        // Wichtig für die UI: ein Projekt ohne Aufgaben darf NICHT als "fertig"
+        // (100 %) gelten, sonst strahlen leere Projekte Gold.
         assertThat(empty.isComplete).isFalse()
         assertThat(PmProgress(done = 3, total = 3).isComplete).isTrue()
     }
@@ -174,11 +178,13 @@ class PmTreeTest {
     }
 
     @Test
-    fun `offene todos und alle todos`() {
+    fun `offene aufgaben und alle aufgaben`() {
         val tree = fixture()
-        assertThat(tree.openTodos("praes").map { it.id }).containsExactly("t2", "t3").inOrder()
-        assertThat(tree.allTodos().map { it.id }).containsExactly("t1", "t2", "t3", "b1", "p1").inOrder()
-        assertThat(tree.byType(PmType.TASK).map { it.id }).containsExactly("praes", "bericht").inOrder()
+        assertThat(tree.openTasks("praes").map { it.id }).containsExactly("t2", "t3").inOrder()
+        assertThat(tree.allTasks().map { it.id }).containsExactly("t1", "t2", "t3", "b1", "p1").inOrder()
+        assertThat(tree.byType(PmType.PROJECT).map { it.id })
+            .containsExactly("studium", "semester", "gruppe", "praes", "bericht", "privat").inOrder()
+        assertThat(tree.byType(PmType.TASK).map { it.id }).containsExactly("t1", "t2", "t3", "b1", "p1").inOrder()
     }
 
     // ── Umzugsregeln ──────────────────────────────────────────────────────
@@ -194,10 +200,18 @@ class PmTreeTest {
     }
 
     @Test
-    fun `umzug unter ein Todo ist verboten`() {
+    fun `umzug unter eine Aufgabe ist verboten`() {
         val tree = fixture()
         assertThat(tree.moveAllowed("t2", "t1")).isFalse()
         assertThat(tree.moveAllowed("bericht", "t1")).isFalse()
+    }
+
+    @Test
+    fun `an die wurzel darf nur ein projekt`() {
+        val tree = fixture()
+        // Nutzer-Regel: „Man soll nur Projekte anlegen können."
+        assertThat(tree.moveAllowed("praes", null)).isTrue()
+        assertThat(tree.moveAllowed("t2", null)).isFalse()
     }
 
     @Test
@@ -205,10 +219,10 @@ class PmTreeTest {
         val tree = fixture()
         assertThat(tree.moveAllowed("praes", "studium")).isTrue()
         assertThat(tree.moveAllowed("t2", "bericht")).isTrue()
-        assertThat(tree.moveAllowed("t2", null)).isTrue()
-        assertThat(tree.moveAllowed("praes", null)).isTrue()
         // Ziel fehlt → streng abgelehnt (nicht stillschweigend zur Wurzel).
         assertThat(tree.moveAllowed("praes", "unbekannt")).isFalse()
+        // Knoten existiert nicht → abgelehnt.
+        assertThat(tree.moveAllowed("gibt-es-nicht", "studium")).isFalse()
     }
 
     @Test
@@ -257,7 +271,7 @@ class PmTreeTest {
         assertThat(tree.descendants("a").map { it.id }).containsExactly("b")
         assertThat(tree.path("a").size).isAtMost(3)
         assertThat(tree.visibleRows(setOf("root"))).hasSize(1)
-        assertThat(tree.subtreeTodos("a")).isEmpty()
+        assertThat(tree.subtreeTasks("a")).isEmpty()
     }
 
     // ── Baum-Ansicht ──────────────────────────────────────────────────────
@@ -270,7 +284,7 @@ class PmTreeTest {
             .containsExactly("studium", "semester", "privat").inOrder()
         assertThat(tree.visibleRows(setOf("studium", "semester")).map { it.node.id })
             .containsExactly("studium", "semester", "gruppe", "privat").inOrder()
-        // Die Tiefe steuert die Einrückung; das Praesentation-Todo liegt auf 4.
+        // Die Tiefe steuert die Einrückung; die erste Aufgabe liegt auf 4.
         val rows = tree.visibleRows(setOf("studium", "semester", "gruppe", "praes"))
         assertThat(rows.map { it.node.id }).containsExactly(
             "studium", "semester", "gruppe", "praes", "t1", "t2", "t3", "bericht", "privat"
@@ -280,25 +294,37 @@ class PmTreeTest {
         assertThat(rows.first { it.node.id == "praes" }.hasChildren).isTrue()
     }
 
-    // ── Aufgabengruppen ───────────────────────────────────────────────────
+    // ── Projekt-Gruppen ───────────────────────────────────────────────────
 
     @Test
-    fun `aufgabengruppen-fassen-todos-je-aufgabe-zusammen`() {
+    fun `aufgabengruppen-fassen-aufgaben-je-projekt-zusammen`() {
         val tree = fixture()
         val groups = tree.taskGroups()
-        assertThat(groups.map { it.id }).containsExactly("praes", "bericht", PmTree.UNASSIGNED_TASK_ID)
+        assertThat(groups.map { it.id }).containsExactly("praes", "bericht", "privat")
         val praes = groups.first { it.id == "praes" }
-        assertThat(praes.todos.map { it.id }).containsExactly("t1", "t2", "t3").inOrder()
+        assertThat(praes.tasks.map { it.id }).containsExactly("t1", "t2", "t3").inOrder()
         assertThat(praes.breadcrumb).isEqualTo("Studium › 2. Semester › Projektgruppe")
         assertThat(praes.isSynthetic).isFalse()
-        assertThat(groups.first { it.isSynthetic }.todos.map { it.id }).containsExactly("p1")
+        assertThat(groups.none { it.isSynthetic }).isTrue()
+        assertThat(groups.first { it.id == "privat" }.tasks.map { it.id }).containsExactly("p1")
+    }
+
+    @Test
+    fun `aufgaben-ohne-projekt-landen-in-einer-synthetischen-gruppe`() {
+        // Altbestand-Fall (vor der Migration denkbar): eine Aufgabe hängt
+        // direkt an der Wurzel. Sie darf nicht unsichtbar werden.
+        val tree = PmTree(listOf(node("loose", null, PmType.TASK, "Herkunftslos")))
+        val groups = tree.taskGroups()
+        assertThat(groups.map { it.id }).containsExactly(PmTree.UNASSIGNED_TASK_ID)
+        assertThat(groups.first().isSynthetic).isTrue()
+        assertThat(groups.first().tasks.map { it.id }).containsExactly("loose")
     }
 
     @Test
     fun `leerer Baum-keine Wurzeln, keine Gruppen, kein Absturz`() {
         val tree = PmTree.EMPTY
         assertThat(tree.roots()).isEmpty()
-        assertThat(tree.allTodos()).isEmpty()
+        assertThat(tree.allTasks()).isEmpty()
         assertThat(tree.taskGroups()).isEmpty()
         assertThat(tree.visibleRows(setOf("irgendwas"))).isEmpty()
         assertThat(tree.progress("gibt-es-nicht")).isEqualTo(PmProgress.EMPTY)
