@@ -47,6 +47,17 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
 
+## Neu in Version 1.5.1
+
+- **Update-Austausch repariert:** Der Update-Knopf wartet jetzt wirklich, bis
+  die App beendet ist, kopiert die neue Version (mit Ersatzweg, falls das
+  Kopieren hakt), **prüft danach, ob die neue Programmdatei angekommen ist**,
+  und schreibt jede Station in ein Protokoll
+  (`%APPDATA%\AevumPcTracker\update.log`).
+- **Ein misslungenes Update bleibt nie mehr still:** Beim nächsten Start
+  meldet die App in den Einstellungen deutlich, wenn der letzte Austausch
+  nicht durchgelaufen ist — samt „Log-Ordner öffnen".
+
 ## Neu in Version 1.5
 
 - **Dein Handy hat immer Vorrang:** Läuft in der Aevum-App eine Aufzeichnung,

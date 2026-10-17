@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.5.1 — 2026-10-17
+
+### Update-Austausch komplett neu: wartet, kopiert mit Fallback, verifiziert, protokolliert
+
+Devon-Befund: „In 1.4.1 hab ich auf update herunterladen geklickt, kurz danach
+hat es auch heruntergeladen und sich auch das fenster geschlossen, aber dann
+nach ein paar sekunden hat sich einfach wieder 1.4.1 geöffnet. […] Im ordner
+wo die exe ausgeführt wird habe ich auch keine neuen dateien gefunden" —
+zweimal reproduziert, und es reicht bis zum ersten Update zurück.
+
+- **Ursache der Blindstelle gefunden:** Das Batch-Austauschskript verschluckte
+  ALLE Fehler (`>nul`) und war auf einem echten Windows nie verifiziert. Es
+  startete die App am Ende brav neu — nur kopiert hatte es nichts, und
+  niemand konnte sehen warum. Der `ZipFile`-Extrakt ist als Ursache
+  ausgeschlossen (auf .NET 8 nachgestellt: 362/362 Dateien, EXE korrekt).
+- **Neu: PowerShell-Austauschskript** statt Batch — ohne Fehler-Verschlucken:
+  1. Wartet über `Get-Process` bis zu 90 s, bis der Starter-Prozess WIRKLICH
+     weg ist (danach Notfall-`Stop-Process`).
+  2. Kopiert mit `robocopy /MIR` (ersetzt alte Dateien vollständig) und hat
+     einen **`Copy-Item`-Fallback**, wenn robocopy einen Fehler-Exitcode
+     liefert oder gar nicht startet.
+  3. **Verifiziert den Austausch:** Die neue EXE muss nach dem Kopieren exakt
+     die Größe der EXE aus dem Update-Ordner haben — nur dann steht „OK" im
+     Protokoll (inkl. Fallback-Prüfung).
+  4. Erst danach App-Start und Aufräumen.
+- **Neu: `update.log`** — jede Station (Download → Entpacken → Skriptstart →
+  Warten → Kopieren inkl. robocopy-Exitcode → Verifikation → App-Start) wird
+  mit Zeitstempel nach `%APPDATA%\AevumPcTracker\update.log` geschrieben.
+- **Neu: Update-Tagebuch im UI** — die App merkt vor dem Austausch die
+  Zielversion (`pending-update.txt`). Beim nächsten Start bilanziert sie:
+  Erfolg (still aufgeräumt) oder **Fehlschlag → deutliches rotes Band in den
+  Einstellungen** („Das letzte Update ist nicht durchgelaufen … Details im
+  update.log") mit Knöpfen „Log-Ordner öffnen" und „Verstanden". Ein
+  gescheitertes Update bleibt nie mehr still.
+- Alte Austausch-Skripte früherer Versuche werden beim nächsten Update
+  automatisch aufgeräumt.
+- Tests: 4 neue (`UpdateJournalTests`: Marker-Runde, kaputte Marker-Datei,
+  Bilanz Erfolg/Fehlschlag/kein Auftrag, Log-Format); die Skript-Tests prüfen
+  jetzt Reihenfolge/Warten/Fallback/Verifikation/Logging → **131/131 grün**.
+
 ## [Unreleased] — PC-Tracker 1.5.0 — 2026-10-17
 
 ### Handy-Vorrang, Aktivitäts-Vorwahl, Verlauf-Löschen, deutliche Aufnahme-Anzeige

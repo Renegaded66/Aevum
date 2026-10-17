@@ -338,7 +338,12 @@ public static class Loc
         ["s.upd_error"] = "Could not check for updates (offline?).",
         ["s.upd_badge"] = "Update available",
         ["s.upd_open"] = "Open release page",
-        ["s.upd_keep"] = "Your settings and recordings are kept — the update only replaces the program files.",
+        ["s.upd_keep"] = "Your settings and recordings stay in place — the update only replaces the program files.",
+        // PC 1.5.1: ehrliches Fehlerband + Nachkontrolle
+        ["s.upd_failed_title"] = "The last update did not go through",
+        ["s.upd_failed_body"] = "The target was v{0}, but v{1} is still running — the program files were not replaced. The details are in the update log.",
+        ["s.upd_open_folder"] = "Open log folder",
+        ["s.upd_dismiss"] = "Got it",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -599,5 +604,10 @@ public static class Loc
         ["s.upd_badge"] = "Update verfügbar",
         ["s.upd_open"] = "Release-Seite öffnen",
         ["s.upd_keep"] = "Deine Einstellungen und Aufzeichnungen bleiben erhalten — das Update ersetzt nur die Programmdateien.",
+        // PC 1.5.1: ehrliches Fehlerband + Nachkontrolle
+        ["s.upd_failed_title"] = "Das letzte Update ist nicht durchgelaufen",
+        ["s.upd_failed_body"] = "Ziel war v{0}, es läuft aber noch v{1} — die Programmdateien wurden nicht ersetzt. Die Details stehen im Update-Protokoll (update.log).",
+        ["s.upd_open_folder"] = "Log-Ordner öffnen",
+        ["s.upd_dismiss"] = "Verstanden",
     };
 }

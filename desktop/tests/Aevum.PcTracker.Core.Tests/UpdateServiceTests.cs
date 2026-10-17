@@ -124,10 +124,12 @@ public class UpdateServiceTests
 }
 
 /// <summary>
-/// PC-Tracker 1.4.1: Das Austausch-Skript muss drei echte Fehlerfälle
-/// abdecken, die der Nutzer erlebt hat (Update lief an, aber der Ordner blieb
-/// alt; „app is already active in the system tray“-Dialog; zu kurzes
-/// 2-s-Timeout, während die App im Tray weiterlebte).
+/// PC-Tracker 1.5.1: Das Austausch-Skript (jetzt PowerShell) muss die echten
+/// Fehlerfälle abdecken, die der Nutzer erlebt hat: Update lief an, aber der
+/// Ordner blieb alt („nach ein paar sekunden hat sich einfach wieder 1.4.1
+/// geöffnet, keine neuen dateien"); Fehler waren unsichtbar (>nul). Deshalb:
+/// echtes Warten auf das Prozessende, Kopieren mit robocopy /MIR PLUS
+/// Copy-Item-Fallback, Größen-Verifikation der neuen EXE und ein Log.
 /// </summary>
 public class UpdateSwapScriptTests
 {
@@ -136,45 +138,138 @@ public class UpdateSwapScriptTests
             @"C:\Temp\AevumPcTracker-update",
             @"C:\Apps\AevumPcTracker",
             "AevumPcTracker.exe",
-            4242);
+            4242,
+            @"C:\Users\Devon\AppData\Roaming\AevumPcTracker\update.log");
 
     [Fact]
-    public void ScriptWartetAufDasEndeDesStarters()
+    public void ScriptWartetAufDasEchteProzessendeDannKopierenDannStarten()
     {
         var lines = Lines();
-        // Warteschleife auf die PID des Starters (statt festem timeout /t 2).
-        Assert.Contains(lines, l => l.Contains(":waitloop"));
-        Assert.Contains(lines, l => l.Contains("tasklist") && l.Contains("4242"));
-        Assert.Contains(lines, l => l.Contains("goto waitloop"));
-        // Notfall-Abbruch nach der Wartephase — und nur genau diese PID.
-        Assert.Contains(lines, l => l.Contains("taskkill /PID 4242 /F"));
-        // Reihenfolge: kill vor Kopieren, Start erst nach dem Kopieren.
-        var killIndex = System.Array.FindIndex(lines, l => l.Contains("taskkill"));
+        // Warteschleife auf die PID des Starters (Get-Process, bis 90 s),
+        // danach Notfall-Stop: genau diese PID.
+        Assert.Contains(lines, l => l.Contains("while ((Get-Process -Id 4242"));
+        Assert.Contains(lines, l => l.Contains("Stop-Process -Id 4242 -Force"));
+        // Reihenfolge: Stop < robocopy < Start-Process der neuen EXE.
+        var stopIndex = System.Array.FindIndex(lines, l => l.Contains("Stop-Process -Id 4242"));
         var copyIndex = System.Array.FindIndex(lines, l => l.Contains("robocopy"));
-        var startIndex = System.Array.FindIndex(lines, l => l.TrimStart().StartsWith("start "));
-        Assert.True(killIndex < copyIndex, "taskkill muss vor robocopy stehen");
+        var startIndex = System.Array.FindIndex(lines, l => l.Contains("Start-Process -FilePath $exe"));
+        Assert.True(stopIndex >= 0 && copyIndex >= 0 && startIndex >= 0);
+        Assert.True(stopIndex < copyIndex, "Stop muss vor robocopy stehen");
         Assert.True(copyIndex < startIndex, "die neue EXE darf erst nach dem Kopieren starten");
     }
 
     [Fact]
-    public void ScriptSpiegeltDenOrdnerUndLoeschtAlteDateien()
+    public void ScriptSpiegeltMitMirUndHatCopyItemFallback()
     {
         var lines = Lines();
-        var copy = Assert.Single(lines, l => l.Contains("robocopy"));
+        var copy = Assert.Single(lines, l => l.Contains("& robocopy"));
         // /MIR = spiegeln: entfernt Dateien der alten Version, die es in der
         // neuen nicht mehr gibt („alte Version soll verschwinden“).
         Assert.Contains("/MIR", copy);
-        Assert.Contains(@"C:\Temp\AevumPcTracker-update", copy);
-        Assert.Contains(@"C:\Apps\AevumPcTracker", copy);
+        Assert.Contains("$src", copy);
+        Assert.Contains("$dst", copy);
+        // robocopy-Fehler (Exitcode >= 8) und fehlende Quelle → Copy-Item-Fallback.
+        Assert.Contains(lines, l => l.Contains("Copy-Item") && l.Contains("-Recurse") && l.Contains("-Force"));
+        Assert.Contains(lines, l => l.Contains("$LASTEXITCODE") && l.Contains("$rc"));
     }
 
     [Fact]
-    public void ScriptEnthaeltKeinFestesZweiSekundenTimeoutMehr()
+    public void ScriptVerifiziertDieNeueExeUndLoggtAlles()
     {
         var lines = Lines();
-        // Früher: ein einziges „timeout /t 2“ — viel zu kurz, wenn der Prozess
-        // im Tray weiterlebte. Jetzt nur noch 1-s-Schritte in der Warteschleife.
-        Assert.DoesNotContain(lines, l => l.Contains("timeout /t 2"));
-        Assert.Contains(lines, l => l.Contains("timeout /t 1"));
+        // Verifikation: Größe der neuen EXE aus dem Update-Ordner muss nach
+        // dem Kopieren exakt im Zielordner ankommen.
+        Assert.Contains(lines, l => l.Contains("$expected = (Get-Item") && l.Contains("$srcExe"));
+        Assert.Contains(lines, l => l.Contains("VERIFIKATION FEHLGESCHLAGEN") || l.Contains("Verifikation"));
+        // Log: jede Station mit Zeitstempel, der Log-Pfad ist eingebettet.
+        Assert.Contains(lines, l => l.Contains("Write-Log") && l.Contains("Add-Content"));
+        Assert.Contains(lines, l => l.Contains(@"AevumPcTracker\update.log"));
+        // Nichts verschluckt die Fehler mehr (>nul-Batch ist Geschichte).
+        Assert.DoesNotContain(lines, l => l.Contains(">nul"));
+        Assert.DoesNotContain(lines, l => l.Contains("chcp"));
+        Assert.DoesNotContain(lines, l => l.Contains("timeout /t"));
+    }
+}
+
+/// <summary>
+/// PC-Tracker 1.5.1: Das Update-Tagebuch — Marker schreiben/lesen/aufräumen
+/// und die Bilanz beim nächsten Start (erfolgreich / fehlgeschlagen / keiner).
+/// </summary>
+public class UpdateJournalTests : IDisposable
+{
+    private readonly string _dir;
+
+    public UpdateJournalTests()
+    {
+        _dir = Path.Combine(Path.GetTempPath(), "aevum-update-journal-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_dir);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(_dir, recursive: true);
+        }
+        catch
+        {
+            // Best effort.
+        }
+    }
+
+    [Fact]
+    public void MarkerRundeSchreibtLiestUndRaeumtAuf()
+    {
+        Assert.Null(PendingUpdateStore.Read(_dir));
+
+        PendingUpdateStore.Write(_dir, new Version(1, 5, 1), 123_456);
+        var pending = PendingUpdateStore.Read(_dir);
+        Assert.NotNull(pending);
+        Assert.Equal(new Version(1, 5, 1), pending!.Target);
+        Assert.Equal(123_456, pending.StartedAtMs);
+
+        PendingUpdateStore.Clear(_dir);
+        Assert.Null(PendingUpdateStore.Read(_dir));
+    }
+
+    [Fact]
+    public void KaputteMarkerDateiWirdIgnoriert()
+    {
+        File.WriteAllText(PendingUpdateStore.PathFor(_dir), "kein-gueltiger-inhalt");
+        Assert.Null(PendingUpdateStore.Read(_dir));
+    }
+
+    [Fact]
+    public void BilanzErkenntErfolgFehlschlagUndKeinenAuftrag()
+    {
+        var target = new Version(1, 5, 1);
+        var pending = new PendingUpdate(target, 0);
+
+        // Läuft bereits die Zielversion (oder neuer) → erfolgreich.
+        Assert.Equal(PendingUpdateOutcome.Succeeded,
+            PendingUpdateStore.Classify(pending, new Version(1, 5, 1)));
+        Assert.Equal(PendingUpdateOutcome.Succeeded,
+            PendingUpdateStore.Classify(pending, new Version(1, 6, 0)));
+
+        // Es läuft noch die alte Version → der Austausch kam nicht durch.
+        Assert.Equal(PendingUpdateOutcome.Failed,
+            PendingUpdateStore.Classify(pending, new Version(1, 5, 0)));
+        Assert.Equal(PendingUpdateOutcome.Failed,
+            PendingUpdateStore.Classify(pending, new Version(1, 4, 1)));
+
+        // Kein Auftrag → nichts zu melden.
+        Assert.Equal(PendingUpdateOutcome.None,
+            PendingUpdateStore.Classify(null, new Version(1, 4, 1)));
+    }
+
+    [Fact]
+    public void LogSchreibtMitZeitstempelUndUeberlebtFehlendeOrdnerNicht()
+    {
+        UpdateLog.Append(_dir, "update: Testzeile");
+
+        var log = File.ReadAllText(UpdateLog.PathFor(_dir));
+        Assert.Contains("update: Testzeile", log);
+        // Zeitstempel-Präfix (yyyy-MM-dd HH:mm:ss) ist vorhanden.
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ", log);
     }
 }

@@ -120,6 +120,23 @@
           <TextBlock Text="{DynamicResource s.upd_title}" Classes="section-label" />
           <TextBlock Text="{Binding UpdateCurrentText}" Classes="muted" />
           <TextBlock Text="{DynamicResource s.upd_auto}" Classes="muted" />
+          <!-- PC 1.5.1: Ehrliches Fehlerband — der letzte Update-Versuch ist
+               nicht durchgelaufen (Marker + Log; „statt still wieder alt"). -->
+          <Border BorderBrush="#7B4A4A" BorderThickness="1" CornerRadius="10"
+                  Padding="14,10" IsVisible="{Binding UpdateFailedVisible}">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{DynamicResource s.upd_failed_title}" FontWeight="SemiBold"
+                         Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding UpdateFailedText}" Classes="muted" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <!-- Existierender Command: öffnet den Datenordner (dort liegt update.log). -->
+                <Button Classes="ghost" Content="{DynamicResource s.upd_open_folder}"
+                        Command="{Binding OpenDataFolderCommand}" />
+                <Button Classes="ghost" Content="{DynamicResource s.upd_dismiss}"
+                        Command="{Binding DismissUpdateFailedCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
           <StackPanel Orientation="Horizontal" Spacing="10">
             <Button Classes="ghost" Content="{DynamicResource s.upd_check}"
                     Command="{Binding CheckUpdatesCommand}" IsEnabled="{Binding !UpdateBusy}" />

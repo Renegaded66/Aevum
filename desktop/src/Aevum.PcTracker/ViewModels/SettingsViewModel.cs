@@ -132,6 +132,44 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
         UpdateProgressVisible = _updState == "downloading";
     }
 
+    // ---------------------------------------------------------------- 1.5.1:
+    // Das Update-Tagebuch. Beim Start wird geprüft, ob ein gemerkter
+    // Update-Auftrag (Marker aus ApplyAndRestart) durchgekommen ist. Wenn
+    // nicht, sagen die Einstellungen das deutlich — statt still wieder in der
+    // alten Version zu stehen (Devon: „nach ein paar sekunden hat sich einfach
+    // wieder 1.4.1 geöffnet. Im ordner … keine neuen dateien").
+    [ObservableProperty] private bool _updateFailedVisible;
+    [ObservableProperty] private string _updateFailedText = "";
+
+    private void CheckPendingUpdateOutcome()
+    {
+        var pending = PendingUpdateStore.Read(_host.DataDirectory);
+        switch (PendingUpdateStore.Classify(pending, ParseVersion(_host.Version)))
+        {
+            case PendingUpdateOutcome.Succeeded:
+                UpdateLog.Append(_host.DataDirectory,
+                    $"update: erfolgreich — es läuft jetzt v{_host.Version}");
+                PendingUpdateStore.Clear(_host.DataDirectory);
+                UpdateFailedVisible = false;
+                break;
+            case PendingUpdateOutcome.Failed when pending is not null:
+                UpdateFailedVisible = true;
+                UpdateFailedText = Loc.F("s.upd_failed_body", pending.Target, _host.Version);
+                break;
+            default:
+                UpdateFailedVisible = false;
+                break;
+        }
+    }
+
+    /// <summary>„Verstanden": Fehlermeldung ausblenden (Marker aufräumen).</summary>
+    [RelayCommand]
+    private void DismissUpdateFailed()
+    {
+        PendingUpdateStore.Clear(_host.DataDirectory);
+        UpdateFailedVisible = false;
+    }
+
     private static Version ParseVersion(string text)
         => Version.TryParse(text, out var v) ? v : new Version(1, 0, 0);
 
@@ -173,12 +211,10 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
             _updState = "installing";
             UpdateProgressVisible = false;
             RenderUpdateStatus();
-            UpdateInstaller.ApplyAndRestart(zipPath, appDir, exeName);
-            // Kurz stehen lassen, dann HARt beenden — das Skript wartet auf
-            // das Prozessende, spiegelt die neue Version in den Ordner
-            // (alte Dateien werden entfernt) und startet die App neu.
-            // 1.4.1-Fix: NICHT nur desktop.Shutdown() — das X versteckt nur in
-            // den Tray, der Prozess lebte weiter und blockierte den Austausch.
+            // PC 1.5.1: Marker + Log schreiben, dann austauschen und HARt
+            // beenden — das Skript wartet auf das Prozessende, kopiert mit
+            // Verifikation (inkl. Fallback) und startet die App neu.
+            UpdateInstaller.ApplyAndRestart(zipPath, appDir, exeName, _host.DataDirectory, _pendingUpdate.Version);
             await Task.Delay(500);
             (Avalonia.Application.Current as App)?.ShutdownForUpdate();
             // Fallback, falls das Cast unerwartet fehlschlägt (z. B. Tests):
@@ -225,6 +261,9 @@ public partial class SettingsViewModel : ObservableObject, IRefreshable
             LoadFromSettings();
         });
         Refresh();
+        // PC 1.5.1: Liegt ein gemerkter Update-Auftrag vor? Dann ehrlich
+        // bilanzieren (erfolgreich aufgeräumt / Fehlschlag sichtbar melden).
+        CheckPendingUpdateOutcome();
     }
 
     private void BuildOptions()
