@@ -24,20 +24,32 @@ Jede erkannte Aktivität ist bearbeitbar:
 
 ### 2. Visuelles Dashboard
 
-Dashboard ist der wichtigste Screen.
+Dashboard ist der wichtigste Screen („Der Puls deines Tages").
 
-Inhalte:
+**Hero 2.0 (M19.4)** — das „Tag-Cockpit" oben:
 
-- aktuelle Aktivität
-- heutige Zeitverteilung
-- Timeline des Tages
-- Ziele
-- Streaks
-- Gewohnheiten
-- Lebensfortschritt
-- Bucket-List-Fortschritt
-- Smartphone-Nutzung
-- wichtige Insights
+- Tages-Navigation ‹ Heute › — Tag blättern (Slide-Animation), Datum →
+  Kalender-Popup, „Heute"-Rücksprung.
+- Güte-Gauge (180°): feste Rot→Gelb→Grün-Skala mit leuchtendem Marker
+  und Nadel; große Zahl = Zeitqualität (Dauer × Positivität je Aktivität).
+  Tipp öffnet die Tages-Güte-Anpassung (✎-Badge bei Override).
+- Drei versetzte Glas-Kacheln: **Erfasst / Schlaf / Bildschirm** —
+  Zähler-Animation, Mini-Balken (Anteil an 24 h), dezenter Schimmer.
+- Zonen-Chip neben dem Gauge: aktueller Geofence-Name oder „Abwesend".
+- Tagesleiste (24 h): Segment-Blöcke in Kategoriefarben, gedimmte
+  Zukunft rechts vom pulsierenden Jetzt-Marker, Stundenlabels
+  0/6/12/18/24; Tipp öffnet die Timeline.
+- Aufnahme-Status: „Aufnahme läuft" (grün + Timer + Schimmer) /
+  „Pausiert" (amber, Timer eingefroren) / „Aufnahme bereit" mit
+  Tagesfortschritt.
+- **Sheet über Hero:** alle Karten liegen in einer oben abgerundeten
+  Fläche, die beim Scrollen über den gepinnten Hero schiebt (Parallax,
+  Farbraum schimmert durch die Ecken — Referenz-Aufbau des Nutzers).
+
+Karten im Sheet: Live-Banner (Pause/Weiter/Stop/Wechsel), Güte-Verlauf
+(7/30/365 Tage), Garmin-Kacheln (Schlaf/Stress/Body-Battery), „Wo deine
+Zeit hingeht" + Insights, Todos, Tagespauschalen, Review-Hinweis,
+schwebender +-Button (nur ohne laufende Aufnahme) mit Orbit-Launcher.
 
 ### 3. Timeline & Activity Editor
 

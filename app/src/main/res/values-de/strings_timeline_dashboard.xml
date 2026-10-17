@@ -153,6 +153,10 @@
     <string name="dashboard_quality_day_title">Tages-Güte anpassen</string>
     <string name="dashboard_quality_day_message">Wie wertvoll war der %1$s? Die Aktivitäts-Einstellungen bleiben unverändert.</string>
     <string name="dashboard_quality_label">QUALITÄT</string>
+    <!-- M19.4: Hero 2.0 — Status-Leiste + Barrierefreiheit -->
+    <string name="dashboard_recording_ready">Aufnahme bereit</string>
+    <string name="dashboard_hero_quality_cd">Tagesgüte: %1$d von 100. Zum Anpassen tippen.</string>
+    <string name="dashboard_hero_timeline_cd">Tagesverlauf. Zum Öffnen tippen.</string>
     <string name="dashboard_your_day">DEIN TAG</string>
     <string name="dashboard_screen">Bildschirm</string>
     <string name="dashboard_flow_empty">Sobald du erfasst, erscheint hier dein Tagesfluss.</string>

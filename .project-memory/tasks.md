@@ -106,3 +106,17 @@
       WICHTIG fürs nächste Mal: Handy-Relay effektiv oft langsamer als
       7–15 s (Standby) — PC-Politik muss Sendelücken aushalten (getan);
       phone-priority.log bei erneutem Befund zuerst prüfen.
+- [x] M19.4 (App 1.0.36, vc 37): Dashboard-Hero 2.0 „Tag-Cockpit" nach
+      Devons Skizze — 180°-Güte-Gauge (fester Rot→Grün-Farbraum, Marker +
+      Nadel + Puls-Glow), drei versetzte Glas-Kacheln mit Schimmer und
+      Zähler-Animation, Zonen-Chip, 24h-Tagesleiste mit Stundenlabels und
+      gedimmter Zukunft, Aufnahme-Status-Balken (grün/amber/bereit).
+      Karten-Drumherum in EINEM Sheet mit 28dp-Oberkante, das sich beim
+      Scrollen über den gepinnten Hero schiebt (gemessene Hero-Höhe,
+      Parallax, Peek durch die Ecken). Atmosphere auf Eisblau/Feuerrot/Gold.
+      Keine DB-/Nav-Änderung. 1165/1165 Tests (0 Fehler; +17: 6 Metrik-,
+      11 UI-Tests inkl. 3 Rendering-Screenshots über Robolectric
+      View-Draw mit fixer Test-Uhr — captureToImage/PixelCopy existiert
+      dort nicht!). Voll-Build Exit 0 (9m58s), Debug-APK kanonisch
+      signiert, Release-APK + AAB im Build-Output; Screenshot-Kopien auf
+      dem APK-Server. Bericht `docs/M19-4-ABSCHLUSSBERICHT.md`.

@@ -153,6 +153,10 @@
     <string name="dashboard_quality_day_title">Adjust day quality</string>
     <string name="dashboard_quality_day_message">How valuable was %1$s? The activity settings remain unchanged.</string>
     <string name="dashboard_quality_label">QUALITY</string>
+    <!-- M19.4: Hero 2.0 — Status-Leiste + Barrierefreiheit -->
+    <string name="dashboard_recording_ready">Ready to record</string>
+    <string name="dashboard_hero_quality_cd">Day quality: %1$d of 100. Tap to adjust.</string>
+    <string name="dashboard_hero_timeline_cd">Day timeline. Tap to open.</string>
     <string name="dashboard_your_day">YOUR DAY</string>
     <string name="dashboard_screen">Screen</string>
     <string name="dashboard_flow_empty">Once you start tracking, your day flow will appear here.</string>

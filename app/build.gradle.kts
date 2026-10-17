@@ -174,8 +174,21 @@ android {
         //   der 1.0.34 (GitHub-Releases, System-Installer) ist wieder entfernt;
         //   die Handy-App kommt weiterhin über den Play Store. Sync-Features
         //   aus 1.0.34 (Live-Kanal zum PC, Sofort-Sync beim Öffnen) bleiben.
-        versionCode = 36
-        versionName = "1.0.35"
+        // M19.4 (App 1.0.36): Dashboard-Hero 2.0 nach Devons Skizze —
+        //   Tag-Cockpit mit zentriertem 180°-Güte-Gauge (Rot→Grün-Skala,
+        //   leuchtender Marker + Nadel), drei versetzten Glas-Kacheln
+        //   (Erfasst/Schlaf/Bildschirm) mit Schimmer und Zähler-Animation,
+        //   Zonen-Chip (Zuhause/Abwesend) neben dem Gauge, 24h-Tagesleiste
+        //   mit Stundenlabels und Aufnahme-Status-Balken („Aufnahme läuft"
+        //   grün mit Timer / pausiert amber / „Aufnahme bereit" mit
+        //   Tagesfortschritt). Das komplette Karten-Drumherum liegt in
+        //   EINEM oben abgerundeten Sheet, das sich beim Scrollen über den
+        //   gepinnten Hero schiebt (Referenzbild; Parallax an der gemessenen
+        //   Hero-Höhe, Deko-Rest schimmert durch die Sheet-Ecken).
+        //   Atmosphere-Orbs jetzt in Eisblau/Feuerrot/Gold. Keine DB-,
+        //   Navigations- oder Domänen-Änderung.
+        versionCode = 37
+        versionName = "1.0.36"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -45,6 +44,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,6 +58,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +75,6 @@ import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.BubbleStream
 import com.d_drostes_apps.aevum.ui.components.FlipTimeText
 import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
-import com.d_drostes_apps.aevum.ui.components.ZoneBanner
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
 import com.d_drostes_apps.aevum.ui.components.positivityColor
@@ -243,31 +243,33 @@ private fun DashboardContent(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             DashboardAtmosphere()
-            // M18.96: ZWEI-EBENEN-LAYOUT (Kalorien-Tracker-Optik).
-            // Ebene 1 (hinten): der Hero — animierter Farbbereich mit
-            // QualityRing + Makro-Kacheln. Ebene 2 (vorn): die LazyColumn
-            // M18.100: ZWEI EBENEN (M18.96-Fix): Ebene hinten = NUR die
-            // Deko-Farbfläche (DashboardHeroBackground, fest am oberen
-            // Rand); Ebene vorn = LazyColumn mit dem Hero-INHALT als
-            // Item 0 (klickbar — die Pfeile waren vorher unklickbar,
-            // weil die transparente contentPadding-Fläche der LazyColumn
-            // alle Taps im Hero-Bereich schluckte).
-            // M18.101: Parallax-Collapse wieder aktiv (User: "der moderne
-            // scroll Effekt ist weg, der obere Teil soll in den
-            // Hintergrund rücken"): Der Hero-Inhalt (Item 0) wird beim
-            // Scrollen per graphicsLayer schneller nach oben geschoben
-            // und ausgeblendet (Collapse), die Deko-Fläche bleibt mit
-            // 0.55× Parallax dahinter sichtbar.
+            // M18.96/M18.100/M18.101, neu geordnet in M19.4: ZWEI-EBENEN-
+            // LAYOUT. Ebene 1 (hinten): die Deko-Farbfläche
+            // (DashboardHeroBackground, fest am oberen Rand, mit Überstand
+            // unter den Hero). Ebene 2 (vorn): die LazyColumn mit dem
+            // Hero-INHALT als Item 0 (klickbar — die Pfeile waren vor
+            // M18.100 unklickbar, weil die transparente
+            // contentPadding-Fläche der LazyColumn alle Taps im
+            // Hero-Bereich schluckte) und EINEM Sheet-Item, das sich beim
+            // Scrollen über den Hero legt. Der Hero-Inhalt wird per
+            // graphicsLayer schneller nach oben geschoben und ausgeblendet
+            // (Collapse) — die Deko bleibt mit 0.55× Parallax dahinter.
             val listState = rememberLazyListState()
             val density = androidx.compose.ui.platform.LocalDensity.current
-            val heroHeightPx = with(density) { DashboardHeroHeight.toPx() }
+            // M19.4: Die Hero-Höhe wird GEMESSEN (das neue Cockpit ist
+            // höher als die alte Konstante) — Parallax, Deko-Fläche und
+            // Collapse hängen alle an heroItemHeightPx.
+            var heroItemHeightPx by remember { mutableIntStateOf(0) }
+            val heroHeightPx = heroItemHeightPx.toFloat()
             // Collapse-Fortschritt: Sobald Item 0 (Hero) den Viewport
             // verlässt (firstVisibleItemIndex > 0), ist er vollständig
             // überdeckt → collapse = 1.
             val heroCollapse by animateFloatAsState(
-                targetValue = if (listState.firstVisibleItemIndex > 0) 1f
-                else (listState.firstVisibleItemScrollOffset.toFloat() /
-                    heroHeightPx.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                targetValue = DashboardHeroMetrics.collapseFor(
+                    offsetPx = listState.firstVisibleItemScrollOffset,
+                    heroHeightPx = heroItemHeightPx,
+                    belowHero = listState.firstVisibleItemIndex > 0
+                ),
                 animationSpec = tween(120),
                 label = "heroCollapse"
             )
@@ -282,14 +284,24 @@ private fun DashboardContent(
                 is LiveActivityState.Paused -> liveState.activeMs(nowMs)
                 else -> 0L
             }
+            // M19.4: Die Deko-Fläche reicht DashboardHeroPeek UNTER den
+            // Hero hinaus — durch die abgerundeten Sheet-Ecken schimmert
+            // sie hindurch, das Sheet liegt optisch ÜBER dem Farbbereich.
+            val heroBgPeekPx = with(density) { DashboardHeroPeek.toPx() }
+            val heroBgHeight = if (heroItemHeightPx > 0) {
+                with(density) { heroItemHeightPx.toDp() + DashboardHeroPeek }
+            } else {
+                DashboardHeroFallbackHeight
+            }
             DashboardHeroBackground(
+                height = heroBgHeight,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         // Parallax: Deko-Fläche schiebt sich mit 0.55x
                         // der Scroll-Geschwindigkeit nach oben.
-                        translationY = -heroCollapse * heroHeightPx * 0.55f
-                        alpha = 1f - 0.25f * heroCollapse
+                        translationY = -heroCollapse * (heroHeightPx + heroBgPeekPx) * 0.55f
+                        alpha = 1f - 0.45f * heroCollapse
                     }
             )
             // M18.60-FIX (User: "Tage wechseln — da sollte eine Animation
@@ -326,144 +338,141 @@ private fun DashboardContent(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    // M18.96: Inhalt liegt ÜBER dem Hero (zIndex) und
-                    // beginnt erst unterhalb seiner Höhe — beim Scrollen
-                    // schiebt er sich über den Farbbereich.
                     .zIndex(1f),
-            // M18.58: Abstand zum oberen Bildschirmrand reduziert (User-Wunsch).
-            // Vorher vertical = AevumSpacing.lg (16dp) — jetzt nur noch 8dp oben,
-            // unten bleibt 16dp fürs Scroll-Ende.
-            contentPadding = PaddingValues(
-                start = AevumSpacing.md,
-                end = AevumSpacing.md,
-                // M18.100: top = 0 — der Hero ist jetzt Item 0 (die
-                // Deko-Fläche liegt als eigene Ebene DARUNTER).
-                top = 0.dp,
-                bottom = AevumSpacing.lg
-            ),
+            // M19.4: KEIN statusBarsPadding mehr an der Liste — der Hero
+            // bringt es selbst mit (Item 0), und das Sheet läuft beim
+            // Hochscrollen randlos unter die Statusleiste. Seitliches
+            // Padding sitzt im Hero bzw. im Sheet.
+            contentPadding = PaddingValues(bottom = AevumSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            // 0) M18.100: Hero-Inhalt als Item 0 — klickbar (Pfeile,
-            // QualityRing, "Heute", Datum→Kalender). Scrollt über die
-            // Deko-Fläche (Kalorien-Tracker-Optik bleibt).
-            // M18.101: Collapse-Transformation — der Hero-Inhalt schiebt
-            // sich beim Scrollen schneller nach oben (0.55×) und wird
-            // ausgeblendet, die Deko-Fläche bleibt als Parallax dahinter.
+            // 0) M19.4: Hero-Inhalt als Item 0 — klickbar, misst sich
+            // selbst (Parallax + Deko-Höhe hängen an der ECHTEN Höhe des
+            // neuen Layouts). Beim Scrollen schiebt er sich schneller
+            // nach oben (0.5× zusätzlich) und blendet ab — das Sheet
+            // darunter holt auf und legt sich ÜBER ihn (Referenzbild).
             item(key = "hero") {
-                DashboardHeroContent(
-                    state = state,
-                    isLive = isLive,
-                    liveTitle = liveTitle,
-                    liveActiveMs = liveActiveMs,
-                    onQualityClick = { showQualityDialog = true },
-                    onPreviousDay = { onNavigateDay(-1) },
-                    onNextDay = { onNavigateDay(1) },
-                    onResetToToday = onResetToToday,
-                    onDateClick = { showDatePickerDialog = true },
-                    modifier = Modifier.graphicsLayer {
-                        translationY = -heroCollapse * heroHeightPx * 0.45f
-                        alpha = 1f - 0.35f * heroCollapse
-                    }
-                )
-            }
-            // 1) Live-Banner — wichtigste Info zuerst. Gleitet von oben rein.
-            item {
-                AnimatedVisibility(visible = isLive, enter = slideIn, exit = slideOut) {
-                    LiveActivityBanner(
-                        state = liveState,
-                        nowMs = nowMs,
-                        onPause = onPauseLive,
-                        onResume = onResumeLive,
-                        onStop = onStopLive,
-                        // M18.60: Wechsel-Button im Banner (wie Benachrichtigung)
-                        onSwitch = onSwitchLive,
-                        activityTypes = state.activityTypes
+                Box(
+                    modifier = Modifier
+                        .onSizeChanged { size ->
+                            if (size.height > 0) heroItemHeightPx = size.height
+                        }
+                        .graphicsLayer {
+                            translationY = -heroHeightPx * 0.5f * heroCollapse
+                            alpha = 1f - 0.75f * heroCollapse
+                            val s = 1f - 0.05f * heroCollapse
+                            scaleX = s
+                            scaleY = s
+                        }
+                ) {
+                    DashboardHeroContent(
+                        state = state,
+                        isLive = isLive,
+                        isPaused = liveState is LiveActivityState.Paused,
+                        liveTitle = liveTitle,
+                        liveActiveMs = liveActiveMs,
+                        currentZone = currentZone,
+                        onQualityClick = { showQualityDialog = true },
+                        onOpenTimeline = onOpenTimeline,
+                        onPreviousDay = { onNavigateDay(-1) },
+                        onNextDay = { onNavigateDay(1) },
+                        onResetToToday = onResetToToday,
+                        onDateClick = { showDatePickerDialog = true }
                     )
                 }
             }
-
-            // M18.66-FIX3: Zone-Banner — zeigt die aktuelle Geofence-Zone
-            // (oder "Abwesend"), damit der User sieht, ob die App ihn korrekt
-            // lokalisiert. Dezent, aber klar sichtbar.
-            item {
-                ZoneBanner(zone = currentZone, debugInfo = zoneDebugInfo)
-            }
-
-            // M18.100: Der Hero-Inhalt ist jetzt Item 0 (klickbar); nur
-            // die Deko-Farbfläche liegt als Ebene HINTER der LazyColumn
-            // (DashboardHeroBackground) und wird beim Scrollen überdeckt.
-
-            // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik (User-Wunsch:
-            // "Statistik über den Güte Verlauf der letzten Tage, wobei man
-            // INNERHALB der Statistik einstellen können soll, ob in den
-            // letzten 7, 30, 365 Tagen").
-            item {
-                QualityTrendCard(trend = qualityTrend)
-            }
-
-            // M18.58: Garmin-Kacheln — moderne kleine Kacheln (User-Wunsch).
-            // Nur sichtbar, wenn Daten synchronisiert wurden.
-            item {
-                GarminTilesRow(
-                    sleepDurationMs = state.lastSleepDurationMs,
-                    summary = garminSummary,
-                    activities = garminActivities
-                )
-            }
-
-            // 3) M18.58: Der komplette Schnellstart-BEREICH ist entfernt
-            // (User: "der gesamte Bereich zum starten einer Activity kann
-            // weg"). Stattdessen: schwebender +-Button unten rechts, der
-            // ein fancy Popup (ActivityPickerSheet) öffnet.
-
-            // 4) M18.81 (Dashboard-Redesign): Reflexion — "Wo deine Zeit
-            // hingeht" (Top-5 mit Score-Farbe) + Insights jetzt in EINER
-            // Karte. Vorher zwei getrennte Sektionen.
-            if (state.qualityBreakdown.isNotEmpty() || state.insights.isNotEmpty()) {
-                item { DayReflectionCard(state = state) }
-            }
-
-            // M18.37: Kompakte Todos-Karte — das Herzstueck zeigt, was
-            // heute noch ansteht. Nur sichtbar, wenn Todos existieren.
-            if (state.todoTotalCount > 0) {
-                item {
-                    DashboardTodosCard(
-                        done = state.todoDoneCount,
-                        open = state.todoOpenCount,
-                        total = state.todoTotalCount,
-                        onOpenTodos = onOpenTodos
-                    )
-                }
-            }
-
-            // M18.37: Pauschalen-Zeile — jede enabled Pauschale explizit
-            // sichtbar (Name + Minuten/Tag), nicht nur in der Summe versteckt.
-            // M18.60: Klick auf eine Pauschale oeffnet ein Popup mit
-            // "Bearbeiten" + "Loeschen" — die Aenderung gilt NUR fuer den
-            // angezeigten Tag (User: "an einem Tag mal mehr/weniger Zeit").
-            if (state.allowanceSummary.isNotEmpty()) {
-                item {
-                    DashboardAllowancesRow(
-                        summary = state.allowanceSummary,
-                        onAllowanceClick = { id, name, minutes ->
-                            allowancePopup = AllowancePopupTarget(
-                                allowanceId = id,
-                                name = name,
-                                currentMinutes = minutes,
-                                hasOverride = state.allowanceOverrides.containsKey(id)
+            // 1) M19.4: DAS SHEET — eine große, oben abgerundete Fläche
+            // mit allen Karten des Dashboards; sie schiebt sich beim
+            // Scrollen über den gepinnten Hero („das untere schiebt sich
+            // über den oberen Bereich", Aufbau des Referenzbilds).
+            item(key = "sheet") {
+                DashboardSheet {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
+                        // Live-Banner — wichtigste Info zuerst (Steuerung
+                        // der laufenden Aufnahme; der Hero zeigt nur den
+                        // kompakten Status). Gleitet von oben rein.
+                        AnimatedVisibility(visible = isLive, enter = slideIn, exit = slideOut) {
+                            LiveActivityBanner(
+                                state = liveState,
+                                nowMs = nowMs,
+                                onPause = onPauseLive,
+                                onResume = onResumeLive,
+                                onStop = onStopLive,
+                                // M18.60: Wechsel-Button im Banner (wie Benachrichtigung)
+                                onSwitch = onSwitchLive,
+                                activityTypes = state.activityTypes
                             )
                         }
-                    )
-                }
-            }
 
-            // 6) Review-Hinweis — nur wenn Vorschläge warten
-            if (state.candidateCount > 0 || state.sleepCandidateCount > 0) {
-                item { ReviewHintCard(reviewCount = state.candidateCount, sleepCount = state.sleepCandidateCount, onOpenReview = onOpenReview) }
-            }
+                        // M18.100/M19.4: Nur die Deko-Farbfläche liegt als
+                        // eigene Ebene HINTER der LazyColumn
+                        // (DashboardHeroBackground) und wird beim Scrollen
+                        // vom Sheet überdeckt.
 
-            item { Spacer(Modifier.height(AevumSpacing.xl)) }
+                        // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik
+                        // (User-Wunsch: "Statistik über den Güte Verlauf
+                        // der letzten Tage, wobei man INNERHALB der
+                        // Statistik einstellen können soll, ob in den
+                        // letzten 7, 30, 365 Tagen").
+                        QualityTrendCard(trend = qualityTrend)
+
+                        // M18.58: Garmin-Kacheln — moderne kleine Kacheln
+                        // (User-Wunsch). Nur sichtbar, wenn Daten
+                        // synchronisiert wurden.
+                        GarminTilesRow(
+                            sleepDurationMs = state.lastSleepDurationMs,
+                            summary = garminSummary,
+                            activities = garminActivities
+                        )
+
+                        // M18.81 (Dashboard-Redesign): Reflexion — "Wo
+                        // deine Zeit hingeht" (Top-5 mit Score-Farbe) +
+                        // Insights jetzt in EINER Karte. Vorher zwei
+                        // getrennte Sektionen.
+                        if (state.qualityBreakdown.isNotEmpty() || state.insights.isNotEmpty()) {
+                            DayReflectionCard(state = state)
+                        }
+
+                        // M18.37: Kompakte Todos-Karte — das Herzstueck
+                        // zeigt, was heute noch ansteht. Nur sichtbar,
+                        // wenn Todos existieren.
+                        if (state.todoTotalCount > 0) {
+                            DashboardTodosCard(
+                                done = state.todoDoneCount,
+                                open = state.todoOpenCount,
+                                total = state.todoTotalCount,
+                                onOpenTodos = onOpenTodos
+                            )
+                        }
+
+                        // M18.37: Pauschalen-Zeile — jede enabled Pauschale
+                        // explizit sichtbar (Name + Minuten/Tag), nicht nur
+                        // in der Summe versteckt.
+                        // M18.60: Klick auf eine Pauschale oeffnet ein Popup
+                        // mit "Bearbeiten" + "Loeschen" — die Aenderung gilt
+                        // NUR fuer den angezeigten Tag (User: "an einem Tag
+                        // mal mehr/weniger Zeit").
+                        if (state.allowanceSummary.isNotEmpty()) {
+                            DashboardAllowancesRow(
+                                summary = state.allowanceSummary,
+                                onAllowanceClick = { id, name, minutes ->
+                                    allowancePopup = AllowancePopupTarget(
+                                        allowanceId = id,
+                                        name = name,
+                                        currentMinutes = minutes,
+                                        hasOverride = state.allowanceOverrides.containsKey(id)
+                                    )
+                                }
+                            )
+                        }
+
+                        // 6) Review-Hinweis — nur wenn Vorschläge warten
+                        if (state.candidateCount > 0 || state.sleepCandidateCount > 0) {
+                            ReviewHintCard(reviewCount = state.candidateCount, sleepCount = state.sleepCandidateCount, onOpenReview = onOpenReview)
+                        }
+                    } // Ende Sheet-Column
+                } // Ende DashboardSheet
+            } // Ende Sheet-Item
             } // Ende LazyColumn (innerhalb AnimatedContent)
             } // Ende AnimatedContent
 
@@ -652,18 +661,27 @@ private fun FloatingPlusButton(
 
 @Composable
 private fun DashboardAtmosphere() {
+    // M19.4: Orbs in der App-Identität (Eisblau/Feuerrot/Gold) statt der
+    // alten Lila/Mint-Töne der Ur-Theme — dieselbe ruhige Tiefe, aber
+    // konsistent mit M19.2.
+    val primary = MaterialTheme.colorScheme.primary
+    val fire = MaterialTheme.colorScheme.secondary
+    val gold = MaterialTheme.colorScheme.tertiary
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val primary = Color(0xFF8F82FF)
-        val mint = Color(0xFF5EEAD4)
         drawCircle(
-            color = primary.copy(alpha = 0.10f),
+            color = primary.copy(alpha = 0.07f),
             radius = size.minDimension * 0.52f,
             center = Offset(size.width * 0.92f, size.height * 0.04f)
         )
         drawCircle(
-            color = mint.copy(alpha = 0.055f),
+            color = fire.copy(alpha = 0.045f),
             radius = size.minDimension * 0.46f,
             center = Offset(size.width * 0.05f, size.height * 0.66f)
+        )
+        drawCircle(
+            color = gold.copy(alpha = 0.045f),
+            radius = size.minDimension * 0.36f,
+            center = Offset(size.width * 0.88f, size.height * 0.86f)
         )
     }
 }

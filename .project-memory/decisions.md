@@ -231,3 +231,41 @@ Fehlerband in den Einstellungen, wenn der Austausch nicht durchkam.
 Lehre: Ein stiller Auto-Updater ohne Protokoll ist nicht diagnostizierbar;
 ein Update, das scheitern kann, MUSS seinen Fehlschlag sichtbar melden.
 Batch-Fallstricke (timeout/Pipe/Quoting) entfallen mit PowerShell ohnehin.
+
+**Entscheidung (M19.4):** Das Dashboard bekommt ein „Tag-Cockpit": 180°-Güte-Gauge
+mit FESTEM Rot→Gelb→Grün-Farbraum (sweepGradient an absoluten Winkeln) statt des
+bisherigen Vollrings (Farbe=Wert).
+**Grund:** Die Nutzer-Skizze zeigt eine Skala mit Marker/Nadel (Messgerät-Bild);
+fester Farbraum bleibt auch bei 0/100 lesbar und ist dieselbe Positivitäts-Achse,
+die die App schon überall verwendet.
+**Naheliegende Alternative:** Den QualityRing behalten (weniger Arbeit) — verworfen:
+Der Auftrag war ausdrücklich der modernisierte obere Bereich nach Skizze; Vollring
+UND Gauge wären Dopplung derselben Information.
+
+**Entscheidung (M19.4):** Alle Dashboard-Karten liegen in EINER, oben abgerundeten
+Sheet-Fläche im LazyColumn, die beim Scrollen über den gepinnten Hero schiebt
+(Hero-Inhalt −0,5×scroll mit Alpha/Scale-Fade, Deko −0,55×, Basis = GEMESSENE
+Hero-Höhe via onSizeChanged; Deko übersteht den Hero um DashboardHeroPeek 44dp,
+sichtbar durch die Sheet-Ecken).
+**Grund:** Referenzbild + Wunsch („das untere soll sich über den oberen Bereich
+schieben"); EINE Fläche im Scroll-Content bleibt bei Tag-Wechsel-Animationen und
+Taps trivial korrekt (der M18.100-Tap-Bug darf nicht zurückkommen).
+**Naheliegende Alternative:** Zweites gepinntes Sheet-Backdrop-Layer mit eigener
+Offset-Mathematik — verworfen: Koordinaten-Synchronisierung mit LazyColumn-Viewport
++ Statusleisten-Inset wäre fehleranfällig und hätte das Tap-Problem potenziell
+wieder eingeführt.
+
+**Entscheidung (M19.4):** Der Aufnahme-Status ist ein eigener Balken im Hero
+(live grün mit Timer + Schimmer / pausiert amber / „Aufnahme bereit" neutral mit
+Tagesfortschritt); der steuerbare Live-Banner (Pause/Stop/Wechsel) bleibt
+zusätzlich im Sheet.
+**Grund:** Skizze will die Statusbox sichtbar im oberen Bereich; Steuerung gehört
+in den Sheet-Inhalt. „Keine Dopplung" (M18.7) gilt für Information — der Hero
+zeigt Status, der Banner bietet Aktionen.
+
+**Entscheidung (M19.4):** Screenshot-Evidenz für den Hero entsteht über Robolectric
+mit Software-Canvas VIEW-DRAW (captureToImage/PixelCopy gibt es unter Robolectric
+nicht) und FIXIERTER Test-Uhr (autoAdvance=false, 2 s vorgespult).
+**Grund:** Diese Maschine hat kein /dev/kvm (kein Emulator) — Robolectric-View-Draw
+ist der einzige echte Pixel-Beweis; der feste Zeitpunkt macht Wert-Assertions und
+Sichtprüfung reproduzierbar (Endlos-Animationen sonst zeitabhängig).

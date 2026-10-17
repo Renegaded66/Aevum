@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.36 (M19.4) — 2026-10-17
+
+### Dashboard-Hero 2.0: „Tag-Cockpit" nach Devons Skizze + Karten-Fläche über dem Hero
+
+Nutzerwunsch (wörtlich): „Aevum UI Update. Ich möchte das dashboard
+modernisieren. […] wie es oben aussehen soll [Skizze] […] wenn ich also nach
+unten scrolle dann soll das untere sich über den oberen bereich schieben.
+[…] modern hochwertig […] mit schimmern und animationen, keine harten
+kanten."
+
+- **Zentrales 180°-Güte-Gauge:** fester Rot→Gelb→Grün-Farbraum (Messgerät-
+  Bild statt Vollring), animierter Sweep, leuchtender Marker + Nadel mit
+  Puls-Glow, große Güte-Zahl (Monospace, `positivityColor`, hell
+  kontrast-adaptiert), ✎-Badge bei Override; Tipp öffnet weiterhin den
+  Güte-Dialog (Screenreader-Beschreibung neu).
+- **Drei versetzte Glas-Kacheln** (Erfasst/Schlaf/Bildschirm, mittlere
+  +10 dp wie in der Skizze): Farbverlauf, Gradient-Rand, farbiger
+  Glow-Schatten, Kaskaden-Einblendung, hochzählende Werte, Mini-Balken
+  (Anteil an 24 h) und Schimmer mit desynchronisierten Perioden.
+- **Zonen-Chip neben dem Gauge** (Skizzen-„Zuhause"): Geofence-Name bzw.
+  „Abwesend" als Glas-Pille; der separate ZoneBanner entfällt (Information
+  jetzt im Hero). **Tagesleiste:** 24h-Ribbon mit Segment-Blöcken,
+  pulsierendem Jetzt-Marker, sanft abgedunkelter Zukunft, Stundenlabels
+  0–24; Tipp öffnet die Timeline. **Aufnahme-Status unten:** grün
+  „Aufnahme läuft" + Timer + Schimmer / amber „Pausiert" / neutral
+  „Aufnahme bereit" mit Tagesfortschritt.
+- **Sheet über dem Hero:** alle Karten liegen in EINER oben abgerundeten
+  Fläche (Verlauf + Rim-Light + Eisblau-Glow); beim Scrollen schiebt sie
+  sich über den gepinnten Hero (Parallax −0,5×/−0,55× an der GEMESSENEN
+  Hero-Höhe, Deko übersteht ihn um 44 dp → Farbraum schimmert durch die
+  Sheet-Ecken, Referenzbild-Aufbau).
+- Atmosphere-Orbs auf die M19.2-Identität (Eisblau/Feuerrot/Gold) gezogen;
+  Hero-Gradient als 4-Stopp-Verlauf mit Farb-Schweif. Keine DB-/Navigations-
+  Änderung; alle bestehenden Sheet-Karten und der FAB bleiben.
+- Tests: **1165/1165 grün** (0 Fehler; 1 vorbestehend ignorierte) — neu:
+  6 × Hero-Metriken (JVM) + 11 × Hero-UI inkl. **3 Rendering-Screenshots**
+  (dunkel/hell/Sheet-über-Hero; Robolectric View-Draw, feste Test-Uhr).
+  Voll-Build Exit 0 (9m58s); Debug-APK kanonisch signiert; Release-APK
+  (Upload Key, 52.005.475 B) + AAB (24.245.967 B) im Build-Output.
+  Bericht `docs/M19-4-ABSCHLUSSBERICHT.md`.
+
 ## [Unreleased] — PC-Tracker 1.5.2 — 2026-10-17
 
 ### Handy-Vorrang hält jetzt echte Sendelücken aus + große Live-Timer im Dashboard

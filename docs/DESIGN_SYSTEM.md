@@ -344,27 +344,56 @@ Kategorien nutzen ihre fixen Farben. Für Sequenzen ohne Kategorien:
 
 ## Visuelle Hierarchie (Screen Level)
 
-### Dashboard (M3 Ziel)
+### Dashboard (M19.4 — Hero 2.0, „Tag-Cockpit", nach Nutzer-Skizze)
 
 ```
-1. Hero Section (Top)
-   - Begrüßung + Tagesstatus (Display Small)
-   - Aktuelle Aktivität (ProgressRing + Label)
+1. Hero (Item 0 der Liste; beim Scrollen Parallax, Sheet legt sich darüber)
+   - Tages-Navigation ‹ Heute › (Glas-Pille, Kalender-Popup)
+   - Güte-Gauge 180°: feste Rot→Gelb→Grün-Skala, Marker + Nadel + Puls-Glow,
+     Zahl 44sp Monospace (positivityColor; hell 28% Richtung Schwarz)
+   - Drei versetzte Glas-Kacheln Erfasst/Schlaf/Bildschirm (mittlere +10dp)
+   - Zonen-Chip (Geofence-Name / „Abwesend") rechts am Gauge
+   - Tagesleiste 24 h: Segment-Blöcke + Jetzt-Marker + Stundenlabels 0-24
+   - Aufnahme-Status-Balken (live grün / pausiert amber / bereit neutral)
 
-2. Primary Metrics Row (2-3 Cards)
-   - Heutige Zeitverteilung (Donut Chart Card)
-   - Ziel-Fortschritt (ProgressRing Card)
-   - Streak/Bucket Highlight (StatisticCard)
+2. Sheet (EINE oben abgerundete Fläche — schiebt sich über den Hero)
+   - Live-Banner (Steuerung) · Güte-Verlauf 7/30/365T · Garmin-Kacheln
+   - „Wo deine Zeit hingeht" + Insights · Todos · Tagespauschalen · Review
+   - FAB „+" schwebt über allem (nur wenn nichts läuft)
+```
 
-3. Secondary Section (Scroll)
-   - Timeline Mini-Preview (3 Items + "Mehr")
-   - Ziele (Horizontal Scroll Cards)
-   - Habits/Streaks (Heatmap Card)
+### Dashboard-Gauge (M19.4)
 
-4. Tertiary (Bottom)
-   - Lebensfortschritt (Life Grid Card)
-   - Bucket List Fortschritt (ProgressRing)
-   - Smartphone-Nutzung (Mini Chart)
+```
+Form: 180°-Bogen, 216×126dp, Stroke 13dp, runde Enden
+Track: onSurfaceVariant 16% (hell: 30%)
+Füllung: sweepGradient an absoluten Winkeln
+  0.5 → positivityColor(0), 0.75 → positivityColor(50), 1.0 → positivityColor(100)
+Marker: Endpunkt (stroke×0.62) + Glow-Puls (1,6 s) + Nadel (stroke×3 nach innen)
+Label: 9sp, letter-spacing 1.6, onSurfaceVariant
+Verhalten: animierter Sweep (Spring), Tap → Tages-Güte-Dialog,
+           ✎-Badge bei Override, contentDescription für Screenreader
+```
+
+### Hero-Status „Aufnahme" (M19.4)
+
+```
+Live:     Grün #4ADE80 (hell #16A34A) · Text #86EFAC (hell #166534)
+          Puls-Punkt 8dp · Schimmer 2,6 s · Timer Monospace
+Pausiert: Amber #FBBF24 (hell #B45309) · eingefrorener Timer
+Bereit:   surfaceVariant 30% · „Aufnahme bereit" + „Tag NN%" rechts
+```
+
+### Dashboard-Sheet (M19.4)
+
+```
+Fläche: full-width, oben 28dp Radius (bewusst weicher als radius-xl 24 —
+        das Sheet soll als Blatt lesbar sein)
+Verlauf: #151E30 → #0E1523 → #0A0F19 · Rim-Light 1,5dp (Eisblau 65 %)
+Glow: 72dp Eisblau-Verlauf (10 % → 0) unter der Kante
+Parallax: Hero-Inhalt −0,5×scroll + Alpha/Scale-Fade, Deko −0,55×;
+          Deko übersteht den Hero um DashboardHeroPeek (44dp) — sichtbar
+          durch die Sheet-Ecken („Karte über Farbbereich")
 ```
 
 ### Wichtigkeit: **Information Density ≠ Clutter**
