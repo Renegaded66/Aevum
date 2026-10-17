@@ -209,6 +209,8 @@ fun AppNavHost(
                 onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
                 // M18.30: Todos + Tagespauschalen
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
+                // M20: Ziel-Architektur
+                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
                 onOpenDailyAllowances = { navController.navigate(AppDestination.DailyAllowances.route) },
                 // M18.2: Positivitäts-Scores pro Aktivität
                 onOpenActivityTypes = { navController.navigate(AppDestination.ActivityTypes.route) },
@@ -415,6 +417,38 @@ fun AppNavHost(
                 todoId = todoId,
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() }
+            )
+        }
+        // M20: Ziel-Architektur — Ziele-Liste, Editor (optional mit goalId), Detail.
+        composable(AppDestination.Goals.route) {
+            com.d_drostes_apps.aevum.ui.screens.goals.GoalsScreen(
+                onBack = { navController.popBackStack() },
+                onCreate = { navController.navigate("goal_editor") },
+                onEdit = { id -> navController.navigate("goal_editor?goalId=$id") },
+                onOpenDetail = { id -> navController.navigate("goal_detail/$id") }
+            )
+        }
+        composable(
+            route = AppDestination.GoalEditor.route,
+            arguments = listOf(navArgument("goalId") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) { entry ->
+            com.d_drostes_apps.aevum.ui.screens.goals.GoalEditorScreen(
+                goalId = entry.arguments?.getString("goalId"),
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = AppDestination.GoalDetail.route,
+            arguments = listOf(navArgument("goalId") { type = NavType.StringType })
+        ) { entry ->
+            com.d_drostes_apps.aevum.ui.screens.goals.GoalDetailScreen(
+                goalId = entry.arguments?.getString("goalId") ?: "",
+                onBack = { navController.popBackStack() },
+                onEdit = { id -> navController.navigate("goal_editor?goalId=$id") }
             )
         }
         // M18.35: Lebenszeit-Ansicht — von Insights aus erreichbar

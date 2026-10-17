@@ -56,6 +56,10 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     TodoCreate("todo/new", R.string.todo_create_title),
     // M18.38: Todo bearbeiten
     TodoEdit("todo/edit/{todoId}", R.string.todo_edit_title),
+    // M20: Ziel-Architektur — Ziele-Liste, Editor (optional mit goalId), Detail
+    Goals("goals", R.string.goals_title),
+    GoalEditor("goal_editor?goalId={goalId}", R.string.goal_editor_title),
+    GoalDetail("goal_detail/{goalId}", R.string.goal_detail_title),
     // M18.35: Lebenszeit-Ansicht
     LifeView("lifeview", R.string.lifeview_title),
     // M18.55: Datenschutz, Export, Backup

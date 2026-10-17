@@ -26,11 +26,12 @@ import java.io.File
  *     MigrationTestHelper; der braucht ein Gerät, dieser Test läuft als
  *     Robolectric-Test auf der JVM).
  *  2. Ein „Alter Baum" aus zwei pm_node-Knoten wird eingefüllt.
- *  3. Room öffnet die Datei MIT [AppDatabase.MIGRATION_45_46] — die echte
- *     Upgrade-Kette läuft (DROP → Gesamtschema validieren → Version und
- *     Identitäts-Hash fortschreiben).
+ *  3. Room öffnet die Datei MIT der Migrations-Kette bis zur AKTUELLEN
+ *     Version (M20: 45→46→47) — die echte Upgrade-Kette läuft (DROP →
+ *     Gesamtschema validieren → Version und Identitäts-Hash fortschreiben).
  *  4. Geprüft wird: pm_node ist weg (Tabelle UND Inhalt), alle übrigen
- *     Tabellen stehen unangetastet, die Datenbank meldet Version 46.
+ *     Tabellen stehen unangetastet, die Datenbank meldet die aktuelle
+ *     Version samt Identitäts-Hash.
  *
  * Der Schema-seitige Beweis (46 = 45 minus pm_node, Element für Element)
  * läuft in [SchemaV46Test].
@@ -109,13 +110,16 @@ class PmRemovalMigrationTest {
         return path
     }
 
-    /** Öffnet die Datei über Room — die echte 45→46-Migration läuft. */
+    /** Öffnet die Datei über Room — die echte Kette 45→46(→47…) läuft. */
     private fun migrate(): AppDatabase {
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
             .addMigrations(
                 AppDatabase.MIGRATION_43_44,
                 AppDatabase.MIGRATION_44_45,
-                AppDatabase.MIGRATION_45_46
+                AppDatabase.MIGRATION_45_46,
+                // M20: Room validiert gegen das AKTUELLE Schema — die Kette
+                // muss deshalb bis zur aktuellen Version durchlaufen.
+                AppDatabase.MIGRATION_46_47
             )
             .allowMainThreadQueries()
             .build()
@@ -161,21 +165,24 @@ class PmRemovalMigrationTest {
 
         assertThat(tableNames()).containsAtLeastElementsIn(expected)
         assertThat(expected).hasSize(38) // 39 Entities in v45, pm_node ist raus
+        // M20: goal_checkin ist die einzige seither hinzugekommene Tabelle.
+        assertThat(tableNames()).contains("goal_checkin")
     }
 
     @Test
-    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-Version-46`() {
+    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-auf-der-aktuellen-Version`() {
         createVersion45Database()
         migrate()
 
+        // M20: Die Kette läuft bis 47 durch (die aktuelle Version).
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(46)
+            assertThat(cursor.getInt(0)).isEqualTo(47)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(46).readText())
+            val expected = JSONObject(schemaFile(47).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }

@@ -14,6 +14,7 @@ import com.d_drostes_apps.aevum.data.db.AppUsageSampleDao
 import com.d_drostes_apps.aevum.data.db.BalanceProfileDao
 import com.d_drostes_apps.aevum.data.db.PingTriggerDao
 import com.d_drostes_apps.aevum.data.db.GeofenceEventLogDao
+import com.d_drostes_apps.aevum.data.db.GoalCheckinDao
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
 import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepositoryImpl
 import com.d_drostes_apps.aevum.data.repository.UnknownPlaceSessionRepository
@@ -125,7 +126,8 @@ object RepositoryModule {
     fun provideTagRepository(dao: TagDao): TagRepository = TagRepositoryImpl(dao)
 
     @Provides @Singleton
-    fun provideGoalRepository(dao: GoalDao): GoalRepository = GoalRepositoryImpl(dao)
+    fun provideGoalRepository(dao: GoalDao, checkinDao: GoalCheckinDao): GoalRepository =
+        GoalRepositoryImpl(dao, checkinDao)
 
     @Provides @Singleton
     fun provideLifeProfileRepository(dao: LifeProfileDao): LifeProfileRepository = LifeProfileRepositoryImpl(dao)

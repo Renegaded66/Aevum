@@ -1,5 +1,97 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.40 (M20) — 2026-10-17
+
+### Ziel-Architektur + Zuverlässigkeit der App-Aufzeichnung
+
+Nutzerwunsch (wörtlich): „Bei Aevum möchte ich eine Ziel Architektur haben.
+Also mit bspw dass ich am Tag digital unter 2 Stunden Aufzeichnung habe, oder
+pro Woche unter 10 Stunden, oder Lernen mindestens 2 Stunden zwischen Montag
+und Freitag täglich, oder 4 mal zwischen Montag und Freitag Aufgaben machen.
+[…] sowohl Activity als auch Kategorie. […] Entscheidung ob automatisch oder
+manuell Ziel Erfassung. […] Möglichst mit Dopamin […]. Und bei der
+automatischen App Aufzeichnung klappt immer noch nicht alles wie gewünscht.
+[…] Nach 2 Minuten hat die Aufzeichnung digital gestartet. Statt dass von
+Anfang an lernen gestartet wäre."
+
+**Ziel-Architektur (Datenbank v47):**
+- **Neue Ziel-Felder:** `tracking_mode` (AUTO aus Aufzeichnungen / MANUAL
+  zum Abhaken), `schedule_days` (Mo–So-Bitmaske — bestimmt die FÄLLIGEN
+  Tage und filtert bei Wochen-/Monatszielen auch den Zielwert),
+  `source_kind` (Aktivität · Kategorie · Bildschirmzeit · erledigte
+  Aufgaben), `accent` (Farbwelt). Alle additiv mit Defaults — Bestandsziele
+  verhalten sich unverändert (Migration 46→47).
+- **Neue Tabelle `goal_checkin`:** jeder manuelle Haken eine eigene Zeile —
+  Rückgängig, ehrliche Verlaufsliste, Löschen eines Eintrags, CASCADE am
+  Ziel.
+- **Neuer Zieltyp „Anzahl"** (×) neben mindestens/höchstens. Beispiele aus
+  dem Wunsch sind damit direkt abbildbar: „Digital < 2 h/Tag", „Digital
+  < 10 h/Woche" (AT_MOST, DIGITAL, echte Bildschirmzeit aus Digital
+  Balance), „Lernen ≥ 2 h Mo–Fr" (AT_LEAST, Aktivität, Maske Mo–Fr),
+  „4× Aufgaben Mo–Fr" (Anzahl, manuell oder erledigte Aufgaben).
+- **Auswertung v2 ([GoalProgressAnalytics]):** aktueller Fortschritt je
+  Periode (Tag/Woche/Monat, Kalenderzeit, exakt wie M18.138 geclippt),
+  **Streaks** (aktuelle + beste Serie; freie Tage unterbrechen nicht, die
+  laufende Periode bricht nie, Regel wie `StreakEngine`), 91-Tage-/
+  26-Wochen-/6-Monats-Verlauf über Tages-Buckets (ein Durchlauf, auch für
+  viele Ziele schnell), Perioden-Schlüssel für die Einmal-Feier.
+- **Neuer Einstellungspunkt „Ziele & Gewohnheiten" → „Ziele"** (die alte
+  Goals-Basis aus M18.138 war komplett verwaist — keine Navigation; jetzt
+  voll verdrahtet: Settings → Liste → Editor → Detail, mit
+  Wiring-Test als Guard gegen erneutes Verwaissen).
+- **Listen-Screen:** Hero mit Tages-Zusammenfassung („X/Y geschafft",
+  beste Serie, Anzahl), „Heute fällig" zuerst, Karten mit Fortschritts-
+  Ring, 🔥-Serie, Status-Pill („Fällig"/„Erreicht"/„Frei") und **Schimmer**
+  bei erreichten Zielen; manuelle Ziele haben den Abhaken-Knopf direkt auf
+  der Karte.
+- **Detail-Screen:** großer Ring, Statistiken (aktuelle/beste Serie,
+  erfüllte Perioden), Balken-Verlauf (14 Tage / 8 Wochen / 6 Monate),
+  13-Wochen-Heatmap („honest record"), Check-in-Liste (manuell) mit
+  Einzel-Löschen, Bearbeiten/Archivieren/Löschen.
+- **Editor:** Schnellstart-Vorlagen für genau die Nutzer-Beispiele,
+  Auto/Manuell-Umschaltung mit Erklärtext, Quellen-Auswahl inkl.
+  Aktivitäts-/Kategorie-Picker, Zeitraum, Zieltyp, Wert+Einheit,
+  Wochentage (Schnellfilter + 7 Pills), Farbwahl, Live-Vorschau.
+- **Dopamin:** Feder-Bounce beim Abhaken, **Konfetti-Feier** im Vollbild
+  (Karte + Serie + Farbverlauf) — genau EINMAL je Ziel+Periode
+  (SharedPreferences-Schlüssel = Perioden-Schlüssel; „Rückgängig" gibt die
+  Feier wieder frei), Schimmer-Animation auf erreichten Zielen.
+- **Design-Recherche** (12 Apps: Streaks, Loop, Habitica, Forest,
+  Fabulous, Strides, Done, Way of Life, Finch, Apple Fitness, …):
+  dokumentiert in `docs/M20-ZIEL-ARCHITEKTUR-RECHERCHE.md` samt
+  Quellen-Sammlung; die umgesetzten Muster (Auto-Tracking als
+  Standard-Pfad, flexible Schedules, min/max/Anzahl-Typen, Ring,
+  „honest record"-Heatmap, Bestwert statt Verlust) gehen direkt darauf
+  zurück. Bewusst NICHT in M20: Skip-/Freeze-Mechaniken, Benachrichtigungen
+  für Ziele, Habit-Score — als Ausbaustufen notiert.
+
+**App-Aufzeichnung (Ursachen aus dem Nutzer-Report, Code-belegt):**
+- **Faltung auf Activity-Ebene:** Der Vordergrund wurde auf PAKET-Ebene
+  gefaltet — beim Start ist kurz „Splash Activity" → „MainActivity" aktiv,
+  Duolingo wurde dadurch nie als Vordergrund erkannt; stattdessen lief nach
+  Ablauf der Vorlaufzeit „Digital" an. Jetzt wird Aktivität + Klasse
+  gefaltet (`ForegroundTracker`, `className = event.className`).
+- **Frischere Beweislage + Selbstheilung:** `ForegroundAppProbe` sucht
+  zuerst den frischen Schnappschuss (< 2 min), dann die weite 12-h-Faltung
+  als Rückfall; leerer Zustand wird re-baselined statt stillzuhängen.
+- **Ein Netz für alle Wiederbelebungen:** `ensureAlive(context, reason)` als
+  EIN Einstieg für Watchdog, Screen-Events, App-Start, Boot; das neue
+  `isPollFresh()` erkennt auch „Service lebt, pollt aber nicht" (der alte
+  isAlive-Check verpasste genau diesen Fall). Startverbote
+  (Android-12-Hintergrundstart) werden explizit geloggt.
+- **Boot:** 60-s-WakeLock + `AppTrackingBootCheckWorker` prüfen direkt nach
+  dem Neustart, ob die Aufzeichnung wieder läuft.
+- **Diagnose-Karte:** Live-Zustand (Service, Poll-Alter, Vordergrund,
+  Akku-Ausnahme), Protokoll kopieren/leeren — der Nutzer sieht künftig
+  SELBST, was die Aufzeichnung tut.
+
+**Verifikation:** Neue Suiten `SchemaV47Test`, `GoalV47MigrationTest`
+(echte SQLite-Datei 46→47 inkl. Bestandsdaten, CASCADE-Beweis),
++11 M20-Fälle in `GoalProgressAnalyticsTest`, `GoalArchitectureWiringTest`
+(Settings→Route→NavHost→Screen gegen Verwaissen), erweiterte
+App-Tracking-Wiring-Tests. Kompletter Unit-Test-Lauf grün, APK 1.0.40
+signiert verifiziert (Details im Abschlussbericht).
+
 ## [Unreleased] — PC-Tracker 1.6.0 + Aevum 1.0.39 — 2026-10-17
 
 ### Verifikations-Gate: Der PC startet nur noch mit bestätigtem Handy-Stand

@@ -221,8 +221,17 @@ android {
         //   ihren Live-Stand, auch „nichts läuft" (POST /api/live,
         //   session:null). Der PC (ab 1.6.0) startet nur noch mit dieser
         //   frischen Bestätigung. Kein neues UI, keine DB-Änderungen.
-        versionCode = 40
-        versionName = "1.0.39"
+        // M20 (App 1.0.40): 1) Ziel-Architektur — DB v47 (goal + 4 Spalten,
+        //   neue Tabelle goal_checkin), Zieltypen min/max/Anzahl, Auto-
+        //   Tracking über Aktivität/Kategorie/Digital/Aufgaben ODER manuell,
+        //   Wochentage, Streaks, Verlauf/Heatmap, Feier-Animation; neuer
+        //   Einstellungspunkt „Ziele & Gewohnheiten". 2) App-Aufzeichnung —
+        //   Activity-Faltung (Splash→Main leerte den Vordergrund nicht
+        //   mehr), frischeres Probe-Fenster + 12-h-Selbstheilung, einheit-
+        //   liches ensureAlive/isPollFresh-Netz, Boot-WakeLock + Boot-Check,
+        //   sichtbares Diagnose-Protokoll.
+        versionCode = 41
+        versionName = "1.0.40"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

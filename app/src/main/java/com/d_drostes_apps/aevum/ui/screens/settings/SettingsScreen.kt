@@ -67,6 +67,8 @@ fun SettingsScreen(
     // M18.30: Todos + Tagespauschalen
     onOpenTodos: () -> Unit = {},
     onOpenDailyAllowances: () -> Unit = {},
+    // M20: Ziel-Architektur — Ziele-Liste (Tages-/Wochen-/Monatsziele)
+    onOpenGoals: () -> Unit = {},
     // M18.2: Positivitäts-Scores pro Aktivität
     onOpenActivityTypes: () -> Unit = {},
     // M18.59: Kategorien-Seite
@@ -184,6 +186,12 @@ fun SettingsScreen(
             item { SettingsSection(stringResource(R.string.settings_your_activities), listOf(
                 SettingsEntry(stringResource(R.string.settings_activity_types), stringResource(R.string.settings_activity_types_desc), onOpenActivityTypes),
                 SettingsEntry(stringResource(R.string.common_categories), stringResource(R.string.settings_categories_desc), onOpenCategories)
+            )) }
+            // M20: Ziel-Architektur — Tages-, Wochen- und Monatsziele mit
+            // Auto-Tracking (Aktivität/Kategorie/Bildschirmzeit/Aufgaben),
+            // manuellem Abhaken, Streaks, Statistiken und Diagrammen.
+            item { SettingsSection(stringResource(R.string.settings_goals_section), listOf(
+                SettingsEntry(stringResource(R.string.settings_goals), stringResource(R.string.settings_goals_desc), onOpenGoals)
             )) }
             // M18.44: Neben-Features (Todos/Pauschalen) in eigener Sektion —
             // erreichbar, aber klar getrennt vom Kern.

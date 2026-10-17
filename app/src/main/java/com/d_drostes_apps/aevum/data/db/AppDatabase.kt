@@ -60,7 +60,11 @@ import com.d_drostes_apps.aevum.data.model.*
         CalendarRule::class,
         CalendarEventCache::class,
         // M18.131: manuell markierte Einzel-Termine (Kalender → Activity)
-        CalendarEventPin::class
+        CalendarEventPin::class,
+        // M20: Ziel-Architektur — Check-ins manueller Ziele („4× Mo–Fr
+        // Aufgaben machen" als eigene Zeilen; Rückgängig = letzte Zeile
+        // löschen).
+        GoalCheckin::class
         // M19.3: pm_node (Projektmanagement) wieder ENTFERNT — MIGRATION_45_46
         // löscht die Tabelle; die Entity ist Geschichte (Nutzerentscheidung).
     ],
@@ -101,7 +105,11 @@ import com.d_drostes_apps.aevum.data.model.*
     // Nutzerwunsch wieder ENTFERNT („Ich nehme es zurück. Ich will das ganze
     // PM Management doch nicht. Also alles davon."): MIGRATION_45_46 löscht
     // die Tabelle samt Inhalt, das übrige Schema bleibt unverändert.
-    version = 46,
+    // M20: v47 — Ziel-Architektur: vier neue Spalten in `goal`
+    // (tracking_mode, schedule_days, source_kind, accent; alle additiv mit
+    // Defaults, Bestandsziele verhalten sich exakt wie vorher) und die
+    // neue Tabelle `goal_checkin` (Check-ins manueller Ziele).
+    version = 47,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -121,6 +129,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun triggerEventDao(): TriggerEventDao
     abstract fun automationSettingsDao(): AutomationSettingsDao
     abstract fun goalDao(): GoalDao
+    // M20: Check-ins manueller Ziele (Ziel-Architektur).
+    abstract fun goalCheckinDao(): GoalCheckinDao
     abstract fun appUsageSampleDao(): AppUsageSampleDao
     // M18.61: Digital Balance — App-Limits
     abstract fun appLimitDao(): AppLimitDao
@@ -1724,5 +1734,64 @@ abstract class AppDatabase : RoomDatabase() {
 
         /** Entfernt den Projektmanagement-Baum samt Inhalt (M19.3). */
         const val SQL_PM_45_46_DROP = "DROP TABLE IF EXISTS `pm_node`"
+
+        // ── 46 → 47: Ziel-Architektur (M20) ───────────────────────────────
+        //
+        // Rein ADDITIV:
+        //  • `goal` bekommt vier Spalten mit Defaults — Bestandsziele
+        //    (theoretisch vorhanden aus M18.138) verhalten sich unverändert
+        //    (tracking_mode=AUTO, schedule_days=127, source_kind/accent NULL).
+        //  • Neue Tabelle `goal_checkin` (Check-ins manueller Ziele) mit
+        //    FK auf `goal` (CASCADE: ein gelöschtes Ziel nimmt seine
+        //    Check-ins mit) und den zwei Lookup-Indizes der Entity.
+        //
+        // Die Definitionen sind Element für Element das, was Room aus den
+        // Entities exportiert (Schema 47.json); [SchemaV47Test] nagelt das
+        // fest, [GoalV47MigrationTest] fährt die Migration auf einer echten
+        // v46-Datenbank mit Bestandsdaten.
+
+        /** `goal` + tracking_mode (AUTO = Fortschritt aus Aufzeichnungen). */
+        const val SQL_M20_GOAL_TRACKING_MODE =
+            "ALTER TABLE `goal` ADD COLUMN `tracking_mode` TEXT NOT NULL DEFAULT 'AUTO'"
+
+        /** `goal` + schedule_days (Bitmaske Mo=1 … So=64; 127 = jeden Tag). */
+        const val SQL_M20_GOAL_SCHEDULE_DAYS =
+            "ALTER TABLE `goal` ADD COLUMN `schedule_days` INTEGER NOT NULL DEFAULT 127"
+
+        /** `goal` + source_kind (ACTIVITY_TYPE | CATEGORY | DIGITAL | TODOS; NULL = Alt-Verhalten). */
+        const val SQL_M20_GOAL_SOURCE_KIND =
+            "ALTER TABLE `goal` ADD COLUMN `source_kind` TEXT"
+
+        /** `goal` + accent (Akzentfarbe, Schlüssel der DesignTokens-Palette). */
+        const val SQL_M20_GOAL_ACCENT =
+            "ALTER TABLE `goal` ADD COLUMN `accent` TEXT"
+
+        /** Neue Tabelle `goal_checkin` (M20) — exakt Rooms erwartetes Schema. */
+        const val SQL_M20_GOAL_CHECKIN_CREATE = "CREATE TABLE IF NOT EXISTS `goal_checkin` (" +
+            "`id` TEXT NOT NULL, " +
+            "`goal_id` TEXT NOT NULL, " +
+            "`timestamp_ms` INTEGER NOT NULL, " +
+            "`date_key` TEXT NOT NULL, " +
+            "`count` INTEGER NOT NULL, " +
+            "PRIMARY KEY(`id`), " +
+            "FOREIGN KEY(`goal_id`) REFERENCES `goal`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+
+        const val SQL_M20_GOAL_CHECKIN_INDEX_GOAL =
+            "CREATE INDEX IF NOT EXISTS `index_goal_checkin_goal_id` ON `goal_checkin` (`goal_id`)"
+
+        const val SQL_M20_GOAL_CHECKIN_INDEX_DATE =
+            "CREATE INDEX IF NOT EXISTS `index_goal_checkin_date_key` ON `goal_checkin` (`date_key`)"
+
+        val MIGRATION_46_47 = object : Migration(46, 47) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(SQL_M20_GOAL_TRACKING_MODE)
+                database.execSQL(SQL_M20_GOAL_SCHEDULE_DAYS)
+                database.execSQL(SQL_M20_GOAL_SOURCE_KIND)
+                database.execSQL(SQL_M20_GOAL_ACCENT)
+                database.execSQL(SQL_M20_GOAL_CHECKIN_CREATE)
+                database.execSQL(SQL_M20_GOAL_CHECKIN_INDEX_GOAL)
+                database.execSQL(SQL_M20_GOAL_CHECKIN_INDEX_DATE)
+            }
+        }
     }
 }
