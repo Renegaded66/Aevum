@@ -207,11 +207,19 @@ App-Aufzeichnung sagt das aus.
 
 ## 6. Build & Release
 
-- `robust_build.sh premium-android-app aevum-m21-apk -- assembleDebug`
-- APK: `/srv/aevum-apk/Aevum-1.0.41-Debug.apk` (Link auf
-  `http://192.168.178.40:8098/`), Kopie `/root/builds/Aevum-1.0.41.apk`
-- Signatur: kanonischer Debug-Keystore (`~/.android/debug.keystore`,
-  SHA-1 `9c3055c4…`) — Update ohne Deinstallation möglich.
+- Volle Testsuite: **1248 Tests, 0 fehlgeschlagen, 1 übersprungen**
+  (`./gradlew --offline testDebugUnitTest`, BUILD SUCCESSFUL).
+- `robust_build.sh premium-android-app aevum-m21-apk -- assembleDebug` →
+  `BUILD SUCCESSFUL in 1m 7s`, Runner rc=0, `signing-verify OK` (kanonischer
+  Debug-Key, SHA-1 `9c3055c4…`).
+- APK: 124.295.698 Bytes (118,5 MB), SHA-256
+  `9a23252cfb404248ea29b398769ef83ed62a915163142698de6fc1037911765c`
+  → `/srv/aevum-apk/Aevum-1.0.41-Debug.apk` (HTTP 200),
+  `http://192.168.178.40:8098/` verlinkt 1.0.41; Kopie
+  `/root/builds/Aevum-1.0.41.apk`.
+- Commit `1908b37`, gepusht auf `origin/main`.
+- Vault: `Aevum-Änderungen.md` (M21-Abschnitt), `Projekt-Aevum.md`
+  (`letzte-version` 1.0.41).
 
 ## 7. Verifikation am Gerät (Nutzer)
 
