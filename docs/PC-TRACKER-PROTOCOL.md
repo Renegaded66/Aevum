@@ -387,6 +387,50 @@ verifiziert werden konnte."
 
 ---
 
+### 5h. Startbefehl vom PC — der Desktop befiehlt nur noch (ab PC-Tracker 1.7.0 / App 1.0.42)
+
+Devon: „Die desktop app will ich echt so haben, dass der desktop nur befehle
+ans handy sendet. […] Ich möchte stattdessen, wenn ich auf dem desktop was
+aufzeichne, dass das auch auf dem handy sichtbar ist. Der desktop soll also
+sozusagen nur ans handy senden ‚Du musst jetzt activity x starten/stoppen'.
+Trotzdem soll es natürlich auch weiterhin auf dem desktop visualisiert
+werden."
+
+**`GET /api/commands`** (Header `X-Aevum-Token`; Antwort einmalig)
+
+```json
+{ "protocol": 1, "serverTime": 1760000000000,
+  "command": "start", "activityKey": "learning", "issuedAt": 1760000000000 }
+```
+
+`command` ist `null`, wenn nichts anliegt. Ein Startbefehl wird **genau
+einmal** ausgeliefert (kein Doppel-Start bei verlorener Antwort) und
+verfällt nach `CommandTtlMs` (60 s) — ein viel später eintreffender Start
+wäre eine Überraschung, keine Absicht mehr. Pull-Modell: Die App holt ab,
+der PC baut nie eine Verbindung zum Handy auf.
+
+- **Wann entsteht ein Befehl:** Der Nutzer startet im PC-Dashboard eine
+  Aktivität und es ist ein Handy bekannt (`PhoneKnownAtMs > 0`). Der PC
+  legt `start <activityKey>` ab und zeichnet **selbst nichts** auf. Ohne
+  bekanntes Handy startet der PC wie bisher lokal.
+- **`activityKey`** ist die ActivityType-ID der App (derselbe Schlüssel wie
+  im Aktivitäts-Spiegel, §5b).
+- **Abholung:** Der dauerhaft laufende App-Aufzeichnungs-Dienst der App
+  pollt alle 6 s (Bild an) bzw. 45 s (Bild aus); zusätzlich nach jedem
+  Auto-Sync als Fallback. Ist kein PC gekoppelt oder aus, passiert still
+  nichts.
+- **Ausführung am Handy:** Aktivität existiert → Session starten
+  (`sourceType = PC_REMOTE`, Notiz „Vom PC gestartet") und Live-Dienst
+  starten; dieselbe Aktivität läuft schon → nicht neu starten; Schlüssel
+  unbekannt (gelöscht) → nichts tun und im Log vermerken.
+- **Visualisierung:** unverändert über den Live-Kanal (§5e) — die vom PC
+  gestartete Session erscheint als Handy-Karte samt Timer und
+  Pause/Stop-Knöpfen. „Stop" am PC schickt `stop` über denselben Kanal.
+- **Verifikations-Gate (§5g) gilt nur noch für LOKALE Starts.** Ein Befehl
+  ans Handy kann nichts doppelt starten — das Handy entscheidet selbst.
+
+---
+
 ## 6. Import in Aevum (idempotent)
 
 **Ist-Stand der Umsetzung (bewusst minimal, kein Schema-Update):**
@@ -434,6 +478,6 @@ verifiziert werden konnte."
 |---|---|
 | Cloud-Sync / Relay über Internet | Nicht kostenlos für „jedermann" darstellbar, widerspricht offline-first |
 | QR-Kamera-Scan am Handy | Nicht live testbar in dieser Umgebung; stattdessen Discovery (testbar) + manuelle Eingabe als zweiter, unabhängiger Weg |
-| Push vom PC ans Handy | Bräuchte Dauer-Empfangsdienst am Handy (Akku, Zuverlässigkeit) |
+| Push vom PC ans Handy | Bräuchte Dauer-Empfangsdienst am Handy (Akku, Zuverlässigkeit) — gelöst über **Pull**: die App holt Befehle im Takt ab (`GET /api/commands`, §5h) |
 | EXE-Icons aus Windows extrahieren | Fehleranfällige Shell-Interop für Kosmetik — stattdessen Icons am Aktivitätskatalog |
 | HTTPS / Zertifikate | Siehe oben — Fehlerquelle ohne echten Mehrwert im LAN |

@@ -145,7 +145,13 @@
       <Border Classes="card" Padding="22,18">
         <StackPanel Spacing="10">
           <TextBlock Text="{DynamicResource s.start_title}" Classes="section-label" />
-          <TextBlock Text="{DynamicResource s.start_desc}" Classes="muted" TextWrapping="Wrap" />
+          <TextBlock Text="{DynamicResource s.start_desc}" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding !PhoneRemoteMode}" />
+          <!-- PC 1.7.0: Gekoppelt — der Start geht als Befehl ans Handy. -->
+          <TextBlock Text="{DynamicResource s.start_remote}" Classes="muted" TextWrapping="Wrap"
+                     IsVisible="{Binding PhoneRemoteMode}" />
+          <TextBlock Text="{Binding RemoteStartHint}" FontWeight="SemiBold"
+                     Foreground="#5EEAD4" TextWrapping="Wrap"
+                     IsVisible="{Binding RemoteStartHintVisible}" />
           <!-- Nur bei ECHTER Pause (nicht beim Handy-Vorrang — der hat seinen
                eigenen Hinweis darunter; der Fix kam aus dem Xvfb-Test, wo
                beide Texte gleichzeitig erschienen). -->

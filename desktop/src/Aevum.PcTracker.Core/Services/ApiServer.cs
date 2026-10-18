@@ -187,6 +187,28 @@ public sealed class ApiServer : IAsyncDisposable
             });
         });
 
+        // PC 1.7.0: Startbefehl-Kanal — die App holt hier im Takt ab, auch
+        // wenn sie gerade NICHTS aufzeichnet. Pull-Modell wie /api/live:
+        // der PC kennt die Handy-Adresse nicht und baut nie eine Verbindung auf.
+        app.MapGet("/api/commands", (HttpContext ctx) =>
+        {
+            if (!Authorize(ctx, out var failure))
+            {
+                return failure!;
+            }
+            var now = _clock.NowMs;
+            var start = _phoneLive.TakeRemoteStart(now);
+            TouchClient(ctx);
+            return Results.Json(new
+            {
+                protocol = ProtocolVersion,
+                serverTime = now,
+                command = start is null ? null : "start",
+                activityKey = start?.ActivityKey,
+                issuedAt = start?.IssuedAtMs ?? 0L,
+            });
+        });
+
         app.MapPost("/api/activities", async (HttpContext ctx) =>
         {
             if (!Authorize(ctx, out var failure))

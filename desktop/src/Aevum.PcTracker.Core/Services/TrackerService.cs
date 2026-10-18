@@ -13,6 +13,11 @@ public enum ManualStartOutcome
     BlockedByPhone,
     /// <summary>Handy-Stand nicht frisch bestätigt — der PC startet nichts.</summary>
     Unverified,
+    /// <summary>
+    /// PC 1.7.0: Gekoppelt — der Start wurde als BEFEHL ans Handy geschickt.
+    /// Der PC zeichnet selbst nichts auf; die Anzeige kommt über den Live-Kanal.
+    /// </summary>
+    SentToPhone,
 }
 
 /// <summary>
@@ -37,6 +42,12 @@ public sealed class TrackerService : IDisposable
     /// </summary>
     private readonly Func<long, PhoneGateVerdict>? _phoneGate;
 
+    /// <summary>
+    /// PC 1.7.0: Schickt „starte Aktivität X" ans gekoppelte Handy.
+    /// Rückgabe false = kein Handy bekannt → der PC startet wie bisher lokal.
+    /// </summary>
+    private readonly Func<string, bool>? _remoteStart;
+
     private Timer? _timer;
     private long _lastCatalogWriteMs;
     private string? _lastCatalogKey;
@@ -49,16 +60,19 @@ public sealed class TrackerService : IDisposable
         SessionStore store,
         SettingsService settings,
         IClock clock,
-        Func<long, PhoneGateVerdict>? phoneGate = null)
+        Func<long, PhoneGateVerdict>? phoneGate = null,
+        Func<string, bool>? remoteStart = null)
     {
         _probe = probe;
         _store = store;
         _settings = settings;
         _clock = clock;
         _phoneGate = phoneGate;
+        _remoteStart = remoteStart;
     }
 
     public TrackedSession? ActiveSession => _engine.Active;
+
     public ForegroundSample? LastForeground { get; private set; }
     public long LastIdleMs { get; private set; }
 
@@ -127,6 +141,18 @@ public sealed class TrackerService : IDisposable
     /// </summary>
     public ManualStartOutcome StartManualActivity(string activityKey)
     {
+        // PC 1.7.0 (Devon: „Der desktop soll also sozusagen nur ans handy senden
+        // ‚Du musst jetzt activity x starten/stoppen'"): Ist ein Handy bekannt,
+        // geht der Start als Befehl dorthin — das Handy zeichnet auf, der PC
+        // zeigt die Session über den Live-Kanal an. Das Gate gilt nur noch für
+        // die LOKALE Aufzeichnung; ein Befehl ans Handy kann nichts doppelt
+        // starten (das Handy entscheidet selbst, siehe PcRemoteCommandPolicy).
+        if (_remoteStart is not null && _remoteStart(activityKey))
+        {
+            StateChanged?.Invoke();
+            return ManualStartOutcome.SentToPhone;
+        }
+
         var verdict = PhoneVerdict;
         if (verdict == PhoneGateVerdict.Recording)
         {

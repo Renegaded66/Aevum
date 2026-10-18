@@ -247,6 +247,39 @@ class PcTrackerClient @Inject constructor() {
         val blockEndAtMs: Long
     )
 
+    /**
+     * M22: Steuerbefehl vom PC abholen (Pull-Modell) — funktioniert auch,
+     * wenn am Handy gerade NICHTS läuft. Bisher konnte der PC nur eine
+     * laufende Handy-Session steuern (Pause/Fortsetzen/Stopp über
+     * [relayLive]); „am PC Studium starten" blieb reine PC-Aufzeichnung.
+     * Jetzt liegt der Startbefehl hier bereit, bis das Handy ihn abholt.
+     *
+     * Rückgabe null = kein Befehl (Normalfall).
+     */
+    suspend fun fetchCommand(host: String, port: Int, token: String): RemoteCommand? =
+        withContext(Dispatchers.IO) {
+            val (_, body) = request(
+                "GET",
+                "${base(host, port)}/api/commands",
+                null,
+                mapOf("X-Aevum-Token" to token)
+            )
+            val json = JSONObject(body)
+            val command = json.optString("command").ifBlank { null } ?: return@withContext null
+            RemoteCommand(
+                command = command,
+                activityKey = json.optString("activityKey").ifBlank { null },
+                issuedAt = json.optLong("issuedAt", 0L)
+            )
+        }
+
+    /** Ein vom PC ausgestellter Befehl (M22: „start"). */
+    data class RemoteCommand(
+        val command: String,
+        val activityKey: String?,
+        val issuedAt: Long
+    )
+
     private fun base(host: String, port: Int) = "http://$host:$port"
 
     private fun request(

@@ -89,6 +89,7 @@
     <string name="pc_tracker_never_synced">Never synced</string>
     <string name="pc_tracker_sync_now">Sync now</string>
     <string name="pc_tracker_sync_none">Everything up to date — no new recordings.</string>
+    <string name="pc_remote_start_note">Started from PC</string>
     <string name="pc_tracker_sync_result">%1$d new recordings, %2$d updated</string>
     <string name="pc_tracker_sync_new_types">(new activity: %1$s)</string>
     <string name="pc_tracker_disconnect">Disconnect</string>

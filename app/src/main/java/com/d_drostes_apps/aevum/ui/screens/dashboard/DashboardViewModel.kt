@@ -1000,7 +1000,7 @@ class DashboardViewModel @Inject constructor(
         }
         val top = distribution.firstOrNull()
         val narrative = buildNarrative(totalMsWithAllowances, top, candidates.size, current)
-        val insights = buildInsights(distribution, candidates.size)
+        val insights = buildInsights(candidates.size)
 
         // M7: Accepted today count
         val acceptedToday = candidates.count { it.status == "ACCEPTED" && it.resolvedAt?.let { it in start..end } == true }
@@ -1308,26 +1308,18 @@ class DashboardViewModel @Inject constructor(
         )
     }
 
-    private fun buildInsights(
-        distribution: List<DashboardCategorySlice>,
-        reviewCount: Int
-    ): List<DashboardInsight> {
+    private fun buildInsights(reviewCount: Int): List<DashboardInsight> {
         val insights = mutableListOf<DashboardInsight>()
         // M21: „Größter Block" und „Offene Zeit" sind auf Nutzerwunsch
         // entfallen — das Dashboard soll die ZIELE zeigen, nicht die
         // Selbstverständlichkeiten der Verteilung.
+        // M22: Auch „Vielfalt" („Dein Tag verteilt sich auf N Bereiche")
+        // ist raus — der Nutzer will den Block komplett loswerden.
         if (reviewCount > 0) {
             insights += DashboardInsight(
                 application.getString(R.string.dashboard_insight_review),
                 application.getString(R.string.dashboard_insight_review_msg, reviewCount.reviewText()),
                 "✓"
-            )
-        }
-        if (distribution.size >= 3) {
-            insights += DashboardInsight(
-                application.getString(R.string.dashboard_insight_variety),
-                application.getString(R.string.dashboard_insight_variety_msg, distribution.size),
-                "✦"
             )
         }
         if (insights.isEmpty()) {

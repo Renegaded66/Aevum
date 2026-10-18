@@ -192,4 +192,38 @@ class PcTrackerClientTest {
 
         assertThat(ok).isFalse()
     }
+
+    // ── M22: Steuerbefehl-Kanal (/api/commands) ─────────────────────────
+
+    @Test
+    fun `fetchCommand parst einen Startbefehl`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"protocol":2,"serverTime":123,"command":"start","activityKey":"learning","issuedAt":120}"""
+            )
+        )
+
+        val command = client.fetchCommand(host, port, "tok-123")
+
+        assertThat(command).isNotNull()
+        assertThat(command!!.command).isEqualTo("start")
+        assertThat(command.activityKey).isEqualTo("learning")
+        assertThat(command.issuedAt).isEqualTo(120)
+
+        val request = server.takeRequest()
+        assertThat(request.method).isEqualTo("GET")
+        assertThat(request.path).isEqualTo("/api/commands")
+        assertThat(request.getHeader("X-Aevum-Token")).isEqualTo("tok-123")
+    }
+
+    @Test
+    fun `fetchCommand liefert null ohne Befehl`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"protocol":2,"serverTime":123,"command":null,"activityKey":null,"issuedAt":0}"""
+            )
+        )
+
+        assertThat(client.fetchCommand(host, port, "tok-123")).isNull()
+    }
 }

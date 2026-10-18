@@ -438,16 +438,9 @@ private fun DashboardContent(
                             )
                         }
 
-                        // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik
-                        // (User-Wunsch: "Statistik über den Güte Verlauf
-                        // der letzten Tage, wobei man INNERHALB der
-                        // Statistik einstellen können soll, ob in den
-                        // letzten 7, 30, 365 Tagen").
-                        // M21: NUR am heutigen Tag — beim Blättern durch
-                        // die Tage komplett ausblenden (Nutzerwunsch).
-                        if (isShowingToday) {
-                            QualityTrendCard(trend = qualityTrend)
-                        }
+                        // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik.
+                        // M21: nur am heutigen Tag. M22: Position ganz unten
+                        // im Dashboard (Nutzerwunsch) — siehe Ende des Sheets.
 
                         // M18.58: Garmin-Kacheln — moderne kleine Kacheln
                         // (User-Wunsch). Nur sichtbar, wenn Daten
@@ -496,6 +489,12 @@ private fun DashboardContent(
                         // 6) Review-Hinweis — nur wenn Vorschläge warten
                         if (state.candidateCount > 0 || state.sleepCandidateCount > 0) {
                             ReviewHintCard(reviewCount = state.candidateCount, sleepCount = state.sleepCandidateCount, onOpenReview = onOpenReview)
+                        }
+
+                        // 7) M22: Güte-Verlauf ganz unten (Nutzerwunsch) —
+                        // und weiterhin nur am heutigen Tag.
+                        if (isShowingToday) {
+                            QualityTrendCard(trend = qualityTrend)
                         }
                     } // Ende Sheet-Column
                 } // Ende DashboardSheet

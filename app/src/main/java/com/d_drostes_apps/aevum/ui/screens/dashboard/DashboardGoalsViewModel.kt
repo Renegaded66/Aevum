@@ -87,7 +87,9 @@ class DashboardGoalsViewModel @Inject constructor(
         balanceSource.dailyTotals(LOOKBACK_DAYS),
         historyBalance,
         goalRepository.getCheckinsSince(checkinLookbackStartMs()),
-        todoRepository.getAllCompletions()
+        todoRepository.getAllCompletions(),
+        // M22: laufende Aufzeichnung live mitzählen (10-s-Takt).
+        com.d_drostes_apps.aevum.domain.analytics.LiveRefreshTicker.ticker()
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val activeGoals = values[0] as List<Goal>

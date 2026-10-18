@@ -1,5 +1,48 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.42 (M22) + PC-Tracker 1.7.0 — 2026-10-18
+
+### Ziele live · Dashboard-Feinschliff · Desktop befiehlt nur noch
+
+Nutzerwunsch (wörtlich): „Bei den Zielen wird anscheinend nicht das mit
+einbezogen, was aktuell noch aufzeichnet. Ich habe studium seit 25 Minuten am
+aufzeichnen aber das ziel wurde nicht aktualisiert, erst als ich studium
+einmal pausiert habe. […] Unten der Punkt ‚Vielfalt dein tag verteilt sich
+auf 4 bereiche' kann komplett weg. Die Position des Güte verlaufs kann im
+dashboard nach ganz unten. Und die desktop app will ich echt so haben, dass
+der desktop nur befehle ans handy sendet. […] Der desktop soll also sozusagen
+nur ans handy senden ‚Du musst jetzt activity x starten/stoppen'. Trotzdem
+soll es natürlich auch weiterhin auf dem desktop visualisiert werden."
+
+**Ziele live:**
+- Laufende Sessions (`endAt == null`) zählen jetzt bis „jetzt" mit — vorher
+  übersprang `GoalProgressAnalytics.buildBuckets` sie komplett, der Fortschritt
+  sprang erst beim Pausieren.
+- `LiveRefreshTicker` (10 s) in Goals-, DashboardGoals- und
+  GoalDetail-ViewModel: die Auswertung läuft sichtbar weiter, ohne dass sich
+  die Datenbankzeile ändert. Zähl-Ziele bleiben bei „abgeschlossen".
+
+**Dashboard:**
+- „Vielfalt"-Insight entfernt.
+- Güte-Verlauf ist jetzt die letzte Karte im Sheet (weiterhin nur „Heute").
+
+**PC-Tracker 1.7.0 / App 1.0.42 — Desktop befiehlt nur noch:**
+- Neuer token-pflichtiger Endpunkt `GET /api/commands`: Der PC legt beim
+  manuellen Start `{command:"start", activityKey}` ab (einmalig, TTL 60 s);
+  die App holt ihn im 6-s-Takt (45 s im Standby, Fallback nach jedem Sync) ab.
+- Handy führt aus: `LiveActivityManager.start(sourceType = PC_REMOTE)`,
+  dieselbe Aktivität läuft schon → kein Neustart, unbekannter Schlüssel →
+  nichts. Der PC zeichnet bei Remote-Start **nichts** lokal auf.
+- Visualisierung unverändert über den Live-Kanal; „Stop" am PC beendet die
+  Handy-Session. Ohne gekoppeltes Handy startet der PC wie bisher lokal.
+- Start-Karte bleibt bei Kopplung immer bedienbar; das Verifikations-Gate
+  gilt nur noch für lokale (automatische) Starts.
+
+**Tests:** Handy 1258 (0 Fehler, 1 skipped) — neu: `PcRemoteCommandPolicyTest`,
+zwei `fetchCommand`-Fälle, zwei Live-Ziel-Fälle. Desktop 156 (0 Fehler) —
+neu: `/api/commands` (3), Remote-Start-Registry (2), `SentToPhone` (2).
+Protokoll: `docs/PC-TRACKER-PROTOCOL.md` §5h.
+
 ## [Unreleased] — Aevum 1.0.41 (M21) — 2026-10-18
 
 ### Dashboard-Umbau + ehrliche Bildschirmzeit

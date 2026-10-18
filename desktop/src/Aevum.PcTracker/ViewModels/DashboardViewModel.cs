@@ -81,6 +81,13 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
     // leer, wenn nichts aufgezeichnet wird.
     [ObservableProperty] private string _nowTimerText = "";
 
+    // PC 1.7.0: Der Start ging als Befehl ans Handy — bis dessen Live-Meldung
+    // eintrifft, sagt das Dashboard ehrlich, dass es unterwegs ist.
+    [ObservableProperty] private string _remoteStartHint = "";
+    [ObservableProperty] private bool _remoteStartHintVisible;
+    /// <summary>Gekoppelt: Starts gehen ans Handy (PC befiehlt nur).</summary>
+    [ObservableProperty] private bool _phoneRemoteMode;
+
     [ObservableProperty] private string _todayCountText = "0";
     [ObservableProperty] private string _todayTotalText = "0 min";
 
@@ -264,7 +271,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         if (minutes <= 0)
         {
             ClearPendingStart();
-            _host.Tracker.StartManualActivity(option.Key);
+            StartManualAndReport(option.Key);
             return; // Refresh kommt über Tracker.StateChanged
         }
         _pendingStartKey = option.Key;
@@ -276,9 +283,34 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
     [RelayCommand]
     private void CancelPendingStart() => ClearPendingStart();
 
-    /// <summary>Stop-Knopf: die laufende (manuelle) Session endet sofort.</summary>
+    /// <summary>Stop-Knopf: lokale Session beenden ODER — PC 1.7.0 — dem Handy
+    /// „stop" befehlen, wenn das Handy gerade aufzeichnet (Remote-Start).</summary>
     [RelayCommand]
-    private void StopSession() => _host.Tracker.StopActiveSession();
+    private void StopSession()
+    {
+        if (_host.Tracker.ActiveSession is not null)
+        {
+            _host.Tracker.StopActiveSession();
+            return;
+        }
+        if (_host.PhoneLive.GetStatus(_host.Clock.NowMs).Session is not null)
+        {
+            _host.PhoneLive.RequestCommand(PhoneLiveCommand.Stop, _host.Clock.NowMs);
+        }
+    }
+
+    /// <summary>
+    /// PC 1.7.0: Start aus dem Dashboard — bei gekoppeltem Handy geht der
+    /// Befehl dorthin („Du musst jetzt activity x starten"), sonst lokal.
+    /// </summary>
+    private void StartManualAndReport(string activityKey)
+    {
+        var outcome = _host.Tracker.StartManualActivity(activityKey);
+        RemoteStartHint = outcome == ManualStartOutcome.SentToPhone
+            ? Loc.S("s.start_sent_phone")
+            : "";
+        RemoteStartHintVisible = RemoteStartHint.Length > 0;
+    }
 
     private void ClearPendingStart()
     {
@@ -298,7 +330,7 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         {
             var key = _pendingStartKey;
             ClearPendingStart();
-            _host.Tracker.StartManualActivity(key);
+            StartManualAndReport(key);
             return; // Anzeige aktualisiert der StateChanged-getriebene Refresh
         }
         UpdatePendingText(now);
@@ -348,6 +380,12 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         var session = status.Session;
         PhoneLiveVisible = session is not null;
         PhoneLiveActive = session is not null && !status.Stale;
+        if (session is not null && RemoteStartHintVisible)
+        {
+            // Der Befehl ist angekommen — das Handy meldet seine Session.
+            RemoteStartHint = "";
+            RemoteStartHintVisible = false;
+        }
         if (session is null)
         {
             PhoneTimerText = "";
@@ -415,11 +453,15 @@ public partial class DashboardViewModel : ObservableObject, IRefreshable
         // PC 1.6.0: Dazu das Verifikations-Gate — ohne frische Bestätigung
         // („am Handy läuft nichts") startet der PC ebenfalls nichts und SAGT es.
         var verdict = _host.GetPhoneVerdict();
+        // PC 1.7.0: Mit gekoppeltem Handy sind Starts immer möglich — sie gehen
+        // als Befehl dorthin (kein Verifikations-Gate nötig, das Handy
+        // entscheidet selbst). Das Gate gilt nur noch für lokale Starts.
+        PhoneRemoteMode = _host.CanSendToPhone;
         PhonePriorityActive = verdict == PhoneGateVerdict.Recording;
-        PhoneUnverifiedActive = verdict == PhoneGateVerdict.Unverified;
-        PhoneVerifiedFree = verdict == PhoneGateVerdict.VerifiedIdle;
+        PhoneUnverifiedActive = verdict == PhoneGateVerdict.Unverified && !PhoneRemoteMode;
+        PhoneVerifiedFree = verdict == PhoneGateVerdict.VerifiedIdle && !PhoneRemoteMode;
         IsStartEnabled = !IsPaused
-            && verdict is PhoneGateVerdict.VerifiedIdle or PhoneGateVerdict.NotCoupled;
+            && (PhoneRemoteMode || verdict is PhoneGateVerdict.VerifiedIdle or PhoneGateVerdict.NotCoupled);
         CheckPendingStart(now);
         IsManualActive = _host.Tracker.ActiveSession?.ProgramKey == SessionEngine.ManualProgramKey;
         UpdatePhoneLive(now);

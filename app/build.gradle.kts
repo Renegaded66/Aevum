@@ -236,8 +236,13 @@ android {
         //  - Tagespauschalen als klickbare Zeile in „Wo deine Zeit hingeht"
         //  - Güte-Verlauf nur am heutigen Tag
         //  - UsageStats-Faltung auf Activity-Ebene (Duolingo/Splash-Fix)
-        versionCode = 42
-        versionName = "1.0.41"
+        // M22 (Ziele live + PC befiehlt nur noch):
+        //  - Ziel-Fortschritt zählt laufende Aufzeichnung live mit (10-s-Takt,
+        //    offene Sessions endAt == null werden bis „jetzt" gerechnet)
+        //  - „Vielfalt"-Block entfernt, Güte-Verlauf ganz nach unten
+        //  - PC-Tracker: GET /api/commands — Start vom Desktop läuft aufs Handy
+        versionCode = 43
+        versionName = "1.0.42"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

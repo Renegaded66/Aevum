@@ -325,4 +325,46 @@ class GoalProgressAnalyticsTest {
             startAt = start, endAt = end
         )
     }
+
+    // ── M22: laufende Aufzeichnung zählt live ────────────────────────────
+
+    @Test
+    fun `M22 laufende Session ohne endAt zaehlt bis jetzt`() {
+        // Nutzer-Report: „Studium seit 25 Minuten am Aufzeichnen, Ziel wird
+        // erst beim Pausieren aktualisiert." Laufende Sessions haben
+        // endAt == null — sie müssen bis „jetzt" mitzählen.
+        val goal = Goal(
+            id = "g-live", title = "Lernen 2h", activityTypeId = "learning",
+            type = "AT_LEAST", period = "DAILY", targetValue = 2f, targetUnit = "HOURS"
+        )
+        val now = System.currentTimeMillis()
+        val running = ActivitySession(
+            id = "live-1", title = "Studium", activityTypeId = "learning",
+            categoryId = "learning",
+            startAt = now - 90 * 60_000L,
+            endAt = null
+        )
+
+        val result = GoalProgressAnalytics.evaluateGoal(
+            goal, listOf(running), LocalDate.now(zone), zone, typeMap
+        )
+
+        // 90 Minuten laufend → 1,5 h (Toleranz für die Testlaufzeit).
+        assertThat(result.currentValue).isWithin(0.05f).of(1.5f)
+        assertThat(result.progress).isWithin(0.03f).of(0.75f)
+    }
+
+    @Test
+    fun `M22 pausierte oder beendete Sessions wachsen nicht weiter`() {
+        val goal = Goal(
+            id = "g-ended", title = "Lernen 2h", activityTypeId = "learning",
+            type = "AT_LEAST", period = "DAILY", targetValue = 2f, targetUnit = "HOURS"
+        )
+        val today = LocalDate.now(zone)
+        val ended = session("e1", "learning", "learning", today, 8, 9)
+
+        val result = GoalProgressAnalytics.evaluateGoal(goal, listOf(ended), today, zone, typeMap)
+
+        assertThat(result.currentValue).isWithin(0.01f).of(1f)
+    }
 }

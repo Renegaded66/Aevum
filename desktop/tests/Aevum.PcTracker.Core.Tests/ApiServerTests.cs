@@ -15,6 +15,7 @@ public class ApiServerTests : IAsyncLifetime
 {
     private readonly FakeClock _clock = new(1_000_000);
     private readonly PairingManager _pairing = new();
+    private readonly PhoneLiveRegistry _phoneLive = new();
 
     private string _dir = "";
     private SessionStore _store = null!;
@@ -31,7 +32,7 @@ public class ApiServerTests : IAsyncLifetime
         _store.Open();
         _settings = new SettingsService(_store, _clock);
         _tokens = new TokenService(_settings);
-        _server = new ApiServer(_store, _settings, _tokens, _pairing, _clock, "1.0.0-test");
+        _server = new ApiServer(_store, _settings, _tokens, _pairing, _clock, "1.0.0-test", _phoneLive);
         await _server.StartAsync("127.0.0.1", 0);
         _client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{_server.BoundPort}") };
     }
@@ -250,5 +251,38 @@ public class ApiServerTests : IAsyncLifetime
             new StringContent("not json at all", Encoding.UTF8, "application/json"));
 
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ── PC 1.7.0: Startbefehl-Kanal (/api/commands) ───────────────────────
+
+    [Fact]
+    public async Task Commands_RequireToken()
+    {
+        var response = await _client.GetAsync("/api/commands");
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Commands_DeliverRemoteStartExactlyOnce()
+    {
+        // Devon: „Der desktop soll also sozusagen nur ans handy senden
+        // ‚Du musst jetzt activity x starten/stoppen'."
+        _phoneLive.RequestRemoteStart("learning", _clock.NowMs);
+
+        var first = await Json(await _client.SendAsync(Authed(HttpMethod.Get, "/api/commands")));
+        Assert.Equal("start", first.GetProperty("command").GetString());
+        Assert.Equal("learning", first.GetProperty("activityKey").GetString());
+
+        var second = await Json(await _client.SendAsync(Authed(HttpMethod.Get, "/api/commands")));
+        Assert.Equal(JsonValueKind.Null, second.GetProperty("command").ValueKind);
+    }
+
+    [Fact]
+    public async Task Commands_WithoutPendingStart_AreNull()
+    {
+        var response = await Json(await _client.SendAsync(Authed(HttpMethod.Get, "/api/commands")));
+
+        Assert.Equal(JsonValueKind.Null, response.GetProperty("command").ValueKind);
     }
 }

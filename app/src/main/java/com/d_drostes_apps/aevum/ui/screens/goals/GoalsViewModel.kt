@@ -94,7 +94,9 @@ class GoalsViewModel @Inject constructor(
         goalRepository.getCheckinsSince(checkinLookbackStartMs()),
         todoRepository.getAllCompletions(),
         _celebration,
-        _showCompleted
+        _showCompleted,
+        // M22: laufende Aufzeichnung live mitzählen (10-s-Takt).
+        com.d_drostes_apps.aevum.domain.analytics.LiveRefreshTicker.ticker()
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val activeGoals = values[0] as List<Goal>

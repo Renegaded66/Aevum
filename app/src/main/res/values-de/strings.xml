@@ -89,6 +89,7 @@
     <string name="pc_tracker_never_synced">Noch nie synchronisiert</string>
     <string name="pc_tracker_sync_now">Jetzt synchronisieren</string>
     <string name="pc_tracker_sync_none">Alles aktuell — keine neuen Aufzeichnungen.</string>
+    <string name="pc_remote_start_note">Vom PC gestartet</string>
     <string name="pc_tracker_sync_result">%1$d neue Aufzeichnungen, %2$d aktualisiert</string>
     <string name="pc_tracker_sync_new_types">(neue Aktivität: %1$s)</string>
     <string name="pc_tracker_disconnect">Verbindung trennen</string>

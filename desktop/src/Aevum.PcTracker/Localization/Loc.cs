@@ -295,6 +295,9 @@ public static class Loc
         ["s.start_phone_priority"] = "Your phone is recording right now — PC start waits until it's done (your phone has priority).",
         ["s.start_unverified"] = "Phone state not verified — starting waits until the PC can confirm that nothing runs on your phone.",
         ["s.start_phone_verified"] = "✓ Phone verified — nothing is running there right now.",
+        // PC 1.7.0: Starts gehen ans Handy (der PC befiehlt nur noch)
+        ["s.start_remote"] = "Recording runs on your phone: tapping start sends 'start activity X' there — the phone records it, and the dashboard shows it live.",
+        ["s.start_sent_phone"] = "✓ Sent to your phone — it starts recording in a few seconds.",
         ["s.dash_unverified_label"] = "PHONE NOT VERIFIED",
         ["s.dash_phone_unverified"] = "Phone state not confirmed",
         ["s.dash_phone_unverified_line"] = "The PC only starts recording once it has confirmed that nothing is running on your phone (same Wi-Fi?).",
@@ -571,6 +574,9 @@ public static class Loc
         ["s.start_phone_priority"] = "Dein Handy zeichnet gerade auf — der PC-Start wartet, bis es fertig ist (dein Handy hat Vorrang).",
         ["s.start_unverified"] = "Stand des Handys nicht verifiziert — der Start wartet, bis der PC bestätigen konnte, dass am Handy nichts läuft.",
         ["s.start_phone_verified"] = "✓ Handy verifiziert — dort läuft gerade nichts.",
+        // PC 1.7.0: Starts gehen ans Handy (der PC befiehlt nur noch)
+        ["s.start_remote"] = "Die Aufzeichnung läuft auf deinem Handy: Ein Start schickt dorthin „Aktivität X starten“ — das Handy zeichnet auf, das Dashboard zeigt es live.",
+        ["s.start_sent_phone"] = "✓ Ans Handy gesendet — es startet in wenigen Sekunden.",
         ["s.dash_unverified_label"] = "HANDY NICHT VERIFIZIERT",
         ["s.dash_phone_unverified"] = "Stand des Handys nicht bestätigt",
         ["s.dash_phone_unverified_line"] = "Der PC zeichnet erst auf, wenn bestätigt ist, dass am Handy nichts läuft (gleiches WLAN?).",

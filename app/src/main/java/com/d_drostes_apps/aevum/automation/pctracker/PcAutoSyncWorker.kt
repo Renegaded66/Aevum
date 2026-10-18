@@ -38,6 +38,9 @@ class PcAutoSyncWorker(
 
         /** PC 1.6.0: für den Verifikations-Ping nach dem Sync. */
         fun liveActivityManager(): LiveActivityManager
+
+        /** M22: Fallback, falls der App-Aufzeichnungs-Dienst gerade nicht lebt. */
+        fun pcRemoteCommandRunner(): PcRemoteCommandRunner
     }
 
     companion object {
@@ -70,6 +73,10 @@ class PcAutoSyncWorker(
                     deps.pcTrackerRepository().relayLive(
                         PcLiveState.snapshot(deps.liveActivityManager())
                     )
+                    // M22: Steuerbefehl nachholen (Fallback zum 6-s-Takt des
+                    // App-Aufzeichnungs-Dienstes; greift, wenn der Dienst
+                    // gerade nicht läuft). Still, wie alles hier.
+                    runCatching { deps.pcRemoteCommandRunner().pollOnce() }
                 }
                 else -> Unit
             }

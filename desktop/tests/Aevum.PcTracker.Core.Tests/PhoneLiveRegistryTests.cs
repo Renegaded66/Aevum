@@ -183,4 +183,32 @@ public class PhoneLiveRegistryTests
 
         Assert.Equal(PhoneLiveCommand.Stop, reg.HandleRelay(Session(), 30_000));
     }
+
+    // ── PC 1.7.0: Startbefehl ans Handy (auch bei ruhendem Handy) ────────
+
+    [Fact]
+    public void RemoteStart_IsDeliveredExactlyOnce()
+    {
+        var reg = new PhoneLiveRegistry();
+        reg.RequestRemoteStart("learning", 10_000);
+
+        Assert.True(reg.HasRemoteStart(10_000));
+        var start = reg.TakeRemoteStart(11_000);
+
+        Assert.NotNull(start);
+        Assert.Equal("learning", start!.ActivityKey);
+        // Zweiter Abruf: nichts mehr — ein Start darf sich nicht wiederholen.
+        Assert.Null(reg.TakeRemoteStart(12_000));
+        Assert.False(reg.HasRemoteStart(12_000));
+    }
+
+    [Fact]
+    public void RemoteStart_ExpiresAfterTtl()
+    {
+        var reg = new PhoneLiveRegistry();
+        reg.RequestRemoteStart("learning", 10_000);
+
+        Assert.Null(reg.TakeRemoteStart(10_000 + PhoneLiveRegistry.CommandTtlMs + 1));
+        Assert.False(reg.HasRemoteStart(10_000 + PhoneLiveRegistry.CommandTtlMs + 1));
+    }
 }

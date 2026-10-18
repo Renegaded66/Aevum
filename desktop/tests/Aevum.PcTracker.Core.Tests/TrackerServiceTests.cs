@@ -176,6 +176,45 @@ public class TrackerServiceTests : IDisposable
         Assert.Null(_service.ActiveSession);
         Assert.Equal(0, _store.CountSessions());
     }
+
+    // ── PC 1.7.0: Manuelle Starts gehen ans Handy ────────────────────────
+
+    [Fact]
+    public void StartManual_WithCoupledPhone_SendsCommandInsteadOfLocalSession()
+    {
+        Setup();
+        string? sentKey = null;
+        _service = new TrackerService(
+            _probe, _store, _settings, _clock,
+            phoneGate: _ => PhoneGateVerdict.VerifiedIdle,
+            remoteStart: key =>
+            {
+                sentKey = key;
+                return true;
+            });
+
+        var outcome = _service.StartManualActivity("learning");
+
+        Assert.Equal(ManualStartOutcome.SentToPhone, outcome);
+        Assert.Equal("learning", sentKey);
+        // Der PC zeichnet selbst nichts auf — die Session lebt am Handy.
+        Assert.Null(_service.ActiveSession);
+    }
+
+    [Fact]
+    public void StartManual_WithoutCoupledPhone_StartsLocally()
+    {
+        Setup();
+        _service = new TrackerService(
+            _probe, _store, _settings, _clock,
+            phoneGate: _ => PhoneGateVerdict.NotCoupled,
+            remoteStart: _ => false); // kein Handy bekannt
+
+        var outcome = _service.StartManualActivity("learning");
+
+        Assert.Equal(ManualStartOutcome.Started, outcome);
+        Assert.NotNull(_service.ActiveSession);
+    }
 }
 
 public class ProgramNamesTests

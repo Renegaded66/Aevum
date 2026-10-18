@@ -88,7 +88,9 @@ class GoalDetailViewModel @Inject constructor(
         historyBalance,
         todoRepository.getAllCompletions(),
         _celebration,
-        _closed
+        _closed,
+        // M22: laufende Aufzeichnung live mitzählen (10-s-Takt).
+        com.d_drostes_apps.aevum.domain.analytics.LiveRefreshTicker.ticker()
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val goal = values[0] as Goal?

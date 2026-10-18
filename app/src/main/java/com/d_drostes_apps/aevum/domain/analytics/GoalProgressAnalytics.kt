@@ -283,11 +283,19 @@ object GoalProgressAnalytics {
                 counts[d] = (counts[d] ?: 0) + 1
             }
         } else {
+            // M22: Laufende Sessions zählen LIVE mit (endAt == null).
+            // Nutzer-Report („Studium läuft 25 Minuten, das Ziel bewegt sich
+            // erst beim Pausieren") hatte ZWEI Ursachen: (a) offene Sessions
+            // wurden hier komplett übersprungen, (b) die ViewModels rechneten
+            // nur bei Datenbank-Änderungen neu (Ticker in den VMs).
+            val now = System.currentTimeMillis()
             sessions.forEach { s ->
-                if (s.deletedAt != null || s.endAt == null) return@forEach
+                if (s.deletedAt != null) return@forEach
                 if (!matchesSession(goal, s)) return@forEach
+                // Offene Session: bis jetzt rechnen. Pausierte Sessions haben
+                // endAt gesetzt und wachsen dadurch nicht weiter.
+                val end = s.endAt ?: now
                 var cursor = s.startAt
-                val end = s.endAt!!
                 while (cursor < end) {
                     val day = Instant.ofEpochMilli(cursor).atZone(zoneId).toLocalDate()
                     val dayEnd = day.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()

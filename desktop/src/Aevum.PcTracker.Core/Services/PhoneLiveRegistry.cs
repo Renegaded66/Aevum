@@ -71,6 +71,15 @@ public sealed class PhoneLiveRegistry
     private PhoneLiveCommand? _pending;
     private long _pendingSetMs;
 
+    /// <summary>
+    /// PC 1.7.0: „Starte am Handy Aktivität X" — liegt bereit, bis die App
+    /// ihn per GET /api/commands abholt (einmalig, TTL wie [CommandTtlMs]).
+    /// </summary>
+    private RemoteStartRequest? _remoteStart;
+
+    /// <summary>Ein Startbefehl fürs Handy (Schlüssel = ActivityType-ID der App).</summary>
+    public sealed record RemoteStartRequest(string ActivityKey, long IssuedAtMs);
+
     /// <summary>PC 1.6.0: Zeitpunkt der letzten „nichts läuft"-Bestätigung (0 = nie).</summary>
     private long _lastIdleReportMs;
 
@@ -107,6 +116,48 @@ public sealed class PhoneLiveRegistry
         {
             _pending = command;
             _pendingSetMs = nowMs;
+        }
+    }
+
+    /// <summary>
+    /// PC 1.7.0: Der Nutzer hat am PC eine Aktivität gestartet — Devon will,
+    /// dass der PC nur noch BEFIEHLT: „Du musst jetzt activity x starten".
+    /// Die Aufzeichnung selbst läuft dann auf dem Handy; der PC zeigt sie
+    /// über den Live-Kanal an (und zeichnet lokal nichts auf).
+    /// </summary>
+    public void RequestRemoteStart(string activityKey, long nowMs)
+    {
+        lock (_lock)
+        {
+            _remoteStart = new RemoteStartRequest(activityKey, nowMs);
+        }
+    }
+
+    /// <summary>Gibt es einen noch nicht abgeholten Startbefehl? (UI-Hinweis)</summary>
+    public bool HasRemoteStart(long nowMs)
+    {
+        lock (_lock)
+        {
+            return _remoteStart is not null && nowMs - _remoteStart.IssuedAtMs <= CommandTtlMs;
+        }
+    }
+
+    /// <summary>
+    /// Holt den Startbefehl EINMALIG ab (die App bekommt ihn genau einmal).
+    /// Nach [CommandTtlMs] ohne Abholung wird er verworfen — ein viel später
+    /// eintreffender Start wäre eine Überraschung, keine Absicht mehr.
+    /// </summary>
+    public RemoteStartRequest? TakeRemoteStart(long nowMs)
+    {
+        lock (_lock)
+        {
+            if (_remoteStart is null)
+            {
+                return null;
+            }
+            var request = _remoteStart;
+            _remoteStart = null;
+            return nowMs - request.IssuedAtMs > CommandTtlMs ? null : request;
         }
     }
 

@@ -86,6 +86,19 @@ public sealed class AppHost : IAsyncDisposable
                     _lastPhoneGate = verdict;
                 }
                 return verdict;
+            },
+            // PC 1.7.0: Manuelle Starts gehen ans Handy, sobald eines bekannt
+            // ist — der PC befiehlt nur, das Handy zeichnet auf und meldet
+            // seinen Zustand über den Live-Kanal zurück (Anzeige bleibt).
+            remoteStart: activityKey =>
+            {
+                if (Settings.Current.PhoneKnownAtMs == 0)
+                {
+                    return false; // kein Handy gekoppelt → lokaler Start wie bisher
+                }
+                PhoneLive.RequestRemoteStart(activityKey, Clock.NowMs);
+                UpdateLog.AppendTo(DataDirectory, "phone-commands.log", $"start → Handy: {activityKey}");
+                return true;
             });
     }
 
@@ -108,6 +121,13 @@ public sealed class AppHost : IAsyncDisposable
     {
         return PhoneLive.GetGateVerdict(Clock.NowMs, Settings.Current.PhoneKnownAtMs > 0);
     }
+
+    /// <summary>
+    /// PC 1.7.0: Ist ein Handy bekannt? Dann gehen manuelle Starts als
+    /// Befehl dorthin („Du musst jetzt activity x starten/stoppen") und der
+    /// PC zeichnet lokal nichts auf — er zeigt die Handy-Session live an.
+    /// </summary>
+    public bool CanSendToPhone => Settings.Current.PhoneKnownAtMs > 0;
 
     public static string DefaultDataDirectory()
     {

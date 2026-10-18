@@ -141,10 +141,15 @@ class AppTrackingService : Service() {
 
     @Inject lateinit var liveActivityManager: LiveActivityManager
     @Inject lateinit var trackingRepository: AppTrackingEntryRepository
+    // M22: Steuerbefehle des PCs („starte Aktivität X") auch bei ruhendem Handy.
+    @Inject lateinit var pcRemoteCommandRunner: com.d_drostes_apps.aevum.automation.pctracker.PcRemoteCommandRunner
     @Inject lateinit var automationSettingsDao: com.d_drostes_apps.aevum.data.db.AutomationSettingsDao
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: kotlinx.coroutines.Job? = null
+    // M22: eigener Takt für PC-Steuerbefehle (unabhängig von der
+    // Bildschirmzeit-Messung — Befehle müssen auch bei ruhendem Handy ankommen).
+    private var pcCommandJob: kotlinx.coroutines.Job? = null
     // M18.121 (Crash-Loop t_fe3e99da) / M18.122 (t_55c14376): Sticky-
     // Guard — bricht die System-Wiederbelebung (START_STICKY-Rebirth
     // nach Crash/Kill), die den "crasht alle paar Sekunden"-Loop
@@ -204,6 +209,15 @@ class AppTrackingService : Service() {
         // gen — UsageStats-I/O fällt weg). 10 Min reichen locker: Der
         // SCREEN_ON-Broadcast weckt den Sofort-Poll sofort.
         private const val POLL_INTERVAL_SCREEN_OFF_MS = 10L * 60 * 1000
+
+        /**
+         * M22: Takt des PC-Befehlskanals. Bild an → 6 s (der Nutzer steht
+         * gerade am PC und erwartet, dass das Handy in Sekunden startet);
+         * Bild aus → 45 s (Befehle sollen auch im Standby ankommen, aber
+         * ohne Funk-Dauerfeuer).
+         */
+        private const val PC_COMMAND_POLL_SCREEN_ON_MS = 6_000L
+        private const val PC_COMMAND_POLL_SCREEN_OFF_MS = 45_000L
         // M20: Event-Fenster — „seit dem letzten Abruf" + Überlappung
         // (doppelt gelieferte Events sind für die Faltung stabil), gedeckelt
         // auf 6 h (nach langen Bildschirm-Aus-Phasen zählen die frischen
@@ -412,6 +426,25 @@ class AppTrackingService : Service() {
         // M18.104: Screen-Receiver sofort registrieren — der FGS lebt
         // danach evtl. tagelang; der Receiver kostet im Schlaf nichts.
         registerScreenReceiver()
+        // M22: Steuerbefehle des PCs abholen (Pull-Modell). Der FGS ist der
+        // einzige dauerhaft lebende Ort der App — nur hier kann „am PC
+        // Studium starten" auch dann ankommen, wenn am Handy nichts läuft.
+        startPcCommandPolling()
+    }
+
+    /**
+     * M22: Holt im Takt `GET /api/commands` beim gekoppelten PC ab und
+     * führt einen Startbefehl aus ([PcRemoteCommandRunner]). Ist kein PC
+     * gekoppelt oder ist er aus, kehrt der Aufruf sofort zurück.
+     */
+    private fun startPcCommandPolling() {
+        pcCommandJob?.cancel()
+        pcCommandJob = scope.launch {
+            while (isActive) {
+                runCatching { pcRemoteCommandRunner.pollOnce() }
+                delay(if (screenOn) PC_COMMAND_POLL_SCREEN_ON_MS else PC_COMMAND_POLL_SCREEN_OFF_MS)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -995,6 +1028,7 @@ class AppTrackingService : Service() {
         alive = false
         AppTrackingLog.i(this, "Service onDestroy")
         pollingJob?.cancel()
+        pcCommandJob?.cancel()
         // M18.104: Screen-Receiver sauber deregistrieren.
         screenReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) { /* nie registriert */ }
