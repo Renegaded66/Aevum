@@ -145,6 +145,12 @@ public sealed class ApiServer : IAsyncDisposable
                 // Unlesbarer Body zählt als Fehlversuch (rate-limitiert).
             }
             var result = _pairing.TryPair(request?.Code, _clock.NowMs);
+            // PC 1.7.1: Kopplung = Handy-Kontakt. Damit ist das
+            // Verifikations-Gate ab sofort scharf — auch vor dem ersten Sync.
+            if (result.Outcome == PairOutcome.Success && _settings.Current.PhoneKnownAtMs == 0)
+            {
+                _settings.Update(s => s.PhoneKnownAtMs = _clock.NowMs);
+            }
             return result.Outcome switch
             {
                 PairOutcome.Success => Results.Json(new

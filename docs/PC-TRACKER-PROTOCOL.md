@@ -384,6 +384,20 @@ verifiziert werden konnte."
   Hinweis, Chips + „Jetzt starten" sichtbar deaktiviert; bei bestätigtem
   Stand dezent „✓ Handy verifiziert". Jeder Urteils-Wechsel landet im
   `phone-priority.log`. Kein Protokoll-Sprung — derselbe Endpunkt.
+- **PC 1.7.1 — Start-Schonfrist:** Upgrade aus einer Version vor 1.6 → das
+  Feld `PhoneKnownAtMs` fehlt noch, das Gate wäre in den ersten Sekunden
+  AUS und der PC zeichnete blind „Digital" auf (Devon-Befund). Jetzt gilt
+  für Bestandsinstallationen (älter als 24 h) eine **60-s-Schonfrist** nach
+  dem Start („nicht verifiziert", kein lokaler Start); kommt kein
+  Handy-Stand, zeichnet der PC danach normal. Frische Installationen ohne
+  Handy sind nicht betroffen. Zusätzlich schärft ein erfolgreiches
+  `POST /api/pair` das Gate sofort (`PhoneKnownAtMs` = Kopplungszeit).
+
+**Release-Kanal (wichtig für künftige Versionen):** „Nach Updates suchen" im
+PC-Tracker liest die **öffentlichen GitHub-Releases** (`api.github.com/repos/
+Renegaded66/Aevum/releases`, Tag-Präfix `pc-tracker-`, Asset `*win-x64.zip`).
+Eine Version nur auf dem LAN-Server zu veröffentlichen reicht NICHT — sie
+muss als Release `pc-tracker-<version>` mit dem Windows-ZIP existieren.
 
 ---
 

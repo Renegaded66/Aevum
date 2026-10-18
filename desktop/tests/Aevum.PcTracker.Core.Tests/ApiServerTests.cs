@@ -205,6 +205,20 @@ public class ApiServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Pair_Success_ArmsVerificationGate()
+    {
+        // PC 1.7.1: Kopplung ist ein Handy-Kontakt — das Gate ist sofort
+        // scharf, nicht erst nach dem ersten Sync (kein Blind-Aufzeichnen).
+        Assert.Equal(0, _settings.Current.PhoneKnownAtMs);
+        var code = _pairing.Enable();
+
+        var response = await _client.PostAsJsonAsync("/api/pair", new { code, clientName = "Test-Handy" });
+
+        Assert.Equal(200, (int)response.StatusCode);
+        Assert.Equal(_clock.NowMs, _settings.Current.PhoneKnownAtMs);
+    }
+
+    [Fact]
     public async Task Pair_WrongCode_Invalid()
     {
         _pairing.Enable();

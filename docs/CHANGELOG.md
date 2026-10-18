@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## [Unreleased] — PC-Tracker 1.7.1 — 2026-10-18
+
+### Kein falscher „Digital"-Block nach einem Update
+
+Devon-Befund: Nach dem Update von 1.5.1 auf 1.6.0 begann der PC sofort
+„Digital" aufzuzeichnen, ohne den Handy-Stand zu prüfen; nach 2 Sekunden
+erkannte er die Handy-Aufzeichnung und brach ab — ein falscher Block in der
+Historie. Ursache: Das Verifikations-Gate galt erst als aktiv, nachdem ein
+Handy den PC einmal kontaktiert hatte (`PhoneKnownAtMs`, neu in 1.6.0). Eine
+Bestandsinstallation aus 1.5.x hatte dieses Feld noch nie → Gate aus →
+Blind-Aufzeichnung beim Start.
+
+- **`PhoneGatePolicy`:** Handy schon einmal gesehen → Gate immer scharf (wie
+  1.6). Sonst gilt für Bestandsinstallationen (älter als 24 h) eine
+  **60-Sekunden-Schonfrist** nach dem Programmstart, in der „nicht
+  verifiziert" gilt; kommt kein Handy-Stand, zeichnet der PC danach wie immer
+  auf. Frische Installationen (< 24 h) zeichnen sofort.
+- **Kopplung schärft das Gate sofort:** Ein erfolgreiches `POST /api/pair`
+  setzt `PhoneKnownAtMs` — kein Blind-Fenster nach dem Koppeln.
+- **Update-Kanal repariert:** 1.7.0 war nur auf dem LAN-Server
+  veröffentlicht, nicht als GitHub-Release — deshalb fand „Nach Updates
+  suchen" nur 1.6.0. 1.7.1 ist als Release `pc-tracker-1.7.1` inkl.
+  `AevumPcTracker-1.7.1-win-x64.zip` veröffentlicht (der Updater liest die
+  öffentlichen Releases, Tag-Präfix `pc-tracker-`, Asset `*win-x64.zip`).
+- Tests: Desktop **161** (0 Fehler, +5: Gate-Policy 4, Pairing schärft Gate 1).
+
 ## [Unreleased] — Aevum 1.0.42 (M22) + PC-Tracker 1.7.0 — 2026-10-18
 
 ### Ziele live · Dashboard-Feinschliff · Desktop befiehlt nur noch

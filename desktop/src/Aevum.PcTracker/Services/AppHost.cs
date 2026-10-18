@@ -37,6 +37,8 @@ public sealed class AppHost : IAsyncDisposable
         Version = typeof(AppHost).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
         DataDirectory = dataDirectory ?? DefaultDataDirectory();
         Directory.CreateDirectory(DataDirectory);
+        // PC 1.7.1: Startzeit für die Gate-Schonfrist (siehe [EvaluateGate]).
+        _appStartedAtMs = Clock.NowMs;
 
         Store = new SessionStore(Path.Combine(DataDirectory, "pctracker.sqlite"));
         Store.Open();
@@ -64,7 +66,7 @@ public sealed class AppHost : IAsyncDisposable
         Tracker = new TrackerService(ProbeFactory.Create(), Store, Settings, Clock,
             phoneGate: now =>
             {
-                var verdict = PhoneLive.GetGateVerdict(now, Settings.Current.PhoneKnownAtMs > 0);
+                var verdict = EvaluateGate(now);
                 if (_lastPhoneGate != verdict)
                 {
                     var status = PhoneLive.GetStatus(now);
@@ -103,6 +105,7 @@ public sealed class AppHost : IAsyncDisposable
     }
 
     private PhoneGateVerdict? _lastPhoneGate;
+    private readonly long _appStartedAtMs;
 
     /// <summary>
     /// PC 1.5.0/1.5.2: Zeichnet gerade das Handy auf? Für den Vorrang zählt
@@ -119,7 +122,24 @@ public sealed class AppHost : IAsyncDisposable
     /// <summary>PC 1.6.0: Das Gate-Urteil fürs Dashboard (Vorrang/Verifikation).</summary>
     public PhoneGateVerdict GetPhoneVerdict()
     {
-        return PhoneLive.GetGateVerdict(Clock.NowMs, Settings.Current.PhoneKnownAtMs > 0);
+        return EvaluateGate(Clock.NowMs);
+    }
+
+    /// <summary>
+    /// PC 1.7.1: Gate-Urteil inklusive Start-Schonfrist. Eine Bestands-
+    /// installation, die aus einer Version vor 1.6 aktualisiert wurde, hat
+    /// noch keinen verzeichneten Handy-Kontakt — ohne diese Schonfrist
+    /// zeichnete der PC die ersten Sekunden blind „Digital“ auf, bis der
+    /// erste Handy-Stand eintraf (Devon-Befund nach dem Update auf 1.6.0).
+    /// </summary>
+    private PhoneGateVerdict EvaluateGate(long now)
+    {
+        var s = Settings.Current;
+        var armed = PhoneGatePolicy.IsArmed(
+            phoneKnown: s.PhoneKnownAtMs > 0,
+            installationAgeMs: now - s.CreatedAtMs,
+            sinceStartMs: now - _appStartedAtMs);
+        return PhoneLive.GetGateVerdict(now, armed);
     }
 
     /// <summary>
