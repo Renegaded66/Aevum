@@ -51,12 +51,12 @@ object ForegroundAppProbe {
             null
         } ?: return null
 
-        var current: Foreground? = null
+        var state = ForegroundState.EMPTY
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            current = ForegroundTracker.next(
-                current = current,
+            state = ForegroundTracker.next(
+                state = state,
                 packageName = event.packageName ?: "",
                 className = event.className,
                 isForegroundEvent = event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
@@ -66,7 +66,7 @@ object ForegroundAppProbe {
                     event.eventType == UsageEvents.Event.ACTIVITY_STOPPED
             )
         }
-        return current?.packageName
+        return state.current?.packageName
     }
 
     /**

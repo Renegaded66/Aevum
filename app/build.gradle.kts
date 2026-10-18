@@ -230,8 +230,14 @@ android {
         //   mehr), frischeres Probe-Fenster + 12-h-Selbstheilung, einheit-
         //   liches ensureAlive/isPollFresh-Netz, Boot-WakeLock + Boot-Check,
         //   sichtbares Diagnose-Protokoll.
-        versionCode = 41
-        versionName = "1.0.40"
+        // M21 (Dashboard-Umbau + Digital-Balance-Genauigkeit):
+        //  - Ziele-Karte mit Schimmer-Bars + Abhaken auf dem Dashboard
+        //  - „Größter Block" / „Offene Zeit" entfernt
+        //  - Tagespauschalen als klickbare Zeile in „Wo deine Zeit hingeht"
+        //  - Güte-Verlauf nur am heutigen Tag
+        //  - UsageStats-Faltung auf Activity-Ebene (Duolingo/Splash-Fix)
+        versionCode = 42
+        versionName = "1.0.41"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

@@ -174,7 +174,7 @@ class AppTrackingService : Service() {
     // M20: Zustand auf ACTIVITY-Ebene ([Foreground]) — der Splash→Main-
     // Wechsel einer App leert den Vordergrund nicht mehr (siehe
     // ForegroundTracker); nach außen zählt weiter der Paketname.
-    private var lastKnownForeground: Foreground? = null
+    private var lastKnownForeground: ForegroundState = ForegroundState.EMPTY
     private var isFirstPoll = true
     // M20: Zeitpunkt des letzten Event-Abrufs — das Fenster ist jetzt
     // „seit dem letzten Abruf" statt eines fixen 4-s-Fensters.
@@ -677,7 +677,7 @@ class AppTrackingService : Service() {
             // M20: auf Activity-Ebene (Paket + Klasse) — Splash→Main-Wechsel
             // kann den Vordergrund nicht mehr fälschlich leeren.
             lastKnownForeground = ForegroundTracker.next(
-                current = lastKnownForeground,
+                state = lastKnownForeground,
                 packageName = event.packageName ?: "",
                 className = event.className,
                 isForegroundEvent = event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
@@ -703,13 +703,13 @@ class AppTrackingService : Service() {
         // Folge-Events). Eine weite Einmal-Faltung (12 h) holt den echten
         // Vordergrund zurück; spätestens alle [REBASELINE_INTERVAL_MS] und
         // nur solange der Zustand leer ist (Kosten: eine Event-Abfrage).
-        var fg = lastKnownForeground?.packageName
+        var fg = lastKnownForeground.current?.packageName
         if (fg == null && System.currentTimeMillis() - lastRebaselineAtMs >= REBASELINE_INTERVAL_MS) {
             lastRebaselineAtMs = System.currentTimeMillis()
             val wide = ForegroundAppProbe.currentForeground(this, ForegroundAppProbe.WIDE_LOOKBACK_MS)
             if (wide != null) {
                 lastKnownForeground = ForegroundTracker.next(
-                    current = null, packageName = wide, className = null,
+                    state = ForegroundState.EMPTY, packageName = wide, className = null,
                     isForegroundEvent = true, isBackgroundEvent = false
                 )
                 fg = wide
@@ -883,7 +883,7 @@ class AppTrackingService : Service() {
     private fun rememberForegroundSnapshot() {
         // M20: nach außen zählt der Paketname (der Zustand ist intern auf
         // Activity-Ebene).
-        pollSnapshotPackage = lastKnownForeground?.packageName
+        pollSnapshotPackage = lastKnownForeground.current?.packageName
         pollSnapshotAtMs = System.currentTimeMillis()
         pollSnapshotValid = true
     }

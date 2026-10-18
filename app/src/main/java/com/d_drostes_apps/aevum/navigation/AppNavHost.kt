@@ -92,7 +92,10 @@ fun AppNavHost(
                     navController.navigate(AppDestination.TriggerSettings.route)
                 },
                 // M18.37: Todos-Karte auf dem Dashboard
-                onOpenTodos = { navController.navigate(AppDestination.Todos.route) }
+                onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
+                // M21: Ziele-Karte auf dem Dashboard
+                onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
+                onOpenGoalDetail = { goalId -> navController.navigate("goal_detail/$goalId") }
             )
         }
         composable(AppDestination.Timeline.route) {

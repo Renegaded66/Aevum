@@ -999,8 +999,8 @@ class DashboardViewModel @Inject constructor(
             )
         }
         val top = distribution.firstOrNull()
-        val narrative = buildNarrative(totalMsWithAllowances, openMs, top, candidates.size, current)
-        val insights = buildInsights(distribution, totalMsWithAllowances, openMs, candidates.size)
+        val narrative = buildNarrative(totalMsWithAllowances, top, candidates.size, current)
+        val insights = buildInsights(distribution, candidates.size)
 
         // M7: Accepted today count
         val acceptedToday = candidates.count { it.status == "ACCEPTED" && it.resolvedAt?.let { it in start..end } == true }
@@ -1201,7 +1201,11 @@ class DashboardViewModel @Inject constructor(
                         durationMs = effectiveMinutes * 60_000L,
                         score = score,
                         color = com.d_drostes_apps.aevum.ui.components.positivityColor(score),
-                        icon = type?.icon ?: "⏱"
+                        icon = type?.icon ?: "⏱",
+                        // M21: Kennzeichnung für „Wo deine Zeit hingeht" —
+                        // Suffix „Pauschale" + Klick auf den Pauschalen-Dialog.
+                        isAllowance = true,
+                        allowanceId = allowance.id
                     )
                 )
             }
@@ -1261,7 +1265,6 @@ class DashboardViewModel @Inject constructor(
 
     private fun buildNarrative(
         totalMs: Long,
-        openMs: Long,
         top: DashboardCategorySlice?,
         reviewCount: Int,
         current: ActivitySession?
@@ -1291,9 +1294,8 @@ class DashboardViewModel @Inject constructor(
         val reviewText = if (reviewCount > 0) {
             " " + application.getString(R.string.dashboard_narrative_review_open, reviewCount.reviewText())
         } else ""
-        val openText = if (openMs > 90 * 60_000L) {
-            " " + application.getString(R.string.dashboard_narrative_open_time, TimeFormatting.formatDuration(openMs))
-        } else ""
+        // M21: Der Satz „X sind noch nicht erzählt" (Offene Zeit) entfällt —
+        // der Nutzer wollte den Block komplett loswerden, inklusive Nennung.
         // M12.2: "läuft … (Auto)" statt "läuft …" für automatisch gestartete Sessions.
         val currentAuto = current?.sourceType in com.d_drostes_apps.aevum.ui.screens.timeline.AUTO_SOURCES
         val currentSuffix = if (currentAuto) application.getString(R.string.dashboard_auto_suffix) else ""
@@ -1302,38 +1304,23 @@ class DashboardViewModel @Inject constructor(
         }.orEmpty()
         return DailyNarrative(
             headline = application.getString(R.string.dashboard_narrative_day_title),
-            body = "$topText ${application.getString(R.string.dashboard_narrative_flow)}$currentText$reviewText$openText".trim()
+            body = "$topText ${application.getString(R.string.dashboard_narrative_flow)}$currentText$reviewText".trim()
         )
     }
 
     private fun buildInsights(
         distribution: List<DashboardCategorySlice>,
-        totalMs: Long,
-        openMs: Long,
         reviewCount: Int
     ): List<DashboardInsight> {
         val insights = mutableListOf<DashboardInsight>()
-        val top = distribution.firstOrNull()
-        if (top != null) {
-            val share = ((top.durationMs.toFloat() / totalMs.coerceAtLeast(1).toFloat()) * 100).toInt()
-            insights += DashboardInsight(
-                application.getString(R.string.dashboard_insight_biggest),
-                application.getString(R.string.dashboard_insight_biggest_msg, top.label, share),
-                "◷"
-            )
-        }
+        // M21: „Größter Block" und „Offene Zeit" sind auf Nutzerwunsch
+        // entfallen — das Dashboard soll die ZIELE zeigen, nicht die
+        // Selbstverständlichkeiten der Verteilung.
         if (reviewCount > 0) {
             insights += DashboardInsight(
                 application.getString(R.string.dashboard_insight_review),
                 application.getString(R.string.dashboard_insight_review_msg, reviewCount.reviewText()),
                 "✓"
-            )
-        }
-        if (openMs > 2 * 60 * 60_000L) {
-            insights += DashboardInsight(
-                application.getString(R.string.dashboard_insight_open),
-                application.getString(R.string.dashboard_insight_open_msg, TimeFormatting.formatDuration(openMs)),
-                "○"
             )
         }
         if (distribution.size >= 3) {
@@ -1350,7 +1337,7 @@ class DashboardViewModel @Inject constructor(
                 "✧"
             )
         }
-        return insights.take(3)
+        return insights.take(2)
     }
 
     private fun estimateBalanceScore(distribution: List<DashboardCategorySlice>, totalMs: Long, openMs: Long): Int {
@@ -1458,7 +1445,12 @@ data class QualitySlice(
     // M18.66-FIX16: Icon der Aktivität (wie Insights "Top Aktivitäten")
     val icon: String = "•",
     // M18.66-FIX16: Prozent-Anteil an der Gesamtzeit (wie Insights)
-    val percent: Int = 0
+    val percent: Int = 0,
+    // M21: Tagespauschale statt aufgezeichneter Zeit — wird in „Wo deine
+    // Zeit hingeht" wie eine Aktivität gerendert, aber mit Suffix
+    // „Pauschale" und Klick auf den Pauschalen-Dialog.
+    val isAllowance: Boolean = false,
+    val allowanceId: String? = null
 )
 
 data class DashboardCategorySlice(

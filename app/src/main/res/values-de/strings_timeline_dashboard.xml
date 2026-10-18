@@ -274,4 +274,10 @@
     <string name="orbit_start_at_time">Zu dieser Zeit starten</string>
     <string name="orbit_retro_start_now">Jetzt starten</string>
     <string name="orbit_retro_start_with_time">Mit Startzeit starten</string>
+    <!-- M21: Ziele-Block auf dem Dashboard + Pauschalen in der Zeit-Verteilung -->
+    <string name="dashboard_goals_title">Deine Ziele</string>
+    <string name="dashboard_goals_all">Alle</string>
+    <string name="dashboard_goals_more">+%1$d weitere</string>
+    <string name="dashboard_allowance_suffix">%1$s · Pauschale</string>
+    <string name="dashboard_goal_checked_today">%1$d× heute</string>
 </resources>

@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -80,9 +82,17 @@ import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
 import com.d_drostes_apps.aevum.ui.components.positivityColor
 import com.d_drostes_apps.aevum.ui.components.shimmering
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalAccents
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationEvent
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationOverlay
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.theme.AevumTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 
 /**
  * M18.7: KOMPLETT NEUES Dashboard — "Der Puls deines Tages".
@@ -128,9 +138,16 @@ fun DashboardScreen(
     onOpenUsageSettings: () -> Unit = {},
     // M18.37: Todos-Karte auf dem Dashboard
     onOpenTodos: () -> Unit = {},
-    viewModel: DashboardViewModel = hiltViewModel()
+    // M21: Ziele auf dem Dashboard — Karte öffnet den Ziele-Screen,
+    // ein Tipp auf ein Ziel dessen Detail-Ansicht.
+    onOpenGoals: () -> Unit = {},
+    onOpenGoalDetail: (String) -> Unit = {},
+    viewModel: DashboardViewModel = hiltViewModel(),
+    goalsViewModel: DashboardGoalsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val dashboardGoals by goalsViewModel.goals.collectAsState()
+    val goalCelebration by goalsViewModel.celebration.collectAsState()
     val liveState by viewModel.liveActivityManager.liveState.collectAsState()
     val nowMs by viewModel.liveActivityManager.nowMs.collectAsState()
     val recents by viewModel.liveActivityManager.recentActivityTypes.collectAsState()
@@ -164,6 +181,14 @@ fun DashboardScreen(
         onOpenSleepStatus = onOpenSleepStatus,
         onOpenUsageSettings = onOpenUsageSettings,
         onOpenTodos = onOpenTodos,
+        // M21: Ziele
+        goals = dashboardGoals,
+        goalsCelebration = goalCelebration,
+        onOpenGoals = onOpenGoals,
+        onOpenGoalDetail = onOpenGoalDetail,
+        onGoalCheckIn = goalsViewModel::checkIn,
+        onGoalUndoCheckIn = goalsViewModel::undoLastCheckin,
+        onConsumeGoalCelebration = goalsViewModel::consumeCelebration,
         onStartLive = viewModel::startLiveActivity,
         onPauseLive = viewModel::pauseLiveActivity,
         onResumeLive = viewModel::resumeLiveActivity,
@@ -213,6 +238,14 @@ private fun DashboardContent(
     onOpenUsageSettings: () -> Unit = {},
     // M18.37: Todos-Karte auf dem Dashboard
     onOpenTodos: () -> Unit = {},
+    // M21: Ziele-Karte
+    goals: List<GoalWithProgress> = emptyList(),
+    goalsCelebration: GoalCelebrationEvent? = null,
+    onOpenGoals: () -> Unit = {},
+    onOpenGoalDetail: (String) -> Unit = {},
+    onGoalCheckIn: (String) -> Unit = {},
+    onGoalUndoCheckIn: (String) -> Unit = {},
+    onConsumeGoalCelebration: () -> Unit = {},
     onStartLive: (String, String?, Long) -> Unit,
     onPauseLive: () -> Unit,
     onResumeLive: () -> Unit,
@@ -297,6 +330,9 @@ private fun DashboardContent(
             // Navigationsrichtung (tagKey enthaelt das Datum; die
             // Richtung wird ueber den Vergleich der LocalDates bestimmt).
             val dayKey = state.displayedDate.toString()
+            // M21: Güte-Verlauf nur am heutigen Tag zeigen (Nutzerwunsch:
+            // beim Tages-Skippen komplett ausblenden).
+            val isShowingToday = state.displayedDate == java.time.LocalDate.now()
             var lastDayKey by remember { mutableStateOf(dayKey) }
             var slideDirection by remember { mutableStateOf(1) }
             if (lastDayKey != dayKey) {
@@ -388,12 +424,30 @@ private fun DashboardContent(
                         // (DashboardHeroBackground) und wird beim Scrollen
                         // vom Sheet überdeckt.
 
+                        // M21 (Devon: „Die Ziele hätte ich gerne richtig fancy
+                        // im dashboard abgebildet"): Ziele-Block ganz oben im
+                        // Sheet — farbige Schimmer-Bar je Ziel, Abhaken für
+                        // manuelle Ziele direkt hier.
+                        if (goals.isNotEmpty()) {
+                            DashboardGoalsCard(
+                                goals = goals,
+                                onCheckIn = onGoalCheckIn,
+                                onUndo = onGoalUndoCheckIn,
+                                onOpenGoal = onOpenGoalDetail,
+                                onOpenAll = onOpenGoals
+                            )
+                        }
+
                         // M18.58: Güte-Verlauf — 7/30/365-Tage-Statistik
                         // (User-Wunsch: "Statistik über den Güte Verlauf
                         // der letzten Tage, wobei man INNERHALB der
                         // Statistik einstellen können soll, ob in den
                         // letzten 7, 30, 365 Tagen").
-                        QualityTrendCard(trend = qualityTrend)
+                        // M21: NUR am heutigen Tag — beim Blättern durch
+                        // die Tage komplett ausblenden (Nutzerwunsch).
+                        if (isShowingToday) {
+                            QualityTrendCard(trend = qualityTrend)
+                        }
 
                         // M18.58: Garmin-Kacheln — moderne kleine Kacheln
                         // (User-Wunsch). Nur sichtbar, wenn Daten
@@ -409,7 +463,17 @@ private fun DashboardContent(
                         // Insights jetzt in EINER Karte. Vorher zwei
                         // getrennte Sektionen.
                         if (state.qualityBreakdown.isNotEmpty() || state.insights.isNotEmpty()) {
-                            DayReflectionCard(state = state)
+                            DayReflectionCard(
+                                state = state,
+                                onAllowanceClick = { id, name, minutes ->
+                                    allowancePopup = AllowancePopupTarget(
+                                        allowanceId = id,
+                                        name = name,
+                                        currentMinutes = minutes,
+                                        hasOverride = state.allowanceOverrides.containsKey(id)
+                                    )
+                                }
+                            )
                         }
 
                         // M18.37: Kompakte Todos-Karte — das Herzstueck
@@ -424,26 +488,10 @@ private fun DashboardContent(
                             )
                         }
 
-                        // M18.37: Pauschalen-Zeile — jede enabled Pauschale
-                        // explizit sichtbar (Name + Minuten/Tag), nicht nur
-                        // in der Summe versteckt.
-                        // M18.60: Klick auf eine Pauschale oeffnet ein Popup
-                        // mit "Bearbeiten" + "Loeschen" — die Aenderung gilt
-                        // NUR fuer den angezeigten Tag (User: "an einem Tag
-                        // mal mehr/weniger Zeit").
-                        if (state.allowanceSummary.isNotEmpty()) {
-                            DashboardAllowancesRow(
-                                summary = state.allowanceSummary,
-                                onAllowanceClick = { id, name, minutes ->
-                                    allowancePopup = AllowancePopupTarget(
-                                        allowanceId = id,
-                                        name = name,
-                                        currentMinutes = minutes,
-                                        hasOverride = state.allowanceOverrides.containsKey(id)
-                                    )
-                                }
-                            )
-                        }
+                        // M21: Der eigene Pauschalen-Block ist entfallen —
+                        // Pauschalen stehen jetzt als Zeile in „Wo deine
+                        // Zeit hingeht" (mit Suffix „Pauschale", klickbar
+                        // wie zuvor für den Tages-Override).
 
                         // 6) Review-Hinweis — nur wenn Vorschläge warten
                         if (state.candidateCount > 0 || state.sleepCandidateCount > 0) {
@@ -515,6 +563,15 @@ private fun DashboardContent(
             }
         )
     }
+
+    // M21: Feier-Overlay für erreichte Ziele — auch auf dem Dashboard,
+    // wenn ein Ziel hier (oder im Hintergrund) erfüllt wird. Der
+    // [GoalCelebrationStore] dedupliziert je Ziel+Periode, damit die Feier
+    // nicht doppelt im Ziele-Screen erscheint.
+    GoalCelebrationOverlay(
+        event = goalsCelebration,
+        onDismiss = onConsumeGoalCelebration
+    )
 
     // AEVUM-3: Tages-Güte-Dialog — Tipp auf die Güte-Zahl im Hero.
     // Der Slider passt die Güte des GEWÄHLTEN Tages an (Override auf die
@@ -695,12 +752,243 @@ private fun DashboardAtmosphere() {
  * beiden Einzel-Sektionen gegen Scrolltiefe (UI_GUIDELINES: Kartenanzahl
  * reduzieren).
  */
+// ── M21: Ziele-Karte („Dopamin-Block") ──────────────────────────────────
+
+/**
+ * Ziele auf dem Dashboard: je Ziel eine farbige Schimmer-Bar mit
+ * animiertem Fortschritt, Streak-Flamme und — bei manuellen Zielen —
+ * einem direkten Abhak-Knopf. Ein Tipp auf die Zeile öffnet das Ziel,
+ * „Alle" den Ziele-Screen.
+ */
 @Composable
-private fun DayReflectionCard(state: DashboardUiState) {
+private fun DashboardGoalsCard(
+    goals: List<GoalWithProgress>,
+    onCheckIn: (String) -> Unit,
+    onUndo: (String) -> Unit,
+    onOpenGoal: (String) -> Unit,
+    onOpenAll: () -> Unit
+) {
+    val relevant = goals.filter { it.isDueToday || it.progress > 0f }
+    val shown = relevant.take(DashboardGoalsViewModel.MAX_CARD_GOALS)
+    val hidden = (relevant.size - shown.size).coerceAtLeast(0)
+
+    AevumCard(variant = CardVariant.Elevated) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.dashboard_goals_title),
+                    fontSize = 10.sp,
+                    letterSpacing = 0.8.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    onClick = onOpenAll,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.dashboard_goals_all),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+            shown.forEach { goal ->
+                DashboardGoalRow(
+                    goal = goal,
+                    onCheckIn = onCheckIn,
+                    onUndo = onUndo,
+                    onOpen = onOpenGoal
+                )
+            }
+            if (hidden > 0) {
+                Text(
+                    stringResource(R.string.dashboard_goals_more, hidden),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onOpenAll)
+                        .padding(vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardGoalRow(
+    goal: GoalWithProgress,
+    onCheckIn: (String) -> Unit,
+    onUndo: (String) -> Unit,
+    onOpen: (String) -> Unit
+) {
+    val accent = GoalAccents.resolve(
+        key = goal.goal.accent,
+        activityColor = goal.activityColorLong,
+        fallback = MaterialTheme.colorScheme.secondary
+    )
+    // Weiches Einlaufen des Balkens — beim Abhaken und bei Daten-Updates.
+    val animatedProgress by animateFloatAsState(
+        targetValue = goal.progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+        label = "dashboard-goal-progress"
+    )
+    // Manuelle Ziele (Haken/Zähler) lassen sich hier direkt abhaken.
+    val isManual = goal.goal.trackingMode == "MANUAL"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onOpen(goal.goal.id) }
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(accent)
+            )
+            Text(
+                goal.goal.title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (goal.streakCurrent >= 2) {
+                Text(
+                    "🔥${goal.streakCurrent}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent
+                )
+            }
+            Text(
+                goal.progressText,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (isManual) {
+                GoalQuickCheckButton(
+                    accent = accent,
+                    checked = goal.todayCheckins > 0,
+                    onClick = { onCheckIn(goal.goal.id) }
+                )
+            }
+        }
+        GoalShimmerBar(
+            progress = animatedProgress,
+            accent = accent,
+            met = goal.isMet
+        )
+        if (isManual && goal.todayCheckins > 0) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    stringResource(R.string.dashboard_goal_checked_today, goal.todayCheckins),
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "↩",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onUndo(goal.goal.id) }
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Kompakter Abhak-Knopf (28 dp) — „+" → „✓" sobald heute abgehakt. */
+@Composable
+private fun GoalQuickCheckButton(
+    accent: Color,
+    checked: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(if (checked) accent else accent.copy(alpha = 0.16f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (checked) Icons.Filled.Check else Icons.Filled.Add,
+            contentDescription = null,
+            tint = if (checked) Color.White else accent,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * Farbige Fortschritts-Bar mit Schimmer. Bei erreichtem Ziel läuft der
+ * Glanz schneller und stärker — der „Dopamin"-Effekt.
+ */
+@Composable
+private fun GoalShimmerBar(progress: Float, accent: Color, met: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .clip(RoundedCornerShape(AevumRadius.full))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+    ) {
+        if (progress > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(accent.copy(alpha = 0.78f), accent)
+                        )
+                    )
+                    .shimmering(
+                        enabled = true,
+                        periodMillis = if (met) 2200 else 3800,
+                        intensity = if (met) 0.45f else 0.22f
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayReflectionCard(
+    state: DashboardUiState,
+    onAllowanceClick: (String, String, Int) -> Unit = { _, _, _ -> }
+) {
     AevumCard(variant = CardVariant.Elevated) {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
             if (state.qualityBreakdown.isNotEmpty()) {
-                QualityBreakdownBars(slices = state.qualityBreakdown.take(5))
+                QualityBreakdownBars(
+                    slices = state.qualityBreakdown.take(5),
+                    onAllowanceClick = onAllowanceClick
+                )
             }
             if (state.insights.isNotEmpty()) {
                 InsightStrip(state = state)
@@ -853,7 +1141,10 @@ private fun DashboardScreenPreview() {
  * Icon im farbigen Kreis, Prozent-Anteil, Dauer, animierte Bar. Top 5.
  */
 @Composable
-private fun QualityBreakdownBars(slices: List<QualitySlice>) {
+private fun QualityBreakdownBars(
+    slices: List<QualitySlice>,
+    onAllowanceClick: (String, String, Int) -> Unit = { _, _, _ -> }
+) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             stringResource(R.string.dashboard_where_time_goes),
@@ -864,7 +1155,26 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
         )
         val maxMs = slices.maxOf { it.durationMs }.coerceAtLeast(1L)
         slices.forEachIndexed { index, slice ->
-            Column {
+            // M21: Pauschalen stehen wie Aktivitäten in der Liste — eine
+            // Zeile, gleiche Optik, aber klickbar (Tages-Override) und mit
+            // Suffix „Pauschale" hinter dem Namen.
+            val allowanceId = slice.allowanceId
+            val clickableModifier = if (slice.isAllowance && allowanceId != null) {
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable {
+                        onAllowanceClick(
+                            allowanceId,
+                            slice.label,
+                            (slice.durationMs / 60_000L).toInt()
+                        )
+                    }
+                    .padding(vertical = 2.dp)
+            } else {
+                Modifier.fillMaxWidth()
+            }
+            Column(modifier = clickableModifier) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -884,11 +1194,20 @@ private fun QualityBreakdownBars(slices: List<QualitySlice>) {
                         )
                     }
                     Text(
-                        slice.label,
+                        if (slice.isAllowance) {
+                            stringResource(R.string.dashboard_allowance_suffix, slice.label)
+                        } else {
+                            slice.label
+                        },
                         fontSize = 12.sp,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (slice.isAllowance) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
                     )
                     // M18.66-FIX16: Prozent-Anteil (wie Insights)
                     Text(

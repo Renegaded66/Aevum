@@ -1,5 +1,63 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.41 (M21) — 2026-10-18
+
+### Dashboard-Umbau + ehrliche Bildschirmzeit
+
+Nutzerwunsch (wörtlich): „Die Ziele hätte ich gerne richtig fancy im dashboard
+abgebildet, also irgendwie mit einer farbigen bar die den fortschritt anzeigt
+und schimmert, und bei manueller eingabe sollte die auch auf dem dashboard
+möglich sein. Dafür können die zwei Blöcke ‚Größter Block' und ‚Offene Zeit'
+komplett weg und statt, dass die tagespauschalen ihren eigenen block unten
+kriegen sollten die genauso wie die anderen aktivitäten unter ‚wo deine Zeit
+hingeht' angezeigt werden, allerdings weiterhin klickbar so wie sie es jetzt
+sind, gerne auch mit ‚Pauschale' hinter dem aktivitätsnamen gekennzeichnet.
+Wenn ich oben durch die tage skippe kann das Diagramm ‚Dein Güte Verlauf'
+kompmlett verschwinden, der soll nur ‚Heute' sichtbar sein." — dazu der
+Bugreport: „Duolingo taucht in Digital Balance gar nicht auf; Aevum sagt
+5 Minuten, die System-App 10 Minuten — und Duolingo mit 4 Minuten."
+
+**Dashboard:**
+- **Ziele-Karte (oben im Sheet):** je Ziel eine farbige Fortschritts-Bar mit
+  laufendem Schimmer (schneller/stärker, sobald das Ziel erreicht ist),
+  animiertes Einlaufen, Akzentfarbe des Ziels, Streak-Flamme und
+  Fortschrittstext. **Manuelle Ziele lassen sich direkt abhaken** („+" →
+  „✓", Zähler „heute", „↩" zum Rückgängig); die Zeile öffnet das Ziel,
+  „Alle" den Ziele-Screen. Feier-Overlay erscheint auch hier (Store
+  dedupliziert je Ziel+Periode).
+- **„Größter Block" und „Offene Zeit" entfernt** — inklusive der
+  Offene-Zeit-Nennung im Erzähltext; die Insights zeigen jetzt maximal
+  Reflexion/Vielfalt (bzw. den Ruhe-Hinweis).
+- **Tagespauschalen** erscheinen als **klickbare Zeile in „Wo deine Zeit
+  hingeht"** mit Suffix „Pauschale" — gleiche Optik wie Aktivitäten, Tipp
+  öffnet weiterhin den Tages-Override-Dialog. Der eigene Pauschalen-Block
+  ist entfallen.
+- **„Dein Güte-Verlauf" nur am heutigen Tag** — beim Blättern durch die
+  Tage wird das Diagramm komplett ausgeblendet.
+
+**Digital Balance / App-Aufzeichnung (Bug-Ursache, code-belegt):**
+- Die UsageStats-Faltung war auf **Paket-Ebene**: jedes `ACTIVITY_PAUSED`
+  beendete die Phase des ganzen Pakets. Beim App-Start pausiert aber die
+  Splash-Activity (`RESUMED(Splash) → RESUMED(Main) → PAUSED(Splash)`), und
+  damit wurde die komplette App-Sitzung auf ~0 ms verkürzt — sie fiel unter
+  den 1-s-Filter der App-Liste („Duolingo taucht gar nicht auf") und die
+  Tagessumme war zu klein (5 statt 10 min).
+- **Fix: `UsageEventFolding`** (neu, pure Logik): Fenster je
+  (Paket, Activity), Schließen nur der passenden Activity, OEM-Fallback auf
+  das älteste offene Fenster, Vereinigung je Paket (keine Doppelzählung),
+  Clipping am Fensterstart; Stunden-Buckets jetzt stundenweise statt alles
+  in die Startstunde. Alle vier Aggregationen (Tagessumme, App-Liste,
+  Stunden-Detail, Unlocks) laufen über dieselbe Faltung.
+- **`ForegroundTracker` v2:** offene Activities als MENGE — ein `PAUSED`
+  ohne brauchbaren Klassennamen räumt die noch offene Haupt-Activity nicht
+  ab; endet die aktuelle Activity selbst, ist die App zu (keine
+  Leichen-Fenster). Gilt für Service-Polling und `ForegroundAppProbe`.
+
+**Tests:** neu `UsageEventFoldingTest` (9 Fälle inkl. Duolingo-Splash,
+fehlender className, Überlappung, Clipping) und `DashboardM21WiringTest`
+(Ziele-Karte, Pauschalen-Zeile, Güte-Verlauf-Guard, entfernte Blöcke);
+`ForegroundTrackerTest` auf den Mengen-Zustand erweitert.
+
 ## [Unreleased] — Aevum 1.0.40 (M20) — 2026-10-17
 
 ### Ziel-Architektur + Zuverlässigkeit der App-Aufzeichnung

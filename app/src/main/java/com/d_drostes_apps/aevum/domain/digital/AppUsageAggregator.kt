@@ -56,7 +56,9 @@ class AppUsageAggregator @Inject constructor(
         val packageName: String,
         val start: Long,
         val end: Long
-    )
+    ) {
+        val durationMs: Long get() = (end - start).coerceAtLeast(0L)
+    }
 
     /**
      * M18.62: Alle Vordergrund-Phasen im Zeitraum [start, end] via
@@ -64,39 +66,29 @@ class AppUsageAggregator @Inject constructor(
      * [end] gezählt. Gemeinsame Basis für Heute, Tages- und
      * Zeitraum-Aggregation — ersetzt die kumulativen
      * totalTimeInForeground-Werte (OEM-Bug).
+     *
+     * M21: Faltung über [UsageEventFolding] — Activity-Ebene mit
+     * Paket-Vereinigung. Der frühere Paket-Schlüssel beendete die Phase
+     * beim PAUSED der SPLASH-Activity (App-Start) und verlor damit die
+     * komplette Sitzung („Duolingo fehlt in Digital Balance").
      */
     private fun foregroundPhases(start: Long, end: Long): List<ForegroundPhase> {
         val events = usageStats.queryEvents(start, end) ?: return emptyList()
-        val foregroundSince = HashMap<String, Long>()
-        val phases = mutableListOf<ForegroundPhase>()
+        val folder = UsageEventFolding.Folder(clipStart = start)
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND,
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    // WICHTIG (Balkenhöhen-Fix): Manche OEMs liefern Events
-                    // mit Timestamps AUSSERHALB des Query-Fensters (z.B. ein
-                    // MOVE_TO_FOREGROUND von gestern 23:50 bei einem Query
-                    // ab heute 00:00). Ohne Clipping würde die Phase ab
-                    // gestern 23:50 bis jetzt gezählt → der heutige Balken
-                    // und die App-Liste zeigen massiv zu viel Zeit.
-                    foregroundSince[event.packageName] = maxOf(event.timeStamp, start)
-                }
+                UsageEvents.Event.ACTIVITY_RESUMED ->
+                    folder.onForeground(event.packageName ?: "", event.className, event.timeStamp)
                 UsageEvents.Event.MOVE_TO_BACKGROUND,
                 UsageEvents.Event.ACTIVITY_PAUSED,
-                UsageEvents.Event.ACTIVITY_STOPPED -> {
-                    foregroundSince.remove(event.packageName)?.let { s ->
-                        phases += ForegroundPhase(event.packageName, s, event.timeStamp)
-                    }
-                }
+                UsageEvents.Event.ACTIVITY_STOPPED ->
+                    folder.onBackground(event.packageName ?: "", event.className, event.timeStamp)
             }
         }
-        // Noch im Vordergrund → bis zum Ende des Zeitraums zählen
-        foregroundSince.forEach { (pkg, s) ->
-            phases += ForegroundPhase(pkg, s, end)
-        }
-        return phases
+        return folder.finish(end).map { ForegroundPhase(it.packageName, it.start, it.end) }
     }
 
     /**
@@ -109,51 +101,49 @@ class AppUsageAggregator @Inject constructor(
             val zone = ZoneId.systemDefault()
             val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
             val now = System.currentTimeMillis()
-            val events = usageStats.queryEvents(startOfDay, now) ?: return@withContext TodayDetail(0, 0, List(24) { 0L })
-
-            val foregroundSince = HashMap<String, Long>()
-            val totals = HashMap<String, Long>()
+            // M21: gemeinsame Faltung (Activity-Ebene, Paket-Vereinigung).
+            val phases = foregroundPhases(startOfDay, now)
             val hourly = LongArray(24)
-            var unlocks = 0
-            val event = UsageEvents.Event()
-
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
-                when (event.eventType) {
-                    UsageEvents.Event.MOVE_TO_FOREGROUND,
-                    UsageEvents.Event.ACTIVITY_RESUMED -> {
-                        // Clipping wie in foregroundPhases (OEM-Events außerhalb des Fensters)
-                        foregroundSince[event.packageName] = maxOf(event.timeStamp, startOfDay)
-                        unlocks++
-                    }
-                    UsageEvents.Event.MOVE_TO_BACKGROUND,
-                    UsageEvents.Event.ACTIVITY_PAUSED,
-                    UsageEvents.Event.ACTIVITY_STOPPED -> {
-                        foregroundSince.remove(event.packageName)?.let { start ->
-                            val dur = (event.timeStamp - start).coerceAtLeast(0L)
-                            totals[event.packageName] = (totals[event.packageName] ?: 0L) + dur
-                            // Stunden-Bucket: Start-Stunde der Nutzung
-                            val hour = java.time.Instant.ofEpochMilli(start).atZone(zone).hour
-                            hourly[hour.coerceIn(0, 23)] += dur
-                        }
-                    }
+            phases.forEach { phase ->
+                // M21: Stundenzuordnung stückweise — eine 3-Stunden-Sitzung
+                // zählt jetzt in jede ihrer Stunden statt komplett in die
+                // Startstunde (ehrlicheres Balken-Diagramm).
+                var cursor = phase.start
+                while (cursor < phase.end) {
+                    // Stundengrenze in der LOKALEN Zeitzone (nicht UTC —
+                    // sonst wären die Balken in Halbstunden-Zonen verschoben).
+                    val zoned = java.time.Instant.ofEpochMilli(cursor).atZone(zone)
+                    val hourEnd = zoned.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                        .plusHours(1).toInstant().toEpochMilli()
+                    val segEnd = minOf(phase.end, hourEnd)
+                    hourly[zoned.hour.coerceIn(0, 23)] += (segEnd - cursor).coerceAtLeast(0L)
+                    cursor = segEnd
                 }
             }
-            foregroundSince.forEach { (pkg, start) ->
-                val dur = (now - start).coerceAtLeast(0L)
-                totals[pkg] = (totals[pkg] ?: 0L) + dur
-                val hour = java.time.Instant.ofEpochMilli(start).atZone(zone).hour
-                hourly[hour.coerceIn(0, 23)] += dur
-            }
-
             TodayDetail(
-                totalMs = totals.values.sum(),
-                unlockCount = unlocks,
+                totalMs = phases.sumOf { it.durationMs },
+                unlockCount = foregroundEventCount(startOfDay, now),
                 hourlyMs = hourly.toList()
             )
         } catch (_: Exception) {
             TodayDetail(0, 0, List(24) { 0L })
         }
+    }
+
+    /** M21: Foreground-Transitionen (Unlocks) im Zeitraum. */
+    private fun foregroundEventCount(start: Long, end: Long): Int {
+        val events = usageStats.queryEvents(start, end) ?: return 0
+        var count = 0
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
+                event.eventType == UsageEvents.Event.ACTIVITY_RESUMED
+            ) {
+                count++
+            }
+        }
+        return count
     }
 
     /**
@@ -177,31 +167,8 @@ class AppUsageAggregator @Inject constructor(
             val zone = ZoneId.systemDefault()
             val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
             val now = System.currentTimeMillis()
-            val events = usageStats.queryEvents(startOfDay, now) ?: return@withContext 0L
-
-            var total = 0L
-            val foregroundSince = HashMap<String, Long>()
-            val event = UsageEvents.Event()
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
-                when (event.eventType) {
-                    UsageEvents.Event.MOVE_TO_FOREGROUND,
-                    UsageEvents.Event.ACTIVITY_RESUMED -> {
-                        foregroundSince[event.packageName] = maxOf(event.timeStamp, startOfDay)
-                    }
-                    UsageEvents.Event.MOVE_TO_BACKGROUND,
-                    UsageEvents.Event.ACTIVITY_PAUSED,
-                    UsageEvents.Event.ACTIVITY_STOPPED -> {
-                        foregroundSince.remove(event.packageName)?.let { s ->
-                            total += (event.timeStamp - s).coerceAtLeast(0L)
-                        }
-                    }
-                }
-            }
-            foregroundSince.forEach { (_, s) ->
-                total += (now - s).coerceAtLeast(0L)
-            }
-            total
+            // M21: gemeinsame Faltung — identische Basis wie die App-Liste.
+            foregroundPhases(startOfDay, now).sumOf { it.durationMs }
         } catch (_: Exception) {
             0L
         }
@@ -216,34 +183,12 @@ class AppUsageAggregator @Inject constructor(
             val zone = ZoneId.systemDefault()
             val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
             val now = System.currentTimeMillis()
-            val events = usageStats.queryEvents(startOfDay, now) ?: return@withContext emptyList()
 
-            // Pro App: letzter Foreground-Zeitpunkt
-            val foregroundSince = HashMap<String, Long>()
+            // M21: gemeinsame Faltung (Activity-Ebene) — eine App, deren
+            // Splash-Activity ein PAUSED schickt, bleibt vollständig gezählt.
             val totals = HashMap<String, Long>()
-            val event = UsageEvents.Event()
-
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
-                when (event.eventType) {
-                    UsageEvents.Event.MOVE_TO_FOREGROUND,
-                    UsageEvents.Event.ACTIVITY_RESUMED -> {
-                        // Clipping wie in foregroundPhases (OEM-Events außerhalb des Fensters)
-                        foregroundSince[event.packageName] = maxOf(event.timeStamp, startOfDay)
-                    }
-                    UsageEvents.Event.MOVE_TO_BACKGROUND,
-                    UsageEvents.Event.ACTIVITY_PAUSED,
-                    UsageEvents.Event.ACTIVITY_STOPPED -> {
-                        foregroundSince.remove(event.packageName)?.let { start ->
-                            totals[event.packageName] = (totals[event.packageName] ?: 0L) +
-                                (event.timeStamp - start).coerceAtLeast(0L)
-                        }
-                    }
-                }
-            }
-            // Noch im Vordergrund → bis jetzt zählen
-            foregroundSince.forEach { (pkg, start) ->
-                totals[pkg] = (totals[pkg] ?: 0L) + (now - start).coerceAtLeast(0L)
+            foregroundPhases(startOfDay, now).forEach { phase ->
+                totals[phase.packageName] = (totals[phase.packageName] ?: 0L) + phase.durationMs
             }
 
             totals
