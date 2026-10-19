@@ -233,10 +233,10 @@ Sichtprüfung führte zur eigenen Timer-Zeile.
 | Punkt | Wert |
 |---|---|
 | Tests | **1271** Tests, **0 Fehler**, **1 skipped** |
-| Build | `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:bundleRelease`, Exit **0**, **4m 12s** |
-| Debug-APK | 127.323.250 B (121,4 MB), SHA-256 `4681d7e3…91c33a`, SHA-1 `9c3055c4…fbe0e8` (kanonisch) |
-| Release-APK | 52.271.051 B (49,9 MB), SHA-256 `5e6088fe…1259517`, SHA-1 `c8430d35…361ffe9` (Upload-Key) |
-| AAB | 24.600.926 B (23,5 MB), SHA-256 `0e7265fc…7e461` |
+| Build | `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:bundleRelease`, Exit **0**; Test+Artefakte **4m 12s**, finaler Artefakt-Rebuild nach der Widget-Sicherheitsaktualisierung **2m 53s** |
+| Debug-APK | 127.323.250 B (121,4 MB), SHA-256 `e072ce02…e83069`, SHA-1 `9c3055c4…fbe0e8` (kanonisch) |
+| Release-APK | 52.271.051 B (49,9 MB), SHA-256 `2e7e83ad…a34159`, SHA-1 `c8430d35…361ffe9` (Upload-Key) |
+| AAB | 24.600.934 B (23,5 MB), SHA-256 `5c7c8156…82163` |
 | Server | alle drei Dateien HTTP 200; Widget-Screenshots HTTP 200 |
 | DB | v48, Migration 47→48, `SchemaV48Test` + `GoalV47MigrationTest` + `PmRemovalMigrationTest` grün |
 | Commit | `16b819d` (Code + Doku); dieser Berichtsnachtrag ist ein Folge-Commit |
