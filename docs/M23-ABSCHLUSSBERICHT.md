@@ -239,6 +239,7 @@ Sichtprüfung führte zur eigenen Timer-Zeile.
 | AAB | 24.600.926 B (23,5 MB), SHA-256 `0e7265fc…7e461` |
 | Server | alle drei Dateien HTTP 200; Widget-Screenshots HTTP 200 |
 | DB | v48, Migration 47→48, `SchemaV48Test` + `GoalV47MigrationTest` + `PmRemovalMigrationTest` grün |
+| Commit | `16b819d` (Code + Doku); dieser Berichtsnachtrag ist ein Folge-Commit |
 
 Build-Log: `/root/builds/m23-final2.log`; Testberichte:
 `app/build/test-results/testDebugUnitTest/`.

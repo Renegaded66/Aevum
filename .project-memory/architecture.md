@@ -121,3 +121,12 @@ App 1.0.32 (versionCode 33), DB **v45**.
   Starter-PID, `taskkill /F`-Fallback nach ~45 s, dann `robocopy /MIR`
   (ersetzt alte Versionen vollständig), erst dann Start. Nutzerdaten liegen
   immer in `%APPDATA%\AevumPcTracker`.
+- **M23 (App 1.0.43):** Fahrt-Startanker in `DriveDetectionEngine.toVehicleCluster`
+  (Fahrzeug-Tempo >=3,0 m/s, zwei Probes/90 s); App-Tracking-`KEEP_FOREIGN`
+  merkt sich die App nicht mehr; DB v48 `activity_session.source_app_package`
+  (AppTrackingService → LiveActivityManager → Timeline-Detail mit
+  PackageManager-Icon). Neues `widget/`-Paket: `AevumWidgetProvider`
+  (Broadcast-Stopp), `AevumWidgetUpdater` (RemoteViews/Timer/Maskottchen),
+  `WidgetStartActivity` (Duolingo-Picker), `WidgetMascotRenderer` (Canvas).
+  Update-Takt aus `LiveActivityService` (1 s/10 s); Layout `aevum_widget.xml`,
+  Metadaten `aevum_widget_info.xml` (2×1).
