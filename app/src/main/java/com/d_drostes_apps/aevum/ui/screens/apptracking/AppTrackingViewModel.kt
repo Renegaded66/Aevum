@@ -88,6 +88,12 @@ class AppTrackingViewModel @Inject constructor(
 
     private val searchQuery = MutableStateFlow("")
     private val scanning = MutableStateFlow(false)
+    // M23: Erzwingt eine Neu-Auswertung von `hasUsagePermission`, wenn der
+    // Nutzer aus den System-Einstellungen zurückkommt. Vorher hing der
+    // Zustand an den Daten-Flows: Nach dem Erteilen des Nutzungszugriffs
+    // änderte sich KEINE dieser Quellen → der Screen blieb beim roten
+    // „Berechtigung fehlt“-Hinweis, bis die App neu gestartet wurde.
+    private val permissionEpoch = MutableStateFlow(0)
 
     // M18.147: Basis-Liste — startet mit dem letzten Scan (falls vorhanden)
     // und füllt sich dann chunkweise nach.
@@ -110,7 +116,8 @@ class AppTrackingViewModel @Inject constructor(
         overrides,
         trackingRepository.getAll(),
         activityTypeRepository.getAll(),
-        scanning
+        scanning,
+        permissionEpoch
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val query = values[0] as String
@@ -283,6 +290,17 @@ class AppTrackingViewModel @Inject constructor(
 
     fun setSearchQuery(q: String) {
         searchQuery.value = q
+    }
+
+    /**
+     * M23: Auf dem Screen aus dem Hintergrund zurück (z. B. nach dem
+     * Erteilen des Nutzungszugriffs oder der Akku-Ausnahme) — Status neu
+     * lesen. Der Aufruf stößt über [permissionEpoch] eine Emission an,
+     * damit buildState() `UsageStatsPermission.isGranted` erneut prüft.
+     */
+    fun refreshPermissionState() {
+        permissionEpoch.value++
+        refreshDiagnostics()
     }
 
     /** Öffnet die System-Einstellungen für den Nutzungszugriff. */

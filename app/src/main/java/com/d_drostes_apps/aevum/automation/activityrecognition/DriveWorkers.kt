@@ -951,7 +951,10 @@ class DriveProbeWorker(
                     // M18.110: DriveProbeWorker-Takt ist 2 Min — der
                     // DriveStartWorker brauchte hier bislang ≥ 60s Spread
                     // im Probe-Fenster, sonst keine Rückdatierung.
-                    DriveDetectionEngine.toVehicleCluster(bridge.currentDriveProbes(), now)?.let { cluster ->
+                    DriveDetectionEngine.toVehicleCluster(
+                        bridge.currentDriveProbes(), now,
+                        anchorMinSpeedMps = DriveDetectionEngine.MIN_DRIVE_ANCHOR_SPEED_MPS
+                    )?.let { cluster ->
                         bridge.addSample(cluster.startMs, 75)
                         bridge.addSample(cluster.endMs, 75)
                     }

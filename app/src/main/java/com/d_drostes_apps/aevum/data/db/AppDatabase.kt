@@ -109,7 +109,9 @@ import com.d_drostes_apps.aevum.data.model.*
     // (tracking_mode, schedule_days, source_kind, accent; alle additiv mit
     // Defaults, Bestandsziele verhalten sich exakt wie vorher) und die
     // neue Tabelle `goal_checkin` (Check-ins manueller Ziele).
-    version = 47,
+    // M23: v48 — activity_session.source_app_package (Ursprungs-App einer
+    // App-Aufzeichnung für Icon + Name in der Timeline; nullable).
+    version = 48,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1791,6 +1793,21 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(SQL_M20_GOAL_CHECKIN_CREATE)
                 database.execSQL(SQL_M20_GOAL_CHECKIN_INDEX_GOAL)
                 database.execSQL(SQL_M20_GOAL_CHECKIN_INDEX_DATE)
+            }
+        }
+
+        /**
+         * M23: v47 → v48 — Ursprungs-App der App-Aufzeichnung.
+         *
+         * Additiv und nullable: Altdaten bleiben gültig, alle anderen
+         * Quellen liefern null. Kein Index nötig — gelesen wird die Spalte
+         * nur zusammen mit der Session-Zeile.
+         */
+        val MIGRATION_47_48 = object : Migration(47, 48) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `activity_session` ADD COLUMN `source_app_package` TEXT"
+                )
             }
         }
     }

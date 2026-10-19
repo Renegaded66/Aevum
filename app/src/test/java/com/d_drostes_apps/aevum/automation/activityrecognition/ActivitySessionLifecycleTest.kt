@@ -221,6 +221,76 @@ class ActivitySessionLifecycleTest {
     }
 
     // ──────────────────────────────────────────────────────────────
+    // M23: Der Fahrt-Start darf nie in die Gehzeit zum Auto zurück
+    // ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `Fahrzeug-Anker ignoriert die fuenf Minuten Gehzeit vor dem Losfahren`() {
+        // Devon-Fall: 5 Minuten zu Fuß zum Auto (1,4 m/s), dann Fahrt.
+        // Die Geh-Probes liegen im selben 15-Minuten-Puffer; ohne
+        // Fahrzeug-Anker startete die Fahrt am Losgehen. Mit Anker
+        // beginnt sie am ersten Probe mit Fahrzeug-Tempo.
+        val carStart = 2_000_000L
+        val walk = (0 until 5).map { i ->
+            motionProbe(carStart - 300_000L + i * 60_000L, speedMps = 1.4f)
+        }
+        val drive = listOf(
+            motionProbe(carStart, speedMps = 3.4f),
+            motionProbe(carStart + 30_000L, speedMps = 8.5f)
+        )
+        val cluster = DriveDetectionEngine.toVehicleCluster(
+            probes = walk + drive,
+            nowMs = carStart + 40_000L,
+            anchorMinSpeedMps = DriveDetectionEngine.MIN_DRIVE_ANCHOR_SPEED_MPS
+        )
+        assertThat(cluster).isNotNull()
+        assertThat(cluster!!.startMs).isEqualTo(carStart)
+        assertThat(cluster.endMs).isEqualTo(carStart + 30_000L)
+    }
+
+    @Test
+    fun `einzelner Geh-GPS-Spike wird nicht zum Fahrt-Anker`() {
+        // Ein einzelner 4-m/s-Ausreißer beim Gehen (Häuserschlucht) darf
+        // die Fahrt nicht dorthin zurückdatieren — es fehlt der zweite
+        // Fahrzeug-Probe innerhalb von 90 s.
+        val t1 = 4_000_000L
+        val probes = listOf(
+            motionProbe(t1 - 240_000L, speedMps = 1.4f),
+            motionProbe(t1 - 180_000L, speedMps = 4.2f), // einzelner Spike
+            motionProbe(t1 - 120_000L, speedMps = 1.3f),
+            motionProbe(t1 - 60_000L, speedMps = 1.5f),
+            motionProbe(t1, speedMps = 1.4f)
+        )
+        val cluster = DriveDetectionEngine.toVehicleCluster(
+            probes = probes,
+            nowMs = t1 + 1_000L,
+            anchorMinSpeedMps = DriveDetectionEngine.MIN_DRIVE_ANCHOR_SPEED_MPS
+        )
+        assertThat(cluster).isNotNull()
+        assertThat(cluster!!.startMs).isEqualTo(t1)
+    }
+
+    @Test
+    fun `Fahrzeug-Anker ohne schnellen Probe startet am letzten Probe statt am ersten`() {
+        // Stop&Go ohne Speed-Feld: lieber ein paar Sekunden zu spät als
+        // die gesamte Gehzeit davor. Der Anker fällt auf den jüngsten
+        // Bewegungs-Probe zurück.
+        val t1 = 3_000_000L
+        val probes = listOf(
+            motionProbe(t1 - 180_000L, speedMps = 1.3f),
+            motionProbe(t1 - 60_000L, speedMps = 1.5f),
+            motionProbe(t1, speedMps = 1.6f)
+        )
+        val cluster = DriveDetectionEngine.toVehicleCluster(
+            probes = probes,
+            nowMs = t1 + 1_000L,
+            anchorMinSpeedMps = DriveDetectionEngine.MIN_DRIVE_ANCHOR_SPEED_MPS
+        )
+        assertThat(cluster).isNotNull()
+        assertThat(cluster!!.startMs).isEqualTo(t1)
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // F-4: addSample mit älterem Backfill — max-Semantik
     // ──────────────────────────────────────────────────────────────
 

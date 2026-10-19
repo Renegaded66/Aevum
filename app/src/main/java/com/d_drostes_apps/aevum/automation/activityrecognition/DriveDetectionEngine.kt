@@ -472,6 +472,17 @@ object DriveDetectionEngine {
      *  Jitter). Probes ohne Speed-, aber mit Distanz- zum Vorgänger-
      *  Probe zählen über die Distanz-Schwelle. */
     const val MIN_ANCHOR_MOTION_MPS = 0.5f
+
+    /**
+     * M23: Mindest-Tempo für den START-Anker einer Fahrt (10,8 km/h).
+     *
+     * Gehen liegt bei 1,0–1,6 m/s, zügiges Gehen bei ~1,8 m/s, Joggen ab
+     * ~2,5 m/s. 3,0 m/s ist die erste Geschwindigkeit, die im
+     * Straßenverkehr praktisch nur ein Fahrzeug erreicht (Anrollen,
+     * 30er-Zone). Der Anker darf damit nie in eine Gehphase zum Auto
+     * zurückreichen — genau der gemeldete 5-Minuten-Vorlauf.
+     */
+    const val MIN_DRIVE_ANCHOR_SPEED_MPS = 3.0f
     /** M18.120 (F-3): Mindest-Distanz zum Vorgänger-Probe (m) für die
      *  Bewegungs-Evidenz. GPS-Jitter um den Standort liegt typisch
      *  < 15 m; die 10-m-Schwelle verlangt echte Ortsveränderung. */
@@ -1237,7 +1248,16 @@ object DriveDetectionEngine {
      */
     fun toVehicleCluster(
         probes: List<DriveProbe>,
-        nowMs: Long = System.currentTimeMillis()
+        nowMs: Long = System.currentTimeMillis(),
+        // M23 (Devon: „erst 5 Minuten zum Auto gegangen […] und die
+        // Aufzeichnung hat die 5 Minuten Gehzeit vorher am Anfang gesetzt"):
+        // Optionaler Fahrzeug-Anker. Ist er gesetzt, beginnt der Cluster
+        // NUR an einem Probe mit mindestens dieser Geschwindigkeit. Geh-
+        // Probes (0,5–2,5 m/s) liegen im selben 15-Minuten-Puffer wie die
+        // Fahrt und zogen den Start bisher bis zum Losgehen zurück.
+        // null = altes Verhalten (nur für Tests/Aufrufer, die bewusst den
+        // ältesten Bewegungs-Probe wollen).
+        anchorMinSpeedMps: Float? = null
     ): VehicleCluster? {
         val valid = probes
             .filter { nowMs - it.timestampMs <= MAX_PROBE_AGE_MS }
@@ -1255,7 +1275,28 @@ object DriveDetectionEngine {
         if (valid.size < 2) return null
         val spread = valid.maxOf { it.timestampMs } - valid.minOf { it.timestampMs }
         if (spread < 30_000L) return null
-        val start = valid.minOf { it.timestampMs }
+        // M23: Fahrzeug-Anker — der ERSTE Probe mit Fahrzeug-Tempo. Gibt es
+        // keinen (Stop&Go ohne Speed-Feld), ist der LETZTE Probe der
+        // sichere Anker: lieber ein paar Sekunden zu spät als minutenlang
+        // Gehzeit vor der Fahrt. Niemals der älteste Probe, solange ein
+        // Fahrzeug-Anker verlangt ist.
+        val start = if (anchorMinSpeedMps != null) {
+            // Zwei Fahrzeug-Probes innerhalb von 90 s — ein einzelner
+            // GPS-Spike beim Gehen (z. B. Häuserschlucht) darf die Fahrt
+            // nicht vor die Gehphase ziehen. Echte Fahrten liefern im
+            // 15-s-Burst deutlich mehr als zwei.
+            val fast = valid.filter { probe ->
+                probe.speedMps != null && probe.speedMps >= anchorMinSpeedMps
+            }
+            fast.firstOrNull { probe ->
+                fast.any { later ->
+                    later.timestampMs > probe.timestampMs &&
+                        later.timestampMs - probe.timestampMs <= 90_000L
+                }
+            }?.timestampMs ?: valid.last().timestampMs
+        } else {
+            valid.minOf { it.timestampMs }
+        }
         val end = valid.maxOf { it.timestampMs }
         return VehicleCluster(
             startMs = start,

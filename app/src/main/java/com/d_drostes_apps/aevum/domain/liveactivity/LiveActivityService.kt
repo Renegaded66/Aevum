@@ -201,6 +201,14 @@ class LiveActivityService : Service() {
                         // M18.24: Ein fehlerhaftes Notification-Update darf
                         // den Loop nicht killen — sonst friert der Timer ein.
                     }
+                    // M23: Homescreen-Widget im selben Takt aktualisieren —
+                    // der Service ist die einzige dauerhaft lebende Stelle
+                    // mit Sekundentakt, kein zusätzlicher AlarmManager.
+                    try {
+                        com.d_drostes_apps.aevum.widget.AevumWidgetUpdater.updateAll(this@LiveActivityService)
+                    } catch (_: Exception) {
+                        // Widget-Update darf den Aufzeichnungs-Loop nie stoppen.
+                    }
                     // M18.104 (Akku-Redesign): Screen aus → Takt entspannen.
                     // Der 1s-Loop weckte die CPU 86.400×/Tag, obwohl das
                     // System die Notification bei ausgeschaltetem Screen
@@ -354,6 +362,12 @@ class LiveActivityService : Service() {
         serviceAlive = false
         updateJob?.cancel()
         pcRelayJob?.cancel()
+        // M23: Widget sofort auf „BEREIT" zurücksetzen, wenn die Aufzeichnung
+        // endet (Service-Ende = keine Live-Session mehr).
+        try {
+            com.d_drostes_apps.aevum.widget.AevumWidgetUpdater.updateAll(this)
+        } catch (_: Exception) {
+        }
         // M18.125: Bitmaps aus dem Ping-Pong-Pool freigeben (Service-Ende).
         recycleBitmap(livePatternBitmap)
         recycleBitmap(liveLargeIcon)

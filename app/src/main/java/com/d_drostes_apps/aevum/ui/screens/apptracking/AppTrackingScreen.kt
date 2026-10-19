@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -101,6 +103,20 @@ fun AppTrackingScreen(
     // neu installierte Apps tauchen auf. Die Liste selbst füllt sich
     // chunkweise nach, während der Screen sofort bedienbar ist.
     LaunchedEffect(Unit) { viewModel.refreshInstalled() }
+
+    // M23: Beim Zurückkehren aus den System-Einstellungen (Nutzungszugriff /
+    // Akku-Ausnahme) den Status sofort neu lesen. Ohne diesen Resume-Hook
+    // blieb der Screen auf dem Stand von vor dem Settings-Besuch.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissionState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // M18.145 (Play-Konsistenz): dieser Screen ist über den Balance-Tab
     // erreichbar und fragt denselben Nutzungszugriff an wie der
@@ -555,6 +571,22 @@ private fun AppTrackingDiagnosticsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // M23: Sichtbarer Status-Punkt — nach dem Erteilen der
+                // Akku-Ausnahme springt er auf Grün (vorher war der Zustand
+                // nur eine farbige Textzeile, kein „Punkt“).
+                Box(
+                    modifier = Modifier
+                        .padding(end = AevumSpacing.sm)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when (diagnostics.batteryExempt) {
+                                true -> MaterialTheme.colorScheme.secondary
+                                false -> MaterialTheme.colorScheme.error
+                                null -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         stringResource(R.string.apptracking_diag_battery),

@@ -191,7 +191,10 @@ class LiveActivityManager @Inject constructor(
         // M11: optional startedAt — wenn der User eine vergangene Startzeit wählt
         startedAt: Long = System.currentTimeMillis(),
         // M12.1: optional trigger reference for auto-start traceability
-        sourceTriggerId: String? = null
+        sourceTriggerId: String? = null,
+        // M23: Ursprungs-App bei sourceType = APP_TRACKING (Paketname).
+        // Wird in der Timeline als Icon + Name angezeigt.
+        sourceAppPackage: String? = null
     ): ActivitySession {
         // M18.71: Überlappende Aktivitäten — die bestehende Live-Session
         // wird NICHT mehr pauschal mit endAt=jetzt beendet (forceFinish),
@@ -230,7 +233,8 @@ class LiveActivityManager @Inject constructor(
             sessionStatus = "RUNNING",
             totalPausedMs = 0L,
             currentPauseStartedAt = null,
-            note = note?.takeIf { it.isNotBlank() }
+            note = note?.takeIf { it.isNotBlank() },
+            sourceAppPackage = sourceAppPackage?.takeIf { it.isNotBlank() }
         )
 
         activityRepository.insert(session)

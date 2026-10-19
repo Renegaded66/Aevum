@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.43 (M23) — 2026-10-19
+
+### Fahrt-Vorlauf · Widget · Timeline-Quelle · Ziel-Überschreitung
+
+Devon-Befund (wörtlich): „ich [bin] erst 5 Minuten zum Auto gegangen und dann
+losgefahren […] die Aufzeichnung [hat] zwar erst gestartet [als] ich losgefahren
+bin allerdings auch noch die 5 Minuten Gehzeit vorher am Anfang gesetzt".
+Ursache: Der Fahrt-Startanker kam aus dem 15-Minuten-GPS-Puffer und nahm den
+ältesten Bewegungs-Probe — auch einen Geh-Probe mit 1,4 m/s. Fix: Der Anker
+verlangt jetzt **Fahrzeug-Tempo** (≥ 3,0 m/s) und **zwei** solche Probes
+innerhalb von 90 s; ein einzelner GPS-Spike zählt nicht. Gibt es keinen
+Fahrzeug-Probe, startet die Fahrt am jüngsten Probe statt am ältesten.
+
+Weiter:
+
+- **App-Aufzeichnung zuverlässiger:** Endete eine fremde Session (Fahrt,
+  Geofence, Sport, manuell), während die getrackte App weiter offen war,
+  startete die App-Aufzeichnung erst nach App-Wechsel. Der Service merkt sich
+  den Fremd-Fall nicht mehr als „erledigt" und startet beim nächsten Poll.
+  Re-Baseline des Vordergrunds von 120 s auf 30 s verkürzt.
+- **„Ruhiger Start" entfernt:** Der Fallback-Insight unter den Aufzeichnungen
+  ist komplett weg; ohne Reflexions-Hinweis bleibt der Block leer.
+- **Ziel-Überschreitung:** Bei `AT_MOST`-Zielen über dem Limit wird die
+  Dashboard-Zeile rot getönt, der Punkt und der Balken rot, dazu ein ⚠ —
+  ohne zusätzliche Wörter.
+- **Timeline:** App-Aufzeichnungen tragen jetzt die Ursprungs-App
+  (`source_app_package`, DB v48) — in der Liste als „📱 <App>", im Detail als
+  Karte mit echtem App-Icon und Namen. Start/Ende sind als zwei analoge Uhren
+  plus 24-h-Zeitstrahl dargestellt (keine doppelten Uhrzeit-Kacheln mehr).
+- **2x1-Homescreen-Widget** im Duolingo-Stil: Status (BEREIT/LÄUFT/PAUSIERT),
+  Timer mit Sekunden, Aktivitätsname, Start/Stopp-Knopf; der Start öffnet ein
+  farbiges Auswahl-Popup, das Maskottchen ist bei aktivierter Einstellung
+  sichtbar. Aktualisierung über den LiveActivityService (1 s/10 s), kein
+  zusätzlicher AlarmManager.
+- **Nutzungszugriff/Akku-Ausnahme:** Beim Zurückkehren aus den System-
+  Einstellungen wird der Status sofort neu gelesen; die Akku-Zeile hat einen
+  grünen/roten Status-Punkt.
+
+Tests: **1271** (0 Fehler) inkl. neuer Vorlauf-, v48-Schema-, Widget-Timer-
+und RemoteViews-Inflations-Tests.
+
 ## [Unreleased] — PC-Tracker 1.7.1 — 2026-10-18
 
 ### Kein falscher „Digital"-Block nach einem Update

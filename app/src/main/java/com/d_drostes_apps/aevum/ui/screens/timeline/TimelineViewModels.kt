@@ -43,6 +43,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -104,6 +108,24 @@ class TimelineViewModel @Inject constructor(
         triggerEventRepository.getAll()
     ) { date: LocalDate, sessions: List<ActivitySession>, candidates: List<ActivityCandidate>, triggers: List<TriggerEvent> ->
         TimelineBase(date, sessions, candidates, triggers)
+    }
+
+    // M23: App-Label-Cache für App-Tracking-Sessions. PackageManager-
+    // Aufrufe laufen nur beim Bau der Timeline (Tageswechsel), nicht pro
+    // Frame; derselbe Paketname wird nur einmal aufgelöst.
+    private val sourceAppLabelCache = mutableMapOf<String, String?>()
+
+    private fun sourceAppLabel(packageName: String?): String? {
+        val pkg = packageName?.takeIf { it.isNotBlank() } ?: return null
+        return sourceAppLabelCache.getOrPut(pkg) {
+            try {
+                val pm = application.packageManager
+                val info = pm.getApplicationInfo(pkg, 0)
+                pm.getApplicationLabel(info).toString()
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     // M12.2: Stufenloser Pinch-to-Zoom — pixelsPerHour ist die einzige Quelle
@@ -751,7 +773,10 @@ class TimelineViewModel @Inject constructor(
                 hasQualityOverride = session.manualQualityOverride != null,
                 // M18.13: Icon + custom Farbe der Aktivität für die Timeline.
                 activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
-                activityColor = typeMap[session.activityTypeId]?.color ?: 0L
+                activityColor = typeMap[session.activityTypeId]?.color ?: 0L,
+                // M23: Ursprungs-App (nur App-Tracking) für das
+                // „📱 <App>"-Label in der Listenansicht.
+                sourceAppLabel = sourceAppLabel(session.sourceAppPackage)
             )
         }
         // M18.102: Nur-Dauer-Sessions des gewählten Tages (separate Liste
@@ -908,7 +933,10 @@ class TimelineViewModel @Inject constructor(
                         ?: typeMap[session.activityTypeId]?.positivityScore ?: 50,
                     hasQualityOverride = session.manualQualityOverride != null,
                     activityIcon = typeMap[session.activityTypeId]?.icon ?: "•",
-                    activityColor = typeMap[session.activityTypeId]?.color ?: 0L
+                    activityColor = typeMap[session.activityTypeId]?.color ?: 0L,
+                    // M23: Ursprungs-App (nur App-Tracking) für das
+                    // „📱 <App>"-Label in der Listenansicht.
+                    sourceAppLabel = sourceAppLabel(session.sourceAppPackage)
                 )
             }
             result[day] = rows
@@ -1311,6 +1339,33 @@ class ActivityDetailViewModel @Inject constructor(
     private val sessionId: String = checkNotNull(savedStateHandle["sessionId"])
     private val deleted = MutableStateFlow(false)
     private val zoneId = ZoneId.systemDefault()
+
+    // M23: Icon + Label der Ursprungs-App (APP_TRACKING) — einmal pro
+    // Paket aufgelöst und gecacht; die Detailseite wird bei jedem
+    // DB-Update neu gebaut.
+    private val sourceAppCache = mutableMapOf<String, Pair<String, ImageBitmap>?>()
+
+    private fun resolveSourceApp(packageName: String?): Pair<String, ImageBitmap>? {
+        val pkg = packageName?.takeIf { it.isNotBlank() } ?: return null
+        if (sourceAppCache.containsKey(pkg)) return sourceAppCache[pkg]
+        val resolved = try {
+            val pm = application.packageManager
+            val info = pm.getApplicationInfo(pkg, 0)
+            val label = pm.getApplicationLabel(info).toString()
+            val drawable = pm.getApplicationIcon(info)
+            val size = 96
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            label to bitmap.asImageBitmap()
+        } catch (_: Exception) {
+            null
+        }
+        sourceAppCache[pkg] = resolved
+        return resolved
+    }
+
     // L10N-RUNTIME-FIX: Sprach-Flow für reaktive Rebuilds.
     private val languageFlow: kotlinx.coroutines.flow.Flow<String> =
         languageRepository.language
@@ -1321,6 +1376,10 @@ class ActivityDetailViewModel @Inject constructor(
         categoryRepository.getAll(),
         activityTypeRepository.getAll()
     ) { _, session: ActivitySession?, categories: List<Category>, types: List<ActivityType> ->
+        // M23: Nur bei App-Aufzeichnungen — sonst bleibt die Karte weg.
+        val sourceApp = if (session?.sourceType == "APP_TRACKING") {
+            resolveSourceApp(session.sourceAppPackage)
+        } else null
         ActivityDetailUiState(
             session = session,
             category = categories.firstOrNull { it.id == (session?.categoryId ?: types.firstOrNull { t -> t.id == session?.activityTypeId }?.defaultCategoryId) },
@@ -1338,7 +1397,9 @@ class ActivityDetailViewModel @Inject constructor(
             }.orEmpty(),
             // M18.62-FIX: Pausen abziehen — vorher wurde die volle
             // Wanduhrzeit (Ende − Start) gezeigt, obwohl pausiert wurde.
-            duration = session?.let { TimeFormatting.formatDuration(it.activeDurationMs()) }.orEmpty()
+            duration = session?.let { TimeFormatting.formatDuration(it.activeDurationMs()) }.orEmpty(),
+            sourceAppLabel = sourceApp?.first,
+            sourceAppIcon = sourceApp?.second
         )
     }
 
@@ -1529,6 +1590,9 @@ data class TimelineSessionUi(
     // M18.13: Icon + custom Farbe der Aktivität.
     val activityIcon: String = "•",
     val activityColor: Long = 0L,
+    // M23: Menschenlesbarer App-Name der Aufzeichnung (nur
+    // sourceType == APP_TRACKING) — Timeline zeigt „📱 <App>".
+    val sourceAppLabel: String? = null,
     // M18.102: Nur-Dauer-Session (excludeFromTimeline) — erscheint NUR in
     // der Listenansicht ganz oben (ohne Uhrzeit), NIE in der Tag- oder
     // Wochen-Timeline. range ist bei ihr leer (dient im Lösch-Dialog als
@@ -1569,7 +1633,11 @@ data class ActivityDetailUiState(
     val activityType: ActivityType? = null,
     val range: String = "",
     val duration: String = "",
-    val deleted: Boolean = false
+    val deleted: Boolean = false,
+    // M23: Ursprungs-App einer APP_TRACKING-Aufzeichnung — Icon + Name
+    // für die Karte „Gestartet von“.
+    val sourceAppLabel: String? = null,
+    val sourceAppIcon: ImageBitmap? = null
 )
 
 // ----------------------------------------------------------------------

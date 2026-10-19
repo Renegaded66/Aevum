@@ -1315,6 +1315,10 @@ class DashboardViewModel @Inject constructor(
         // Selbstverständlichkeiten der Verteilung.
         // M22: Auch „Vielfalt" („Dein Tag verteilt sich auf N Bereiche")
         // ist raus — der Nutzer will den Block komplett loswerden.
+        // M23: Und damit ist auch der „Ruhiger Start"-Fallback raus. Wenn
+        // es nichts zu reflektieren gibt, bleibt der Block LEER — kein
+        // Platzhaltertext unter den Aufzeichnungen (Devon: „der soll
+        // komplett weg").
         if (reviewCount > 0) {
             insights += DashboardInsight(
                 application.getString(R.string.dashboard_insight_review),
@@ -1322,14 +1326,7 @@ class DashboardViewModel @Inject constructor(
                 "✓"
             )
         }
-        if (insights.isEmpty()) {
-            insights += DashboardInsight(
-                application.getString(R.string.dashboard_insight_calm),
-                application.getString(R.string.dashboard_insight_calm_msg),
-                "✧"
-            )
-        }
-        return insights.take(2)
+        return insights
     }
 
     private fun estimateBalanceScore(distribution: List<DashboardCategorySlice>, totalMs: Long, openMs: Long): Int {

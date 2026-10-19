@@ -241,8 +241,14 @@ android {
         //    offene Sessions endAt == null werden bis „jetzt" gerechnet)
         //  - „Vielfalt"-Block entfernt, Güte-Verlauf ganz nach unten
         //  - PC-Tracker: GET /api/commands — Start vom Desktop läuft aufs Handy
-        versionCode = 43
-        versionName = "1.0.42"
+        // M23 (Fahrt-Vorlauf, Widget, Timeline-Quelle, Ziel-Überschreitung):
+        //  - Fahrt-Startanker nur auf Fahrzeug-Tempo (keine Gehzeit zum Auto)
+        //  - App-Tracking: Fremd-Session-Ende blockiert Start nicht mehr
+        //  - „Ruhiger Start"-Block entfernt; Ziel-Überschreitung rot + ⚠
+        //  - DB v48 source_app_package, Timeline mit App-Icon/-Name + Uhren
+        //  - 2x1-Homescreen-Widget (Duolingo) mit Start/Stopp + Picker
+        versionCode = 44
+        versionName = "1.0.43"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

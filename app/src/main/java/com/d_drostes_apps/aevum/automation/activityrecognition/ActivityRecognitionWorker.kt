@@ -101,7 +101,10 @@ class ActivityRecognitionWorker(
         // AR-Cluster da ist (DriveProbeWorker-Pfad — Fahrt begann ohne
         // Google-IN_VEHICLE-Event). Start = ältester Probe im Fenster.
         val effectiveCluster = cluster ?: if (confirmed) {
-            DriveDetectionEngine.toVehicleCluster(bridge.currentDriveProbes())
+            DriveDetectionEngine.toVehicleCluster(
+                bridge.currentDriveProbes(),
+                anchorMinSpeedMps = DriveDetectionEngine.MIN_DRIVE_ANCHOR_SPEED_MPS
+            )
         } else null
 
         // M18.45: Bestätigungs-Gate gilt nur für einen Start-Cluster.
@@ -1408,7 +1411,8 @@ class ActivityTransitionReceiver : android.content.BroadcastReceiver() {
                             // Spread); sonst startet die Session bei `now`
                             // (im Worker-Lauf).
                             val burstCluster = DriveDetectionEngine.toVehicleCluster(
-                                bridge.currentDriveProbes(), now
+                                bridge.currentDriveProbes(), now,
+                                anchorMinSpeedMps = DriveDetectionEngine.MIN_DRIVE_ANCHOR_SPEED_MPS
                             )
                             if (burstCluster != null) {
                                 bridge.addSample(burstCluster.startMs, 75)

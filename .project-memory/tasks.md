@@ -180,3 +180,10 @@
       bindet Nachbarport; ihr Fenster lag über der ersten — „tote" UI war
       nur die Instanz ohne API-Traffic; Settings-Blob-Persist einer
       Altinstanz überschreibt außerdem die Datei komplett).
+
+- [x] M23 (App 1.0.43, vc 44): Fahrt-Vorlauf (Fahrzeug-Anker statt ältester
+      Bewegungs-Probe), App-Tracking-Zuverlässigkeit (Fremd-Session-Ende),
+      „Ruhiger Start" entfernt, Ziel-Überschreitung rot+⚠, DB v48
+      `source_app_package` + Timeline-App-Icon/Name + Uhren/Zeitstrahl,
+      2x1-Homescreen-Widget (Duolingo) mit Start/Stopp, Activity-Picker und
+      Maskottchen, Status-Refresh nach Settings-Rückkehr.

@@ -30,6 +30,7 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 - **Goals** — erreiche deine Ziele, gemessen an der Positivität deiner Aktivitäten
 
 ### 🎨 Eigenständig & persönlich
+- **2x1-Homescreen-Widget** im Duolingo-Stil: zeigt BEREIT/LÄUFT/PAUSIERT + Timer, startet per Auswahl-Popup und stoppt per Knopfdruck — mit Maskottchen, wenn aktiviert
 - Eigene Aktivitäten anlegen: **Icon, Farbe, Kategorie, Positivitäts-Score** frei wählbar
 - **Löschen mit Konzept** — Activity löschen, Aufzeichnungen umbuchen oder komplett entfernen
 - Benachrichtigungen mit **individuellem Muster-Hintergrund** (Farbverlauf + Diagonal-Streifen, einzigartig pro Aktivität)

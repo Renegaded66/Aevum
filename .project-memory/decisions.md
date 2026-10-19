@@ -384,3 +384,36 @@ Fenster lag oben) führten zu einer scheinbar „eingefrorenen" UI — Test-
 Fallstrick, kein App-Bug: Einstellungs-Blob wird beim Persist komplett
 geschrieben (alte In-Memory-Sprache einer Altinstanz überschrieb die
 Datei).
+
+---
+
+## M23 (19.10.2026) — Fahrt-Anker, Widget, Timeline-Herkunft
+
+**Fahrt-Startanker:** `toVehicleCluster` bekommt einen optionalen Fahrzeug-
+Anker (≥ 3,0 m/s, zwei Probes in 90 s). **Alternative:** AR-ENTER-Zeitstempel
+als einzigen Start nehmen — verworfen, weil dann die GPS-Rückdatierung für
+„Fahrt begann vor der Erkennung" verloren ginge. **Preis:** Bei Stop&Go ohne
+Speed-Feld startet die Fahrt am jüngsten statt am ältesten Probe (Sekunden
+später, nie Minuten Gehzeit vorher).
+
+**App-Tracking-Zuverlässigkeit:** Der Fremd-Session-Zweig merkt sich die
+getrackte App NICHT mehr als „aktuell". **Alternative:** `onRepeatedForeground`
+bei „nichts live" auf START_APP erweitern — verworfen, weil das einen bewusst
+manuell gestoppten Zustand sofort wieder starten würde. **Preis:** Bei jeder
+Fremd-Session wird der Vordergrund-Zustand erneut bewertet (billig, 2-s-Poll).
+
+**Widget:** RemoteViews + eigener Updater, Timer-Takt vom LiveActivityService.
+**Alternative:** Glance — verworfen, weil die App kein Glance/Compose-Remote-
+Views-Setup hat und ein zusätzliches Compose-Runtime-Modul für 2x1 Overhead
+wäre. **Preis:** Layout ist XML/RemoteViews (keine Composables, keine
+Animation), Maskottchen wird als statische Bitmap gezeichnet und gecacht.
+
+**Timeline-Herkunft:** neue nullable Spalte `source_app_package` (DB v48)
+statt Parsing der Notiz. **Alternative:** Paketname in `note` — verworfen,
+weil Notizen nutzersichtbar/bearbeitbar sind und alte Sessions sonst nicht
+eindeutig zuordenbar wären. **Preis:** eine Migration und ein zusätzliches
+Feld im Serialisierungs-/Exportpfad.
+
+**Ziel-Überschreitung:** Farbe + ⚠ statt Text. **Alternative:** „überschritten"
+als Label — verworfen, weil der Nutzer ausdrücklich keine Wörter wollte und
+Farbe/Icons sprachunabhängig sind.

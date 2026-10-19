@@ -111,7 +111,10 @@ class GoalV47MigrationTest {
                 AppDatabase.MIGRATION_43_44,
                 AppDatabase.MIGRATION_44_45,
                 AppDatabase.MIGRATION_45_46,
-                AppDatabase.MIGRATION_46_47
+                AppDatabase.MIGRATION_46_47,
+                // M23: Room validiert gegen das AKTUELLE Schema (v48) —
+                // die Kette muss bis zur aktuellen Version durchlaufen.
+                AppDatabase.MIGRATION_47_48
             )
             .allowMainThreadQueries()
             .build()
@@ -183,18 +186,18 @@ class GoalV47MigrationTest {
     }
 
     @Test
-    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-Version-47`() {
+    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-aktuelle-Version-48`() {
         createVersion46Database()
         migrate()
 
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(47)
+            assertThat(cursor.getInt(0)).isEqualTo(48)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(47).readText())
+            val expected = JSONObject(schemaFile(48).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }

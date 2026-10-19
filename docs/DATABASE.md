@@ -161,6 +161,7 @@ Kanonische Lebenszeit. Diese Tabelle ist die Grundlage für Timeline, Dashboard,
 | `deleted_at` | INTEGER NULL | Soft Delete für Restore/Sync |
 | `revision` | INTEGER | Optimistic Sync/Merge später |
 | `origin_device_id` | TEXT NULL | Multi-Device später |
+| `source_app_package` | TEXT NULL | Ursprungs-App einer App-Aufzeichnung (M23, v48) |
 
 Wichtige Regeln:
 

@@ -83,6 +83,7 @@ import com.d_drostes_apps.aevum.ui.components.positivityColor
 import com.d_drostes_apps.aevum.ui.components.shimmering
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityState
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalAccents
+import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationEvent
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationOverlay
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
@@ -826,11 +827,20 @@ private fun DashboardGoalRow(
     onUndo: (String) -> Unit,
     onOpen: (String) -> Unit
 ) {
-    val accent = GoalAccents.resolve(
-        key = goal.goal.accent,
-        activityColor = goal.activityColorLong,
-        fallback = MaterialTheme.colorScheme.secondary
-    )
+    // M23: Höchstgrenze überschritten = Ziel heute NICHT erreicht. Das
+    // Dashboard zeigt das ohne Worte: roter Akzent, Warnsymbol, roter
+    // Balken und ein leicht rot getönter Zeilenhintergrund.
+    val isAtMost = goal.goal.type == GoalProgressAnalytics.TYPE_AT_MOST
+    val overLimit = isAtMost && goal.currentValue > goal.goal.targetValue
+    val accent = if (overLimit) {
+        MaterialTheme.colorScheme.error
+    } else {
+        GoalAccents.resolve(
+            key = goal.goal.accent,
+            activityColor = goal.activityColorLong,
+            fallback = MaterialTheme.colorScheme.secondary
+        )
+    }
     // Weiches Einlaufen des Balkens — beim Abhaken und bei Daten-Updates.
     val animatedProgress by animateFloatAsState(
         targetValue = goal.progress.coerceIn(0f, 1f),
@@ -844,8 +854,12 @@ private fun DashboardGoalRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (overLimit) MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
+                else Color.Transparent
+            )
             .clickable { onOpen(goal.goal.id) }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp, horizontal = if (overLimit) 6.dp else 0.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
@@ -874,11 +888,21 @@ private fun DashboardGoalRow(
                     color = accent
                 )
             }
+            if (overLimit) {
+                // Bewusst ein Symbol statt „überschritten": sofort lesbar,
+                // sprachunabhängig, ohne zusätzlichen Text.
+                Text(
+                    "⚠",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             Text(
                 goal.progressText,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (overLimit) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (isManual) {
                 GoalQuickCheckButton(
@@ -891,7 +915,8 @@ private fun DashboardGoalRow(
         GoalShimmerBar(
             progress = animatedProgress,
             accent = accent,
-            met = goal.isMet
+            met = goal.isMet,
+            overLimit = overLimit
         )
         if (isManual && goal.todayCheckins > 0) {
             Row(
@@ -947,13 +972,21 @@ private fun GoalQuickCheckButton(
  * Glanz schneller und stärker — der „Dopamin"-Effekt.
  */
 @Composable
-private fun GoalShimmerBar(progress: Float, accent: Color, met: Boolean) {
+private fun GoalShimmerBar(
+    progress: Float,
+    accent: Color,
+    met: Boolean,
+    overLimit: Boolean = false
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(10.dp)
             .clip(RoundedCornerShape(AevumRadius.full))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            .background(
+                if (overLimit) MaterialTheme.colorScheme.error.copy(alpha = 0.16f)
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+            )
     ) {
         if (progress > 0f) {
             Box(
@@ -963,14 +996,35 @@ private fun GoalShimmerBar(progress: Float, accent: Color, met: Boolean) {
                     .clip(RoundedCornerShape(AevumRadius.full))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(accent.copy(alpha = 0.78f), accent)
+                            if (overLimit) {
+                                // Überschritten: satter Warn-Rot-Verlauf statt
+                                // Ziel-Akzent — Farbe allein sagt „nicht erreicht“.
+                                listOf(
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.error
+                                )
+                            } else {
+                                listOf(accent.copy(alpha = 0.78f), accent)
+                            }
                         )
                     )
                     .shimmering(
                         enabled = true,
-                        periodMillis = if (met) 2200 else 3800,
-                        intensity = if (met) 0.45f else 0.22f
+                        periodMillis = if (overLimit) 1400 else if (met) 2200 else 3800,
+                        intensity = if (overLimit) 0.32f else if (met) 0.45f else 0.22f
                     )
+            )
+        }
+        if (overLimit) {
+            // Kleiner weißer Endpunkt markiert die Grenze — wie ein
+            // überlaufender Pegel, auch bei 100 % noch sichtbar.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 2.dp)
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.9f))
             )
         }
     }

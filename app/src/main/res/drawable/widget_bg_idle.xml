@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M23: Widget-Hintergrund „bereit" — warmes Duolingo-Creme. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFF8E7" />
+    <corners android:radius="22dp" />
+    <stroke
+        android:width="2dp"
+        android:color="#58CC02" />
+</shape>

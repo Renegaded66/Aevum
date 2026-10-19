@@ -297,3 +297,45 @@ Kacheln, Güte-Gauge, Aufnahme-Bereich, Tagesleiste) gepinnt stehen; nur
 die Karten-Fläche (Sheet) rutscht darüber. Der Aufnahme-Banner
 (Blubber-Bläschen, Timer, Pause/Wechsel/Stop) sitzt direkt unter dem
 Güte-Gauge; die frühere Headline-Zeile ist entfernt.
+
+## M23 — Widget, Timeline-Herkunft, Fahrt-Vorlauf (App 1.0.43)
+
+### 2x1-Homescreen-Widget „Aevum-Aufzeichnung"
+
+- **Immer sichtbarer Zustand:** BEREIT / LÄUFT · Timer / PAUSIERT. Der Timer
+  zeigt Sekunden (unter 1 h `MM:SS`, darüber `H:MM:SS`).
+- **Start:** grüner ▶-Knopf öffnet ein Duolingo-farbiges Auswahl-Popup
+  (Favoriten zuerst, dann alle Aktivitäten, jeweils mit Icon/Farbe). Ein Tipp
+  startet sofort.
+- **Stopp:** roter ■-Knopf beendet die laufende Session direkt; Auto-Quellen
+  werden zurückgesetzt (Fahrterkennung/Walking), wie beim Notification-Stopp.
+- **Maskottchen:** bei aktivierter Einstellung als gezeichnete 30-dp-Figur im
+  Widget und größer im Auswahl-Popup; sonst bleibt der Platz für Text frei.
+- **Duolingo-Stil:** Creme/Grün im Ruhezustand, dunkler Grün-Verlauf mit
+  leuchtendem Rahmen während der Aufzeichnung, runde dicke Knöpfe.
+- **Aktualisierung:** über den bereits laufenden `LiveActivityService`
+  (1 s bei Bildschirm an, 10 s aus). Kein zusätzlicher AlarmManager, kein
+  WorkManager-Tick; ohne laufende Session keine Kosten.
+
+### Timeline — Herkunft und Zeitfenster
+
+- App-Aufzeichnungen speichern `activity_session.source_app_package` (DB v48)
+  und zeigen in der Listenansicht „📱 <App-Name>"; die Detailseite hat eine
+  Karte „Gestartet von" mit echtem App-Icon + Namen.
+- Start/Ende werden als zwei analoge Uhren plus 24-h-Zeitstrahl dargestellt:
+  farbiges Fensterband, Start-/Endmarker, Jetzt-Linie. Die früheren doppelten
+  Start-/Ende-Kacheln entfallen.
+
+### Dashboard — Ziele und Ruhe
+
+- **Höchstgrenze überschritten:** `AT_MOST`-Ziel über Limit → rote Zeile,
+  roter Punkt/Balken, ⚠-Symbol. Bewusst ohne zusätzliche Worte.
+- **„Ruhiger Start" entfernt:** Ohne offene Reflexionen bleibt der
+  Insight-Block leer (kein Platzhaltertext mehr).
+
+### Fahrt-Erkennung — kein Geh-Vorlauf
+
+- Der Startanker einer Fahrt verlangt zwei Probes mit ≥ 3,0 m/s innerhalb von
+  90 s. Geh-Probes (1,0–1,8 m/s) im 15-Minuten-Puffer können die Fahrt nicht
+  mehr zurückdatieren. Ohne Fahrzeug-Probe startet die Fahrt am jüngsten
+  Probe (lieber Sekunden zu spät als Minuten Gehzeit davor).

@@ -241,6 +241,28 @@
             android:taskAffinity="com.d_drostes_apps.aevum.switch"
             android:launchMode="singleTask" />
 
+        <!-- M23: Aktivitäts-Auswahl des Homescreen-Widgets (Duolingo-Popup). -->
+        <activity
+            android:name=".widget.WidgetStartActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Aevum.Translucent"
+            android:taskAffinity="com.d_drostes_apps.aevum.widget"
+            android:launchMode="singleTop" />
+
+        <!-- M23: 2x1-Homescreen-Widget „Aevum-Aufzeichnung". -->
+        <receiver
+            android:name=".widget.AevumWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/aevum_widget_info" />
+        </receiver>
+
         <!-- M18.61: Digital Balance — Sperr-Service (Overlay) -->
         <service
             android:name=".domain.digital.AppBlockService"

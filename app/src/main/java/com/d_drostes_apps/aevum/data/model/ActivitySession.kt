@@ -93,7 +93,11 @@ data class ActivitySession(
     // berücksichtigt (Güte + Dauer), aber NICHT in der Timeline angezeigt.
     // startAt = Tagesbeginn, endAt = startAt + duration. Der Nutzer will
     // manchmal nur "30 min Sport" erfassen ohne Uhrzeit.
-    @ColumnInfo(name = "exclude_from_timeline", defaultValue = "0") val excludeFromTimeline: Boolean = false
+    @ColumnInfo(name = "exclude_from_timeline", defaultValue = "0") val excludeFromTimeline: Boolean = false,
+    // M23: Ursprungs-App einer automatischen App-Aufzeichnung
+    // (sourceType = APP_TRACKING). Paketname für Icon + Name in der
+    // Timeline; null bei allen anderen Quellen und bei Altdaten.
+    @ColumnInfo(name = "source_app_package") val sourceAppPackage: String? = null
 ) : Serializable {
     /** Is this session currently running or paused (i.e. not finished)? */
     val isLive: Boolean get() = sessionStatus == "RUNNING" || sessionStatus == "PAUSED"

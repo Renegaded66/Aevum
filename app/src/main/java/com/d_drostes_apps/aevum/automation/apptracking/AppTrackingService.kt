@@ -226,7 +226,13 @@ class AppTrackingService : Service() {
         private const val EVENT_QUERY_MAX_MS = 6L * 60 * 60 * 1000
         // M20: Re-Baseline-Intervall, wenn der Faltungs-Zustand leer ist
         // (Selbstheilung via [ForegroundAppProbe]-Weitfenster).
-        private const val REBASELINE_INTERVAL_MS = 120_000L
+        // M23 (Devon: „noch nicht 100 Prozent zuverlässig"): 120 s → 30 s.
+        // Die Rebaseline ist der Selbstheilungs-Pfad, wenn der Vordergrund-
+        // Zustand leer hängt (verlorene Events). 2 Minuten bedeuteten im
+        // schlimmsten Fall 2 Minuten ohne App-Aufzeichnung, obwohl die App
+        // längst offen war. Läuft nur, solange `fg == null` (Homescreen) —
+        // also nicht im Normalfall einer offenen App.
+        private const val REBASELINE_INTERVAL_MS = 30_000L
         // M20: Ab dieser Poll-Stille gilt ein LEBENDER Service als „hängt"
         // (Poll-Takt ist 2 s; bei ausgeschaltetem Bildschirm ist Stille normal
         // und wird von [isPollFresh] gesondert behandelt).
@@ -836,8 +842,19 @@ class AppTrackingService : Service() {
             AppTrackingTakeoverPolicy.Action.KEEP_FOREIGN -> {
                 // Geofence/Fahrt/Sport/manuell/Kalender läuft → NICHTS
                 // anfassen (User-Rangfolge). Auch kein Start.
-                Log.d(TAG, "Fremde Session läuft (source=${live?.sourceType}) — kein Auto-Start für $foreground (Rangfolge)")
-                currentTrackedApp = foreground
+                //
+                // M23 (Devon: „funktioniert … immer noch nicht 100 Prozent
+                // zuverlässig"): NICHT als „aktuell" merken! Vorher setzte
+                // dieser Zweig currentTrackedApp = foreground. Endete die
+                // fremde Session, während die getrackte App weiterhin im
+                // Vordergrund war, lief der nächste Poll in den
+                // „gleiche App"-Zweig — onRepeatedForeground sah keine
+                // Live-Session und tat NICHTS. Die App-Aufzeichnung startete
+                // erst, wenn der Nutzer die App verließ und erneut öffnete.
+                // Mit currentTrackedApp = null wird der Zustand bei jedem
+                // Poll neu bewertet und startet, sobald die fremde Session
+                // endet — ohne die App erneut öffnen zu müssen.
+                currentTrackedApp = null
                 return
             }
             AppTrackingTakeoverPolicy.Action.TAKE_OVER_DIGITAL -> {
@@ -893,7 +910,10 @@ class AppTrackingService : Service() {
             val session = liveActivityManager.start(
                 activityTypeId = typeId,
                 title = null,
-                sourceType = AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING
+                sourceType = AppTrackingTakeoverPolicy.SOURCE_APP_TRACKING,
+                // M23: Ursprungs-App mitschreiben — die Timeline zeigt
+                // „Gestartet von <Icon> <Name>".
+                sourceAppPackage = foreground
             )
             trackedSessionId = session.id
             currentTrackedApp = foreground

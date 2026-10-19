@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -86,6 +87,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -99,6 +101,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
+import java.time.LocalTime
+import kotlin.math.cos
+import kotlin.math.sin
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Tag
@@ -1183,17 +1188,25 @@ fun ActivityDetailScreen(
                 // Grosser Header-Bereich mit Aktivitaets-Icon, Name und Kategorie
                 item { DetailHeaderCard(session, state) }
 
-                // Zeit-Range als grosse Monospace-Anzeige
+                // M23: Zeitfenster als Uhren + Tagesstrahl statt zweier
+                // nackter Statistik-Kacheln (Devon: „richtig hochwertig
+                // modern … vielleicht Uhren oder Zeitstrahl").
                 // M18.102: Nur-Dauer-Sessions haben keine Uhrzeiten —
-                // die Range-Karte wird übersprungen.
+                // die Karte wird übersprungen.
                 if (state.range.isNotEmpty()) {
-                    item { DetailTimeRangeCard(state.range, session) }
+                    item { DetailTimeArcCard(session, state) }
                 }
 
                 // Dauer als hervorgehobene Statistik-Karte
                 item { DetailDurationCard(state.duration, state.activityType?.color ?: 0L) }
 
-                // Statistik-Karten: Startzeit, Endzeit, Quelle
+                // M23: Bei App-Aufzeichnungen die Ursprungs-App mit
+                // echtem Icon + Namen zeigen.
+                if (session.sourceType == "APP_TRACKING" && state.sourceAppLabel != null) {
+                    item { DetailSourceAppCard(state) }
+                }
+
+                // Statistik-Karten: Dauer, Quelle
                 item { DetailStatsGrid(session, state) }
 
                 // Positivitaets-Score als farbiger Balken (falls verfuegbar)
@@ -1347,34 +1360,304 @@ private fun DetailHeaderCard(session: ActivitySession, state: ActivityDetailUiSt
 }
 
 /**
- * Zeit-Range-Karte: Start - Ende als grosse Monospace-Anzeige.
+ * M23: Zeitfenster-Karte — zwei analoge Uhren (Start/Ende), dazwischen
+ * die Range, darunter der 24-h-Tagesstrahl mit markiertem Zeitfenster.
+ *
+ * Ersetzt die alte Monospace-Range-Karte + die doppelten Start/Ende-
+ * Kacheln. Devon: „Die Felder start und Zeit könnten bestimmt richtig
+ * hochwertig modern irgendwie mit Zeit dargestellt werden, vielleicht
+ * Uhren oder Zeitstrahl oder was ganz anderes."
  */
 @Composable
-private fun DetailTimeRangeCard(range: String, session: ActivitySession) {
+private fun DetailTimeArcCard(session: ActivitySession, state: ActivityDetailUiState) {
+    val accent = if (state.activityType?.color != null && state.activityType.color != 0L) {
+        Color(state.activityType.color)
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val zone = ZoneId.systemDefault()
+    val start = remember(session.startAt) {
+        Instant.ofEpochMilli(session.startAt).atZone(zone).toLocalTime()
+    }
+    val end = remember(session.endAt) {
+        session.endAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime() }
+    }
+    val endForDisplay = end ?: Instant.now().atZone(zone).toLocalTime()
+    val dateStr = remember(session.startAt) {
+        Instant.ofEpochMilli(session.startAt).atZone(zone).toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM"))
+    }
+    val startMinute = start.hour * 60 + start.minute
+    val endMinute = endForDisplay.hour * 60 + endForDisplay.minute
+    val rangeText = "${start.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))}–${
+        end?.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+            ?: stringResource(R.string.timeline_detail_running)
+    }"
+
     AevumCard(variant = CardVariant.Filled) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ClockColumn(
+                    hour = start.hour,
+                    minute = start.minute,
+                    label = stringResource(R.string.timeline_detail_clock_start),
+                    accent = accent
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        rangeText,
+                        fontSize = 22.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        dateStr,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                ClockColumn(
+                    hour = endForDisplay.hour,
+                    minute = endForDisplay.minute,
+                    label = if (end == null) stringResource(R.string.timeline_detail_running)
+                    else stringResource(R.string.timeline_detail_clock_end),
+                    accent = accent
+                )
+            }
+
             Text(
-                range,
-                fontSize = 26.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
+                stringResource(R.string.timeline_detail_day_span).uppercase(),
+                fontSize = 9.sp,
+                letterSpacing = 1.2.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            // Datum der Aktivitaet
-            val dateStr = remember(session.startAt) {
-                val ldt = Instant.ofEpochMilli(session.startAt)
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDate()
-                ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d. MMMM"))
+            DaySpanBar(
+                startMinute = startMinute,
+                endMinute = endMinute,
+                isRunning = session.endAt == null,
+                accent = accent
+            )
+        }
+    }
+}
+
+/** Eine Uhr + Label (Start/Ende) für [DetailTimeArcCard]. */
+@Composable
+private fun ClockColumn(hour: Int, minute: Int, label: String, accent: Color) {
+    val clockCenterColor = MaterialTheme.colorScheme.surface
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(modifier = Modifier.size(66.dp)) {
+            val radius = size.minDimension / 2f
+            val center = Offset(size.width / 2f, size.height / 2f)
+            drawCircle(color = accent.copy(alpha = 0.10f), radius = radius)
+            drawCircle(
+                color = accent.copy(alpha = 0.34f),
+                radius = radius,
+                style = Stroke(width = 1.4.dp.toPx())
+            )
+            // 12 Stunden-Ticks; Viertelstunden kräftiger.
+            for (i in 0 until 12) {
+                val angle = Math.toRadians((i * 30).toDouble() - 90.0)
+                val outer = radius - 4.dp.toPx()
+                val inner = if (i % 3 == 0) radius * 0.70f else radius * 0.80f
+                drawLine(
+                    color = accent.copy(alpha = if (i % 3 == 0) 0.55f else 0.28f),
+                    start = Offset(
+                        center.x + (cos(angle) * inner).toFloat(),
+                        center.y + (sin(angle) * inner).toFloat()
+                    ),
+                    end = Offset(
+                        center.x + (cos(angle) * outer).toFloat(),
+                        center.y + (sin(angle) * outer).toFloat()
+                    ),
+                    strokeWidth = if (i % 3 == 0) 1.6.dp.toPx() else 0.9.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+            fun hand(angleDeg: Float, length: Float, width: Float, color: Color) {
+                val angle = Math.toRadians(angleDeg.toDouble() - 90.0)
+                drawLine(
+                    color = color,
+                    start = center,
+                    end = Offset(
+                        center.x + (cos(angle) * length).toFloat(),
+                        center.y + (sin(angle) * length).toFloat()
+                    ),
+                    strokeWidth = width,
+                    cap = StrokeCap.Round
+                )
+            }
+            val hourAngle = ((hour % 12) + minute / 60f) * 30f
+            val minuteAngle = minute * 6f
+            hand(hourAngle, radius * 0.48f, 3.0.dp.toPx(), accent)
+            hand(minuteAngle, radius * 0.70f, 1.6.dp.toPx(), accent.copy(alpha = 0.80f))
+            drawCircle(color = accent, radius = 2.6.dp.toPx(), center = center)
+            drawCircle(
+                color = clockCenterColor,
+                radius = 1.0.dp.toPx(),
+                center = center
+            )
+        }
+        Text(
+            label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = accent
+        )
+    }
+}
+
+/**
+ * M23: 24-Stunden-Strahl — zeigt das Zeitfenster der Aufzeichnung als
+ * farbiges Band im Tagesverlauf, mit Start-/Endmarkern und Jetzt-Linie.
+ */
+@Composable
+private fun DaySpanBar(
+    startMinute: Int,
+    endMinute: Int,
+    isRunning: Boolean,
+    accent: Color
+) {
+    val nowMinute = remember {
+        LocalTime.now().let { it.hour * 60 + it.minute }
+    }
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    val nowLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
+    val runningColor = MaterialTheme.colorScheme.error
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(14.dp)
+        ) {
+            val h = size.height
+            val r = androidx.compose.ui.geometry.CornerRadius(h / 2f)
+            drawRoundRect(
+                color = trackColor,
+                cornerRadius = r
+            )
+            val startFraction = (startMinute.coerceIn(0, 1440)) / 1440f
+            val endFraction = (endMinute.coerceIn(0, 1440)) / 1440f
+            val startX = size.width * startFraction
+            val endX = size.width * endFraction
+            val bandWidth = (endX - startX).coerceAtLeast(3.dp.toPx())
+            drawRoundRect(
+                brush = Brush.horizontalGradient(
+                    listOf(accent.copy(alpha = 0.45f), accent)
+                ),
+                topLeft = Offset(startX, 0f),
+                size = Size(bandWidth, h),
+                cornerRadius = r
+            )
+            drawCircle(
+                color = accent.copy(alpha = 0.55f),
+                radius = 3.dp.toPx(),
+                center = Offset(startX, h / 2f)
+            )
+            drawCircle(
+                color = if (isRunning) runningColor else accent,
+                radius = 3.2.dp.toPx(),
+                center = Offset((startX + bandWidth).coerceAtMost(size.width), h / 2f)
+            )
+            // Jetzt-Linie — nur am heutigen Tag sinnvoll, aber immer
+            // dezent sichtbar (Orientierung im 24-h-Band).
+            val nowX = size.width * (nowMinute / 1440f)
+            drawLine(
+                color = nowLineColor,
+                start = Offset(nowX, 0f),
+                end = Offset(nowX, h),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            listOf("00", "06", "12", "18", "24").forEach { label ->
+                Text(
+                    label,
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * M23: „Gestartet von" — Ursprungs-App einer App-Aufzeichnung mit echtem
+ * App-Icon und Namen.
+ */
+@Composable
+private fun DetailSourceAppCard(state: ActivityDetailUiState) {
+    val label = state.sourceAppLabel ?: return
+    AevumCard(variant = CardVariant.Outlined) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+        ) {
+            val icon = state.sourceAppIcon
+            if (icon != null) {
+                Image(
+                    bitmap = icon,
+                    contentDescription = label,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📱", fontSize = 20.sp)
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.timeline_detail_started_by),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    label,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             Text(
-                dateStr,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                stringResource(R.string.timeline_detail_source_app_tracking),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AevumRadius.full))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
             )
         }
     }
@@ -1422,26 +1705,9 @@ private fun DetailDurationCard(duration: String, activityColorLong: Long) {
  */
 @Composable
 private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiState) {
-    // M18.102: Nur-Dauer-Sessions haben keine Uhrzeiten — Start/Ende-
-    // Kacheln entfallen (nur Dauer + Quelle bleiben). Die Formatter sind
-    // deshalb nur für Nicht-Dauer-Sessions nötig.
-    val isDurationOnly = session.excludeFromTimeline
-    // Formatiere Start- und Endzeit
-    val startTimeStr = remember(session.startAt) {
-        val lt = Instant.ofEpochMilli(session.startAt)
-            .atZone(ZoneId.systemDefault())
-            .toLocalTime()
-        lt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-    }
-    val endTimeStr = remember(session.endAt) {
-        session.endAt?.let { end ->
-            val lt = Instant.ofEpochMilli(end)
-                .atZone(ZoneId.systemDefault())
-                .toLocalTime()
-            lt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-        }
-    }
-    // Quell-Icon und Label bestimmen
+    // M23: Start/Ende stehen jetzt in der Uhr-/Zeitstrahl-Karte
+    // ([DetailTimeArcCard]) — hier bleiben nur Dauer und Quelle. Das
+    // vermeidet die doppelte Anzeige derselben Zeiten.
     val (sourceIcon, sourceLabel) = when (session.sourceType) {
         "MANUAL" -> "\u270F\uFE0F" to stringResource(R.string.timeline_detail_source_manual)
         "GEOFENCE_AUTO" -> "\uD83D\uDCCD" to stringResource(R.string.timeline_detail_source_geofence)
@@ -1450,45 +1716,26 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
         "WALKING_AUTO" -> "\uD83D\uDEB6" to stringResource(R.string.timeline_detail_source_walking_auto)
         // M18.129: Kalender-gesteuerte Aufzeichnung (Termin-Start/-Ende)
         "CALENDAR_AUTO" -> "\uD83D\uDCC5" to stringResource(R.string.timeline_detail_source_calendar_auto)
+        // M23: App-Aufzeichnung — Name der Ursprungs-App statt Roh-Source.
+        "APP_TRACKING" -> "\uD83D\uDCF1" to (
+            state.sourceAppLabel ?: stringResource(R.string.timeline_detail_source_app_tracking)
+        )
         else -> "\uD83D\uDCE5" to session.sourceType
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-        // M18.102: Nur-Dauer-Sessions haben keine Uhrzeiten — die
-        // Start/Ende-Kacheln entfallen komplett.
-        if (!isDurationOnly) {
-            // Reihe 1: Startzeit und Endzeit
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                DetailStatCard(
-                    icon = "\uD83D\uDD51",
-                    label = stringResource(R.string.timeline_detail_start),
-                    value = startTimeStr,
-                    modifier = Modifier.weight(1f)
-                )
-                DetailStatCard(
-                    icon = "\uD83D\uDD52",
-                    label = if (session.endAt == null) stringResource(R.string.timeline_detail_running)
-                    else stringResource(R.string.timeline_detail_end),
-                    value = endTimeStr ?: stringResource(R.string.timeline_detail_open),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        // Reihe 2: Dauer und Quelle
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            DetailStatCard(
-                icon = "\u23F1",
-                label = stringResource(R.string.timeline_detail_duration),
-                value = state.duration,
-                modifier = Modifier.weight(1f)
-            )
-            DetailStatCard(
-                icon = sourceIcon,
-                label = stringResource(R.string.timeline_detail_source),
-                value = sourceLabel,
-                modifier = Modifier.weight(1f)
-            )
-        }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+        DetailStatCard(
+            icon = "\u23F1",
+            label = stringResource(R.string.timeline_detail_duration),
+            value = state.duration,
+            modifier = Modifier.weight(1f)
+        )
+        DetailStatCard(
+            icon = sourceIcon,
+            label = stringResource(R.string.timeline_detail_source),
+            value = sourceLabel,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
@@ -2603,8 +2850,15 @@ private fun EventListTimeline(
                             detail = "${entry.session.range} · ${entry.session.duration}",
                             accent = if (entry.session.activityColor != 0L) Color(entry.session.activityColor) else positivityColor(entry.session.positivityScore),
                             icon = entry.session.activityIcon,
-                            kind = if (entry.session.isAuto) stringResource(R.string.timeline_kind_auto)
-                            else stringResource(R.string.common_captured),
+                            kind = when {
+                                // M23: Bei App-Aufzeichnungen steht die
+                                // Ursprungs-App direkt in der Zeile.
+                                entry.session.source == "APP_TRACKING" &&
+                                    entry.session.sourceAppLabel != null ->
+                                    "📱 ${entry.session.sourceAppLabel}"
+                                entry.session.isAuto -> stringResource(R.string.timeline_kind_auto)
+                                else -> stringResource(R.string.common_captured)
+                            },
                             isLive = entry.session.isRunning,
                             // AEVUM-3: Override-Hinweis („Güte ✎") bei manuell
                             // angepasster Aufzeichnung.

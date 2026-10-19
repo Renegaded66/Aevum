@@ -1,0 +1,20 @@
+<resources>
+    <!-- M23: Homescreen-Widget (2x1) im Duolingo-Stil. -->
+    <string name="widget_name">Aevum-Aufzeichnung</string>
+    <string name="widget_description">Zeigt, ob eine Aktivität aufgezeichnet wird — mit Timer, Start/Stopp und Aktivitätsauswahl.</string>
+    <string name="widget_status_idle">BEREIT</string>
+    <string name="widget_status_running">LÄUFT</string>
+    <string name="widget_status_paused">PAUSIERT</string>
+    <string name="widget_idle_title">Starten</string>
+    <string name="widget_paused_title">Pausiert</string>
+    <string name="widget_cd_start">Aufzeichnung starten</string>
+    <string name="widget_cd_stop">Aufzeichnung stoppen</string>
+    <string name="widget_cd_open">Aevum öffnen</string>
+    <string name="widget_picker_title">Was möchtest du starten?</string>
+    <string name="widget_picker_subtitle">Tippe eine Aktivität an — die Aufzeichnung startet sofort.</string>
+    <string name="widget_picker_cancel">Abbrechen</string>
+    <string name="widget_picker_running">Läuft gerade: %1$s</string>
+    <string name="widget_picker_stop">Laufende Aufzeichnung stoppen</string>
+    <string name="widget_empty_activities">Noch keine Aktivitäten</string>
+    <string name="widget_no_app">Aktivität</string>
+</resources>
