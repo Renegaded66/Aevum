@@ -59,5 +59,17 @@ data class AutomationSettings(
     // Default AN: Es ist die vom User gewünschte Sofort-Reaktion; die
     // Wirksamkeit hängt ohnehin an der ACTIVITY_RECOGNITION-Berechtigung
     // (Step-Detector, API 29+), die die UI als Gate anzeigt.
-    @ColumnInfo(name = "walk_stop_on_steps_enabled", defaultValue = "1") val walkStopOnStepsEnabled: Boolean = true
+    @ColumnInfo(name = "walk_stop_on_steps_enabled", defaultValue = "1") val walkStopOnStepsEnabled: Boolean = true,
+    // M26: Anruf-Erkennung (User-Spezifikation: „Aevum neue Erkennung. Und
+    // zwar Anruf-Erkennung. Sollte in den Einstellungen erlaubt werden, so
+    // wie die anderen Berechtigungen. Und dann eine Zuweisung der Activity.
+    // Default sozial (auf deutsch).") — während ein Anruf läuft, wird die
+    // zugeordnete Aktivität direkt aufgezeichnet. Default AUS: READ_PHONE_STATE
+    // ist eine dangerous-Permission, die der Nutzer bewusst erteilt.
+    @ColumnInfo(name = "call_detection_enabled", defaultValue = "0") val callDetectionEnabled: Boolean = false,
+    // Zugeordnete Aktivität. Default 'social' = System-Typ „Soziales"
+    // (values-de/strings_seeds.xml, EN „Social") — der User hat „sozial"
+    // als Vorgabe genannt. Fällt der Typ weg (vom Nutzer gelöscht), greift
+    // im LiveActivityManager der bestehende Fallback auf „other".
+    @ColumnInfo(name = "call_activity_type_id", defaultValue = "social") val callActivityTypeId: String = "social"
 ) : Serializable

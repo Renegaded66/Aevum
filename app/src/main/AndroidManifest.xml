@@ -53,6 +53,17 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <!--
+        M26: Anruf-Erkennung — lesender Zugriff auf den Anrufzustand
+        (klingelt / Gespräch läuft / kein Anruf). READ_PHONE_STATE ist eine
+        dangerous-Permission und wird zur Laufzeit angefragt (Trigger-
+        Einstellungen → Berechtigungen, 4-State-Flow mit
+        Erklärungsdialog). Die App liest AUSSCHLIESSLICH den Zustand:
+        keine Rufnummer, kein Verlauf, keine Kontakte (kein READ_CALL_LOG,
+        kein READ_CONTACTS, kein ANSWER_PHONE_CALLS).
+    -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!--
         M12.2: PACKAGE_USAGE_STATS is a "protected permission" — it cannot be granted
         at runtime via requestPermissions(). The user must enable it manually in
         Settings → Apps → Special access → Usage access. Declaring the permission
@@ -229,6 +240,22 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="active_activity_session_display" />
+        </service>
+
+        <!-- M26: Anruf-Erkennung — Telefonie-Callback im laufenden Prozess.
+             Ein Manifest-Receiver für android.intent.action.PHONE_STATE
+             bekommt den Broadcast seit Android 8 nicht mehr zuverlässig
+             (nicht auf der Implicit-Broadcast-Ausnahmeliste), deshalb ein
+             Vordergrunddienst vom Typ "specialUse" mit
+             TelephonyManager.registerTelephonyCallback. Es werden KEINE
+             Rufnummern gelesen — nur der Zustand (IDLE/RINGING/OFFHOOK). -->
+        <service
+            android:name=".automation.call.CallDetectionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="call_state_detection" />
         </service>
 
         <!-- M18.19: Wechsel-Popup — transparente Dialog-Activity,

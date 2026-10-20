@@ -1522,7 +1522,9 @@ val AUTO_SOURCES: Set<String> = setOf(
     // M18.129: Kalender-gesteuerte Aufzeichnungen (Termin-Start/-Ende).
     // Gleiche Auto-Markierung — die Timeline zeigt sie mit dem Auto-Hinweis,
     // und das Dashboard behandelt sie wie jede andere automatische Quelle.
-    "CALENDAR_AUTO"
+    "CALENDAR_AUTO",
+    // M26: Anruf-Erkennung — während eines Gesprächs automatisch gestartet.
+    "CALL_AUTO"
 )
 
 data class TriggerEventUi(

@@ -269,6 +269,24 @@ fun TriggerSettingsScreen(
         viewModel.refreshPermissions()
     }
 
+    // M26: Anruf-Erkennung (READ_PHONE_STATE) — „so wie die anderen
+    // Berechtigungen": Grant schaltet den Trigger sofort scharf (zweite
+    // Verdrahtungsstelle, sonst bliebe der Schalter trotz Grant aus).
+    val callLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            PermissionDisclosureMemory.clearDenied(context, PermissionDisclosureKind.CALLS)
+            if (pendingTrigger == "call_detection") {
+                viewModel.setCallDetection(true)
+            }
+            pendingTrigger = null
+        } else {
+            PermissionDisclosureMemory.markDenied(context, PermissionDisclosureKind.CALLS)
+        }
+        viewModel.refreshPermissions()
+    }
+
     // ── M18.139: Ausführung der gemerkten Standort-Aktion ────────────────
     // Läuft NUR nach bestätigter Offenlegung (siehe disclosureGate).
     fun runLocationAction(action: DisclosureGate.Action) {
@@ -342,6 +360,16 @@ fun TriggerSettingsScreen(
             // Kalender wird nicht in diesem Screen angefragt (eigener Screen
             // mit eigener Erklärung) — defensiv in die App-Einstellungen.
             PermissionDisclosureKind.CALENDAR -> openAppSettings(context)
+
+            // M26: Anruf-Erkennung. Zeigt Android keinen Systemdialog mehr
+            // (nach zweimaliger Ablehnung), landet der Nutzer in den
+            // App-Einstellungen statt in einem stillen No-Op.
+            PermissionDisclosureKind.CALLS ->
+                if (willShowSystemDialog(context, PermissionDisclosureKind.CALLS)) {
+                    callLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                } else {
+                    openAppSettings(context)
+                }
         }
     }
 
@@ -435,6 +463,7 @@ fun TriggerSettingsScreen(
                     activityRecognitionGranted = state.activityRecognitionGranted,
                     notificationsGranted = state.notificationsGranted,
                     usageStatsGranted = state.usageStatsGranted,
+                    callDetectionGranted = state.callDetectionGranted,
                     onRequestForeground = {
                         requestLocationAccess(DisclosureGate.Action.REQUEST_FOREGROUND_LOCATION)
                     },
@@ -456,6 +485,10 @@ fun TriggerSettingsScreen(
                             PermissionDisclosureKind.USAGE_ACCESS,
                             alreadyGranted = state.usageStatsGranted
                         )
+                    },
+                    // M26: Anruf-Erkennung — Erklärung vor dem Systemdialog.
+                    onRequestCalls = {
+                        requestPermission(PermissionDisclosureKind.CALLS)
                     }
                 )
             }
@@ -563,6 +596,32 @@ fun TriggerSettingsScreen(
                             }
                         )
                     )
+                )
+            }
+
+            // ── Anruf (M26) ─────────────────────────────────────────
+            // Anruf-Erkennung: während ein Gespräch läuft, wird die
+            // zugeordnete Aktivität aufgezeichnet. Der Toggle ist an die
+            // READ_PHONE_STATE-Berechtigung gebunden (gleiches Muster wie
+            // die Bewegungs-Trigger: ohne Grant führt der Klick in den
+            // Erklärungsdialog, kein stiller Fehlschlag).
+            item {
+                val activityTypes by viewModel.activityTypes.collectAsState()
+                CallDetectionCard(
+                    enabled = state.settings.callDetectionEnabled,
+                    selectedTypeId = state.settings.callActivityTypeId,
+                    activityTypes = activityTypes,
+                    permissionGranted = state.callDetectionGranted,
+                    onToggle = { wanted ->
+                        viewModel.setCallDetection(wanted)
+                    },
+                    onSelectType = { typeId ->
+                        viewModel.setCallActivity(typeId)
+                    },
+                    onRequestPermission = {
+                        pendingTrigger = "call_detection"
+                        requestPermission(PermissionDisclosureKind.CALLS)
+                    }
                 )
             }
 
@@ -678,11 +737,14 @@ private fun PermissionStatusCard(
     activityRecognitionGranted: Boolean,
     notificationsGranted: Boolean,
     usageStatsGranted: Boolean,
+    // M26: Anruf-Erkennung
+    callDetectionGranted: Boolean,
     onRequestForeground: () -> Unit,
     onRequestBackground: () -> Unit,
     onRequestActivityRecognition: () -> Unit,
     onRequestNotifications: () -> Unit,
-    onOpenUsageAccess: () -> Unit
+    onOpenUsageAccess: () -> Unit,
+    onRequestCalls: () -> Unit
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)) {
@@ -702,6 +764,10 @@ private fun PermissionStatusCard(
             PermissionStatusRow(stringResource(R.string.settings_triggers_permission_activity), activityRecognitionGranted, onRequestActivityRecognition)
             PermissionStatusRow(stringResource(R.string.settings_triggers_permission_notifications), notificationsGranted, onRequestNotifications)
             PermissionStatusRow(stringResource(R.string.settings_triggers_permission_usage), usageStatsGranted, onOpenUsageAccess)
+            // M26: Anruf-Erkennung (READ_PHONE_STATE) — „so wie die anderen
+            // Berechtigungen": gleiche Zeile, gleicher Erklärungsdialog,
+            // gleicher Status (fehlt = rot, erteilt = grün).
+            PermissionStatusRow(stringResource(R.string.settings_triggers_permission_calls), callDetectionGranted, onRequestCalls)
         }
     }
 }
@@ -1209,7 +1275,9 @@ class TriggerSettingsViewModel @Inject constructor(
         val backgroundGranted: Boolean = false,
         val activityRecognitionGranted: Boolean = false,
         val notificationsGranted: Boolean = false,
-        val usageStatsGranted: Boolean = false
+        val usageStatsGranted: Boolean = false,
+        // M26: Anruf-Erkennung (READ_PHONE_STATE)
+        val callsGranted: Boolean = false
     )
 
     private data class UiExtras(
@@ -1245,6 +1313,7 @@ class TriggerSettingsViewModel @Inject constructor(
             activityRecognitionGranted = extras.perms.activityRecognitionGranted,
             notificationsGranted = extras.perms.notificationsGranted,
             usageStatsGranted = extras.perms.usageStatsGranted,
+            callDetectionGranted = extras.perms.callsGranted,
             geofenceCount = geofences.size,
             triggerCount = triggers.size,
             pendingCandidateCount = candidates.size,
@@ -1260,7 +1329,8 @@ class TriggerSettingsViewModel @Inject constructor(
             backgroundGranted = perms.backgroundGranted,
             activityRecognitionGranted = has(Manifest.permission.ACTIVITY_RECOGNITION),
             notificationsGranted = Build.VERSION.SDK_INT < 33 || has(Manifest.permission.POST_NOTIFICATIONS),
-            usageStatsGranted = usageStatsCollector.hasPermission()
+            usageStatsGranted = usageStatsCollector.hasPermission(),
+            callsGranted = has(Manifest.permission.READ_PHONE_STATE)
         )
     }
 
@@ -1577,6 +1647,37 @@ class TriggerSettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * M26: Anruf-Erkennung schalten.
+     *
+     * Zwei Wirkungen: (1) Einstellung persistieren, (2) den Erkennungs-Dienst
+     * sofort starten bzw. stoppen — sonst wirkt der Schalter erst beim
+     * nächsten App-Start („Schalter an, passiert nichts").
+     */
+    fun setCallDetection(enabled: Boolean) {
+        upsert { it.copy(callDetectionEnabled = enabled) }
+        try {
+            if (enabled) {
+                com.d_drostes_apps.aevum.automation.call.CallDetectionService.start(app, "settings-toggle")
+                com.d_drostes_apps.aevum.automation.call.CallDetectionWatchdogWorker.schedule(app)
+            } else {
+                com.d_drostes_apps.aevum.automation.call.CallDetectionService.stop(app)
+            }
+        } catch (e: Exception) {
+            Log.e("TriggerSettings", "Anruf-Erkennung: Dienst-Umschaltung fehlgeschlagen", e)
+        }
+    }
+
+    /**
+     * M26: Zugewiesene Aktivität für Anrufe (Vorgabe „social" = „Soziales").
+     *
+     * Kein Dienst-Neustart nötig: der Dienst liest die Einstellung bei jedem
+     * Gesprächsbeginn frisch (so wirkt eine Änderung auch mitten im Betrieb).
+     */
+    fun setCallActivity(typeId: String) {
+        upsert { it.copy(callActivityTypeId = typeId) }
+    }
+
     private fun upsert(transform: (AutomationSettings) -> AutomationSettings) {
         val current = uiState.value.settings
         val next = transform(current)
@@ -1628,6 +1729,8 @@ data class TriggerSettingsUiState(
     val activityRecognitionGranted: Boolean = false,
     val notificationsGranted: Boolean = false,
     val usageStatsGranted: Boolean = false,
+    // M26: Anruf-Erkennung
+    val callDetectionGranted: Boolean = false,
     val geofenceCount: Int = 0,
     val triggerCount: Int = 0,
     val pendingCandidateCount: Int = 0,
@@ -1801,5 +1904,204 @@ private fun PingTriggerCreateDialog(
             ) { Text(stringResource(R.string.common_create)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
+    )
+}
+
+// ===================== M26: ANRUF-ERKENNUNG =====================
+
+/**
+ * Karte „Anruf-Erkennung" — Schalter + Zuweisung der Aktivität.
+ *
+ * User-Spezifikation: „Anruf-Erkennung. Sollte in den Einstellungen erlaubt
+ * werden, so wie die anderen Berechtigungen. Und dann eine Zuweisung der
+ * Activity. Default sozial (auf deutsch)."
+ *
+ * Aufbau bewusst wie [TriggerToggleRow]: Icon-Badge, Titel, Beschreibung,
+ * Permission-Hinweis (rot/grün), Schalter rechts. Ohne Berechtigung ist der
+ * Schalter gesperrt und ein Klick auf die Zeile startet den Erklärungsdialog
+ * — kein stiller Fehlschlag (Skill-Regel „The Iron Rule").
+ *
+ * Darunter die Zuweisung: eine Zeile mit der aktuell gewählten Aktivität,
+ * die den Auswahl-Dialog öffnet. Der Default kommt aus den Einstellungen
+ * (`callActivityTypeId`, Vorgabe `social` = „Soziales").
+ */
+@Composable
+private fun CallDetectionCard(
+    enabled: Boolean,
+    selectedTypeId: String,
+    activityTypes: List<ActivityType>,
+    permissionGranted: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onSelectType: (String) -> Unit,
+    onRequestPermission: () -> Unit
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val selected = activityTypes.firstOrNull { it.id == selectedTypeId }
+
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Text(
+                stringResource(R.string.settings_triggers_group_calls).uppercase(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (!permissionGranted) Modifier.clickable(onClick = onRequestPermission)
+                        else Modifier
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(CallAccent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📞", fontSize = 18.sp)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(R.string.settings_triggers_call_detection), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stringResource(R.string.settings_triggers_call_detection_desc),
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 15.sp
+                    )
+                    // Gating wie bei den übrigen Triggern: fehlt die
+                    // Berechtigung, bleibt der Schalter aus UND der Grund
+                    // steht in Rot daneben.
+                    if (permissionGranted) {
+                        Text(
+                            stringResource(R.string.settings_triggers_permission_granted),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = PermissionGreen
+                        )
+                    } else {
+                        Text(
+                            stringResource(R.string.settings_triggers_permission_missing),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = PermissionRed
+                        )
+                    }
+                }
+                Switch(
+                    checked = enabled && permissionGranted,
+                    onCheckedChange = onToggle,
+                    enabled = permissionGranted
+                )
+            }
+
+            // Zuweisung der Aktivität (Default „Soziales")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    .clickable { showPicker = true }
+                    .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text(selected?.icon ?: "•", fontSize = 18.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.settings_triggers_call_activity_label),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(selected?.name ?: selectedTypeId, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+                Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Text(
+                stringResource(R.string.settings_triggers_call_activity_hint),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 15.sp
+            )
+        }
+    }
+
+    if (showPicker) {
+        ActivityTypePickerDialog(
+            title = stringResource(R.string.settings_triggers_call_activity_label),
+            activityTypes = activityTypes,
+            selectedTypeId = selectedTypeId,
+            onSelect = { id ->
+                onSelectType(id)
+                showPicker = false
+            },
+            onDismiss = { showPicker = false }
+        )
+    }
+}
+
+/** Farbe der Anruf-Karte (passend zum Kategorie-Pink der „Soziales"-Aktivität). */
+private val CallAccent = Color(0xFFEC407A)
+
+/**
+ * Auswahl-Dialog für genau eine Aktivität (M26).
+ *
+ * Bewusst dieselbe Zeilen-Optik wie die Ping-Auswahl (Icon + Name + Haken),
+ * aber ohne Namens-/IP-Felder — hier wird nur zugewiesen.
+ */
+@Composable
+private fun ActivityTypePickerDialog(
+    title: String,
+    activityTypes: List<ActivityType>,
+    selectedTypeId: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (activityTypes.isEmpty()) {
+                    Text(
+                        stringResource(R.string.settings_triggers_call_no_activities),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                activityTypes.forEach { type ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.md))
+                            .clickable { onSelect(type.id) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(type.icon, fontSize = 18.sp)
+                        Text(type.name, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        if (selectedTypeId == type.id) {
+                            Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        }
     )
 }

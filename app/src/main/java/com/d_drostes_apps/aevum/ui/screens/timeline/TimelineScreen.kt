@@ -1720,6 +1720,8 @@ private fun DetailStatsGrid(session: ActivitySession, state: ActivityDetailUiSta
         "APP_TRACKING" -> "\uD83D\uDCF1" to (
             state.sourceAppLabel ?: stringResource(R.string.timeline_detail_source_app_tracking)
         )
+        // M26: Anruf-Erkennung
+        "CALL_AUTO" -> "\uD83D\uDCDE" to stringResource(R.string.timeline_detail_source_call_auto)
         else -> "\uD83D\uDCE5" to session.sourceType
     }
 

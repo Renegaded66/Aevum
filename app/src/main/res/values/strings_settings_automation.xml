@@ -252,4 +252,13 @@
     <string name="automation_unknown_error">unknown error</string>
     <string name="automation_geofences_count">✓ %1$d geofences</string>
     <string name="automation_rules_result">%1$d triggers, %2$d new candidates</string>
+
+    <!-- ── M26: Call detection ────────────────────────────────────────────── -->
+    <string name="settings_triggers_group_calls">Calls</string>
+    <string name="settings_triggers_call_detection">Call detection</string>
+    <string name="settings_triggers_call_detection_desc">While a call is running, Aevum records the assigned activity automatically — without being interrupted by digital recordings</string>
+    <string name="settings_triggers_call_activity_label">Activity during a call</string>
+    <string name="settings_triggers_call_activity_hint">Only digital usage is interrupted: screen, app and PC recordings. Manually started activities, geofences, calendar, drives and sports stay untouched.</string>
+    <string name="settings_triggers_permission_calls">Call detection (phone state)</string>
+    <string name="settings_triggers_call_no_activities">No activities yet — create one first.</string>
 </resources>

@@ -103,6 +103,8 @@
     <!-- M23: App-Tracking — Ursprungs-App auf der Detailseite. -->
     <string name="timeline_detail_started_by">Started by</string>
     <string name="timeline_detail_source_app_tracking">App tracking</string>
+    <!-- M26: Call detection -->
+    <string name="timeline_detail_source_call_auto">Call (auto)</string>
     <string name="timeline_detail_clock_start">Start</string>
     <string name="timeline_detail_clock_end">End</string>
     <string name="timeline_detail_day_span">Day course</string>

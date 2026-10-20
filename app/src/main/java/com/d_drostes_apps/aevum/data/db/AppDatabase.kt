@@ -111,7 +111,7 @@ import com.d_drostes_apps.aevum.data.model.*
     // neue Tabelle `goal_checkin` (Check-ins manueller Ziele).
     // M23: v48 — activity_session.source_app_package (Ursprungs-App einer
     // App-Aufzeichnung für Icon + Name in der Timeline; nullable).
-    version = 48,
+    version = 49,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -1807,6 +1807,30 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "ALTER TABLE `activity_session` ADD COLUMN `source_app_package` TEXT"
+                )
+            }
+        }
+
+        /**
+         * M26: Anruf-Erkennung — zwei Spalten in `automation_settings`.
+         *
+         * Rein ADDITIV (kein Tabellen-Neubau, kein Index, keine Bestands-
+         * spalte ändert sich): Bestandsgeräte behalten ALLE Einstellungen,
+         * und der neue Schalter ist aus (`call_detection_enabled = 0`),
+         * bis der Nutzer ihn selbst einschaltet.
+         *
+         * `call_activity_type_id` hat 'social' als Vorgabe — der User hat
+         * „Default sozial" vorgegeben. Kein FK: eine gelöschte Aktivität
+         * darf die Einstellungen nicht blockieren (der LiveActivityManager
+         * fällt auf „other" zurück).
+         */
+        val MIGRATION_48_49 = object : Migration(48, 49) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE `automation_settings` ADD COLUMN `call_detection_enabled` INTEGER NOT NULL DEFAULT 0"
+                )
+                database.execSQL(
+                    "ALTER TABLE `automation_settings` ADD COLUMN `call_activity_type_id` TEXT NOT NULL DEFAULT 'social'"
                 )
             }
         }

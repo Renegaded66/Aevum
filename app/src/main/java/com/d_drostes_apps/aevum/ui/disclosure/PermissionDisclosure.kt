@@ -106,7 +106,14 @@ enum class PermissionDisclosureKind(
     USAGE_ACCESS(null, true),
 
     /** Kalender-Regeln: Termine starten Aktivitäten. */
-    CALENDAR(Manifest.permission.READ_CALENDAR, false)
+    CALENDAR(Manifest.permission.READ_CALENDAR, false),
+
+    /**
+     * M26: Anruf-Erkennung — während ein Gespräch läuft, wird die
+     * zugeordnete Aktivität aufgezeichnet. Nur der ANRUFZUSTAND wird
+     * gelesen (READ_PHONE_STATE), keine Rufnummern und kein Verlauf.
+     */
+    CALLS(Manifest.permission.READ_PHONE_STATE, false)
 }
 
 /**
@@ -178,6 +185,20 @@ fun disclosureTextFor(kind: PermissionDisclosureKind): PermissionDisclosureText 
             ),
             noteTitleRes = R.string.perm_disclosure_note_title,
             noteRes = R.string.perm_calendar_note
+        )
+
+        // M26: Anruf-Erkennung
+        PermissionDisclosureKind.CALLS -> PermissionDisclosureText(
+            titleRes = R.string.perm_calls_title,
+            leadRes = R.string.perm_calls_lead,
+            pointsTitleRes = R.string.perm_disclosure_points_title,
+            pointResIds = listOf(
+                R.string.perm_calls_point_1,
+                R.string.perm_calls_point_2,
+                R.string.perm_calls_point_3
+            ),
+            noteTitleRes = R.string.perm_disclosure_note_title,
+            noteRes = R.string.perm_calls_note
         )
     }
 

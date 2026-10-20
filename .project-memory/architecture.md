@@ -14,6 +14,47 @@ PC-Tracker (Windows-Begleiter): Der Ordner `desktop/` enthält eine eigenständi
 
 ---
 
+## M26 — Anruf-Erkennung (20.10.2026)
+
+App **1.0.46** (versionCode 47), DB **v49**.
+
+**Neu:** Während ein Gespräch läuft, zeichnet Aevum die zugeordnete Aktivität
+automatisch auf (Vorgabe `social` = „Soziales"). Unterbrochen wird dabei
+ausschließlich Digital-Nutzung; manuell Gestartetes, Geofences, Kalender,
+Fahrten, Sport und alles Unbekannte bleiben unberührt.
+
+- **Domain (rein, JVM-getestet):** `domain/call/CallDetectionPolicy.kt` —
+  `onCallActive(enabled, liveSourceType, liveIsLive)` →
+  `START_CALL | TAKE_OVER_DIGITAL | ALREADY_TRACKING | KEEP_FOREIGN | DISABLED`,
+  `onCallEnded(...)` → `STOP_OWN | NOTHING`, `DIGITAL_SOURCES` =
+  {SCREEN_AUTO, APP_TRACKING, PC_TRACKER, PC_REMOTE} als **Allowlist**
+  (künftige Quellen sind automatisch tabu — M18.144/M18.151-Lehre).
+  `mayRecord(action)` ist das Gate; `start()` läuft NUR danach, weil
+  `LiveActivityManager.start()` sonst JEDE Live-Session abschneiden würde.
+- **Android:** `automation/call/CallDetectionService.kt` — FGS `specialUse`,
+  Subtyp `call_state_detection`; `registerTelephonyCallback` (API 31+) /
+  `PhoneStateListener` (29/30); `OFFHOOK` startet, `IDLE` beendet (nur eigene
+  Session via `stopIfLive`), `RINGING` startet bewusst nicht. Startet
+  zusätzlich `LiveActivityService` (Banner/Notification). Kein
+  PHONE_STATE-Broadcast-Receiver (Implicit-Broadcast-Verbot ab Android 8).
+  `automation/call/CallDetectionWatchdogWorker.kt` (15 min, KEEP) + Starts aus
+  `AevumApplication` und `BootReceiver` + `START_STICKY`.
+- **Berechtigung:** `READ_PHONE_STATE` (dangerous). `PermissionDisclosureKind.CALLS`
+  + Texte DE/EN; Zeile „Anruf-Erkennung (Telefonstatus)" in der
+  Berechtigungs-Karte der Trigger-Einstellungen; Grant schaltet den Trigger
+  scharf (`pendingTrigger == "call_detection"`). Keine READ_CALL_LOG /
+  READ_PHONE_NUMBERS / CALL_PHONE / ANSWER_PHONE_CALLS.
+- **Daten:** `automation_settings` + `call_detection_enabled` (Default 0) +
+  `call_activity_type_id` (Default `'social'`); `MIGRATION_48_49` rein additiv.
+  UI: Karte „Anruf" (Schalter + Aktivitäten-Picker + Hinweistext).
+- **Timeline:** `CALL_AUTO` in `AUTO_SOURCES`, Detail-Label „📞 Anruf (Auto)".
+- **Abgrenzung:** keine VoIP-Erkennung (nur klassische Telefonie), keine
+  Rufnummern-/Kontaktauswertung, keine eigene Diagnose-Seite.
+- **Offen für Play:** Der neue `specialUse`-Subtyp muss in der Play Console
+  im Formular für Vordergrunddienste ergänzt werden (Formular, kein Code).
+
+---
+
 ## M19.3 — Projektmanagement zurückgenommen, Aufzeichnung zuverlässig (17.10.2026)
 
 **Projektmanagement ist KOMPLETT entfernt** (Nutzerentscheidung: „Ich nehme

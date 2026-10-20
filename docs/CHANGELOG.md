@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.46 (M26) — 2026-10-20
+
+### Anruf-Erkennung: während eines Gesprächs wird automatisch aufgezeichnet
+
+**Devon:** „Aevum neue Erkennung. Und zwar Anruf-Erkennung. Sollte in den
+Einstellungen erlaubt werden, so wie die anderen Berechtigungen. Und dann
+eine Zuweisung der Activity. Default sozial (auf deutsch). Und immer während
+ein Anruf läuft wird die activity direkt aufgezeichnet […] es soll auch
+aktuelle Aktivitäten unterbrechen die durch digital Nutzung stattfinden, also
+Bildschirmaufzeichnung oder App Aufzeichnung, auch PC digital, aber mehr darf
+nicht unterbrochen werden, also keine manuell gestartet Aktivität und auch
+keine geofences und Kalender etc."
+
+- **Berechtigung in den Einstellungen**: „Anruf-Erkennung (Telefonstatus)"
+  (`READ_PHONE_STATE`) als eigene Zeile in der Berechtigungs-Karte — mit
+  Erklärungsdialog vor dem Systemdialog, Settings-Deep-Link bei
+  Dauer-Ablehnung und Grant, der den Trigger sofort scharf schaltet.
+- **Zuweisung der Aktivität**: Karte „Anruf" mit Schalter und
+  Aktivitäten-Picker. Vorgabe **`social` („Soziales")**; änderbar.
+- **Automatische Aufzeichnung**: Läuft ein Gespräch (`CALL_STATE_OFFHOOK`),
+  startet die zugeordnete Aktivität sofort — auch wenn gerade nichts läuft.
+  Ende des Gesprächs (`IDLE`) beendet sie exakt beim Auflegen.
+- **Rangfolge (Allowlist)**: Unterbrochen wird ausschließlich
+  Digital-Nutzung — `SCREEN_AUTO` (Bildschirmaufzeichnung), `APP_TRACKING`
+  (App-Aufzeichnung), `PC_TRACKER`/`PC_REMOTE` (PC-digital). **Nie**
+  unterbrochen werden manuell gestartete Aktivitäten, Geofences, Kalender,
+  Fahrten, Wandern, Garmin, Ping und jede unbekannte/künftige Quelle.
+- **Erkennung**: Vordergrunddienst (`specialUse`, Subtyp
+  `call_state_detection`) mit `TelephonyManager.registerTelephonyCallback`
+  (API 31+) bzw. `PhoneStateListener` (29/30); Wiederbelebung über App-Start,
+  Boot/Update, 15-Minuten-Watchdog und `START_STICKY`.
+- **Datenbank v49**: `automation_settings` + `call_detection_enabled`
+  (Default `0`) und `call_activity_type_id` (Default `'social'`), Migration
+  48→49 rein additiv.
+- **Timeline**: `CALL_AUTO` gilt als automatische Quelle („📞 Anruf (Auto)").
+- **Tests**: +35 (1324 gesamt, 0 Fehler) — Rangfolge, Verdrahtungs-Wächter,
+  Schema-Guard v49, echte SQLite-Migration 48→49.
+
 ## [Unreleased] — Aevum 1.0.45 (M25) — 2026-10-20
 
 ### Orts-Timeline: Nachträglich angelegter Geofence benennt alte Orte

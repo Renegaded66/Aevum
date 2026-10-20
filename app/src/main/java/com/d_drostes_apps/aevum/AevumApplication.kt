@@ -90,6 +90,8 @@ class AevumApplication : Application() {
         // manueller Limit-Änderung — nach App-Neustart nie → kein Banner).
         fun appLimitRepository(): com.d_drostes_apps.aevum.data.repository.AppLimitRepository
         fun balanceProfileRepository(): com.d_drostes_apps.aevum.data.repository.BalanceProfileRepository
+        // M26: Anruf-Erkennung — Schalter beim Prozess-Start lesen.
+        fun automationSettingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
     }
 
     /**
@@ -324,6 +326,29 @@ class AevumApplication : Application() {
             }
         } catch (e: Exception) {
             Log.e("AevumApplication", "AppBlockService-Start init failed — continuing", e)
+        }
+        // M26: Anruf-Erkennung — beim App-Start (Prozess-Start) wieder
+        // hochfahren, wenn der Schalter an ist. Der Dienst prüft Schalter
+        // und READ_PHONE_STATE selbst und beendet sich sonst mit Logzeile.
+        try {
+            val deps = EntryPointAccessors.fromApplication(this, Deps::class.java)
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val settings = deps.automationSettingsRepository().get().first()
+                    if (settings?.callDetectionEnabled == true) {
+                        com.d_drostes_apps.aevum.automation.call.CallDetectionWatchdogWorker.schedule(this@AevumApplication)
+                        com.d_drostes_apps.aevum.automation.call.CallDetectionService.ensureAlive(
+                            this@AevumApplication,
+                            "app-start"
+                        )
+                        Log.d("AevumApplication", "Anruf-Erkennung: Dienst angestoßen")
+                    }
+                } catch (e: Exception) {
+                    Log.e("AevumApplication", "Anruf-Erkennung: Start fehlgeschlagen — continuing", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "Anruf-Erkennung init failed — continuing", e)
         }
         // M18.58: Garmin Connect Sync — alle 30 min (Schritte/Kalorien/
         // Distanz-Kacheln + Aktivitäts-Import). Schlaf-Import läuft über

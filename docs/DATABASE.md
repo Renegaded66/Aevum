@@ -162,6 +162,8 @@ Kanonische Lebenszeit. Diese Tabelle ist die Grundlage für Timeline, Dashboard,
 | `revision` | INTEGER | Optimistic Sync/Merge später |
 | `origin_device_id` | TEXT NULL | Multi-Device später |
 | `source_app_package` | TEXT NULL | Ursprungs-App einer App-Aufzeichnung (M23, v48) |
+| `call_detection_enabled` | INTEGER NOT NULL DEFAULT 0 | Anruf-Erkennung aktiv (M26, v49) — `automation_settings` |
+| `call_activity_type_id` | TEXT NOT NULL DEFAULT 'social' | Zugeordnete Aktivität während eines Anrufs (M26, v49) — `automation_settings` |
 
 Wichtige Regeln:
 

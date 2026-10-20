@@ -65,4 +65,12 @@
     <string name="perm_calendar_point_2">Choose which calendars are used</string>
     <string name="perm_calendar_point_3">Rules can be limited to certain events</string>
     <string name="perm_calendar_note">Your calendar is read only — Aevum never creates or changes appointments. The entries are evaluated exclusively on your device and are never transmitted. You can revoke the permission at any time in the Android system settings.</string>
+
+    <!-- ── Call detection (M26) ────────────────────────────────────────── -->
+    <string name="perm_calls_title">Allow call detection?</string>
+    <string name="perm_calls_lead">Aevum uses call detection to notice when a call is in progress and then records the activity you assigned automatically — without you having to start it. Detection reads only the call state (ringing, in call, idle) on your device: never phone numbers, contacts or the call log.</string>
+    <string name="perm_calls_point_1">While a call is running, the assigned activity is recorded automatically</string>
+    <string name="perm_calls_point_2">Digital recordings (screen, apps, PC) are interrupted for it</string>
+    <string name="perm_calls_point_3">Manually started activities, geofences and calendar rules stay untouched</string>
+    <string name="perm_calls_note">The call state is evaluated exclusively on your device — no phone numbers, no call log, and nothing is transmitted. You can revoke the permission at any time in the Android system settings.</string>
 </resources>

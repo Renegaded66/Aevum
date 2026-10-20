@@ -320,6 +320,10 @@ Güte-Gauge; die frühere Headline-Zeile ist entfernt.
 ### Timeline — Herkunft und Zeitfenster
 
 - App-Aufzeichnungen speichern `activity_session.source_app_package` (DB v48)
+- **Anruf-Erkennung (M26, DB v49):** Während eines Gesprächs zeichnet Aevum die
+  zugeordnete Aktivität automatisch auf (Vorgabe „Soziales"); unterbrochen wird
+  nur Digital-Nutzung (Bildschirm, App, PC), nie manuell Gestartetes, Geofences
+  oder Kalender. Berechtigung `READ_PHONE_STATE` in den Einstellungen.
   und zeigen in der Listenansicht „📱 <App-Name>"; die Detailseite hat eine
   Karte „Gestartet von" mit echtem App-Icon + Namen.
 - Start/Ende werden als zwei analoge Uhren plus 24-h-Zeitstrahl dargestellt:

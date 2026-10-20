@@ -37,7 +37,9 @@ class M12RegressionTest {
             // M18.72: Wanderungen automatisch aufgezeichnet
             "WALKING_AUTO",
             // M18.129: Kalender-gesteuerte Aufzeichnungen (Termin-Start/-Ende)
-            "CALENDAR_AUTO"
+            "CALENDAR_AUTO",
+            // M26: Anruf-Erkennung
+            "CALL_AUTO"
         )
     }
 

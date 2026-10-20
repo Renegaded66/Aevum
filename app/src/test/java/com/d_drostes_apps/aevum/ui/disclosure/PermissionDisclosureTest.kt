@@ -46,7 +46,7 @@ class PermissionDisclosureTest {
         Regex("<string name=\"([^\"]+)\"").findAll(xml).map { it.groupValues[1] }.toSet()
 
     /** Jede Berechtigung, die einen Dialog hat. */
-    private val kinds = listOf("activity", "notifications", "usage", "calendar")
+    private val kinds = listOf("activity", "notifications", "usage", "calendar", "calls")
 
     // ── Sprachparität ────────────────────────────────────────────────────
 

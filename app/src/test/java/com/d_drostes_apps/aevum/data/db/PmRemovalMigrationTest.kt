@@ -121,7 +121,9 @@ class PmRemovalMigrationTest {
                 // muss deshalb bis zur aktuellen Version durchlaufen.
                 AppDatabase.MIGRATION_46_47,
                 // M23: v48 (source_app_package) — Kette bis zur aktuellen Version.
-                AppDatabase.MIGRATION_47_48
+                AppDatabase.MIGRATION_47_48,
+                // M26: Kette bis zur aktuellen v49 (ADD COLUMN in automation_settings).
+                AppDatabase.MIGRATION_48_49
             )
             .allowMainThreadQueries()
             .build()
@@ -176,15 +178,15 @@ class PmRemovalMigrationTest {
         createVersion45Database()
         migrate()
 
-        // M20/M23: Die Kette läuft bis 48 durch (die aktuelle Version).
+        // M20/M23/M26: Die Kette läuft bis 49 durch (die aktuelle Version).
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(48)
+            assertThat(cursor.getInt(0)).isEqualTo(49)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(48).readText())
+            val expected = JSONObject(schemaFile(49).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }

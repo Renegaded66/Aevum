@@ -252,4 +252,13 @@
     <string name="automation_unknown_error">unbekannter Fehler</string>
     <string name="automation_geofences_count">✓ %1$d Geofences</string>
     <string name="automation_rules_result">%1$d Trigger, %2$d neue Candidates</string>
+
+    <!-- ── M26: Anruf-Erkennung ───────────────────────────────────────────── -->
+    <string name="settings_triggers_group_calls">Anruf</string>
+    <string name="settings_triggers_call_detection">Anruf-Erkennung</string>
+    <string name="settings_triggers_call_detection_desc">Läuft ein Gespräch, zeichnet Aevum die zugeordnete Aktivität automatisch auf — ohne Unterbrechung durch Digital-Aufzeichnungen</string>
+    <string name="settings_triggers_call_activity_label">Aktivität während eines Anrufs</string>
+    <string name="settings_triggers_call_activity_hint">Unterbrochen wird nur Digital-Nutzung: Bildschirm-, App- und PC-Aufzeichnung. Manuell gestartete Aktivitäten, Geofences, Kalender, Fahrten und Sport bleiben unberührt.</string>
+    <string name="settings_triggers_permission_calls">Anruf-Erkennung (Telefonstatus)</string>
+    <string name="settings_triggers_call_no_activities">Keine Aktivitäten vorhanden — lege zuerst eine an.</string>
 </resources>

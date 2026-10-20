@@ -196,3 +196,15 @@
 - [x] M25 (App 1.0.45, vc 46): Nachträglich angelegter Geofence benennt
       bestehende Unknown-Places in der Orts-Timeline (auch frühere/spätere
       Tage) über Haversine-Match; außerhalb des Radius bleibt unbenannt.
+
+- [x] M26 (App 1.0.46, vc 47): Anruf-Erkennung — Berechtigung
+      (`READ_PHONE_STATE`) als Zeile in der Berechtigungs-Karte, Karte „Anruf"
+      mit Schalter + Aktivitäten-Zuweisung (Default `social` = „Soziales"),
+      FGS `specialUse` `call_state_detection` mit Telefonie-Callback
+      (OFFHOOK startet, IDLE beendet), Rangfolge als Allowlist
+      (`CallDetectionPolicy`: nur SCREEN_AUTO/APP_TRACKING/PC_TRACKER/PC_REMOTE
+      unterbrechbar), Wiederbelebung via App-Start/Boot/15-min-Watchdog,
+      DB v49 (`call_detection_enabled`, `call_activity_type_id`),
+      `CALL_AUTO` in `AUTO_SOURCES`. +35 Tests (1324 gesamt).
+      Kein Geräte-Test möglich (kein Telefonie-Emulator) — Prüfschritte im
+      Abschlussbericht §8.

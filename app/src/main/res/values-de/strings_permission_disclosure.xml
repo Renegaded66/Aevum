@@ -42,4 +42,12 @@
     <string name="perm_calendar_point_2">Auswählen, welche Kalender genutzt werden</string>
     <string name="perm_calendar_point_3">Regeln auf bestimmte Termine einschränken</string>
     <string name="perm_calendar_note">Dein Kalender wird nur gelesen — Aevum legt niemals Termine an und ändert keine. Die Einträge werden ausschließlich lokal auf deinem Gerät ausgewertet und niemals übertragen. Du kannst die Berechtigung jederzeit in den Android-Systemeinstellungen entziehen.</string>
+
+    <!-- ── Anruf-Erkennung (M26) ───────────────────────────────────────── -->
+    <string name="perm_calls_title">Anruf-Erkennung erlauben?</string>
+    <string name="perm_calls_lead">Aevum nutzt die Anruf-Erkennung, um zu bemerken, wenn ein Gespräch läuft, und zeichnet dann automatisch die zugeordnete Aktivität auf — ohne dass du sie starten musst. Gelesen wird nur der Anrufzustand auf deinem Gerät (klingelt, Gespräch läuft, kein Anruf): niemals Rufnummern, Kontakte oder der Anrufverlauf.</string>
+    <string name="perm_calls_point_1">Während eines Gesprächs läuft die zugeordnete Aktivität automatisch mit</string>
+    <string name="perm_calls_point_2">Digital-Aufzeichnungen (Bildschirm, Apps, PC) werden dafür unterbrochen</string>
+    <string name="perm_calls_point_3">Manuell gestartete Aktivitäten, Geofences und Kalender bleiben unberührt</string>
+    <string name="perm_calls_note">Der Anrufzustand wird ausschließlich lokal auf deinem Gerät ausgewertet — keine Rufnummer, kein Anrufverlauf, nichts wird übertragen. Du kannst die Berechtigung jederzeit in den Android-Systemeinstellungen entziehen.</string>
 </resources>

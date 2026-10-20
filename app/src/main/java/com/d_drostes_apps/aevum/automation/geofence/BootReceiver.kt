@@ -81,6 +81,16 @@ class BootReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             debugLogger.log("BOOT", "InitialActivitySnapshotScheduler schedule failed: ${e.message}")
         }
+        // M26: Anruf-Erkennung nach Boot / App-Update wieder hochfahren.
+        // Der Dienst beendet sich selbst, wenn der Schalter aus ist oder
+        // READ_PHONE_STATE fehlt — hier wird nur angestoßen (idempotent).
+        try {
+            com.d_drostes_apps.aevum.automation.call.CallDetectionWatchdogWorker.schedule(context)
+            com.d_drostes_apps.aevum.automation.call.CallDetectionService.ensureAlive(context, "boot")
+            debugLogger.log("BOOT", "Anruf-Erkennung: Dienst/Watchdog angestoßen")
+        } catch (e: Exception) {
+            debugLogger.log("BOOT", "Anruf-Erkennung konnte nicht gestartet werden: ${e.message}")
+        }
         // M18.112: Continuous-AR-Samples nach Boot (neu-)registrieren —
         // Android räumt AR-Registrierungen beim Boot ab (wie Geofences).
         // Ohne diesen Aufruf wäre der schnelle Verdachts-Pfad erst nach
