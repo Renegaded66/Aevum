@@ -146,6 +146,7 @@ Vor der Implementierung waren Test 1 und 2 rot (der alte Code emittierte
 | AAB | 24.619.426 B (23,5 MB), SHA-256 `ccb6cc3f…ce25bb88` |
 | Server | alle drei Dateien HTTP 200, `versionCode=46`, `versionName=1.0.45-debug` |
 | DB | unverändert v48, keine Migration |
+| Commit | `0db8ac6` (Code + Doku); dieser Berichtsnachtrag ist ein Folge-Commit |
 
 Build-Log: `/root/builds/m25-final.log`; Testberichte:
 `app/build/test-results/testDebugUnitTest/`.
