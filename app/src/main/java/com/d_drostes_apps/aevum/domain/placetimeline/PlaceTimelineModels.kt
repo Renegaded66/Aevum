@@ -370,6 +370,30 @@ object PlaceTimelineEngine {
                 val displayStart = u.startAt.coerceAtLeast(dayStart)
                 val displayEnd = u.endAt.coerceAtMost(dayEnd)
                 if (displayEnd - displayStart < MIN_MERGED_DURATION_MS) continue
+                // M24: Wurde an dieser Stelle nachträglich ein Geofence
+                // angelegt, trägt der ALTE Unknown-Place jetzt dessen Namen
+                // (Devon: „dann soll in der Ortstimeline an dem Punkt, wo ich
+                // es hinzugefügt habe, der Ort stehen — bestenfalls auch
+                // frühere und spätere Male"). Reine Koordinaten-Zuordnung:
+                // alle Unknown-Places innerhalb des Radius werden benannt,
+                // unabhängig vom Tag. Kein DB-Backfill nötig.
+                val matchedGeofence = geofenceForPoint(u.latitude, u.longitude, geofences)
+                if (matchedGeofence != null) {
+                    visits += PlaceVisit(
+                        id = "unknown_${u.id}",
+                        geofenceId = matchedGeofence.id,
+                        name = matchedGeofence.name,
+                        icon = matchedGeofence.icon,
+                        color = matchedGeofence.color,
+                        latitude = matchedGeofence.latitude,
+                        longitude = matchedGeofence.longitude,
+                        startAt = displayStart,
+                        endAt = displayEnd,
+                        evidence = visitEvidence(displayEnd - displayStart),
+                        isOngoing = false
+                    )
+                    continue
+                }
                 visits += PlaceVisit(
                     id = "unknown_${u.id}",
                     geofenceId = null,
@@ -559,6 +583,25 @@ object PlaceTimelineEngine {
             Math.sin(dLon / 2) * Math.sin(dLon / 2)
         return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     }
+
+    /**
+     * M24: Liefert den nächstgelegenen aktiven Geofence, der den Punkt
+     * enthält — Grundlage für das nachträgliche Benennen bereits
+     * existierender Unknown-Places. Gelöschte Geofences zählen nicht;
+     * deaktivierte schon (sie erklären historische Aufenthalte, genau wie
+     * in Quelle 1/2).
+     */
+    private fun geofenceForPoint(
+        latitude: Double,
+        longitude: Double,
+        geofences: List<PlaceGeofence>
+    ): PlaceGeofence? = geofences
+        .asSequence()
+        .filter { it.deletedAt == null }
+        .map { it to distanceMeters(latitude, longitude, it.latitude, it.longitude) }
+        .filter { (geo, distance) -> distance <= geo.radiusMeters }
+        .minByOrNull { (_, distance) -> distance }
+        ?.first
 
     private fun visitEvidence(durationMs: Long): VisitEvidence =
         if (durationMs >= LONG_STAY_MS) VisitEvidence.GEOFENCE_LONG else VisitEvidence.GEOFENCE_SHORT

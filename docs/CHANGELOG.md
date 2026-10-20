@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.45 (M25) — 2026-10-20
+
+### Orts-Timeline: Nachträglich angelegter Geofence benennt alte Orte
+
+**Devon:** „Nachdem ich einen neuen Ort erstellt habe, wo vorher unbenannt
+stand, soll in der Orts-Timeline an dem Punkt, wo ich es hinzugefügt habe,
+der Ort stehen — bestenfalls auch frühere und spätere Male."
+
+- Der `PlaceTimelineEngine` prüft bei jedem unbenannten Unknown-Place, ob
+  seine Koordinaten in einem aktiven Geofence liegen (`geofenceForPoint`,
+  Haversine, inkl. deaktivierter, aber nicht gelöschter Geofences).
+- Trifft das zu, erscheint der Besuch mit **Geofence-Name, Icon und Farbe**
+  statt „Ort (unbenannt)" — rückwirkend für alle Tage und für spätere
+  Besuche, ohne DB-Backfill und ohne die Unknown-Place-Daten zu verändern.
+- Liegt der Ort außerhalb des Radius, bleibt er unbenannt (keine falsche
+  Zuordnung benachbarter Orte).
+- Bei mehreren passenden Geofences gewinnt der nächstgelegene.
+- Drei neue Engine-Tests: Benennung, früher/später am selben Ort, außerhalb
+  des Radius.
+
+Tests: **1289** (0 Fehler, 1 skipped).
+
 ## [Unreleased] — Aevum 1.0.44 (M24) — 2026-10-20
 
 ### Digital-Balance-Tageswechsel · Geofence aus der Orts-Timeline

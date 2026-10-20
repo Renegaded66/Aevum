@@ -192,3 +192,7 @@
       Unlocks und Stundenverlauf für den geklickten Balken (neue
       `detailForDay`), Kopf zeigt das Datum; Orts-Timeline → Detail-Sheet →
       „Geofence hinzufügen" mit vorausgefülltem Standort/Namen.
+
+- [x] M25 (App 1.0.45, vc 46): Nachträglich angelegter Geofence benennt
+      bestehende Unknown-Places in der Orts-Timeline (auch frühere/spätere
+      Tage) über Haversine-Match; außerhalb des Radius bleibt unbenannt.

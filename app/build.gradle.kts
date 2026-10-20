@@ -253,8 +253,10 @@ android {
         //    blieben Zahl/Stunden auf heute stehen)
         //  - Orts-Timeline: Ort antippen → Detail-Sheet → „Geofence
         //    hinzufügen" öffnet den Editor mit übernommenem Standort
-        versionCode = 45
-        versionName = "1.0.44"
+        // M25: Nachträglich angelegter Geofence benennt bestehende
+        //  Unknown-Places in der Orts-Timeline (auch frühere/spätere Tage)
+        versionCode = 46
+        versionName = "1.0.45"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

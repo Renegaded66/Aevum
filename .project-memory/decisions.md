@@ -440,3 +440,14 @@ URL-Kodierung, dafür deterministisch und ohne versteckten Zustand.
 **Validierung:** `geofencePrefillFromArgs` lehnt ungültige Koordinaten und
 0/0 ab. **Alternative:** Nav-Args ungeprüft übernehmen — verworfen, weil ein
 leerer Editor sonst mit „0.000000, 0.000000" speichern könnte.
+
+## M25 (20.10.2026) — Geofence benennt bestehende Unknown-Places
+
+**Entscheidung:** Benennung beim Rendern der Orts-Timeline über
+Koordinatenabgleich (`geofenceForPoint`, Haversine, Radius, nächster
+Mittelpunkt) statt DB-Backfill der `unknown_place_session`.
+**Alternative:** Beim Anlegen alle historischen Unknown-Places umbenennen —
+verworfen, weil das Roh-Evidenz zerstört, eine Migration braucht und beim
+Löschen des Geofences nicht rückgängig ist. **Preis:** Die Zuordnung kostet
+pro Tag ein paar Distanzberechnungen (wenige Unknown-Places/Geofences) und
+endet an der Radius-Grenze.

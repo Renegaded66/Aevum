@@ -19,3 +19,8 @@ Hauptrisiken:
   Stundenverlauf blieben beim Klick auf einen Tagesbalken auf „heute", weil
   `buildState` immer `aggregator.todayDetail()` rief. Fix: `detailForDay(date)`
   + `totalMs` statt `todayTotalMs`.
+
+- M25 behoben: Nach dem Anlegen eines Geofences aus „Ort (unbenannt)" blieb
+  die historische Unknown-Place-Zeile unbenannt. Fix: `PlaceTimelineEngine`
+  matcht Unknown-Places per Koordinaten gegen Geofences und übernimmt
+  Name/Icon/Farbe (kein DB-Backfill).

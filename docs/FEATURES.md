@@ -364,3 +364,14 @@ Güte-Gauge; die frühere Headline-Zeile ist entfernt.
   Schritt ab.
 - Bereits vorhandene Geofences und Orte ohne Koordinaten zeigen keinen
   Button, sondern einen erklärenden Hinweis.
+
+## M25 — Geofence benennt bestehende Orts-Timeline-Einträge (App 1.0.45)
+
+- Legst du aus einem unbenannten Ort einen Geofence an, tragen **alle**
+  Unknown-Places innerhalb seines Radius sofort den Geofence-Namen samt
+  Icon/Farbe — auch frühere Tage und spätere Besuche.
+- Die Zuordnung passiert beim Rendern der Timeline (Koordinatenabgleich),
+  nicht durch Ändern der historischen Unknown-Place-Daten. Wird der
+  Geofence gelöscht, erscheinen die Orte wieder als unbenannt.
+- Orte außerhalb des Radius bleiben unbenannt; bei überlappenden Geofences
+  gewinnt der nächstgelegene.

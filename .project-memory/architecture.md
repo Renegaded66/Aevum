@@ -137,3 +137,7 @@ App 1.0.32 (versionCode 33), DB **v45**.
   `onCreateGeofence(lat,lon,name)` → `geofenceCreateRoute(...)` →
   `geofence/new?lat&lon&name`; `GeofenceEditorViewModel` liest die Args und
   `geofencePrefillFromArgs` validiert (inkl. 0/0-Ablehnung).
+- **M25 (App 1.0.45):** `PlaceTimelineEngine.geofenceForPoint` matcht
+  unbenannte Unknown-Places (Haversine <= radiusMeters, nicht gelöschte
+  Geofences, nächster Mittelpunkt) und emittiert sie mit Geofence-Name,
+  Icon, Farbe und `geofenceId`; sonst `UNNAMED_PLACE`. Kein DB-Backfill.

@@ -199,6 +199,77 @@ class PlaceTimelineEngineTest {
     }
 
     @Test
+    fun `Unbenannter Ort innerhalb eines Geofence zeigt dessen Namen M24`() {
+        // M24: Ein nachträglich angelegter Geofence soll den bereits
+        // vorhandenen Unknown-Place in der Timeline benennen — nicht erst
+        // neue Besuche.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = emptyList(),
+            geofences = listOf(geofence()),
+            namedPlaces = listOf(
+                UnknownPlaceSession(
+                    id = "u1", startAt = day + 14 * H, endAt = day + 15 * H,
+                    latitude = 52.0, longitude = 8.0, name = null
+                )
+            ),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].name).isEqualTo("Büro")
+        assertThat(visits[0].geofenceId).isEqualTo("g1")
+        assertThat(visits[0].icon).isEqualTo("🏢")
+        assertThat(visits[0].evidence).isEqualTo(VisitEvidence.GEOFENCE_LONG)
+    }
+
+    @Test
+    fun `Geofence benennt auch fruehere und spaetere Besuche desselben Ortes M24`() {
+        // Zwei Unknown-Places am selben Ort (vormittags/nachmittags) —
+        // beide muessen nach dem Anlegen den Geofence-Namen tragen.
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = emptyList(),
+            geofences = listOf(geofence()),
+            namedPlaces = listOf(
+                UnknownPlaceSession(
+                    id = "u1", startAt = day + 10 * H, endAt = day + 11 * H,
+                    latitude = 52.0001, longitude = 8.0001, name = null
+                ),
+                UnknownPlaceSession(
+                    id = "u2", startAt = day + 16 * H, endAt = day + 17 * H,
+                    latitude = 52.0, longitude = 8.0, name = null
+                )
+            ),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(2)
+        assertThat(visits.map { it.name }).containsExactly("Büro", "Büro")
+        assertThat(visits.map { it.geofenceId }).containsExactly("g1", "g1")
+    }
+
+    @Test
+    fun `Unbenannter Ort ausserhalb des Radius bleibt unbenannt M24`() {
+        val visits = PlaceTimelineEngine.buildVisits(
+            dayStart = day, dayEnd = dayEnd,
+            sessions = emptyList(),
+            triggers = emptyList(),
+            geofences = listOf(geofence()), // 100 m um 52.0/8.0
+            namedPlaces = listOf(
+                UnknownPlaceSession(
+                    id = "u1", startAt = day + 14 * H, endAt = day + 15 * H,
+                    latitude = 52.01, longitude = 8.0, name = null
+                )
+            ),
+            nowMs = now
+        )
+        assertThat(visits).hasSize(1)
+        assertThat(visits[0].evidence).isEqualTo(VisitEvidence.UNNAMED_PLACE)
+        assertThat(visits[0].name).isEmpty()
+    }
+
+    @Test
     fun `Kurze unbenannte Unknown-Places unter 15 Minuten erscheinen nicht`() {
         val visits = PlaceTimelineEngine.buildVisits(
             dayStart = day, dayEnd = dayEnd,
