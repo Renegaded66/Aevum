@@ -417,3 +417,26 @@ Feld im Serialisierungs-/Exportpfad.
 **Ziel-Überschreitung:** Farbe + ⚠ statt Text. **Alternative:** „überschritten"
 als Label — verworfen, weil der Nutzer ausdrücklich keine Wörter wollte und
 Farbe/Icons sprachunabhängig sind.
+
+---
+
+## M24 (20.10.2026) — Digital-Balance-Tagesdetail & Geofence aus Orts-Timeline
+
+**Digital Balance:** `detailForDay(date)` im Aggregator statt Tageslogik im
+ViewModel. **Alternative:** `todayDetail()` nehmen und Stunden nachträglich
+verschieben — verworfen, weil Unlocks/Phasen dann doppelt berechnet würden.
+**Preis:** eine zusätzliche Aggregator-Methode, aber EINE gemeinsame
+`detailForRange`-Basis.
+
+**Feldname:** `todayTotalMs` → `totalMs`. **Alternative:** Namen behalten und
+nur anders befüllen — verworfen, weil der Name dann lügt und ein Rückfall
+nicht auffällt. **Preis:** vier UI-Stellen angefasst.
+
+**Geofence-Flow:** Detail-Sheet in der Orts-Timeline + Route mit
+lat/lon/name-Query-Args. **Alternative:** globaler „Pending Geofence"-State —
+verworfen, weil unsichtbar und nicht testbar. **Preis:** lange Route und
+URL-Kodierung, dafür deterministisch und ohne versteckten Zustand.
+
+**Validierung:** `geofencePrefillFromArgs` lehnt ungültige Koordinaten und
+0/0 ab. **Alternative:** Nav-Args ungeprüft übernehmen — verworfen, weil ein
+leerer Editor sonst mit „0.000000, 0.000000" speichern könnte.

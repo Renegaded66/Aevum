@@ -339,3 +339,28 @@ Güte-Gauge; die frühere Headline-Zeile ist entfernt.
   90 s. Geh-Probes (1,0–1,8 m/s) im 15-Minuten-Puffer können die Fahrt nicht
   mehr zurückdatieren. Ohne Fahrzeug-Probe startet die Fahrt am jüngsten
   Probe (lieber Sekunden zu spät als Minuten Gehzeit davor).
+
+## M24 — Digital-Balance-Tageswechsel & Geofence aus Orts-Timeline (App 1.0.44)
+
+### Digital Balance — gewählter Tag ist vollständig
+
+- Klick auf einen Balken im 7-/30-Tage-Diagramm lädt jetzt **alle**
+  Tageswerte: große Gesamtzeit im Ring, Unlocks, Top-App, App-Liste und den
+  24-Stunden-Verlauf. Vorher blieben Ring, Unlocks und Stundenverlauf auf
+  „heute" stehen, weil der ViewModel immer `todayDetail()` aufrief.
+- Der Kopf der Karte zeigt bei einem vergangenen Tag dessen Datum
+  (`Mi, 15.10.`) statt „Heute".
+- Die App-Anteils-Balken beziehen sich auf die Gesamtzeit desselben Tages
+  (`totalMs`), nicht mehr auf die heutige Summe.
+
+### Orts-Timeline — Geofence direkt aus einem Besuch
+
+- Besuch antippen → Detail-Sheet mit Ort, Zeitraum, Dauer, Koordinaten und
+  Evidenz-Badge.
+- **„Geofence hinzufügen"** öffnet den Geofence-Editor mit bereits
+  eingetragenem Standort (lat/lon), 150-m-Radius und — bei benannten Orten —
+  übernommenem Namen.
+- „Ort (unbenannt)": Name bleibt leer, der Editor fragt ihn im nächsten
+  Schritt ab.
+- Bereits vorhandene Geofences und Orte ohne Koordinaten zeigen keinen
+  Button, sondern einen erklärenden Hinweis.

@@ -187,3 +187,8 @@
       `source_app_package` + Timeline-App-Icon/Name + Uhren/Zeitstrahl,
       2x1-Homescreen-Widget (Duolingo) mit Start/Stopp, Activity-Picker und
       Maskottchen, Status-Refresh nach Settings-Rückkehr.
+
+- [x] M24 (App 1.0.44, vc 45): Digital-Balance-Tageswechsel lädt Gesamtzeit,
+      Unlocks und Stundenverlauf für den geklickten Balken (neue
+      `detailForDay`), Kopf zeigt das Datum; Orts-Timeline → Detail-Sheet →
+      „Geofence hinzufügen" mit vorausgefülltem Standort/Namen.

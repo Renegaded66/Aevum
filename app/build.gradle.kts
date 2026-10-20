@@ -247,8 +247,14 @@ android {
         //  - „Ruhiger Start"-Block entfernt; Ziel-Überschreitung rot + ⚠
         //  - DB v48 source_app_package, Timeline mit App-Icon/-Name + Uhren
         //  - 2x1-Homescreen-Widget (Duolingo) mit Start/Stopp + Picker
-        versionCode = 44
-        versionName = "1.0.43"
+        // M24 (Digital-Balance-Tageswechsel + Geofence aus Orts-Timeline):
+        //  - Digital Balance: Klick auf Tagesbalken lädt Gesamtzeit, Unlocks,
+        //    Stundenverlauf und App-Anteile des GEWÄHLTEN Tages (vorher
+        //    blieben Zahl/Stunden auf heute stehen)
+        //  - Orts-Timeline: Ort antippen → Detail-Sheet → „Geofence
+        //    hinzufügen" öffnet den Editor mit übernommenem Standort
+        versionCode = 45
+        versionName = "1.0.44"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

@@ -130,3 +130,10 @@ App 1.0.32 (versionCode 33), DB **v45**.
   `WidgetStartActivity` (Duolingo-Picker), `WidgetMascotRenderer` (Canvas).
   Update-Takt aus `LiveActivityService` (1 s/10 s); Layout `aevum_widget.xml`,
   Metadaten `aevum_widget_info.xml` (2×1).
+- **M24 (App 1.0.44):** `AppUsageAggregator.detailForDay(date)` (gemeinsame
+  `detailForRange`-Basis) + `DigitalBalanceViewModel` wählt bei gewähltem Tag
+  diesen Pfad; `DigitalBalanceUiState.totalMs` ist der angezeigte Tageswert.
+  Orts-Timeline: `VisitDetailSheet` (intern) + `ModalBottomSheet`,
+  `onCreateGeofence(lat,lon,name)` → `geofenceCreateRoute(...)` →
+  `geofence/new?lat&lon&name`; `GeofenceEditorViewModel` liest die Args und
+  `geofencePrefillFromArgs` validiert (inkl. 0/0-Ablehnung).

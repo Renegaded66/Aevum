@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.44 (M24) — 2026-10-20
+
+### Digital-Balance-Tageswechsel · Geofence aus der Orts-Timeline
+
+**Bugfix (Devon):** „Bei Digital Balance kann man im Balkendiagramm durch die
+Tage skippen … irgendwie bleibt die Zahl oben die ganze Zeit die Zeit vom
+heutigen Tag." Ursache: `DigitalBalanceViewModel.buildState` holte
+`aggregator.todayDetail()` **unabhängig vom gewählten Tag**. Damit blieben
+Gesamtzeit, Unlocks und Stundenverlauf auf heute; nur die App-Liste wechselte.
+Fix: neue `AppUsageAggregator.detailForDay(date)` (gleicher Rechenpfad,
+Tagesfenster statt „heute bis jetzt"); der ViewModel wählt bei einem
+Balken-Klick diesen Pfad. Der Kopf zeigt jetzt das Datum des gewählten Tages
+statt „Heute". Die App-Anteils-Balken nutzen denselben Tageswert
+(`totalMs` statt des bisherigen Today-Feldes).
+
+**Neu (Devon):** „Ich möchte, dass man von der Orts-Timeline aus einen
+Geofence einrichten kann … wo schon der Standort übernommen wird."
+
+- Orts-Zeile antippen → Detail-Sheet mit Name/Icon, Zeitraum, Dauer,
+  Koordinaten und (falls noch kein Geofence) **„Geofence hinzufügen"**.
+- Der Button öffnet den Geofence-Editor über
+  `geofence/new?lat=…&lon=…&name=…`; Latitude/Longitude sind vorausgefüllt,
+  der Name wird bei benannten Orten übernommen, bei „Ort (unbenannt)" leer
+  gelassen. Radius startet bei 150 m.
+- Orte mit bestehendem Geofence oder ohne Koordinaten zeigen keinen Button,
+  sondern einen klaren Hinweis.
+- Route-Helper `geofenceCreateRoute` URL-kodiert den Namen; der Editor
+  validiert die Koordinaten (`geofencePrefillFromArgs`), damit nie 0/0
+  gespeichert wird.
+
+Tests: **1286** (0 Fehler, 1 skipped), +15: Tagesdetail-Aggregation,
+Wiring-Guard, Vorbefüllung, Routen-Kodierung und vier Compose-Tests des
+Detail-Sheets.
+
 ## [Unreleased] — Aevum 1.0.43 (M23) — 2026-10-19
 
 ### Fahrt-Vorlauf · Widget · Timeline-Quelle · Ziel-Überschreitung

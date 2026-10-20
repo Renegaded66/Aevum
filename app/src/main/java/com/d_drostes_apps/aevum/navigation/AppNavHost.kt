@@ -267,7 +267,12 @@ fun AppNavHost(
         // M18.83: Orts-Timeline — Google-Maps-artige Tag-Story der besuchten Orte
         composable(AppDestination.PlaceTimeline.route) {
             com.d_drostes_apps.aevum.ui.screens.placetimeline.PlaceTimelineScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                // M24: Ort → „Geofence hinzufügen" → Editor mit
+                // übernommenem Standort (lat/lon/name).
+                onCreateGeofence = { lat, lon, name ->
+                    navController.navigate(geofenceCreateRoute(lat, lon, name))
+                }
             )
         }
         // M18.55: Datenschutz, Export, Backup — eigene Seiten
@@ -312,7 +317,23 @@ fun AppNavHost(
                 }
             )
         }
-        composable(AppDestination.GeofenceCreate.route) {
+        composable(
+            route = "geofence/new?lat={lat}&lon={lon}&name={name}",
+            arguments = listOf(
+                navArgument("lat") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument("lon") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument("name") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) {
             GeofenceEditorScreen(onBack = { navController.popBackStack() })
         }
         // M8.1: Quick-setup for Home and Work

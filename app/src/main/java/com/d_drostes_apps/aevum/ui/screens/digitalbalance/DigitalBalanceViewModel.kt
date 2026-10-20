@@ -48,8 +48,11 @@ data class DigitalAppUi(
 
 data class DigitalBalanceUiState(
     val hasPermission: Boolean = false,
-    val todayTotalMs: Long = 0L,
-    val todayAppCount: Int = 0,
+    // M24: Gesamtzeit des ANGEZEIGTEN Tages (heute oder gewählter Balken).
+    // Vorher hieß das Feld todayTotalMs und blieb beim Tageswechsel auf
+    // heute stehen — genau Devons Befund.
+    val totalMs: Long = 0L,
+    val appCount: Int = 0,
     val topAppName: String? = null,
     val topAppMs: Long = 0L,
     val unlockCount: Int = 0,
@@ -186,7 +189,12 @@ class DigitalBalanceViewModel @Inject constructor(
             }
             val rangeUsageDeferred = async { aggregator.rangeUsageByApp(days) }
             val dailyDeferred = async { aggregator.dailyTotals(days) }
-            val detailDeferred = async { aggregator.todayDetail() }
+            // M24: Detail (Gesamtzeit, Unlocks, Stundenbuckets) für den
+            // GEWÄHLTEN Tag — nicht mehr pauschal todayDetail().
+            val detailDeferred = async {
+                if (isToday) aggregator.todayDetail()
+                else aggregator.detailForDay(effectiveDay)
+            }
             awaitAll(dayUsageDeferred, rangeUsageDeferred, dailyDeferred, detailDeferred)
         }
         @Suppress("UNCHECKED_CAST")
@@ -262,8 +270,8 @@ class DigitalBalanceViewModel @Inject constructor(
 
         return DigitalBalanceUiState(
             hasPermission = true,
-            todayTotalMs = dayTotal,
-            todayAppCount = apps.size,
+            totalMs = dayTotal,
+            appCount = apps.size,
             topAppName = apps.firstOrNull()?.appLabel,
             topAppMs = apps.firstOrNull()?.dayMs ?: 0L,
             unlockCount = detail.unlockCount,

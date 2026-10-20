@@ -77,3 +77,23 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     // ENTFERNT — Nutzerentscheidung („Ich will das ganze PM Management doch
     // nicht. Also alles davon.").
 }
+
+/**
+ * M24: Route für „Geofence hinzufügen" aus der Orts-Timeline.
+ *
+ * Die Koordinaten werden mit 6 Nachkommastellen übergeben; der optionale
+ * Name wird URL-kodiert (Leerzeichen als %20, nicht +). Der Geofence-Editor
+ * liest `lat`/`lon`/`name` aus dem SavedStateHandle und befüllt damit das
+ * Formular vor.
+ */
+fun geofenceCreateRoute(
+    latitude: Double,
+    longitude: Double,
+    name: String? = null
+): String {
+    val encodedName = java.net.URLEncoder
+        .encode(name.orEmpty(), "UTF-8")
+        .replace("+", "%20")
+    return "geofence/new?lat=%.6f&lon=%.6f&name=%s"
+        .format(java.util.Locale.US, latitude, longitude, encodedName)
+}

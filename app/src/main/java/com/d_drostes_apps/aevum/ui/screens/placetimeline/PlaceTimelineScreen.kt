@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,9 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -73,6 +77,9 @@ import java.time.LocalDate
 @Composable
 fun PlaceTimelineScreen(
     onBack: () -> Unit,
+    // M24: Ort in der Story antippen → „Geofence hinzufügen" → Editor
+    // öffnet mit übernommenem Standort. Default no-op für Vorschauen/Tests.
+    onCreateGeofence: (latitude: Double, longitude: Double, name: String?) -> Unit = { _, _, _ -> },
     viewModel: PlaceTimelineViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -95,7 +102,11 @@ fun PlaceTimelineScreen(
                 onToday = viewModel::today
             )
             if (state.hasData) {
-                PlaceTimelineContent(state = state, trackPoints = trackPoints)
+                PlaceTimelineContent(
+                    state = state,
+                    trackPoints = trackPoints,
+                    onCreateGeofence = onCreateGeofence
+                )
             } else {
                 PlaceTimelineEmpty(state = state)
             }
@@ -203,10 +214,12 @@ private fun buildStoryRows(visits: List<PlaceVisit>): List<StoryRow> {
 internal fun isUnnamedPlaceVisit(visit: PlaceVisit): Boolean =
     visit.evidence == VisitEvidence.UNNAMED_PLACE
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlaceTimelineContent(
     state: PlaceTimelineUiState,
-    trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>
+    trackPoints: List<com.d_drostes_apps.aevum.data.model.LocationTrackPoint>,
+    onCreateGeofence: (latitude: Double, longitude: Double, name: String?) -> Unit
 ) {
     val rows = remember(state.visits) { buildStoryRows(state.visits) }
     // M18.85: Auswahl-Sync Karte↔Liste. Marker-Tap wählt (Karte → Liste
@@ -214,6 +227,8 @@ private fun PlaceTimelineContent(
     // Marker-Callout öffnet). LazyListState hier, damit die Karte und die
     // Story-Liste sie teilen.
     var selectedVisitId by remember(state.selectedDate) { mutableStateOf<String?>(null) }
+    // M24: Detail-Sheet für den angetippten Ort (enthält „Geofence hinzufügen").
+    var detailVisit by remember(state.selectedDate) { mutableStateOf<PlaceVisit?>(null) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Auto-Scroll zum ausgewählten Eintrag (Karte → Liste).
@@ -228,6 +243,7 @@ private fun PlaceTimelineContent(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -258,12 +274,31 @@ private fun PlaceTimelineContent(
                     isSelected = row.visit.id == selectedVisitId,
                     onVisitClick = {
                         selectedVisitId = if (selectedVisitId == row.visit.id) null else row.visit.id
+                        // M24: Öffnet die Orts-Details mit „Geofence hinzufügen".
+                        detailVisit = row.visit
                     }
                 )
                 is StoryRow.Road -> RoadRow(row.startAt, row.endAt)
             }
         }
         item { Spacer(Modifier.height(80.dp)) }
+    }
+
+    // M24: Detail-Sheet — der Ort bleibt in der Liste markiert, das Sheet
+    // zeigt Zeitraum, Koordinaten und (falls noch kein Geofence) den
+    // Button „Geofence hinzufügen".
+    detailVisit?.let { visit ->
+        ModalBottomSheet(onDismissRequest = { detailVisit = null }) {
+            VisitDetailSheet(
+                visit = visit,
+                onAddGeofence = { lat, lon, name ->
+                    detailVisit = null
+                    onCreateGeofence(lat, lon, name)
+                },
+                onDismiss = { detailVisit = null }
+            )
+        }
+    }
     }
 }
 
@@ -330,6 +365,134 @@ private fun SummaryCard(state: PlaceTimelineUiState) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * M24: Detail-Sheet eines Orts-Besuchs.
+ *
+ * Bewusst [internal] statt private — so kann die Compose-UI-Prüfung den
+ * Button „Geofence hinzufügen" inkl. Callback-Werte testen, ohne die ganze
+ * Hilt-Screen-Umgebung zu booten.
+ */
+@Composable
+internal fun VisitDetailSheet(
+    visit: PlaceVisit,
+    onAddGeofence: (latitude: Double, longitude: Double, name: String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val accent = parseHexColorOrNull(visit.color) ?: MaterialTheme.colorScheme.primary
+    val unnamed = isUnnamedPlaceVisit(visit)
+    val title = if (unnamed) stringResource(R.string.place_timeline_unnamed_place) else visit.name
+    val lat = visit.latitude
+    val lon = visit.longitude
+    val nameForGeofence = if (unnamed) null else visit.name
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = AevumSpacing.lg, vertical = AevumSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = visit.icon, fontSize = 22.sp)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    text = badgeLabel(visit.evidence) + " · " +
+                        TimeFormatting.formatTime(visit.startAt) + "–" +
+                        TimeFormatting.formatTime(visit.endAt) + " · " +
+                        TimeFormatting.formatDuration(visit.durationMs),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (lat != null && lon != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(AevumSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text("📍", fontSize = 18.sp)
+                Column {
+                    Text(
+                        stringResource(R.string.place_timeline_detail_coordinates),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = String.format(
+                            java.util.Locale.US, "%.5f, %.5f", lat, lon
+                        ),
+                        fontSize = 14.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+            }
+        }
+
+        when {
+            visit.geofenceId != null -> {
+                Text(
+                    stringResource(R.string.place_timeline_detail_geofence_exists),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            lat == null || lon == null -> {
+                Text(
+                    stringResource(R.string.place_timeline_detail_no_coordinates),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            else -> {
+                if (unnamed) {
+                    Text(
+                        stringResource(R.string.place_timeline_detail_unnamed_hint),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Button(
+                    onClick = { onAddGeofence(lat, lon, nameForGeofence) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.place_timeline_detail_add_geofence))
+                }
+            }
+        }
+
+        TextButton(
+            onClick = onDismiss,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text(stringResource(R.string.place_timeline_detail_close))
         }
     }
 }

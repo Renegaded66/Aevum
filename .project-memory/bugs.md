@@ -14,3 +14,8 @@ Hauptrisiken:
   Fahrzeug-Anker ≥ 3,0 m/s, zwei Probes in 90 s; Fallback jüngster Probe.
 - M23 behoben: App-Aufzeichnung startete nach dem Ende einer fremden Session
   (Fahrt/Sport/manuell) nicht, solange die getrackte App offen blieb.
+
+- M24 behoben: Digital Balance – die große Zahl oben, Unlocks und der
+  Stundenverlauf blieben beim Klick auf einen Tagesbalken auf „heute", weil
+  `buildState` immer `aggregator.todayDetail()` rief. Fix: `detailForDay(date)`
+  + `totalMs` statt `todayTotalMs`.

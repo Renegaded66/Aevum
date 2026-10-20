@@ -24,6 +24,8 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 
 ### 📊 Verstehen
 - **Timeline** — Tagesansicht mit farbigen Blöcken, Zoom, Detail-Ansicht und schnellem Löschen
+- **Orts-Timeline** — besuchte Orte als Tagesstory; ein Tipp öffnet Details und legt mit übernommenem Standort direkt einen Geofence an
+- **Digital Balance** — 7-/30-Tage-Verlauf; ein Balken-Tipp lädt Gesamtzeit, Unlocks, Stundenprofil und Apps genau dieses Tages
 - **Dashboard** — Flow-Diagramm des Tages, Live-Karte, Ziele mit Positivitäts-Score
 - **Insights** — Zeitverteilung, Trends, Vergleiche
 - **LifeView & Kalender** — langfristige Perspektive auf dein Leben

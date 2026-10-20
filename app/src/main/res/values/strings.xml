@@ -60,6 +60,14 @@
     <string name="place_timeline_badge_unnamed">Unnamed place</string>
     <string name="place_timeline_cd_prev_day">Previous day</string>
     <string name="place_timeline_cd_next_day">Next day</string>
+    <!-- M24: Ort antippen → Detail-Sheet → Geofence mit Standort anlegen -->
+    <string name="place_timeline_detail_title">Place details</string>
+    <string name="place_timeline_detail_add_geofence">Add geofence</string>
+    <string name="place_timeline_detail_geofence_exists">This place is already a geofence.</string>
+    <string name="place_timeline_detail_no_coordinates">No coordinates are saved for this place.</string>
+    <string name="place_timeline_detail_coordinates">Coordinates</string>
+    <string name="place_timeline_detail_close">Close</string>
+    <string name="place_timeline_detail_unnamed_hint">Give the place a name in the next step.</string>
     <string name="language_system">System</string>
     <string name="language_de">Deutsch</string>
     <string name="language_en">English</string>

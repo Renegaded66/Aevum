@@ -101,33 +101,70 @@ class AppUsageAggregator @Inject constructor(
             val zone = ZoneId.systemDefault()
             val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
             val now = System.currentTimeMillis()
-            // M21: gemeinsame Faltung (Activity-Ebene, Paket-Vereinigung).
-            val phases = foregroundPhases(startOfDay, now)
-            val hourly = LongArray(24)
-            phases.forEach { phase ->
-                // M21: Stundenzuordnung stückweise — eine 3-Stunden-Sitzung
-                // zählt jetzt in jede ihrer Stunden statt komplett in die
-                // Startstunde (ehrlicheres Balken-Diagramm).
-                var cursor = phase.start
-                while (cursor < phase.end) {
-                    // Stundengrenze in der LOKALEN Zeitzone (nicht UTC —
-                    // sonst wären die Balken in Halbstunden-Zonen verschoben).
-                    val zoned = java.time.Instant.ofEpochMilli(cursor).atZone(zone)
-                    val hourEnd = zoned.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                        .plusHours(1).toInstant().toEpochMilli()
-                    val segEnd = minOf(phase.end, hourEnd)
-                    hourly[zoned.hour.coerceIn(0, 23)] += (segEnd - cursor).coerceAtLeast(0L)
-                    cursor = segEnd
-                }
-            }
-            TodayDetail(
-                totalMs = phases.sumOf { it.durationMs },
-                unlockCount = foregroundEventCount(startOfDay, now),
-                hourlyMs = hourly.toList()
-            )
+            detailForRange(startOfDay, now, zone)
         } catch (_: Exception) {
             TodayDetail(0, 0, List(24) { 0L })
         }
+    }
+
+    /**
+     * M24: Detail-Statistik für einen BELIEBIGEN Tag — Gesamtzeit,
+     * Unlocks und Stunden-Buckets.
+     *
+     * Regression (Devon): Im Digital-Balance-Balkendiagramm wechselten die
+     * App-Werte beim Tagesklick, aber die große Zahl oben und der
+     * Stundenverlauf blieben die Werte von HEUTE. Ursache war, dass
+     * `buildState` immer [todayDetail] aufrief. Diese Methode schließt die
+     * Lücke: exakt derselbe Rechenpfad, nur mit dem Tagesfenster
+     * [date 00:00, date+1 00:00) statt „heute bis jetzt".
+     *
+     * Zukünftige Tage liefern 0 (noch keine Events). Vergangene Tage werden
+     * bis Mitternacht ausgewertet, heute bis [System.currentTimeMillis].
+     */
+    suspend fun detailForDay(date: LocalDate): TodayDetail = withContext(Dispatchers.IO) {
+        try {
+            val zone = ZoneId.systemDefault()
+            val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = minOf(
+                date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(),
+                System.currentTimeMillis()
+            )
+            if (end <= start) {
+                TodayDetail(0, 0, List(24) { 0L })
+            } else {
+                detailForRange(start, end, zone)
+            }
+        } catch (_: Exception) {
+            TodayDetail(0, 0, List(24) { 0L })
+        }
+    }
+
+    /** Gemeinsamer Rechenpfad für [todayDetail] und [detailForDay]. */
+    private fun detailForRange(start: Long, end: Long, zone: ZoneId): TodayDetail {
+        // M21: gemeinsame Faltung (Activity-Ebene, Paket-Vereinigung).
+        val phases = foregroundPhases(start, end)
+        val hourly = LongArray(24)
+        phases.forEach { phase ->
+            // M21: Stundenzuordnung stückweise — eine 3-Stunden-Sitzung
+            // zählt jetzt in jede ihrer Stunden statt komplett in die
+            // Startstunde (ehrlicheres Balken-Diagramm).
+            var cursor = phase.start
+            while (cursor < phase.end) {
+                // Stundengrenze in der LOKALEN Zeitzone (nicht UTC —
+                // sonst wären die Balken in Halbstunden-Zonen verschoben).
+                val zoned = java.time.Instant.ofEpochMilli(cursor).atZone(zone)
+                val hourEnd = zoned.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                    .plusHours(1).toInstant().toEpochMilli()
+                val segEnd = minOf(phase.end, hourEnd)
+                hourly[zoned.hour.coerceIn(0, 23)] += (segEnd - cursor).coerceAtLeast(0L)
+                cursor = segEnd
+            }
+        }
+        return TodayDetail(
+            totalMs = phases.sumOf { it.durationMs },
+            unlockCount = foregroundEventCount(start, end),
+            hourlyMs = hourly.toList()
+        )
     }
 
     /** M21: Foreground-Transitionen (Unlocks) im Zeitraum. */

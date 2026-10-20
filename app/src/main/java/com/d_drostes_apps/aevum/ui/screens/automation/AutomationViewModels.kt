@@ -225,6 +225,18 @@ class GeofenceEditorViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // M24: Aus der Orts-Timeline übernommener Standort. Die Route
+            // übergibt lat/lon/name als optionale Query-Args; hier werden
+            // sie VOR dem Laden eines bestehenden Geofence in das Formular
+            // gesetzt. Bei einem Edit (geofenceId != null) gewinnt die DB.
+            val prefill = geofencePrefillFromArgs(
+                latRaw = savedStateHandle["lat"],
+                lonRaw = savedStateHandle["lon"],
+                nameRaw = savedStateHandle["name"]
+            )
+            if (geofenceId == null && prefill != null) {
+                form.value = prefill
+            }
             geofenceId?.let { id ->
                 geofenceRepository.getById(id).collect { geofence ->
                     geofence ?: return@collect
@@ -440,6 +452,32 @@ data class GeofenceForm(
     // M11+: Separate activity type for auto-start (defaults to activityTypeId)
     val autoStartActivityTypeId: String? = null
 )
+
+/**
+ * M24: Formular-Vorbefüllung für „Geofence hinzufügen" aus der Orts-Timeline.
+ *
+ * Die Route `geofence/new?lat=…&lon=…&name=…` liefert Strings; diese
+ * Funktion validiert sie und baut das Startformular. Ungültige/fehlende
+ * Koordinaten → null (der Editor bleibt dann leer, statt mit 0/0 zu
+ * speichern). Der Name ist optional — bei „Ort (unbenannt)" ist er leer
+ * und der Nutzer vergibt ihn im Editor.
+ */
+internal fun geofencePrefillFromArgs(
+    latRaw: String?,
+    lonRaw: String?,
+    nameRaw: String?
+): GeofenceForm? {
+    val lat = latRaw?.replace(',', '.')?.toDoubleOrNull() ?: return null
+    val lon = lonRaw?.replace(',', '.')?.toDoubleOrNull() ?: return null
+    if (lat !in -90.0..90.0 || lon !in -180.0..180.0) return null
+    if (lat == 0.0 && lon == 0.0) return null // Null-Insel = kein echter Standort
+    return GeofenceForm(
+        name = nameRaw?.trim()?.take(80).orEmpty(),
+        latitude = "%.6f".format(Locale.US, lat),
+        longitude = "%.6f".format(Locale.US, lon),
+        radius = "150"
+    )
+}
 
 data class GeofenceEditorUiState(
     val form: GeofenceForm = GeofenceForm(),

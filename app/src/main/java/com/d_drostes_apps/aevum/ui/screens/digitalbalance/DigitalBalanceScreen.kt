@@ -415,7 +415,14 @@ private fun TodayHeroCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(R.string.common_today), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                val selectedDate = state.selectedDay
+                val headerLabel = selectedDate?.format(
+                    java.time.format.DateTimeFormatter.ofPattern(
+                        "EEE, dd.MM.",
+                        java.util.Locale.getDefault()
+                    )
+                ) ?: stringResource(R.string.common_today)
+                Text(headerLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                 IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.balance_refresh), modifier = Modifier.size(16.dp))
                 }
@@ -426,7 +433,7 @@ private fun TodayHeroCard(
             // M18.62: Sweep-Angle animiert (Spring bouncy) + zentrale Zeit
             // zählt animiert hoch.
             val goalMs = state.dailyGoalMs
-            val progress = (state.todayTotalMs.toFloat() / goalMs).coerceIn(0f, 1f)
+            val progress = (state.totalMs.toFloat() / goalMs).coerceIn(0f, 1f)
             val ringColor = when {
                 progress >= 1f -> MaterialTheme.colorScheme.error
                 progress >= 0.8f -> MaterialTheme.colorScheme.tertiary
@@ -444,15 +451,15 @@ private fun TodayHeroCard(
             )
             // M18.62: Zentrale Zeit zählt von 0 auf den Zielwert (600ms)
             var shownMs by remember { mutableFloatStateOf(0f) }
-            LaunchedEffect(state.todayTotalMs) {
+            LaunchedEffect(state.totalMs) {
                 val start = shownMs
-                val diff = state.todayTotalMs - start
+                val diff = state.totalMs - start
                 val steps = 30
                 for (i in 1..steps) {
                     shownMs = start + diff * (i / steps.toFloat())
                     delay(20)
                 }
-                shownMs = state.todayTotalMs.toFloat()
+                shownMs = state.totalMs.toFloat()
             }
             Box(
                 modifier = Modifier
@@ -519,7 +526,7 @@ private fun TodayHeroCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                HeroMetric(stringResource(R.string.balance_metric_apps), state.todayAppCount.toString())
+                HeroMetric(stringResource(R.string.balance_metric_apps), state.appCount.toString())
                 HeroMetric(stringResource(R.string.balance_metric_unlocks), state.unlockCount.toString())
                 HeroMetric(stringResource(R.string.balance_metric_top), state.topAppName?.take(8) ?: "—")
             }
