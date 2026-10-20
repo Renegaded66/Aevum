@@ -214,8 +214,13 @@ hat auf der Detailseite ein eigenes Label: „📞 Anruf (Auto)" / „Call (auto
 | Punkt | Wert |
 |---|---|
 | Tests | **1324** Tests, **0 Fehler**, **1 skipped** (+35 gegenüber M25) |
-| Build | `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:bundleRelease`, Exit **0** |
+| Build | `:app:testDebugUnitTest :app:assembleDebug :app:assembleRelease :app:bundleRelease`, Exit **0**, **9m 41s** |
+| Debug-APK | 124.600.760 B (118,8 MB), SHA-256 `3d1bf199…5954811a`, SHA-1 `9c3055c4…fbe0e8` (kanonisch) |
+| Release-APK | 52.315.571 B (49,9 MB), SHA-256 `3e49a283…16eb2e2`, SHA-1 `c8430d35…361ffe9` (Upload-Key) |
+| AAB | 24.648.337 B (23,5 MB), SHA-256 `eec5c77f…17c427e5` |
+| Server | alle drei Dateien HTTP 200, `versionCode=47`, `versionName=1.0.46-debug` |
 | DB | **v49**, Migration 48→49 (zwei `ADD COLUMN`) |
+| Commit | `ea50814` (Code + Doku), `main` → `origin/main` gepusht |
 | Neue Dateien | `domain/call/CallDetectionPolicy.kt`, `automation/call/CallDetectionService.kt`, `automation/call/CallDetectionWatchdogWorker.kt` + 4 Testklassen |
 
 Build-Log: `/root/builds/m26-final.log`; Testberichte:
