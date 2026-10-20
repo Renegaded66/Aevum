@@ -176,8 +176,9 @@ wodurch die App-Anteils-Balken an vergangenen Tagen falsch skalierten.
 | AAB | 24.618.012 B (23,5 MB), SHA-256 `bb336255…90b98bc1` |
 | Server | alle drei Dateien HTTP 200, `versionCode=45`, `versionName=1.0.44-debug` |
 | DB | unverändert v48, keine Migration |
+| Commit | `268c554` (Code + Doku); dieser Berichtsnachtrag ist ein Folge-Commit |
 
-Build-Log: `/root/builds/m24-final.log`; Testberichte:
+Build-Log: `/root/builds/m24-final2.log`; Testberichte:
 `app/build/test-results/testDebugUnitTest/`.
 
 ---
