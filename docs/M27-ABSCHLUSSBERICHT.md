@@ -270,7 +270,33 @@ sichtbarer Primärfarben-Hinweis.
 
 ## 5. Build und Artefakte
 
-> Wird nach dem vollständigen Build ergänzt.
+- **Tests:** `:app:testDebugUnitTest` — **1359 Tests, 0 Fehler, 0 Errors,
+  1 skipped** (56,1 s Testzeit). Neu: 35 Tests in acht Dateien.
+- **Voll-Build:** `:app:testDebugUnitTest :app:assembleDebug` —
+  **BUILD SUCCESSFUL** (4m 58s im Voll-Lauf, 1m 30s im finalen inkrementellen
+  Lauf).
+- **Debug-APK:** `app/build/outputs/apk/debug/app-debug.apk`,
+  **126.514.602 Bytes** (120,7 MiB), versionCode **48**, versionName
+  **1.0.47-debug**.
+- **SHA-256:** `c300469021efaf8fbfd229d3de2b164482429ed8e16b2457e6ee30b9b3456505`
+- **Signatur:** kanonischer Debug-Key, SHA-1
+  `9C:30:55:C4:81:0B:5C:C2:E5:48:D8:DE:83:57:34:43:52:FB:E0:E8`
+  (`signing-verify OK`).
+- **Commit:** `442ecef` — „M27: Sucht-Detektor im Balance-Tab,
+  Backup-Restore repariert, Ziele einen Tag verzoegert - Aevum 1.0.47".
+- **Hinweis Lint:** `lintDebug` ist im Projekt kein Build-Gate. Der Lauf
+  meldet weiterhin bestehende Altbefunde (`MissingPermission` in
+  `ActivityContinuousSamples`/`InitialActivitySnapshotWorker`,
+  `UnspecifiedRegisterReceiverFlag` in `AppBlockService`). Der einzige neue
+  M27-Befund (`ExtraTranslation` durch eine nur deutsche Zusatzstring) wurde
+  behoben; die AAPT-Warnung zu `%`-Zeichen im Info-Text ebenfalls
+  (`formatted="false"`).
+
+Sichtprüfung der gerenderten Detektor-Seite: Der Erklärungstext des leeren
+Zustands war zu lang und wurde nach 4 Zeilen abgeschnitten (auf 10 erhöht und
+Text gekürzt); die Stundenachse brach „18" um (`maxLines=1`, `softWrap=false`);
+„1 opens" und „7× opens" wurden zu „1×"/„7× total"; „Share 72 %" ist jetzt
+lokalisiert korrekt „Share 72%" bzw. „Anteil 72 %".
 
 ---
 
