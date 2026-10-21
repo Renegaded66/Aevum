@@ -208,3 +208,14 @@
       `CALL_AUTO` in `AUTO_SOURCES`. +35 Tests (1324 gesamt).
       Kein Geräte-Test möglich (kein Telefonie-Emulator) — Prüfschritte im
       Abschlussbericht §8.
+
+- [x] M27 (App 1.0.47, vc 48, DB v50): Sucht-Detektor als dritte Balance-Seite
+      (beobachtete Apps, Öffnungen, Sitzungslängen, 7T/4W/6M-Verlauf,
+      Nutzungsdruck, Stundenbalken, App-Details, App-Auswahl), Erhebung über
+      UsageStatsManager + Screen-Off-Faltung, 45-Tage-Backfill, 30-min-Worker,
+      400-Tage-Retention. Backup-Audit: dateibasiertes Backup erfasst neue
+      Features automatisch; eingefrorene Schema-Konstante 40 entfernt,
+      ältere Backups werden migriert statt abgelehnt (`BackupVersionPolicy`).
+      AT_MOST-Tagesziele werden erst nach Tagesende gewertet („Wertung folgt",
+      Popup erst ab 2 Tagen in Folge); Perioden vor Ziel-Erstellung zählen
+      nicht mehr. +? Tests, Voll-Build siehe `docs/M27-ABSCHLUSSBERICHT.md`.

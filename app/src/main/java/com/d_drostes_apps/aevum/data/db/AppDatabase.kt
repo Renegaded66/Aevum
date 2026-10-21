@@ -9,6 +9,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.d_drostes_apps.aevum.data.converters.Converters
 import com.d_drostes_apps.aevum.data.model.*
 
+/**
+ * M27: EINE Quelle für die Schema-Version. Top-Level, weil Kotlin
+ * Companion-Konstanten in der @Database-Annotation nicht zuverlässig
+ * als Konstante auswertet (FIR/KAPT: „Unresolved reference SCHEMA_VERSION").
+ */
+const val APP_DATABASE_VERSION = 50
+
 @Database(
     entities = [
         LifeProfile::class,
@@ -64,7 +71,10 @@ import com.d_drostes_apps.aevum.data.model.*
         // M20: Ziel-Architektur — Check-ins manueller Ziele („4× Mo–Fr
         // Aufgaben machen" als eigene Zeilen; Rückgängig = letzte Zeile
         // löschen).
-        GoalCheckin::class
+        GoalCheckin::class,
+        // M27: Sucht-Detektor — beobachtete Apps + ihre Vordergrund-Sitzungen.
+        AddictionWatchApp::class,
+        AddictionSession::class
         // M19.3: pm_node (Projektmanagement) wieder ENTFERNT — MIGRATION_45_46
         // löscht die Tabelle; die Entity ist Geschichte (Nutzerentscheidung).
     ],
@@ -111,7 +121,10 @@ import com.d_drostes_apps.aevum.data.model.*
     // neue Tabelle `goal_checkin` (Check-ins manueller Ziele).
     // M23: v48 — activity_session.source_app_package (Ursprungs-App einer
     // App-Aufzeichnung für Icon + Name in der Timeline; nullable).
-    version = 49,
+    // M27: v50 — Sucht-Detektor: `addiction_watch_app` (ausgewählte Apps)
+    // und `addiction_session` (Vordergrund-Sitzungen mit Start, Ende und
+    // Dauer). Rein additiv; Bestandsdaten bleiben unberührt.
+    version = APP_DATABASE_VERSION,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -156,7 +169,22 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun calendarEventCacheDao(): CalendarEventCacheDao
     // M18.131: manuell markierte Einzel-Termine
     abstract fun calendarEventPinDao(): CalendarEventPinDao
+    // M27: Sucht-Detektor
+    abstract fun addictionWatchAppDao(): AddictionWatchAppDao
+    abstract fun addictionSessionDao(): AddictionSessionDao
     companion object {
+
+        /**
+         * M27: EINE Quelle für die aktuelle Schema-Version.
+         *
+         * `version =` oben und der Backup-Versionscheck in
+         * [com.d_drostes_apps.aevum.data.manager.DataManager] lesen diesen
+         * Wert. Vorher stand die Zahl im DataManager separat und war auf 40
+         * eingefroren — seit v41 schlug dadurch JEDER Restore mit
+         * „Version passt nicht" fehl. Eine zweite Konstante kann nicht mehr
+         * auseinanderlaufen.
+         */
+        const val SCHEMA_VERSION = APP_DATABASE_VERSION
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -1831,6 +1859,49 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 database.execSQL(
                     "ALTER TABLE `automation_settings` ADD COLUMN `call_activity_type_id` TEXT NOT NULL DEFAULT 'social'"
+                )
+            }
+        }
+
+        /**
+         * M27: Sucht-Detektor — zwei neue Tabellen.
+         *
+         * Rein additiv. `addiction_session` trägt zwei nicht-unique Indizes
+         * (Paket für die App-Auswertung, Start für „seit wann" + Retention);
+         * die ID ist der Primärschlüssel und macht wiederholte Scans
+         * idempotent. Keine Fremdschlüssel: das Entfernen einer beobachteten
+         * App darf ihre Messhistorie nicht mitlöschen.
+         */
+        val MIGRATION_49_50 = object : Migration(49, 50) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `addiction_watch_app` (
+                        `package_name` TEXT NOT NULL,
+                        `app_label` TEXT NOT NULL,
+                        `added_at` INTEGER NOT NULL,
+                        `sort_order` INTEGER NOT NULL,
+                        PRIMARY KEY(`package_name`)
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `addiction_session` (
+                        `id` TEXT NOT NULL,
+                        `package_name` TEXT NOT NULL,
+                        `start_at` INTEGER NOT NULL,
+                        `end_at` INTEGER NOT NULL,
+                        `duration_ms` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_addiction_session_package_name` ON `addiction_session` (`package_name`)"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_addiction_session_start_at` ON `addiction_session` (`start_at`)"
                 )
             }
         }

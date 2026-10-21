@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.data.goals.GoalCelebrationStore
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationPolicy
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
@@ -123,17 +124,18 @@ class GoalDetailViewModel @Inject constructor(
         val history = GoalProgressAnalytics.buildHistory(
             goal, sessions, today, zoneId, balance, checkins, completions
         )
+        val progress = result.toGoalWithProgress(
+            typeMap,
+            categories.associateBy { it.id },
+            checkins.count { it.dateKey == today.toString() }
+        )
 
-        maybeEmitCelebration(result)
+        maybeEmitCelebration(progress)
 
         GoalDetailUiState(
             loading = false,
             goal = goal,
-            progress = result.toGoalWithProgress(
-                typeMap,
-                categories.associateBy { it.id },
-                checkins.count { it.dateKey == today.toString() }
-            ),
+            progress = progress,
             history = history,
             checkins = checkins,
             categoryName = goal.categoryId?.let { cid -> categories.firstOrNull { it.id == cid }?.name },
@@ -142,18 +144,17 @@ class GoalDetailViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalDetailUiState())
 
-    private fun maybeEmitCelebration(result: GoalProgressAnalytics.GoalProgressResult) {
+    private fun maybeEmitCelebration(result: GoalWithProgress) {
         if (_celebration.value != null) return
-        val goal = result.goal
-        if (!result.isDueToday || !result.isMet) return
-        if (!celebrationStore.shouldCelebrate(goal.id, result.periodKey)) return
-        celebrationStore.markCelebrated(goal.id, result.periodKey)
+        val candidate = GoalCelebrationPolicy.candidate(result) ?: return
+        if (!celebrationStore.shouldCelebrate(candidate.goalId, candidate.periodKey)) return
+        celebrationStore.markCelebrated(candidate.goalId, candidate.periodKey)
         _celebration.value = GoalCelebrationEvent(
-            goalId = goal.id,
-            goalTitle = goal.title,
-            streak = result.streakCurrent,
-            periodLabel = result.periodLabel,
-            accent = goal.accent
+            goalId = candidate.goalId,
+            goalTitle = candidate.goalTitle,
+            streak = candidate.streak,
+            periodLabel = candidate.periodLabel,
+            accent = candidate.accent
         )
     }
 

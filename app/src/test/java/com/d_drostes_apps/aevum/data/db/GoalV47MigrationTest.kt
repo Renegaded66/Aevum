@@ -116,7 +116,8 @@ class GoalV47MigrationTest {
                 // die Kette muss bis zur aktuellen Version durchlaufen.
                 AppDatabase.MIGRATION_47_48,
                 // M26: Kette bis zur aktuellen v49 (ADD COLUMN in automation_settings).
-                AppDatabase.MIGRATION_48_49
+                AppDatabase.MIGRATION_48_49,
+                AppDatabase.MIGRATION_49_50
             )
             .allowMainThreadQueries()
             .build()
@@ -188,18 +189,18 @@ class GoalV47MigrationTest {
     }
 
     @Test
-    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-aktuelle-Version-49`() {
+    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-aktuelle-Version-50`() {
         createVersion46Database()
         migrate()
 
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(49)
+            assertThat(cursor.getInt(0)).isEqualTo(50)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(49).readText())
+            val expected = JSONObject(schemaFile(50).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }

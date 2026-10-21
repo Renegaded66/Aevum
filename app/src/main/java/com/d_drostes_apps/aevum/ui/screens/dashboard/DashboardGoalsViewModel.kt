@@ -3,6 +3,7 @@ package com.d_drostes_apps.aevum.ui.screens.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.d_drostes_apps.aevum.data.goals.GoalCelebrationStore
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationPolicy
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
@@ -129,7 +130,7 @@ class DashboardGoalsViewModel @Inject constructor(
                 ).toGoalWithProgress(typeMap, categoryMap, todayCounts[goal.id] ?: 0)
             }
             .sortedWith(
-                compareByDescending<GoalWithProgress> { it.isDueToday && !it.isMet }
+                compareByDescending<GoalWithProgress> { it.isDueToday && !it.isCurrentAchieved }
                     .thenByDescending { it.isDueToday }
                     .thenByDescending { it.progress.coerceAtMost(1f) }
                     .thenBy { it.goal.title.lowercase() }
@@ -149,17 +150,19 @@ class DashboardGoalsViewModel @Inject constructor(
     /** Feier genau einmal je Ziel+Periode (Store dedupliziert global). */
     private fun maybeEmitCelebration(goals: List<GoalWithProgress>) {
         if (_celebration.value != null) return
-        val candidate = goals.firstOrNull { g ->
-            g.isDueToday && g.isMet &&
-                celebrationStore.shouldCelebrate(g.goal.id, g.periodKey)
+        val candidate = goals.firstNotNullOfOrNull { g ->
+            val celebration = GoalCelebrationPolicy.candidate(g)
+            celebration?.takeIf {
+                celebrationStore.shouldCelebrate(g.goal.id, it.periodKey)
+            }
         } ?: return
-        celebrationStore.markCelebrated(candidate.goal.id, candidate.periodKey)
+        celebrationStore.markCelebrated(candidate.goalId, candidate.periodKey)
         _celebration.value = GoalCelebrationEvent(
-            goalId = candidate.goal.id,
-            goalTitle = candidate.goal.title,
-            streak = candidate.streakCurrent,
+            goalId = candidate.goalId,
+            goalTitle = candidate.goalTitle,
+            streak = candidate.streak,
             periodLabel = candidate.periodLabel,
-            accent = candidate.goal.accent
+            accent = candidate.accent
         )
     }
 

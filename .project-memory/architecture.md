@@ -14,6 +14,48 @@ PC-Tracker (Windows-Begleiter): Der Ordner `desktop/` enthält eine eigenständi
 
 ---
 
+## M27 — Sucht-Detektor, Backup-Fix, verzögerte Ziel-Wertung (21.10.2026)
+
+App **1.0.47** (versionCode 48), DB **v50**.
+
+**Sucht-Detektor im Balance-Tab:** dritte Pager-Seite „Detektor" + Einstiegskarte
+auf der Balance-Seite. Ausgewählte Apps (`addiction_watch_app`) und
+Vordergrund-Sitzungen (`addiction_session`, ID = `paket@start`) in DB v50.
+Erhebung über `UsageStatsManager.queryEvents` + bestehende
+`UsageEventFolding` (Activity-Ebene, Paket-Vereinigung), **Screen-Off schließt
+offene Sitzungen** (`SCREEN_NON_INTERACTIVE` / `DEVICE_SHUTDOWN`), 3-s-Filter,
+45-Tage-Backfill beim Hinzufügen, 400-Tage-Retention, 30-min-Worker
+(`AddictionSyncWorker`, KEEP) + 60-s-Sync nur solange die Detektor-Seite
+sichtbar ist. Auswertung (`AddictionAnalytics`, rein/JVM): „Heute" live,
+alle Vergleiche nur **abgeschlossene** 7 Tage / 4 Kalenderwochen / 6
+Kalendermonate; Öffnung zählt am Starttag, Dauer wird an Mitternacht
+geteilt; Nutzungsdruck 0–100 aus Zeit (40 %), Öffnungen (25 %), längster
+Sitzung (20 %), Nachtanteil 22–6 (15 %) der letzten 7 vollen Tage. UI:
+Heute-Karte mit Ring, Verlauf (Zeit/Öffnungen), Stundenbalken, App-Karten
+mit aufklappbaren heutigen Sitzungen, App-Auswahl-Sheet, Info-Dialog.
+
+**Backup-Audit:** Backup ist dateibasiert (DB + alle SharedPreferences/
+DataStore) und erfasst neue Tabellen/Preference-Dateien automatisch. Der
+Versionscheck war seit v41 kaputt: `DataManager` hatte eine eingefrorene
+`CURRENT_SCHEMA_VERSION = 40` und verlangte exakte Gleichheit. Jetzt EINE
+Quelle (`APP_DATABASE_VERSION` top-level, `AppDatabase.SCHEMA_VERSION`),
+`BackupVersionPolicy` erlaubt ältere Backups (Room migriert beim Start),
+lehnt neuere ab, schließt das DB-Handle und ignoriert ZIP-Pfad-Ausbrüche.
+Tests: `BackupVersionPolicyTest`, `BackupCoverageWiringTest`.
+
+**Ziel-Wertung:** Automatische **AT_MOST-Tagesziele** („unter 3 h bleiben")
+sind erst nach Tagesende final. `isMet` bleibt live; neu
+`isPendingFinal`, `isCurrentAchieved`, `lastCompleted*`,
+`celebrationPeriodKey`/`-Label`/`-Streak`. Serie zählt nur volle Tage;
+Karte zeigt „Wertung folgt" + „Zuletzt geschafft"; Popup nutzt die letzte
+abgeschlossene Periode und erscheint erst ab **2 Tagen in Folge**
+(`MIN_DELAYED_CELEBRATION_STREAK`). Perioden vor `goal.startAt` werden aus
+Serie/Feier gefiltert (verhindert 91-Tage-Serie neuer AT_MOST-Ziele).
+AT_LEAST, manuelle Ziele und Wochen-/Monatsziele bleiben sofort final.
+Gemeinsame Regel: `ui/screens/goals/GoalCelebrationPolicy.kt`.
+
+---
+
 ## M26 — Anruf-Erkennung (20.10.2026)
 
 App **1.0.46** (versionCode 47), DB **v49**.

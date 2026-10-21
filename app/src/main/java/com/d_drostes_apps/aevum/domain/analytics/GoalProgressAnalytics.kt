@@ -61,6 +61,9 @@ object GoalProgressAnalytics {
     /** Alle Wochentage gesetzt (Mo=1 … So=64). */
     const val ALL_DAYS = 127
 
+    /** M27: Erst ab dieser Serie gibt es für verzögerte AT_MOST-Tagesziele ein Popup. */
+    const val MIN_DELAYED_CELEBRATION_STREAK = 2
+
     /** Verlaufs-Fenster je Periode (Streaks + Diagramme). */
     const val HISTORY_DAYS = 91
     const val HISTORY_WEEKS = 26
@@ -85,7 +88,30 @@ object GoalProgressAnalytics {
         /** Schlüssel der aktuellen Periode (Celebration-Dedupe). */
         val periodKey: String = "",
         /** true, wenn der Zielwert >= Ziel ist (für AT_MOST: im Rahmen). */
-        val isCountType: Boolean = false
+        val isCountType: Boolean = false,
+        // ── M27: verzögerte Wertung automatischer Ziele ───────────────────
+        /**
+         * Live erfüllt? Bei automatisch gemessenen Zielen ist das nur eine
+         * Momentaufnahme — der Tag/die Woche läuft noch. Für „Ziel erreicht"
+         * in der UI zählt [isCurrentAchieved].
+         */
+        val isMetFinal: Boolean = isMet,
+        /** Automatisches Ziel, laufende Periode: Wertung erst danach. */
+        val isPendingFinal: Boolean = false,
+        /** Erfüllt im Sinne der abgeschlossenen Wertung (Auto) bzw. live (manuell). */
+        val isCurrentAchieved: Boolean = isMet,
+        /** Letzte abgeschlossene fällige Periode — Grundlage der Feier. */
+        val lastCompletedStart: LocalDate? = null,
+        val lastCompletedMet: Boolean? = null,
+        val lastCompletedPeriodKey: String? = null,
+        /** true = es gibt eine abgeschlossene, erfüllte Periode zum Feiern. */
+        val celebrationEligible: Boolean = false,
+        /** Schlüssel der zu feiernden Periode (nicht die laufende!). */
+        val celebrationPeriodKey: String = periodKey,
+        /** Label der zu feiernden Periode („Gestern", „Letzte Woche", …). */
+        val celebrationPeriodLabel: String = periodLabel,
+        /** Serie zum Zeitpunkt der zu feiernden Periode. */
+        val celebrationStreak: Int = streakCurrent
     )
 
     data class PeriodStatus(
@@ -161,8 +187,61 @@ object GoalProgressAnalytics {
         val isMet = computeMet(goal, value)
         val isAtMost = goal.type == TYPE_AT_MOST
         val isDue = current?.due ?: true
+        val auto = isAuto(goal)
+        // M27: Verzögerte Wertung betrifft „am Tag UNTER einem Wert
+        // bleiben" — also automatische AT_MOST-Tagesziele. Ein AT_LEAST-Ziel
+        // („2 h lernen") ist dagegen mit Erreichen des Werts final; ein
+        // Wochen-/Monatsziel behält sein bisheriges Live-Verhalten.
+        val delayedEvaluation = auto && goal.period == "DAILY" && goal.type == TYPE_AT_MOST
+        val pendingFinal = delayedEvaluation && isDue && current != null && current.isCurrent
+        // M27: Perioden VOR der Ziel-Erstellung dürfen weder Serie noch
+        // Feier aufblähen. Besonders sichtbar bei AT_MOST: 91 leere
+        // Vergangenheitstage erfüllen „unter 3 h" sonst automatisch und ein
+        // frisch angelegtes Ziel hätte sofort eine 91-Tage-Serie.
+        // (Tests, die bewusst mit einem Anker vor startAt arbeiten, bleiben
+        // unverändert: liegt startAt nach dem Anker, greift kein Filter.)
+        val goalStartDate = Instant.ofEpochMilli(goal.startAt).atZone(zoneId).toLocalDate()
+        val relevantHistory = if (goalStartDate.isAfter(anchorDate)) {
+            history
+        } else {
+            history.filter { !it.startDate.isBefore(goalStartDate) }
+        }
+        val lastCompleted = relevantHistory.lastOrNull { it.due && !it.isCurrent }
+        val lastCompletedMet = lastCompleted?.met
+        val lastCompletedKey = lastCompleted?.let { periodKey(goal, it.startDate) }
 
-        val (streakCurrent, streakBest, metCount, dueCount) = streakStats(history)
+        // M27: Automatisch gemessene Ziele werden erst nach Ablauf ihrer
+        // Periode „erreicht". Sonst meldet ein AT_MOST-Ziel jeden Morgen
+        // Erfolg, obwohl der Tag noch läuft. Manuelle Ziele sind mit dem
+        // Check-in final und bleiben sofort sichtbar.
+        val isCurrentAchieved = isDue && !pendingFinal && isMet
+        val isMetFinal = if (delayedEvaluation) lastCompletedMet == true else isMet
+
+        val (streakCurrent, streakBest, metCount, dueCount) = streakStats(
+            relevantHistory,
+            includeCurrent = !delayedEvaluation
+        )
+
+        // M27: Bei verzögerten AT_MOST-Tageszielen wird erst ab zwei
+        // geschafften Tagen in Folge gefeiert — genau Devons Beispiel:
+        // „erst am nächsten Tag, wenn ich es 2 Tage in Folge geschafft habe".
+        // Ein einzelner erfolgreicher Tag bleibt in der Karte sichtbar
+        // („Zuletzt geschafft"), löst aber kein Vollbild-Popup aus.
+        val celebrationEligible = if (delayedEvaluation) {
+            lastCompletedMet == true && streakCurrent >= MIN_DELAYED_CELEBRATION_STREAK
+        } else {
+            isDue && isMet
+        }
+        val celebrationKey = if (delayedEvaluation) {
+            lastCompletedKey ?: periodKey(goal, anchorDate)
+        } else {
+            periodKey(goal, anchorDate)
+        }
+        val celebrationLabel = if (delayedEvaluation && lastCompleted != null) {
+            completedPeriodLabel(goal.period)
+        } else {
+            periodLabel(goal.period)
+        }
 
         return GoalProgressResult(
             goal = goal,
@@ -179,7 +258,17 @@ object GoalProgressAnalytics {
             metPeriods = metCount,
             duePeriods = dueCount,
             periodKey = periodKey(goal, anchorDate),
-            isCountType = isCountType(goal)
+            isCountType = isCountType(goal),
+            isMetFinal = isMetFinal,
+            isPendingFinal = pendingFinal,
+            isCurrentAchieved = isCurrentAchieved,
+            lastCompletedStart = lastCompleted?.startDate,
+            lastCompletedMet = lastCompletedMet,
+            lastCompletedPeriodKey = lastCompletedKey,
+            celebrationEligible = celebrationEligible,
+            celebrationPeriodKey = celebrationKey,
+            celebrationPeriodLabel = celebrationLabel,
+            celebrationStreak = streakCurrent
         )
     }
 
@@ -342,13 +431,14 @@ object GoalProgressAnalytics {
 
     // ── Streaks ──────────────────────────────────────────────────────────
 
-    private fun streakStats(history: List<PeriodStatus>): StreakStats {
+    private fun streakStats(history: List<PeriodStatus>, includeCurrent: Boolean): StreakStats {
         var best = 0
         var run = 0
         var metCount = 0
         var dueCount = 0
         history.forEach { p ->
             if (!p.due) return@forEach // freie Periode: unterbricht nicht, zählt nicht
+            if (p.isCurrent && !includeCurrent) return@forEach // M27: läuft noch
             dueCount++
             if (p.met == true) {
                 metCount++
@@ -361,17 +451,23 @@ object GoalProgressAnalytics {
                 if (!p.isCurrent) run = 0
             }
         }
-        return StreakStats(current = currentStreak(history), best = best, met = metCount, due = dueCount)
+        return StreakStats(
+            current = currentStreak(history, includeCurrent),
+            best = best,
+            met = metCount,
+            due = dueCount
+        )
     }
 
-    private fun currentStreak(history: List<PeriodStatus>): Int {
+    private fun currentStreak(history: List<PeriodStatus>, includeCurrent: Boolean): Int {
         var current = 0
         for (i in history.indices.reversed()) {
             val p = history[i]
             if (!p.due) continue // freie Periode überspringen
+            if (p.isCurrent && !includeCurrent) continue // M27: noch nicht gewertet
             when {
                 p.met == true -> current++
-                p.isCurrent -> continue // läuft noch — zählt noch nicht, bricht nicht
+                p.isCurrent -> continue // manuell: läuft noch — zählt nicht, bricht nicht
                 else -> break
             }
         }
@@ -474,6 +570,18 @@ object GoalProgressAnalytics {
         "DAILY" -> "Heute"
         "WEEKLY" -> "Diese Woche"
         "MONTHLY" -> "Diesen Monat"
+        else -> period
+    }
+
+    /**
+     * M27: Label der zu feiernden ABGESCHLOSSENEN Periode. Die Feier kommt
+     * erst am nächsten Tag (bzw. nach Wochen-/Monatsende) — „Heute" wäre
+     * dann schlicht falsch.
+     */
+    private fun completedPeriodLabel(period: String): String = when (period) {
+        "DAILY" -> "Gestern"
+        "WEEKLY" -> "Letzte Woche"
+        "MONTHLY" -> "Letzter Monat"
         else -> period
     }
 

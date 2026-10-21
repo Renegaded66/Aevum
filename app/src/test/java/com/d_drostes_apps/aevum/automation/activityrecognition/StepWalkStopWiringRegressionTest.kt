@@ -244,7 +244,9 @@ class StepWalkStopWiringRegressionTest {
         // dieses Tests ist „die v43-Migration ist da und die Version wurde
         // mitgezogen" — genau das wird jetzt geprüft, ohne bei v45 erneut zu
         // brechen.
-        val version = Regex("version = (\\d+)").find(text)?.groupValues?.get(1)?.toInt()
+        val version = Regex("const val APP_DATABASE_VERSION = (\\d+)").find(text)
+            ?.groupValues?.get(1)?.toInt()
+            ?: Regex("version = (\\d+)").find(text)?.groupValues?.get(1)?.toInt()
         assertWithMessage("Keine Datenbank-Version in AppDatabase gefunden")
             .that(version).isNotNull()
         assertWithMessage("Die v43-Migration ist da, aber die Version steht noch auf 43")

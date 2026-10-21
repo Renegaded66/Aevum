@@ -379,3 +379,44 @@ Güte-Gauge; die frühere Headline-Zeile ist entfernt.
   Geofence gelöscht, erscheinen die Orte wieder als unbenannt.
 - Orte außerhalb des Radius bleiben unbenannt; bei überlappenden Geofences
   gewinnt der nächstgelegene.
+
+## M27 — Sucht-Detektor im Balance-Tab (App 1.0.47)
+
+### Handy-Sucht-Detektor
+
+- Dritte Seite **Detektor** im Balance-Pager plus Einstiegskarte auf der
+  Balance-Seite.
+- Beobachtete Apps hinzufügen/entfernen (Bottom-Sheet mit Suche, Icons,
+  Schnellvorschlägen).
+- Für jede App: Öffnungen, Gesamtzeit, Ø Sitzung, längste Sitzung, Anteil und
+  Veränderung zur Vorperiode.
+- Aufklappbare App-Karte zeigt alle **Sitzungen von heute** mit Startzeit und
+  Dauer.
+- Heute-Karte mit **Nutzungsdruck 0–100** (Zeit, Öffnungen, längste Sitzung,
+  Nachtanteil der letzten 7 vollen Tage).
+- Verlauf über **7 volle Tage / 4 volle Wochen / 6 volle Monate**, umschaltbar
+  zwischen Zeit und Öffnungen; Stundenbalken für heute.
+- Wichtige Semantik: „Heute" ist live, jeder Vergleich nutzt nur abgeschlossene
+  Perioden. Sitzungen über Mitternacht zählen als eine Öffnung am Starttag;
+  die Dauer wird tagesweise geteilt. Phasen unter 3 s sind Rauschen.
+- Datenquelle: derselbe Android-Nutzungszugriff wie Digital Balance; alles
+  lokal. Kein neuer Permission-Dialog, keine Cloud.
+
+### Ziele: verzögerte Wertung
+
+- Automatische **AT_MOST-Tagesziele** („unter 3 h bleiben") sind erst nach
+  Tagesende final.
+- Karte zeigt **„Wertung folgt"** und ggf. **„Zuletzt geschafft"**; die Serie
+  zählt nur volle Tage.
+- Das Vollbild-Popup nutzt die letzte abgeschlossene Periode und erscheint erst
+  ab **2 Tagen in Folge**.
+- AT_LEAST-, manuelle sowie Wochen-/Monatsziele bleiben sofort final.
+- Perioden vor der Ziel-Erstellung zählen nicht mehr (keine 91-Tage-Serie
+  neuer AT_MOST-Ziele).
+
+### Backup
+
+- Komplette DB + alle SharedPreferences/DataStore-Dateien; neue Features und
+  Tabellen werden automatisch mitgesichert.
+- Ältere Backups werden beim Restore akzeptiert und beim nächsten Start per
+  Room migriert; neuere Backups werden abgelehnt.

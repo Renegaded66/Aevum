@@ -530,6 +530,14 @@ class AevumApplication : Application() {
         } catch (e: Exception) {
             Log.e("AevumApplication", "AppTrackingWatchdogWorker schedule failed — continuing", e)
         }
+        // M27: Sucht-Detektor — sichert die Usage-Events regelmäßig, bevor
+        // Android sie aus dem Ringpuffer wirft. Der Worker selbst ist ein
+        // No-Op, solange keine Apps beobachtet werden.
+        try {
+            com.d_drostes_apps.aevum.automation.addiction.AddictionSyncWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "AddictionSyncWorker schedule failed — continuing", e)
+        }
         // M17.4: Initial-Activity-Snapshot — falls der User gerade im Auto
         // sitzt und die App frisch startet (Cold-Start), soll das ebenfalls
         // erkannt werden. Idempotent dank KEEP-Policy im Scheduler.

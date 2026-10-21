@@ -57,8 +57,10 @@
     <string name="backup_error_open">Could not open backup file</string>
     <string name="backup_error_no_db">No valid database found in backup</string>
     <string name="backup_error_version">Backup version (%1$d) does not match app version (%2$d). Please update the app first.</string>
-    <string name="backup_error_corrupt">Backup file is corrupted (integrity check failed)</string>
+    <string name="backup_error_version_newer">This backup was created with a newer Aevum version (schema %1$d, app %2$d). Please update the app first.</string>
+    <string name="backup_restore_success_migrated">Backup restored (schema %1$d → %2$d). The app will restart and update the data.</string>
     <string name="backup_restore_success">Backup restored. The app will restart.</string>
+    <string name="backup_error_corrupt">Backup file is corrupted (integrity check failed)</string>
     <string name="backup_restore_error">Restore failed: %1$s</string>
     <string name="data_deleted_all">All data has been deleted. The app will restart.</string>
     <string name="data_delete_error">Delete failed: %1$s</string>

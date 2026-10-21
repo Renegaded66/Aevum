@@ -61,16 +61,18 @@ class GoalArchitectureWiringTest {
     @Test
     fun `Datenbank - Migration-46-47-ist-registriert-und-version-ist-aktuell`() {
         val database = main("data/db/AppDatabase.kt")
-        assertThat(database).contains("version = 49")
+        assertThat(database).contains("version = APP_DATABASE_VERSION")
         assertThat(database).contains("MIGRATION_46_47")
         assertThat(database).contains("MIGRATION_47_48")
         assertThat(database).contains("MIGRATION_48_49")
+        assertThat(database).contains("MIGRATION_49_50")
         assertThat(database).contains("goalCheckinDao()")
 
         val module = main("di/DatabaseModule.kt")
         assertThat(module).contains("AppDatabase.MIGRATION_46_47")
         assertThat(module).contains("AppDatabase.MIGRATION_47_48")
         assertThat(module).contains("AppDatabase.MIGRATION_48_49")
+        assertThat(module).contains("AppDatabase.MIGRATION_49_50")
         assertThat(module).contains("provideGoalCheckinDao")
     }
 

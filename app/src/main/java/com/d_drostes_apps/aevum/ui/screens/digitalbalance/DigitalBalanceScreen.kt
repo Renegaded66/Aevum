@@ -78,15 +78,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.data.model.AppLimit
 import com.d_drostes_apps.aevum.data.model.BalanceProfile
+import com.d_drostes_apps.aevum.domain.addiction.AddictionAnalytics
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
 import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureKind
 import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
+import com.d_drostes_apps.aevum.ui.screens.addiction.AddictionDetectorPage
+import com.d_drostes_apps.aevum.ui.screens.addiction.AddictionDetectorUiState
+import com.d_drostes_apps.aevum.ui.screens.addiction.AddictionDetectorViewModel
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import kotlinx.coroutines.Dispatchers
@@ -107,9 +112,12 @@ import java.time.LocalDate
 fun DigitalBalanceScreen(
     viewModel: DigitalBalanceViewModel,
     // M18.67: Navigation zur App-Aufzeichnung (Button oben)
-    onOpenAppTracking: () -> Unit = {}
+    onOpenAppTracking: () -> Unit = {},
+    // M27: Sucht-Detektor — eigene Seite im Balance-Pager.
+    detectorViewModel: AddictionDetectorViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val detectorState by detectorViewModel.uiState.collectAsStateWithLifecycle()
 
     // M18.61e-FIX: Nach Rückkehr aus den System-Settings (Permission
     // erteilt) sofort neu prüfen. Vorher blieb die PermissionCard
@@ -157,8 +165,9 @@ fun DigitalBalanceScreen(
     }
 
     // M18.61f: Zwei Seiten — Balance & Pomodoro — per Swipe (HorizontalPager).
+    // M27: Dritte Seite — Sucht-Detektor.
     // Oben ein dezenter Seiten-Indikator, damit klar ist, dass man swipen kann.
-    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -170,6 +179,7 @@ fun DigitalBalanceScreen(
         ) {
             listOf(
                 stringResource(R.string.balance_tab_balance),
+                stringResource(R.string.addiction_tab_title),
                 stringResource(R.string.balance_tab_pomodoro)
             ).forEachIndexed { index, label ->
                 val selected = pagerState.currentPage == index
@@ -189,10 +199,18 @@ fun DigitalBalanceScreen(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            if (page == 0) {
-                BalancePage(state, viewModel, onOpenAppTracking)
-            } else {
-                PomodoroPage(viewModel)
+            when (page) {
+                0 -> BalancePage(
+                    state = state,
+                    viewModel = viewModel,
+                    onOpenAppTracking = onOpenAppTracking,
+                    detectorState = detectorState,
+                    onOpenDetector = {
+                        scope.launch { pagerState.animateScrollToPage(1) }
+                    }
+                )
+                1 -> AddictionDetectorPage(viewModel = detectorViewModel)
+                else -> PomodoroPage(viewModel)
             }
         }
     }
@@ -203,7 +221,10 @@ private fun BalancePage(
     state: DigitalBalanceUiState,
     viewModel: DigitalBalanceViewModel,
     // M18.67: App-Aufzeichnung-Button
-    onOpenAppTracking: () -> Unit
+    onOpenAppTracking: () -> Unit,
+    // M27: Kurz-Einstieg in den Sucht-Detektor (dritte Pager-Seite).
+    detectorState: AddictionDetectorUiState,
+    onOpenDetector: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -242,6 +263,11 @@ private fun BalancePage(
                 onRangeChange = viewModel::setRangeDays,
                 onDayClick = viewModel::selectDay
             )
+        }
+        // M27: Sichtbarer Einstieg in den Sucht-Detektor — die Seite ist
+        // über den Pager erreichbar, diese Karte macht sie entdeckbar.
+        item {
+            DetectorEntryCard(state = detectorState, onClick = onOpenDetector)
         }
         // M18.61f: Profile-Karte (Lern-Profil sperrt Social Media)
         item { ProfilesCard(viewModel) }
@@ -313,6 +339,63 @@ private fun formatDay(date: LocalDate): String {
         today -> stringResource(R.string.common_today)
         today.minusDays(1) -> stringResource(R.string.common_yesterday)
         else -> date.format(java.time.format.DateTimeFormatter.ofPattern("d.M.", java.util.Locale.getDefault()))
+    }
+}
+
+/**
+ * M27: Kompakter Einstieg in den Sucht-Detektor auf der Balance-Seite.
+ * Zeigt den heutigen Stand, ohne die lange App-Liste zu unterbrechen.
+ */
+@Composable
+private fun DetectorEntryCard(
+    state: AddictionDetectorUiState,
+    onClick: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val analysis = state.analysis
+    AevumCard(onClick = onClick, contentPadding = PaddingValues(AevumSpacing.md)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(colors.primaryContainer.copy(alpha = 0.55f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("📱", fontSize = 20.sp)
+            }
+            Spacer(Modifier.width(AevumSpacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.addiction_entry_title),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    if (state.watchedApps.isEmpty()) {
+                        stringResource(R.string.addiction_entry_empty)
+                    } else if (analysis != null) {
+                        stringResource(
+                            R.string.addiction_entry_today,
+                            if (analysis.today.totalMs > 0L) AddictionAnalytics.formatDuration(analysis.today.totalMs) else "0m",
+                            analysis.today.opens,
+                            analysis.score
+                        )
+                    } else {
+                        stringResource(R.string.addiction_subtitle)
+                    },
+                    fontSize = 11.sp,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+            Text(
+                stringResource(R.string.addiction_entry_open) + " ›",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.primary
+            )
+        }
     }
 }
 

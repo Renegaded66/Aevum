@@ -95,6 +95,27 @@ object UsageEventFolding {
         }
 
         /**
+         * M27: Bildschirm aus / Gerät herunterfahren — ALLE offenen Fenster
+         * schließen.
+         *
+         * Ohne diesen Pfad blieb eine App, die beim Sperren noch im
+         * Vordergrund war, bis zum nächsten echten Background-Event
+         * „offen". Auf vielen Geräten kommt beim Locken kein
+         * ACTIVITY_PAUSED — die Sitzung hätte dann die ganze Nacht
+         * mitgezählt. Für den Sucht-Detektor wäre das ein fataler
+         * Datenfehler (jede Nacht = stundenlange Instagram-Sitzung),
+         * deshalb beendet der Collector seine Sitzungen am Screen-Off.
+         */
+        fun onScreenOff(timestamp: Long) {
+            open.entries.toList().forEach { (k, start) ->
+                if (timestamp > start) {
+                    finished += Phase(k.substringBefore('/'), start, timestamp)
+                }
+            }
+            open.clear()
+        }
+
+        /**
          * Schließt offene Fenster zum Zeitpunkt [end] (App noch im
          * Vordergrund) und liefert die je Paket VEREINIGTEN Phasen
          * (disjunkt, aufsteigend).

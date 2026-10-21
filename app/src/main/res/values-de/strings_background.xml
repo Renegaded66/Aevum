@@ -57,7 +57,9 @@
     <string name="backup_error_open">Backup-Datei konnte nicht geöffnet werden</string>
     <string name="backup_error_no_db">Keine gültige Datenbank im Backup gefunden</string>
     <string name="backup_error_version">Backup-Version (%1$d) passt nicht zur App-Version (%2$d). Bitte zuerst die App aktualisieren.</string>
+    <string name="backup_error_version_newer">Dieses Backup stammt aus einer neueren Aevum-Version (Schema %1$d, App %2$d). Bitte zuerst die App aktualisieren.</string>
     <string name="backup_error_corrupt">Backup-Datei ist beschädigt (Integritätsprüfung fehlgeschlagen)</string>
+    <string name="backup_restore_success_migrated">Backup wiederhergestellt (Schema %1$d → %2$d). Die App startet neu und aktualisiert die Daten.</string>
     <string name="backup_restore_success">Backup wiederhergestellt. Die App startet neu.</string>
     <string name="backup_restore_error">Wiederherstellung fehlgeschlagen: %1$s</string>
     <string name="data_deleted_all">Alle Daten wurden gelöscht. Die App startet neu.</string>

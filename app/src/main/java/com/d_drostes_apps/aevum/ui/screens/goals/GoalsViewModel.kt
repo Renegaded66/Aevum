@@ -173,7 +173,7 @@ class GoalsViewModel @Inject constructor(
             showCompleted = showCompleted,
             summary = GoalsSummary(
                 dueToday = due.size,
-                metDue = due.count { it.isMet },
+                metDue = due.count { it.isCurrentAchieved },
                 bestStreak = active.maxOfOrNull { it.streakCurrent } ?: 0,
                 totalActive = active.size
             ),
@@ -188,17 +188,19 @@ class GoalsViewModel @Inject constructor(
      */
     private fun maybeEmitCelebration(goals: List<GoalWithProgress>) {
         if (_celebration.value != null) return
-        val candidate = goals.firstOrNull { g ->
-            g.isDueToday && g.isMet &&
-                celebrationStore.shouldCelebrate(g.goal.id, g.periodKey)
+        val candidate = goals.firstNotNullOfOrNull { g ->
+            val celebration = GoalCelebrationPolicy.candidate(g)
+            celebration?.takeIf {
+                celebrationStore.shouldCelebrate(g.goal.id, it.periodKey)
+            }
         } ?: return
-        celebrationStore.markCelebrated(candidate.goal.id, candidate.periodKey)
+        celebrationStore.markCelebrated(candidate.goalId, candidate.periodKey)
         _celebration.value = GoalCelebrationEvent(
-            goalId = candidate.goal.id,
-            goalTitle = candidate.goal.title,
-            streak = candidate.streakCurrent,
+            goalId = candidate.goalId,
+            goalTitle = candidate.goalTitle,
+            streak = candidate.streak,
             periodLabel = candidate.periodLabel,
-            accent = candidate.goal.accent
+            accent = candidate.accent
         )
     }
 
@@ -208,7 +210,7 @@ class GoalsViewModel @Inject constructor(
 
     /** Fortschritts-Rang: fällig & offen zuerst, dann Fortschritt absteigend. */
     private fun progressComparator(): Comparator<GoalProgressAnalytics.GoalProgressResult> =
-        compareByDescending<GoalProgressAnalytics.GoalProgressResult> { it.isDueToday && !it.isMet }
+        compareByDescending<GoalProgressAnalytics.GoalProgressResult> { it.isDueToday && !it.isCurrentAchieved }
             .thenByDescending { it.isDueToday }
             .thenByDescending { it.progress.coerceAtMost(1f) }
             .thenBy { it.goal.title.lowercase() }
@@ -308,7 +310,15 @@ fun GoalProgressAnalytics.GoalProgressResult.toGoalWithProgress(
     isCountType = isCountType,
     categoryName = goal.categoryId?.let { categoryMap[it]?.name },
     activityColorLong = goal.activityTypeId?.let { typeMap[it]?.color },
-    todayCheckins = todayCheckins
+    todayCheckins = todayCheckins,
+    isMetFinal = isMetFinal,
+    isPendingFinal = isPendingFinal,
+    isCurrentAchieved = isCurrentAchieved,
+    lastCompletedMet = lastCompletedMet,
+    celebrationEligible = celebrationEligible,
+    celebrationPeriodKey = celebrationPeriodKey,
+    celebrationPeriodLabel = celebrationPeriodLabel,
+    celebrationStreak = celebrationStreak
 )
 
 data class GoalWithProgress(
@@ -332,7 +342,20 @@ data class GoalWithProgress(
     /** Aktivitätsfarbe (Long-ARGB aus der Aktivität) — Akzent-Fallback. */
     val activityColorLong: Long? = null,
     /** Heutige Check-ins (manuelle Ziele) — steuert Knopf-Zustand/Rückgängig. */
-    val todayCheckins: Int = 0
+    val todayCheckins: Int = 0,
+    // ── M27: verzögerte Wertung ───────────────────────────────────────────
+    /** Abgeschlossene Wertung: bei Auto-Zielen die letzte volle Periode. */
+    val isMetFinal: Boolean = false,
+    /** Auto-Ziel, laufende Periode — noch keine Wertung. */
+    val isPendingFinal: Boolean = false,
+    /** Für „Heute erfüllt"-Anzeige: live (manuell) bzw. false solange offen. */
+    val isCurrentAchieved: Boolean = false,
+    /** Letzte abgeschlossene Periode war erfüllt (null = keine Daten). */
+    val lastCompletedMet: Boolean? = null,
+    val celebrationEligible: Boolean = false,
+    val celebrationPeriodKey: String = "",
+    val celebrationPeriodLabel: String = "",
+    val celebrationStreak: Int = 0
 )
 
 data class GoalsSummary(

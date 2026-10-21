@@ -125,6 +125,8 @@
     <string name="goal_badge_due">Fällig</string>
     <string name="goal_badge_free_day">Frei</string>
     <string name="goal_badge_free">Frei</string>
+    <string name="goal_badge_pending">Wertung folgt</string>
+    <string name="goal_badge_last_met">Zuletzt geschafft</string>
     <string name="goal_streak_value">Serie %1$d</string>
     <string name="goal_check_now">Abhaken</string>
     <string name="goal_checked_times">%1$d× heute</string>

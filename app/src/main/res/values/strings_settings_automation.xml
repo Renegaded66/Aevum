@@ -18,11 +18,11 @@
     <string name="settings_export_all_json">Export all data as JSON</string>
     <string name="settings_export_all_json_desc">Creates a complete copy of all tables (activities, triggers, goals, habits, todos, …) as a single JSON file. The export contains no passwords or credentials.</string>
     <string name="settings_export_start">Start export</string>
-    <string name="settings_backup_subtitle">Back up your complete database as a ZIP file — e.g. to Google Drive, your cloud, or your computer. With the backup you can fully restore Aevum at any time.</string>
+    <string name="settings_backup_subtitle">Back up your complete database and all app settings as a ZIP file — e.g. to Google Drive, your cloud, or your computer. New data areas are included automatically, so you can move to a new phone at any time.</string>
     <string name="settings_backup_create">Create backup</string>
-    <string name="settings_backup_create_desc">Creates a ZIP file with your entire database. Recommended: create a backup regularly, e.g. before updates or when traveling.</string>
+    <string name="settings_backup_create_desc">Creates a ZIP file with your entire database (all features: goals, Digital Balance, detector history, timelines, …) and all settings. Recommended: create a backup regularly, e.g. before updates or when traveling.</string>
     <string name="settings_backup_restore">Restore backup</string>
-    <string name="settings_backup_restore_desc">Selects a previously created ZIP file and restores all data. The app will restart automatically afterwards. The current database is saved as a safety copy first.</string>
+    <string name="settings_backup_restore_desc">Selects a previously created ZIP file and restores all data. Older backups are migrated automatically. The app will restart afterwards; the current database is saved as a safety copy first.</string>
     <string name="settings_backup_choose">Choose backup</string>
     <string name="settings_backup_confirm_title">Restore backup?</string>
     <string name="settings_backup_confirm_body">Restoring the backup will irreversibly replace ALL current data with the backup contents. This action cannot be undone.</string>

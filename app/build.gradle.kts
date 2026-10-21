@@ -255,8 +255,11 @@ android {
         //    hinzufügen" öffnet den Editor mit übernommenem Standort
         // M25: Nachträglich angelegter Geofence benennt bestehende
         //  Unknown-Places in der Orts-Timeline (auch frühere/spätere Tage)
-        versionCode = 47
-        versionName = "1.0.46"
+        // M27: Sucht-Detektor im Balance-Tab (Apps, Öffnungen, Sitzungen,
+        //  Verlauf), Backup-Versionscheck repariert, Ziele werden erst nach
+        //  Ablauf ihrer Periode gewertet.
+        versionCode = 48
+        versionName = "1.0.47"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

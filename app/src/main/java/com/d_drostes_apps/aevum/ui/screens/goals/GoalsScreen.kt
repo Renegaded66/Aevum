@@ -85,7 +85,7 @@ fun GoalsScreen(
                 }
 
                 if (due.isNotEmpty()) {
-                    item { GoalsSectionHeader(stringResource(R.string.goal_section_due), "${due.count { it.isMet }} / ${due.size}") }
+                    item { GoalsSectionHeader(stringResource(R.string.goal_section_due), "${due.count { it.isCurrentAchieved }} / ${due.size}") }
                     items(due, key = { it.goal.id }) { g ->
                         GoalCard(
                             g = g,
@@ -291,7 +291,7 @@ private fun GoalCard(
         onClick = onOpenDetail,
         contentPadding = PaddingValues(AevumSpacing.md),
         modifier = Modifier.shimmering(
-            enabled = !archived && g.isMet && g.isDueToday,
+            enabled = !archived && g.isCurrentAchieved && g.isDueToday,
             intensity = 0.18f,
             periodMillis = 4200
         )
@@ -364,10 +364,22 @@ private fun GoalCard(
                             else stringResource(R.string.goal_badge_free), 
                             color = colors.onSurfaceVariant
                         )
-                        g.isMet -> GoalPill(stringResource(R.string.goal_badge_met), accent, filled = true)
+                        g.isPendingFinal -> GoalPill(
+                            stringResource(R.string.goal_badge_pending),
+                            colors.tertiary
+                        )
+                        g.isCurrentAchieved -> GoalPill(stringResource(R.string.goal_badge_met), accent, filled = true)
                         else -> GoalPill(stringResource(R.string.goal_badge_due), colors.onSurfaceVariant)
                     }
                 }
+            }
+
+            if (g.isPendingFinal && g.lastCompletedMet == true) {
+                Text(
+                    stringResource(R.string.goal_badge_last_met),
+                    fontSize = 10.sp,
+                    color = accent
+                )
             }
 
             if (isManual && !archived) {

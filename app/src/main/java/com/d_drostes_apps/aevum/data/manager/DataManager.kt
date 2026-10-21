@@ -175,13 +175,17 @@ class DataManager @Inject constructor(
                     var entry = zip.nextEntry
                     while (entry != null) {
                         val targetFile = File(tempDir, entry.name)
+                        // M27: Keine Pfad-Ausbrüche aus einem manipulierten
+                        // ZIP (../../databases/...). Nur DB + bekannte
+                        // Präferenz-/DataStore-Pfade werden übernommen.
+                        val unsafeName = entry.name.startsWith("/") || entry.name.contains("..")
                         if (entry.name == "aevum_database") {
                             FileOutputStream(targetFile).use { zip.copyTo(it) }
                             foundDb = true
                         } else {
                             // WAL/SHM nicht wiederherstellen — Room baut sie neu auf.
                             // Preferences/DataStore-Dateien sammeln und später kopieren.
-                            if (!entry.name.endsWith("-wal") && !entry.name.endsWith("-shm")) {
+                            if (!entry.name.endsWith("-wal") && !entry.name.endsWith("-shm") && !unsafeName) {
                                 // WICHTIG: Einträge in Unterverzeichnissen (z. B.
                                 // shared_prefs/aevum_language.xml) brauchen ein
                                 // existierendes Zielverzeichnis — sonst wirft
@@ -204,13 +208,33 @@ class DataManager @Inject constructor(
                 return@withContext ExportResult.Error(context.getString(R.string.backup_error_no_db))
             }
 
-            // 2. Versions-Check
-            val backupVersion = queryUserVersion(android.database.sqlite.SQLiteDatabase.openDatabase(restoredDb.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY))
-            val currentVersion = CURRENT_SCHEMA_VERSION
-            if (backupVersion != currentVersion) {
+            // 2. Versions-Check (M27): ältere Backups sind erlaubt und werden
+            //    beim nächsten Start von Room migriert; neuere werden
+            //    abgelehnt. Die aktuelle Version kommt aus EINER Quelle
+            //    (AppDatabase.SCHEMA_VERSION), nicht mehr aus einer zweiten
+            //    Konstante, die einfrieren kann.
+            val backupDb = android.database.sqlite.SQLiteDatabase.openDatabase(
+                restoredDb.path,
+                null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            )
+            val backupVersion = try {
+                queryUserVersion(backupDb)
+            } finally {
+                backupDb.close()
+            }
+            val currentVersion = AppDatabase.SCHEMA_VERSION
+            val decision = BackupVersionPolicy.decide(backupVersion, currentVersion)
+            if (decision == BackupVersionPolicy.Decision.INVALID) {
                 tempDir.deleteRecursively()
                 return@withContext ExportResult.Error(
-                    context.getString(R.string.backup_error_version, backupVersion, currentVersion)
+                    context.getString(R.string.backup_error_no_db)
+                )
+            }
+            if (decision == BackupVersionPolicy.Decision.NEWER) {
+                tempDir.deleteRecursively()
+                return@withContext ExportResult.Error(
+                    context.getString(R.string.backup_error_version_newer, backupVersion, currentVersion)
                 )
             }
 
@@ -263,7 +287,15 @@ class DataManager @Inject constructor(
 
             tempDir.deleteRecursively()
             ExportResult.Success(
-                message = context.getString(R.string.backup_restore_success),
+                message = if (decision == BackupVersionPolicy.Decision.OLDER_OK) {
+                    context.getString(
+                        R.string.backup_restore_success_migrated,
+                        backupVersion,
+                        currentVersion
+                    )
+                } else {
+                    context.getString(R.string.backup_restore_success)
+                },
                 needsRestart = true
             )
         } catch (e: Exception) {
@@ -429,17 +461,6 @@ class DataManager @Inject constructor(
 
     companion object {
         private const val TAG = "DataManager"
-
-        /**
-         * Aktuelle Room-Schema-Version (muss mit `version = N` in AppDatabase.kt
-         * übereinstimmen). Bei jeder DB-Migration hier mitziehen.
-         * M18.72-FIX: War fälschlich auf 22 eingefroren — seit Version 38
-         * schlug JEDER Restore mit Versions-Mismatch fehl.
-         * M18.94-FIX: 39 → 40 (MIGRATION_39_40). Der Kommentar war auf 39
-         * stehen geblieben, während AppDatabase auf 40 migrierte — Restore
-         * brach erneut mit "Bitte zuerst die App aktualisieren".
-         */
-        private const val CURRENT_SCHEMA_VERSION = 40
     }
 }
 

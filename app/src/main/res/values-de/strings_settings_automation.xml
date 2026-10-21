@@ -18,11 +18,11 @@
     <string name="settings_export_all_json">Alle Daten als JSON exportieren</string>
     <string name="settings_export_all_json_desc">Erstellt eine vollständige Kopie aller Tabellen (Aktivitäten, Trigger, Ziele, Gewohnheiten, Todos, …) als eine JSON-Datei. Der Export enthält keine Passwörter oder Zugangsdaten.</string>
     <string name="settings_export_start">Export starten</string>
-    <string name="settings_backup_subtitle">Sichere deine komplette Datenbank als ZIP-Datei — z. B. auf Google Drive, in deine Cloud oder auf deinen Computer. Mit dem Backup kannst du Aevum jederzeit vollständig wiederherstellen.</string>
+    <string name="settings_backup_subtitle">Sichere deine komplette Datenbank und alle App-Einstellungen als ZIP-Datei — z. B. auf Google Drive, in deine Cloud oder auf deinen Computer. Neue Datenbereiche werden automatisch mitgesichert, damit du jederzeit auf ein neues Handy wechseln kannst.</string>
     <string name="settings_backup_create">Backup erstellen</string>
-    <string name="settings_backup_create_desc">Erstellt eine ZIP-Datei mit deiner gesamten Datenbank. Empfohlen: regelmäßig ein Backup anlegen, z. B. vor Updates oder auf Reisen.</string>
+    <string name="settings_backup_create_desc">Erstellt eine ZIP-Datei mit deiner gesamten Datenbank (alle Features: Ziele, Digital Balance, Detektor-Verlauf, Timelines, …) und allen Einstellungen. Empfohlen: regelmäßig ein Backup anlegen, z. B. vor Updates oder auf Reisen.</string>
     <string name="settings_backup_restore">Backup wiederherstellen</string>
-    <string name="settings_backup_restore_desc">Wählt eine zuvor erstellte ZIP-Datei aus und stellt alle Daten wieder her. Die App startet danach automatisch neu. Die aktuelle Datenbank wird vorher als Sicherung abgelegt.</string>
+    <string name="settings_backup_restore_desc">Wählt eine zuvor erstellte ZIP-Datei aus und stellt alle Daten wieder her. Ältere Backups werden automatisch migriert. Die App startet danach neu; die aktuelle Datenbank wird vorher als Sicherung abgelegt.</string>
     <string name="settings_backup_choose">Backup auswählen</string>
     <string name="settings_backup_confirm_title">Backup einspielen?</string>
     <string name="settings_backup_confirm_body">Beim Einspielen des Backups werden ALLE aktuellen Daten unwiderruflich durch den Inhalt des Backups ersetzt. Dieser Vorgang kann nicht rückgängig gemacht werden.</string>

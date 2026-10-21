@@ -30,7 +30,8 @@ fun EmptyState(
     title: String,
     message: String,
     actionLabel: String? = null,
-    onActionClick: (() -> Unit)? = null
+    onActionClick: (() -> Unit)? = null,
+    messageMaxLines: Int = 4
 ) {
     AevumCard(
         modifier = modifier.fillMaxWidth(),
@@ -73,7 +74,7 @@ fun EmptyState(
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 4
+                    maxLines = messageMaxLines
                 )
             }
             

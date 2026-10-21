@@ -915,7 +915,7 @@ private fun DashboardGoalRow(
         GoalShimmerBar(
             progress = animatedProgress,
             accent = accent,
-            met = goal.isMet,
+            met = goal.isCurrentAchieved,
             overLimit = overLimit
         )
         if (isManual && goal.todayCheckins > 0) {
