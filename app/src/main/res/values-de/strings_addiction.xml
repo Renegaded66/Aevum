@@ -7,7 +7,7 @@
     <string name="addiction_refresh">Aktualisieren</string>
     <string name="addiction_info">So funktioniert\'s</string>
     <string name="addiction_info_title">So funktioniert der Detektor</string>
-    <string name="addiction_info_body" formatted="false">Aevum nutzt denselben Android-Nutzungszugriff wie Digital Balance — ausschließlich lokal auf deinem Handy, ohne Cloud.\n\n• Öffnungen = Vordergrund-Sitzungen einer beobachteten App. Schnipsel unter 3 Sekunden zählen als Rauschen nicht mit.\n• Eine Sitzung über Mitternacht zählt als Öffnung an ihrem Starttag; ihre Dauer wird für Tages-Summen an Mitternacht geteilt.\n• Verlauf und alle Vergleiche nutzen nur abgeschlossene Tage, Wochen oder Monate. „Heute“ steht separat daneben und bläht nie eine Serie oder einen Vergleich auf.\n• Der Nutzungsdruck (0–100) fasst die letzten 7 vollen Tage zusammen: 40 % Tageszeit (Referenz 4 h), 25 % Öffnungen (Referenz 70/Tag), 20 % längste Sitzung (Referenz 60 min), 15 % Nachtanteil (22–6, Referenz 20 %). Eine Orientierung, keine Diagnose.\n• Beim Hinzufügen versucht Aevum, 45 Tage rückwirkend zu laden. Android hält Nutzungsereignisse oft nur wenige Tage vor — danach wächst der Verlauf automatisch mit.</string>
+    <string name="addiction_info_body" formatted="false">Aevum nutzt denselben Android-Nutzungszugriff wie Digital Balance — ausschließlich lokal auf deinem Handy, ohne Cloud.\n\n• Öffnungen = Vordergrund-Sitzungen einer beobachteten App. Schnipsel unter 3 Sekunden zählen als Rauschen nicht mit.\n• Eine Sitzung über Mitternacht zählt als Öffnung an ihrem Starttag; ihre Dauer wird für Tages-Summen an Mitternacht geteilt.\n• Verlauf und alle Vergleiche nutzen den aktuellen Zeitraum inklusive heute (7 Tage, 4 Wochen, 6 Monate). Der laufende Tag zählt mit und wird bei jedem Öffnen neu gelesen.\n• Der Nutzungsdruck (0–100) fasst die letzten 7 vollen Tage zusammen: 40 % Tageszeit (Referenz 4 h), 25 % Öffnungen (Referenz 70/Tag), 20 % längste Sitzung (Referenz 60 min), 15 % Nachtanteil (22–6, Referenz 20 %). Eine Orientierung, keine Diagnose.\n• Beim Hinzufügen versucht Aevum, 45 Tage rückwirkend zu laden. Android hält Nutzungsereignisse oft nur wenige Tage vor — danach wächst der Verlauf automatisch mit.</string>
     <string name="addiction_today">HEUTE</string>
     <string name="addiction_since_midnight">Seit Mitternacht · %1$d Apps</string>
     <string name="addiction_no_use_today">Heute noch keine erfasste Nutzung</string>
@@ -30,9 +30,9 @@
     <string name="addiction_avg_per_day">Ø pro Tag</string>
     <string name="addiction_total">Gesamt</string>
     <string name="addiction_vs_prev">vs. Vorperiode</string>
-    <string name="addiction_period_note">Gezählt werden nur abgeschlossene Zeiträume — heute bleibt bewusst außen vor.</string>
+    <string name="addiction_period_note">Der Zeitraum umfasst die aktuellen Tage inklusive heute — der laufende Tag zählt mit.</string>
     <string name="addiction_apps_title">Apps im Vergleich</string>
-    <string name="addiction_apps_subtitle">%1$s · nur abgeschlossene Zeiträume</string>
+    <string name="addiction_apps_subtitle">%1$s · inklusive heute</string>
     <string name="addiction_app_today">Heute %1$s · %2$d Öffnungen</string>
     <string name="addiction_app_range">%1$s · %2$d Öffnungen</string>
     <string name="addiction_opens_count">%1$d× gesamt</string>

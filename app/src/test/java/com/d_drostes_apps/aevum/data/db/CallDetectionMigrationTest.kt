@@ -111,7 +111,7 @@ class CallDetectionMigrationTest {
     /** Öffnet die Datei über Room — die echte 48→49-Migration läuft. */
     private fun migrate(): AppDatabase {
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_48_49, AppDatabase.MIGRATION_49_50)
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .allowMainThreadQueries()
             .build()
         opened = database
@@ -158,13 +158,13 @@ class CallDetectionMigrationTest {
     }
 
     @Test
-    fun `Datenbank-meldet-Version-49`() {
+    fun `Datenbank-meldet-aktuelle-Version-51`() {
         createVersion48Database()
         migrate()
 
         opened!!.openHelper.writableDatabase.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(50)
+            assertThat(cursor.getInt(0)).isEqualTo(51)
         }
     }
 

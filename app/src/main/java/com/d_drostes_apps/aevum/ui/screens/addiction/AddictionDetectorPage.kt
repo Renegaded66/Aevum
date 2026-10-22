@@ -99,6 +99,12 @@ import kotlin.math.roundToInt
 @Composable
 fun AddictionDetectorPage(
     viewModel: AddictionDetectorViewModel,
+    // M28: true, solange die Detektor-Seite im Balance-Pager wirklich
+    // sichtbar ist. Jedes erneute Anzeigen liest den aktuellen Tag neu
+    // (User: „bei jedem neuen öffnen aktualisieren mit den neuen Daten des
+    // aktuellen Tages"). Vorher lief `LaunchedEffect(Unit)` nur einmal beim
+    // ersten Zusammensetzen — ein späteres Öffnen bekam keine frische Runde.
+    isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -106,7 +112,8 @@ fun AddictionDetectorPage(
     // Nur solange die Detektor-Seite sichtbar ist: beim Öffnen sofort und
     // danach jede Minute den Collector nachfassen lassen. Außerhalb dieser
     // Seite übernimmt der 30-Minuten-Worker.
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isActive) {
+        if (!isActive) return@LaunchedEffect
         viewModel.refresh()
         while (true) {
             delay(60_000)

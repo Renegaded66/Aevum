@@ -288,4 +288,18 @@
     <string name="dashboard_goals_more">+%1$d more</string>
     <string name="dashboard_allowance_suffix">%1$s · Allowance</string>
     <string name="dashboard_goal_checked_today">%1$d× today</string>
+    <!-- M28: Details-Dialog der Timeline-Listenansicht -->
+    <string name="timeline_details_activity_type">Activity</string>
+    <string name="timeline_details_category">Category</string>
+    <string name="timeline_details_time">Time</string>
+    <string name="timeline_details_range">Time range</string>
+    <string name="timeline_details_duration">Duration</string>
+    <string name="timeline_details_source">Source</string>
+    <string name="timeline_details_quality">Quality</string>
+    <string name="timeline_details_status">Status</string>
+    <string name="timeline_details_status_live">Running</string>
+    <string name="timeline_details_rule">Rule</string>
+    <string name="timeline_details_confidence">Confidence</string>
+    <string name="timeline_details_trigger_hint">Detection signal — not a recording. It shows why Aevum started an activity.</string>
+    <string name="timeline_details_planned_hint">Forecast from the calendar — not a recording yet. It disappears as soon as the event starts.</string>
 </resources>

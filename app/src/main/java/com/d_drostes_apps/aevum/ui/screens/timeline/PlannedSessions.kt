@@ -138,6 +138,43 @@ fun buildPlannedSessionsForDay(
 }
 
 /**
+ * M28: Nur ZUKÜNFTIGE Termine erscheinen als gestrichelte Prognose.
+ *
+ * User: „Kalendereinträge werden ja gestrichelt in der Timeline angezeigt.
+ * Das sollte aber nur so lange sein wie der Termin in der Zukunft liegt.
+ * Sobald ein Termin entweder gerade stattfindet oder in der Vergangenheit
+ * liegt soll es nicht mehr gestrichelt angezeigt werden, also der
+ * Kalendereintrag gar nicht mehr, nur die Aufzeichnungen."
+ *
+ * Die gestrichelte Darstellung ist eine PROGNOSE („das würde aufgezeichnet").
+ * Sobald der Termin beginnt, ist die Prognose keine Prognose mehr — ab dann
+ * zählt ausschließlich die echte Aufzeichnung. Deshalb fällt der Block
+ * genauso weg wie ein vergangener.
+ *
+ * @param date Tag, zu dem [planned] gehört (für die Minuten → Millisekunden).
+ */
+fun filterPlannedToFuture(
+    planned: List<PlannedSessionUi>,
+    date: LocalDate,
+    nowMs: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault()
+): List<PlannedSessionUi> {
+    if (planned.isEmpty()) return planned
+    val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+    return planned.filter { dayStart + it.startMinuteOfDay * 60_000L > nowMs }
+}
+
+/** M28: [filterPlannedToFuture] für die 7-Tage-Karte (Tag → Blöcke). */
+fun filterPlannedWeekToFuture(
+    plannedByDay: Map<LocalDate, List<PlannedSessionUi>>,
+    nowMs: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault()
+): Map<LocalDate, List<PlannedSessionUi>> =
+    plannedByDay
+        .mapValues { (date, planned) -> filterPlannedToFuture(planned, date, nowMs, zone) }
+        .filterValues { it.isNotEmpty() }
+
+/**
  * M18.129: Die nächsten [days] Tage als Karte Tag → geplante Blöcke.
  *
  * Das ist die vom Auftrag geforderte 7-Tage-Vorschau: alle Termine der

@@ -130,19 +130,28 @@ class ScreenRecordingWorker(
             }
 
             // Digital-Typ existiert als Seed; Fallback auf "other" (M18.51-Muster).
-            val type = deps.activityTypeRepository().getById("digital").first()
-            val typeId = if (type != null) "digital" else "other"
+            // M28: Der Nutzer kann der Aufzeichnung eine eigene Aktivität
+            // zuweisen („sodass es nicht zwingend immer digital ist").
+            // Gelöschte/fehlende Typen fallen zuerst auf „digital", dann auf
+            // „other" zurück — der Block darf nie an einer FK scheitern.
+            val selectedTypeId = ScreenRecordingEngine.recordingActivityTypeId(
+                settings?.screenRecordingActivityTypeId
+            )
+            val selectedType = deps.activityTypeRepository().getById(selectedTypeId).first()
+                ?: deps.activityTypeRepository().getById(ScreenRecordingEngine.DIGITAL_TYPE_ID).first()
+            val typeId = selectedType?.id ?: "other"
+            val title = selectedType?.name ?: "Digital"
 
             val now = System.currentTimeMillis()
             val startedAt = ScreenRecordingEngine.recordingStartTime(now, minutes)
             val session = deps.liveActivityManager().start(
                 activityTypeId = typeId,
-                title = "Digital",
+                title = title,
                 sourceType = "SCREEN_AUTO",
                 startedAt = startedAt
             )
             LiveActivityService.start(applicationContext)
-            Log.d(TAG, "Screen-Aufzeichnung gestartet: ${session.id} (start=$startedAt, vorlauf=${minutes}min)")
+            Log.d(TAG, "Screen-Aufzeichnung gestartet: ${session.id} (start=$startedAt, vorlauf=${minutes}min, typ=$typeId)")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Screen-Aufzeichnung fehlgeschlagen", e)

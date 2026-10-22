@@ -258,6 +258,8 @@ class StepWalkStopWiringRegressionTest {
         val src = File("src/main/java/com/d_drostes_apps/aevum/di/DatabaseModule.kt")
             .takeIf { it.exists() }
             ?: File("app/src/main/java/com/d_drostes_apps/aevum/di/DatabaseModule.kt")
-        assertThat(src.readText().contains("AppDatabase.MIGRATION_42_43")).isTrue()
+        // M28: Die Registrierung läuft über die EINE Liste ALL_MIGRATIONS
+        // (enthält MIGRATION_42_43) — kein eigener Aufzählungsblock mehr.
+        assertThat(src.readText().contains("AppDatabase.ALL_MIGRATIONS")).isTrue()
     }
 }

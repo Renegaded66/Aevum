@@ -354,3 +354,27 @@ zuverlässig (`POLL_INTERVAL_MS` 15 s → **2 s**, `onRepeatedForeground` +
 dem Öffnen, unabhängig vom Vorzustand) · Feuerrot nachgeschärft
 (`#FF3B2E` dunkel / `#D32614` hell), Schimmer auf den Dashboard-Plus-Knopf
 umgezogen.
+
+## M28 — Fahrt-Vorrang, Berechtigungsstatus, Aufzeichnungs-Aktivität, Timeline-Details
+
+**Status:** Abgeschlossen (App 1.0.48, DB v51). Bericht
+`docs/M28-ABSCHLUSSBERICHT.md`.
+
+**Ziel:** Sechs gemeldete Punkte aus dem Praxis-Test beheben:
+
+1. **Auto-Fahrt unterbricht keine laufende Aufzeichnung** — Fahrt wird
+   vorgemerkt und startet am Ende des Blocks, aber nur solange Fahrt-Evidenz
+   frisch ist (6-min-Fenster, harte Obergrenze 4 h).
+2. **Berechtigungsstatus** — Nutzungszugriff über AppOps statt
+   1-Sekunden-Usage-Query; Trigger-Seite startet mit echtem Snapshot.
+   Gilt auch für Status-Details.
+3. **Bildschirm-Aufzeichnung** — Aktivität unter dem Slider wählbar (DB v51).
+4. **Timeline-Liste** — größere Zeilen; Trigger und geplante Termine öffnen
+   einen Detail-Dialog.
+5. **Kalender-Prognose** — gestrichelte Blöcke nur in der Zukunft; ab
+   Terminbeginn verschwinden sie (nur Aufzeichnungen bleiben).
+6. **Sucht-Detektor** — Diagramme inkl. aktuellem Tag/Zeitraum, Refresh bei
+   jedem Öffnen.
+
+**Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
+Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.

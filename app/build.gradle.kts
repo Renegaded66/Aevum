@@ -258,8 +258,8 @@ android {
         // M27: Sucht-Detektor im Balance-Tab (Apps, Öffnungen, Sitzungen,
         //  Verlauf), Backup-Versionscheck repariert, Ziele werden erst nach
         //  Ablauf ihrer Periode gewertet.
-        versionCode = 48
-        versionName = "1.0.47"
+        versionCode = 49
+        versionName = "1.0.48"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

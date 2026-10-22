@@ -451,3 +451,51 @@ verworfen, weil das Roh-Evidenz zerstört, eine Migration braucht und beim
 Löschen des Geofences nicht rückgängig ist. **Preis:** Die Zuordnung kostet
 pro Tag ein paar Distanzberechnungen (wenige Unknown-Places/Geofences) und
 endet an der Radius-Grenze.
+
+---
+
+## M28 (22.10.2026) — Fahrt-Vorrang, AppOps-Status, Aufzeichnungs-Aktivität
+
+**Fahrt-Vorrang:** Fahrt wird vorgemerkt und am Ende des blockierenden Blocks
+gestartet, aufgelöst von EINEM Beobachter auf `liveSession`.
+**Alternative:** Hook in jedem Stop-Pfad (Dashboard, Notification, Widget,
+Geofence, Kalender, Screen-Off …) — verworfen, weil die Liste unvollständig
+bleibt (M18.75/M18.76-Lehre: ein verpasster Stop-Pfad blockiert dauerhaft).
+**Preis:** ein dauerhaft lebender StateFlow-Collector im App-Prozess; der
+Vormerk selbst ist nur In-Memory (Prozess-Tod verwirft ihn — dann greift die
+normale Erkennung neu).
+
+**Evidenz-Fenster 6 min:** Der 2-Minuten-Takt des DriveProbeWorkers hält die
+Evidenz während der Fahrt frisch; steht das Auto, verfällt sie nach 6 min.
+**Alternative:** nur die aktuelle GPS-Klassifikation — verworfen, weil der
+Block Sekunden nach dem letzten Probe enden kann und die Fahrt dann
+fälschlich verfiele. **Alternative:** Evidenz gar nicht prüfen — verworfen,
+weil genau der User-Fall „Fahrt vorbei, danach erst gestoppt" sonst wieder
+eine Fahrt startet. **Preis:** 6 min Nachlauf; ein sehr langsames Ausparken
+nach längerem Halt wird als neue Fahrt gesehen (bestehendes Verhalten).
+
+**Start-Anker = Block-Ende, nicht Fahrt-Anker.** **Alternative:** den
+ursprünglichen Cluster-Start verwenden — verworfen, weil er rückwirkend in
+den laufenden Block schneidet (genau der gemeldete Fehler).
+
+**Nutzungszugriff:** AppOps (`unsafeCheckOpNoThrow`) statt
+`queryUsageStats(1-Sekunden-Fenster)`. **Alternative:** längeres Query-Fenster
+(z. B. 60 s) — verworfen, weil es weiterhin von Events abhängt und beim
+ersten Öffnen am Morgen leer sein kann. **Preis:** keine (der AppOps-Check
+existierte bereits und war getestet; nur der Aufrufer war falsch).
+
+**Bildschirm-Aufzeichnung:** Aktivität als neue Spalte mit Default `'digital'`;
+`sourceType` bleibt `SCREEN_AUTO`. **Alternative:** eine zweite Aufzeichnungs-
+Quelle pro Typ — verworfen, weil Screen-Off-Stop, App-Takeover und
+Statistik-Policy an `SCREEN_AUTO` hängen und dupliziert werden müssten.
+**Alternative:** Statistik-Zählung für zugewiesene Typen freischalten —
+verworfen, weil M18.138 ausdrücklich „nur Digital-Balance-Zeit zählt"
+festhält und die Aufzeichnung ungenau ist. **Preis:** Ein als „Lesen"
+zugewiesener Block erscheint in der Timeline, zählt aber nicht in der
+Statistik; der Hinweistext in der UI sagt das ausdrücklich.
+
+**Sucht-Detektor-Zeitraum:** aktuelle Periode inklusive heute (currentWindow),
+Druckindex weiterhin auf den letzten 7 vollen Tagen.
+**Alternative:** weiter nur volle Perioden — verworfen (User-Report).
+**Preis:** laufender Tag/Woche ist unvollständig, Prozentvergleich fällt
+morgens niedriger aus; dokumentiert.

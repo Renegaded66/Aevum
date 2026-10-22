@@ -24,3 +24,11 @@ Hauptrisiken:
   die historische Unknown-Place-Zeile unbenannt. Fix: `PlaceTimelineEngine`
   matcht Unknown-Places per Koordinaten gegen Geofences und übernimmt
   Name/Icon/Farbe (kein DB-Backfill).
+
+- M28 behoben: Auto-Fahrt beendete/kürzte eine laufende Aufzeichnung, weil
+  `LiveActivityManager.start` die bestehende Live-Session trimmt. Fix:
+  `PendingDrivePolicy.shouldDefer` + `markDrivePending`, nachgeholt von
+  `PendingDriveStarter` (Start am Block-Ende, Evidenz ≤6 min, max 4 h).
+- M28 behoben: Nutzungszugriff galt beim ersten Öffnen als „nicht erteilt"
+  (`queryUsageStats` in 1-s-Fenster ohne Event). Fix: AppOps-Check in
+  `UsageStatsCollector.hasPermission`.

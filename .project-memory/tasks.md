@@ -219,3 +219,12 @@
       AT_MOST-Tagesziele werden erst nach Tagesende gewertet („Wertung folgt",
       Popup erst ab 2 Tagen in Folge); Perioden vor Ziel-Erstellung zählen
       nicht mehr. +? Tests, Voll-Build siehe `docs/M27-ABSCHLUSSBERICHT.md`.
+
+- [x] M28 (App 1.0.48, vc 49, DB v51): Auto-Fahrt unterbricht keine laufende
+      Aufzeichnung mehr (PendingDrivePolicy + PendingDriveStarter, Evidenz 6 min,
+      Obergrenze 4 h, Start am Block-Ende); Nutzungszugriff über AppOps
+      (Trigger-Seite + Status-Details), Trigger-UI startet mit echtem Snapshot;
+      Bildschirm-Aufzeichnung mit wählbarer Aktivität (DB v51); Timeline-Liste
+      größere Zeilen + Details-Dialog für Trigger/Termine; Kalender-Prognose nur
+      zukünftig; Sucht-Detektor inkl. aktuellem Tag + Refresh beim Öffnen.
+      Tests/Build siehe `docs/M28-ABSCHLUSSBERICHT.md`.

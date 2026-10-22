@@ -663,7 +663,12 @@ fun TriggerSettingsScreen(
             item {
                 ScreenRecordingCard(
                     dbMinutes = state.settings.screenRecordingMinutes,
-                    onChange = viewModel::setScreenRecordingMinutes
+                    onChange = viewModel::setScreenRecordingMinutes,
+                    // M28: zugehörige Aktivität — der Block muss nicht
+                    // zwingend „Digital" sein.
+                    selectedTypeId = state.settings.screenRecordingActivityTypeId,
+                    activityTypes = viewModel.activityTypes.collectAsState().value,
+                    onSelectType = viewModel::setScreenRecordingActivity
                 )
             }
 
@@ -1073,12 +1078,20 @@ private data class SleepSourceOption(
 @Composable
 private fun ScreenRecordingCard(
     dbMinutes: Int,
-    onChange: (Int) -> Unit
+    onChange: (Int) -> Unit,
+    // M28: zugehörige Aktivität (Default „Digital").
+    selectedTypeId: String,
+    activityTypes: List<ActivityType>,
+    onSelectType: (String) -> Unit
 ) {
     val sliderValue = com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.dbToSlider(dbMinutes)
     var dragValue by remember { mutableStateOf(sliderValue) }
     val displayValue = if (dragValue != sliderValue) dragValue else sliderValue
     val isDeactivated = displayValue >= com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.SLIDER_MAX
+    var showTypePicker by remember { mutableStateOf(false) }
+    val resolvedTypeId = com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine
+        .recordingActivityTypeId(selectedTypeId)
+    val selectedType = activityTypes.firstOrNull { it.id == resolvedTypeId }
 
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -1140,7 +1153,56 @@ private fun ScreenRecordingCard(
                 Text(stringResource(R.string.settings_triggers_screen_zero), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_triggers_screen_off), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            // ── M28: zugehörige Aktivität ────────────────────────────────
+            // User: „… sollte dadrunter auch eine zugehörige Activity
+            // ausgewählt werden können die dann entsprechend aufgezeichnet
+            // wird, sodass es nicht zwingend immer digital ist."
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    .clickable { showTypePicker = true }
+                    .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text(selectedType?.icon ?: "•", fontSize = 18.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.settings_triggers_screen_activity_label),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        selectedType?.name ?: resolvedTypeId,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                stringResource(R.string.settings_triggers_screen_activity_hint),
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+    }
+
+    if (showTypePicker) {
+        ActivityTypePickerDialog(
+            title = stringResource(R.string.settings_triggers_screen_activity_label),
+            activityTypes = activityTypes,
+            selectedTypeId = resolvedTypeId,
+            onSelect = { id ->
+                onSelectType(id)
+                showTypePicker = false
+            },
+            onDismiss = { showTypePicker = false }
+        )
     }
 }
 
@@ -1287,7 +1349,12 @@ class TriggerSettingsViewModel @Inject constructor(
         val pingTriggers: List<PingTrigger> = emptyList()
     )
 
-    private val permissionState = MutableStateFlow(PermissionSnapshot())
+    // M28: Startwert = ECHTER Status, nicht „alles aus". Vorher zeigte die
+    // Seite für einen Wimpernschlag (bis der Room-Flow den ersten Settings-
+    // Stand liefert) alle Berechtigungen als „nicht erteilt" — genau der
+    // zweite Teil des User-Reports. Der Snapshot wird jetzt synchron im
+    // ViewModel-Konstruktor gelesen.
+    private val permissionState = MutableStateFlow(readPermissions())
 
     // M18.61g: combine unterstützt nur 5 Flows — der Ping-Flow wird in
     // den extras-Flow integriert (gleicher M18.57-Pitfall).
@@ -1320,11 +1387,29 @@ class TriggerSettingsViewModel @Inject constructor(
             registrationMessage = extras.message,
             pingTriggers = extras.pingTriggers
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TriggerSettingsUiState())
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        // M28: Berechtigungszeilen sofort korrekt — der UI-Erststand kommt
+        // aus dem synchron gelesenen Snapshot, nicht aus „alles false".
+        TriggerSettingsUiState(
+            foregroundLocationGranted = permissionState.value.foregroundGranted,
+            backgroundLocationGranted = permissionState.value.backgroundGranted,
+            activityRecognitionGranted = permissionState.value.activityRecognitionGranted,
+            notificationsGranted = permissionState.value.notificationsGranted,
+            usageStatsGranted = permissionState.value.usageStatsGranted,
+            callDetectionGranted = permissionState.value.callsGranted
+        )
+    )
 
     fun refreshPermissions() {
+        permissionState.value = readPermissions()
+    }
+
+    /** M28: Eine Quelle für Initialwert UND Refresh — kein Auseinanderlaufen. */
+    private fun readPermissions(): PermissionSnapshot {
         val perms = geofenceRegistrar.getPermissionStatus()
-        permissionState.value = PermissionSnapshot(
+        return PermissionSnapshot(
             foregroundGranted = perms.foregroundGranted,
             backgroundGranted = perms.backgroundGranted,
             activityRecognitionGranted = has(Manifest.permission.ACTIVITY_RECOGNITION),
@@ -1501,6 +1586,17 @@ class TriggerSettingsViewModel @Inject constructor(
         upsert {
             it.copy(
                 screenRecordingMinutes = com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine.sliderToDb(sliderValue)
+            )
+        }
+    }
+
+    // M28: zugehörige Aktivität der Bildschirm-Aufzeichnung (Default „digital").
+    fun setScreenRecordingActivity(typeId: String) {
+        upsert {
+            it.copy(
+                screenRecordingActivityTypeId =
+                    com.d_drostes_apps.aevum.automation.screen.ScreenRecordingEngine
+                        .recordingActivityTypeId(typeId)
             )
         }
     }

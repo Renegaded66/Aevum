@@ -34,6 +34,15 @@ data class AutomationSettings(
     // M18.70: Bildschirm-Aufzeichnung — Vorlauf in Minuten.
     // 0 = sofort bei Screen-ON, 1..10 = Vorlauf, -1 = deaktiviert (Slider rechts).
     @ColumnInfo(name = "screen_recording_minutes", defaultValue = "5") val screenRecordingMinutes: Int = 5,
+    // M28: Zugehörige Aktivität der Bildschirm-Aufzeichnung (User: „Bei
+    // Bildschirm Aufzeichnung … sollte dadrunter auch eine zugehörige
+    // Activity ausgewählt werden können die dann entsprechend aufgezeichnet
+    // wird, sodass es nicht zwingend immer digital ist.").
+    // Default 'digital' = bisheriges Verhalten. Die Aufzeichnung bleibt
+    // sourceType SCREEN_AUTO (Timeline-Darstellung, keine Statistik-Zählung —
+    // M18.138 bleibt unangetastet); nur Typ/Name/Farbe des Blocks ändern sich.
+    @ColumnInfo(name = "screen_recording_activity_type_id", defaultValue = "digital")
+    val screenRecordingActivityTypeId: String = "digital",
     // M18.129: Kalender-Integration.
     // Master-Schalter: Kalender überhaupt lesen (Timeline-Vorschau der
     // geplanten Blöcke). Default AUS — READ_CALENDAR ist eine

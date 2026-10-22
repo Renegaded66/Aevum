@@ -19,7 +19,7 @@ import java.io.File
  *
  * Baut aus `49.json` eine Bestands-DB, legt eine `app_limit`-Zeile an und
  * öffnet sie über Room mit [AppDatabase.MIGRATION_49_50]. Geprüft wird:
- *  - user_version = 50,
+ *  - user_version = 51,
  *  - die neuen Tabellen existieren mit den erwarteten Spalten,
  *  - Bestandsdaten (app_limit) bleiben unangetastet,
  *  - die neuen DAOs schreiben und lesen.
@@ -91,7 +91,7 @@ class AddictionMigrationTest {
 
     private fun migrate(): AppDatabase {
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_49_50)
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .allowMainThreadQueries()
             .build()
         opened = database
@@ -163,13 +163,13 @@ class AddictionMigrationTest {
     }
 
     @Test
-    fun `Datenbank-meldet-Version-50`() {
+    fun `Datenbank-meldet-Version-51`() {
         createVersion49Database()
         migrate()
 
         opened!!.openHelper.writableDatabase.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(50)
+            assertThat(cursor.getInt(0)).isEqualTo(51)
         }
     }
 }

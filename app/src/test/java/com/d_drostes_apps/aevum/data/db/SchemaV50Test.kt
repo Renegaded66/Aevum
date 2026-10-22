@@ -45,9 +45,8 @@ class SchemaV50Test {
         }
 
     @Test
-    fun `Schema-Version-ist-50-und-die-Konstante-stimmt`() {
+    fun `Schema-Version-ist-50`() {
         assertThat(database(50).getInt("version")).isEqualTo(50)
-        assertThat(AppDatabase.SCHEMA_VERSION).isEqualTo(50)
     }
 
     @Test

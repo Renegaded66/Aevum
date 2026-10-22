@@ -95,6 +95,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -2807,6 +2808,11 @@ private fun EventListTimeline(
     // M18.48: Zu löschende Session (für den Sicherheitsdialog). Erst nach
     // Bestätigung wird onDeleteSession aufgerufen.
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    // M28: Details-Dialog für Einträge, die keine eigene Detailseite haben
+    // (Trigger-Signal, geplanter Kalender-Block). Vorher passierte beim
+    // Antippen NICHTS — User: „ich möchte auf die Elemente drauf klicken
+    // können um Details zum Element zu sehen."
+    var detailsEntry by remember { mutableStateOf<TimelineEntry?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         // M18.102: Block "Nur Dauer" ganz oben — ohne Uhrzeit-Chip, nur
         // Titel + Dauer. Löschbar wie alle anderen Einträge.
@@ -2872,16 +2878,19 @@ private fun EventListTimeline(
                         )
                     }
                     is TimelineEntry.Trigger -> {
-                        // Trigger-Eintrag mit Loeschen-Button (Trash-Icon)
+                        // Trigger-Eintrag mit Loeschen-Button (Trash-Icon).
+                        // M28: Antippen zeigt jetzt die Details des Signals
+                        // (Zeit, Konfidenz, Quelle) statt gar nichts.
                         EventListRow(
                             time = entry.trigger.time,
                             title = "◆ ${entry.trigger.label}",
                             detail = stringResource(R.string.timeline_confidence, entry.trigger.confidence),
                             accent = MaterialTheme.colorScheme.secondary,
                             kind = stringResource(R.string.timeline_kind_trigger),
-                            onClick = {},
+                            onClick = { detailsEntry = entry },
                             onEdit = {},
-                            onDelete = { onDeleteTrigger(entry.trigger.id) }
+                            onDelete = { onDeleteTrigger(entry.trigger.id) },
+                            detailsAffordance = true
                         )
                     }
                     is TimelineEntry.Planned -> {
@@ -2910,9 +2919,12 @@ private fun EventListTimeline(
                             },
                             icon = entry.planned.activityIcon,
                             kind = stringResource(R.string.timeline_kind_planned),
-                            // Kein Ziel: Ein Plan hat keine Detailseite.
-                            onClick = {},
-                            onEdit = {}
+                            // M28: Details des geplanten Termins (Regel,
+                            // Zeitraum, Dauer) — kein Ziel zum Navigieren,
+                            // aber Informationen beim Antippen.
+                            onClick = { detailsEntry = entry },
+                            onEdit = {},
+                            detailsAffordance = true
                         )
                     }
                 }
@@ -2955,6 +2967,141 @@ private fun EventListTimeline(
             }
         )
     }
+
+    // M28: Details zum angetippten Element (Trigger / geplanter Termin).
+    detailsEntry?.let { entry ->
+        TimelineEntryDetailsDialog(
+            entry = entry,
+            onDismiss = { detailsEntry = null }
+        )
+    }
+}
+
+/**
+ * M28: Details-Dialog der Listenansicht.
+ *
+ * User: „da sind die einzelnen Elemente ja sehr klein, ich möchte auf die
+ * Elemente drauf klicken können um Details zum Element zu sehen."
+ *
+ * Für Aufzeichnungen bleibt der Tap der Weg in die volle Detailseite
+ * (unverändert). Für Einträge OHNE Detailseite — Trigger-Signale und
+ * geplante Kalender-Blöcke — öffnet sich dieser Dialog; vorher passierte
+ * beim Antippen nichts.
+ */
+@Composable
+private fun TimelineEntryDetailsDialog(
+    entry: TimelineEntry,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                when (entry) {
+                    is TimelineEntry.Trigger -> "◆ ${entry.trigger.label}"
+                    is TimelineEntry.Planned -> entry.planned.title
+                    is TimelineEntry.Session -> entry.session.title
+                },
+                fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                when (entry) {
+                    is TimelineEntry.Session -> {
+                        val s = entry.session
+                        DetailLine(stringResource(R.string.timeline_details_activity_type), s.activityTypeName)
+                        if (s.categoryName.isNotBlank()) {
+                            DetailLine(stringResource(R.string.timeline_details_category), s.categoryName)
+                        }
+                        if (!s.isDurationOnly) {
+                            DetailLine(stringResource(R.string.timeline_details_range), s.range)
+                        }
+                        DetailLine(stringResource(R.string.timeline_details_duration), s.duration)
+                        DetailLine(
+                            stringResource(R.string.timeline_details_quality),
+                            "${s.positivityScore}${if (s.hasQualityOverride) " ✎" else ""}"
+                        )
+                        DetailLine(stringResource(R.string.timeline_details_source), sourceDisplayName(s.source, s.sourceAppLabel))
+                        if (s.isRunning) {
+                            DetailLine(
+                                stringResource(R.string.timeline_details_status),
+                                stringResource(R.string.timeline_details_status_live)
+                            )
+                        }
+                    }
+
+                    is TimelineEntry.Trigger -> {
+                        val t = entry.trigger
+                        DetailLine(stringResource(R.string.timeline_details_time), t.time)
+                        DetailLine(stringResource(R.string.timeline_details_confidence), "${t.confidence}%")
+                        DetailLine(stringResource(R.string.timeline_details_source), t.source)
+                        Text(
+                            stringResource(R.string.timeline_details_trigger_hint),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    is TimelineEntry.Planned -> {
+                        val p = entry.planned
+                        DetailLine(stringResource(R.string.timeline_details_activity_type), p.activityTypeName)
+                        DetailLine(stringResource(R.string.timeline_details_range), p.timeRange)
+                        DetailLine(stringResource(R.string.timeline_details_duration), "${p.durationMinutes} min")
+                        if (p.ruleName.isNotBlank()) {
+                            DetailLine(stringResource(R.string.timeline_details_rule), p.ruleName)
+                        }
+                        if (p.isUserPinned) {
+                            DetailLine(stringResource(R.string.timeline_details_status), "✓")
+                        }
+                        Text(
+                            stringResource(R.string.timeline_details_planned_hint),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
+        }
+    )
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = AevumSpacing.sm)
+        )
+    }
+}
+
+/** M28: Menschenlesbarer Quellen-Name (dieselbe Zuordnung wie die Detailseite). */
+@Composable
+private fun sourceDisplayName(source: String, appLabel: String?): String = when (source) {
+    "MANUAL" -> stringResource(R.string.timeline_detail_source_manual)
+    "GEOFENCE_AUTO" -> stringResource(R.string.timeline_detail_source_geofence)
+    "HEALTH_SLEEP_AUTO" -> stringResource(R.string.timeline_detail_source_sleep_auto)
+    "ACTIVITY_RECOGNITION_AUTO" -> stringResource(R.string.timeline_detail_source_movement_auto)
+    "WALKING_AUTO" -> stringResource(R.string.timeline_detail_source_walking_auto)
+    "CALENDAR_AUTO" -> stringResource(R.string.timeline_detail_source_calendar_auto)
+    "APP_TRACKING" -> appLabel ?: stringResource(R.string.timeline_detail_source_app_tracking)
+    "CALL_AUTO" -> stringResource(R.string.timeline_detail_source_call_auto)
+    "SCREEN_AUTO" -> stringResource(R.string.timeline_kind_auto)
+    else -> source
 }
 
 /** M18.8: Tagesabschnitte für scannbare Listen-Gruppierung. */
@@ -3018,7 +3165,10 @@ private fun EventListRow(
     // AEVUM-3: Lang-Druck → Güte der Aufzeichnung anpassen (Quality-Slider).
     onLongPress: (() -> Unit)? = null,
     // AEVUM-3: Override-Badge („<Score> ✎"), wenn die Güte manuell angepasst wurde.
-    qualityBadge: String? = null
+    qualityBadge: String? = null,
+    // M28: zeigt ein „›"-Zeichen — der Eintrag öffnet Details (Trigger /
+    // geplanter Termin). Vorher war nicht erkennbar, dass die Zeile tippbar ist.
+    detailsAffordance: Boolean = false
 ) {
     // M18.20: Farbige Karte — Akzentbalken links, farbiger Hintergrund,
     // Icon-Kreis, farbiger Zeit-Chip. Jede Zeile ist jetzt ein buntes
@@ -3046,7 +3196,7 @@ private fun EventListRow(
                 onLongClick = onLongPress ?: {},
                 onLongClickLabel = stringResource(R.string.common_adjust_quality)
             )
-            .padding(vertical = 10.dp, horizontal = 4.dp),
+            .padding(vertical = 13.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AevumSpacing.md)
     ) {
@@ -3054,21 +3204,21 @@ private fun EventListRow(
         Box(
             modifier = Modifier
                 .width(4.dp)
-                .height(44.dp)
+                .height(48.dp)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                 .background(accent)
         )
         // M18.13: Icon in farbigem Kreis (größer, kräftiger)
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(accent.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 if (icon.isBlank()) "•" else icon,
-                fontSize = 18.sp
+                fontSize = 19.sp
             )
         }
         // Zeit als farbiger Chip
@@ -3076,11 +3226,11 @@ private fun EventListRow(
             modifier = Modifier
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full))
                 .background(accent.copy(alpha = 0.16f))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(horizontal = 9.dp, vertical = 5.dp)
         ) {
             Text(
                 time,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.SemiBold,
                 color = accent
@@ -3089,13 +3239,17 @@ private fun EventListRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 title,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(detail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+        // M28: „›" macht sichtbar, dass die Zeile Details öffnet.
+        if (detailsAffordance) {
+            Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // M18.32: Dauer-Chip rechts (Monospace, farbig) — die Dauer war
         // vorher nur im Detail-Text versteckt, jetzt sofort lesbar.

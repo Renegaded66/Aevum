@@ -27,17 +27,25 @@ class UsageStatsCollector @Inject constructor(
         context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     }
 
-    fun hasPermission(): Boolean {
-        return try {
-            val now = System.currentTimeMillis()
-            val stats = usageStats.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                now - 1000,
-                now
-            )
-            !stats.isNullOrEmpty()
-        } catch (_: Exception) { false }
-    }
+    /**
+     * M28 (Bugfix, User-Report): „da wird … Nutzungszugriff immer erst nicht
+     * erlaubt angezeigt obwohl es erlaubt ist, und wenn ich darauf klicke und
+     * … ohne Änderung zur App zurück kehren dann steht da zugelassen."
+     *
+     * Root-Cause: Der alte Check fragte `queryUsageStats` in einem
+     * EIN-SEKUNDEN-Fenster ab. Ist in dieser Sekunde kein Usage-Event
+     * angefallen (der Normalfall beim Öffnen der Einstellungen — die letzte
+     * App-Nutzung liegt länger zurück), kommt eine leere Liste zurück und die
+     * erteilte Berechtigung gilt fälschlich als fehlend. Beim Zurückkehren
+     * aus den System-Settings gibt es dann ein frisches Event (die eigene
+     * App war gerade im Vordergrund) → plötzlich „zugelassen".
+     *
+     * Der AppOps-Schalter (`OPSTR_GET_USAGE_STATS`) spiegelt exakt den
+     * Nutzer-Schalter in den System-Settings wider und ist unabhängig von
+     * Events. Bereits in [UsageStatsPermission.isGranted] implementiert und
+     * getestet — hier wurde nur der veraltete Zweitweg benutzt.
+     */
+    fun hasPermission(): Boolean = UsageStatsPermission.isGranted(context)
 
     /**
      * M12.2: Open the screen where the user can grant Usage Access to Aevum.

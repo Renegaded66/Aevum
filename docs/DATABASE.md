@@ -677,3 +677,25 @@ Zwei Tests sichern den Rückbau ab:
   füllt einen Alt-Baum ein und öffnet sie über Room — danach ist `pm_node`
   verschwunden, die übrigen 38 Tabellen stehen unangetastet, die Datenbank
   meldet Version 46 mit der erwarteten Identitäts-Hash.
+
+
+## M28 — Bildschirm-Aufzeichnung: zugehörige Aktivität (Version 51)
+
+**Migration 50 → 51** (`MIGRATION_50_51`) — rein additiv, eine Spalte:
+
+```sql
+ALTER TABLE automation_settings
+ADD COLUMN screen_recording_activity_type_id TEXT NOT NULL DEFAULT 'digital'
+```
+
+Bedeutung: Die automatische Bildschirm-Aufzeichnung muss nicht mehr zwingend
+als „Digital" erscheinen — der Nutzer wählt unter dem Vorlauf-Slider eine
+Aktivität (Default `'digital'`). Der Block behält `sourceType = 'SCREEN_AUTO'`
+(Timeline-Darstellung; die Statistik nutzt weiterhin ausschließlich die echte
+Bildschirmzeit aus Digital Balance, M18.138).
+
+Bestandszeilen verhalten sich exakt wie vorher; kein Backfill, kein
+Datenverlust. Zwei Tests sichern das ab: `SchemaV51Test` (51 = 50 plus genau
+diese Spalte, Element für Element) und `ScreenRecordingActivityMigrationTest`
+(echte SQLite aus `50.json` → Room, Bestandszeile unverändert, neue Spalte
+`'digital'`, Rückschreiben über das Entity).

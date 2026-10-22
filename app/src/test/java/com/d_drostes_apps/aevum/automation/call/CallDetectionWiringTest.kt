@@ -210,7 +210,8 @@ class CallDetectionWiringTest {
         assertWithMessage("Default der Zuweisung ist nicht 'social'")
             .that(settingsEntity.contains("defaultValue = \"social\"")).isTrue()
         assertWithMessage("MIGRATION_48_49 ist nicht in der Datenbank-Registrierung")
-            .that(databaseModule.contains("MIGRATION_48_49")).isTrue()
+            // M28: eine gemeinsame Liste für Produktion und Tests.
+            .that(databaseModule.contains("AppDatabase.ALL_MIGRATIONS")).isTrue()
     }
 
     // ── Timeline ─────────────────────────────────────────────────────────

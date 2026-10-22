@@ -720,6 +720,59 @@ class ActivityRecognitionBridge @Inject constructor(
         driveActive = false
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // M28: ZURÜCKGESTELLTE FAHRT (Pending Drive).
+    //
+    // User: „Automatische Fahrtaufzeichnung darf keine laufenden
+    // Aufzeichnungen unterbrechen. Das passiert aber aktuell. Aber das
+    // System darf wissen dass gerade gefahren wird und die Aufzeichnung
+    // starten sobald die laufende aktivität gestoppt wird. Aber natürlich
+    // nicht unendlich lange …"
+    //
+    // Getrennt von [driveActive]: Das Flag sagt „eine Fahrt ist erkannt,
+    // der Start wartet auf das Ende einer anderen Aufzeichnung". Es wird
+    // NICHT von healIfOrphaned zurückgenommen (das darf nur die
+    // Erkennungs-Blackout-Heilung), sondern nur:
+    //   - beim tatsächlichen Start der Fahrt,
+    //   - wenn die blockierende Session endet und keine Fahrt-Evidenz
+    //     mehr frisch ist (= Auto steht schon wieder),
+    //   - nach [PendingDrivePolicy.MAX_PENDING_AGE_MS] (Sicherheitsnetz).
+    // ──────────────────────────────────────────────────────────────
+    @Volatile private var drivePendingStartedAtMs: Long = 0L
+    @Volatile private var drivePendingEvidenceAtMs: Long = 0L
+
+    /**
+     * Fahrt erkannt, Start zurückgestellt. [startedAtMs] ist der
+     * ursprüngliche Fahrt-Anker (Cluster-/Erkennungsstart), [nowMs] der
+     * Zeitpunkt der jüngsten Evidenz.
+     */
+    @Synchronized
+    fun markDrivePending(startedAtMs: Long, nowMs: Long = System.currentTimeMillis()) {
+        if (drivePendingStartedAtMs <= 0L) drivePendingStartedAtMs = startedAtMs
+        drivePendingEvidenceAtMs = nowMs
+    }
+
+    /** Jede neue Fahrt-Evidenz während des Wartens hält den Pending-Zustand frisch. */
+    @Synchronized
+    fun refreshDrivePendingEvidence(nowMs: Long = System.currentTimeMillis()) {
+        if (drivePendingStartedAtMs > 0L) drivePendingEvidenceAtMs = nowMs
+    }
+
+    @Synchronized
+    fun isDrivePending(): Boolean = drivePendingStartedAtMs > 0L
+
+    @Synchronized
+    fun drivePendingStartedAtMs(): Long = drivePendingStartedAtMs
+
+    @Synchronized
+    fun drivePendingEvidenceAtMs(): Long = drivePendingEvidenceAtMs
+
+    @Synchronized
+    fun clearDrivePending() {
+        drivePendingStartedAtMs = 0L
+        drivePendingEvidenceAtMs = 0L
+    }
+
     @Synchronized
     fun consumeDriveConfirmation(): Boolean {
         val c = driveConfirmed

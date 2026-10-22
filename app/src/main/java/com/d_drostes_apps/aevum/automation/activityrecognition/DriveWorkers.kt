@@ -254,6 +254,30 @@ class DriveStartWorker(
             return Result.success()
         }
 
+        // M28 (User: „Automatische Fahrtaufzeichnung darf keine laufenden
+        // Aufzeichnungen unterbrechen"): Läuft IRGENDEINE andere Session —
+        // manuell, Geofence, App-Tracking, Digital, Anruf, Sport — wird sie
+        // NICHT angetastet. Die Fahrt wird nur vorgemerkt; gestartet wird sie,
+        // sobald die laufende Aufzeichnung endet (PendingDriveStarter), und
+        // nur solange es dann noch Fahrt-Evidenz gibt. Sonst verfällt der
+        // Vormerk („Fahrt vorbei, danach erst gestoppt").
+        if (liveSession != null && liveSession.isLive &&
+            PendingDrivePolicy.shouldDefer(
+                liveIsLive = true,
+                liveActivityTypeId = liveSession.activityTypeId,
+                liveSourceType = liveSession.sourceType
+            )
+        ) {
+            bridge.markDrivePending(startedAtMs = startedAt, nowMs = now)
+            Log.i(
+                TAG,
+                "M28: Fahrt erkannt, aber laufende Aufzeichnung '${liveSession.title}' " +
+                    "(${liveSession.sourceType}) — Start vorgemerkt " +
+                    "(Evidenz-Fenster ${PendingDrivePolicy.EVIDENCE_TTL_MS / 60_000} min)"
+            )
+            return Result.success()
+        }
+
         try {
             // M18.93v10-FIX (User: "immer nur eine Aktivität gleichzeitig"):
             // Das forceFinishForAuto() VOR start() ist ENTFERNT — es
@@ -270,6 +294,8 @@ class DriveStartWorker(
                 sourceType = "ACTIVITY_RECOGNITION_AUTO",
                 startedAt = startedAt
             )
+            // M28: Ein regulärer Start löst einen eventuell offenen Vormerk ab.
+            bridge.clearDrivePending()
             Log.d(TAG, "Auto-Session gestartet: ${session.id} (start=$startedAt)")
             // M18.84: Eine bestätigte Fahrt beendet jede laufende Walking-
             // Signal-Phase — Googles AR meldet WALKING auch während Stop&Go-
@@ -922,6 +948,15 @@ class DriveProbeWorker(
             )
             bridge.addDriveProbe(probe, refreshHeartbeat = false)
             Log.d(TAG, "Probe: speed=${fix.speedMps?.let { "%.1f".format(it) } ?: "?"} m/s, acc=${fix.accuracyMeters.toInt()}m")
+
+            // M28: vorgemerkte Fahrt frisch halten, solange das Auto fährt.
+            // Der Probes-Puffer wird nach jeder Bestätigung gedraint — bis
+            // zur nächsten vollen Klassifikation können mehrere Minuten
+            // vergehen. Ein einzelner Fix mit Fahrzeug-Tempo ist die
+            // belastbarste, billigste Evidenz (Stand schweigt).
+            if (bridge.isDrivePending() && (fix.speedMps ?: 0f) >= 2.0f) {
+                bridge.refreshDrivePendingEvidence(now)
+            }
 
             // M18.118: Kurzes Cadence-Sampling (max. 12 s) — der
             // DriveProbeWorker ist der Fallback-Pfad OHNE AR-Permission

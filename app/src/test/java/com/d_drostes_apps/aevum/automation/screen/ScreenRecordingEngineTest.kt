@@ -186,4 +186,19 @@ class ScreenRecordingEngineTest {
             )
         )
     }
+
+    // ── M28: zugehörige Aktivität ──
+
+    @Test
+    fun `recording activity defaults to digital`() {
+        assertEquals("digital", ScreenRecordingEngine.recordingActivityTypeId(null))
+        assertEquals("digital", ScreenRecordingEngine.recordingActivityTypeId(""))
+        assertEquals("digital", ScreenRecordingEngine.recordingActivityTypeId("   "))
+    }
+
+    @Test
+    fun `recording activity keeps the selected type`() {
+        assertEquals("reading", ScreenRecordingEngine.recordingActivityTypeId("reading"))
+        assertEquals("work", ScreenRecordingEngine.recordingActivityTypeId(" work "))
+    }
 }

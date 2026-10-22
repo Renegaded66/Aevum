@@ -101,6 +101,8 @@
     <string name="settings_triggers_screen_starts_after">startet nach %1$d min</string>
     <string name="settings_triggers_screen_zero">0 min</string>
     <string name="settings_triggers_screen_off">Aus</string>
+    <string name="settings_triggers_screen_activity_label">Zugehörige Aktivität</string>
+    <string name="settings_triggers_screen_activity_hint">Die Bildschirm-Aufzeichnung erscheint in der Timeline als diese Aktivität (Farbe, Icon, Name). Die Statistik bleibt unverändert — dort zählt nur die Bildschirmzeit aus Digital Balance.</string>
     <string name="settings_triggers_additional">Weitere Automatisierung</string>
     <string name="settings_triggers_background_capture">Hintergrunderfassung</string>
     <string name="settings_triggers_background_capture_desc">Geofences erkennen, auch wenn Aevum geschlossen ist</string>

@@ -49,7 +49,7 @@ class AddictionAnalyticsTest {
     )
 
     @Test
-    fun `7-Tage-Vergleich-endet-gestern-und-heute-bleibt-separat`() {
+    fun `7-Tage-Zeitraum-enthaelt-heute-und-heute-bleibt-zusaetzlich-separat`() {
         val sessions = listOf(
             session(ig, anchor.minusDays(1), 10, 0, 10),
             session(ig, anchor.minusDays(1), 18, 0, 5),
@@ -59,13 +59,14 @@ class AddictionAnalyticsTest {
 
         val result = analyze(sessions)
 
-        // Vergleich: 10 + 5 + 40 = 55 min, 3 Öffnungen. HEUTE (5 min) fehlt.
-        assertThat(result.summary.totalMs).isEqualTo(55L * 60_000)
-        assertThat(result.summary.opens).isEqualTo(3)
-        assertThat(result.summary.activeDays).isEqualTo(2)
+        // M28: Der Zeitraum umfasst die AKTUELLEN 7 Tage inklusive heute:
+        // 10 + 5 + 40 + 5 = 60 min, 4 Öffnungen, 3 aktive Tage.
+        assertThat(result.summary.totalMs).isEqualTo(60L * 60_000)
+        assertThat(result.summary.opens).isEqualTo(4)
+        assertThat(result.summary.activeDays).isEqualTo(3)
         assertThat(result.summary.days).isEqualTo(7)
 
-        // Heute separat.
+        // Heute ist zusätzlich separat (Heute-Karte).
         assertThat(result.today.totalMs).isEqualTo(5L * 60_000)
         assertThat(result.today.opens).isEqualTo(1)
         assertThat(result.todaySessions.getValue(ig)).hasSize(1)
@@ -90,20 +91,22 @@ class AddictionAnalyticsTest {
     }
 
     @Test
-    fun `Wochen-und-Monatsfenster-nutzen-nur-volle-Perioden`() {
+    fun `Wochen-und-Monatsfenster-enthalten-die-aktuelle-Periode`() {
         val empty = analyze(emptyList(), AddictionAnalytics.Range.WEEKS_4)
-        assertThat(empty.periodStart).isEqualTo(LocalDate.of(2026, 9, 21))
-        assertThat(empty.periodEndExclusive).isEqualTo(LocalDate.of(2026, 10, 19))
+        // Aktuelle Woche (ab Montag 19.10.) + 3 Wochen davor.
+        assertThat(empty.periodStart).isEqualTo(LocalDate.of(2026, 9, 28))
+        assertThat(empty.periodEndExclusive).isEqualTo(anchor.plusDays(1))
         assertThat(empty.trend).hasSize(4)
 
         val months = analyze(emptyList(), AddictionAnalytics.Range.MONTHS_6)
-        assertThat(months.periodStart).isEqualTo(LocalDate.of(2026, 4, 1))
-        assertThat(months.periodEndExclusive).isEqualTo(LocalDate.of(2026, 10, 1))
+        // Aktueller Monat (Oktober) + 5 Monate davor.
+        assertThat(months.periodStart).isEqualTo(LocalDate.of(2026, 5, 1))
+        assertThat(months.periodEndExclusive).isEqualTo(anchor.plusDays(1))
         assertThat(months.trend).hasSize(6)
 
         val days = analyze(emptyList(), AddictionAnalytics.Range.DAYS_7)
-        assertThat(days.periodStart).isEqualTo(anchor.minusDays(7))
-        assertThat(days.periodEndExclusive).isEqualTo(anchor)
+        assertThat(days.periodStart).isEqualTo(anchor.minusDays(6))
+        assertThat(days.periodEndExclusive).isEqualTo(anchor.plusDays(1))
         assertThat(days.trend).hasSize(7)
     }
 

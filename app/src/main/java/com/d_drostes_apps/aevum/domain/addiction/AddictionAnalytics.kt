@@ -13,22 +13,28 @@ import kotlin.math.roundToInt
 /**
  * M27: Sucht-Detektor — reine, JVM-testbare Auswertung.
  *
- * ── Warum „abgeschlossene Perioden" statt „heute live" ──────────────────
+ * ── M28: AKTUELLER Zeitraum statt „abgeschlossene Perioden" ─────────────
  *
- * Der Detektor beantwortet Fragen wie „Wie oft habe ich Instagram diese
- * Woche geöffnet?". Ein laufender Tag (oder eine laufende Woche) ist dafür
- * keine belastbare Vergleichsbasis: morgens ist jede Bildschirmzeit niedrig,
- * abends kippt das Bild. Deshalb gilt überall:
+ * User: „Bei der Handy sucht Detektor Ansicht sollten unten die Diagramme
+ * auch jeweils die aktuellen Daten wie Tage Wochen etc anzeigen und dann
+ * halt bei jedem neuen öffnen aktualisieren mit den neuen Daten des
+ * aktuellen Tages."
  *
- *   - [today] zeigt den LIVE-Stand seit Mitternacht (nur als „Heute"-Karte),
- *   - [summary], [appStats] und [trend] zählen ausschließlich VOLLSTÄNDIG
- *     abgeschlossene Tage/Wochen/Monate. Bei 7 Tagen endet der Zeitraum
- *     gestern, bei 4 Wochen mit der letzten vollen Kalenderwoche, bei
- *     6 Monaten mit dem letzten vollen Monat.
+ * Vorher endeten [summary], [appStats] und [trend] bewusst GESTERN (bzw. mit
+ * der letzten vollen Woche/Monat). Der heutige Tag tauchte nur in der
+ * „Heute"-Karte auf — die Diagramme zeigten also nie die aktuellen Daten.
+ * Jetzt gilt:
  *
- * So sind zwei Zeiträume immer gleich lang und die Prozentveränderung
- * bedeutet wirklich etwas. Der Druckindex nutzt zusätzlich nur die letzten
- * sieben vollen Tage.
+ *   - [today] zeigt weiterhin den LIVE-Stand seit Mitternacht,
+ *   - [summary], [appStats] und [trend] umfassen den AKTUELLEN Zeitraum
+ *     INKLUSIVE heute (Tage: 7 Tage bis heute; Wochen: aktuelle + 3
+ *     vorherige Kalenderwochen; Monate: aktueller + 5 vorherige Monate).
+ *
+ * Bewusst gezahlter Preis: Der laufende Tag/die laufende Woche ist noch
+ * nicht vollständig, der Vergleich zur Vorperiode (gleiche Anzahl Tage
+ * direkt davor) fällt morgens niedriger aus. Das ist die vom Nutzer
+ * gewünschte Sichtbarkeit der aktuellen Daten — die Alternative (nur volle
+ * Perioden) hatte genau den gemeldeten Fehler erzeugt.
  *
  * ── Öffnungen vs. Sitzungen ─────────────────────────────────────────────
  *
@@ -186,7 +192,7 @@ object AddictionAnalytics {
             .sortedBy { it.startAt }
             .toList()
 
-        val window = completedWindow(anchorDate, range)
+        val window = currentWindow(anchorDate, range)
         val previous = previousWindow(window)
 
         // Tages-Buckets für aktuellen UND Vorperioden-Zeitraum in EINEM Lauf.
@@ -261,8 +267,35 @@ object AddictionAnalytics {
     // ── Zeitfenster ──────────────────────────────────────────────────────
 
     /**
-     * Liefert [start, endExclusive) der letzten VOLLSTÄNDIGEN Perioden.
-     * „Heute" ist bewusst nie enthalten.
+     * Liefert `[start, endExclusive)` des AKTUELLEN Zeitraums — inklusive
+     * heute (M28).
+     *
+     * „Heute" ist bewusst enthalten: Die Diagramme sollen die aktuellen
+     * Daten des laufenden Tages zeigen (User-Anforderung). Die Periode ist
+     * deshalb am letzten Tag ggf. noch nicht vollständig; die Vorperiode
+     * umfasst dieselbe ANZAHL Tage direkt davor ([previousWindow]).
+     */
+    fun currentWindow(anchorDate: LocalDate, range: Range): Pair<LocalDate, LocalDate> =
+        when (range) {
+            // 7 Tage: heute + die 6 Tage davor.
+            Range.DAYS_7 -> anchorDate.minusDays(6) to anchorDate.plusDays(1)
+            // 4 Kalenderwochen: aktuelle Woche (ab Montag) + 3 davor.
+            Range.WEEKS_4 -> {
+                val currentMonday = anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                currentMonday.minusWeeks(3) to anchorDate.plusDays(1)
+            }
+            // 6 Kalendermonate: aktueller Monat + 5 davor.
+            Range.MONTHS_6 -> {
+                val currentMonthStart = anchorDate.withDayOfMonth(1)
+                currentMonthStart.minusMonths(5) to anchorDate.plusDays(1)
+            }
+        }
+
+    /**
+     * M27/M28: Fenster der letzten VOLLSTÄNDIGEN Perioden.
+     *
+     * Wird vom Druckindex genutzt (er soll sich auf volle Tage beziehen) —
+     * die Diagramme nutzen [currentWindow].
      */
     fun completedWindow(anchorDate: LocalDate, range: Range): Pair<LocalDate, LocalDate> =
         when (range) {

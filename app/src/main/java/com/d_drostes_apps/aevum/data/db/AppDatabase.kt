@@ -14,7 +14,7 @@ import com.d_drostes_apps.aevum.data.model.*
  * Companion-Konstanten in der @Database-Annotation nicht zuverlässig
  * als Konstante auswertet (FIR/KAPT: „Unresolved reference SCHEMA_VERSION").
  */
-const val APP_DATABASE_VERSION = 50
+const val APP_DATABASE_VERSION = 51
 
 @Database(
     entities = [
@@ -1905,5 +1905,51 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+
+        /**
+         * M28: v50 → v51 — zugehörige Aktivität der Bildschirm-Aufzeichnung.
+         *
+         * User: „Bei Bildschirm Aufzeichnung … sollte dadrunter auch eine
+         * zugehörige Activity ausgewählt werden können die dann entsprechend
+         * aufgezeichnet wird, sodass es nicht zwingend immer digital ist."
+         *
+         * Rein additiv: eine Spalte mit Default 'digital'. Bestandszeilen
+         * verhalten sich exakt wie vorher (Aufzeichnung erscheint weiter als
+         * „Digital"), kein Backfill, kein Datenverlust.
+         */
+        val MIGRATION_50_51 = object : Migration(50, 51) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE automation_settings ADD COLUMN screen_recording_activity_type_id TEXT NOT NULL DEFAULT 'digital'"
+                )
+            }
+        }
+
+        /**
+         * M28: ALLE Migrationen in Reihenfolge — EINE Quelle für die
+         * Produktions-DI und für die Migrationstests.
+         *
+         * Vorher listete jeder Migrationstest seine Kette selbst; bei jedem
+         * Versionssprung musste dieselbe Zeile in vier Dateien nachgezogen
+         * werden, sonst schlugen sie mit „A migration from X to Y was
+         * required" fehl. Die Liste steht bewusst am ENDE des Companion-
+         * Objekts: Kotlin initialisiert in Deklarationsreihenfolge, alle
+         * MIGRATION_*-Werte sind hier bereits vorhanden.
+         */
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+            MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+            MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+            MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21,
+            MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
+            MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
+            MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
+            MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37,
+            MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
+            MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45,
+            MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
+            MIGRATION_49_50, MIGRATION_50_51
+        )
     }
 }

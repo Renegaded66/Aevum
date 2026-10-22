@@ -209,7 +209,12 @@ fun DigitalBalanceScreen(
                         scope.launch { pagerState.animateScrollToPage(1) }
                     }
                 )
-                1 -> AddictionDetectorPage(viewModel = detectorViewModel)
+                1 -> AddictionDetectorPage(
+                    viewModel = detectorViewModel,
+                    // M28: frische Daten genau dann, wenn die Seite sichtbar
+                    // wird (nicht schon beim Vorab-Komponieren der Nachbarseite).
+                    isActive = pagerState.currentPage == 1 && !pagerState.isScrollInProgress
+                )
                 else -> PomodoroPage(viewModel)
             }
         }

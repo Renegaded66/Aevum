@@ -46,6 +46,24 @@ object ScreenRecordingEngine {
     fun sliderToDb(sliderValue: Int): Int =
         if (sliderValue >= SLIDER_MAX) DEACTIVATED else sliderValue
 
+    /** activityTypeId der Standard-Aufzeichnung („Digital"). */
+    const val DIGITAL_TYPE_ID = "digital"
+
+    /**
+     * M28: Welche Aktivität soll die Bildschirm-Aufzeichnung tragen?
+     *
+     * User: „… sollte dadrunter auch eine zugehörige Activity ausgewählt
+     * werden können die dann entsprechend aufgezeichnet wird, sodass es
+     * nicht zwingend immer digital ist."
+     *
+     * Leer/null → „digital" (Bestandsverhalten). Die Auflösung auf einen
+     * existierenden Typ passiert im Worker (gelöschte Typen fallen dort auf
+     * „digital" und dann „other" zurück — gleiches Muster wie die
+     * Anruf-Erkennung).
+     */
+    fun recordingActivityTypeId(selectedId: String?): String =
+        selectedId?.trim()?.takeIf { it.isNotEmpty() } ?: DIGITAL_TYPE_ID
+
     /** DB-Wert → Slider-Position (deaktiviert = ganz rechts). */
     fun dbToSlider(dbValue: Int): Int =
         if (dbValue == DEACTIVATED) SLIDER_MAX else dbValue.coerceIn(0, SLIDER_MAX)

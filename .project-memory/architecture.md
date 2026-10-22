@@ -224,3 +224,18 @@ App 1.0.32 (versionCode 33), DB **v45**.
   unbenannte Unknown-Places (Haversine <= radiusMeters, nicht gelöschte
   Geofences, nächster Mittelpunkt) und emittiert sie mit Geofence-Name,
   Icon, Farbe und `geofenceId`; sonst `UNNAMED_PLACE`. Kein DB-Backfill.
+- **M28 (App 1.0.48, DB v51):** `PendingDrivePolicy` (pure) entscheidet, ob
+  ein Fahrt-Start zurückgestellt wird (`shouldDefer`) und ob er nach dem
+  Block-Ende noch startet (`shouldStartAfterBlock`: GPS-Evidenz oder
+  Bestätigung ≤6 min; harte Grenze 4 h); `PendingDriveStarter` (Singleton,
+  von `AevumApplication` gestartet) beobachtet `LiveActivityManager.liveSession`
+  und startet die Fahrt am Block-Ende (`startAtAfterBlock`). Zustand liegt in
+  `ActivityRecognitionBridge` (`markDrivePending`/`isDrivePending`/
+  `clearDrivePending`). `UsageStatsCollector.hasPermission` delegiert an
+  `UsageStatsPermission.isGranted` (AppOps). Bildschirm-Aufzeichnung liest
+  `automation_settings.screen_recording_activity_type_id` (Default `digital`,
+  `ScreenRecordingEngine.recordingActivityTypeId`). Timeline-Liste:
+  `TimelineEntryDetailsDialog` für Trigger/Termine, `detailsAffordance`.
+  `filterPlannedToFuture`/`filterPlannedWeekToFuture` (Tages-/Wochen-/Listen-
+  ansicht). `AddictionAnalytics.currentWindow` (inkl. heute),
+  `AddictionDetectorPage(isActive)`.

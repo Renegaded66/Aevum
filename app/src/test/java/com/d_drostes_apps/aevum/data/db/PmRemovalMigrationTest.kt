@@ -113,20 +113,7 @@ class PmRemovalMigrationTest {
     /** Öffnet die Datei über Room — die echte Kette 45→46(→47…) läuft. */
     private fun migrate(): AppDatabase {
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-            .addMigrations(
-                AppDatabase.MIGRATION_43_44,
-                AppDatabase.MIGRATION_44_45,
-                AppDatabase.MIGRATION_45_46,
-                // M20: Room validiert gegen das AKTUELLE Schema — die Kette
-                // muss deshalb bis zur aktuellen Version durchlaufen.
-                AppDatabase.MIGRATION_46_47,
-                // M23: v48 (source_app_package) — Kette bis zur aktuellen Version.
-                AppDatabase.MIGRATION_47_48,
-                // M26: v49 (ADD COLUMN in automation_settings).
-                AppDatabase.MIGRATION_48_49,
-                // M27: v50 (Sucht-Detektor-Tabellen).
-                AppDatabase.MIGRATION_49_50
-            )
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .allowMainThreadQueries()
             .build()
         opened = database
@@ -180,15 +167,15 @@ class PmRemovalMigrationTest {
         createVersion45Database()
         migrate()
 
-        // M20/M23/M26/M27: Die Kette läuft bis 50 durch (die aktuelle Version).
+        // M20/M23/M26/M27: Die Kette läuft bis 51 durch (die aktuelle Version).
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(50)
+            assertThat(cursor.getInt(0)).isEqualTo(51)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(50).readText())
+            val expected = JSONObject(schemaFile(51).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }

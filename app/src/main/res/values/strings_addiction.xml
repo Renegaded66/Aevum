@@ -7,7 +7,7 @@
     <string name="addiction_refresh">Refresh</string>
     <string name="addiction_info">How it works</string>
     <string name="addiction_info_title">How the detector works</string>
-    <string name="addiction_info_body" formatted="false">Aevum reads the same Android usage access that already powers Digital Balance — locally on your phone, no cloud.\n\n• Opens = foreground sessions of a tracked app. Snippets under 3 seconds are ignored as noise.\n• A session running past midnight counts as an open on its start day; its duration is split at midnight for daily totals.\n• The trend and all comparisons use only completed days, weeks or months. Today is shown separately and never inflates a streak or comparison.\n• Usage pressure (0–100) summarises the last 7 complete days: 40% daily time (reference 4 h), 25% opens (reference 70/day), 20% longest session (reference 60 min), 15% night share (22–6, reference 20%). It is an orientation, not a diagnosis.\n• When you add an app, Aevum tries to backfill 45 days. Android often keeps usage events for only a few days — from then on the history grows automatically.</string>
+    <string name="addiction_info_body" formatted="false">Aevum reads the same Android usage access that already powers Digital Balance — locally on your phone, no cloud.\n\n• Opens = foreground sessions of a tracked app. Snippets under 3 seconds are ignored as noise.\n• A session running past midnight counts as an open on its start day; its duration is split at midnight for daily totals.\n• The trend and every comparison cover the current period including today (7 days, 4 weeks, 6 months). The running day counts and is re-read on every open.\n• Usage pressure (0–100) summarises the last 7 complete days: 40% daily time (reference 4 h), 25% opens (reference 70/day), 20% longest session (reference 60 min), 15% night share (22–6, reference 20%). It is an orientation, not a diagnosis.\n• When you add an app, Aevum tries to backfill 45 days. Android often keeps usage events for only a few days — from then on the history grows automatically.</string>
     <string name="addiction_today">TODAY</string>
     <string name="addiction_since_midnight">Since midnight · %1$d apps</string>
     <string name="addiction_no_use_today">No tracked usage yet today</string>
@@ -30,9 +30,9 @@
     <string name="addiction_avg_per_day">Ø per day</string>
     <string name="addiction_total">Total</string>
     <string name="addiction_vs_prev">vs. previous period</string>
-    <string name="addiction_period_note">Only completed periods count — today is deliberately excluded.</string>
+    <string name="addiction_period_note">The period covers the current days including today — the running day counts.</string>
     <string name="addiction_apps_title">Apps compared</string>
-    <string name="addiction_apps_subtitle">%1$s · completed periods only</string>
+    <string name="addiction_apps_subtitle">%1$s · including today</string>
     <string name="addiction_app_today">Today %1$s · %2$d×</string>
     <string name="addiction_app_range">%1$s · %2$d×</string>
     <string name="addiction_opens_count">%1$d× total</string>

@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.48 (M28) — 2026-10-22
+
+### Auto-Fahrt unterbricht keine Aufzeichnung mehr, Berechtigungsstatus korrekt
+
+**Devon:** „Automatische Fahrtaufzeichnung darf keine laufenden Aufzeichnungen
+unterbrechen. Das passiert aber aktuell. Aber das System darf wissen dass
+gerade gefahren wird und die Aufzeichnung starten sobald die laufende
+aktivität gestoppt wird. Aber natürlich nicht unendlich lange […] Außerdem
+gibt es einen Bug bei den Berechtigungen […] Bei Bildschirm Aufzeichnung […]
+sollte dadrunter auch eine zugehörige Activity ausgewählt werden können […]
+bei der Timeline die Listenansicht […] möchte ich auf die Elemente drauf
+klicken können um Details […] Kalendereinträge […] nur so lange gestrichelt
+[…] Bei der Handy sucht Detektor Ansicht sollten unten die Diagramme auch
+jeweils die aktuellen Daten […] anzeigen."
+
+- **Fahrt-Vorrang:** Läuft eine andere Aufzeichnung, wird die Fahrt nur
+  vorgemerkt (`PendingDrivePolicy`, `PendingDriveStarter`). Start exakt am
+  Block-Ende, nur bei frischer Evidenz (6 min) und nie nach 4 h. Kein
+  rückwirkendes Zerschneiden des laufenden Blocks mehr.
+- **Nutzungszugriff:** `UsageStatsCollector.hasPermission` nutzt jetzt den
+  AppOps-Schalter (vorher 1-Sekunden-`queryUsageStats` → fälschlich „nicht
+  erteilt" bis zur Rückkehr aus den Settings). Trigger-Seite startet mit
+  echtem Berechtigungs-Snapshot; Status-Details zeigt denselben korrekten
+  Stand.
+- **Bildschirm-Aufzeichnung:** Aktivitäts-Auswahl unter dem Slider
+  (Default „Digital", DB v51 `screen_recording_activity_type_id`). Gelöschte
+  Typen fallen auf „digital" → „other" zurück.
+- **Timeline-Liste:** Größere Zeilen (15/12 sp, 44 dp Icon, 13 dp Padding);
+  Trigger-Signale und geplante Termine öffnen einen Detail-Dialog.
+- **Kalender:** Gestrichelte Prognose nur für zukünftige Termine; laufende
+  und vergangene Blöcke verschwinden (Tages-, Wochen- und Listenansicht).
+- **Sucht-Detektor:** Diagramme inkl. aktuellem Tag/Zeitraum; Refresh bei
+  jedem Öffnen der Seite; Info-Texte entsprechend korrigiert.
+- **Tests:** +40 (1399 gesamt, 0 Fehler, 1 skipped): PendingDrivePolicy 14,
+  PlannedSessionsFuture 7, SchemaV51 3, Migration 50→51 4, Verdrahtung 10,
+  Engine 2; Analytics auf die neue Zeitraum-Semantik umgestellt.
+
 ## [Unreleased] — Aevum 1.0.46 (M26) — 2026-10-20
 
 ### Anruf-Erkennung: während eines Gesprächs wird automatisch aufgezeichnet

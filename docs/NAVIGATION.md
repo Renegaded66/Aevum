@@ -167,3 +167,15 @@ navigiert ausschließlich über die oben genannten Ziele; von den PM-Routen
 ist nichts übrig geblieben. Die damalige Umsetzung (Sheet-Übergänge,
 Editor-Modi) ist in der Git-Historie und in `docs/M19-2-ABSCHLUSSBERICHT.md`
 nachlesbar.
+
+## M28 — unverändert
+
+Keine neuen Routen und keine geänderten Übergänge. Die sechs Punkte aus M28
+spielen sich in bestehenden Screens ab:
+
+- Trigger & Erkennung (Bildschirm-Aufzeichnung: Aktivitäts-Picker unter dem
+  Slider), Status-Details (Berechtigungszeile),
+- Timeline (Listenansicht: Detail-Dialog für Trigger/Termine; Kalender-
+  Prognose nur in der Zukunft),
+- Balance-Tab → Detektor (Refresh beim Sichtbarwerden),
+- automatischer Fahrt-Start (kein UI-Pfad; FGS + Notification wie bisher).

@@ -66,13 +66,15 @@ class GoalArchitectureWiringTest {
         assertThat(database).contains("MIGRATION_47_48")
         assertThat(database).contains("MIGRATION_48_49")
         assertThat(database).contains("MIGRATION_49_50")
+        // M28: v51 — zugehörige Aktivität der Bildschirm-Aufzeichnung.
+        assertThat(database).contains("MIGRATION_50_51")
         assertThat(database).contains("goalCheckinDao()")
 
+        // M28: EINE Migrationsliste für Produktion und Tests — der DI-Modul
+        // darf keine eigene (veraltende) Aufzählung mehr führen.
+        assertThat(database).contains("val ALL_MIGRATIONS: Array<Migration>")
         val module = main("di/DatabaseModule.kt")
-        assertThat(module).contains("AppDatabase.MIGRATION_46_47")
-        assertThat(module).contains("AppDatabase.MIGRATION_47_48")
-        assertThat(module).contains("AppDatabase.MIGRATION_48_49")
-        assertThat(module).contains("AppDatabase.MIGRATION_49_50")
+        assertThat(module).contains("AppDatabase.ALL_MIGRATIONS")
         assertThat(module).contains("provideGoalCheckinDao")
     }
 

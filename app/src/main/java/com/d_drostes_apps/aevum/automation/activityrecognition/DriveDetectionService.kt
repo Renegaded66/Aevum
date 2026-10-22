@@ -1148,6 +1148,13 @@ class DriveDetectionService : Service() {
             bridge.refreshDriveHeartbeat(now)
             DriveWatchdogWorker.schedule(this)
         }
+        // M28: Eine vorgemerkte Fahrt lebt von frischer Evidenz. Jeder
+        // Fix mit Fahrzeug-Tempo hält sie frisch — unabhängig davon, ob
+        // gerade eine (blockierende) Session läuft. Im Stand (Parken)
+        // schweigt der Fix und der Vormerk verfällt nach EVIDENCE_TTL_MS.
+        if (bridge.isDrivePending() && speed != null && speed >= 2.0f) {
+            bridge.refreshDrivePendingEvidence(now)
+        }
 
         lastLat = loc.latitude
         lastLon = loc.longitude

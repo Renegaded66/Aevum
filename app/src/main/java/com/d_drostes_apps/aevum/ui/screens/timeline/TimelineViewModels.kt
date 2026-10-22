@@ -148,6 +148,23 @@ class TimelineViewModel @Inject constructor(
     private val _weekView = MutableStateFlow(timelinePrefs.getBoolean(KEY_WEEK_VIEW, false))
     val weekView: StateFlow<Boolean> = _weekView
 
+    /**
+     * M28: Minuten-Takt für die Kalender-Prognose. Der Takt läuft nur,
+     * solange die Timeline sichtbar ist (`uiState` nutzt WhileSubscribed —
+     * ohne Collector wird der StateFlow nicht beobachtet und der Takt
+     * endet mit dem ViewModel-Scope).
+     */
+    private val minuteTick = MutableStateFlow(System.currentTimeMillis())
+
+    init {
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000L)
+                minuteTick.value = System.currentTimeMillis()
+            }
+        }
+    }
+
     // M18.129: Kalender-Daten für die Vorausschau.
     //
     // EIN eigener Flow statt eines 6. combine-Zweigs: die typisierte
@@ -160,19 +177,24 @@ class TimelineViewModel @Inject constructor(
     // ActivityTypeRepository ist bereits als Property gehalten
     // (activityTypeRepository), daher hier direkt nutzbar.
     private val calendarFlow: kotlinx.coroutines.flow.Flow<CalendarTimelineData> = kotlinx.coroutines.flow.combine(
-        calendarRepository.getRules(),
-        calendarRepository.getEvents(),
-        activityTypeRepository.getAll(),
-        calendarRepository.ruleCount(),
-        // M18.131: markierte Einzel-Termine. Sie haben Vorrang vor Regeln —
-        // ohne sie würde die Vorschau einen markierten Termin als "nicht
-        // geplant" zeigen, obwohl er aufgezeichnet wird.
-        calendarEventPinRepository.getAll()
-    ) { rules: List<CalendarRule>, events: List<CalendarEventCache>, types: List<ActivityType>, _: Int, pins: List<CalendarEventPin> ->
-        // Typisierte 5-Flow-Variante (kein Array-Cast — M18.66-FIX14-Lektion
-        // „combine-Limit 5"): genau fünf Quellen, deshalb passt sie hier.
-        CalendarTimelineData(rules.filter { it.enabled }, events, types, pins)
-    }
+        kotlinx.coroutines.flow.combine(
+            calendarRepository.getRules(),
+            calendarRepository.getEvents(),
+            activityTypeRepository.getAll(),
+            calendarRepository.ruleCount(),
+            // M18.131: markierte Einzel-Termine. Sie haben Vorrang vor Regeln — ohne sie
+            // würde die Vorschau einen markierten Termin als "nicht geplant" zeigen, obwohl er aufgezeichnet wird.
+            calendarEventPinRepository.getAll()
+        ) { rules: List<CalendarRule>, events: List<CalendarEventCache>, types: List<ActivityType>, _: Int, pins: List<CalendarEventPin> ->
+            // Typisierte 5-Flow-Variante (kein Array-Cast — M18.66-FIX14-Lektion
+            // „combine-Limit 5"): genau fünf Quellen, deshalb passt sie hier.
+            CalendarTimelineData(rules.filter { it.enabled }, events, types, pins)
+        },
+        // M28: Minuten-Takt. Ein gestrichelter Kalender-Block ist eine
+        // Prognose — er muss verschwinden, sobald der Termin BEGINNT, auch
+        // wenn die Seite schon offen ist und keine Datenquelle sich ändert.
+        minuteTick
+    ) { data, _ -> data }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<TimelineUiState> = languageFlow
@@ -204,7 +226,8 @@ class TimelineViewModel @Inject constructor(
             // (Auftragsanforderung) und die Blöcke des gewählten Tages.
             .combine(calendarFlow) { state, cal ->
                 val today = LocalDate.now()
-                val planned7 = buildPlannedSessionsForWeek(
+                val nowMs = System.currentTimeMillis()
+                val planned7Raw = buildPlannedSessionsForWeek(
                     startDate = today,
                     days = PLANNED_FORECAST_DAYS,
                     events = cal.events,
@@ -217,12 +240,16 @@ class TimelineViewModel @Inject constructor(
                     // M18.131: markierte Einzel-Termine (Vorrang vor Regeln).
                     pins = cal.pins
                 )
+                // M28: gestrichelt = Prognose. Sobald ein Termin läuft oder
+                // vorbei ist, verschwindet der Block (nur die echten
+                // Aufzeichnungen bleiben) — für die 7-Tage-Karte UND den Tag.
+                val planned7 = filterPlannedWeekToFuture(planned7Raw, nowMs, zoneId)
                 // Der Nutzer kann in der Timeline weiter als 7 Tage
                 // vorausblättern. Dann ist die Karte leer — statt die
                 // Anzeige stillschweigend leer zu lassen, wird der
                 // gewählte Tag direkt berechnet (dieselbe Engine, also
                 // garantiert konsistent mit der Vorschau).
-                val selected = planned7[state.selectedDate]
+                val selectedRaw = planned7[state.selectedDate]
                     ?: if (state.selectedDate.isAfter(today) || state.selectedDate.isBefore(today)) {
                         buildPlannedSessionsForDay(
                             date = state.selectedDate,
@@ -236,6 +263,7 @@ class TimelineViewModel @Inject constructor(
                     } else {
                         emptyList()
                     }
+                val selected = filterPlannedToFuture(selectedRaw, state.selectedDate, nowMs, zoneId)
                 state.copy(
                     plannedSessions = selected,
                     plannedNext7Days = planned7

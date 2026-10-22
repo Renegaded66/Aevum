@@ -394,11 +394,13 @@ Güte-Gauge; die frühere Headline-Zeile ist entfernt.
   Dauer.
 - Heute-Karte mit **Nutzungsdruck 0–100** (Zeit, Öffnungen, längste Sitzung,
   Nachtanteil der letzten 7 vollen Tage).
-- Verlauf über **7 volle Tage / 4 volle Wochen / 6 volle Monate**, umschaltbar
+- Verlauf über **7 Tage / 4 Wochen / 6 Monate**, umschaltbar
   zwischen Zeit und Öffnungen; Stundenbalken für heute.
-- Wichtige Semantik: „Heute" ist live, jeder Vergleich nutzt nur abgeschlossene
-  Perioden. Sitzungen über Mitternacht zählen als eine Öffnung am Starttag;
-  die Dauer wird tagesweise geteilt. Phasen unter 3 s sind Rauschen.
+- Wichtige Semantik (M28): Der Zeitraum umfasst die **aktuellen** Tage
+  inklusive heute; der Druckindex nutzt die letzten 7 vollen Tage. Sitzungen
+  über Mitternacht zählen als eine Öffnung am Starttag; die Dauer wird
+  tagesweise geteilt. Phasen unter 3 s sind Rauschen. Die Seite liest beim
+  Öffnen neu.
 - Datenquelle: derselbe Android-Nutzungszugriff wie Digital Balance; alles
   lokal. Kein neuer Permission-Dialog, keine Cloud.
 
@@ -420,3 +422,66 @@ Güte-Gauge; die frühere Headline-Zeile ist entfernt.
   Tabellen werden automatisch mitgesichert.
 - Ältere Backups werden beim Restore akzeptiert und beim nächsten Start per
   Room migriert; neuere Backups werden abgelehnt.
+
+---
+
+## M28 — Fahrt-Vorrang, Berechtigungsstatus, Aufzeichnungs-Aktivität, Timeline-Details (App 1.0.48)
+
+### Auto-Fahrt unterbricht keine laufende Aufzeichnung
+
+- Läuft bereits eine Aufzeichnung (manuell, Geofence, App-Tracking, Digital,
+  Anruf, Kalender, Sport), startet die automatische Fahrt **nicht** — sie wird
+  nur vorgemerkt (`ActivityRecognitionBridge.markDrivePending`).
+- Endet die blockierende Aufzeichnung, startet die Fahrt **exakt an deren
+  Ende** (kein rückwirkendes Zerschneiden des alten Blocks) — aber nur, wenn
+  es dann noch Fahrt-Evidenz gibt (frische GPS-Klassifikation oder eine
+  höchstens 6 Minuten alte Bestätigung).
+- Steht das Auto schon länger, verfällt der Vormerk: „Fahrt vorbei, danach
+  erst gestoppt" startet keine Aufzeichnung. Harte Obergrenze: 4 Stunden.
+- Aufgelöst wird der Vormerk von einem einzigen Beobachter auf
+  `LiveActivityManager.liveSession` (`PendingDriveStarter`) — damit sind alle
+  Stop-Pfade abgedeckt (Dashboard, Notification, Widget, Geofence, App-Wechsel,
+  Kalender-Ende, Screen-Off).
+
+### Berechtigungen: richtiger Status beim ersten Öffnen
+
+- „Nutzungszugriff" wird über den **AppOps-Schalter** geprüft (vorher:
+  `queryUsageStats` in einem 1-Sekunden-Fenster → ohne Event in dieser Sekunde
+  fälschlich „nicht erteilt"; erst nach Rückkehr aus den System-Settings gab
+  es ein frisches Event → plötzlich „zugelassen").
+- Das gilt für die Trigger-&-Erkennung-Seite **und** für Status-Details.
+- Die Trigger-Seite startet mit dem synchron gelesenen Berechtigungs-Snapshot
+  statt mit „alles aus" — kein kurzes Aufblitzen falscher roter Zeilen.
+
+### Bildschirm-Aufzeichnung: zugehörige Aktivität
+
+- Unter dem Vorlauf-Slider ist eine Aktivität wählbar (Default „Digital").
+  Der automatische Timeline-Block trägt Typ, Name, Icon und Farbe dieser
+  Aktivität (`automation_settings.screen_recording_activity_type_id`, DB v51).
+- Gelöschte Typen fallen auf „digital", dann auf „other" zurück.
+- Die Statistik-Regel bleibt unverändert (M18.138): Aufzeichnungen sind
+  Timeline-Darstellung; Kennzahlen nutzen ausschließlich die echte
+  Bildschirmzeit aus Digital Balance.
+
+### Timeline-Listenansicht
+
+- Zeilen sind größer (15 sp Titel, 12 sp Detail, 44 dp Icon, 48 dp Akzentbalken,
+  13 dp vertikales Padding) — besser lesbar und als Touch-Ziel geeignet.
+- **Trigger-Signale** und **geplante Kalender-Blöcke** öffnen beim Antippen
+  einen Detail-Dialog (Zeit, Konfidenz/Quelle bzw. Aktivität, Zeitraum, Dauer,
+  Regel). Vorher passierte dort nichts. Aufzeichnungen öffnen weiterhin die
+  volle Detailseite.
+
+### Kalender-Blöcke nur als Zukunft-Prognose
+
+- Gestrichelte Kalender-Blöcke erscheinen nur, solange der Termin in der
+  Zukunft liegt. Ab Terminbeginn (laufend oder vergangen) verschwindet der
+  Block — sichtbar bleiben nur die echten Aufzeichnungen. Gilt für Tages-,
+  Wochen- und Listenansicht.
+
+### Sucht-Detektor: aktuelle Daten
+
+- Die Diagramme (7 Tage / 4 Wochen / 6 Monate) umfassen jetzt den **aktuellen
+  Zeitraum inklusive heute** statt nur abgeschlossener Perioden.
+- Die Detektor-Seite refresht bei **jedem Öffnen** (Sichtbarkeit im Pager)
+  und danach im Minutentakt.

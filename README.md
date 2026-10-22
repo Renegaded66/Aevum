@@ -10,7 +10,8 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 
 ### 🎯 Automatisches Tracking
 - **Geofence-Trigger** — „Zuhause betreten“, „Gym verlassen“ … startet und stoppt Sessions automatisch, mit Deduplizierung und GPS-Sprung-Schutz
-- **Activity Recognition** — erkennt Fahrten (Auto/Bus/Zug) und startet eine „Mobilität“-Session, inkl. Auto-Stopp mit Bewegungs-Watchdog
+- **Activity Recognition** — erkennt Fahrten (Auto/Bus/Zug) und startet eine „Autofahren“-Session, inkl. Auto-Stopp mit Bewegungs-Watchdog. Eine bereits laufende Aufzeichnung wird dabei **nie unterbrochen**: Aevum merkt sich die Fahrt und startet sie erst, wenn die andere Aufzeichnung endet — und nur, solange die Fahrt dann noch läuft
+- **Bildschirm-Aufzeichnung** — Handy ≥ x Minuten am Stück an und nichts anderes läuft → ein Timeline-Block; die zugehörige Aktivität (Standard „Digital“) ist frei wählbar
 - **Schlaf-Erkennung** — heuristische + fusionierte Erkennung aus Bildschirm-Nutzung und Health Connect, mit Schutzwällen gegen False-Positives
 - **Trigger-Paare** — „Wegzeit“ zwischen Orten (z. B. Arbeitsweg, Einkauf) wird automatisch als Kandidat vorgeschlagen
 - **Confidence-basiert** — nur sichere Erkennungen werden automatisch übernommen, alles andere landet in der Review-Inbox

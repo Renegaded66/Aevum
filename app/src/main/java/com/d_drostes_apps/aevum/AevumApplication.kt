@@ -41,6 +41,9 @@ class AevumApplication : Application() {
     @Inject lateinit var sleepFusionMorningScheduler: SleepFusionMorningScheduler
     // M18.129: Kalender-Integration — periodischer Sync.
     @Inject lateinit var calendarSyncScheduler: com.d_drostes_apps.aevum.automation.calendar.CalendarSyncScheduler
+    // M28: holt eine vorgemerkte Fahrt nach, sobald die Aufzeichnung endet,
+    // die sie blockiert hat (Auto-Fahrt unterbricht nie eine laufende Session).
+    @Inject lateinit var pendingDriveStarter: com.d_drostes_apps.aevum.automation.activityrecognition.PendingDriveStarter
 
     /**
      * M12.1.1: Hilt EntryPoint, damit AevumApplication (kein @AndroidEntryPoint)
@@ -655,6 +658,15 @@ class AevumApplication : Application() {
             }
         } catch (e: Exception) {
             Log.e("AevumApplication", "M18.24: Notification-Restore EntryPoint init failed — continuing", e)
+        }
+
+        // M28: Der Beobachter für vorgemerkte Fahrten läuft, solange der
+        // Prozess lebt. Er reagiert NUR, wenn ein Vormerk existiert und eine
+        // Session endet — im Leerlauf ist er ein einzelner StateFlow-Collector.
+        try {
+            pendingDriveStarter.start()
+        } catch (e: Exception) {
+            Log.e("AevumApplication", "M28: PendingDriveStarter-Start failed — continuing", e)
         }
     }
 
