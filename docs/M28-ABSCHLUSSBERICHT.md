@@ -289,5 +289,5 @@ ist diese garantiert identisch mit dem, was auf dem Gerät läuft.
   `9C:30:55:C4:81:0B:5C:C2:E5:48:D8:DE:83:57:34:43:52:FB:E0:E8`
   (`signing-verify OK`, `apksigner verify --print-certs`).
 - **DB-Version:** 51 (`SchemaV51Test` + echte SQLite-Migration 50→51).
-- **Commit:** siehe `git log` (M28-Commit; der Bericht wird im Folge-Commit
-  um den Hash ergänzt).
+- **Commit:** `7308bf9` — „M28: Fahrt unterbricht keine Aufzeichnung,
+  AppOps-Status, Aufzeichnungs-Aktivitaet, Timeline-Details - Aevum 1.0.48".
