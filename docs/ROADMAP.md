@@ -378,3 +378,17 @@ umgezogen.
 
 **Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
 Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.
+
+## M29 — Timeline-Lücke beim Anlegen einer Aktivität vorbelegen
+
+**Status:** Abgeschlossen (App 1.0.49). Bericht
+`docs/M29-ABSCHLUSSBERICHT.md`.
+
+**Ziel:** Ein Tap auf freie Zeit direkt unter einer Aufzeichnung soll den
+Activity-Editor mit der kompletten Lücke vorbelegen — Start = Ende der oberen
+Aktivität, Ende = Start der nächsten, ohne Überlagerung. Nur bei „halbwegs
+direkt darunter" und nur, wenn eine nachfolgende Aufzeichnung existiert.
+Letzte Aktivität und Taps weiter unten behalten den +1h-Default.
+
+**Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
+Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.

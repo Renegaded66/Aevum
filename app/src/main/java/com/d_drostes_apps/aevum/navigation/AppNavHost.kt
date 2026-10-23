@@ -100,7 +100,9 @@ fun AppNavHost(
         }
         composable(AppDestination.Timeline.route) {
             TimelineScreen(
-                onCreateActivity = { date -> navController.navigate("activity/new/$date") },
+                onCreateActivity = { date, end ->
+                    navController.navigate(activityCreateRoute(date, end))
+                },
                 onEditActivity = { id -> navController.navigate("activity/edit/$id") },
                 onEditCandidate = { id -> navController.navigate("activity/candidate/$id") },
                 onOpenActivity = { id -> navController.navigate("activity/$id") },
@@ -113,7 +115,9 @@ fun AppNavHost(
             arguments = listOf(navArgument("date") { type = NavType.LongType })
         ) {
             TimelineScreen(
-                onCreateActivity = { date -> navController.navigate("activity/new/$date") },
+                onCreateActivity = { date, end ->
+                    navController.navigate(activityCreateRoute(date, end))
+                },
                 onEditActivity = { id -> navController.navigate("activity/edit/$id") },
                 onEditCandidate = { id -> navController.navigate("activity/candidate/$id") },
                 onOpenActivity = { id -> navController.navigate("activity/$id") }
@@ -121,7 +125,15 @@ fun AppNavHost(
         }
         composable(
             route = AppDestination.ActivityCreate.route,
-            arguments = listOf(navArgument("date") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("date") { type = NavType.LongType },
+                // Optionales Ende der Timeline-Lücke. -1 = nicht gesetzt
+                // (Plus-Button/Empty-State → Editor-Default Start + 1h).
+                navArgument("end") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
         ) {
             ActivityEditorScreen(
                 onBack = { navController.popBackStack() },

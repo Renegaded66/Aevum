@@ -7,7 +7,7 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     Dashboard("dashboard", R.string.dashboard_title),
     Timeline("timeline", R.string.timeline_title),
     TimelineDay("timeline/{date}", R.string.timeline_title),
-    ActivityCreate("activity/new/{date}", R.string.activity_create_title),
+    ActivityCreate("activity/new/{date}?end={end}", R.string.activity_create_title),
     ActivityEdit("activity/edit/{sessionId}", R.string.activity_edit_title),
     ActivityFromCandidate("activity/candidate/{candidateId}", R.string.activity_candidate_title),
     ActivityDetail("activity/{sessionId}", R.string.activity_detail_title),
@@ -97,3 +97,15 @@ fun geofenceCreateRoute(
     return "geofence/new?lat=%.6f&lon=%.6f&name=%s"
         .format(java.util.Locale.US, latitude, longitude, encodedName)
 }
+
+/**
+ * Route zum Anlegen einer Aktivität.
+ *
+ * [startMillis] ist der Startzeitpunkt; [endMillis] ist optional und wird nur
+ * gesetzt, wenn der Tap auf der Timeline eine Lücke zwischen zwei
+ * Aufzeichnungen exakt ausfüllen soll (Start = Ende der oberen, Ende = Start
+ * der unteren Aktivität). Ohne [endMillis] verwendet der Editor seinen
+ * Default (Start + 1h).
+ */
+fun activityCreateRoute(startMillis: Long, endMillis: Long? = null): String =
+    "activity/new/$startMillis" + (endMillis?.let { "?end=$it" } ?: "")

@@ -129,7 +129,9 @@ import kotlin.math.roundToInt
 @Composable
 fun TimelineScreen(
     modifier: Modifier = Modifier,
-    onCreateActivity: (Long) -> Unit,
+    // Startzeit + optionales Ende. Ein Ende wird nur gesetzt, wenn der Tap
+    // eine eindeutige Lücke zwischen zwei Aufzeichnungen ausfüllt.
+    onCreateActivity: (Long, Long?) -> Unit,
     onEditActivity: (String) -> Unit,
     onEditCandidate: (String) -> Unit,
     onOpenActivity: (String) -> Unit,
@@ -281,7 +283,7 @@ fun TimelineScreen(
                             title = stringResource(R.string.timeline_empty_title),
                             message = stringResource(R.string.timeline_empty_message),
                             actionLabel = stringResource(R.string.timeline_empty_action),
-                            onActionClick = { onCreateActivity(TimeFormatting.startOfDayMillis(date)) }
+                            onActionClick = { onCreateActivity(TimeFormatting.startOfDayMillis(date), null) }
                         )
                     }
                 } else {
@@ -303,12 +305,19 @@ fun TimelineScreen(
                         // QuickCreateDialog mehr — direkte Navigation zum
                         // ActivityEditor mit der geklickten Minute als
                         // Startzeit (Endzeit = Start + 1h im Editor-Default).
-                        onCreateAt = { minute ->
+                        //
+                        // Tap direkt unter einer Aufzeichnung: Der Editor
+                        // bekommt die komplette Lücke bis zur nächsten
+                        // Aufzeichnung (Start = deren Ende, Ende = Start der
+                        // nächsten). Ist es die letzte Aufzeichnung des Tages,
+                        // bleibt es beim +1h-Default.
+                        onCreateAt = { startMinute, endMinute ->
                             val date = state.selectedDate
-                            val startMillis = TimeFormatting.parseHourMinuteToMillis(
-                                date, minute / 60, minute % 60
-                            )
-                            onCreateActivity(startMillis)
+                            val startMillis = TimeFormatting.millisAtMinuteOfDay(date, startMinute)
+                            val endMillis = endMinute?.let {
+                                TimeFormatting.millisAtMinuteOfDay(date, it)
+                            }
+                            onCreateActivity(startMillis, endMillis)
                         },
                         weekView = weekView,
                         weekSessions = state.weekSessions,
@@ -2442,8 +2451,10 @@ private fun DayCalendarTimeline(
     onDeleteSession: (String) -> Unit,
     // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
     onAdjustQuality: (TimelineSessionUi) -> Unit,
-    // M18.44: Quick-Create aus der Tagesansicht (leere Stelle antippen)
-    onCreateAt: (Int) -> Unit,
+    // M18.44: Quick-Create aus der Tagesansicht (leere Stelle antippen).
+    // startMinute = Tap-Zeit; endMinute nur gesetzt, wenn der Tap direkt
+    // unter einer Aufzeichnung liegt und die Lücke bis zur nächsten füllt.
+    onCreateAt: (startMinute: Int, endMinute: Int?) -> Unit,
     // M18.66-FIX14: Wochenansicht
     weekView: Boolean,
     weekSessions: Map<LocalDate, List<TimelineSessionUi>>,
@@ -3362,7 +3373,8 @@ private fun ZoomableDayTimeline(
     onEdit: (String) -> Unit,
     // AEVUM-3: Lang-Druck auf eine Session → Güte dieser Aufzeichnung anpassen.
     onAdjustQuality: (TimelineSessionUi) -> Unit,
-    onCreateAt: (Int) -> Unit,
+    // Tap auf freie Zeit: Startminute + optionale Endminute der Lücke.
+    onCreateAt: (startMinute: Int, endMinute: Int?) -> Unit,
     // M18.129: Geplante Kalender-Blöcke — diagonal gestrichelt, in
     // Aktivitätsfarbe + Icon. Bewusst OHNE Tap-Ziel: ein Plan ist keine
     // Session und darf nicht den Editor öffnen.
@@ -3455,7 +3467,20 @@ private fun ZoomableDayTimeline(
                                 offset.x >= blockXOffset && offset.x <= blockXOffset + laneWidth &&
                                     offset.y >= top - 2f && offset.y <= top + totalH + 2f
                             }
-                            if (hit != null) onOpen(hit.id) else onCreateAt(minute)
+                            if (hit != null) {
+                                onOpen(hit.id)
+                            } else {
+                                // Tap "halbwegs direkt unter" einer Aufzeichnung:
+                                // 24dp unter deren Blockende, in Minuten
+                                // umgerechnet — bei jedem Zoom gleich groß.
+                                // Darüber hinaus bleibt es beim Default
+                                // (Start = Tap-Zeit, Ende = +1h).
+                                val maxDistanceMinutes = (24.dp.toPx() / pxHour * 60f)
+                                    .roundToInt()
+                                    .coerceIn(5, 90)
+                                val gap = findGapBelowActivity(minute, sessions, maxDistanceMinutes)
+                                onCreateAt(gap?.startMinute ?: minute, gap?.endMinute)
+                            }
                         }
                     }
                 ) {

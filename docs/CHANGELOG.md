@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.49 (M29) — 2026-10-23
+
+### Timeline: Tap unter einer Aktivität füllt die Lücke bis zur nächsten
+
+**Devon:** „wenn ich in der Timeline direkt unter einem Termin in einen freien
+Bereich klicke […] dass dann dort die start und Zielzeit automatisch so
+ausgefüllt wird, dass sie genau angrenzend zwischen zwei aktivitäten ist, also
+ohne überlagerung den ganzen Zeitraum einnimmt. Aber nur wenn man halbwegs
+direkt unter einer Activity auf die Timeline klickt, und auch nur wenn es nicht
+die zuletzt aufgenommene Activity ist.“
+
+- **Lücken-Vorbelegung:** Ein Tap auf freie Zeit direkt unter einer
+  Aufzeichnung öffnet den Activity-Editor mit Start = Ende der oberen und
+  Ende = Start der nächsten Aufzeichnung. Damit ist die Lücke exakt
+  ausgefüllt und überlagert keine bestehende Aufzeichnung.
+- **Nur „halbwegs direkt darunter":** Die Tap-Distanz ist auf 24 dp unter dem
+  Blockende begrenzt (bei jedem Zoom gleich groß, in Minuten umgerechnet).
+  Weiter unten bleibt es beim bisherigen Verhalten (Start = Tap-Zeit, Ende =
+  +1 h).
+- **Letzte Aktivität des Tages:** Gibt es keine nachfolgende Aufzeichnung,
+  bleibt der +1h-Default — es gibt keinen Ziel-Zeitpunkt.
+- **Sicherheitsnetz:** Taps in einer laufenden/überlappenden Aufzeichnung
+  sowie angrenzende Blöcke ohne echte Lücke erzeugen keine Vorbelegung.
+- **Tests:** +15 (1414 gesamt, 0 Fehler, 1 skipped): 13 Fälle für die
+  Lücken-Geometrie (Schwelle, Überlappung, Mitternacht, letzte Aktivität)
+  und 2 für die Editor-Route mit optionalem Ende.
+
 ## [Unreleased] — Aevum 1.0.48 (M28) — 2026-10-22
 
 ### Auto-Fahrt unterbricht keine Aufzeichnung mehr, Berechtigungsstatus korrekt

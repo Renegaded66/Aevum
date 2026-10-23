@@ -1010,6 +1010,9 @@ class ActivityEditorViewModel @Inject constructor(
     private val sessionId: String? = savedStateHandle["sessionId"]
     private val candidateId: String? = savedStateHandle["candidateId"]
     private val dateArg: Long? = savedStateHandle["date"]
+    // Optionales Ende aus der Timeline-Lücke (Tap direkt unter einer
+    // Aufzeichnung). -1 bzw. 0 = nicht gesetzt → Default Start + 1h.
+    private val endArg: Long? = savedStateHandle.get<Long>("end")?.takeIf { it > 0L }
     private val zoneId = ZoneId.systemDefault()
     // L10N-RUNTIME-FIX: Sprach-Flow für reaktive Rebuilds.
     private val languageFlow: kotlinx.coroutines.flow.Flow<String> =
@@ -1323,7 +1326,15 @@ class ActivityEditorViewModel @Inject constructor(
             } else {
                 startMillis
             }
-            form.value = ActivityEditorForm(startAt = start, endAt = start + ONE_HOUR, date = date)
+            // Timeline-Lücke: Start = Ende der oberen, Ende = Start der
+            // unteren Aufzeichnung. Nur übernehmen, wenn das Ende wirklich
+            // nach dem Start liegt — sonst bleibt der +1h-Default.
+            val requestedEnd = endArg?.takeIf { it > start }
+            form.value = ActivityEditorForm(
+                startAt = start,
+                endAt = requestedEnd ?: (start + ONE_HOUR),
+                date = date
+            )
         }
     }
 

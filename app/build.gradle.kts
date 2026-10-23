@@ -258,8 +258,11 @@ android {
         // M27: Sucht-Detektor im Balance-Tab (Apps, Öffnungen, Sitzungen,
         //  Verlauf), Backup-Versionscheck repariert, Ziele werden erst nach
         //  Ablauf ihrer Periode gewertet.
-        versionCode = 49
-        versionName = "1.0.48"
+        // M29: Tap direkt unter einer Aufzeichnung füllt im Editor die
+        //  komplette Lücke bis zur nächsten Aufzeichnung (Start = Ende der
+        //  oberen, Ende = Start der unteren; letzte Aktivität bleibt +1h).
+        versionCode = 50
+        versionName = "1.0.49"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
