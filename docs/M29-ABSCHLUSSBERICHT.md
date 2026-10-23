@@ -3,7 +3,7 @@
 **Status:** Abgeschlossen
 **App-Version:** 1.0.49 (versionCode 50)
 **Datum:** 2026-10-23
-**Commit:** _(wird nach dem Push ergänzt)_
+**Commit:** `bed36a357e74cb949436defa2381bfbbf8b2f508`
 
 ## Auftrag
 
