@@ -261,8 +261,11 @@ android {
         // M29: Tap direkt unter einer Aufzeichnung füllt im Editor die
         //  komplette Lücke bis zur nächsten Aufzeichnung (Start = Ende der
         //  oberen, Ende = Start der unteren; letzte Aktivität bleibt +1h).
-        versionCode = 50
-        versionName = "1.0.49"
+        // M30: Bildschirmzeit-Ziel zählt nur noch die Digital-Balance-Zeit;
+        //  zusätzliche Digital-Sessions (App/PC/manuell) wurden vorher
+        //  doppelt addiert. Minuten werden jetzt gerundet statt abgeschnitten.
+        versionCode = 51
+        versionName = "1.0.50"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

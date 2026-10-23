@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.IsoFields
 import java.time.temporal.TemporalAdjusters
+import kotlin.math.roundToInt
 
 /**
  * M20: Ziel-Auswertung der „Ziel-Architektur" — pure Kotlin (JVM-testbar,
@@ -498,8 +499,14 @@ object GoalProgressAnalytics {
         when (goal.sourceKind ?: SOURCE_ACTIVITY) {
             SOURCE_ACTIVITY -> session.activityTypeId == goal.activityTypeId
             SOURCE_CATEGORY -> goal.categoryId != null && session.categoryId == goal.categoryId
-            SOURCE_DIGITAL -> session.activityTypeId ==
-                com.d_drostes_apps.aevum.domain.digital.ScreenStatisticsPolicy.DIGITAL_TYPE_ID
+            // M30: Ein Bildschirmzeit-Ziel darf NUR die gemessene
+            // Digital-Balance-Zeit zählen. Vorher matchte hier jeder Block mit
+            // activity_type_id = "digital" — auch App-Aufzeichnung, PC-Sessions
+            // und manuelle Digital-Blöcke. Zusammen mit der künstlichen
+            // Balance-Session entstand so eine Doppelzählung (Devon: Balance
+            // 3h07, Ziel 6h08 = 3h07 + 3h01).
+            SOURCE_DIGITAL -> session.sourceType ==
+                com.d_drostes_apps.aevum.domain.digital.ScreenStatisticsPolicy.SOURCE_DIGITAL_BALANCE
             else -> false // TODOS/MANUAL zählen keine Sessions
         }
 
@@ -553,8 +560,13 @@ object GoalProgressAnalytics {
     private fun formatValue(value: Float, unit: String): String {
         return when (unit.uppercase()) {
             "HOURS", "HOUR", "H" -> {
-                val hours = value.toInt()
-                val minutes = ((value - hours) * 60).toInt()
+                // M30: Auf die volle Minute runden statt den Bruchteil
+                // abzuschneiden. 3,1166 h sind 3 h 07 min — vorher wurde
+                // daraus durch Float-Truncation „3h 6m" und wich damit um
+                // eine Minute von der Digital-Balance-Anzeige ab.
+                val totalMinutes = (value * 60f).roundToInt().coerceAtLeast(0)
+                val hours = totalMinutes / 60
+                val minutes = totalMinutes % 60
                 if (minutes > 0) "${hours}h ${minutes}m" else "${hours}h"
             }
             "MINUTES", "MINUTE", "MIN", "M" -> "${value.toInt()}m"

@@ -349,9 +349,16 @@ class GoalProgressAnalyticsTest {
             goal, listOf(running), LocalDate.now(zone), zone, typeMap
         )
 
-        // 90 Minuten laufend → 1,5 h (Toleranz für die Testlaufzeit).
-        assertThat(result.currentValue).isWithin(0.05f).of(1.5f)
-        assertThat(result.progress).isWithin(0.03f).of(0.75f)
+        // 90 Minuten laufend → 1,5 h. Kurz nach Mitternacht liegt der Start
+        // noch am Vortag; dann zählt für HEUTE nur der Teil seit 00:00.
+        // Deshalb den erwarteten Anteil aus dem tatsächlichen Tagesfenster
+        // berechnen — der Test darf nicht von der Uhrzeit des Testlaufs
+        // abhängen (er schlug sonst zwischen 00:00 und 01:30 fehl).
+        val dayStart = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+        val expectedHours = (now - maxOf(running.startAt, dayStart))
+            .coerceAtLeast(0L) / 3_600_000f
+        assertThat(result.currentValue).isWithin(0.05f).of(expectedHours)
+        assertThat(result.progress).isWithin(0.03f).of(expectedHours / 2f)
     }
 
     @Test

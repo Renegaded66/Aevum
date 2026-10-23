@@ -392,3 +392,16 @@ Letzte Aktivität und Taps weiter unten behalten den +1h-Default.
 
 **Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
 Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.
+
+## M30 — Bildschirmzeit-Ziel nicht mehr doppelt zählen
+
+**Status:** Abgeschlossen (App 1.0.50). Bericht
+`docs/M30-ABSCHLUSSBERICHT.md`.
+
+**Ziel:** Ein automatisches Ziel mit Quelle „Bildschirmzeit" muss exakt den
+Wert der Digital-Balance-Seite zeigen. Zusätzliche Sessions mit der Aktivität
+„Digital" (App-Aufzeichnung, PC, manuell) dürfen nicht zur künstlichen
+Balance-Session addiert werden. Zusätzlich Minutenanzeige runden.
+
+**Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
+Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.

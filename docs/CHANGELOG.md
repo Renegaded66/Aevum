@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.50 (M30) — 2026-10-24
+
+### Bildschirmzeit-Ziel zeigt nicht mehr das Doppelte
+
+**Devon:** „Ich habe ein automatisches Ziel mit der Quelle Bildschirmzeit und
+es soll unter 3 Stunden sein, und laut der Balance Seite habe ich heute
+3 Stunden 7 Minuten […] aber das Ziel zeigt an 6 Stunden 8 Minuten
+Bildschirmzeit heute, und entsprechend groß ist auch der Balken im
+balkendiagramm.“
+
+- **Ursache:** Ein Ziel mit Quelle `DIGITAL` matchte jeden Block mit
+  `activity_type_id = "digital"` — zusätzlich zur künstlichen
+  Digital-Balance-Session. Jede weitere Digital-Aufzeichnung (App-Aufzeichnung,
+  PC-Session, manueller Digital-Block) wurde damit ein zweites Mal addiert.
+  Im gemeldeten Fall: 3 h 07 min Balance + 3 h 01 min Zusatzblock = 6 h 08 min.
+- **Fix:** `GoalProgressAnalytics.matchesSession` akzeptiert für
+  `SOURCE_DIGITAL` nur noch die gemessene `DIGITAL_BALANCE`-Session. Damit
+  entspricht der Zielwert exakt der Digital-Balance-Seite — auch im
+  Balkendiagramm und in der Heatmap.
+- **Anzeige:** Stundenwerte werden auf die volle Minute gerundet. Vorher
+  wurde 3,1166 h durch Float-Truncation als „3h 6m" statt „3h 7m" angezeigt.
+- **Test-Stabilität:** Der M22-Test für laufende Sessions rechnet den
+  erwarteten Anteil jetzt aus dem tatsächlichen Tagesfenster; er schlug
+  zwischen 00:00 und 01:30 fehl, weil der 90-Minuten-Start noch am Vortag lag.
+- **Tests:** +3 (1417 gesamt, 0 Fehler, 1 skipped): Digital-Ziel mit
+  zusätzlicher App-/PC-Session (6h08 → 3h07), Screen-Aufzeichnung bleibt
+  ausgeschlossen, heutiger Verlaufsbalken nutzt nur die Balance-Zeit.
+
 ## [Unreleased] — Aevum 1.0.49 (M29) — 2026-10-23
 
 ### Timeline: Tap unter einer Aktivität füllt die Lücke bis zur nächsten
