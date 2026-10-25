@@ -9,7 +9,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
+import com.d_drostes_apps.aevum.ui.screens.insights.BalanceMode
+import com.d_drostes_apps.aevum.ui.screens.insights.BalanceOption
 import com.d_drostes_apps.aevum.ui.screens.insights.BalanceSlice
+import com.d_drostes_apps.aevum.ui.screens.insights.INSIGHTS_BALANCE_MODE_CATEGORY_TEST_TAG
+import com.d_drostes_apps.aevum.ui.screens.insights.INSIGHTS_BALANCE_SELECT_TEST_TAG
 import com.d_drostes_apps.aevum.ui.screens.insights.INSIGHTS_CHART_VALUE_TEST_TAG
 import com.d_drostes_apps.aevum.ui.screens.insights.INSIGHTS_DONUT_TEST_TAG
 import com.d_drostes_apps.aevum.ui.screens.insights.INSIGHTS_LIST_TEST_TAG
@@ -22,6 +26,8 @@ import com.d_drostes_apps.aevum.ui.screens.insights.InsightsUiState
 import com.d_drostes_apps.aevum.ui.screens.insights.PeriodChange
 import com.d_drostes_apps.aevum.ui.screens.insights.TimeDistributionSlice
 import com.d_drostes_apps.aevum.ui.screens.insights.TrendBucket
+import com.google.common.truth.Truth.assertThat
+import com.d_drostes_apps.aevum.ui.screens.insights.insightsBalanceOptionTestTag
 import com.d_drostes_apps.aevum.ui.screens.insights.insightsDonutLegendTestTag
 import com.d_drostes_apps.aevum.ui.screens.insights.insightsRadarChipTestTag
 import org.junit.Rule
@@ -70,11 +76,20 @@ class InsightsChartsUiTest {
             TrendBucket("02", "02:00–04:00 Uhr", 0L),
             TrendBucket("04", "04:00–06:00 Uhr", 30 * 60_000L)
         ),
-        balance = listOf(
+        balanceMode = BalanceMode.Activity,
+        balanceAxes = listOf(
             BalanceSlice("Arbeit", colors[0], 60 * 60_000L, 50),
-            BalanceSlice("Erholung", colors[1], 30 * 60_000L, 25),
-            BalanceSlice("Bewegung", colors[2], 30 * 60_000L, 25)
+            BalanceSlice("Sport", colors[1], 30 * 60_000L, 25),
+            BalanceSlice("Lesen", colors[2], 30 * 60_000L, 25)
         ),
+        balanceOptions = listOf(
+            BalanceOption("work", "Arbeit", colors[0], "□", 60 * 60_000L, 40),
+            BalanceOption("sport", "Sport", colors[1], "▲", 30 * 60_000L, 20),
+            BalanceOption("reading", "Lesen", colors[2], "▤", 30 * 60_000L, 20),
+            BalanceOption("learning", "Lernen", colors[0], "✎", 20 * 60_000L, 13),
+            BalanceOption("household", "Haushalt", colors[1], "⌂", 10 * 60_000L, 7)
+        ),
+        balanceSelectedIds = listOf("work", "sport", "reading"),
         // Absichtlich gesetzt: der Screen darf diese Blöcke NICHT mehr zeigen.
         changes = listOf(
             PeriodChange("work", "Arbeit", colors[0], 90 * 60_000L, 60 * 60_000L, 30 * 60_000L, 50)
@@ -140,5 +155,50 @@ class InsightsChartsUiTest {
 
         composeRule.onNodeWithTag(INSIGHTS_RADAR_VALUE_TEST_TAG, useUnmergedTree = true)
             .assertTextEquals("1h 0m · 50 %")
+    }
+
+    /** M32: Auswahl-Sheet öffnen, zwei fehlende Achsen ergänzen, übernehmen. */
+    @Test
+    fun choosingBalanceAreasAppliesTheSelection() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        var saved: List<String> = emptyList()
+        composeRule.setContent {
+            InsightsScreenContent(
+                uiState = state(),
+                onSaveBalanceSelection = { saved = it }
+            )
+        }
+
+        composeRule.onNodeWithTag(INSIGHTS_LIST_TEST_TAG)
+            .performScrollToNode(hasTestTag(INSIGHTS_BALANCE_SELECT_TEST_TAG))
+        composeRule.onNodeWithTag(INSIGHTS_BALANCE_SELECT_TEST_TAG).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(insightsBalanceOptionTestTag(3)).performClick()
+        composeRule.onNodeWithTag(insightsBalanceOptionTestTag(4)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.insights_balance_apply)).performClick()
+        composeRule.waitForIdle()
+
+        assertThat(saved)
+            .containsExactly("work", "sport", "reading", "learning", "household")
+            .inOrder()
+    }
+
+    /** M32: Der Modus-Chip meldet den Wechsel an das ViewModel. */
+    @Test
+    fun balanceModeChipCallsTheHandler() {
+        var chosen: BalanceMode? = null
+        composeRule.setContent {
+            InsightsScreenContent(
+                uiState = state(),
+                onSelectBalanceMode = { chosen = it }
+            )
+        }
+
+        composeRule.onNodeWithTag(INSIGHTS_LIST_TEST_TAG)
+            .performScrollToNode(hasTestTag(INSIGHTS_BALANCE_MODE_CATEGORY_TEST_TAG))
+        composeRule.onNodeWithTag(INSIGHTS_BALANCE_MODE_CATEGORY_TEST_TAG).performClick()
+
+        assertThat(chosen).isEqualTo(BalanceMode.Category)
     }
 }

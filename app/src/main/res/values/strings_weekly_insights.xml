@@ -90,7 +90,18 @@
     <string name="insights_chart_course_subtitle_week">Recorded time per day</string>
     <string name="insights_chart_course_subtitle_month">Recorded time per day</string>
     <string name="insights_chart_balance_title">Balance</string>
-    <string name="insights_chart_balance_subtitle">Your life areas in this period</string>
+    <string name="insights_balance_subtitle_activity">Your activities in this period</string>
+    <string name="insights_balance_subtitle_category">Your categories in this period</string>
+    <string name="insights_balance_mode_activity">Activities</string>
+    <string name="insights_balance_mode_category">Categories</string>
+    <string name="insights_balance_select">Choose</string>
+    <string name="insights_balance_picker_title">Choose balance areas</string>
+    <string name="insights_balance_selected_count">%1$d of %2$d selected</string>
+    <string name="insights_balance_limit_hint">At most %1$d areas. Tap a selected entry to replace it.</string>
+    <string name="insights_balance_apply">Apply</string>
+    <string name="insights_balance_reset_default">Top 5</string>
+    <string name="insights_balance_need_three">Choose at least 3 areas for the radar.</string>
+    <string name="insights_balance_no_time">No time recorded for the selected areas in this period.</string>
     <string name="insights_chart_hour_range">%1$s–%2$s</string>
 
     <string name="insights_allowance_label">%1$s (allowance)</string>

@@ -21,6 +21,7 @@ import com.d_drostes_apps.aevum.data.repository.DailyAllowanceRepository
 import com.d_drostes_apps.aevum.data.repository.LanguageRepository
 import com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 import com.d_drostes_apps.aevum.domain.digital.ScreenTimeProvider
+import com.d_drostes_apps.aevum.ui.screens.insights.BalanceMode
 import com.d_drostes_apps.aevum.ui.screens.insights.InsightPeriod
 import com.d_drostes_apps.aevum.ui.screens.insights.InsightsViewModel
 import com.google.common.truth.Truth.assertThat
@@ -395,6 +396,65 @@ class InsightsWiringIntegrationTest {
         advanceUntilIdle()
         assertThat(vm.uiState.value.topActivitiesExpanded).isFalse()
         assertThat(vm.uiState.value.allBreakdown).isEqualTo(before)
+    }
+
+    /**
+     * M32: Modus und Auswahl des Balance-Radars sind echte Nutzer-
+     * Praeferenzen. Der Test speichert eine Auswahl, baut ein ZWEITES
+     * ViewModel auf demselben App-Kontext und prueft, dass Modus und
+     * Reihenfolge unveraendert ankommen — genau das erwartet der Nutzer,
+     * wenn er die App neu oeffnet.
+     */
+    @Test
+    fun balanceModeAndSelectionSurviveANewViewModel() = runTest(dispatcher) {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val prefs = app.getSharedPreferences(
+            InsightsViewModel.PREFS_NAME,
+            android.content.Context.MODE_PRIVATE
+        )
+        val keys = arrayOf("balance_mode", "balance_activity_ids", "balance_category_ids")
+        prefs.edit().apply { keys.forEach { remove(it) } }.commit()
+        try {
+            val repo = FakeActivityRepository()
+            repo.setSessions(sessions())
+
+            val first = viewModel(repo)
+            collectUiState(first)
+            advanceUntilIdle()
+            assertThat(first.uiState.value.balanceMode).isEqualTo(BalanceMode.Activity)
+            assertThat(first.uiState.value.balanceSelectedIds)
+                .containsExactly("deep_work", "gym", "phone", "friends", "reading")
+                .inOrder()
+
+            first.setBalanceMode(BalanceMode.Category)
+            advanceUntilIdle()
+            first.saveBalanceSelection(listOf("sport", "work"))
+            advanceUntilIdle()
+            assertThat(first.uiState.value.balanceAxes.map { it.area })
+                .containsExactly("Sport", "Arbeit")
+                .inOrder()
+
+            // Neues ViewModel = App-Neustart: dieselben Preferences.
+            val second = viewModel(repo)
+            collectUiState(second)
+            advanceUntilIdle()
+            assertThat(second.uiState.value.balanceMode).isEqualTo(BalanceMode.Category)
+            assertThat(second.uiState.value.balanceSelectedIds)
+                .containsExactly("sport", "work")
+                .inOrder()
+            assertThat(second.uiState.value.balanceAxes.map { it.area })
+                .containsExactly("Sport", "Arbeit")
+                .inOrder()
+
+            // Zuruecksetzen auf Default: Top 5 (hier: beide Kategorien).
+            second.resetBalanceSelection()
+            advanceUntilIdle()
+            assertThat(second.uiState.value.balanceSelectedIds)
+                .containsExactly("work", "sport")
+                .inOrder()
+        } finally {
+            prefs.edit().apply { keys.forEach { remove(it) } }.commit()
+        }
     }
 
     /**

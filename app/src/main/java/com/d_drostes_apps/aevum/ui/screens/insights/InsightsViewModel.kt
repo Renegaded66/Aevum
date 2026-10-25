@@ -83,6 +83,28 @@ class InsightsViewModel @Inject constructor(
         _anchorDate
     ) { expanded, anchor -> expanded to anchor }
 
+    // M32: Nutzer-Auswahl des Balance-Radars. Je Modus eine eigene Liste,
+    // damit ein Wechsel Aktivitäten <-> Kategorien die jeweils andere
+    // Auswahl nicht überschreibt. Persistiert wie die Period-Auswahl.
+    private val _balanceMode = MutableStateFlow(
+        BalanceMode.fromStorage(prefs.getString(KEY_BALANCE_MODE, null))
+    )
+    private val _balanceActivityIds = MutableStateFlow(loadBalanceIds(KEY_BALANCE_ACTIVITY_IDS))
+    private val _balanceCategoryIds = MutableStateFlow(loadBalanceIds(KEY_BALANCE_CATEGORY_IDS))
+    private val _balancePrefs = combine(
+        _balanceMode,
+        _balanceActivityIds,
+        _balanceCategoryIds
+    ) { mode, activityIds, categoryIds ->
+        BalancePrefs(mode, activityIds, categoryIds)
+    }
+
+    // M18.146: combine-Operator-Limit (max. 5 typisierte Flows) — darum
+    // werden Ausklapp-Zustand und Anker-Tag zu EINEM Paar-Flow verschachtelt
+    // (Muster aus PlaceTimelineViewModel / TriggerSettingsScreen). M32 hängt
+    // die Balance-Auswahl als zweites Paar an denselben Flow.
+    private val _uiPrefs = combine(_viewPrefs, _balancePrefs) { view, balance -> view to balance }
+
     private val dataFlow = combine(
         activityRepository.getAll(),
         categoryRepository.getAll(),
@@ -140,7 +162,7 @@ class InsightsViewModel @Inject constructor(
                 _breakdownMode,
                 // M18.146: 5. Flow — Paar aus Ausklapp-Zustand + Anker-Tag
                 // (6 einzelne Flows wären über dem combine-Limit).
-                _viewPrefs
+                _uiPrefs
             ) { values ->
                 @Suppress("UNCHECKED_CAST")
                 val data = values[0] as DataLayer
@@ -148,9 +170,12 @@ class InsightsViewModel @Inject constructor(
                 val heatmapDate = values[2] as java.time.LocalDate?
                 val breakdownMode = values[3] as BreakdownMode
                 // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
-                val topExpanded = (values[4] as Pair<Boolean, java.time.LocalDate>).first
                 // M18.146: Anker-Tag der aktuell gezeigten Periode.
-                val anchorDate = (values[4] as Pair<Boolean, java.time.LocalDate>).second
+                // M32: Balance-Modus + gespeicherte Auswahl.
+                val uiPrefs = values[4] as Pair<Pair<Boolean, java.time.LocalDate>, BalancePrefs>
+                val topExpanded = uiPrefs.first.first
+                val anchorDate = uiPrefs.first.second
+                val balancePrefs = uiPrefs.second
         // M18.138: Bildschirmzeit je Tag (Digital Balance) — sie ersetzt
         // die Aufzeichnungen in allen Kennzahlen dieses Screens.
         val balanceMsPerDay = data.balanceMsPerDay
@@ -220,6 +245,9 @@ class InsightsViewModel @Inject constructor(
             // M17.4: neue Parameter
             allowanceAccumulations = allowanceAccums,
             breakdownMode = breakdownMode,
+            // M32: Radar-Basis aus der persistierten Nutzer-Auswahl.
+            balanceMode = balancePrefs.mode,
+            balanceSelectedIds = balancePrefs.selectedIds(),
             // M18.138: Bildschirmzeit ersetzt die Aufzeichnungen (SCREEN_AUTO)
             // in sämtlichen Kennzahlen dieser Ansicht.
             balanceMsPerDay = balanceMsPerDay
@@ -350,6 +378,52 @@ class InsightsViewModel @Inject constructor(
     }
 
     /**
+     * M32: Radar-Basis umschalten (Aktivitäten <-> Kategorien). Die Auswahl
+     * des jeweils anderen Modus bleibt gespeichert und wird beim Zurück-
+     * wechseln wiederhergestellt.
+     */
+    fun setBalanceMode(mode: BalanceMode) {
+        if (_balanceMode.value == mode) return
+        _balanceMode.value = mode
+        prefs.edit().putString(KEY_BALANCE_MODE, mode.name).apply()
+    }
+
+    /**
+     * M32: Auswahl der Radar-Achsen speichern. [ids] in Anzeige-Reihenfolge;
+     * maximal [BALANCE_AXIS_LIMIT]. Eine leere Liste ist ausdrücklich KEIN
+     * gültiger Zustand — dafür gibt es [resetBalanceSelection].
+     */
+    fun saveBalanceSelection(ids: List<String>) {
+        val cleaned = ids.distinct().take(BALANCE_AXIS_LIMIT)
+        when (_balanceMode.value) {
+            BalanceMode.Activity -> _balanceActivityIds.value = cleaned
+            BalanceMode.Category -> _balanceCategoryIds.value = cleaned
+        }
+        prefs.edit().putString(balanceKey(_balanceMode.value), cleaned.joinToString(BALANCE_ID_SEPARATOR)).apply()
+    }
+
+    /** M32: Gespeicherte Auswahl löschen → Default (Top 5) greift wieder. */
+    fun resetBalanceSelection() {
+        when (_balanceMode.value) {
+            BalanceMode.Activity -> _balanceActivityIds.value = emptyList()
+            BalanceMode.Category -> _balanceCategoryIds.value = emptyList()
+        }
+        prefs.edit().remove(balanceKey(_balanceMode.value)).apply()
+    }
+
+    private fun balanceKey(mode: BalanceMode): String = when (mode) {
+        BalanceMode.Activity -> KEY_BALANCE_ACTIVITY_IDS
+        BalanceMode.Category -> KEY_BALANCE_CATEGORY_IDS
+    }
+
+    private fun loadBalanceIds(key: String): List<String> =
+        prefs.getString(key, null)
+            ?.split(BALANCE_ID_SEPARATOR)
+            ?.filter { it.isNotBlank() }
+            ?.take(BALANCE_AXIS_LIMIT)
+            ?: emptyList()
+
+    /**
      * M18.137 (Kanban t_70a06809): Klappt die Top-Aktivitäten-Liste auf bzw.
      * wieder zu. Der Zustand wird persistiert, damit er einen Screen-Wechsel
      * überlebt (gleiches Muster wie die Period-Auswahl).
@@ -376,6 +450,18 @@ class InsightsViewModel @Inject constructor(
         val balanceMsPerDay: Map<java.time.LocalDate, Long> = emptyMap()
     )
 
+    /** M32: Persistierte Radar-Auswahl beider Modi. */
+    private data class BalancePrefs(
+        val mode: BalanceMode,
+        val activityIds: List<String>,
+        val categoryIds: List<String>
+    ) {
+        fun selectedIds(): List<String> = when (mode) {
+            BalanceMode.Activity -> activityIds
+            BalanceMode.Category -> categoryIds
+        }
+    }
+
     companion object {
         /**
          * M18.146: Name der SharedPreferences-Datei der Statistik-Ansichten.
@@ -387,6 +473,12 @@ class InsightsViewModel @Inject constructor(
         private const val KEY_PERIOD = "selected_period"
         // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
         private const val KEY_TOP_ACTIVITIES_EXPANDED = "top_activities_expanded"
+        // M32: Balance-Radar — Modus + je Modus die gewählten IDs.
+        private const val KEY_BALANCE_MODE = "balance_mode"
+        private const val KEY_BALANCE_ACTIVITY_IDS = "balance_activity_ids"
+        private const val KEY_BALANCE_CATEGORY_IDS = "balance_category_ids"
+        /** Trennzeichen für die geordnete ID-Liste in SharedPreferences. */
+        private const val BALANCE_ID_SEPARATOR = "\u001F"
         /**
          * M18.138: Rückblick-Fenster für die Bildschirmzeit. Die Insights
          * zeigen höchstens einen Monat; die Vergleichsperiode (Vormonat)

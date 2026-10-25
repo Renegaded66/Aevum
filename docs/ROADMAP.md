@@ -420,3 +420,16 @@ Tag) und Radar (Balance der Lebensbereiche).
 
 **Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
 Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.
+
+## M32 — Balance-Radar mit wählbaren Achsen
+
+**Status:** Abgeschlossen (App 1.0.52). Bericht
+`docs/M32-ABSCHLUSSBERICHT.md`.
+
+**Ziel:** Der Nutzer wählt selbst fünf Aktivitäten oder fünf Kategorien, auf
+denen das Balance-Radar beruht. Default sind die fünf häufigsten Einträge mit
+Zeit; Modus und Auswahl werden persistiert, damit sie einen App-Neustart
+überleben. Jeder Modus behält seine eigene Auswahl.
+
+**Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
+Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.

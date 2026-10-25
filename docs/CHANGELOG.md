@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.52 (M32) — 2026-10-25
+
+### Balance-Radar: fünf frei wählbare Aktivitäten oder Kategorien
+
+**Devon:** „Beim balance Diagramm will ich, dass der nutzer selber 5 aktivitäten
+oder 5 kategorien auswählen kann auf die die grafik beruht. Default sollten
+entweder die 5 häufigsten activitys oder 5 häufigste kategorien angezeigt
+werden. Die ausgewählten werte sollten auch gespeichert werden, damit man nicht
+jedes mal aufs neue seine beliebigen kategorien oder activitys eingeben muss.“
+
+- **Modus:** Die Balance-Karte hat jetzt die Chips „Aktivitäten" und
+  „Kategorien". Ein Wechsel baut das Radar sofort auf die jeweils gespeicherte
+  oder die Top-5-Auswahl des Modus um.
+- **Auswahl:** „Auswählen" öffnet ein Bottom-Sheet mit allen Einträgen des
+  Modus — auch solchen ohne Zeit im gezeigten Zeitraum. Es sind genau fünf
+  Auswahlen möglich (oder alle, wenn weniger existieren); „Top 5" setzt auf den
+  Default zurück, „Übernehmen" speichert.
+- **Default:** die fünf häufigsten Einträge **mit Zeit** im aktuellen Zeitraum
+  (Dauer absteigend). Ein frischer Nutzer mit drei genutzten Aktivitäten sieht
+  drei sinnvolle Achsen, keine zwei leeren Katalog-Achsen.
+- **Persistenz:** Modus und Auswahl liegen in `aevum_insights`
+  (`balance_mode`, `balance_activity_ids`, `balance_category_ids`). Jeder Modus
+  hat seine eigene Liste; ein Wechsel überschreibt die andere nicht. Die
+  Reihenfolge bleibt erhalten, damit die Achsen beim nächsten Öffnen stabil
+  stehen.
+- **Stabile Achsen:** Eine gespeicherte Aktivität, die im gezeigten Zeitraum
+  0 Zeit hat, bleibt als 0-Achse erhalten. Gelöschte IDs fallen raus; bleibt
+  nichts übrig, greift wieder der Default.
+- **Prozente:** Die Chips beziehen sich auf die Summe der AUSGEWÄHLTEN Achsen
+  und summieren sich zu 100 %. Das Radar braucht mindestens 3 Achsen; bei
+  weniger erscheint ein Hinweis statt einer leeren Grafik.
+- **Tests:** +8 (1434 gesamt, 0 Fehler, 1 skipped): 5 Analytik-Tests
+  (Default-Top-5, gespeicherte Reihenfolge inkl. 0-Achse, bewusst weniger als
+  fünf, gelöschte IDs → Default, Kategorie-Modus), 2 UI-Tests (Auswahl-Sheet
+  übernehmen, Modus-Chip) und 1 ViewModel-Test (Modus + Auswahl überleben ein
+  neues ViewModel / App-Neustart).
+
 ## [Unreleased] — Aevum 1.0.51 (M31) — 2026-10-25
 
 ### Insights: drei interaktive Diagramme ersetzen die Text-Blöcke

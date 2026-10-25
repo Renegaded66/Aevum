@@ -83,7 +83,11 @@ fun InsightsScreen(
         onStepPeriod = viewModel::stepAnchor,
         onResetPeriod = viewModel::resetAnchorToToday,
         onOpenPicker = { showPickerSheet = true },
-        onOpenActivityStats = onOpenActivityStats
+        onOpenActivityStats = onOpenActivityStats,
+        // M32: Balance-Radar — Modus + persistierte Achsen-Auswahl.
+        onSelectBalanceMode = viewModel::setBalanceMode,
+        onSaveBalanceSelection = viewModel::saveBalanceSelection,
+        onResetBalanceSelection = viewModel::resetBalanceSelection
     )
     // M18.146: Zeitraum-Auswahl-Sheet — durch Tage/Wochen/Monate skippen.
     if (showPickerSheet) {
@@ -125,8 +129,14 @@ internal fun InsightsScreenContent(
     onStepPeriod: (Long) -> Unit = {},
     onResetPeriod: () -> Unit = {},
     onOpenPicker: () -> Unit = {},
-    onOpenActivityStats: (String) -> Unit = {}
+    onOpenActivityStats: (String) -> Unit = {},
+    // M32: Balance-Radar — Modus + persistierte Achsen-Auswahl.
+    onSelectBalanceMode: (BalanceMode) -> Unit = {},
+    onSaveBalanceSelection: (List<String>) -> Unit = {},
+    onResetBalanceSelection: () -> Unit = {}
 ) {
+    // M32: Auswahl-Sheet ist reiner UI-Zustand (wie der Perioden-Picker).
+    var showBalancePicker by remember { mutableStateOf(false) }
     // M18.137 (Kanban t_70a06809): Ausklapp-Zustand der Top-Liste.
     val topActivitiesExpanded = uiState.topActivitiesExpanded
     // M18.137 (Kanban t_386782be): Lade-/Fehler-/Inhalts-Phase.
@@ -266,9 +276,14 @@ internal fun InsightsScreenContent(
                             )
                         }
                     }
-                    if (uiState.hasData && uiState.balance.any { it.durationMs > 0L }) {
+                    if (uiState.hasData && uiState.balanceOptions.isNotEmpty()) {
                         item {
-                            InsightsBalanceChart(balance = uiState.balance)
+                            InsightsBalanceChart(
+                                axes = uiState.balanceAxes,
+                                mode = uiState.balanceMode,
+                                onSelectMode = onSelectBalanceMode,
+                                onOpenPicker = { showBalancePicker = true }
+                            )
                         }
                     }
 
@@ -297,6 +312,24 @@ internal fun InsightsScreenContent(
                     }
                 }
             }
+        }
+
+        // M32: Auswahl der fünf Radar-Achsen.
+        if (showBalancePicker) {
+            BalancePickerSheet(
+                mode = uiState.balanceMode,
+                options = uiState.balanceOptions,
+                selectedIds = uiState.balanceSelectedIds,
+                onApply = { ids ->
+                    onSaveBalanceSelection(ids)
+                    showBalancePicker = false
+                },
+                onResetToDefault = {
+                    onResetBalanceSelection()
+                    showBalancePicker = false
+                },
+                onDismiss = { showBalancePicker = false }
+            )
         }
     }
 }

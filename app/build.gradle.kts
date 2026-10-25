@@ -264,8 +264,8 @@ android {
         // M30: Bildschirmzeit-Ziel zählt nur noch die Digital-Balance-Zeit;
         //  zusätzliche Digital-Sessions (App/PC/manuell) wurden vorher
         //  doppelt addiert. Minuten werden jetzt gerundet statt abgeschnitten.
-        versionCode = 52
-        versionName = "1.0.51"
+        versionCode = 53
+        versionName = "1.0.52"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

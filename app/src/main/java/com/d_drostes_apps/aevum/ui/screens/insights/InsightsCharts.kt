@@ -15,17 +15,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -108,6 +120,18 @@ internal fun insightsDonutLegendTestTag(index: Int): String = "insightsDonutLege
 
 /** Test-Tag eines Bereichs-Chips im Radar. */
 internal fun insightsRadarChipTestTag(index: Int): String = "insightsRadarChip_$index"
+
+/** M32: Test-Tag des Modus-Chips „Aktivitäten". */
+internal const val INSIGHTS_BALANCE_MODE_ACTIVITY_TEST_TAG = "insightsBalanceModeActivity"
+
+/** M32: Test-Tag des Modus-Chips „Kategorien". */
+internal const val INSIGHTS_BALANCE_MODE_CATEGORY_TEST_TAG = "insightsBalanceModeCategory"
+
+/** M32: Test-Tag des „Auswählen"-Buttons im Radar. */
+internal const val INSIGHTS_BALANCE_SELECT_TEST_TAG = "insightsBalanceSelect"
+
+/** M32: Test-Tag eines Eintrags im Balance-Auswahl-Sheet. */
+internal fun insightsBalanceOptionTestTag(index: Int): String = "insightsBalanceOption_$index"
 
 // ----------------------------------------------------------------------
 // Gemeinsame Bausteine
@@ -654,7 +678,7 @@ private fun labelStep(bucketCount: Int): Int = when {
 // ----------------------------------------------------------------------
 
 /**
- * Radar-Diagramm der fünf Lebensbereiche aus [InsightsUiState.balance].
+ * Radar-Diagramm der fünf gewählten Achsen aus [InsightsUiState.balanceAxes].
  *
  * Interaktion: Tippen auf eine Achse (oder den zugehörigen Chip) wählt den
  * Bereich aus. Der Punkt an der Achse wächst animiert, die Achse wird
@@ -663,21 +687,27 @@ private fun labelStep(bucketCount: Int): Int = when {
  */
 @Composable
 internal fun InsightsBalanceChart(
-    balance: List<BalanceSlice>,
+    axes: List<BalanceSlice>,
+    mode: BalanceMode,
+    onSelectMode: (BalanceMode) -> Unit,
+    onOpenPicker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (balance.isEmpty() || balance.all { it.durationMs <= 0L }) return
-    var selectedIndex by remember(balance) { mutableStateOf<Int?>(null) }
-    val selected = selectedIndex?.takeIf { it in balance.indices }
     val accent = MaterialTheme.colorScheme.secondary
     val gridColor = MaterialTheme.colorScheme.onSurface
-    val maxMs = balance.maxOf { it.durationMs }.coerceAtLeast(1L)
+    val hasEnoughAxes = axes.size >= BALANCE_AXIS_MIN
+    val hasTime = axes.any { it.durationMs > 0L }
+    var selectedIndex by remember(axes) { mutableStateOf<Int?>(null) }
+    val selected = selectedIndex?.takeIf { it in axes.indices }
+    val maxMs = axes.maxOfOrNull { it.durationMs }?.coerceAtLeast(1L) ?: 1L
     val textMeasurer = rememberTextMeasurer()
 
     val entry = remember { Animatable(0f) }
-    LaunchedEffect(balance) {
-        entry.snapTo(0f)
-        entry.animateTo(1f, tween(durationMillis = 800, easing = FastOutSlowInEasing))
+    LaunchedEffect(axes) {
+        if (axes.size >= BALANCE_AXIS_MIN) {
+            entry.snapTo(0f)
+            entry.animateTo(1f, tween(durationMillis = 800, easing = FastOutSlowInEasing))
+        }
     }
     val selectionProgress by animateFloatAsState(
         targetValue = if (selected != null) 1f else 0f,
@@ -696,135 +726,387 @@ internal fun InsightsBalanceChart(
             ChartHeader(
                 icon = "◈",
                 title = stringResource(R.string.insights_chart_balance_title),
-                subtitle = stringResource(R.string.insights_chart_balance_subtitle),
+                subtitle = stringResource(
+                    when (mode) {
+                        BalanceMode.Activity -> R.string.insights_balance_subtitle_activity
+                        BalanceMode.Category -> R.string.insights_balance_subtitle_category
+                    }
+                ),
                 accent = accent
             )
             Spacer(Modifier.height(AevumSpacing.sm))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp),
-                contentAlignment = Alignment.Center
+            // M32: Worauf beruht das Radar — Aktivitäten oder Kategorien?
+            // Die Auswahl selbst liegt im Sheet (Button rechts).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
             ) {
-                AnimatedContent(
-                    targetState = selected,
-                    label = "radarValue"
-                ) { index ->
-                    val slice = index?.let { balance.getOrNull(it) }
-                    if (slice == null) {
+                FilterChip(
+                    selected = mode == BalanceMode.Activity,
+                    onClick = { onSelectMode(BalanceMode.Activity) },
+                    modifier = Modifier.testTag(INSIGHTS_BALANCE_MODE_ACTIVITY_TEST_TAG),
+                    label = {
                         Text(
-                            text = stringResource(R.string.insights_chart_hint),
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                            stringResource(R.string.insights_balance_mode_activity),
+                            fontSize = 11.sp
                         )
-                    } else {
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = accent.copy(alpha = 0.18f),
+                        selectedLabelColor = accent
+                    )
+                )
+                FilterChip(
+                    selected = mode == BalanceMode.Category,
+                    onClick = { onSelectMode(BalanceMode.Category) },
+                    modifier = Modifier.testTag(INSIGHTS_BALANCE_MODE_CATEGORY_TEST_TAG),
+                    label = {
+                        Text(
+                            stringResource(R.string.insights_balance_mode_category),
+                            fontSize = 11.sp
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = accent.copy(alpha = 0.18f),
+                        selectedLabelColor = accent
+                    )
+                )
+                Spacer(Modifier.weight(1f))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AevumRadius.full))
+                        .background(accent.copy(alpha = 0.14f))
+                        .clickable(onClick = onOpenPicker)
+                        .testTag(INSIGHTS_BALANCE_SELECT_TEST_TAG)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.insights_balance_select),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent
+                    )
+                    Text("›", fontSize = 12.sp, color = accent)
+                }
+            }
+            Spacer(Modifier.height(AevumSpacing.sm))
+
+            if (!hasEnoughAxes) {
+                Text(
+                    stringResource(R.string.insights_balance_need_three),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            } else if (!hasTime) {
+                Text(
+                    stringResource(R.string.insights_balance_no_time),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AnimatedContent(
+                        targetState = selected,
+                        label = "radarValue"
+                    ) { index ->
+                        val slice = index?.let { axes.getOrNull(it) }
+                        if (slice == null) {
+                            Text(
+                                text = stringResource(R.string.insights_chart_hint),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                            )
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(
+                                    slice.area,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "·",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                                Text(
+                                    text = "${formatChartDuration(slice.durationMs)} · ${slice.percent} %",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = slice.color,
+                                    modifier = Modifier.testTag(INSIGHTS_RADAR_VALUE_TEST_TAG)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(230.dp)
+                        .pointerInput(axes) {
+                            detectTapGestures { offset ->
+                                if (axes.isEmpty()) return@detectTapGestures
+                                val center = Offset(size.width / 2f, size.height / 2f)
+                                val dx = offset.x - center.x
+                                val dy = offset.y - center.y
+                                val distance = hypot(dx, dy)
+                                val radius = minOf(size.width, size.height) / 2f - 30.dp.toPx()
+                                if (distance > radius * 1.25f) {
+                                    selectedIndex = null
+                                    return@detectTapGestures
+                                }
+                                var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 90.0
+                                angle = ((angle % 360.0) + 360.0) % 360.0
+                                val step = 360.0 / axes.size
+                                val index = (((angle + step / 2.0) / step).toInt()) % axes.size
+                                selectedIndex = if (selectedIndex == index) null else index
+                            }
+                        }
+                ) {
+                    drawBalanceRadar(
+                        axes = axes,
+                        selected = selected,
+                        selectionProgress = selectionProgress,
+                        entryProgress = entry.value,
+                        maxMs = maxMs,
+                        accent = accent,
+                        gridColor = gridColor,
+                        textMeasurer = textMeasurer
+                    )
+                }
+                Spacer(Modifier.height(AevumSpacing.xs))
+
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                ) {
+                    axes.forEachIndexed { index, slice ->
+                        val isSelected = selected == index
                         Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AevumRadius.full))
+                                .background(
+                                    if (isSelected) slice.color.copy(alpha = 0.20f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                )
+                                .clickable {
+                                    selectedIndex = if (selectedIndex == index) null else index
+                                }
+                                .testTag(insightsRadarChipTestTag(index))
+                                .padding(horizontal = 8.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(slice.color)
+                            )
                             Text(
                                 slice.area,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                "${slice.percent} %",
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                "·",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                            )
-                            Text(
-                                text = "${formatChartDuration(slice.durationMs)} · ${slice.percent} %",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = slice.color,
-                                modifier = Modifier.testTag(INSIGHTS_RADAR_VALUE_TEST_TAG)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         }
                     }
                 }
             }
+        }
+    }
+}
 
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(230.dp)
-                    .pointerInput(balance) {
-                        detectTapGestures { offset ->
-                            if (balance.isEmpty()) return@detectTapGestures
-                            val center = Offset(size.width / 2f, size.height / 2f)
-                            val dx = offset.x - center.x
-                            val dy = offset.y - center.y
-                            val distance = hypot(dx, dy)
-                            val radius = minOf(size.width, size.height) / 2f - 30.dp.toPx()
-                            if (distance > radius * 1.25f) {
-                                selectedIndex = null
-                                return@detectTapGestures
-                            }
-                            var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 90.0
-                            angle = ((angle % 360.0) + 360.0) % 360.0
-                            val step = 360.0 / balance.size
-                            val index = (((angle + step / 2.0) / step).toInt()) % balance.size
-                            selectedIndex = if (selectedIndex == index) null else index
+/**
+ * M32: Auswahl-Sheet für die fünf Radar-Achsen.
+ *
+ * Zeigt ALLE Aktivitäten/Kategorien (auch ohne Zeit im Zeitraum) und erlaubt
+ * genau [BALANCE_AXIS_LIMIT] Auswahlen (oder alle, falls es weniger gibt).
+ * „Top 5" setzt auf den Default zurück; „Übernehmen" speichert die Auswahl
+ * über das ViewModel.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun BalancePickerSheet(
+    mode: BalanceMode,
+    options: List<BalanceOption>,
+    selectedIds: List<String>,
+    onApply: (List<String>) -> Unit,
+    onResetToDefault: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val available = remember(options) { options.map { it.id }.toSet() }
+    val required = minOf(BALANCE_AXIS_LIMIT, options.size)
+    var selection by remember(mode, options, selectedIds) {
+        mutableStateOf(
+            selectedIds
+                .filter { it in available }
+                .distinct()
+                .take(BALANCE_AXIS_LIMIT)
+        )
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = AevumSpacing.lg)
+        ) {
+            Column(modifier = Modifier.padding(horizontal = AevumSpacing.lg)) {
+                Text(
+                    stringResource(R.string.insights_balance_picker_title),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = stringResource(
+                        R.string.insights_balance_selected_count,
+                        selection.size,
+                        required
+                    ) + " · " + stringResource(
+                        when (mode) {
+                            BalanceMode.Activity -> R.string.insights_balance_mode_activity
+                            BalanceMode.Category -> R.string.insights_balance_mode_category
                         }
-                    }
-            ) {
-                drawBalanceRadar(
-                    balance = balance,
-                    selected = selected,
-                    selectionProgress = selectionProgress,
-                    entryProgress = entry.value,
-                    maxMs = maxMs,
-                    accent = accent,
-                    gridColor = gridColor,
-                    textMeasurer = textMeasurer
+                    ),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
-            Spacer(Modifier.height(AevumSpacing.xs))
+            Spacer(Modifier.height(AevumSpacing.sm))
 
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm),
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 430.dp),
+                contentPadding = PaddingValues(
+                    horizontal = AevumSpacing.lg,
+                    vertical = AevumSpacing.xs
+                ),
                 verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
             ) {
-                balance.forEachIndexed { index, slice ->
-                    val isSelected = selected == index
+                itemsIndexed(
+                    items = options,
+                    key = { _, option -> option.id }
+                ) { index, option ->
+                    val checked = option.id in selection
+                    val canToggle = checked || selection.size < required
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(AevumRadius.full))
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AevumRadius.md))
                             .background(
-                                if (isSelected) slice.color.copy(alpha = 0.20f)
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                else Color.Transparent
                             )
-                            .clickable {
-                                selectedIndex = if (selectedIndex == index) null else index
+                            .clickable(enabled = canToggle) {
+                                selection = if (checked) selection - option.id
+                                else (selection + option.id).take(BALANCE_AXIS_LIMIT)
                             }
-                            .testTag(insightsRadarChipTestTag(index))
-                            .padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            .testTag(insightsBalanceOptionTestTag(index))
+                            .padding(horizontal = AevumSpacing.sm, vertical = 9.dp)
+                            .alpha(if (canToggle || checked) 1f else 0.42f),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(7.dp)
+                                .size(28.dp)
                                 .clip(CircleShape)
-                                .background(slice.color)
-                        )
-                        Text(
-                            slice.area,
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
-                        )
-                        Text(
-                            "${slice.percent} %",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                .background(option.color.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                option.icon.ifBlank { "•" },
+                                fontSize = 13.sp
+                            )
+                        }
+                        Spacer(Modifier.width(AevumSpacing.sm))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                option.label,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = "${formatChartDuration(option.durationMs)} · ${option.percent} %",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                            )
+                        }
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = null
                         )
                     }
+                }
+            }
+
+            Text(
+                text = stringResource(R.string.insights_balance_limit_hint, BALANCE_AXIS_LIMIT),
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                modifier = Modifier.padding(
+                    horizontal = AevumSpacing.lg,
+                    vertical = AevumSpacing.xs
+                )
+            )
+            if (required < BALANCE_AXIS_MIN) {
+                Text(
+                    text = stringResource(R.string.insights_balance_need_three),
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(horizontal = AevumSpacing.lg)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AevumSpacing.lg),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onResetToDefault) {
+                    Text(
+                        stringResource(R.string.insights_balance_reset_default),
+                        fontSize = 12.sp
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = { onApply(selection) },
+                    enabled = selection.size == required && required >= BALANCE_AXIS_MIN
+                ) {
+                    Text(
+                        stringResource(R.string.insights_balance_apply),
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
@@ -833,7 +1115,7 @@ internal fun InsightsBalanceChart(
 
 /** Zeichen-Logik des Radars — Achsen, Gitter, Datenfläche, Labels. */
 private fun DrawScope.drawBalanceRadar(
-    balance: List<BalanceSlice>,
+    axes: List<BalanceSlice>,
     selected: Int?,
     selectionProgress: Float,
     entryProgress: Float,
@@ -845,7 +1127,7 @@ private fun DrawScope.drawBalanceRadar(
     val center = Offset(size.width / 2f, size.height / 2f)
     val labelGap = 30.dp.toPx()
     val radius = (minOf(size.width, size.height) / 2f - labelGap).coerceAtLeast(1f)
-    val axisCount = balance.size
+    val axisCount = axes.size
 
     fun point(index: Int, fraction: Float): Offset {
         val angle = -PI / 2.0 + 2.0 * PI * index / axisCount
@@ -888,7 +1170,7 @@ private fun DrawScope.drawBalanceRadar(
     // liegen benachbarte Punkte nah am Zentrum — ein nachträglicher Glow
     // würde die kurze Verbindungskante verdecken.
     selected?.let { index ->
-        val slice = balance.getOrNull(index) ?: return@let
+        val slice = axes.getOrNull(index) ?: return@let
         val fraction = (slice.durationMs.toFloat() / maxMs.toFloat()) * entryProgress
         val p = point(index, fraction)
         drawCircle(
@@ -900,7 +1182,7 @@ private fun DrawScope.drawBalanceRadar(
 
     // Datenfläche.
     val dataPath = Path()
-    balance.forEachIndexed { index, slice ->
+    axes.forEachIndexed { index, slice ->
         val fraction = (slice.durationMs.toFloat() / maxMs.toFloat()) * entryProgress
         val p = point(index, fraction)
         if (index == 0) dataPath.moveTo(p.x, p.y) else dataPath.lineTo(p.x, p.y)
@@ -914,7 +1196,7 @@ private fun DrawScope.drawBalanceRadar(
     )
 
     // Punkte — der ausgewählte wächst animiert und bekommt einen Glow.
-    balance.forEachIndexed { index, slice ->
+    axes.forEachIndexed { index, slice ->
         val fraction = (slice.durationMs.toFloat() / maxMs.toFloat()) * entryProgress
         val p = point(index, fraction)
         val isSelected = selected == index
@@ -932,7 +1214,7 @@ private fun DrawScope.drawBalanceRadar(
         color = gridColor.copy(alpha = 0.75f),
         fontWeight = FontWeight.Medium
     )
-    balance.forEachIndexed { index, slice ->
+    axes.forEachIndexed { index, slice ->
         val anchor = point(index, 1f)
         val outward = Offset(
             center.x + (anchor.x - center.x) / radius * (radius + 14.dp.toPx()),

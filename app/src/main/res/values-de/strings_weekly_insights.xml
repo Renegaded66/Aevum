@@ -92,7 +92,18 @@
     <string name="insights_chart_course_subtitle_week">Erfasste Zeit pro Tag</string>
     <string name="insights_chart_course_subtitle_month">Erfasste Zeit pro Tag</string>
     <string name="insights_chart_balance_title">Balance</string>
-    <string name="insights_chart_balance_subtitle">Deine Lebensbereiche im Zeitraum</string>
+    <string name="insights_balance_subtitle_activity">Deine Aktivitäten im Zeitraum</string>
+    <string name="insights_balance_subtitle_category">Deine Kategorien im Zeitraum</string>
+    <string name="insights_balance_mode_activity">Aktivitäten</string>
+    <string name="insights_balance_mode_category">Kategorien</string>
+    <string name="insights_balance_select">Auswählen</string>
+    <string name="insights_balance_picker_title">Bereiche für die Balance</string>
+    <string name="insights_balance_selected_count">%1$d von %2$d ausgewählt</string>
+    <string name="insights_balance_limit_hint">Höchstens %1$d Bereiche. Tippe einen ausgewählten Eintrag ab, um ihn zu ersetzen.</string>
+    <string name="insights_balance_apply">Übernehmen</string>
+    <string name="insights_balance_reset_default">Top 5</string>
+    <string name="insights_balance_need_three">Wähle mindestens 3 Bereiche für das Radar.</string>
+    <string name="insights_balance_no_time">Für die ausgewählten Bereiche ist in diesem Zeitraum keine Zeit erfasst.</string>
     <string name="insights_chart_hour_range">%1$s–%2$s Uhr</string>
 
     <string name="insights_allowance_label">%1$s (Pauschale)</string>

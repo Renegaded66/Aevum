@@ -31,6 +31,26 @@ enum class InsightPeriod {
     }
 }
 
+/**
+ * M32: Worauf das Balance-Radar basiert — auf Aktivitäten oder auf
+ * Kategorien. Die Auswahl ist eine Nutzer-Präferenz und wird persistiert.
+ */
+enum class BalanceMode {
+    Activity,
+    Category;
+
+    companion object {
+        fun fromStorage(raw: String?): BalanceMode =
+            entries.firstOrNull { it.name == raw } ?: Activity
+    }
+}
+
+/** M32: Höchstzahl der Achsen im Balance-Radar (fünf, wie vom Nutzer gewünscht). */
+internal const val BALANCE_AXIS_LIMIT = 5
+
+/** M32: Unter drei Achsen ist ein Radar geometrisch nicht sinnvoll. */
+internal const val BALANCE_AXIS_MIN = 3
+
 data class InsightsUiState(
     val selectedPeriod: InsightPeriod = InsightPeriod.Today,
     val periodLabel: String = "",
@@ -48,6 +68,23 @@ data class InsightsUiState(
     val changes: List<PeriodChange> = emptyList(),
     val topActivities: List<TopActivitySlice> = emptyList(),
     val balance: List<BalanceSlice> = emptyList(),
+    /**
+     * M32: Die vom Nutzer gewählten Achsen des Balance-Radars (Aktivitäten
+     * oder Kategorien je nach [balanceMode]). Maximal [BALANCE_AXIS_LIMIT]
+     * Einträge, in gespeicherter Reihenfolge; die Prozentwerte beziehen sich
+     * auf die Summe der ausgewählten Achsen.
+     */
+    val balanceAxes: List<BalanceSlice> = emptyList(),
+    /**
+     * M32: Alle wählbaren Einträge des aktuellen Modus (auch solche ohne Zeit
+     * im Zeitraum, damit eine gespeicherte Auswahl stabil bleibt). Grundlage
+     * für den Auswahl-Sheet.
+     */
+    val balanceOptions: List<BalanceOption> = emptyList(),
+    /** M32: Die tatsächlich verwendeten Achsen-IDs (Default oder gespeichert). */
+    val balanceSelectedIds: List<String> = emptyList(),
+    /** M32: Aktivitäten oder Kategorien als Radar-Basis. */
+    val balanceMode: BalanceMode = BalanceMode.Activity,
     /**
      * M31: Balken des Verlaufs-Diagramms unter der Top-Liste. Die Auflösung
      * folgt der Perioden-Auswahl: heute = Zwei-Stunden-Blöcke, Woche =
@@ -135,6 +172,21 @@ data class TopActivitySlice(
 data class BalanceSlice(
     val area: String,
     val color: Color,
+    val durationMs: Long,
+    val percent: Int
+)
+
+/**
+ * M32: Ein wählbarer Eintrag für das Balance-Radar (Aktivität oder
+ * Kategorie). [percent] ist der Anteil an der gesamten erfassten Zeit des
+ * Zeitraums — nur für die Auswahl-Liste; die Radar-Achsen rechnen ihren
+ * Prozentwert auf die Summe der ausgewählten Achsen.
+ */
+data class BalanceOption(
+    val id: String,
+    val label: String,
+    val color: Color,
+    val icon: String,
     val durationMs: Long,
     val percent: Int
 )
@@ -300,6 +352,10 @@ object InsightsAnalytics {
         allowanceAccumulations: List<com.d_drostes_apps.aevum.data.model.AllowanceAccumulationDay> = emptyList(),
         // M17.4: Toggle-Modus für die Top-Liste.
         breakdownMode: BreakdownMode = BreakdownMode.Activity,
+        // M32: Nutzer-Auswahl für das Balance-Radar. Leere IDs = Default
+        // (die fünf häufigsten Einträge des Modus).
+        balanceMode: BalanceMode = BalanceMode.Activity,
+        balanceSelectedIds: List<String> = emptyList(),
         // M18.138: Bildschirmzeit je Tag (Digital Balance). Ersetzt die
         // Bildschirm-Aufzeichnungen (SCREEN_AUTO) in JEDER Kennzahl dieser
         // Ansicht — Sessions, Heatmap, Vergleichsperiode. Leer = kein
@@ -367,6 +423,18 @@ object InsightsAnalytics {
         // zugeklappte und die aufgeklappte Ansicht nicht auseinanderlaufen.
         val allActivities = aggregateActivities(current, typeMap, categoryMap)
         val topActivities = allActivities.take(5)
+        // M32: Radar-Basis — alle wählbaren Aktivitäten/Kategorien des
+        // Zeitraums, daraus die gespeicherte oder die Top-5-Auswahl.
+        val balanceOptions = buildBalanceOptions(
+            mode = balanceMode,
+            activityTypes = activityTypes,
+            categories = categories,
+            activitySlices = allActivities,
+            categorySlices = distribution,
+            totalMs = totalMs
+        )
+        val selectedBalanceIds = resolveBalanceSelection(balanceOptions, balanceSelectedIds)
+        val balanceAxes = buildBalanceAxes(balanceOptions, selectedBalanceIds)
         val changes = buildChanges(context, current, previous, categoryMap)
         val balance = buildBalance(context, current, categoryMap)
         // M31: Verlaufs-Balken für das Diagramm — Auflösung folgt der Periode.
@@ -459,6 +527,10 @@ object InsightsAnalytics {
             changes = changes,
             topActivities = topActivities,
             balance = balance,
+            balanceAxes = balanceAxes,
+            balanceOptions = balanceOptions,
+            balanceSelectedIds = selectedBalanceIds,
+            balanceMode = balanceMode,
             trendBuckets = trendBuckets,
             insightCards = insights,
             weekHeatmap = heatmap,
@@ -820,6 +892,135 @@ object InsightsAnalytics {
                 label = range.label,
                 detail = range.detail,
                 durationMs = weighted[index].roundToLong()
+            )
+        }
+    }
+
+    /**
+     * M32: Alle wählbaren Radar-Einträge des Modus — auch Einträge ohne Zeit
+     * im aktuellen Zeitraum. WARUM OHNE ZEIT: Eine gespeicherte Auswahl muss
+     * stabil bleiben. Eine Aktivität, die diese Woche nicht vorkommt, ist
+     * eine Achse mit 0, kein Grund, die Achse stillschweigend zu entfernen.
+     * Sortierung: Dauer absteigend (das ist zugleich der Default „Top 5"),
+     * danach Label für eine deterministische Reihenfolge.
+     */
+    private fun buildBalanceOptions(
+        mode: BalanceMode,
+        activityTypes: List<ActivityType>,
+        categories: List<Category>,
+        activitySlices: List<TopActivitySlice>,
+        categorySlices: List<TimeDistributionSlice>,
+        totalMs: Long
+    ): List<BalanceOption> {
+        val safeTotal = totalMs.coerceAtLeast(1L)
+        val options = when (mode) {
+            BalanceMode.Activity -> {
+                val byId = activitySlices.associateBy { it.id }
+                val knownIds = activityTypes.map { it.id }.toSet()
+                activityTypes.map { type ->
+                    val slice = byId[type.id]
+                    BalanceOption(
+                        id = type.id,
+                        label = type.name,
+                        color = slice?.color ?: categoryColor(type.defaultCategoryId.orEmpty()),
+                        icon = type.icon,
+                        durationMs = slice?.durationMs ?: 0L,
+                        percent = percent(slice?.durationMs ?: 0L, safeTotal)
+                    )
+                } +
+                    // Sessions ohne ActivityType werden in [aggregateActivities]
+                    // über ihren Titel gruppiert. Sie bleiben wählbar, damit
+                    // der Default nicht stillschweigend von der sichtbaren
+                    // Top-Liste abweicht.
+                    activitySlices.filter { it.id !in knownIds }.map { slice ->
+                        BalanceOption(
+                            id = slice.id,
+                            label = slice.label,
+                            color = slice.color,
+                            icon = slice.icon,
+                            durationMs = slice.durationMs,
+                            percent = slice.percent
+                        )
+                    }
+            }
+
+            BalanceMode.Category -> {
+                val byId = categorySlices.associateBy { it.id }
+                val knownIds = categories.map { it.id }.toSet()
+                categories.map { category ->
+                    val slice = byId[category.id]
+                    BalanceOption(
+                        id = category.id,
+                        label = category.name,
+                        color = slice?.color ?: categoryColor(category.id),
+                        icon = category.icon,
+                        durationMs = slice?.durationMs ?: 0L,
+                        percent = percent(slice?.durationMs ?: 0L, safeTotal)
+                    )
+                } +
+                    // „unknown"/Sonstiges existiert nur als Aggregat, nicht
+                    // als Category-Zeile — trotzdem als Achse wählbar.
+                    categorySlices.filter { it.id !in knownIds }.map { slice ->
+                        BalanceOption(
+                            id = slice.id,
+                            label = slice.label,
+                            color = slice.color,
+                            icon = slice.icon,
+                            durationMs = slice.durationMs,
+                            percent = slice.percent
+                        )
+                    }
+            }
+        }
+        return options.sortedWith(
+            compareByDescending<BalanceOption> { it.durationMs }.thenBy { it.label }
+        )
+    }
+
+    /**
+     * M32: Gespeicherte Auswahl validieren. Ungültige IDs (gelöschte
+     * Aktivität/Kategorie) fallen raus; bleibt nichts übrig, greift der
+     * Default aus den fünf häufigsten Einträgen. Eine vorhandene Auswahl
+     * wird NICHT aufgefüllt: wer bewusst drei Achsen wählt, bekommt drei.
+     */
+    private fun resolveBalanceSelection(
+        options: List<BalanceOption>,
+        savedIds: List<String>
+    ): List<String> {
+        val available = options.map { it.id }.toSet()
+        val valid = savedIds
+            .distinct()
+            .filter { it in available }
+            .take(BALANCE_AXIS_LIMIT)
+        if (valid.isNotEmpty()) return valid
+        // Default: die fünf häufigsten Einträge MIT Zeit. Ein frischer
+        // Nutzer mit drei genutzten Aktivitäten soll drei sinnvolle Achsen
+        // sehen, nicht drei Achsen plus zwei Nullen aus dem Typen-Katalog.
+        val used = options.filter { it.durationMs > 0L }
+        return (if (used.isNotEmpty()) used else options)
+            .take(BALANCE_AXIS_LIMIT)
+            .map { it.id }
+    }
+
+    /**
+     * M32: Die gewählten Optionen in Radar-Achsen umrechnen. Die Prozentwerte
+     * beziehen sich auf die Summe der AUSGEWÄHLTEN Achsen (die Chips summieren
+     * sich zu 100 %), nicht auf den ganzen Tag — die Karte vergleicht die
+     * gewählten Bereiche miteinander.
+     */
+    private fun buildBalanceAxes(
+        options: List<BalanceOption>,
+        selectedIds: List<String>
+    ): List<BalanceSlice> {
+        val byId = options.associateBy { it.id }
+        val selected = selectedIds.mapNotNull { byId[it] }
+        val axisTotal = selected.sumOf { it.durationMs }.coerceAtLeast(1L)
+        return selected.map { option ->
+            BalanceSlice(
+                area = option.label,
+                color = option.color,
+                durationMs = option.durationMs,
+                percent = if (option.durationMs > 0L) percent(option.durationMs, axisTotal) else 0
             )
         }
     }
