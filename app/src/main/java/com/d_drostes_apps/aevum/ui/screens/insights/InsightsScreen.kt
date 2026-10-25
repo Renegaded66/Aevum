@@ -15,14 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -36,9 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,11 +44,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.d_drostes_apps.aevum.R
 import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
-import com.d_drostes_apps.aevum.ui.components.AnimatedNumberCounter
 import com.d_drostes_apps.aevum.ui.components.GlassCard
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
-import java.time.Duration
 
 /**
  * M17.4: Statistik-Screen — futuristic Glassmorphism-Redesign.
@@ -250,61 +245,30 @@ internal fun InsightsScreenContent(
                         )
                     }
 
-                    // 5) Period-Änderungen
-                    if (uiState.changes.isNotEmpty()) {
+                    // 5) M31: Interaktive Diagramme statt der früheren
+                    // Text-Blöcke („Änderungen" + Insight-Karten). Alle drei
+                    // Karten lesen denselben, bereits periodenabhängig
+                    // gebauten UiState — ein Wechsel von Tag/Woche/Monat
+                    // (oder das Durchskippen) aktualisiert sie ohne eigenen
+                    // Ladevorgang.
+                    if (uiState.hasData && uiState.timeDistribution.isNotEmpty()) {
                         item {
-                            GlassCard(accentColor = MaterialTheme.colorScheme.primary) {
-                                Column {
-                                    Text(
-                                        stringResource(R.string.insights_changes_title),
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(Modifier.height(AevumSpacing.md))
-                                    uiState.changes.forEachIndexed { index, change ->
-                                        ChangeRow(change = change, index = index)
-                                        if (index < uiState.changes.lastIndex) {
-                                            Spacer(Modifier.height(AevumSpacing.sm))
-                                        }
-                                    }
-                                }
-                            }
+                            InsightsDistributionChart(
+                                slices = uiState.timeDistribution
+                            )
                         }
                     }
-
-                    // 6) Insight-Cards
-                    if (uiState.insightCards.isNotEmpty()) {
-                        items(uiState.insightCards) { card ->
-                            GlassCard(accentColor = MaterialTheme.colorScheme.tertiary) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.tertiary
-                                        )
-                                    }
-                                    Spacer(Modifier.width(AevumSpacing.md))
-                                    Column {
-                                        Text(
-                                            card.title,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            card.message,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                        )
-                                    }
-                                }
-                            }
+                    if (uiState.hasData && uiState.trendBuckets.isNotEmpty()) {
+                        item {
+                            InsightsTrendChart(
+                                buckets = uiState.trendBuckets,
+                                period = uiState.selectedPeriod
+                            )
+                        }
+                    }
+                    if (uiState.hasData && uiState.balance.any { it.durationMs > 0L }) {
+                        item {
+                            InsightsBalanceChart(balance = uiState.balance)
                         }
                     }
 
@@ -544,42 +508,6 @@ internal fun TopSliceRow(
             modifier = Modifier.fillMaxWidth(),
             // Kaskaden-Delay: 80ms pro Item
             animationDelayMs = index * 80
-        )
-    }
-}
-
-@Composable
-private fun ChangeRow(change: PeriodChange, index: Int) {
-    val percent = change.percentDelta
-    val color = when {
-        change.deltaMs > 0 -> Color(0xFF66BB6A)
-        change.deltaMs < 0 -> Color(0xFFEF5350)
-        else -> MaterialTheme.colorScheme.outline
-    }
-    val sign = when {
-        change.deltaMs > 0 -> "+"
-        change.deltaMs < 0 -> "−"
-        else -> ""
-    }
-    val pct = percent?.let { " ($sign${kotlin.math.abs(it)}%)" }.orEmpty()
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(change.color)
-        )
-        Spacer(Modifier.width(AevumSpacing.sm))
-        Text(
-            change.label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            "${sign}${formatDuration(kotlin.math.abs(change.deltaMs))}$pct",
-            style = MaterialTheme.typography.labelMedium,
-            color = color
         )
     }
 }

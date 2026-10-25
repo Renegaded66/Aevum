@@ -70,6 +70,12 @@ object PeriodLabels {
         return date.format(DateTimeFormatter.ofPattern(dayPattern(locale), locale))
     }
 
+    /** M31: Kurzer Wochentag für die Achse des Verlaufs-Diagramms ("Mo" / "Mon"). */
+    fun weekdayShort(date: LocalDate): String =
+        date.dayOfWeek
+            .getDisplayName(TextStyle.SHORT, AppLocale.current)
+            .removeSuffix(".")
+
     /**
      * Wochenlabel mit Datum UND Wochennummer:
      * DE "KW 40 · 28. Sep. – 4. Okt."

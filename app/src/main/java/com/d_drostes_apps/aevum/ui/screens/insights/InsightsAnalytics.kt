@@ -8,12 +8,16 @@ import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
 import com.d_drostes_apps.aevum.ui.theme.AevumCategoryColors
+import com.d_drostes_apps.aevum.util.AppLocale
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 enum class InsightPeriod {
     Today,
@@ -44,6 +48,13 @@ data class InsightsUiState(
     val changes: List<PeriodChange> = emptyList(),
     val topActivities: List<TopActivitySlice> = emptyList(),
     val balance: List<BalanceSlice> = emptyList(),
+    /**
+     * M31: Balken des Verlaufs-Diagramms unter der Top-Liste. Die Auflösung
+     * folgt der Perioden-Auswahl: heute = Zwei-Stunden-Blöcke, Woche =
+     * Kalendertage (Mo–So), Monat = jeder Tag des Monats. Die Summe der
+     * Balken ist die erfasste Zeit der Periode.
+     */
+    val trendBuckets: List<TrendBucket> = emptyList(),
     val insightCards: List<InsightCard> = emptyList(),
     val weekHeatmap: WeekHeatmap = WeekHeatmap(),
     val hasData: Boolean = false,
@@ -126,6 +137,20 @@ data class BalanceSlice(
     val color: Color,
     val durationMs: Long,
     val percent: Int
+)
+
+/**
+ * M31: Ein Balken im Verlaufs-Diagramm.
+ *
+ * [label] ist die kurze Achsen-Beschriftung (Stunde bzw. Tag), [detail] der
+ * ausführliche Text für das Wertefeld (z.B. "Mo, 28. Okt." oder
+ * "14:00–16:00 Uhr"). Beide werden in der Analytik gebaut, damit die UI
+ * keine Datumsformatierung und keine Perioden-Kenntnis braucht.
+ */
+data class TrendBucket(
+    val label: String,
+    val detail: String,
+    val durationMs: Long
 )
 
 data class InsightCard(
@@ -344,6 +369,14 @@ object InsightsAnalytics {
         val topActivities = allActivities.take(5)
         val changes = buildChanges(context, current, previous, categoryMap)
         val balance = buildBalance(context, current, categoryMap)
+        // M31: Verlaufs-Balken für das Diagramm — Auflösung folgt der Periode.
+        val trendBuckets = buildTrendBuckets(
+            context = context,
+            period = selectedPeriod,
+            anchorDate = anchorDate,
+            sessions = current,
+            zoneId = zoneId
+        )
         val heatmap = buildWeekHeatmap(active, anchorDate, zoneId)
         val insights = buildInsightCards(context, selectedPeriod, distributionWithAllowances, changes, topActivities, balance, heatmap, totalMs)
         // M17.4: Tagespauschalen → als virtuelle Sessions für die Aggregation.
@@ -426,6 +459,7 @@ object InsightsAnalytics {
             changes = changes,
             topActivities = topActivities,
             balance = balance,
+            trendBuckets = trendBuckets,
             insightCards = insights,
             weekHeatmap = heatmap,
             hasData = totalMs > 0 || allowanceMs > 0,
@@ -699,6 +733,97 @@ object InsightsAnalytics {
         return raw.map { (area, duration) -> BalanceSlice(area, colors.getValue(area), duration, percent(duration, total)) }
     }
 
+    /**
+     * M31: Balken für das Verlaufs-Diagramm. Die Auflösung folgt der
+     * gewählten Periode:
+     *
+     *  - Heute: 12 Blöcke à zwei Stunden (00:00–02:00 … 22:00–24:00)
+     *  - Woche: die sieben Kalendertage Mo–So
+     *  - Monat: jeder Kalendertag des Monats
+     *
+     * Die Dauer einer Session wird auf die überlappten Blöcke VERTEILT
+     * (Gewicht = Wanduhr-Überlappung), nicht je Block neu gemessen. Dadurch
+     * ist die Summe der Balken exakt die erfasste Zeit der Periode — auch
+     * dann, wenn eine Session Pausen enthält oder über Mitternacht läuft:
+     * [ClippedInsightSession.durationMs] ist die aktive Gesamtdauer und wird
+     * als Ganzes verteilt, statt sie pro Block zu überschätzen.
+     */
+    private fun buildTrendBuckets(
+        context: Context?,
+        period: InsightPeriod,
+        anchorDate: LocalDate,
+        sessions: List<ClippedInsightSession>,
+        zoneId: ZoneId
+    ): List<TrendBucket> {
+        val dates = periodDates(period, anchorDate)
+        val today = LocalDate.now(zoneId)
+        val clockFormatter = DateTimeFormatter.ofPattern("HH:mm", AppLocale.current)
+
+        data class BucketRange(val start: Long, val end: Long, val label: String, val detail: String)
+
+        fun dayStart(date: LocalDate): Long =
+            date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val ranges: List<BucketRange> = when (period) {
+            InsightPeriod.Today -> {
+                val startOfDay = dayStart(dates.start)
+                (0 until 12).map { index ->
+                    val start = startOfDay + index * 2 * HOUR
+                    val end = startOfDay + (index + 1) * 2 * HOUR
+                    val startClock = Instant.ofEpochMilli(start).atZone(zoneId).toLocalTime().format(clockFormatter)
+                    val endClock = Instant.ofEpochMilli(end).atZone(zoneId).toLocalTime().format(clockFormatter)
+                    BucketRange(
+                        start = start,
+                        end = end,
+                        // Nur jede zweite Achsen-Beschriftung ("0", "4", "8" …),
+                        // damit 12 Blöcke auf schmalen Displays lesbar bleiben.
+                        label = if (index % 2 == 0) startClock.substringBefore(":") else "",
+                        detail = str(context, R.string.insights_chart_hour_range, startClock, endClock)
+                    )
+                }
+            }
+
+            InsightPeriod.Week -> (0 until 7).map { index ->
+                val day = dates.start.plusDays(index.toLong())
+                BucketRange(
+                    start = dayStart(day),
+                    end = dayStart(day.plusDays(1)),
+                    label = PeriodLabels.weekdayShort(day),
+                    detail = PeriodLabels.dayLabel(day, today, context)
+                )
+            }
+
+            InsightPeriod.Month -> (0 until dates.endInclusive.dayOfMonth).map { index ->
+                val day = dates.start.plusDays(index.toLong())
+                BucketRange(
+                    start = dayStart(day),
+                    end = dayStart(day.plusDays(1)),
+                    label = day.dayOfMonth.toString(),
+                    detail = PeriodLabels.dayLabel(day, today, context)
+                )
+            }
+        }
+        if (ranges.isEmpty()) return emptyList()
+
+        val weighted = DoubleArray(ranges.size)
+        sessions.forEach { session ->
+            val span = (session.endAt - session.startAt).coerceAtLeast(1L)
+            val weightPerMs = session.durationMs.toDouble() / span.toDouble()
+            ranges.forEachIndexed { index, range ->
+                val overlap = (minOf(session.endAt, range.end) - maxOf(session.startAt, range.start))
+                    .coerceAtLeast(0L)
+                if (overlap > 0L) weighted[index] += overlap * weightPerMs
+            }
+        }
+        return ranges.mapIndexed { index, range ->
+            TrendBucket(
+                label = range.label,
+                detail = range.detail,
+                durationMs = weighted[index].roundToLong()
+            )
+        }
+    }
+
     private fun buildWeekHeatmap(sessions: List<ActivitySession>, anchorDate: LocalDate, zoneId: ZoneId): WeekHeatmap {
         val monday = anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val days = (0..6).map { monday.plusDays(it.toLong()) }
@@ -875,6 +1000,8 @@ private fun fallback(key: Int): String = when (key) {
     R.string.insights_card_rhythm_title -> "Rhythmus"
     R.string.insights_card_variety_message -> "Deine Zeit verteilt sich auf mehrere Lebensbereiche."
     R.string.insights_card_variety_title -> "Abwechslung"
+    R.string.insights_chart_hour_range ->
+        if (AppLocale.current.language == "de") "%1\$s–%2\$s Uhr" else "%1\$s–%2\$s"
     R.string.insights_period_this_month -> "Dieser Monat"
     R.string.insights_period_this_week -> "Diese Woche"
     R.string.insights_summary_change -> " Die größte Veränderung liegt bei %1\$s."

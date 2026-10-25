@@ -405,3 +405,18 @@ Balance-Session addiert werden. Zusätzlich Minutenanzeige runden.
 
 **Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
 Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.
+
+## M31 — Interaktive Diagramme in den Insights
+
+**Status:** Abgeschlossen (App 1.0.51). Bericht
+`docs/M31-ABSCHLUSSBERICHT.md`.
+
+**Ziel:** Die drei unteren Text-Blöcke der Statistik („Veränderungen" und die
+Insight-Karten) entfernen und durch Diagramme ersetzen, die vom oben gewählten
+Zeitraum abhängen und sich leicht interaktiv bedienen lassen: Antippen
+vergrößert das Element animiert und zeigt den zugehörigen Wert in einem
+kleinen Textfeld. Umgesetzt als Donut (Verteilung), Balken (Verlauf je Stunde/
+Tag) und Radar (Balance der Lebensbereiche).
+
+**Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
+Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.

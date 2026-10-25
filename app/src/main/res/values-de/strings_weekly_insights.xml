@@ -81,6 +81,20 @@
     <string name="insights_card_rhythm_message">Mehrere Tage dieser Woche enthalten bereits erfasste Zeit.</string>
     <string name="insights_card_variety_title">Abwechslung</string>
     <string name="insights_card_variety_message">Deine Zeit verteilt sich auf mehrere Lebensbereiche.</string>
+    <!-- M31: interaktive Diagramme unter der Top-Liste. Die Blöcke
+         "Änderungen" und die Insight-Karten wurden dadurch ersetzt. -->
+    <string name="insights_chart_distribution_title">Verteilung</string>
+    <string name="insights_chart_distribution_subtitle">Anteil der Lebensbereiche</string>
+    <string name="insights_chart_total">Gesamt</string>
+    <string name="insights_chart_hint">Tippe auf ein Element für den Wert</string>
+    <string name="insights_chart_course_title">Verlauf</string>
+    <string name="insights_chart_course_subtitle_today">Erfasste Zeit pro Stunde</string>
+    <string name="insights_chart_course_subtitle_week">Erfasste Zeit pro Tag</string>
+    <string name="insights_chart_course_subtitle_month">Erfasste Zeit pro Tag</string>
+    <string name="insights_chart_balance_title">Balance</string>
+    <string name="insights_chart_balance_subtitle">Deine Lebensbereiche im Zeitraum</string>
+    <string name="insights_chart_hour_range">%1$s–%2$s Uhr</string>
+
     <string name="insights_allowance_label">%1$s (Pauschale)</string>
     <!-- M18.137 (Kanban t_13e9f843): Fehlerzustand der Statistik-Ansicht.
          Kein "keine Daten"-Text, sonst waere ein Ladefehler nicht von einer

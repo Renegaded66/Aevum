@@ -1,5 +1,41 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.51 (M31) — 2026-10-25
+
+### Insights: drei interaktive Diagramme ersetzen die Text-Blöcke
+
+**Devon:** „Bei Aevum bei Insights sind ja unten die drei Blöcke mit größter
+Block und Änderungen und so, die können alle weg. Stattdessen möchte ich noch
+weitere Diagramme haben die abhängig von der oberen Zeitraum Auswahl Daten
+anzeigen, gerne auch leicht interaktiv also wenn man drauf klickt dass das
+dann irgendwie mit Animation größer wird und ein kleines Textfeld den
+zugehörigen wert anzeigt, bspw ein Tortendiagramm aber gerne auch anderes.“
+
+- **Entfernt:** Die Karte „Veränderungen zur Vorperiode" und die Insight-Karten
+  („Größter Zeitblock", „Mehr sichtbar", „Digitalzeit", „Rhythmus",
+  „Abwechslung") werden nicht mehr gerendert. Die Analytics-Felder bleiben
+  bestehen (andere Auswertungen/Tests nutzen sie), der Screen liest sie nicht
+  mehr.
+- **Neu — Verteilung (Donut):** Kategorien des gewählten Zeitraums als
+  Donut. Tippen auf ein Segment oder die Legende fährt das Segment animiert
+  nach außen, verdickt es und zeigt in der Mitte Label, exakte Dauer und
+  Prozent. Erneutes Tippen hebt die Auswahl auf.
+- **Neu — Verlauf (Balken):** Heute = 12 Zwei-Stunden-Blöcke, Woche = Mo–So,
+  Monat = jeder Kalendertag. Antippen lässt den Balken um 10 % wachsen und
+  zeigt Zeitspanne/Datum + Dauer im Wertefeld. Null-Tage bleiben als Punkt
+  sichtbar.
+- **Neu — Balance (Radar):** Fünf Lebensbereiche als Radar. Antippen einer
+  Achse oder eines Chips hebt Punkt, Achse und Label hervor und zeigt Dauer +
+  Anteil; die Punkt­farben entsprechen der Legende.
+- **Daten:** Neue periodenabhängige `trendBuckets` in `InsightsAnalytics`.
+  Sessions werden proportional zu ihrer Wanduhr-Überlappung auf die Blöcke
+  verteilt, sodass die Balkensumme exakt der erfassten Zeit entspricht — auch
+  über Mitternacht und bei Pausen.
+- **Tests:** +9 (1426 gesamt, 0 Fehler): 5 Analytik-Tests für Stunden-/Tages-/
+  Monatsauflösung, Mitternachtssplit und leere Perioden; 4 UI-Tests für das
+  Entfernen der alten Blöcke, die Erreichbarkeit aller drei Diagramme und die
+  Wertefelder von Donut und Radar.
+
 ## [Unreleased] — Aevum 1.0.50 (M30) — 2026-10-24
 
 ### Bildschirmzeit-Ziel zeigt nicht mehr das Doppelte
