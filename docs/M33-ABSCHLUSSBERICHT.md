@@ -67,10 +67,11 @@
 ## Verifikation
 
 - `./gradlew :app:testDebugUnitTest :app:assembleDebug` — **BUILD SUCCESSFUL**.
-- **1432 Tests, 0 Fehler, 0 Errors, 1 skipped.**
+- **1434 Tests, 0 Fehler, 0 Errors, 1 skipped.**
 - Neu: `ActivityLauncherUiTest` (5 Tests) — Raster/Sektionen sichtbar, Tap
   öffnet Start-Panel, „+ Neu“ feuert den Navigations-Callback, Render-PNGs für
-  Starter und Vorlaufzeit.
+  Starter und Vorlaufzeit. Dazu `ActivityCreateViewModelTest` (2 Tests):
+  alle Felder werden gespeichert, leerer Name legt nichts an.
 - `GoalArchitectureWiringTest` an die neue Gruppenstruktur angepasst
   (Ziele liegen in „Deine Aktivitäten“).
 - APK: `com.d_drostes_apps.aevum.debug`, versionCode 54, versionName

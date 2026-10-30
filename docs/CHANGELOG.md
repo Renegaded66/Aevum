@@ -34,9 +34,10 @@ weitergeleitet wo man eine neue activity erstellen kann."
   Composable, ViewModel und der Einstieg in „Trigger & Erkennung" wurden
   entfernt. Geofence-Registrierung läuft weiterhin automatisch beim Start,
   nach Boot und beim Aktivieren.
-- **Tests:** +5 UI-Tests (`ActivityLauncherUiTest`) für Raster, Start-Panel,
-  „+ Neu"-Callback und zwei echte Render-PNGs; `GoalArchitectureWiringTest`
-  an die neue Gruppierung angepasst.
+- **Tests:** +7 (`ActivityLauncherUiTest` mit 5 UI-Tests inkl. zwei echter
+  Render-PNGs, `ActivityCreateViewModelTest` mit 2 Tests für den neuen
+  Anlegen-Pfad); `GoalArchitectureWiringTest` an die neue Gruppierung
+  angepasst. Gesamt 1434 Tests, 0 Fehler, 1 skipped.
 
 ## [Unreleased] — Aevum 1.0.52 (M32) — 2026-10-25
 
