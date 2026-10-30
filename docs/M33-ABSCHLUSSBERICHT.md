@@ -126,4 +126,4 @@ Nicht eigenmächtig geändert; als Entscheidung offen.
 4. **Play-Store-Material aktualisieren:** Screenshots zeigen vermutlich noch
    das Planetensystem; der neue Starter ist ein besseres Verkaufsargument.
 
-**Commit:** 78bab69
+**Commit:** 9796104
