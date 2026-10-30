@@ -124,3 +124,5 @@ Nicht eigenmächtig geändert; als Entscheidung offen.
    Zwei-Schritt (Orte anlegen, Berechtigungen), mit klarem Fortschritt.
 4. **Play-Store-Material aktualisieren:** Screenshots zeigen vermutlich noch
    das Planetensystem; der neue Starter ist ein besseres Verkaufsargument.
+
+**Commit:** 78bab69
