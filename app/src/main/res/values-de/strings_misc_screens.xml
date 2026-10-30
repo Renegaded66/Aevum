@@ -24,6 +24,42 @@
     <string name="activitytypes_delete_with_sessions">Activity + alle Aufzeichnungen löschen</string>
     <string name="activitytypes_delete_with_sessions_desc">Alle Sessions dieser Activity werden dauerhaft entfernt.</string>
 
+    <!-- M33: Activity-Starter (ersetzt das Orbit-Planetensystem) -->
+    <string name="launcher_title">Aktivität starten</string>
+    <string name="launcher_subtitle">Was machst du gerade?</string>
+    <string name="launcher_search">Aktivität suchen</string>
+    <string name="launcher_clear_search">Suche löschen</string>
+    <string name="launcher_recent">Zuletzt</string>
+    <string name="launcher_all">Alle Aktivitäten</string>
+    <string name="launcher_new">Neu</string>
+    <string name="launcher_new_activity">Neue Aktivität</string>
+    <string name="launcher_empty">Keine Aktivität gefunden.</string>
+    <string name="launcher_pick_start">Wähle den Start</string>
+    <string name="launcher_start_now">Jetzt starten</string>
+    <string name="launcher_lead_time">Vorlaufzeit</string>
+    <string name="launcher_lead_title">Vorlaufzeit</string>
+    <string name="launcher_lead_sub">Läuft die Aktivität schon seit einiger Zeit?</string>
+    <string name="launcher_now_chip">Jetzt</string>
+    <string name="launcher_started_ago">vor %1$s</string>
+    <string name="launcher_exact_time">Exakte Uhrzeit</string>
+    <string name="launcher_exact_time_title">Exakte Startzeit</string>
+    <string name="launcher_start_at_time">Zu dieser Zeit starten</string>
+    <string name="launcher_start_with_time">Mit Startzeit starten</string>
+
+    <!-- M33: ActivityCreateScreen -->
+    <string name="activitycreate_title">Neue Aktivität</string>
+    <string name="activitycreate_subtitle">Name, Symbol, Farbe — fertig.</string>
+    <string name="activitycreate_preview">Deine Aktivität</string>
+    <string name="activitycreate_preview_hint">Live-Vorschau</string>
+    <string name="activitycreate_name">Name</string>
+    <string name="activitycreate_name_hint">z. B. Gitarre</string>
+    <string name="activitycreate_icon">SYMBOL</string>
+    <string name="activitycreate_color">FARBE</string>
+    <string name="activitycreate_category">KATEGORIE</string>
+    <string name="activitycreate_favorite">Oben anheften</string>
+    <string name="activitycreate_favorite_desc">Erscheint immer zuerst im Starter.</string>
+    <string name="activitycreate_save">Aktivität anlegen</string>
+
     <!-- LifeViewScreen -->
     <string name="lifeview_hero_label">LEBENSZEIT</string>
     <string name="lifeview_hero_question">Was bleibt dir wirklich?</string>

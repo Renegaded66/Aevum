@@ -11,7 +11,7 @@
     <string name="balance_title">Balance</string>
 
     <!-- App-Einstellungen: Sprache -->
-    <string name="settings_app_section">App Einstellungen</string>
+    <string name="settings_app_section">Sprache &amp; Design</string>
     <string name="settings_language">Sprache</string>
     <string name="settings_language_desc">Sprache der App auswählen</string>
     <string name="settings_theme">Design</string>
@@ -19,7 +19,11 @@
     <string name="theme_dark">Dunkel</string>
     <string name="theme_light">Hell</string>
     <string name="theme_system">System</string>
-    <string name="settings_hero_subtitle">Automatisierung ist freiwillig, lokal und erklärbar. Du entscheidest, welche Orte Aevum im Hintergrund beobachten darf.</string>
+    <string name="settings_hero_subtitle">Alles, was Aevum für dich tut — an einem Ort. Alle Daten bleiben auf deinem Gerät.</string>
+    <string name="settings_section_appearance">Darstellung</string>
+    <string name="settings_section_connections">Verbindungen</string>
+    <string name="settings_todos_desc">Aufgaben, Fälligkeit, Wiederholung</string>
+    <string name="settings_allowances_desc">Tägliche Zeitbudgets pro Kategorie</string>
     <string name="settings_section_automation">Automatisierung</string>
     <string name="settings_trigger_detection">Trigger &amp; Erkennung</string>
     <string name="settings_trigger_detection_desc">Geofences · Auto · Walking · Schlaf · Berechtigungen</string>

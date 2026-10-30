@@ -1,5 +1,6 @@
 package com.d_drostes_apps.aevum.ui.screens.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,13 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -99,35 +103,43 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
             item { SettingsHero() }
-            // App-Einstellungen: Sprache (Dropdown mit Flagge + Text, alphabetisch sortiert)
+            // M33: Einstellungen neu gruppiert. Vorher standen neun
+            // gleichrangige Karten untereinander (Automatisierung, Aktivitäten,
+            // Erweitert, Datenschutz, Fitness, PC, Kalender …) — der Screen
+            // wirkte wie eine Feature-Liste statt wie ein Ort zum Einstellen.
+            // Jetzt fünf klare Gruppen, jede Zeile ist eine echte Zeile
+            // (Titel + Untertitel + Chevron) statt Titel + „Öffnen"-Button.
             item {
                 val viewModel: SettingsViewModel = hiltViewModel()
                 val currentLanguage by viewModel.language.collectAsState()
                 val currentTheme by viewModel.theme.collectAsState()
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
-                AppSettingsSection(
-                    currentLanguage = currentLanguage,
-                    currentTheme = currentTheme,
-                    onSelectLanguage = { lang ->
-                        scope.launch {
-                            viewModel.setLanguage(lang)
-                            // Activity neu aufbauen, damit alle Ressourcen
-                            // sofort in der neuen Sprache geladen werden.
-                            (context as? android.app.Activity)?.recreate()
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SettingsGroupLabel(stringResource(R.string.settings_section_appearance))
+                    AppSettingsSection(
+                        currentLanguage = currentLanguage,
+                        currentTheme = currentTheme,
+                        onSelectLanguage = { lang ->
+                            scope.launch {
+                                viewModel.setLanguage(lang)
+                                // Activity neu aufbauen, damit alle Ressourcen
+                                // sofort in der neuen Sprache geladen werden.
+                                (context as? android.app.Activity)?.recreate()
+                            }
+                        },
+                        onSelectTheme = { theme ->
+                            scope.launch {
+                                // M18.106: Theme persistieren, dann Activity neu
+                                // aufbauen — AevumAppTheme liest beim Rebuild den
+                                // frischen Spiegel (gleicher Mechanismus wie beim
+                                // Sprachwechsel, kein Theme-Flacker).
+                                viewModel.setTheme(theme)
+                                (context as? android.app.Activity)?.recreate()
+                            }
                         }
-                    },
-                    onSelectTheme = { theme ->
-                        scope.launch {
-                            // M18.106: Theme persistieren, dann Activity neu
-                            // aufbauen — AevumAppTheme liest beim Rebuild den
-                            // frischen Spiegel (gleicher Mechanismus wie beim
-                            // Sprachwechsel, kein Theme-Flacker).
-                            viewModel.setTheme(theme)
-                            (context as? android.app.Activity)?.recreate()
-                        }
-                    }
-                )
+                    )
+                }
             }
             // M19.5: Maskottchen — eigenes Wesen fürs Dashboard (Devon:
             // „ein und ausschalten … default aus. Wenn ein, dann kann man
@@ -152,19 +164,24 @@ fun SettingsScreen(
                     }
                 )
             }
-            // M18.44-RESTRUKTURIERUNG (User: "Einstellungen besser sortieren und
-            // gruppieren"): Vorher standen Automatisierung, Aktivitäten und
-            // Erweitert gleichwertig nebeneinander — Überladung. Jetzt:
-            //  1. AUTOMATISIERUNG  — Trigger & Erkennung (primär) + Verwaltung
-            //  2. AKTIVITÄTEN      — Activity Types
-            //  3. ERWEITERT        — Ziele, Gewohnheiten, Todos, Pauschalen, Bucket List
-            //  4. DATEN            — Datenschutz, Export, Backup
-            // Jede Gruppe hat einen klaren Fokus; die neue Trigger-Seite ist
-            // der zentrale Ort für alle automatischen Erkennungen.
+            // Aktivitäten & Ziele — alles, was der User selbst gestaltet.
             item {
-                SettingsSection(
-                    stringResource(R.string.settings_section_automation),
-                    listOf(
+                SettingsGroup(
+                    title = stringResource(R.string.settings_your_activities),
+                    entries = listOf(
+                        SettingsEntry(stringResource(R.string.settings_activity_types), stringResource(R.string.settings_activity_types_desc), onOpenActivityTypes),
+                        SettingsEntry(stringResource(R.string.common_categories), stringResource(R.string.settings_categories_desc), onOpenCategories),
+                        SettingsEntry(stringResource(R.string.settings_goals), stringResource(R.string.settings_goals_desc), onOpenGoals),
+                        SettingsEntry(stringResource(R.string.settings_todos_manage), stringResource(R.string.settings_todos_desc), onOpenTodos),
+                        SettingsEntry(stringResource(R.string.settings_allowances_manage), stringResource(R.string.settings_allowances_desc), onOpenDailyAllowances)
+                    )
+                )
+            }
+            // Automatisierung — alles, was Aevum von selbst erkennt.
+            item {
+                SettingsGroup(
+                    title = stringResource(R.string.settings_section_automation),
+                    entries = listOf(
                         // M18.57: Die Seite "Berechtigungen" wurde in
                         // "Trigger & Erkennung" fusioniert — nur noch diese
                         // eine Seite existiert (inkl. Berechtigungs-Status).
@@ -172,53 +189,34 @@ fun SettingsScreen(
                         SettingsEntry(stringResource(R.string.settings_geofences_manage), stringResource(R.string.settings_geofences_manage_desc), onOpenGeofences),
                         SettingsEntry(stringResource(R.string.settings_trigger_events), stringResource(R.string.settings_trigger_events_desc), onOpenTriggers),
                         // M18.83: Orts-Timeline — eigener Punkt unter Einstellungen.
-                        SettingsEntry(stringResource(R.string.settings_place_timeline), stringResource(R.string.settings_place_timeline_desc), onOpenPlaceTimeline)
+                        SettingsEntry(stringResource(R.string.settings_place_timeline), stringResource(R.string.settings_place_timeline_desc), onOpenPlaceTimeline),
+                        // M18.129: Kalender-Integration — Regeln, Auto-Aufzeichnung, Sync
+                        SettingsEntry(stringResource(R.string.calendar_rules_title), stringResource(R.string.calendar_rules_desc), onOpenCalendarRules),
+                        // PC-Tracker gehört fachlich zur Automatisierung.
+                        SettingsEntry(stringResource(R.string.settings_pc_tracker), stringResource(R.string.settings_pc_tracker_desc), onOpenPcTracker)
                     )
                 )
             }
-            // M18.93 (User: "Der Bereich Meine Orte kann komplett aus den
-            // Einstellungen raus, das ist ja das gleiche wie Geofences"):
-            // Home/Work-Quick-Setup lebt jetzt ausschließlich unter
-            // Einstellungen → Geofences (dort gibt es Quick-Setup + Karte).
-            // M18.2: Aktivitäten mit Positivitäts-Slider
-            // M18.59: + Kategorien-Seite (User-Wunsch: Kategorien auflisten,
-            // neue erstellen, Aktivitäten zuordnen, Icon+Farbe personalisieren)
-            item { SettingsSection(stringResource(R.string.settings_your_activities), listOf(
-                SettingsEntry(stringResource(R.string.settings_activity_types), stringResource(R.string.settings_activity_types_desc), onOpenActivityTypes),
-                SettingsEntry(stringResource(R.string.common_categories), stringResource(R.string.settings_categories_desc), onOpenCategories)
-            )) }
-            // M20: Ziel-Architektur — Tages-, Wochen- und Monatsziele mit
-            // Auto-Tracking (Aktivität/Kategorie/Bildschirmzeit/Aufgaben),
-            // manuellem Abhaken, Streaks, Statistiken und Diagrammen.
-            item { SettingsSection(stringResource(R.string.settings_goals_section), listOf(
-                SettingsEntry(stringResource(R.string.settings_goals), stringResource(R.string.settings_goals_desc), onOpenGoals)
-            )) }
-            // M18.44: Neben-Features (Todos/Pauschalen) in eigener Sektion —
-            // erreichbar, aber klar getrennt vom Kern.
-            // M18.60: "Ziele verwalten" entfernt — Todos erfüllen die
-            // Anforderungen eines Ziels (Ziel-Chip + Streak auf jeder Karte).
-            item { SettingsSection(stringResource(R.string.settings_advanced), listOf(
-                SettingsEntry(stringResource(R.string.settings_todos_manage), onClick = onOpenTodos),
-                SettingsEntry(stringResource(R.string.settings_allowances_manage), onClick = onOpenDailyAllowances)
-            )) }
+            // Verbindungen — externe Geräte/Dienste.
+            item {
+                SettingsGroup(
+                    title = stringResource(R.string.settings_section_connections),
+                    entries = listOf(
+                        SettingsEntry(stringResource(R.string.settings_garmin_connect), stringResource(R.string.settings_garmin_connect_desc), onOpenFitnessTrackers)
+                    )
+                )
+            }
             // M18.55: Datenschutz, Export, Backup — echte Seiten statt Platzhalter
-            item { SettingsSection(stringResource(R.string.settings_privacy_data), listOf(
-                SettingsEntry(stringResource(R.string.settings_privacy), stringResource(R.string.settings_privacy_desc), onOpenPrivacy),
-                SettingsEntry(stringResource(R.string.common_export), stringResource(R.string.settings_export_desc), onOpenExport),
-                SettingsEntry(stringResource(R.string.common_backup), stringResource(R.string.settings_backup_desc), onOpenBackup)
-            )) }
-            // M18.59: Fitness-Tracker — Garmin Connect Login + Sync
-            item { SettingsSection(stringResource(R.string.settings_fitness_trackers), listOf(
-                SettingsEntry(stringResource(R.string.settings_garmin_connect), stringResource(R.string.settings_garmin_connect_desc), onOpenFitnessTrackers)
-            )) }
-            // PC-Tracker — Windows-Aufzeichnung, Übertragung im Heimnetz
-            item { SettingsSection(stringResource(R.string.settings_pc_tracker_section), listOf(
-                SettingsEntry(stringResource(R.string.settings_pc_tracker), stringResource(R.string.settings_pc_tracker_desc), onOpenPcTracker)
-            )) }
-            // M18.129: Kalender-Integration — Regeln, Auto-Aufzeichnung, Sync
-            item { SettingsSection(stringResource(R.string.settings_calendar_section), listOf(
-                SettingsEntry(stringResource(R.string.calendar_rules_title), stringResource(R.string.calendar_rules_desc), onOpenCalendarRules)
-            )) }
+            item {
+                SettingsGroup(
+                    title = stringResource(R.string.settings_privacy_data),
+                    entries = listOf(
+                        SettingsEntry(stringResource(R.string.settings_privacy), stringResource(R.string.settings_privacy_desc), onOpenPrivacy),
+                        SettingsEntry(stringResource(R.string.common_export), stringResource(R.string.settings_export_desc), onOpenExport),
+                        SettingsEntry(stringResource(R.string.common_backup), stringResource(R.string.settings_backup_desc), onOpenBackup)
+                    )
+                )
+            }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
         }
     }
@@ -368,44 +366,87 @@ private data class LanguageOption(
  * sollte die handy anwendung nach wie vor über play store heruntergeladen
  * werden."). Die 1.0.34-Karte „App-Update" ist deshalb wieder entfernt.
  */
+/**
+ * M33: Gruppe = Label außerhalb, eine Karte mit echten Zeilen darin.
+ * Vorher trug jede Karte einen 20sp-Titel und jede Zeile einen „Öffnen"-
+ * Button — neun Karten, neun Buttons, keine Hierarchie. Jetzt: fünf
+ * Gruppenlabels, darunter ruhige Zeilen mit Chevron.
+ */
 @Composable
-private fun SettingsSection(title: String, entries: List<SettingsEntry>) {
-    AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
-            Text(title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            entries.forEach { entry ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(entry.title, fontWeight = FontWeight.Medium)
-                        // M12.2: status wird dynamisch pro Eintrag gesetzt (z. B. "Vorhanden" / "Jetzt anlegen").
-                        Text(entry.status ?: stringResource(R.string.common_available), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    // M12.2: Auch ohne onClick zeigen wir einen echten "Öffnen"-Button
-                    // statt eines "Bald"-Chips. Default = passiver "Öffnen"-Button
-                    // der deaktiviert ist, falls keine Aktion dahinter liegt.
-                    if (entry.onClick != null) {
-                        Button(onClick = entry.onClick!!) { Text(stringResource(R.string.common_open)) }
-                    } else {
-                        AssistChip(onClick = {}, label = { Text(entry.status ?: stringResource(R.string.common_available)) })
-                    }
+private fun SettingsGroupLabel(title: String) {
+    Text(
+        text = title.uppercase(),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.5.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+        modifier = Modifier.padding(start = AevumSpacing.sm, top = AevumSpacing.xs)
+    )
+}
+
+@Composable
+private fun SettingsGroup(title: String, entries: List<SettingsEntry>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SettingsGroupLabel(title)
+        AevumCard(contentPadding = PaddingValues(0.dp)) {
+            Column {
+                entries.forEachIndexed { index, entry ->
+                    SettingsRow(
+                        entry = entry,
+                        showDivider = index < entries.lastIndex
+                    )
                 }
             }
         }
     }
 }
 
+@Composable
+private fun SettingsRow(entry: SettingsEntry, showDivider: Boolean) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = entry.onClick)
+                .padding(horizontal = AevumSpacing.md, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(entry.title, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                entry.subtitle?.let { subtitle ->
+                    Text(
+                        subtitle,
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
+                }
+            }
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = AevumSpacing.md),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+            )
+        }
+    }
+}
+
 /**
- * M12.2: status hat jetzt einen sinnvollen Default. Home/Work setzen
- * "Vorhanden" / "Jetzt anlegen" dynamisch; nicht-klickbare Einträge
- * zeigen "Bald nur noch, wenn wirklich nichts existiert" — nie als
- * Platzhalter.
+ * M33: Jede Zeile besteht aus Titel + optionalem Untertitel + Ziel.
+ * Der frühere `status`-Parameter existierte nur, um den „Öffnen"-Button
+ * zu ersetzen — er ist mit dem Umbau entfallen.
  */
 private data class SettingsEntry(
     val title: String,
-    // L10N-FIX: null → lokalisierter Default (common_available), kein
-    // hartkodiertes "Verfügbar" mehr.
-    val status: String? = null,
-    val onClick: (() -> Unit)? = null
+    val subtitle: String? = null,
+    val onClick: () -> Unit
 )
 /**
  * M12.2: ViewModel, das die PlaceGeofence-Liste an die Settings-Screen liefert.

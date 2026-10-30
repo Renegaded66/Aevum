@@ -24,6 +24,42 @@
     <string name="activitytypes_delete_with_sessions">Delete activity + all recordings</string>
     <string name="activitytypes_delete_with_sessions_desc">All sessions of this activity will be permanently removed.</string>
 
+    <!-- M33: Activity launcher (ersetzt das Orbit-Planetensystem) -->
+    <string name="launcher_title">Start activity</string>
+    <string name="launcher_subtitle">What are you doing right now?</string>
+    <string name="launcher_search">Search activities</string>
+    <string name="launcher_clear_search">Clear search</string>
+    <string name="launcher_recent">Recent</string>
+    <string name="launcher_all">All activities</string>
+    <string name="launcher_new">New</string>
+    <string name="launcher_new_activity">New activity</string>
+    <string name="launcher_empty">No activity found.</string>
+    <string name="launcher_pick_start">Choose how to start</string>
+    <string name="launcher_start_now">Start now</string>
+    <string name="launcher_lead_time">Lead time</string>
+    <string name="launcher_lead_title">Lead time</string>
+    <string name="launcher_lead_sub">Has the activity been running for a while?</string>
+    <string name="launcher_now_chip">Now</string>
+    <string name="launcher_started_ago">%1$s ago</string>
+    <string name="launcher_exact_time">Exact time</string>
+    <string name="launcher_exact_time_title">Exact start time</string>
+    <string name="launcher_start_at_time">Start at this time</string>
+    <string name="launcher_start_with_time">Start with start time</string>
+
+    <!-- M33: ActivityCreateScreen -->
+    <string name="activitycreate_title">New activity</string>
+    <string name="activitycreate_subtitle">Name, symbol, colour — done.</string>
+    <string name="activitycreate_preview">Your activity</string>
+    <string name="activitycreate_preview_hint">Live preview</string>
+    <string name="activitycreate_name">Name</string>
+    <string name="activitycreate_name_hint">e.g. Guitar</string>
+    <string name="activitycreate_icon">SYMBOL</string>
+    <string name="activitycreate_color">COLOR</string>
+    <string name="activitycreate_category">CATEGORY</string>
+    <string name="activitycreate_favorite">Pin to top</string>
+    <string name="activitycreate_favorite_desc">Always appears first in the launcher.</string>
+    <string name="activitycreate_save">Create activity</string>
+
     <!-- LifeViewScreen -->
     <string name="lifeview_hero_label">LIFETIME</string>
     <string name="lifeview_hero_question">What is really left for you?</string>

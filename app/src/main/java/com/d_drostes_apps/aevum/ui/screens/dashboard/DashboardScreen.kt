@@ -76,7 +76,7 @@ import com.d_drostes_apps.aevum.ui.components.AnimatedGradientBar
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.BubbleStream
 import com.d_drostes_apps.aevum.ui.components.FlipTimeText
-import com.d_drostes_apps.aevum.ui.components.OrbitLauncherSheet
+import com.d_drostes_apps.aevum.ui.components.ActivityLauncherSheet
 import com.d_drostes_apps.aevum.ui.components.CardVariant
 import com.d_drostes_apps.aevum.ui.components.QualityOverrideDialog
 import com.d_drostes_apps.aevum.ui.components.positivityColor
@@ -143,6 +143,8 @@ fun DashboardScreen(
     // ein Tipp auf ein Ziel dessen Detail-Ansicht.
     onOpenGoals: () -> Unit = {},
     onOpenGoalDetail: (String) -> Unit = {},
+    // M33: „+ Neu" im Activity-Starter führt in den Anlegen-Screen.
+    onCreateActivityScreen: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
     goalsViewModel: DashboardGoalsViewModel = hiltViewModel()
 ) {
@@ -196,8 +198,8 @@ fun DashboardScreen(
         onStopLive = viewModel::stopLiveActivity,
         onDiscardLive = viewModel::discardLiveActivity,
         onToggleFavorite = viewModel::toggleFavorite,
-        // M18.12: Neue Aktivität anlegen + starten
-        onCreateActivity = viewModel::createAndStartActivity,
+        // M33: Neue Aktivität wird auf einem eigenen Screen angelegt.
+        onCreateActivityScreen = onCreateActivityScreen,
         // M18.23: Aktivität wechseln
         onSwitchLive = viewModel::switchActivity,
         // M18.60: Tages-Navigation + Pauschal-Overrides
@@ -253,9 +255,8 @@ private fun DashboardContent(
     onStopLive: () -> Unit,
     onDiscardLive: () -> Unit = {},
     onToggleFavorite: (com.d_drostes_apps.aevum.data.model.ActivityType) -> Unit,
-    // M18.12: Neue Aktivität anlegen + starten
-    // M18.93v8: Icon kommt mit (IKEA-Effekt).
-    onCreateActivity: (String, String) -> Unit = { _, _ -> },
+    // M33: Neuer Anlegen-Screen.
+    onCreateActivityScreen: () -> Unit = {},
     // M18.23: Aktivität wechseln
     onSwitchLive: (String, String?) -> Unit = { _, _ -> },
     // M18.60: Tages-Navigation + Pauschal-Overrides
@@ -524,11 +525,10 @@ private fun DashboardContent(
         }
     }
 
-    // M18.82: Das Orbit-Launcher-Overlay löst das alte Bottom-Sheet ab —
-    // Sternenhimmel mit Planeten (Favoriten innen), Tap auf Planet ->
-    // Detail-Panel (Sofort / Vorlaufzeit / exakte Uhrzeit).
+    // M33: Neuer Activity-Starter ersetzt das Orbit-Planetensystem —
+    // ruhiges Raster, Suche, „+ Neu" führt in den Anlegen-Screen.
     if (showStartPicker) {
-        OrbitLauncherSheet(
+        ActivityLauncherSheet(
             activityTypes = state.activityTypes,
             recents = recents,
             onStart = { typeId ->
@@ -539,7 +539,10 @@ private fun DashboardContent(
                 onStartLive(typeId, note, time)
                 showStartPicker = false
             },
-            onCreateActivity = onCreateActivity,
+            onCreateActivity = {
+                showStartPicker = false
+                onCreateActivityScreen()
+            },
             onDismiss = { showStartPicker = false }
         )
     }

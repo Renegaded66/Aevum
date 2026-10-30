@@ -39,7 +39,10 @@ class GoalArchitectureWiringTest {
     fun `Settings hat den neuen Punkt Ziele`() {
         val settings = main("ui/screens/settings/SettingsScreen.kt")
         assertThat(settings).contains("onOpenGoals")
-        assertThat(settings).contains("settings_goals_section")
+        // M33: Ziele leben in der Gruppe "Deine Aktivitäten" — die frühere
+        // eigene Karte `settings_goals_section` ist mit der Neugruppierung
+        // entfallen (fünf Gruppen statt neun Einzelkarten).
+        assertThat(settings).contains("settings_your_activities")
         assertThat(settings).contains("R.string.settings_goals")
     }
 

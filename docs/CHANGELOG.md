@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [Unreleased] — Aevum 1.0.53 (M33) — 2026-10-30
+
+### Klarer Activity-Starter, eigener Anlegen-Screen, aufgeräumte Einstellungen
+
+**Devon:** „Im Dashboard das plus. Dann erscheint ja so ein planetensystem. Das
+soll weg, das hat keine gute usability. Stattdessen lieber etwas übersichtlicheres.
+Trotzdem sehr schick hochwertig fancy. Und in dieser ansicht möchte ich auch ein
+plus für eine neue activity haben. Und wenn man darauf kommt wird man zum screen
+weitergeleitet wo man eine neue activity erstellen kann."
+
+- **Orbit/Planetensystem entfernt:** `RadialOrbitPicker.kt` samt Orbit-Layout,
+  Rotation, Drift und zugehörigem Regressionstest ist gelöscht. Es gab keine
+  stabile Reihenfolge, bewegte Ziele und erst nach der Suche zuverlässige
+  Treffer — für die häufigste Aktion der App zu teuer.
+- **Neuer Starter (`ActivityLauncherSheet`):** ruhiger Vollbild-Screen mit
+  Titel, Suche, „Zuletzt"-Chips und einem 3-Spalten-Raster aller Aktivitäten.
+  Favoriten stehen zuerst und tragen einen Stern, jede Kachel zeigt Icon +
+  Name in der Aktivitätsfarbe. Kein Endlos-Effekt, nur ein kurzes gestaffeltes
+  Einblenden.
+- **Startpfad bleibt:** Tap auf eine Aktivität öffnet das Detail-Panel mit
+  „Jetzt starten" / „Vorlaufzeit"; der Vorlaufzeit-Ring (0–120 min, exakte
+  Uhrzeit) ist erhalten und liegt jetzt über allen Ebenen.
+- **„+ Neu" im Starter:** führt in den neuen `ActivityCreateScreen` — nicht in
+  einen Dialog. Dort: Live-Vorschau, Name, Symbol-Grid, Farbpalette,
+  Kategorie-Chips und „Oben anheften". Nach dem Anlegen geht es zurück.
+- **Einstellungen neu gruppiert:** fünf Gruppen statt neun Einzelkarten —
+  Darstellung, Deine Aktivitäten, Automatisierung, Verbindungen, Datenschutz &
+  Daten. Jede Zeile ist jetzt Titel + Untertitel + Chevron statt Titel +
+  „Öffnen"-Button; die App-Einstellungen heißen „Sprache & Design".
+- **Alte Automatisierungs-Flächen entfernt:** „Automatisierung Status"
+  (Diagnose-Screen) und „Geofences neu registrieren" sind weg — Route,
+  Composable, ViewModel und der Einstieg in „Trigger & Erkennung" wurden
+  entfernt. Geofence-Registrierung läuft weiterhin automatisch beim Start,
+  nach Boot und beim Aktivieren.
+- **Tests:** +5 UI-Tests (`ActivityLauncherUiTest`) für Raster, Start-Panel,
+  „+ Neu"-Callback und zwei echte Render-PNGs; `GoalArchitectureWiringTest`
+  an die neue Gruppierung angepasst.
+
 ## [Unreleased] — Aevum 1.0.52 (M32) — 2026-10-25
 
 ### Balance-Radar: fünf frei wählbare Aktivitäten oder Kategorien

@@ -20,7 +20,6 @@ import com.d_drostes_apps.aevum.ui.screens.settings.PrivacyScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.FitnessTrackersScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.ExportScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.BackupScreen
-import com.d_drostes_apps.aevum.ui.screens.automation.AutomationStatusScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.GeofenceDebugScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.GeofenceEditorScreen
 import com.d_drostes_apps.aevum.ui.screens.automation.GeofenceListScreen
@@ -95,7 +94,9 @@ fun AppNavHost(
                 onOpenTodos = { navController.navigate(AppDestination.Todos.route) },
                 // M21: Ziele-Karte auf dem Dashboard
                 onOpenGoals = { navController.navigate(AppDestination.Goals.route) },
-                onOpenGoalDetail = { goalId -> navController.navigate("goal_detail/$goalId") }
+                onOpenGoalDetail = { goalId -> navController.navigate("goal_detail/$goalId") },
+                // M33: „+ Neu" im Activity-Starter
+                onCreateActivityScreen = { navController.navigate(AppDestination.ActivityTypeCreate.route) }
             )
         }
         composable(AppDestination.Timeline.route) {
@@ -303,12 +304,8 @@ fun AppNavHost(
             TriggerSettingsScreen(
                 onBack = { navController.popBackStack() },
                 onOpenGeofences = { navController.navigate(AppDestination.GeofenceList.route) },
-                onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) },
-                onOpenStatus = { navController.navigate(AppDestination.AutomationStatus.route) }
+                onOpenTriggers = { navController.navigate(AppDestination.TriggerEvents.route) }
             )
-        }
-        composable(AppDestination.AutomationStatus.route) {
-            AutomationStatusScreen(onBack = { navController.popBackStack() })
         }
         composable(AppDestination.GeofenceList.route) {
             GeofenceListScreen(
@@ -398,6 +395,13 @@ fun AppNavHost(
                 // M18.146: Verlauf je Aktivität — Link aus der Verwaltung
                 // zur Statistikseite.
                 onOpenActivityStats = { typeId -> navController.navigate("stats/$typeId") }
+            )
+        }
+        // M33: Eigener Anlegen-Screen für Aktivitäten.
+        composable(AppDestination.ActivityTypeCreate.route) {
+            com.d_drostes_apps.aevum.ui.screens.activitytypes.ActivityCreateScreen(
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
             )
         }
         // M18.59: Kategorien verwalten

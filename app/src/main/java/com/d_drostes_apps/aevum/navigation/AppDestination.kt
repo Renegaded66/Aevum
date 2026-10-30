@@ -27,7 +27,6 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     GeofenceEdit("geofence/edit/{geofenceId}", R.string.geofence_edit_title),
     TriggerEvents("trigger_events", R.string.trigger_events_title),
     GeofenceDebug("geofence_debug", R.string.geofence_debug_title),
-    AutomationStatus("automation/status", R.string.automation_status_title),
     ReviewInbox("review_inbox", R.string.review_inbox_title),
     Onboarding("onboarding", R.string.onboarding_title),
     LifeProfileSetup("life_profile_setup", R.string.life_profile_setup_title),
@@ -39,6 +38,8 @@ enum class AppDestination(val route: String, @StringRes val titleRes: Int) {
     DailyAllowances("daily_allowances", R.string.daily_allowances_title),
     // M18.2: Positivitäts-Scores pro Aktivität
     ActivityTypes("activity_types", R.string.activity_types_title),
+    // M33: Eigener Anlegen-Screen (Name, Symbol, Farbe, Kategorie)
+    ActivityTypeCreate("activity_type/new", R.string.activitycreate_title),
     // M18.59: Kategorien verwalten (erstellen, Aktivitäten zuordnen, Icon+Farbe)
     Categories("categories", R.string.categories_title),
     // M18.28: Kalender-Tab (Heatmap der Zeitqualität)

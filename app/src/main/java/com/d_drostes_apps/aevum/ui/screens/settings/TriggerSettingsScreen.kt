@@ -166,7 +166,6 @@ fun TriggerSettingsScreen(
     onBack: () -> Unit = {},
     onOpenGeofences: () -> Unit = {},
     onOpenTriggers: () -> Unit = {},
-    onOpenStatus: () -> Unit = {},
     viewModel: TriggerSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -704,8 +703,7 @@ fun TriggerSettingsScreen(
                     pendingCandidateCount = state.pendingCandidateCount,
                     registrationMessage = state.registrationMessage,
                     onOpenGeofences = onOpenGeofences,
-                    onOpenTriggers = onOpenTriggers,
-                    onOpenStatus = onOpenStatus
+                    onOpenTriggers = onOpenTriggers
                 )
             }
             item { Spacer(Modifier.height(AevumSpacing.xl)) }
@@ -1272,8 +1270,7 @@ private fun DataCard(
     pendingCandidateCount: Int,
     registrationMessage: String?,
     onOpenGeofences: () -> Unit,
-    onOpenTriggers: () -> Unit,
-    onOpenStatus: () -> Unit
+    onOpenTriggers: () -> Unit
 ) {
     AevumCard {
         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
@@ -1294,7 +1291,6 @@ private fun DataCard(
             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                 Button(onClick = onOpenGeofences) { Text(stringResource(R.string.common_geofences)) }
                 OutlinedButton(onClick = onOpenTriggers) { Text(stringResource(R.string.settings_triggers_trigger)) }
-                OutlinedButton(onClick = onOpenStatus) { Text(stringResource(R.string.settings_triggers_status_details)) }
             }
         }
     }
