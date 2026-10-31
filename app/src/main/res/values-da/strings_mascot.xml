@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_mascot.xml, struktur: values/strings_mascot.xml. Pladsholdere og escapes tjekket. -->
+    <string name="settings_mascot_title">Maskot</string>
+    <string name="settings_mascot_desc">En lille skabning på dit Dashboard — den smiler mere, når din dag går godt.</string>
+    <string name="settings_mascot_preview_hint">Tryk på forhåndsvisningen — den reagerer!</string>
+    <string name="settings_mascot_color">Farve</string>
+    <string name="settings_mascot_antenna">Antenne</string>
+    <string name="settings_mascot_antenna_ball">Kugle</string>
+    <string name="settings_mascot_antenna_star">Stjerne</string>
+    <string name="settings_mascot_antenna_bolt">Lyn</string>
+    <string name="settings_mascot_cheeks">Kinder</string>
+    <string name="mascot_cd">Maskot</string>
+    <string name="mascot_cd_score">Din maskot. Dagens kvalitet: %1$d af 100.</string>
+    <string name="mascot_state_sleeping">sover</string>
+    <string name="mascot_state_awake">er vågen</string>
+</resources>

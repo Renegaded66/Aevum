@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_permission_disclosure.xml, estrutura: values/strings_permission_disclosure.xml. Placeholders e escapes verificados. -->
+    <string name="perm_disclosure_points_title">O que isto permite</string>
+    <string name="perm_disclosure_note_title">O que acontece com os teus dados</string>
+    <string name="perm_disclosure_allow">Permitir</string>
+    <string name="perm_disclosure_decline">Agora não</string>
+    <string name="perm_disclosure_open_settings">Abrir definições</string>
+    <string name="perm_activity_title">Permitir deteção de atividade?</string>
+    <string name="perm_activity_lead">A Aevum utiliza a deteção de atividade para reconhecer automaticamente se estás a conduzir, a caminhar ou de bicicleta — para que deslocações, caminhadas e passeios de bicicleta sejam registados sem precisares de os iniciar. A deteção corre de forma contínua, também com a app fechada.</string>
+    <string name="perm_activity_point_1">As viagens de carro são detetadas e registadas com o respetivo percurso</string>
+    <string name="perm_activity_point_2">Caminhadas e percursos de bicicleta são registados como atividade</string>
+    <string name="perm_activity_point_3">Deteção automática de sono a partir do teu movimento</string>
+    <string name="perm_activity_note">Os teus dados de movimento são processados apenas localmente no teu dispositivo e nunca transmitidos. Podes revogar a permissão a qualquer momento nas definições do sistema Android.</string>
+    <string name="perm_notifications_title">Permitir notificações?</string>
+    <string name="perm_notifications_lead">A Aevum utiliza notificações para te mostrar quando uma atividade está em curso e para te informar quando uma começa ou termina automaticamente em segundo plano. Sem esta permissão, estas transições passam-se em silêncio.</string>
+    <string name="perm_notifications_point_1">Ver que atividade está em curso</string>
+    <string name="perm_notifications_point_2">Saber quando a Aevum inicia ou termina uma atividade por ti</string>
+    <string name="perm_notifications_point_3">Lembretes para temporizadores em curso</string>
+    <string name="perm_notifications_note">As notificações são geradas localmente no teu dispositivo. Não existe serviço push nem servidor de notificações. Podes revogar a permissão a qualquer momento nas definições do sistema Android.</string>
+    <string name="perm_usage_title">Permitir acesso à utilização?</string>
+    <string name="perm_usage_lead">A Aevum utiliza o acesso à utilização para ler quanto tempo e com que frequência usas as tuas apps. É a base do Digital Balance — estatísticas de tempo de ecrã e limites de apps. A permissão é concedida numa página especial de definições do Android, não no diálogo habitual de permissões.</string>
+    <string name="perm_usage_point_1">Digital Balance: ver o tempo de ecrã por app</string>
+    <string name="perm_usage_point_2">Definir limites diários e bloquear apps temporariamente</string>
+    <string name="perm_usage_point_3">Deteção automática de sono através da atividade do ecrã</string>
+    <string name="perm_usage_note">Os dados de utilização são analisados apenas localmente no teu dispositivo e nunca transmitidos. Podes revogar o acesso à utilização a qualquer momento nas definições do Android (acesso especial → acesso à utilização).</string>
+    <string name="perm_calendar_title">Permitir acesso ao calendário?</string>
+    <string name="perm_calendar_lead">A Aevum lê o teu calendário para iniciar automaticamente a atividade adequada nos teus compromissos — por exemplo, uma reunião ou um treino. Sem esta permissão, continuas a poder usar as regras de calendário, mas tens de escolher os compromissos manualmente.</string>
+    <string name="perm_calendar_point_1">Compromissos iniciam e terminam a atividade adequada</string>
+    <string name="perm_calendar_point_2">Escolher que calendários são utilizados</string>
+    <string name="perm_calendar_point_3">Limitar regras a determinados compromissos</string>
+    <string name="perm_calendar_note">O teu calendário é apenas lido — a Aevum nunca cria nem altera compromissos. Os registos são analisados apenas localmente no teu dispositivo e nunca transmitidos. Podes revogar a permissão a qualquer momento nas definições do sistema Android.</string>
+    <string name="perm_calls_title">Permitir deteção de chamadas?</string>
+    <string name="perm_calls_lead">A Aevum utiliza a deteção de chamadas para perceber quando há uma conversa em curso e grava então automaticamente a atividade associada — sem precisares de a iniciar. É lido apenas o estado de chamada do teu dispositivo (a tocar, em conversa, sem chamada): nunca números de telefone, contactos ou o histórico de chamadas.</string>
+    <string name="perm_calls_point_1">Durante uma conversa, a atividade associada decorre automaticamente</string>
+    <string name="perm_calls_point_2">As gravações digitais (ecrã, apps, PC) são interrompidas para isso</string>
+    <string name="perm_calls_point_3">Atividades iniciadas manualmente, geofences e calendário não são afetados</string>
+    <string name="perm_calls_note">O estado de chamada é analisado apenas localmente no teu dispositivo — nenhum número de telefone, nenhum histórico de chamadas, nada é transmitido. Podes revogar a permissão a qualquer momento nas definições do sistema Android.</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_disclosure_settings.xml, struttura: values/strings_disclosure_settings.xml. Placeholder ed escape verificati. -->
+    <string name="settings_privacy_policy_link_title">Informativa sulla privacy</string>
+    <string name="settings_privacy_policy_link_body">L\'informativa completa sulla privacy è disponibile online — la stessa versione collegata alla scheda del Play Store.</string>
+    <string name="settings_privacy_policy_open">Apri l\'informativa sulla privacy</string>
+    <string name="settings_privacy_background_location_title">Posizione in background</string>
+    <string name="settings_privacy_background_location_body">Aevum raccoglie dati sulla posizione per il riconoscimento dei luoghi (geofences), il riconoscimento automatico dei viaggi in auto, il rilevamento di passeggiate e pedalate e la Timeline dei luoghi — anche quando l\'app è chiusa o non viene usata.\n\nTutti i dati sulla posizione vengono salvati esclusivamente in locale sul tuo dispositivo. Non esiste un server Aevum, né account, né pubblicità, né condivisioni con terzi.</string>
+    <string name="settings_privacy_background_location_action">Mostra di nuovo la dichiarazione</string>
+</resources>

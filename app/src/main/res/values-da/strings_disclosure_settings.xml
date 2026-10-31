@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_disclosure_settings.xml, struktur: values/strings_disclosure_settings.xml. Pladsholdere og escapes tjekket. -->
+    <string name="settings_privacy_policy_link_title">Privatlivspolitik</string>
+    <string name="settings_privacy_policy_link_body">Den fulde privatlivspolitik er tilgængelig online — samme udgave, som der er linket til i Play Store-annonsen.</string>
+    <string name="settings_privacy_policy_open">Åbn privatlivspolitikken</string>
+
+    <string name="settings_privacy_background_location_title">Placering i baggrunden</string>
+    <string name="settings_privacy_background_location_body">Aevum indsamler placeringsdata til stedsgenkendelse (geofences), automatisk kørselsgenkendelse, genkendelse af gåture og cykelture samt stedernes tidslinje — også når appen er lukket eller ikke er i brug.\n\nAlle placeringsdata gemmes udelukkende lokalt på din enhed. Der er ingen Aevum-server, ingen konti, ingen reklamer og ingen videregivelse til tredjeparter.</string>
+    <string name="settings_privacy_background_location_action">Vis offentliggørelsen igen</string>
+</resources>

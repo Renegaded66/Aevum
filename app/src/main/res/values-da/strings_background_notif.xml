@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_background_notif.xml, struktur: values/strings_background_notif.xml. Pladsholdere og escapes tjekket. -->
+    <string name="notif_background_channel_name">Baggrundsregistrering</string>
+    <string name="notif_background_channel_desc">Aevum registrerer aktiviteter i baggrunden — steder, ture, appforbrug</string>
+    <string name="notif_background_title">Aevum kører i baggrunden</string>
+    <string name="notif_background_text">Registrerer steder, ture og appforbrug</string>
+</resources>

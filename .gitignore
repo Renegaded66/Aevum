@@ -9,3 +9,8 @@ aevum-m1871.apk
 
 # Kotlin compiler session artifacts (M18.139)
 .kotlin/
+
+# Uebersetzungswerkzeuge (M34): Cache und Python-Artefakte
+docs/tools/.translation-cache/
+__pycache__/
+*.pyc

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Prominent In-App Disclosure (Google Play – Standortrichtlinie).
+
+        Pflichtanforderung der Play-Richtlinie "Nutzerdaten – Pflicht zur
+        deutlichen Offenlegung und Einwilligung": Vor JEDER Anfrage einer
+        Standort-Laufzeitberechtigung muss ein Dialog erscheinen, der
+        (a) das Wort "Standort" enthält,
+        (b) ausdrücklich sagt, dass der Zugriff IM HINTERGRUND erfolgt
+            (Formulierung "auch wenn die App geschlossen ist oder nicht
+            verwendet wird"),
+        (c) ALLE Funktionen auflistet, die im Hintergrund auf den Standort
+            zugreifen,
+        (d) eine ausdrückliche, aktive Zustimmung verlangt (Button-Klick;
+            Wegtippen/Zurück gilt NICHT als Einwilligung).
+
+        Texte NICHT ohne erneute Prüfung ändern: Der Wortlaut ist die
+        Grundlage der Play-Erklärung. Bei inhaltlichen Änderungen
+        DISCLOSURE_VERSION in LocationDisclosure.kt erhöhen — dann wird
+        die Offenlegung erneut angezeigt.
+    -->
+    <string name="disclosure_location_title">Localização em segundo plano</string>
+
+    <string name="disclosure_location_lead">A Aevum recolhe dados de localização para permitir a deteção de locais (geofences), a deteção automática de deslocações, a deteção de caminhadas e percursos de bicicleta, bem como a linha temporal de locais — também quando a app está fechada ou não é utilizada.</string>
+
+    <string name="disclosure_location_features_title">Estas funções utilizam a localização em segundo plano:</string>
+
+    <string name="disclosure_location_feature_geofence">Deteção de locais (geofences): entrar ou sair de locais como casa, trabalho ou ginásio inicia e termina atividades automaticamente.</string>
+    <string name="disclosure_location_feature_drive">Deteção de deslocações: as viagens de carro são detetadas automaticamente e registadas com o respetivo percurso.</string>
+    <string name="disclosure_location_feature_movement">Deteção de caminhadas e percursos de bicicleta: os trajetos são registados automaticamente como atividade.</string>
+    <string name="disclosure_location_feature_places">Linha temporal de locais e locais desconhecidos: a Aevum mantém o histórico dos locais onde estiveste.</string>
+
+    <string name="disclosure_location_why_title">Porque é necessário o acesso em segundo plano</string>
+    <string name="disclosure_location_why">Estas funções devem funcionar sem que precises de fazer nada. As mudanças de local acontecem enquanto o teu telemóvel está no bolso e a Aevum não está aberta. Sem acesso em segundo plano, terias de abrir a app sempre que chegasses ou saísses de um local — e a automatização deixaria de ser automatização.</string>
+
+    <string name="disclosure_location_data_title">O que acontece com os teus dados de localização</string>
+    <string name="disclosure_location_data">Todos os dados de localização são guardados apenas localmente no teu dispositivo. Não existe servidor da Aevum, contas de utilizador, publicidade nem partilha com terceiros. Podes revogar o acesso a qualquer momento nas definições do sistema.</string>
+
+    <string name="disclosure_location_privacy_link">Abrir a política de privacidade</string>
+
+    <string name="disclosure_location_accept">De acordo — permitir localização</string>
+    <string name="disclosure_location_decline">Agora não</string>
+
+    <string name="disclosure_location_reminder_text">A Aevum recolhe dados de localização para deteção de locais, deteção de deslocações, deteção de trajetos e linha temporal de locais — também quando a app está fechada ou não é utilizada. Todos os dados ficam localmente no teu dispositivo.</string>
+    <string name="disclosure_location_reminder_action">Mostrar novamente</string>
+
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

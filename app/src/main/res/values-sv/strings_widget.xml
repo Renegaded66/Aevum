@@ -1,0 +1,20 @@
+<resources>
+    <!-- M23: Homescreen-Widget (2x1) im Duolingo-Stil. -->
+    <string name="widget_name">Aevum-inspelning</string>
+    <string name="widget_description">Visar om en aktivitet spelas in — med timer, start/stopp och aktivitetsval.</string>
+    <string name="widget_status_idle">KLAR</string>
+    <string name="widget_status_running">SPELAR IN</string>
+    <string name="widget_status_paused">PAUSAD</string>
+    <string name="widget_idle_title">Starta</string>
+    <string name="widget_paused_title">Pausad</string>
+    <string name="widget_cd_start">Starta inspelning</string>
+    <string name="widget_cd_stop">Stoppa inspelning</string>
+    <string name="widget_cd_open">Öppna Aevum</string>
+    <string name="widget_picker_title">Vad vill du starta?</string>
+    <string name="widget_picker_subtitle">Tryck på en aktivitet — inspelningen startar direkt.</string>
+    <string name="widget_picker_cancel">Avbryt</string>
+    <string name="widget_picker_running">Pågår just nu: %1$s</string>
+    <string name="widget_picker_stop">Stoppa pågående inspelning</string>
+    <string name="widget_empty_activities">Inga aktiviteter ännu</string>
+    <string name="widget_no_app">Aktivitet</string>
+</resources>

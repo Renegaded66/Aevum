@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!--
+        M18.139 (Play zorunluluğu): Gizlilik ekranında konum açıklaması
+        ve gizlilik bağlantısı. İlke, gizlilik bildirimini yalnızca mağaza
+        açıklamasında değil, uygulamanın İÇİNDE de erişilebilir ister.
+    -->
+    <string name="settings_privacy_policy_link_title">Gizlilik bildirimi</string>
+    <string name="settings_privacy_policy_link_body">Tam gizlilik bildirimine çevrim içi ulaşılır — Play Store kaydında bağlanan sürümün aynısı.</string>
+    <string name="settings_privacy_policy_open">Gizlilik bildirimini aç</string>
+
+    <string name="settings_privacy_background_location_title">Arka planda konum</string>
+    <string name="settings_privacy_background_location_body">Aevum; yer algılama (Geofence\'ler), otomatik sürüş algılama, yürüyüş ve bisiklet algılama ve yer zaman çizelgesi için konum verisi toplar — uygulama kapalıyken ya da kullanılmadığında bile.\n\nTüm konum verileri yalnızca cihazında yerel olarak saklanır. Aevum sunucusu, hesap, reklam ya da üçüncü tarafa aktarım yok.</string>
+    <string name="settings_privacy_background_location_action">Açıklamayı yeniden göster</string>
+</resources>

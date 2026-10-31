@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- Kural motoru başlıkları ve gerekçeleri (Review Inbox / zaman çizelgesi) -->
+    <string name="rule_title_commute_to_work">İşe yolculuk</string>
+    <string name="rule_title_commute_home">Eve dönüş</string>
+    <string name="rule_title_gym_trip">Gidiş: Spor salonu</string>
+    <string name="rule_title_shopping">Alışveriş: %1$s</string>
+    <string name="rule_title_gym_return">Dönüş: Spor salonu</string>
+    <string name="rule_title_transit">Yolda: %1$s → %2$s</string>
+    <string name="rule_title_work">İş</string>
+    <string name="rule_title_gym">Spor salonu</string>
+    <string name="rule_title_home">Ev</string>
+    <string name="rule_title_trip">Gezi</string>
+    <string name="rule_reason_travel">Tetikleyici çifti algılandı: %1$s. %2$s yol süresi olarak önerildi.</string>
+    <string name="rule_reason_stay">Tetikleyici çifti algılandı: %1$s girildi → çıkıldı. Öneri gözden geçirilebilir kalır.</string>
+    <string name="rule_reason_away">Tetikleyici çifti algılandı: %1$s çıkıldı → döndün. Bilinen bir hedef yok, bu yüzden ihtiyatla gezi olarak önerildi.</string>
+    <string name="rule_reason_merge">%1$s | %2$s ile birleştirildi (boşluk &lt; 5 dk).</string>
+    <string name="rule_reason_merge_fallback">başka bir adayla</string>
+
+    <!-- Yedek başlıklar -->
+    <string name="common_activity_fallback">Aktivite</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_disclosure_settings.xml, Struktur: values/strings_disclosure_settings.xml. Platzhalter und Escapes geprüft. -->
+    <string name="settings_privacy_policy_link_title">Polityka prywatności</string>
+    <string name="settings_privacy_policy_link_body">Pełna polityka prywatności jest dostępna online — ta sama wersja, do której prowadzi link na stronie aplikacji w Sklepie Play.</string>
+    <string name="settings_privacy_policy_open">Otwórz politykę prywatności</string>
+
+    <string name="settings_privacy_background_location_title">Lokalizacja w tle</string>
+    <string name="settings_privacy_background_location_body">Aevum zbiera dane o lokalizacji, aby rozpoznawać miejsca (geofences), automatycznie wykrywać jazdę samochodem, spacery i jazdę na rowerze oraz tworzyć oś czasu miejsc — także wtedy, gdy aplikacja jest zamknięta lub nieużywana.\n\nWszystkie dane o lokalizacji są zapisywane wyłącznie lokalnie na twoim urządzeniu. Nie ma serwera Aevum, kont, reklam ani udostępniania ich osobom trzecim.</string>
+    <string name="settings_privacy_background_location_action">Pokaż ponownie oświadczenie</string>
+</resources>

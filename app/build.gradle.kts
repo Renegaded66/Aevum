@@ -264,8 +264,12 @@ android {
         // M30: Bildschirmzeit-Ziel zählt nur noch die Digital-Balance-Zeit;
         //  zusätzliche Digital-Sessions (App/PC/manuell) wurden vorher
         //  doppelt addiert. Minuten werden jetzt gerundet statt abgeschnitten.
-        versionCode = 54
-        versionName = "1.0.53"
+        // M34: Willkommens-Dialog (fünf Seiten: Sprache, Kategorien/
+        //  Aktivitäten, Maskottchen, Berechtigungen, Abschluss) nur bei
+        //  Neuinstallation; zehn Sprachen (EN/DE/ES/FR/PT/IT/TR/PL/DA/NB/SV)
+        //  im Wizard UND in den Einstellungen; i18n-Audit der Resttexte.
+        versionCode = 55
+        versionName = "1.0.54"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

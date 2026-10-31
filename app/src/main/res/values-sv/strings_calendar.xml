@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M18.129: Calendar integration — settings page (CalendarRulesScreen),
+         rule editor (CalendarRuleEditorDialog), timeline plan blocks, reader.
+         Referenced by CalendarRulesScreen.kt, CalendarRuleEditorDialog.kt,
+         PlannedSessions.kt and CalendarReader.kt. -->
+
+    <!-- Header of the calendar settings page -->
+    <string name="calendar_rules_header">Kalender</string>
+    <string name="calendar_rules_header_subtitle">Spela in händelser automatiskt som aktiviteter</string>
+
+    <!-- Integration: feature toggles -->
+    <string name="calendar_rules_section_integration">Kalenderintegration</string>
+    <string name="calendar_rules_toggle_read">Läs kalender</string>
+    <string name="calendar_rules_toggle_read_desc_granted">Händelser läses in lokalt och används för förhandsvisningen.</string>
+    <string name="calendar_rules_toggle_read_desc_locked">Behörighet krävs — se notisen ovan.</string>
+    <string name="calendar_rules_toggle_autotrack">Spela in automatiskt</string>
+    <string name="calendar_rules_toggle_autotrack_desc">Startar och stoppar aktiviteter när en händelse börjar och slutar.</string>
+    <string name="calendar_rules_autotrack_needs_read">Aktivera först “Läs kalender” för att spela in.</string>
+
+    <!-- Synchronization -->
+    <string name="calendar_rules_section_sync">Synkronisering</string>
+    <string name="calendar_rules_cached_none">Inga händelser i synkroniseringsfönstret.</string>
+    <string name="calendar_rules_cached_one">1 händelse cachad.</string>
+    <string name="calendar_rules_cached_many">%1$d händelser cachade.</string>
+    <string name="calendar_rules_sync_running">Synkar…</string>
+    <string name="calendar_rules_sync_now">Synka nu</string>
+    <string name="calendar_rules_sync_result_ok">Synkat: %1$d händelser.</string>
+    <string name="calendar_rules_sync_result_permission">Behörigheten saknas — ge den igen.</string>
+    <string name="calendar_rules_sync_result_failed">Synkroniseringen misslyckades.</string>
+    <string name="calendar_rules_sync_interval_label">Automatisk synkning var:</string>
+    <string name="calendar_rules_sync_interval_day">1 dag</string>
+    <string name="calendar_rules_sync_interval_hours">%1$d h</string>
+    <string name="calendar_rules_sync_battery_note">Synkar bara med tillräckligt batteri — ingen åtkomst 24/7.</string>
+    <string name="calendar_rules_last_sync_never">Senaste synkningen: aldrig</string>
+    <string name="calendar_rules_last_sync_today">Senaste synkningen: i dag %1$s</string>
+    <string name="calendar_rules_last_sync_yesterday">Senaste synkningen: i går %1$s</string>
+    <string name="calendar_rules_last_sync_date">Senaste synkningen: %1$s %2$s</string>
+
+    <!-- Rule list -->
+    <string name="calendar_rules_section_rules">Regler</string>
+    <string name="calendar_rules_empty">Inga regler än. Exempel: “Innehåller föreläsning eller övning → Aktivitet Studier”.</string>
+    <string name="calendar_rules_add">Lägg till regel</string>
+    <string name="calendar_rules_add_needs_permission">Regler kan skapas när behörigheten har getts.</string>
+    <string name="calendar_rules_rule_activity_missing">→ Aktivitet saknas (välj igen)</string>
+    <string name="calendar_rules_delete_title">Ta bort regeln?</string>
+    <string name="calendar_rules_delete_message">“%1$s” tas bort. Redan inspelade aktiviteter behålls.</string>
+
+    <!-- Explainer card -->
+    <string name="calendar_rules_how_it_works_title">Så fungerar det</string>
+    <string name="calendar_rules_how_it_works_body">• När en händelse matchar en regel startar inspelningen när händelsen börjar och slutar när händelsen tar slut.\\n• Tidslinjen visar de kommande 7 dagarna i förväg — snedrandiga, så att planer och riktiga inspelningar skiljer sig åt.\\n• Aevum läser bara kalendern. Händelser skapas eller ändras aldrig.</string>
+
+    <!-- Permission banner (4 states) -->
+    <string name="calendar_rules_permission_title">Koppla kalendern</string>
+    <string name="calendar_rules_permission_body_blocked">Behörigheten är blockerad. Öppna appens inställningar och tillåt “Kalender” under behörigheter.</string>
+    <string name="calendar_rules_permission_body_denied">Utan kalenderåtkomst kan Aevum inte upptäcka några händelser. Behörigheten kan återkallas i systeminställningarna när som helst.</string>
+    <string name="calendar_rules_permission_body_notasked">Aevum läser dina händelser endast lokalt på den här enheten för att spela in aktiviteter vid rätt tillfälle. Inga händelser skapas eller ändras.</string>
+    <string name="calendar_rules_permission_open_settings">Öppna appinställningarna</string>
+    <string name="calendar_rules_permission_retry">Försök igen</string>
+    <string name="calendar_rules_permission_later">Senare</string>
+    <string name="calendar_rules_permission_allow">Tillåt åtkomst</string>
+    <string name="calendar_rules_permission_skip">Inte nu</string>
+
+    <!-- Rule summary (plain-text condition) -->
+    <string name="calendar_rules_summary_title_contains">Titeln innehåller “%1$s”</string>
+    <string name="calendar_rules_summary_desc_contains">Beskrivningen innehåller “%1$s”</string>
+    <string name="calendar_rules_summary_title_regex">Titeln matchar /%1$s/</string>
+    <string name="calendar_rules_summary_anyfield_contains">Titel/beskrivning innehåller “%1$s”</string>
+    <string name="calendar_rules_summary_attendee_contains">Deltagare innehåller “%1$s”</string>
+    <string name="calendar_rules_summary_all_day_only">Bara heldagshändelser</string>
+    <string name="calendar_rules_summary_all_calendars">Alla kalendrar</string>
+    <string name="calendar_rules_summary_calendars_selected">%1$d kalendrar har valts</string>
+    <string name="calendar_rules_summary_extra_all_words">alla ord</string>
+    <string name="calendar_rules_summary_extra_case">versaler/gemener</string>
+    <string name="calendar_rules_summary_extra_weekdays">utvalda dagar</string>
+    <string name="calendar_rules_summary_extra_min_duration">≥ %1$d min</string>
+
+    <!-- Rule editor: title + validation -->
+    <string name="calendar_editor_title_new">Ny kalenderregel</string>
+    <string name="calendar_editor_title_edit">Redigera regel</string>
+    <string name="calendar_editor_error_no_name">Ge regeln ett namn.</string>
+    <string name="calendar_editor_error_no_activity">Välj den aktivitet som ska spelas in.</string>
+    <string name="calendar_editor_error_no_term">Ange söktermen.</string>
+
+    <!-- Rule editor: name -->
+    <string name="calendar_editor_name_label">Regelns namn</string>
+    <string name="calendar_editor_name_placeholder">t.ex. Studier från kalendern</string>
+
+    <!-- Rule editor: condition -->
+    <string name="calendar_editor_section_condition">Villkor</string>
+    <string name="calendar_editor_calendar_pick_hint">Välj kalendrar (ingen markering = alla kalendrar)</string>
+    <string name="calendar_editor_calendar_none">Inga kalendrar hittades — kontrollera behörigheten.</string>
+    <string name="calendar_editor_allday_hint">Matchar bara heldagshändelser (t.ex. semester, helgdagar).</string>
+    <string name="calendar_editor_regex_label">Reguljärt uttryck (titel)</string>
+    <string name="calendar_editor_regex_placeholder">^VL\\s+\\d+</string>
+    <string name="calendar_editor_regex_hint">Avancerat: använd bara när vanliga ord inte räcker.</string>
+    <string name="calendar_editor_field_words_title">Ord i titeln</string>
+    <string name="calendar_editor_field_words_description">Ord i beskrivningen</string>
+    <string name="calendar_editor_field_attendee">Deltagare innehåller</string>
+    <string name="calendar_editor_field_words_any">Ord (titel eller beskrivning)</string>
+    <string name="calendar_editor_words_placeholder">Föreläsning, övning</string>
+    <string name="calendar_editor_words_hint">Avgränsa flera ord med kommatecken.</string>
+    <string name="calendar_editor_toggle_all_words">Alla ord måste finnas med</string>
+    <string name="calendar_editor_toggle_all_words_desc">Av: en match räcker (ELLER). På: alla ord krävs (OCH).</string>
+    <string name="calendar_editor_toggle_case">Skiftlägeskänslig</string>
+    <string name="calendar_editor_toggle_case_desc">Av: “föreläsning” hittar också “Föreläsning”.</string>
+
+    <!-- Rule editor: action -->
+    <string name="calendar_editor_section_action">Åtgärd</string>
+    <string name="calendar_editor_activity_placeholder">Välj aktivitet…</string>
+    <string name="calendar_editor_custom_title_label">Egen titel (valfri)</string>
+    <string name="calendar_editor_custom_title_placeholder">Tomt = aktivitetens namn</string>
+    <string name="calendar_editor_toggle_stop_running">Avsluta pågående inspelning</string>
+    <string name="calendar_editor_toggle_stop_running_desc">På: händelsen tar över (standard). Av: starta bara om inget pågår.</string>
+
+    <!-- Rule editor: filter -->
+    <string name="calendar_editor_section_filter">Filter (valfritt)</string>
+    <string name="calendar_editor_min_duration_label">Minsta längd i minuter (0 = valfri)</string>
+    <string name="calendar_editor_toggle_time_window">Bara till vissa tider</string>
+    <string name="calendar_editor_toggle_time_window_desc">Händelser utanför det här fönstret ignoreras.</string>
+    <string name="calendar_editor_window_from">Från</string>
+    <string name="calendar_editor_window_to">Till</string>
+    <string name="calendar_editor_weekdays_label">Veckodagar</string>
+
+    <!-- Rule editor: controls -->
+    <string name="calendar_editor_confirm_add">Lägg till</string>
+    <string name="calendar_editor_dropdown_open">Öppna urvalet</string>
+
+    <!-- Rule editor: type labels -->
+    <string name="calendar_editor_type_any_field">Ord i titel eller beskrivning</string>
+    <string name="calendar_editor_type_title">Ord bara i titeln</string>
+    <string name="calendar_editor_type_description">Ord bara i beskrivningen</string>
+    <string name="calendar_editor_type_regex">Reguljärt uttryck i titeln</string>
+    <string name="calendar_editor_type_calendars">Utvalda kalendrar</string>
+    <string name="calendar_editor_type_attendee">Deltagare innehåller</string>
+    <string name="calendar_editor_type_allday">Bara heldagshändelser</string>
+    <string name="calendar_editor_type_unknown">Okänd</string>
+
+    <!-- Fallback texts (reader / timeline plan blocks) -->
+    <string name="calendar_rules_unnamed_calendar">Kalender</string>
+    <string name="calendar_plan_event_fallback_title">Händelse</string>
+
+    <!-- M18.131: event picker (calendar event -> activity, single event) -->
+    <string name="calendar_picker_title">Spela in händelser</string>
+    <string name="calendar_picker_subtitle">Välj enskilda händelser och koppla en aktivitet</string>
+    <string name="calendar_picker_open">Välj händelser</string>
+    <string name="calendar_picker_empty_no_sync">Aktivera “Läs kalender” och synkronisera så att händelser visas här.</string>
+    <string name="calendar_picker_all_day">Heldag</string>
+    <string name="calendar_picker_no_title">(Utan titel)</string>
+    <string name="calendar_picker_running_now">pågår just nu</string>
+    <string name="calendar_picker_past">förbi</string>
+
+    <string name="calendar_picker_status_pinned">Spelas in</string>
+    <string name="calendar_picker_status_none">Tryck för att spela in</string>
+    <string name="calendar_picker_status_activity_missing">Aktivitet saknas — välj igen</string>
+
+    <string name="calendar_picker_dialog_title">Spela in händelse</string>
+    <string name="calendar_picker_dialog_activity_label">Välj aktivitet</string>
+    <string name="calendar_picker_dialog_custom_title_label">Egen titel (valfri)</string>
+    <string name="calendar_picker_dialog_custom_title_placeholder">Tomt = aktivitetens namn</string>
+    <string name="calendar_picker_dialog_info">Aevum spelar in från %1$s till %2$s — bara för den här händelsen, inte vid upprepningar.</string>
+    <string name="calendar_picker_dialog_info_running">Händelsen pågår redan. När du sparar startar inspelningen direkt.</string>
+    <string name="calendar_picker_dialog_info_past">Händelsen är över. Det går fortfarande att markera den (t.ex. för återkommande händelser).</string>
+    <string name="calendar_picker_dialog_save">Spela in</string>
+    <string name="calendar_picker_dialog_remove">Ta bort inspelningen</string>
+    <string name="calendar_picker_dialog_error_no_activity">Välj den aktivitet som ska spelas in.</string>
+
+    <string name="calendar_picker_msg_saved">Händelsen spelas in.</string>
+    <string name="calendar_picker_msg_removed">Inspelningen för händelsen har tagits bort.</string>
+
+    <string name="calendar_picker_how_it_works_title">Så fungerar det</string>
+    <string name="calendar_picker_how_it_works_body">• Tryck på en händelse och välj aktiviteten — Aevum spelar in från att händelsen börjar tills den tar slut.\\n• Kopplingen gäller bara den här händelsen. Återkommande händelser plockas inte upp automatiskt — till det används regler.\\n• Om händelsen tas bort eller flyttas i kalendern avslutas inspelningen, respektive kopplingen upphör att gälla.\\n• Pågår redan en inspelning när händelsen börjar bestämmer du per händelse: avsluta den pågående, gör inget eller starta automatiskt så snart inget mer pågår.</string>
+
+    <string name="calendar_picker_summary_one">1 händelse markerad</string>
+    <string name="calendar_picker_summary_many">%1$d händelser markerade</string>
+    <string name="calendar_picker_summary_none">Ingen händelse markerad än</string>
+
+    <!-- M18.132: opening sync + three overlap options -->
+    <string name="calendar_picker_syncing">Läser kalender…</string>
+    <string name="calendar_picker_day_today">I dag</string>
+    <string name="calendar_picker_day_tomorrow">I morgon</string>
+    <string name="calendar_picker_day_empty">Inga händelser</string>
+    <string name="calendar_picker_dialog_overlap_label">Om en inspelning redan pågår när händelsen börjar</string>
+    <string name="calendar_picker_dialog_overlap_override">Avsluta pågående och spela in händelsen</string>
+    <string name="calendar_picker_dialog_overlap_override_desc">Händelsen tar över (standard) — den pågående inspelningen avslutas när händelsen börjar.</string>
+    <string name="calendar_picker_dialog_overlap_idle">Gör inget</string>
+    <string name="calendar_picker_dialog_overlap_idle_desc">Händelsen spelas inte in om något redan pågår.</string>
+    <string name="calendar_picker_dialog_overlap_queue">Vänta och starta så snart inget mer pågår</string>
+    <string name="calendar_picker_dialog_overlap_queue_desc">Händelsen startar automatiskt efteråt — även mitt i händelsen, så snart den andra inspelningen tar slut.</string>
+</resources>

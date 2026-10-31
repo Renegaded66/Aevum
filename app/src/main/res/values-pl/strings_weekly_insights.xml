@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_weekly_insights.xml, Struktur: values/strings_weekly_insights.xml. Platzhalter und Escapes geprüft. -->
+    <string name="weekly_hero_title">Twój tydzień</string>
+    <string name="weekly_timeline_title">Oś czasu tygodnia</string>
+    <string name="weekly_timeline_subtitle">Siedem dni w spokojnym przeglądzie</string>
+    <string name="weekly_distribution_title">Podział czasu</string>
+    <string name="weekly_distribution_subtitle">Które obszary ukształtowały twój tydzień</string>
+    <string name="weekly_changes_title">Zmiany</string>
+    <string name="weekly_changes_subtitle">W porównaniu z poprzednim tygodniem</string>
+    <string name="weekly_highlights_title">Wyróżnienia</string>
+    <string name="weekly_patterns_title">Tygodniowe wzorce</string>
+    <string name="weekly_open_time_title">Otwarty czas</string>
+    <string name="weekly_open_time_message">%1$s tego tygodnia nie jest jeszcze ujęte.</string>
+    <string name="weekly_to_timeline">Do osi czasu</string>
+    <string name="weekly_empty_title">Tydzień jeszcze nie jest widoczny.</string>
+    <string name="weekly_empty_message">Zarejestruj kilka aktywności. Potem Aevum spokojnie podpowie ci, jakie wzorce, wyróżnienia i otwarty czas pojawią się w twoim tygodniu.</string>
+    <string name="weekly_closing_1">Każdy tydzień opowiada własną historię.</string>
+    <string name="weekly_closing_2">Z czasem stają się widoczne także drobne zmiany.</string>
+    <string name="weekly_closing_3">To, co widoczne, można świadomiej kształtować.</string>
+    <string name="weekly_narrative_empty">Po zarejestrowaniu kilku bloków czasu pojawi się tu spokojny przegląd tygodnia.</string>
+    <string name="weekly_narrative_top_two">W tym tygodniu wiele czasu poświęcono na %1$s, a %2$s stało się również widoczne.</string>
+    <string name="weekly_narrative_change">W tym tygodniu %1$s stało się wyraźniej widoczne niż w poprzednim tygodniu.</string>
+    <string name="weekly_narrative_active_days">Ten tydzień był przez kilka dni dobrze widoczny i urozmaicony.</string>
+    <string name="weekly_narrative_top">Najbardziej wyrazisty obszar czasu w tym tygodniu: %1$s.</string>
+    <string name="weekly_narrative_fallback">Ten tydzień zaczyna opowiadać własną historię.</string>
+    <string name="weekly_highlight_longest_activity">Najdłuższa aktywność</string>
+    <string name="weekly_highlight_most_active_day">Najaktywniejszy dzień</string>
+    <string name="weekly_highlight_balanced_day">Najbardziej zrównoważony dzień</string>
+    <string name="weekly_highlight_longest_leisure">Najdłuższy czas wolny</string>
+    <string name="weekly_highlight_longest_work">Najdłuższy blok pracy</string>
+    <string name="weekly_highlight_value">%1$s · %2$s</string>
+    <string name="weekly_highlight_most_active_day_value">%1$s · %2$s widoczne</string>
+    <string name="weekly_pattern_strongest_day">Najmocniejszy dzień</string>
+    <string name="weekly_pattern_strongest_day_message">%1$s był najbardziej widocznym dniem w twoim tygodniu.</string>
+    <string name="weekly_pattern_weekend">Weekend</string>
+    <string name="weekly_pattern_weekend_message">W weekend było wyraźnie więcej widocznego czasu wolnego.</string>
+    <string name="weekly_pattern_movement">Ruch</string>
+    <string name="weekly_pattern_movement_message">Ruch był rozłożony na kilka dni tygodnia.</string>
+    <string name="weekly_pattern_change">Zmiana</string>
+    <string name="weekly_pattern_change_more_message">%1$s było w tym tygodniu wyraźnie bardziej widoczne niż w poprzednim.</string>
+    <string name="weekly_pattern_change_less_message">%1$s było w tym tygodniu wyraźnie mniej widoczne niż w poprzednim.</string>
+    <string name="weekly_pattern_variety">Różnorodność</string>
+    <string name="weekly_pattern_variety_message">Ten tydzień rozkłada się na kilka obszarów życia.</string>
+
+    <!-- Insights -->
+    <string name="insights_top_activities">Główne aktywności</string>
+    <!-- M18.137 (Kanban t_70a06809): screen-reader labels for the icon-only
+         expand/collapse toggle (action + state). -->
+    <string name="insights_top_activities_expand">Pokaż wszystkie aktywności</string>
+    <string name="insights_top_activities_collapse">Zwiń aktywności</string>
+    <string name="insights_top_activities_state_expanded">Rozwinięte</string>
+    <string name="insights_top_activities_state_collapsed">Zwinięte</string>
+    <string name="insights_changes_title">Zmiany względem poprzedniego okresu</string>
+    <string name="insights_empty_title">Jeszcze brak danych</string>
+    <string name="insights_empty_message">Gdy zaczniesz aktywności albo włączysz limity, tutaj pojawią się twoje wzorce.</string>
+    <string name="insights_hours_short">godz.</string>
+    <string name="insights_minutes_short">min</string>
+    <string name="insights_lifetime_title">Czas życia</string>
+    <string name="insights_lifetime_subtitle">Ile czasu naprawdę ci zostało?</string>
+    <string name="insights_breakdown_activity">Aktywność</string>
+    <string name="insights_breakdown_category">Kategoria</string>
+    <string name="insights_period_this_week">Ten tydzień</string>
+    <string name="insights_period_this_month">Ten miesiąc</string>
+    <string name="insights_summary_empty">Danych jest jeszcze za mało. Gdy zarejestrujesz bloki czasu, tutaj wyłonią się spokojne wzorce.</string>
+    <string name="insights_summary_multiple_areas">kilka obszarów</string>
+    <string name="insights_summary_today">Dziś przede wszystkim %1$s kształtuje twój zarejestrowany czas.</string>
+    <string name="insights_summary_week">W tym tygodniu przede wszystkim %1$s kształtuje twój zarejestrowany czas.</string>
+    <string name="insights_summary_month">W tym miesiącu przede wszystkim %1$s kształtuje twój zarejestrowany czas.</string>
+    <string name="insights_summary_change">\u0020Największa zmiana dotyczy %1$s.</string>
+    <string name="insights_card_largest_block_title">Największy blok czasu</string>
+    <string name="insights_card_largest_block_today">Dziś twój największy obszar: %1$s.</string>
+    <string name="insights_card_largest_block_week">Twój największy obszar w tym tygodniu: %1$s.</string>
+    <string name="insights_card_largest_block_month">Twój największy obszar w tym miesiącu: %1$s.</string>
+    <string name="insights_card_more_visible_title">Bardziej widoczne</string>
+    <string name="insights_card_more_visible_message">%1$s wzrosło względem poprzedniego okresu.</string>
+    <string name="insights_card_digital_time_title">Czas cyfrowy</string>
+    <string name="insights_card_digital_time_message">Twój czas cyfrowy lekko spadł.</string>
+    <string name="insights_card_rhythm_title">Rytm</string>
+    <string name="insights_card_rhythm_message">Kilka dni tego tygodnia ma już zarejestrowany czas.</string>
+    <string name="insights_card_variety_title">Różnorodność</string>
+    <string name="insights_card_variety_message">Twój czas rozkłada się na kilka obszarów życia.</string>
+    <!-- M31: interactive charts below the top list. They replace the
+         former "Changes" block and the insight cards. -->
+    <string name="insights_chart_distribution_title">Rozkład</string>
+    <string name="insights_chart_distribution_subtitle">Udział obszarów życia</string>
+    <string name="insights_chart_total">Łącznie</string>
+    <string name="insights_chart_hint">Dotknij elementu, aby zobaczyć wartość</string>
+    <string name="insights_chart_course_title">Przebieg</string>
+    <string name="insights_chart_course_subtitle_today">Zarejestrowany czas na godzinę</string>
+    <string name="insights_chart_course_subtitle_week">Zarejestrowany czas na dzień</string>
+    <string name="insights_chart_course_subtitle_month">Zarejestrowany czas na dzień</string>
+    <string name="insights_chart_balance_title">Bilans</string>
+    <string name="insights_balance_subtitle_activity">Twoje aktywności w tym okresie</string>
+    <string name="insights_balance_subtitle_category">Twoje kategorie w tym okresie</string>
+    <string name="insights_balance_mode_activity">Aktywności</string>
+    <string name="insights_balance_mode_category">Kategorie</string>
+    <string name="insights_balance_select">Wybierz</string>
+    <string name="insights_balance_picker_title">Obszary dla bilansu</string>
+    <string name="insights_balance_selected_count">Wybrano %1$d z %2$d</string>
+    <string name="insights_balance_limit_hint">Liczba obszarów jest ograniczona do %1$d. Dotknij wybranego wpisu, aby go zastąpić.</string>
+    <string name="insights_balance_apply">Zastosuj</string>
+    <string name="insights_balance_reset_default">Top 5</string>
+    <string name="insights_balance_need_three">Wybierz co najmniej 3 obszary dla radaru.</string>
+    <string name="insights_balance_no_time">Dla wybranych obszarów w tym okresie nie zarejestrowano czasu.</string>
+    <string name="insights_chart_hour_range">%1$s–%2$s</string>
+
+    <string name="insights_allowance_label">%1$s (limit)</string>
+    <!-- M18.137 (Kanban t_13e9f843): error state of the insights view.
+         Not the "no data" copy — an error must be distinguishable from an
+         actually empty database. -->
+    <string name="insights_load_failed">Nie udało się wczytać analizy. Spróbuj ponownie.</string>
+    <string name="insights_retry">Spróbuj ponownie</string>
+    <!-- M18.137 (Kanban t_386782be): cold-start placeholder. Deliberately used
+         ONLY here — expanding the top-activities list is not a load operation. -->
+    <string name="insights_loading">Wczytywanie analizy…</string>
+
+    <!-- M18.146: period navigation (‹ label ›) + period picker sheet + the
+         per-activity statistics page. One place for all labels so day/
+         week/month cannot drift apart in wording. -->
+    <string name="insights_nav_previous">Poprzedni okres</string>
+    <string name="insights_nav_next">Następny okres</string>
+    <string name="insights_nav_today">Wróć do teraz</string>
+    <string name="insights_nav_pick">Wybierz okres</string>
+    <string name="insights_picker_title">Wybierz okres</string>
+    <string name="insights_picker_now_marker">teraz</string>
+    <string name="insights_week_label">Tydz. %1$d · %2$s</string>
+    <string name="insights_week_short">Tydz. %1$d</string>
+
+    <!-- Activity statistics page (M18.146) -->
+    <string name="activity_stats_title">Aktywność</string>
+    <string name="activity_stats_subtitle">Jak ta aktywność rozwija się w czasie</string>
+    <string name="activity_stats_axis_daily">Dziennie</string>
+    <string name="activity_stats_axis_weekly">Tygodniowo</string>
+    <string name="activity_stats_axis_monthly">Miesięcznie</string>
+    <string name="activity_stats_range_7d">7 dni</string>
+    <string name="activity_stats_range_30d">30 dni</string>
+    <string name="activity_stats_range_365d">1 rok</string>
+    <string name="activity_stats_range_all">Cały okres</string>
+    <string name="activity_stats_range_7d_suffix">ostatnie 7 dni</string>
+    <string name="activity_stats_range_30d_suffix">ostatnie 30 dni</string>
+    <string name="activity_stats_range_365d_suffix">ostatnie 365 dni</string>
+    <string name="activity_stats_range_all_suffix">cały zarejestrowany czas</string>
+    <string name="activity_stats_total">Łącznie</string>
+    <string name="activity_stats_avg_per_day">Ø na dzień</string>
+    <string name="activity_stats_avg_per_week">Ø na tydzień</string>
+    <string name="activity_stats_sessions">Sesje</string>
+    <string name="activity_stats_longest">Najdłuższa</string>
+    <string name="activity_stats_active_days">Aktywne dni</string>
+    <string name="activity_stats_streak">Najdłuższa seria</string>
+    <string name="activity_stats_trend_title">Trend</string>
+    <string name="activity_stats_trend_up">więcej niż w poprzednim okresie</string>
+    <string name="activity_stats_trend_down">mniej niż w poprzednim okresie</string>
+    <string name="activity_stats_trend_flat">w przybliżeniu tyle samo co w poprzednim okresie</string>
+    <string name="activity_stats_weekday_title">Rytm tygodnia</string>
+    <string name="activity_stats_empty_title">Jeszcze nic nie zarejestrowano</string>
+    <string name="activity_stats_empty_message">Gdy zarejestrujesz tę aktywność, tutaj pojawi się jej przebieg.</string>
+    <string name="activity_stats_chart_hint">Przytrzymaj palec na wykresie, aby zobaczyć szczegóły</string>
+    <string name="activity_stats_open_link">Zobacz historię</string>
+    <string name="activity_stats_this_week_suffix">w tym tygodniu</string>
+    <string name="activity_stats_sessions_count">Sesje: %1$d</string>
+    <string name="activity_stats_open_session">w trakcie</string>
+
+    <!-- Review Inbox -->
+    <string name="review_inbox_eyebrow">Review Inbox</string>
+    <string name="review_inbox_hero_title">Aevum coś przygotował</string>
+    <string name="review_inbox_hero_subtitle">Sugestie liczą się dopiero, gdy je przyjmiesz.</string>
+    <string name="review_inbox_accept_safe">Przyjmij bezpieczne sugestie (%1$d)</string>
+    <string name="review_inbox_selected_count">Wybrano: %1$d</string>
+    <string name="review_inbox_tap_hint">Dotknij kart, aby je wybrać</string>
+    <string name="review_inbox_all_safe">Wszystkie bezpieczne</string>
+    <string name="review_inbox_sleep_detected">Wykryto sen</string>
+    <string name="review_inbox_sleep_reason_fallback">Wykryto przez Health Connect. Potwierdź, proszę.</string>
+    <string name="review_inbox_generic_reason_fallback">Automatyczna sugestia na podstawie twoich lokalnych sygnałów.</string>
+    <string name="review_inbox_empty_title">Wszystko sprawdzone.</string>
+    <string name="review_inbox_empty_message">Brak sugestii do sprawdzenia. Aevum da ci znać, gdy wykryje coś nowego.</string>
+    <string name="review_inbox_message">Sugestie czekające na twoje potwierdzenie: %1$d.</string>
+    <string name="review_inbox_check_now">Sprawdź teraz</string>
+    <string name="review_duration_hours_minutes">%1$d godz. %2$d min</string>
+    <string name="review_duration_hours">%1$d godz.</string>
+    <string name="review_duration_minutes">%1$d min</string>
+
+    <!-- Growth -->
+    <string name="growth_insights_title">Rozwój</string>
+</resources>

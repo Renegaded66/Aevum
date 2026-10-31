@@ -1,0 +1,16 @@
+<resources>
+    <!-- M19.5: Mascot (settings + dashboard) -->
+    <string name="settings_mascot_title">Maskot</string>
+    <string name="settings_mascot_desc">En liten varelse på din dashboard — den ler mer när din dag går bra.</string>
+    <string name="settings_mascot_preview_hint">Tryck på förhandsvisningen — den reagerar!</string>
+    <string name="settings_mascot_color">Färg</string>
+    <string name="settings_mascot_antenna">Antenn</string>
+    <string name="settings_mascot_antenna_ball">Kula</string>
+    <string name="settings_mascot_antenna_star">Stjärna</string>
+    <string name="settings_mascot_antenna_bolt">Blixt</string>
+    <string name="settings_mascot_cheeks">Kinder</string>
+    <string name="mascot_cd">Maskot</string>
+    <string name="mascot_cd_score">Din maskot. Dagens kvalitet: %1$d av 100.</string>
+    <string name="mascot_state_sleeping">sover</string>
+    <string name="mascot_state_awake">är vaken</string>
+</resources>

@@ -27,10 +27,13 @@ class EnsureDefaultDataUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
     private val categoryRepository: CategoryRepository,
     private val activityTypeRepository: ActivityTypeRepository,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    // M34: Onboarding-Auswahl — entfernte Seeds dürfen nicht wiederkehren.
+    private val suppression: SeedSuppressionStore
 ) {
     suspend operator fun invoke() {
         val names = SeedNames(context)
+        val suppressed = suppression.suppressedIds()
         // M18.56: Jeder Seed-Schritt einzeln abgesichert — ein Fehler bei
         // Categories darf die ActivityTypes/Tags nicht blockieren (und
         // umgekehrt). Ohne diese Härtung führt ein einzelner DB-Fehler
@@ -38,7 +41,7 @@ class EnsureDefaultDataUseCase @Inject constructor(
         // nicht vor eingestellt nach Neuinstallation").
         try {
             val existing = categoryRepository.getAll().first().associateBy { it.id }
-            defaultCategories(names).forEach { seed ->
+            defaultCategories(names).filterNot { SeedSuppressionStore.categoryKey(it.id) in suppressed }.forEach { seed ->
                 val current = existing[seed.id]
                 when {
                     current == null -> categoryRepository.insert(seed)
@@ -54,7 +57,7 @@ class EnsureDefaultDataUseCase @Inject constructor(
             // System-Typen NACHträglich ergänzen (bestehende Installationen
             // bekommen so die neuen Garmin-Typen joggen/radfahren/spazieren).
             val existing = activityTypeRepository.getAll().first().associateBy { it.id }
-            defaultActivityTypes(names).forEach { seed ->
+            defaultActivityTypes(names).filterNot { SeedSuppressionStore.activityKey(it.id) in suppressed }.forEach { seed ->
                 val current = existing[seed.id]
                 when {
                     current == null -> activityTypeRepository.insert(seed)
@@ -67,7 +70,7 @@ class EnsureDefaultDataUseCase @Inject constructor(
         }
         try {
             val existing = tagRepository.getAll().first().associateBy { it.id }
-            defaultTags(names).forEach { seed ->
+            defaultTags(names).filterNot { SeedSuppressionStore.tagKey(it.id) in suppressed }.forEach { seed ->
                 val current = existing[seed.id]
                 when {
                     current == null -> tagRepository.insert(seed)
@@ -78,6 +81,30 @@ class EnsureDefaultDataUseCase @Inject constructor(
         } catch (e: Exception) {
             Log.e("EnsureDefaultData", "Tags-Seed fehlgeschlagen", e)
         }
+    }
+
+    companion object {
+        /**
+         * IDs der Standard-Kategorien und -Aktivitäten.
+         *
+         * Das Onboarding muss wissen, was „Seed" ist: nur Seeds werden beim
+         * Entfernen unterdrückt, damit [invoke] sie nicht neu anlegt.
+         * Selbst angelegte Einträge werden einfach gelöscht.
+         *
+         * Deshalb stehen die Mengen hier und nicht in der UI — sie müssen
+         * mit [defaultCategories]/[defaultActivityTypes] übereinstimmen.
+         */
+        val SEED_CATEGORY_IDS: Set<String> = setOf(
+            "work", "sleep", "sport", "learning", "health", "leisure",
+            "relationships", "transport", "digital", "household", "unknown"
+        )
+
+        val SEED_ACTIVITY_TYPE_IDS: Set<String> = setOf(
+            "work", "deep_work", "sleep", "fitness", "joggen", "radfahren",
+            "spazieren", "learning", "reading", "meditation", "eating",
+            "social", "household", "driving", "transport", "digital",
+            "leisure", "other"
+        )
     }
 
     private fun defaultCategories(names: SeedNames) = listOf(
@@ -169,14 +196,25 @@ class EnsureDefaultDataUseCase @Inject constructor(
 
     /**
      * Liefert Seed-Namen in der aktuellen Sprache sowie die bekannten
-     * Namen (DE + EN), um unveränderte Seeds beim Sprachwechsel zu erkennen.
+     * Namen (ALLE unterstützten Sprachen), um unveränderte Seeds beim
+     * Sprachwechsel zu erkennen.
+     *
+     * M34: Vorher nur DE+EN. Mit zehn Sprachen hätte ein Wechsel
+     * Spanisch → Englisch → Spanisch die Seed-Namen eingefroren (der
+     * englische Lauf erkennt „Trabajo" nicht als Seed-Namen und lässt ihn
+     * stehen). Deshalb wird die Menge über [AppLanguage] gebildet — jede
+     * neue Sprache ist automatisch dabei.
      */
     private class SeedNames(context: Context) {
         private val current = context.resources
-        private val de = LocaleHelper.applyTo(context, LanguageRepository.LANGUAGE_DE).resources
-        private val en = LocaleHelper.applyTo(context, LanguageRepository.LANGUAGE_EN).resources
+        private val known: List<android.content.res.Resources> =
+            com.d_drostes_apps.aevum.util.AppLanguage.selectable.map { language ->
+                com.d_drostes_apps.aevum.util.LocaleHelper.resourcesFor(context, language.code)
+            }
 
         fun currentName(key: Int): String = current.getString(key)
-        fun knownNames(key: Int): Set<String> = setOf(de.getString(key), en.getString(key))
+
+        fun knownNames(key: Int): Set<String> =
+            known.mapTo(LinkedHashSet()) { it.getString(key) }
     }
 }

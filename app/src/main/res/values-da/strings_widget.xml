@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_widget.xml, struktur: values/strings_widget.xml. Pladsholdere og escapes tjekket. -->
+    <string name="widget_name">Aevum-registrering</string>
+    <string name="widget_description">Viser, om en aktivitet registreres — med timer, start/stop og aktivitetsvalg.</string>
+    <string name="widget_status_idle">KLAR</string>
+    <string name="widget_status_running">KØRER</string>
+    <string name="widget_status_paused">PAUSET</string>
+    <string name="widget_idle_title">Start</string>
+    <string name="widget_paused_title">Pauset</string>
+    <string name="widget_cd_start">Start registreringen</string>
+    <string name="widget_cd_stop">Stop registreringen</string>
+    <string name="widget_cd_open">Åbn Aevum</string>
+    <string name="widget_picker_title">Hvad vil du starte?</string>
+    <string name="widget_picker_subtitle">Tryk på en aktivitet — registreringen starter med det samme.</string>
+    <string name="widget_picker_cancel">Annuller</string>
+    <string name="widget_picker_running">Kører lige nu: %1$s</string>
+    <string name="widget_picker_stop">Stop den igangværende registrering</string>
+    <string name="widget_empty_activities">Ingen aktiviteter endnu</string>
+    <string name="widget_no_app">Aktivitet</string>
+</resources>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_seeds.xml, estrutura: values/strings_seeds.xml. Placeholders e escapes verificados. -->
+    <string name="seed_category_work">Trabalho</string>
+    <string name="seed_category_sleep">Sono</string>
+    <string name="seed_category_sport">Desporto</string>
+    <string name="seed_category_learning">Aprendizagem</string>
+    <string name="seed_category_health">Saúde</string>
+    <string name="seed_category_leisure">Lazer</string>
+    <string name="seed_category_relationships">Relações</string>
+    <string name="seed_category_transport">Transporte</string>
+    <string name="seed_category_digital">Digital</string>
+    <string name="seed_category_household">Doméstico</string>
+    <string name="seed_category_unknown">Outros</string>
+    <string name="seed_activity_work">Trabalho</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Sono</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Corrida</string>
+    <string name="seed_activity_radfahren">Bicicleta</string>
+    <string name="seed_activity_spazieren">Caminhada</string>
+    <string name="seed_activity_learning">Aprendizagem</string>
+    <string name="seed_activity_reading">Leitura</string>
+    <string name="seed_activity_meditation">Meditação</string>
+    <string name="seed_activity_eating">Refeições</string>
+    <string name="seed_activity_social">Social</string>
+    <string name="seed_activity_household">Doméstico</string>
+    <string name="seed_activity_driving">Condução</string>
+    <string name="seed_activity_transport">Transporte</string>
+    <string name="seed_activity_digital">Digital</string>
+    <string name="seed_activity_leisure">Lazer</string>
+    <string name="seed_activity_other">Outros</string>
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Foco</string>
+    <string name="seed_tag_routine">Rotina</string>
+    <string name="seed_tag_energy">Energia</string>
+    <string name="seed_tag_recovery">Recuperação</string>
+</resources>

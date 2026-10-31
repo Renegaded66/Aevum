@@ -13,7 +13,6 @@ import com.d_drostes_apps.aevum.ui.screens.dashboard.DashboardScreen
 import com.d_drostes_apps.aevum.ui.screens.unknownplace.UnknownPlacesScreen
 import com.d_drostes_apps.aevum.ui.screens.growth.GrowthScreen
 import com.d_drostes_apps.aevum.ui.screens.insights.InsightsScreen
-import com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.SettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.TriggerSettingsScreen
 import com.d_drostes_apps.aevum.ui.screens.settings.PrivacyScreen
@@ -375,11 +374,43 @@ fun AppNavHost(
                 }
             )
         }
-        composable(AppDestination.Onboarding.route) { OnboardingScreen() }
-        composable(AppDestination.LifeProfileSetup.route) { OnboardingScreen() }
-        composable(AppDestination.PermissionEducation.route) { OnboardingScreen() }
-        composable(AppDestination.PlacesSetup.route) { OnboardingScreen() }
-        composable(AppDestination.DashboardIntro.route) { OnboardingScreen() }
+        composable(AppDestination.Onboarding.route) {
+            com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingFlowScreen(
+                onFinished = {
+                    // Wizard beendet → Dashboard als neuer Startpunkt. Der
+                    // Wizard liegt danach NICHT mehr im Backstack: Zurück
+                    // führt nie wieder in die Einrichtung.
+                    navController.navigate(AppDestination.Dashboard.route) {
+                        popUpTo(AppDestination.Onboarding.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        // Die alten Platzhalter-Routen (Lebensprofil, Berechtigungen, Orte,
+        // Dashboard-Intro) zeigten alle denselben leeren Screen. Sie laufen
+        // jetzt ebenfalls in den echten Wizard — er kann jederzeit von dort
+        // erweitert werden, ohne dass eine Route ins Leere führt.
+        composable(AppDestination.LifeProfileSetup.route) {
+            com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingFlowScreen(
+                onFinished = { navController.popBackStack() }
+            )
+        }
+        composable(AppDestination.PermissionEducation.route) {
+            com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingFlowScreen(
+                onFinished = { navController.popBackStack() }
+            )
+        }
+        composable(AppDestination.PlacesSetup.route) {
+            com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingFlowScreen(
+                onFinished = { navController.popBackStack() }
+            )
+        }
+        composable(AppDestination.DashboardIntro.route) {
+            com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingFlowScreen(
+                onFinished = { navController.popBackStack() }
+            )
+        }
 
         // M17.2 + M17.3
         composable(AppDestination.UnknownPlaces.route) {

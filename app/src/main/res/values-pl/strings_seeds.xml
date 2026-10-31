@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nazwy seedów (domyślne kategorie, typy aktywności, tagi) — są tworzone
+         lub aktualizowane przy starcie aplikacji w bieżącym języku. -->
+    <string name="seed_category_work">Praca</string>
+    <string name="seed_category_sleep">Sen</string>
+    <string name="seed_category_sport">Sport</string>
+    <string name="seed_category_learning">Nauka</string>
+    <string name="seed_category_health">Zdrowie</string>
+    <string name="seed_category_leisure">Czas wolny</string>
+    <string name="seed_category_relationships">Relacje</string>
+    <string name="seed_category_transport">Transport</string>
+    <string name="seed_category_digital">Cyfrowe</string>
+    <string name="seed_category_household">Dom</string>
+    <string name="seed_category_unknown">Inne</string>
+
+    <string name="seed_activity_work">Praca</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Sen</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Jogging</string>
+    <string name="seed_activity_radfahren">Rower</string>
+    <string name="seed_activity_spazieren">Spacer</string>
+    <string name="seed_activity_learning">Nauka</string>
+    <string name="seed_activity_reading">Czytanie</string>
+    <string name="seed_activity_meditation">Medytacja</string>
+    <string name="seed_activity_eating">Jedzenie</string>
+    <string name="seed_activity_social">Spotkania</string>
+    <string name="seed_activity_household">Dom</string>
+    <string name="seed_activity_driving">Jazda autem</string>
+    <string name="seed_activity_transport">Transport</string>
+    <string name="seed_activity_digital">Cyfrowe</string>
+    <string name="seed_activity_leisure">Czas wolny</string>
+    <string name="seed_activity_other">Inne</string>
+
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Skupienie</string>
+    <string name="seed_tag_routine">Rutyna</string>
+    <string name="seed_tag_energy">Energia</string>
+    <string name="seed_tag_recovery">Regeneracja</string>
+</resources>

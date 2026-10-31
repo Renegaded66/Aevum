@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        PERMISSION DISCLOSURE — POLSKI
+        Tekst niemiecki: values-de/strings_permission_disclosure.xml
+        Angielski oryginał (fallback): values/strings_permission_disclosure.xml
+        Zmiany merytoryczne wprowadzać w obu plikach.
+        Tekstów nie skracać: testy w PermissionDisclosureTest sprawdzają
+        wymagane elementy.
+    -->
+    <string name="perm_disclosure_points_title">Co to umożliwia</string>
+    <string name="perm_disclosure_note_title">Co dzieje się z twoimi danymi</string>
+    <string name="perm_disclosure_allow">Zezwól</string>
+    <string name="perm_disclosure_decline">Nie teraz</string>
+    <string name="perm_disclosure_open_settings">Otwórz ustawienia</string>
+
+    <!-- ── Rozpoznawanie aktywności ─────────────────────────────────────── -->
+    <string name="perm_activity_title">Zezwolić na rozpoznawanie aktywności?</string>
+    <string name="perm_activity_lead">Aevum używa rozpoznawania aktywności, aby automatycznie wykryć, czy prowadzisz samochód, spacerujesz czy jedziesz na rowerze — dzięki temu jazdy, spacery i wycieczki rowerowe są zapisywane bez potrzeby ich uruchamiania. Wykrywanie działa nieprzerwanie, także gdy aplikacja jest zamknięta.</string>
+    <string name="perm_activity_point_1">Przejazdy samochodem są wykrywane i zapisywane wraz z trasą</string>
+    <string name="perm_activity_point_2">Spacery i jazda na rowerze są rejestrowane jako aktywność</string>
+    <string name="perm_activity_point_3">Automatyczne wykrywanie snu na podstawie ruchu</string>
+    <string name="perm_activity_note">Dane o ruchu są przetwarzane wyłącznie lokalnie na twoim urządzeniu i nigdy nie są przesyłane. Uprawnienie możesz w każdej chwili odebrać w ustawieniach systemu Android.</string>
+
+    <!-- ── Powiadomienia ────────────────────────────────────────────────── -->
+    <string name="perm_notifications_title">Zezwolić na powiadomienia?</string>
+    <string name="perm_notifications_lead">Aevum używa powiadomień, aby pokazać ci, kiedy trwa aktywność, oraz poinformować cię, gdy w tle automatycznie się rozpocznie lub zakończy. Bez tego uprawnienia te zmiany odbywają się po cichu.</string>
+    <string name="perm_notifications_point_1">Widzisz, jaka aktywność właśnie trwa</string>
+    <string name="perm_notifications_point_2">Dowiadujesz się, gdy Aevum uruchamia lub kończy aktywność za ciebie</string>
+    <string name="perm_notifications_point_3">Przypomnienia o działających timerach</string>
+    <string name="perm_notifications_note">Powiadomienia są tworzone lokalnie na twoim urządzeniu. Nie ma usługi push ani serwera powiadomień. Uprawnienie możesz w każdej chwili odebrać w ustawieniach systemu Android.</string>
+
+    <!-- ── Dostęp do danych o użyciu ────────────────────────────────────── -->
+    <string name="perm_usage_title">Zezwolić na dostęp do danych o użyciu?</string>
+    <string name="perm_usage_lead">Aevum używa dostępu do danych o użyciu, aby odczytać, jak długo i jak często korzystasz ze swoich aplikacji. Na tym opiera się Digital Balance — statystyki czasu ekranu i limity aplikacji. Uprawnienie przyznaje się na specjalnej stronie ustawień Androida, a nie w zwykłym oknie uprawnień.</string>
+    <string name="perm_usage_point_1">Digital Balance: czas ekranu dla każdej aplikacji</string>
+    <string name="perm_usage_point_2">Ustawiasz dzienne limity i tymczasowo blokujesz aplikacje</string>
+    <string name="perm_usage_point_3">Automatyczne wykrywanie snu na podstawie aktywności ekranu</string>
+    <string name="perm_usage_note">Dane o użyciu są analizowane wyłącznie lokalnie na twoim urządzeniu i nigdy nie są przesyłane. Dostęp możesz w każdej chwili odebrać w ustawieniach systemu Android (Dostęp specjalny → Dostęp do danych o użyciu).</string>
+
+    <!-- ── Kalendarz ────────────────────────────────────────────────────── -->
+    <string name="perm_calendar_title">Zezwolić na dostęp do kalendarza?</string>
+    <string name="perm_calendar_lead">Aevum czyta twój kalendarz, aby automatycznie uruchamiać pasującą aktywność do twoich wydarzeń — na przykład spotkanie lub trening. Bez tego uprawnienia nadal możesz korzystać z reguł kalendarza, ale musisz sam wybierać wydarzenia.</string>
+    <string name="perm_calendar_point_1">Wydarzenia uruchamiają i kończą pasującą aktywność</string>
+    <string name="perm_calendar_point_2">Wybierasz, które kalendarze są używane</string>
+    <string name="perm_calendar_point_3">Reguły można ograniczyć do wybranych wydarzeń</string>
+    <string name="perm_calendar_note">Twój kalendarz jest tylko odczytywany — Aevum nigdy nie tworzy ani nie zmienia wydarzeń. Wpisy są analizowane wyłącznie lokalnie na twoim urządzeniu i nigdy nie są przesyłane. Uprawnienie możesz w każdej chwili odebrać w ustawieniach systemu Android.</string>
+
+    <!-- ── Wykrywanie połączeń (M26) ────────────────────────────────────── -->
+    <string name="perm_calls_title">Zezwolić na wykrywanie połączeń?</string>
+    <string name="perm_calls_lead">Aevum używa wykrywania połączeń, aby zauważyć, kiedy trwa rozmowa, i wtedy automatycznie rejestrować przypisaną aktywność — bez potrzeby jej uruchamiania. Odczytywany jest tylko stan połączenia na twoim urządzeniu (dzwonienie, rozmowa w toku, brak połączenia): nigdy numery telefonów, kontakty ani historia połączeń.</string>
+    <string name="perm_calls_point_1">Podczas rozmowy przypisana aktywność działa automatycznie</string>
+    <string name="perm_calls_point_2">Rejestracje cyfrowe (ekran, aplikacje, PC) są na ten czas wstrzymywane</string>
+    <string name="perm_calls_point_3">Ręcznie uruchomione aktywności, Geofences i kalendarz pozostają nietknięte</string>
+    <string name="perm_calls_note">Stan połączenia jest analizowany wyłącznie lokalnie na twoim urządzeniu — ani numery telefonów, ani historia połączeń, nic nie jest przesyłane. Uprawnienie możesz w każdej chwili odebrać w ustawieniach systemu Android.</string>
+</resources>

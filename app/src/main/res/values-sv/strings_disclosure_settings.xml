@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M18.139: location disclosure + privacy link in the privacy screen. -->
+    <string name="settings_privacy_policy_link_title">Integritetspolicy</string>
+    <string name="settings_privacy_policy_link_body">Den fullständiga integritetspolicyn finns online — samma version som är länkad i Play Store-listningen.</string>
+    <string name="settings_privacy_policy_open">Öppna integritetspolicyn</string>
+
+    <string name="settings_privacy_background_location_title">Plats i bakgrunden</string>
+    <string name="settings_privacy_background_location_body">Aevum samlar in platsdata för platsidentifiering (geofences), automatisk identifiering av bilresor, identifiering av promenader och cykelturer samt platstidslinjen — även när appen är stängd eller inte används.\\n\\nAll platsdata sparas uteslutande lokalt på din enhet. Det finns ingen Aevum-server, inga konton, ingen reklam och ingen delning med tredje part.</string>
+    <string name="settings_privacy_background_location_action">Visa tillkännagivandet igen</string>
+</resources>

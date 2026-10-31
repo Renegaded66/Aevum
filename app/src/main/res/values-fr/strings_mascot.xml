@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Traduit automatiquement (M34) — Source : values-de/strings_mascot.xml, Structure : values/strings_mascot.xml. Placeholders et échappements vérifiés. -->
+    <string name="settings_mascot_title">Mascotte</string>
+    <string name="settings_mascot_desc">Une petite créature sur ton tableau de bord — elle sourit davantage quand ta journée se passe bien.</string>
+    <string name="settings_mascot_preview_hint">Touche l\'aperçu — elle réagit !</string>
+    <string name="settings_mascot_color">Couleur</string>
+    <string name="settings_mascot_antenna">Antenne</string>
+    <string name="settings_mascot_antenna_ball">Boule</string>
+    <string name="settings_mascot_antenna_star">Étoile</string>
+    <string name="settings_mascot_antenna_bolt">Éclair</string>
+    <string name="settings_mascot_cheeks">Joues</string>
+    <string name="mascot_cd">Mascotte</string>
+    <string name="mascot_cd_score">Ta mascotte. Qualité du jour : %1$d sur 100.</string>
+    <string name="mascot_state_sleeping">dort</string>
+    <string name="mascot_state_awake">est réveillée</string>
+</resources>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!--
+        M34 — Karşılama penceresi (onboarding sihirbazı), beş sayfa.
+        Türkçe metinler. Kaynak: values/strings_onboarding.xml.
+    -->
+
+    <!-- Ortak gezinme -->
+    <string name="ob_back">Geri</string>
+    <string name="ob_next">Devam</string>
+    <string name="ob_skip">Atla</string>
+    <string name="ob_step">Adım %1$d / %2$d</string>
+    <string name="ob_cd_back">Geri</string>
+    <string name="ob_cd_next">Devam</string>
+
+    <!-- Sayfa 1 — dil -->
+    <string name="ob_lang_eyebrow">Hoş geldin</string>
+    <string name="ob_lang_title">Dilini seç</string>
+    <string name="ob_lang_subtitle">Aevum on bir dil konuşur. Kurulumun geri kalanı seçtiğin dilde görünür — dilini ayarlardan dilediğin an değiştirebilirsin.</string>
+    <string name="ob_lang_note">Seçimin hemen geçerli olur.</string>
+
+    <!-- Sayfa 2 — kategoriler + aktiviteler -->
+    <string name="ob_focus_eyebrow">Günün</string>
+    <string name="ob_focus_title">Gününü ne dolduruyor?</string>
+    <string name="ob_focus_subtitle">Bunlar yalnızca öneri, daha fazlası değil. Uymayanı çıkar, eksik olanı ekle — her şey sonradan değiştirilebilir.</string>
+    <string name="ob_focus_categories">Yaşam alanları</string>
+    <string name="ob_focus_categories_desc">Zamanının ayrıştırılıp konduğunu sepetler.</string>
+    <string name="ob_focus_activities">Aktiviteler</string>
+    <string name="ob_focus_activities_desc">Gerçekten ne yaptığın — bir dokunuş kaydı başlatır.</string>
+    <string name="ob_focus_add_category">Alan ekle</string>
+    <string name="ob_focus_add_activity">Aktivite ekle</string>
+    <string name="ob_focus_add_field_label">Ad</string>
+    <string name="ob_focus_add_confirm">Ekle</string>
+    <string name="ob_focus_add_cancel">Vazgeç</string>
+    <string name="ob_focus_selected">%2$d içinden %1$d seçili</string>
+    <string name="ob_focus_empty_hint">Hiçbir şey seçili değil — boş bir listeyle de başlayabilir, aktiviteleri sonra oluşturabilirsin.</string>
+    <string name="ob_focus_custom_badge">Kendi</string>
+
+    <!-- Sayfa 3 — maskot -->
+    <string name="ob_mascot_eyebrow">Yoldaş</string>
+    <string name="ob_mascot_title">Yanında olan biri</string>
+    <string name="ob_mascot_subtitle">Ana ekranında küçük bir varlık. Sen dinlenirken uyur, güzel bir gün serildiyse ışıl ışıl parlar. Tamamen isteğe bağlı.</string>
+    <string name="ob_mascot_on">Olur, gel</string>
+    <string name="ob_mascot_off">Maskot olmasın</string>
+    <string name="ob_mascot_color">Renk</string>
+    <string name="ob_mascot_antenna">Anten ucu</string>
+    <string name="ob_mascot_cheeks">Yanaklar</string>
+    <string name="ob_mascot_hint">Küçük varlığa dokun — yanıt verir.</string>
+    <string name="ob_mascot_preview_off">Ana ekran sakin ve boş kalır.</string>
+
+    <!-- Sayfa 4 — izinler -->
+    <string name="ob_perm_eyebrow">İzinler</string>
+    <string name="ob_perm_title">Aevum neyi görebilsin?</string>
+    <string name="ob_perm_subtitle">Buradaki her şey isteğe bağlı ve dilediğin an geri alınabilir. Android, açık bıraktığın her madde için bir kez sorar.</string>
+    <string name="ob_perm_location_title">Konum</string>
+    <string name="ob_perm_location_desc">Yerleri algılar; gelirken ya da giderken aktiviteleri otomatik başlatır.</string>
+    <string name="ob_perm_activity_title">Hareket ve sürüş</string>
+    <string name="ob_perm_activity_desc">Yürümeyi, bisikleti ve arabayı algılar — günün kendiliğinden kaydolur.</string>
+    <string name="ob_perm_notifications_title">Bildirimler</string>
+    <string name="ob_perm_notifications_desc">Sürmekte olan aktiviteyi bildirim çubuğunda gösterir; durdurup değiştirebilirsin.</string>
+    <string name="ob_perm_usage_title">Ekran süresi</string>
+    <string name="ob_perm_usage_desc">Digital Balance ve günlük limitler için uygulama kullanımı. Android bunu ayarlarda sorar.</string>
+    <string name="ob_perm_calendar_title">Takvim</string>
+    <string name="ob_perm_calendar_desc">Etkinlikler uygun aktiviteyi başlatabilir. Yalnızca okuma — hiçbir şey eklenmez.</string>
+    <string name="ob_perm_calls_title">Arama</string>
+    <string name="ob_perm_calls_desc">Görüşme sırasında atanmış aktiviteyi kaydeder. Yalnızca arama durumu — numara ya da geçmiş yok.</string>
+    <string name="ob_perm_footnote">Hiçbir şey yüklenmez. Hiçbir şey paylaşılmaz. Her şey bu telefonda kalır.</string>
+    <string name="ob_perm_none">Hiçbir izin vermeden de devam edebilirsin — o zaman Aevum elde çalışır.</string>
+    <string name="ob_perm_selected">%2$d içinden %1$d açık</string>
+    <string name="ob_perm_choice">Seçimin</string>
+
+    <!-- Sayfa 5 — güven / kapanış -->
+    <string name="ob_trust_eyebrow">Bir şey daha</string>
+    <string name="ob_trust_title">Tamamla senin.</string>
+    <string name="ob_trust_subtitle">Aevum, günlerin için sakin bir yer — sonsuz kaydırılacak bir akış değil.</string>
+    <string name="ob_trust_free_title">Ücretsiz</string>
+    <string name="ob_trust_free_desc">Abonelik yok, premium kilidi yok, reklam yok.</string>
+    <string name="ob_trust_local_title">Cihazında</string>
+    <string name="ob_trust_local_desc">Hesap yok, bulut yok, değerlendirme yok. Günlerin bu telefonu terk etmez.</string>
+    <string name="ob_trust_control_title">Denetim sende</string>
+    <string name="ob_trust_control_desc">Hepsini dışa aktar ya da hepsini sil — dilediğin an.</string>
+    <string name="ob_trust_start">Haydi başlayalım</string>
+    <string name="ob_trust_footnote">Buradaki her seçim, sonra ayarlardan değiştirilebilir.</string>
+</resources>

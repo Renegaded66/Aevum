@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings.xml, Struktur: values/strings.xml. Platzhalter und Escapes geprüft. -->
+    <string name="app_name">Aevum</string>
+    <string name="app_name_debug">Aevum Debug</string>
+    <string name="onboarding_welcome_title">Witaj w Aevum</string>
+    <string name="onboarding_welcome_subtitle">Twój osobisty kokpit życia</string>
+    <string name="dashboard_title">Dzisiaj</string>
+    <string name="timeline_title">Oś czasu</string>
+    <string name="insights_title">Analizy</string>
+    <string name="growth_title">Rozwój</string>
+    <string name="settings_title">Ustawienia</string>
+    <string name="balance_title">Bilans</string>
+
+    <!-- App settings: language -->
+    <string name="settings_app_section">Język i wygląd</string>
+    <string name="settings_language">Język</string>
+    <string name="settings_language_desc">Wybierz język aplikacji</string>
+    <string name="settings_theme">Motyw</string>
+    <string name="settings_theme_desc">Wybierz wygląd aplikacji</string>
+    <string name="theme_dark">Ciemny</string>
+    <string name="theme_light">Jasny</string>
+    <string name="theme_system">Systemowy</string>
+    <string name="settings_hero_subtitle">Wszystko, co Aevum robi dla ciebie — w jednym miejscu. Wszystkie dane pozostają na twoim urządzeniu.</string>
+    <string name="settings_section_appearance">Wygląd</string>
+    <string name="settings_section_connections">Połączenia</string>
+    <string name="settings_todos_desc">Zadania, terminy, powtarzanie</string>
+    <string name="settings_allowances_desc">Dzienne limity czasu na kategorię</string>
+    <string name="settings_section_automation">Automatyzacja</string>
+    <string name="settings_trigger_detection">Wyzwalacze i wykrywanie</string>
+    <string name="settings_trigger_detection_desc">Geofences · Auto · Walking · Sen · Uprawnienia</string>
+    <string name="settings_geofences_manage">Zarządzaj geofencami</string>
+    <string name="settings_geofences_manage_desc">Miejsca, promienie i autostart</string>
+    <string name="settings_trigger_events">Zdarzenia wyzwalające</string>
+    <string name="settings_trigger_events_desc">Wszystkie wykryte zdarzenia</string>
+    <string name="settings_my_places">Moje miejsca</string>
+    <string name="settings_your_activities">Twoje aktywności</string>
+    <string name="settings_activity_types">Zarządzaj typami aktywności</string>
+    <string name="settings_activity_types_desc">Ikony, kolory, pozytywność</string>
+    <string name="settings_categories_desc">Twórz, przypisuj aktywności, ikona i kolor</string>
+    <string name="settings_advanced">Zaawansowane</string>
+    <string name="settings_todos_manage">Zarządzaj zadaniami</string>
+    <string name="settings_allowances_manage">Zarządzaj dziennymi limitami</string>
+    <string name="settings_privacy_data">Prywatność i dane</string>
+    <string name="settings_privacy">Prywatność</string>
+    <string name="settings_privacy_desc">Dane lokalne, usuwanie</string>
+    <string name="settings_export_desc">Wszystkie dane jako JSON</string>
+    <string name="settings_backup_desc">Kopia zapasowa i przywracanie</string>
+    <string name="settings_fitness_trackers">Trackery fitness</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_connect_desc">Połącz, synchronizuj, rozłącz</string>
+    <!-- M18.83: Place Timeline (Google Maps style day story of visited places) -->
+    <string name="settings_place_timeline">Oś czasu miejsc</string>
+    <string name="settings_place_timeline_desc">Miejsca i godziny — przebieg dnia</string>
+    <string name="place_timeline_title">Oś czasu miejsc</string>
+    <string name="place_timeline_subtitle">Twój dzień jako historia miejsc</string>
+    <string name="place_timeline_empty_hint">W tym dniu nie ma jeszcze wizyt w miejscach. Gdy odwiedzisz geofence albo nazwiesz nieznane miejsce, pojawi się tutaj.</string>
+    <string name="place_timeline_summary_lede">%1$d wizyt · %2$s w drodze</string>
+    <string name="place_timeline_badge_short">Krótki postój</string>
+    <string name="place_timeline_badge_long">Dłuższy pobyt</string>
+    <string name="place_timeline_badge_named">Nazwane miejsce</string>
+    <string name="place_timeline_ongoing">trwa teraz</string>
+    <string name="place_timeline_road_prefix">W drodze</string>
+    <string name="place_timeline_unnamed_place">Miejsce (bez nazwy)</string>
+    <string name="place_timeline_badge_live">Obecnie tutaj</string>
+    <string name="place_timeline_badge_unnamed">Miejsce bez nazwy</string>
+    <string name="place_timeline_cd_prev_day">Poprzedni dzień</string>
+    <string name="place_timeline_cd_next_day">Następny dzień</string>
+    <!-- M24: Ort antippen → Detail-Sheet → Geofence mit Standort anlegen -->
+    <string name="place_timeline_detail_title">Szczegóły miejsca</string>
+    <string name="place_timeline_detail_add_geofence">Dodaj geofence</string>
+    <string name="place_timeline_detail_geofence_exists">To miejsce jest już geofencem.</string>
+    <string name="place_timeline_detail_no_coordinates">To miejsce nie ma zapisanych współrzędnych.</string>
+    <string name="place_timeline_detail_coordinates">Współrzędne</string>
+    <string name="place_timeline_detail_close">Zamknij</string>
+    <string name="place_timeline_detail_unnamed_hint">Nazwij to miejsce w następnym kroku.</string>
+    <string name="language_system">System</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_en">English</string>
+    <!-- M34: Endonyme — die Sprache in ihrer eigenen Sprache. Diese Werte
+         werden in ALLEN values-XX/ identisch gehalten (nicht übersetzen). -->
+    <string name="language_es">Español</string>
+    <string name="language_fr">Français</string>
+    <string name="language_pt">Português</string>
+    <string name="language_it">Italiano</string>
+    <string name="language_tr">Türkçe</string>
+    <string name="language_pl">Polski</string>
+    <string name="language_da">Dansk</string>
+    <string name="language_nb">Norsk bokmål</string>
+    <string name="language_sv">Svenska</string>
+
+    <!-- M34: Restliche feste Texte, die im i18n-Audit aufgefallen sind
+         (Kartenplatzhalter, Geofence-Koordinaten, Chart-Beschreibung). -->
+    <string name="place_timeline_map_unavailable">⚠️ Mapa niedostępna</string>
+    <string name="place_timeline_marker_unnamed">📍 Miejsce</string>
+    <string name="geofence_latitude">Szerokość geograficzna</string>
+    <string name="geofence_longitude">Długość geograficzna</string>
+    <string name="activity_stats_chart_cd">Wykres aktywności w czasie, %1$d punktów</string>
+
+    <!-- Digital Balance block overlay -->
+    <string name="block_app_locked">Aplikacja zablokowana</string>
+    <string name="block_app_locked_title">%1$s zablokowana</string>
+    <string name="block_profile_active">Profil %1$s jest aktywny — ta aplikacja jest zablokowana.</string>
+    <string name="block_limit_reached">Osiągnięto dzienny limit %1$d min.</string>
+    <string name="block_daily_limit_reached">Osiągnięto dzienny limit.</string>
+    <string name="block_extend_5min">Jeszcze 5 minut</string>
+    <string name="block_ignore_today">Ignoruj dzisiaj</string>
+    <string name="block_close">Zamknij</string>
+
+    <!-- SwitchActivity (live notification switch popup) -->
+    <string name="switch_activity_title">Zmień aktywność</string>
+    <string name="switch_activity_subtitle">Bieżąca aktywność zostanie zakończona, a nowa rozpoczęta.</string>
+    <!-- PC-Tracker (Windows, Heimnetz) -->
+    <string name="pc_tracker_title">PC Tracker</string>
+    <string name="pc_tracker_subtitle">Aktywność w systemie Windows — przesyłana przez sieć domową</string>
+    <string name="settings_pc_tracker_section">PC Tracker</string>
+    <string name="settings_pc_tracker">PC Tracker (Windows)</string>
+    <string name="settings_pc_tracker_desc">Rejestruj aktywność aplikacji na komputerze i przenoś ją na oś czasu</string>
+    <string name="pc_tracker_connected">Połączono</string>
+    <string name="pc_tracker_sync_info">Przesyłane są tylko ukończone nagrania — bezpośrednio między telefonem a komputerem, bez chmury.</string>
+    <string name="pc_tracker_last_sync">Ostatnio: %1$s</string>
+    <string name="pc_tracker_never_synced">Jeszcze nigdy nie zsynchronizowano</string>
+    <string name="pc_tracker_sync_now">Synchronizuj teraz</string>
+    <string name="pc_tracker_sync_none">Wszystko aktualne — brak nowych nagrań.</string>
+    <string name="pc_remote_start_note">Uruchomiono z komputera</string>
+    <string name="pc_tracker_sync_result">%1$d nowych nagrań, %2$d zaktualizowanych</string>
+    <string name="pc_tracker_sync_new_types">(nowa aktywność: %1$s)</string>
+    <string name="pc_tracker_disconnect">Rozłącz</string>
+    <string name="pc_tracker_disconnected">Rozłączono</string>
+    <string name="pc_tracker_disconnect_confirm_title">Rozłączyć PC Tracker?</string>
+    <string name="pc_tracker_disconnect_confirm_text">Parowanie zostanie usunięte z telefonu. Już zaimportowane nagrania pozostaną na osi czasu.</string>
+    <string name="pc_tracker_cancel">Anuluj</string>
+    <string name="pc_tracker_search">Znajdź komputer w sieci Wi-Fi</string>
+    <string name="pc_tracker_searching">Trwa wyszukiwanie w sieci…</string>
+    <string name="pc_tracker_rescan">Szukaj ponownie</string>
+    <string name="pc_tracker_no_devices">Nie znaleziono komputera. Czy PC Tracker działa na komputerze? Oba urządzenia muszą być w tej samej sieci Wi-Fi.</string>
+    <string name="pc_tracker_pairing_active">Gotowe do parowania</string>
+    <string name="pc_tracker_pairing_inactive">Tryb parowania wyłączony — włącz go na komputerze</string>
+    <string name="pc_tracker_manual">Połącz ręcznie</string>
+    <string name="pc_tracker_manual_hint">Wpisz adres z aplikacji na komputerze (np. 192.168.178.42).</string>
+    <string name="pc_tracker_host">Adres komputera</string>
+    <string name="pc_tracker_port">Port</string>
+    <string name="pc_tracker_next">Dalej</string>
+    <string name="pc_tracker_code_title">Paruj z %1$s</string>
+    <string name="pc_tracker_code_info">Wpisz kod wyświetlany na komputerze w sekcji Parowanie.</string>
+    <string name="pc_tracker_code">Kod parowania</string>
+    <string name="pc_tracker_connect">Połącz</string>
+    <string name="pc_tracker_error_host">Podaj adres komputera.</string>
+    <string name="pc_tracker_error_port">Podaj prawidłowy port (1–65535).</string>
+    <string name="pc_tracker_error_code">Podaj kod.</string>
+    <string name="pc_tracker_error_invalid_code">Kod jest nieprawidłowy — wygeneruj nowy kod na komputerze i spróbuj ponownie.</string>
+    <string name="pc_tracker_error_rate_limited">Za dużo prób. Spróbuj ponownie za %1$d sek.</string>
+    <string name="pc_tracker_error_unreachable">Komputer jest nieosiągalny. Czy komputer jest włączony, aplikacja działa, a oba urządzenia są w tej samej sieci Wi-Fi?</string>
+    <string name="pc_tracker_error_not_connected">Brak sparowanego komputera.</string>
+    <string name="pc_tracker_error_unauthorized">Dostęp został zresetowany na komputerze. Sparuj ponownie.</string>
+
+    <!-- Windows app installation (short guide) -->
+    <string name="pc_tracker_install_title">Instalowanie aplikacji Windows</string>
+    <string name="pc_tracker_install_step1">1. Na komputerze otwórz: github.com/Renegaded66/Aevum/releases</string>
+    <string name="pc_tracker_install_step2">2. Pobierz i rozpakuj plik AevumPcTracker-…-win-x64.zip (prawy przycisk → Wyodrębnij wszystko).</string>
+    <string name="pc_tracker_install_step3">3. Uruchom AevumPcTracker.exe — Windows raz zapyta o zaporę, zezwól na dostęp.</string>
+    <string name="pc_tracker_install_hint">Bez instalacji — wszystko jest w pliku ZIP. Aplikacja działa tylko w systemie Windows.</string>
+    <string name="pc_tracker_install_open">Otwórz stronę pobierania</string>
+    <string name="pc_tracker_autosync">Synchronizuj automatycznie w tle</string>
+    <string name="pc_tracker_autosync_desc">Cicho pobiera nagrania, gdy ten komputer jest w tej samej sieci Wi-Fi. O błędach dowiesz się tylko przy synchronizacji ręcznej.</string>
+</resources>

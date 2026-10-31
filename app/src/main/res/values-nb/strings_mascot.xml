@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_mascot_title">Maskot</string>
+    <string name="settings_mascot_desc">Et lite vesen på dashbordet ditt — det smiler mer når dagen din går bra.</string>
+    <string name="settings_mascot_preview_hint">Trykk på forhåndsvisningen — den reagerer!</string>
+    <string name="settings_mascot_color">Farge</string>
+    <string name="settings_mascot_antenna">Antenne</string>
+    <string name="settings_mascot_antenna_ball">Kule</string>
+    <string name="settings_mascot_antenna_star">Stjerne</string>
+    <string name="settings_mascot_antenna_bolt">Lyn</string>
+    <string name="settings_mascot_cheeks">Kinner</string>
+    <string name="mascot_cd">Maskot</string>
+    <string name="mascot_cd_score">Maskoten din. Dagskvalitet: %1$d av 100.</string>
+    <string name="mascot_state_sleeping">sover</string>
+    <string name="mascot_state_awake">er våken</string>
+</resources>

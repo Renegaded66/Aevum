@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_seeds.xml, Struktur: values/strings_seeds.xml. Platzhalter und Escapes geprüft. -->
+    <string name="seed_category_work">Trabajo</string>
+    <string name="seed_category_sleep">Dormir</string>
+    <string name="seed_category_sport">Deportes</string>
+    <string name="seed_category_learning">Aprender</string>
+    <string name="seed_category_health">Salud</string>
+    <string name="seed_category_leisure">Ocio</string>
+    <string name="seed_category_relationships">Relaciones</string>
+    <string name="seed_category_transport">Transporte</string>
+    <string name="seed_category_digital">Digitales</string>
+    <string name="seed_category_household">Hogar</string>
+    <string name="seed_category_unknown">Otro</string>
+    <string name="seed_activity_work">Trabajo</string>
+    <string name="seed_activity_deep_work">Trabajo profundo</string>
+    <string name="seed_activity_sleep">Dormir</string>
+    <string name="seed_activity_fitness">Aptitud</string>
+    <string name="seed_activity_joggen">Trotar</string>
+    <string name="seed_activity_radfahren">Ciclismo</string>
+    <string name="seed_activity_spazieren">Caminar</string>
+    <string name="seed_activity_learning">Aprender</string>
+    <string name="seed_activity_reading">Leer</string>
+    <string name="seed_activity_meditation">Meditación</string>
+    <string name="seed_activity_eating">Comida</string>
+    <string name="seed_activity_social">Sociales</string>
+    <string name="seed_activity_household">Hogar</string>
+    <string name="seed_activity_driving">Conducir</string>
+    <string name="seed_activity_transport">Transporte</string>
+    <string name="seed_activity_digital">Digitales</string>
+    <string name="seed_activity_leisure">Ocio</string>
+    <string name="seed_activity_other">Otro</string>
+    <string name="seed_tag_deep_work">Trabajo profundo</string>
+    <string name="seed_tag_focus">Enfoque</string>
+    <string name="seed_tag_routine">Rutina</string>
+    <string name="seed_tag_energy">Energía</string>
+    <string name="seed_tag_recovery">Recuperación</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_disclosure_settings.xml, estrutura: values/strings_disclosure_settings.xml. Placeholders e escapes verificados. -->
+    <string name="settings_privacy_policy_link_title">Política de privacidade</string>
+    <string name="settings_privacy_policy_link_body">A política de privacidade completa está disponível online — a mesma versão que está ligada na entrada da Play Store.</string>
+    <string name="settings_privacy_policy_open">Abrir a política de privacidade</string>
+    <string name="settings_privacy_background_location_title">Localização em segundo plano</string>
+    <string name="settings_privacy_background_location_body">A Aevum recolhe dados de localização para a deteção de locais (geofences), a deteção automática de deslocações, a deteção de caminhadas e percursos de bicicleta, bem como a linha temporal de locais — também quando a app está fechada ou não está a ser utilizada.\n\nTodos os dados de localização são guardados apenas localmente no teu dispositivo. Não existe servidor da Aevum, contas nem publicidade, e nada é partilhado com terceiros.</string>
+    <string name="settings_privacy_background_location_action">Mostrar a divulgação novamente</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_disclosure.xml, struttura: values/strings_disclosure.xml. Placeholder ed escape verificati. -->
+    <string name="disclosure_location_title">Posizione in background</string>
+    <string name="disclosure_location_lead">Aevum raccoglie dati sulla posizione per consentire il riconoscimento dei luoghi (geofences), il riconoscimento automatico dei viaggi in auto, il rilevamento di passeggiate e pedalate e la Timeline dei luoghi — anche quando l\'app è chiusa o non viene usata.</string>
+    <string name="disclosure_location_features_title">Queste funzioni usano la posizione in background:</string>
+    <string name="disclosure_location_feature_geofence">Riconoscimento dei luoghi (geofences): l\'ingresso o l\'uscita da luoghi come casa, lavoro o palestra avvia o termina automaticamente le attività.</string>
+    <string name="disclosure_location_feature_drive">Riconoscimento dei viaggi in auto: i tragitti vengono rilevati automaticamente e registrati con il loro percorso.</string>
+    <string name="disclosure_location_feature_movement">Rilevamento di passeggiate e pedalate: i percorsi vengono registrati automaticamente come attività.</string>
+    <string name="disclosure_location_feature_places">Timeline dei luoghi e luoghi sconosciuti: Aevum tiene lo storico dei luoghi in cui sei stato.</string>
+    <string name="disclosure_location_why_title">Perché serve l\'accesso in background</string>
+    <string name="disclosure_location_why">Queste funzioni devono lavorare senza che tu debba fare nulla. I cambi di luogo avvengono mentre il telefono è in tasca e Aevum non è aperto. Senza accesso in background dovresti aprire l\'app a ogni arrivo e partenza — e l\'automatico non sarebbe più automatico.</string>
+    <string name="disclosure_location_data_title">Cosa succede ai tuoi dati sulla posizione</string>
+    <string name="disclosure_location_data">Tutti i dati sulla posizione vengono salvati esclusivamente in locale sul tuo dispositivo. Non esiste un server Aevum, né account, né pubblicità, né condivisioni con terzi. Puoi revocare l\'accesso in qualsiasi momento nelle impostazioni di sistema.</string>
+    <string name="disclosure_location_privacy_link">Apri l\'informativa sulla privacy</string>
+    <string name="disclosure_location_accept">Acconsento — consenti la posizione</string>
+    <string name="disclosure_location_decline">Non ora</string>
+    <string name="disclosure_location_reminder_text">Aevum raccoglie dati sulla posizione per riconoscere luoghi, viaggi in auto e percorsi e per la Timeline dei luoghi — anche quando l\'app è chiusa o non viene usata. Tutti i dati restano in locale sul tuo dispositivo.</string>
+    <string name="disclosure_location_reminder_action">Mostra di nuovo</string>
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_mascot.xml, Struktur: values/strings_mascot.xml. Platzhalter und Escapes geprüft. -->
+    <string name="settings_mascot_title">Mascota</string>
+    <string name="settings_mascot_desc">Una pequeña criatura en tu tablero: sonríe más cuando tu día va bien.</string>
+    <string name="settings_mascot_preview_hint">Toca la vista previa: ¡responde!</string>
+    <string name="settings_mascot_color">Color</string>
+    <string name="settings_mascot_antenna">Antena</string>
+    <string name="settings_mascot_antenna_ball">Pelota</string>
+    <string name="settings_mascot_antenna_star">Estrella</string>
+    <string name="settings_mascot_antenna_bolt">Relámpago</string>
+    <string name="settings_mascot_cheeks">Mejillas</string>
+    <string name="mascot_cd">Mascota</string>
+    <string name="mascot_cd_score">Tu mascota. Calidad diaria: %1$d sobre 100.</string>
+    <string name="mascot_state_sleeping">duerme</string>
+    <string name="mascot_state_awake">esta despierto</string>
+</resources>

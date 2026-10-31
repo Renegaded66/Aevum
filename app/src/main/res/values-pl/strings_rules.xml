@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_rules.xml, Struktur: values/strings_rules.xml. Platzhalter und Escapes geprüft. -->
+    <string name="rule_title_commute_to_work">Dojazd do pracy</string>
+    <string name="rule_title_commute_home">Droga do domu</string>
+    <string name="rule_title_gym_trip">Dojazd: siłownia</string>
+    <string name="rule_title_shopping">Zakupy: %1$s</string>
+    <string name="rule_title_gym_return">Powrót: siłownia</string>
+    <string name="rule_title_transit">W drodze: %1$s → %2$s</string>
+    <string name="rule_title_work">Praca</string>
+    <string name="rule_title_gym">Siłownia</string>
+    <string name="rule_title_home">Dom</string>
+    <string name="rule_title_trip">Wycieczka</string>
+    <string name="rule_reason_travel">Wykryto parę wyzwalaczy: %1$s. %2$s jako proponowany czas przejazdu.</string>
+    <string name="rule_reason_stay">Wykryto parę wyzwalaczy: %1$s wejście → wyjście. Propozycja pozostaje do sprawdzenia.</string>
+    <string name="rule_reason_away">Wykryto parę wyzwalaczy: %1$s wyjście → powrót. Cel nieznany, dlatego ostrożnie sugerujemy to jako wycieczkę.</string>
+    <string name="rule_reason_merge">%1$s | Połączono z %2$s (luka &lt; 5 min).</string>
+    <string name="rule_reason_merge_fallback">innym kandydatem</string>
+
+    <string name="common_activity_fallback">Aktywność</string>
+</resources>

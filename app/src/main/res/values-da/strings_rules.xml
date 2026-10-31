@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_rules.xml, struktur: values/strings_rules.xml. Pladsholdere og escapes tjekket. -->
+    <string name="rule_title_commute_to_work">Pendling til arbejde</string>
+    <string name="rule_title_commute_home">Pendling hjem</string>
+    <string name="rule_title_gym_trip">Tur: fitnesscenter</string>
+    <string name="rule_title_shopping">Indkøb: %1$s</string>
+    <string name="rule_title_gym_return">Hjemtur: fitnesscenter</string>
+    <string name="rule_title_transit">Undervejs: %1$s → %2$s</string>
+    <string name="rule_title_work">Arbejde</string>
+    <string name="rule_title_gym">Fitnesscenter</string>
+    <string name="rule_title_home">Hjemme</string>
+    <string name="rule_title_trip">Udflugt</string>
+    <string name="rule_reason_travel">Trigger-par fundet: %1$s. %2$s foreslået som rejsetid.</string>
+    <string name="rule_reason_stay">Trigger-par fundet: ankom til %1$s → forlod. Forslaget kan stadig gennemgås.</string>
+    <string name="rule_reason_away">Trigger-par fundet: forlod %1$s → ankom igen. Intet rejsemål kendt, derfor foreslået forsigtigt som udflugt.</string>
+    <string name="rule_reason_merge">%1$s | Sammenført med %2$s (hul &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">en anden kandidat</string>
+
+    <string name="common_activity_fallback">Aktivitet</string>
+</resources>

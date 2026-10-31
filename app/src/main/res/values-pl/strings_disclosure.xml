@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Prominent disclosure w aplikacji (Google Play – polityka lokalizacji).
+
+        Wymóg polityki Play „Dane użytkowników – obowiązek wyraźnego
+        ujawnienia i zgody”: przed KAŻDĄ prośbą o uprawnienie do lokalizacji
+        w czasie rzeczywistym musi pojawić się okno dialogowe, które
+        (a) zawiera słowo „lokalizacja”,
+        (b) wprost informuje, że dostęp następuje W TLE
+            (sformułowanie „także wtedy, gdy aplikacja jest zamknięta lub
+            nieużywana”),
+        (c) wylicza WSZYSTKIE funkcje korzystające z lokalizacji w tle,
+        (d) wymaga wyraźnej, aktywnej zgody (kliknięcie przycisku;
+            odrzucenie/wstecz NIE jest zgodą).
+
+        Nie zmieniaj tekstów bez ponownego sprawdzenia: ich brzmienie jest
+        podstawą deklaracji dla Play. Przy zmianach merytorycznych
+        zwiększ DISCLOSURE_VERSION w LocationDisclosure.kt — wtedy
+        disclosure zostanie ponownie wyświetlone.
+    -->
+    <string name="disclosure_location_title">Lokalizacja w tle</string>
+
+    <string name="disclosure_location_lead">Aevum zbiera dane o lokalizacji, aby umożliwić rozpoznawanie miejsc (Geofences), automatyczne wykrywanie jazdy samochodem, wykrywanie spacerów i przejażdżek rowerowych oraz oś czasu miejsc — także wtedy, gdy aplikacja jest zamknięta lub nieużywana.</string>
+
+    <string name="disclosure_location_features_title">Te funkcje korzystają z lokalizacji w tle:</string>
+
+    <string name="disclosure_location_feature_geofence">Rozpoznawanie miejsc (Geofences): wejście lub opuszczenie miejsc takich jak dom, praca czy siłownia automatycznie rozpoczyna lub kończy aktywność.</string>
+    <string name="disclosure_location_feature_drive">Wykrywanie jazdy: przejazdy samochodem są rozpoznawane automatycznie i zapisywane wraz z trasą.</string>
+    <string name="disclosure_location_feature_movement">Wykrywanie spacerów i jazdy na rowerze: trasy są automatycznie zapisywane jako aktywność.</string>
+    <string name="disclosure_location_feature_places">Oś czasu miejsc i nieznane miejsca: Aevum prowadzi historię miejsc, w których byłeś.</string>
+
+    <string name="disclosure_location_why_title">Dlaczego dostęp w tle jest potrzebny</string>
+    <string name="disclosure_location_why">Te funkcje mają działać bez twojego udziału. Zmiana miejsca następuje, gdy telefon leży w kieszeni, a Aevum nie jest otwarte. Bez dostępu w tle musiałbyś sam otwierać aplikację przy każdym wejściu i wyjściu z miejsca — automatyzacja nie byłaby już automatyzacją.</string>
+
+    <string name="disclosure_location_data_title">Co dzieje się z twoimi danymi o lokalizacji</string>
+    <string name="disclosure_location_data">Wszystkie dane o lokalizacji są zapisywane wyłącznie lokalnie na twoim urządzeniu. Nie ma serwera Aevum, kont użytkowników, reklam ani udostępniania osobom trzecim. Dostęp możesz w każdej chwili odebrać w ustawieniach systemu.</string>
+
+    <string name="disclosure_location_privacy_link">Otwórz politykę prywatności</string>
+
+    <string name="disclosure_location_accept">Zgadzam się — zezwól na lokalizację</string>
+    <string name="disclosure_location_decline">Nie teraz</string>
+
+    <string name="disclosure_location_reminder_text">Aevum zbiera dane o lokalizacji na potrzeby rozpoznawania miejsc, wykrywania jazdy, śledzenia tras oraz osi czasu miejsc — także wtedy, gdy aplikacja jest zamknięta lub nieużywana. Wszystkie dane pozostają lokalnie na twoim urządzeniu.</string>
+    <string name="disclosure_location_reminder_action">Pokaż ponownie</string>
+
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

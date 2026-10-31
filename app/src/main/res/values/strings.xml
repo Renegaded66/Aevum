@@ -75,6 +75,25 @@
     <string name="language_system">System</string>
     <string name="language_de">Deutsch</string>
     <string name="language_en">English</string>
+    <!-- M34: Endonyme — die Sprache in ihrer eigenen Sprache. Diese Werte
+         werden in ALLEN values-XX/ identisch gehalten (nicht übersetzen). -->
+    <string name="language_es">Español</string>
+    <string name="language_fr">Français</string>
+    <string name="language_pt">Português</string>
+    <string name="language_it">Italiano</string>
+    <string name="language_tr">Türkçe</string>
+    <string name="language_pl">Polski</string>
+    <string name="language_da">Dansk</string>
+    <string name="language_nb">Norsk bokmål</string>
+    <string name="language_sv">Svenska</string>
+
+    <!-- M34: Restliche feste Texte, die im i18n-Audit aufgefallen sind
+         (Kartenplatzhalter, Geofence-Koordinaten, Chart-Beschreibung). -->
+    <string name="place_timeline_map_unavailable">⚠️ Map not available</string>
+    <string name="place_timeline_marker_unnamed">📍 Place</string>
+    <string name="geofence_latitude">Latitude</string>
+    <string name="geofence_longitude">Longitude</string>
+    <string name="activity_stats_chart_cd">Activity chart over time, %1$d points</string>
 
     <!-- Digital Balance block overlay -->
     <string name="block_app_locked">App locked</string>

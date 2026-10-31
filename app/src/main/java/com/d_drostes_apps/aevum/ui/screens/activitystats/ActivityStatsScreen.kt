@@ -456,6 +456,12 @@ private fun ActivityTrendChartCard(
             Spacer(Modifier.height(AevumSpacing.sm))
 
             // Tooltip-Karte über dem Graphen, wenn der Finger auf dem Chart liegt.
+            // Der Beschreibungs-Text wird VOR dem Modifier aufgelöst:
+            // `semantics { }` ist kein @Composable-Kontext.
+            val chartContentDescription = stringResource(
+                R.string.activity_stats_chart_cd,
+                buckets.size
+            )
             Box(modifier = Modifier.fillMaxWidth()) {
                 Canvas(
                     modifier = Modifier
@@ -463,7 +469,7 @@ private fun ActivityTrendChartCard(
                         .height(190.dp)
                         .testTag("${ACTIVITY_STATS_CHART_TEST_TAG}_canvas")
                         .semantics {
-                            contentDescription = "activity stats chart, ${buckets.size} buckets"
+                            contentDescription = chartContentDescription
                         }
                         .pointerInput(buckets) {
                             // Sofortige Reaktion beim AUFLEGEN (awaitFirstDown),

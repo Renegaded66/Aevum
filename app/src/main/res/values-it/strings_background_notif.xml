@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_background_notif.xml, struttura: values/strings_background_notif.xml. Placeholder ed escape verificati. -->
+    <string name="notif_background_channel_name">Rilevamento in background</string>
+    <string name="notif_background_channel_desc">Aevum traccia le attività in background — luoghi, viaggi, uso delle app</string>
+    <string name="notif_background_title">Aevum è attivo in background</string>
+    <string name="notif_background_text">Rileva luoghi, viaggi e uso delle app</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_mascot.xml, Struktur: values/strings_mascot.xml. Platzhalter und Escapes geprüft. -->
+    <string name="settings_mascot_title">Maskotka</string>
+    <string name="settings_mascot_desc">Mała istotka na twoim dashboardzie — bardziej się uśmiecha, gdy twój dzień układa się dobrze.</string>
+    <string name="settings_mascot_preview_hint">Dotknij podglądu — zareaguje!</string>
+    <string name="settings_mascot_color">Kolor</string>
+    <string name="settings_mascot_antenna">Antena</string>
+    <string name="settings_mascot_antenna_ball">Kulka</string>
+    <string name="settings_mascot_antenna_star">Gwiazdka</string>
+    <string name="settings_mascot_antenna_bolt">Błyskawica</string>
+    <string name="settings_mascot_cheeks">Policzki</string>
+    <string name="mascot_cd">Maskotka</string>
+    <string name="mascot_cd_score">Twoja maskotka. Jakość dnia: %1$d na 100.</string>
+    <string name="mascot_state_sleeping">śpi</string>
+    <string name="mascot_state_awake">czuwa</string>
+</resources>

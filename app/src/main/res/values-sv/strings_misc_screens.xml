@@ -1,0 +1,258 @@
+<resources>
+    <!-- ActivityTypesScreen -->
+    <string name="activitytypes_title">Aktiviteter &amp; positivitet</string>
+    <string name="activitytypes_subtitle">Vad är din tid värd för dig?</string>
+    <string name="activitytypes_add_new">+ Ny</string>
+    <string name="activitytypes_empty">Inga aktiviteter ännu.</string>
+    <string name="activitytypes_new_activity">Ny aktivitet</string>
+    <string name="activitytypes_name_hint">Namn (t.ex. gitarr)</string>
+    <string name="activitytypes_category_optional">Kategori (valfri)</string>
+    <string name="activitytypes_create">Skapa</string>
+    <string name="activitytypes_own">Egen</string>
+    <string name="activitytypes_category_label">KATEGORI</string>
+    <string name="activitytypes_no_category">Ingen kategori</string>
+    <string name="activitytypes_color_label">FÄRG</string>
+    <string name="activitytypes_choose_icon">Välj ikon</string>
+    <string name="activitytypes_done">Klar</string>
+    <string name="activitytypes_category_for">Kategori för “%1$s”</string>
+    <string name="activitytypes_new_category">Ny kategori…</string>
+    <string name="activitytypes_delete_title">Ta bort “%1$s”?</string>
+    <string name="activitytypes_delete_warning">Aktiviteten tas bort permanent och är därefter inte längre tillgänglig.</string>
+    <string name="activitytypes_delete_what_happens">Vad ska hända med inspelningarna?</string>
+    <string name="activitytypes_delete_only_activity">Ta bara bort aktiviteten</string>
+    <string name="activitytypes_delete_only_activity_desc">Inspelningar behålls och kopplas till “Annat”.</string>
+    <string name="activitytypes_delete_with_sessions">Ta bort aktiviteten + alla inspelningar</string>
+    <string name="activitytypes_delete_with_sessions_desc">Alla sessioner för den här aktiviteten tas bort permanent.</string>
+
+    <!-- M33: Activity launcher (ersetzt das Orbit-Planetensystem) -->
+    <string name="launcher_title">Starta aktivitet</string>
+    <string name="launcher_subtitle">Vad gör du just nu?</string>
+    <string name="launcher_search">Sök aktivitet</string>
+    <string name="launcher_clear_search">Rensa sökning</string>
+    <string name="launcher_recent">Senast</string>
+    <string name="launcher_all">Alla aktiviteter</string>
+    <string name="launcher_new">Ny</string>
+    <string name="launcher_new_activity">Ny aktivitet</string>
+    <string name="launcher_empty">Ingen aktivitet hittades.</string>
+    <string name="launcher_pick_start">Välj start</string>
+    <string name="launcher_start_now">Starta nu</string>
+    <string name="launcher_lead_time">Tidigare start</string>
+    <string name="launcher_lead_title">Tidigare start</string>
+    <string name="launcher_lead_sub">Har aktiviteten pågått ett tag?</string>
+    <string name="launcher_now_chip">Nu</string>
+    <string name="launcher_started_ago">för %1$s sedan</string>
+    <string name="launcher_exact_time">Exakt klockslag</string>
+    <string name="launcher_exact_time_title">Exakt starttid</string>
+    <string name="launcher_start_at_time">Starta vid den här tiden</string>
+    <string name="launcher_start_with_time">Starta med starttid</string>
+
+    <!-- M33: ActivityCreateScreen -->
+    <string name="activitycreate_title">Ny aktivitet</string>
+    <string name="activitycreate_subtitle">Namn, symbol, färg — klart.</string>
+    <string name="activitycreate_preview">Din aktivitet</string>
+    <string name="activitycreate_preview_hint">Liveförhandsvisning</string>
+    <string name="activitycreate_name">Namn</string>
+    <string name="activitycreate_name_hint">t.ex. gitarr</string>
+    <string name="activitycreate_icon">SYMBOL</string>
+    <string name="activitycreate_color">FÄRG</string>
+    <string name="activitycreate_category">KATEGORI</string>
+    <string name="activitycreate_favorite">Fäst överst</string>
+    <string name="activitycreate_favorite_desc">Visas alltid först i startvyn.</string>
+    <string name="activitycreate_save">Skapa aktivitet</string>
+
+    <!-- LifeViewScreen -->
+    <string name="lifeview_hero_label">LIVSTID</string>
+    <string name="lifeview_hero_question">Vad har du egentligen kvar?</string>
+    <string name="lifeview_remaining">%1$d år, %2$d dagar</string>
+    <string name="lifeview_until_age">tills du fyller %1$d (ålder: %2$d)</string>
+    <string name="lifeview_birthday">Födelsedag</string>
+    <string name="lifeview_age_value">Ålder %1$d</string>
+    <string name="lifeview_no_birthday_hint">Ange din födelsedag för att se hur mycket tid du egentligen har kvar.</string>
+    <string name="lifeview_birthday_prompt_title">Ange födelsedag</string>
+    <string name="lifeview_birthday_prompt_desc">Bara året räknas i beräkningen — din födelsedag sparas bara lokalt på enheten.</string>
+    <string name="lifeview_birthday_set">Sätt födelsedag</string>
+    <string name="lifeview_life_in_months">Ditt liv i månader</string>
+    <string name="lifeview_months_used">%1$d av %2$d månader använda</string>
+    <string name="lifeview_birth">Födelse</string>
+    <string name="lifeview_remaining_short">Kvar</string>
+    <string name="lifeview_time_breakdown">Vad ditt liv går till</string>
+    <string name="lifeview_projection_hint">Uppräknat för de återstående %1$d åren (baserat på de senaste 14 dagarna).</string>
+    <string name="lifeview_activities_comparison">Dina aktiviteter jämfört med ditt liv</string>
+    <string name="lifeview_min_per_day">%1$s · %2$d min/dag</string>
+    <string name="lifeview_sleep_wakeup">Du kommer att sova cirka %1$s av ditt återstående liv.</string>
+    <string name="lifeview_sleep_wakeup_detail">Det motsvarar %1$d%% av tiden du har kvar. Bilkörning kostar ytterligare %2$s.</string>
+    <string name="lifeview_expected_age">Förväntad ålder</string>
+    <string name="lifeview_age_years">%1$d år</string>
+    <string name="lifeview_age_default_hint">Standard: 80. Uppräkningarna använder det värdet.</string>
+    <string name="lifeview_years">%1$s år</string>
+    <string name="lifeview_months">%1$d månader</string>
+    <string name="lifeview_less_than_month">&lt; 1 månad</string>
+    <string name="lifeview_driving">Bilkörning</string>
+    <string name="lifeview_allowances">Tidsbudget</string>
+    <string name="lifeview_free">Fri</string>
+
+    <!-- AppTrackingScreen -->
+    <string name="apptracking_title">Appinspelning</string>
+    <string name="apptracking_subtitle">Spela in appar automatiskt som aktiviteter</string>
+    <string name="apptracking_search_placeholder">Sök appar…</string>
+    <string name="apptracking_clear_search">Rensa sökning</string>
+    <string name="apptracking_all_apps">Alla appar</string>
+    <string name="apptracking_recording">Inspelning</string>
+    <string name="apptracking_tap_left_hint">Tryck på en app till vänster</string>
+    <string name="apptracking_no_results">Inga träffar</string>
+    <string name="apptracking_assign_activity">Koppla till aktivitet</string>
+    <string name="apptracking_selected">Valda</string>
+    <string name="apptracking_add_to_recording">Lägg till i inspelningen</string>
+    <string name="apptracking_permission_title">Användningsåtkomst krävs</string>
+    <string name="apptracking_permission_desc">Aevum behöver användningsåtkomst för att veta vilken app som är öppen just nu.</string>
+    <string name="apptracking_permission_grant">Ge användningsåtkomst</string>
+
+    <!-- M20: Hintergrund-Zuverlässigkeit & Diagnose der App-Aufzeichnung -->
+    <string name="apptracking_diag_title">Bakgrund &amp; diagnostik</string>
+    <string name="apptracking_diag_subtitle">Status för automatisk inspelning</string>
+    <string name="apptracking_diag_service">Inspelningstjänst</string>
+    <string name="apptracking_diag_active">aktiv</string>
+    <string name="apptracking_diag_inactive">inaktiv</string>
+    <string name="apptracking_diag_lastpoll">Senaste kontrollen: %1$s</string>
+    <string name="apptracking_diag_never">aldrig</string>
+    <string name="apptracking_diag_foreground">Förgrund</string>
+    <string name="apptracking_diag_foreground_none">— (hemskärmen)</string>
+    <string name="apptracking_diag_battery">Batterioptimering</string>
+    <string name="apptracking_diag_battery_exempt">undantagen (bra)</string>
+    <string name="apptracking_diag_battery_restricted">begränsad</string>
+    <string name="apptracking_diag_battery_unknown">okänd</string>
+    <string name="apptracking_diag_battery_button">Till batteriinställningarna</string>
+    <string name="apptracking_diag_hint">Utan undantag kan Android blockera inspelningen i bakgrunden. Står här “begränsad”: ställ in Aevum som “inte optimerad” i systeminställningarna — då startar inspelningen också pålitligt när telefonen slagits på.</string>
+    <string name="apptracking_diag_log">Logg</string>
+    <string name="apptracking_diag_copy">Kopiera logg</string>
+    <string name="apptracking_diag_copied">Kopierad ✓</string>
+    <string name="apptracking_diag_clear">Rensa</string>
+    <string name="apptracking_diag_empty">Inga poster ännu.</string>
+    <string name="apptracking_diag_show">Visa</string>
+    <string name="apptracking_diag_hide">Dölj</string>
+    <string name="apptracking_diag_age_seconds">för %1$ds sedan</string>
+    <string name="apptracking_diag_age_minutes">för %1$dm sedan</string>
+    <string name="apptracking_diag_age_hours">för %1$dh sedan</string>
+
+    <!-- DigitalBalanceScreen -->
+    <string name="balance_tab_balance">Balans</string>
+    <string name="balance_tab_pomodoro">Pomodoro</string>
+    <string name="balance_usage_access_active">Användningsåtkomst aktiv</string>
+    <string name="balance_revoke">Återkalla</string>
+    <string name="balance_apps_header">Appar</string>
+    <string name="balance_sort_alpha">Sortera alfabetiskt</string>
+    <string name="balance_sort_usage">Sortera efter användning</string>
+    <string name="balance_blocked_count">%1$d blockerade</string>
+    <string name="balance_permission_title">Digital Balance</string>
+    <string name="balance_permission_desc">För att se din appanvändning och sätta gränser behöver Aevum åtkomst till användningsdata.</string>
+    <string name="balance_permission_desc_rec">Du får insyn i din riktiga användning — timgrafik, upplåsningar och apphistorik som ingen annan visar dig. Och du kan sätta gränser som skyddar dig från scrollsessioner klockan 2 på natten. Därför ber Aevum om engångsåtkomst till användningsdata.</string>
+    <string name="balance_permission_grant">Tillåt användningsåtkomst</string>
+    <string name="balance_refresh">Uppdatera</string>
+    <string name="balance_of_goal">av %1$s mål</string>
+    <string name="balance_metric_apps">Appar</string>
+    <string name="balance_metric_unlocks">Upplåsningar</string>
+    <string name="balance_metric_top">Topp</string>
+    <string name="balance_hourly_label">Användning per timme (0–24)</string>
+    <string name="balance_history">Historik</string>
+    <string name="balance_days">%1$d dagar</string>
+    <string name="balance_showing_day">Visar %1$s</string>
+    <string name="balance_avg_per_day">Ø %1$s/dag</string>
+    <string name="balance_sum">Σ %1$s</string>
+    <string name="balance_locked">Blockerad</string>
+    <string name="balance_limit_min">Gräns %1$d min</string>
+    <string name="balance_limit_reached">Gränsen är nådd</string>
+    <string name="balance_remaining">%1$s kvar</string>
+    <string name="balance_soon_blocked">Blockeras snart — %1$s kvar</string>
+    <string name="balance_limit_active">Gräns aktiv</string>
+    <string name="balance_no_limit">Ingen gräns</string>
+    <string name="balance_set_limit">Sätt gräns</string>
+    <string name="balance_daily_limit">Daglig gräns: %1$d min</string>
+    <string name="balance_exception">Undantag</string>
+    <string name="balance_time_window">Tidsläge</string>
+    <string name="balance_block_between">Blockera bara mellan %1$s och %2$s</string>
+    <string name="balance_remove_limit">Ta bort gränsen</string>
+    <string name="balance_profiles">Profiler</string>
+    <string name="balance_profiles_empty">Skapa profiler för att blockera flera appar samtidigt — t.ex. en pluggprofil som blockerar alla appar för sociala medier.</string>
+    <string name="balance_profile_active_schedule">Aktiv (schema) — appar blockerade</string>
+    <string name="balance_profile_active">Aktiv — appar blockerade</string>
+    <string name="balance_profile_schedule">Schema: %1$s %2$s-%3$s</string>
+    <string name="balance_profile_inactive">Inaktiv</string>
+    <string name="balance_edit_profile">Redigera profil</string>
+    <string name="balance_new_profile">Ny profil</string>
+    <string name="balance_name_placeholder">t.ex. Plugga</string>
+    <string name="balance_schedule">Schema</string>
+    <string name="balance_schedule_desc">Aktivera profilen automatiskt enligt schema</string>
+    <string name="balance_weekdays">Veckodagar</string>
+    <string name="balance_from">Från</string>
+    <string name="balance_until">Till</string>
+    <string name="balance_schedule_summary">Profilen är aktiv %1$s från %2$s till %3$s.</string>
+    <string name="balance_never">aldrig</string>
+    <string name="balance_block_apps">Blockera appar</string>
+    <string name="balance_pomodoro_duration">Längd:</string>
+    <string name="balance_pomodoro_min">%1$d min</string>
+    <string name="balance_pomodoro_focus">Fokus</string>
+    <string name="balance_pomodoro_short_break">Kort paus</string>
+    <string name="balance_pomodoro_long_break">Lång paus</string>
+    <string name="balance_pomodoro_completed">Avslutade fokussessioner: %1$d</string>
+    <string name="balance_pomodoro_pause">⏸ Pausa</string>
+    <string name="balance_pomodoro_start">▶ Starta</string>
+    <string name="balance_pomodoro_reset">↺ Nollställ</string>
+    <string name="balance_pomodoro_tip">Tips: Använd fokustimern tillsammans med en profil — medan du pluggar förblir appar för sociala medier blockerade.</string>
+
+    <!-- CategoriesScreen -->
+    <string name="categories_intro">Välj en kategori till vänster — till höger ser du dess aktiviteter. Koppla aktiviteter via rullgardinsmenyn.</string>
+    <string name="categories_new">+ Ny kategori</string>
+    <string name="categories_activities">Aktiviteter</string>
+    <string name="categories_empty">Inga aktiviteter i den här kategorin.</string>
+    <string name="categories_unassigned">Utan kategori</string>
+    <string name="categories_none_option">— Ingen kategori —</string>
+    <string name="categories_new_title">Ny kategori</string>
+    <string name="categories_name_hint">Namn (t.ex. sport)</string>
+    <string name="categories_color">Färg</string>
+    <string name="categories_create">Skapa</string>
+
+    <!-- CalendarScreen -->
+    <string name="calendar_hero_label">KALENDER</string>
+    <string name="calendar_subtitle">Din tidskvalitet i månadsöverblicken</string>
+    <string name="calendar_captured">Registrerat: %1$s</string>
+    <string name="calendar_less">mindre</string>
+    <string name="calendar_more">mer</string>
+    <string name="calendar_day_captured">Registrerat: %1$s · %2$d aktiviteter</string>
+    <string name="calendar_no_activities">Inga aktiviteter den här dagen.</string>
+    <string name="calendar_activity">Aktivitet</string>
+
+    <!-- UnknownPlacesScreen -->
+    <string name="unknownplace_title">Okända platser</string>
+    <string name="unknownplace_open_count">%1$d öppna</string>
+    <string name="unknownplace_empty_title">Inga okända platser</string>
+    <string name="unknownplace_empty_desc">Om du är länge på en plats som inte matchar dina geofences visas den här.</string>
+    <string name="unknownplace_name_button">Ge namn</string>
+    <string name="unknownplace_geofence_button">Geofence</string>
+    <string name="unknownplace_name_dialog_title">Namnge plats</string>
+    <string name="unknownplace_name_hint">Namn (t.ex. Restaurang Milano)</string>
+    <string name="unknownplace_geofence_dialog_title">Skapa geofence</string>
+    <string name="unknownplace_radius">Radie: %1$d m</string>
+
+    <!-- OnboardingScreen -->
+    <string name="onboarding_placeholder">Onboarding</string>
+
+    <!-- Components -->
+    <string name="component_trend_vs_yesterday">vs. i går</string>
+    <string name="component_quality_manual_hint">Har justerats manuellt — i morgon gäller den automatiska kvaliteten igen.</string>
+    <string name="component_quality_single_hint">Gäller bara den här posten/dagen — aktivitetens inställning ändras inte.</string>
+    <string name="component_reset">Nollställ</string>
+    <string name="component_zone_absent">Borta</string>
+    <string name="component_live">LIVE</string>
+    <string name="component_conflict_check">Kontrollera konflikt</string>
+    <string name="component_source_place">Plats</string>
+    <string name="component_source_manual">Manuell</string>
+    <string name="component_positivity">Positivitet</string>
+    <string name="component_positivity_a11y">Positivitet %1$d av 100</string>
+    <string name="component_bad">Dålig</string>
+    <string name="component_neutral">Neutral</string>
+    <string name="component_good">Bra</string>
+    <string name="component_hour">Timme</string>
+    <string name="component_minute">Minut</string>
+    <string name="component_quality">Tidskvalitet</string>
+    <string name="component_ok">OK</string>
+</resources>

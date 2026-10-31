@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Traduit automatiquement (M34) — Source : values-de/strings_rules.xml, Structure : values/strings_rules.xml. Placeholders et échappements vérifiés. -->
+    <string name="rule_title_commute_to_work">Trajet vers le travail</string>
+    <string name="rule_title_commute_home">Retour à la maison</string>
+    <string name="rule_title_gym_trip">Aller : salle de sport</string>
+    <string name="rule_title_shopping">Courses : %1$s</string>
+    <string name="rule_title_gym_return">Retour : salle de sport</string>
+    <string name="rule_title_transit">En route : %1$s → %2$s</string>
+    <string name="rule_title_work">Travail</string>
+    <string name="rule_title_gym">Salle de sport</string>
+    <string name="rule_title_home">Maison</string>
+    <string name="rule_title_trip">Sortie</string>
+    <string name="rule_reason_travel">Paire de déclencheurs détectée : %1$s. %2$s proposé comme temps de trajet.</string>
+    <string name="rule_reason_stay">Paire de déclencheurs détectée : arrivée à %1$s → départ. La proposition reste vérifiable.</string>
+    <string name="rule_reason_away">Paire de déclencheurs détectée : départ de %1$s → retour. Aucune destination connue, proposé prudemment comme sortie.</string>
+    <string name="rule_reason_merge">%1$s | Fusionné avec %2$s (écart &lt; 5 min).</string>
+    <string name="rule_reason_merge_fallback">un autre candidat</string>
+    <string name="common_activity_fallback">Activité</string>
+</resources>

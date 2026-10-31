@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_mascot.xml, struttura: values/strings_mascot.xml. Placeholder ed escape verificati. -->
+    <string name="settings_mascot_title">Mascotte</string>
+    <string name="settings_mascot_desc">Una piccola creatività sulla tua dashboard — sorride di più quando la tua giornata va bene.</string>
+    <string name="settings_mascot_preview_hint">Tocca l\'anteprima — reagisce!</string>
+    <string name="settings_mascot_color">Colore</string>
+    <string name="settings_mascot_antenna">Antenna</string>
+    <string name="settings_mascot_antenna_ball">Sfera</string>
+    <string name="settings_mascot_antenna_star">Stella</string>
+    <string name="settings_mascot_antenna_bolt">Saetta</string>
+    <string name="settings_mascot_cheeks">Guanciotte</string>
+    <string name="mascot_cd">Mascotte</string>
+    <string name="mascot_cd_score">La tua mascotte. Qualità della giornata: %1$d su 100.</string>
+    <string name="mascot_state_sleeping">dorme</string>
+    <string name="mascot_state_awake">è sveglio</string>
+</resources>

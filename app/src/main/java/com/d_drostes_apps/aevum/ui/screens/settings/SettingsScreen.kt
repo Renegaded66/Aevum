@@ -248,12 +248,11 @@ private fun AppSettingsSection(
     onSelectLanguage: (String) -> Unit,
     onSelectTheme: (String) -> Unit
 ) {
-    // Alphabetisch sortiert nach Anzeigename: Deutsch, English, System
-    val languageOptions = listOf(
-        LanguageOption(LanguageRepository.LANGUAGE_DE, "🇩🇪", stringResource(R.string.language_de)),
-        LanguageOption(LanguageRepository.LANGUAGE_EN, "🇬🇧", stringResource(R.string.language_en)),
-        LanguageOption(LanguageRepository.LANGUAGE_SYSTEM, "🌐", stringResource(R.string.language_system))
-    )
+    // M34: Alle zehn Sprachen + "System". Die Anzeigenamen sind Endonyme
+    // (Deutsch, Español, Français …) und stehen als Ressourcen zur Verfügung.
+    val languageOptions = com.d_drostes_apps.aevum.util.AppLanguage.all.map { language ->
+        LanguageOption(language.code, language.flag, stringResource(language.labelRes))
+    }
     // M18.106: Theme-Optionen — Dark zuerst (Default).
     val themeOptions = listOf(
         LanguageOption(com.d_drostes_apps.aevum.data.repository.ThemeRepository.THEME_DARK, "🌙", stringResource(R.string.theme_dark)),

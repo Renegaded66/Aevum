@@ -75,6 +75,23 @@
     <string name="language_system">System</string>
     <string name="language_de">Deutsch</string>
     <string name="language_en">English</string>
+    <!-- M34: Endonyme — in allen Sprachen identisch (nicht übersetzen). -->
+    <string name="language_es">Español</string>
+    <string name="language_fr">Français</string>
+    <string name="language_pt">Português</string>
+    <string name="language_it">Italiano</string>
+    <string name="language_tr">Türkçe</string>
+    <string name="language_pl">Polski</string>
+    <string name="language_da">Dansk</string>
+    <string name="language_nb">Norsk bokmål</string>
+    <string name="language_sv">Svenska</string>
+
+    <!-- M34: Restliche feste Texte (i18n-Audit). -->
+    <string name="place_timeline_map_unavailable">⚠️ Karte nicht verfügbar</string>
+    <string name="place_timeline_marker_unnamed">📍 Ort</string>
+    <string name="geofence_latitude">Breitengrad</string>
+    <string name="geofence_longitude">Längengrad</string>
+    <string name="activity_stats_chart_cd">Aktivitätsdiagramm über die Zeit, %1$d Punkte</string>
 
     <!-- Digital-Balance-Sperr-Overlay -->
     <string name="block_app_locked">App gesperrt</string>

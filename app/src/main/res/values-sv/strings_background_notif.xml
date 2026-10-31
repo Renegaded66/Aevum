@@ -1,0 +1,7 @@
+<resources>
+    <!-- Background notification (consolidated, M19) -->
+    <string name="notif_background_channel_name">Identifiering i bakgrunden</string>
+    <string name="notif_background_channel_desc">Aevum spårar aktiviteter i bakgrunden — platser, bilresor, appanvändning</string>
+    <string name="notif_background_title">Aevum kör i bakgrunden</string>
+    <string name="notif_background_text">Identifierar platser, bilresor och appanvändning</string>
+</resources>

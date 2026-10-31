@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_widget.xml, estrutura: values/strings_widget.xml. Placeholders e escapes verificados. -->
+    <string name="widget_name">Gravação Aevum</string>
+    <string name="widget_description">Mostra se uma atividade está a ser gravada — com temporizador, iniciar/parar e escolha da atividade.</string>
+    <string name="widget_status_idle">PRONTO</string>
+    <string name="widget_status_running">EM CURSO</string>
+    <string name="widget_status_paused">EM PAUSA</string>
+    <string name="widget_idle_title">Iniciar</string>
+    <string name="widget_paused_title">Em pausa</string>
+    <string name="widget_cd_start">Iniciar gravação</string>
+    <string name="widget_cd_stop">Parar gravação</string>
+    <string name="widget_cd_open">Abrir Aevum</string>
+    <string name="widget_picker_title">O que é que queres iniciar?</string>
+    <string name="widget_picker_subtitle">Toca numa atividade — a gravação começa de imediato.</string>
+    <string name="widget_picker_cancel">Cancelar</string>
+    <string name="widget_picker_running">Em curso: %1$s</string>
+    <string name="widget_picker_stop">Parar a gravação em curso</string>
+    <string name="widget_empty_activities">Ainda sem atividades</string>
+    <string name="widget_no_app">Atividade</string>
+</resources>

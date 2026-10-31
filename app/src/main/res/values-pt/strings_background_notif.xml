@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_background_notif.xml, estrutura: values/strings_background_notif.xml. Placeholders e escapes verificados. -->
+    <string name="notif_background_channel_name">Deteção em segundo plano</string>
+    <string name="notif_background_channel_desc">A Aevum regista atividades em segundo plano — locais, deslocações, utilização de apps</string>
+    <string name="notif_background_title">A Aevum está ativa em segundo plano</string>
+    <string name="notif_background_text">Deteta locais, deslocações e utilização de apps</string>
+</resources>

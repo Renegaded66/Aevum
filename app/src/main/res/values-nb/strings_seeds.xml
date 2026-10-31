@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="seed_category_work">Arbeid</string>
+    <string name="seed_category_sleep">Søvn</string>
+    <string name="seed_category_sport">Sport</string>
+    <string name="seed_category_learning">Læring</string>
+    <string name="seed_category_health">Helse</string>
+    <string name="seed_category_leisure">Fritid</string>
+    <string name="seed_category_relationships">Relasjoner</string>
+    <string name="seed_category_transport">Transport</string>
+    <string name="seed_category_digital">Digital</string>
+    <string name="seed_category_household">Husholdning</string>
+    <string name="seed_category_unknown">Annet</string>
+    <string name="seed_activity_work">Arbeid</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Søvn</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Jogging</string>
+    <string name="seed_activity_radfahren">Sykling</string>
+    <string name="seed_activity_spazieren">Gåtur</string>
+    <string name="seed_activity_learning">Læring</string>
+    <string name="seed_activity_reading">Lesing</string>
+    <string name="seed_activity_meditation">Meditasjon</string>
+    <string name="seed_activity_eating">Spising</string>
+    <string name="seed_activity_social">Sosialt</string>
+    <string name="seed_activity_household">Husholdning</string>
+    <string name="seed_activity_driving">Bilkjøring</string>
+    <string name="seed_activity_transport">Transport</string>
+    <string name="seed_activity_digital">Digital</string>
+    <string name="seed_activity_leisure">Fritid</string>
+    <string name="seed_activity_other">Annet</string>
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Fokus</string>
+    <string name="seed_tag_routine">Rutine</string>
+    <string name="seed_tag_energy">Energi</string>
+    <string name="seed_tag_recovery">Restitusjon</string>
+</resources>

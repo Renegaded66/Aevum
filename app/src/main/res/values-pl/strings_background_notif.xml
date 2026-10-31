@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_background_notif.xml, Struktur: values/strings_background_notif.xml. Platzhalter und Escapes geprüft. -->
+    <string name="notif_background_channel_name">Wykrywanie w tle</string>
+    <string name="notif_background_channel_desc">Aevum śledzi aktywności w tle — miejsca, przejazdy i używanie aplikacji</string>
+    <string name="notif_background_title">Aevum działa w tle</string>
+    <string name="notif_background_text">Wykrywa miejsca, przejazdy i używanie aplikacji</string>
+</resources>

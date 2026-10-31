@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_rules.xml, Struktur: values/strings_rules.xml. Platzhalter und Escapes geprüft. -->
+    <string name="rule_title_commute_to_work">Conmutar</string>
+    <string name="rule_title_commute_home">Camino a casa</string>
+    <string name="rule_title_gym_trip">Direcciones: Gimnasio</string>
+    <string name="rule_title_shopping">Compras: %1$s</string>
+    <string name="rule_title_gym_return">Viaje de regreso: gimnasio</string>
+    <string name="rule_title_transit">En movimiento: %1$s → %2$s</string>
+    <string name="rule_title_work">Trabajo</string>
+    <string name="rule_title_gym">Gimnasio</string>
+    <string name="rule_title_home">Inicio</string>
+    <string name="rule_title_trip">Excursión</string>
+    <string name="rule_reason_travel">Par de activadores detectado: %1$s. %2$s sugerido como tiempo de viaje.</string>
+    <string name="rule_reason_stay">Par de activadores detectado: %1$s entrar → salir. La propuesta sigue siendo verificable.</string>
+    <string name="rule_reason_away">Par de activadores detectado: %1$s izquierda → llegó nuevamente. No se conoce ningún destino, por lo que se sugiere con cautela una excursión.</string>
+    <string name="rule_reason_merge">%1$s | Fusionado con %2$s (intervalo &lt;5 min).</string>
+    <string name="rule_reason_merge_fallback">otro candidato</string>
+    <string name="common_activity_fallback">Actividad</string>
+</resources>

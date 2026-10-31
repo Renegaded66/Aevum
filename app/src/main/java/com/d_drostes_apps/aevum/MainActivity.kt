@@ -216,9 +216,28 @@ private fun AevumMainApp() {
     // zusätzlich das Gate in den Trigger-Einstellungen bzw. im
     // Geofence-Editor.
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // ── M34: Willkommens-Dialog nur bei NEUINSTALLATION ──────────────────
+    // Bestehende Installationen (Update) sehen ihn nie — OnboardingGate
+    // unterscheidet Neuinstallation und Update über die Paket-Zeitstempel.
+    // `remember`: die Entscheidung wird einmal pro Activity geprüft, nicht
+    // bei jeder Recomposition (die Prüfung schreibt ggf. das Abschluss-Flag).
+    val startDestination = remember {
+        if (com.d_drostes_apps.aevum.ui.screens.onboarding.OnboardingGate.shouldShow(context)) {
+            AppDestination.Onboarding.route
+        } else {
+            AppDestination.Dashboard.route
+        }
+    }
     var showStartDisclosure by remember {
         mutableStateOf(
-            !LocationDisclosure.isAccepted(context) &&
+            // M34: Während des Willkommens-Dialogs NICHT darüberlegen. Der
+            // Wizard erklärt den Standort auf seiner Berechtigungs-Seite
+            // selbst (prominente Offenlegung VOR der Anfrage) — ein zweiter
+            // Dialog beim allerersten Start würde die Einrichtung nur
+            // überdecken.
+            startDestination != AppDestination.Onboarding.route &&
+                !LocationDisclosure.isAccepted(context) &&
                 !LocationDisclosure.wasOnboardingShown(context)
         )
     }
@@ -285,6 +304,7 @@ private fun AevumMainApp() {
         //     eine Lösung an einer Stelle statt in jedem Screen.
         AppNavHost(
             navController = navController,
+            startDestination = startDestination,
             modifier = Modifier
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)

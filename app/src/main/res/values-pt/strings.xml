@@ -1,0 +1,162 @@
+<resources>
+    <string name="app_name">Aevum</string>
+    <string name="app_name_debug">Aevum Debug</string>
+    <string name="onboarding_welcome_title">Bem-vindo à Aevum</string>
+    <string name="onboarding_welcome_subtitle">O teu painel de vida pessoal</string>
+    <string name="dashboard_title">Hoje</string>
+    <string name="timeline_title">Linha temporal</string>
+    <string name="insights_title">Insights</string>
+    <string name="growth_title">Crescimento</string>
+    <string name="settings_title">Definições</string>
+    <string name="balance_title">Equilíbrio</string>
+
+    <!-- App-Einstellungen: Sprache -->
+    <string name="settings_app_section">Idioma e design</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_desc">Escolhe o idioma da app</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_desc">Escolhe a aparência da app</string>
+    <string name="theme_dark">Escuro</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_system">Sistema</string>
+    <string name="settings_hero_subtitle">Tudo o que a Aevum faz por ti — num só lugar. Todos os dados ficam no teu dispositivo.</string>
+    <string name="settings_section_appearance">Aparência</string>
+    <string name="settings_section_connections">Ligações</string>
+    <string name="settings_todos_desc">Tarefas, prazos, repetição</string>
+    <string name="settings_allowances_desc">Cotas de tempo diárias por categoria</string>
+    <string name="settings_section_automation">Automatização</string>
+    <string name="settings_trigger_detection">Gatilhos e deteção</string>
+    <string name="settings_trigger_detection_desc">Geofences · Carro · Caminhada · Sono · Permissões</string>
+    <string name="settings_geofences_manage">Gerir geofences</string>
+    <string name="settings_geofences_manage_desc">Locais, raios e início automático</string>
+    <string name="settings_trigger_events">Eventos de gatilho</string>
+    <string name="settings_trigger_events_desc">Todos os eventos detetados</string>
+    <string name="settings_my_places">Os meus locais</string>
+    <string name="settings_your_activities">As tuas atividades</string>
+    <string name="settings_activity_types">Gerir tipos de atividade</string>
+    <string name="settings_activity_types_desc">Ícones, cores, positividade</string>
+    <string name="settings_categories_desc">Criar, atribuir atividades, ícone e cor</string>
+    <string name="settings_advanced">Avançado</string>
+    <string name="settings_todos_manage">Gerir tarefas</string>
+    <string name="settings_allowances_manage">Gerir cotas diárias</string>
+    <string name="settings_privacy_data">Privacidade e dados</string>
+    <string name="settings_privacy">Privacidade</string>
+    <string name="settings_privacy_desc">Dados locais, eliminar</string>
+    <string name="settings_export_desc">Todos os dados em JSON</string>
+    <string name="settings_backup_desc">Backup e restauro</string>
+    <string name="settings_fitness_trackers">Trackers de fitness</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_connect_desc">Ligar, sincronizar, desligar</string>
+    <!-- M18.83: Place Timeline (Google-Maps-artige Tag-Story der besuchten Orte) -->
+    <string name="settings_place_timeline">Linha temporal de locais</string>
+    <string name="settings_place_timeline_desc">Onde estive e quando — história do dia</string>
+    <string name="place_timeline_title">Linha temporal de locais</string>
+    <string name="place_timeline_subtitle">O teu dia como história de locais</string>
+    <string name="place_timeline_empty_hint">Ainda sem visitas a locais neste dia. Assim que visitares geofences ou nomeares um local desconhecido, ele aparece aqui.</string>
+    <string name="place_timeline_summary_lede">%1$d visitas · %2$s em deslocação</string>
+    <string name="place_timeline_badge_short">Paragem curta</string>
+    <string name="place_timeline_badge_long">Estadia mais longa</string>
+    <string name="place_timeline_badge_named">Local nomeado</string>
+    <string name="place_timeline_ongoing">a decorrer agora</string>
+    <string name="place_timeline_road_prefix">Em deslocação</string>
+    <string name="place_timeline_unnamed_place">Local (sem nome)</string>
+    <string name="place_timeline_badge_live">Aqui agora</string>
+    <string name="place_timeline_badge_unnamed">Local sem nome</string>
+    <string name="place_timeline_cd_prev_day">Dia anterior</string>
+    <string name="place_timeline_cd_next_day">Dia seguinte</string>
+    <!-- M24: Ort antippen → Detail-Sheet → Geofence mit Standort anlegen -->
+    <string name="place_timeline_detail_title">Detalhes do local</string>
+    <string name="place_timeline_detail_add_geofence">Adicionar geofence</string>
+    <string name="place_timeline_detail_geofence_exists">Este local já é um geofence.</string>
+    <string name="place_timeline_detail_no_coordinates">Não há coordenadas guardadas para este local.</string>
+    <string name="place_timeline_detail_coordinates">Coordenadas</string>
+    <string name="place_timeline_detail_close">Fechar</string>
+    <string name="place_timeline_detail_unnamed_hint">Dá um nome ao local no passo seguinte.</string>
+    <string name="language_system">System</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_en">English</string>
+    <!-- M34: Endonyme — in allen Sprachen identisch (nicht übersetzen). -->
+    <string name="language_es">Español</string>
+    <string name="language_fr">Français</string>
+    <string name="language_pt">Português</string>
+    <string name="language_it">Italiano</string>
+    <string name="language_tr">Türkçe</string>
+    <string name="language_pl">Polski</string>
+    <string name="language_da">Dansk</string>
+    <string name="language_nb">Norsk bokmål</string>
+    <string name="language_sv">Svenska</string>
+
+    <!-- M34: Restliche feste Texte (i18n-Audit). -->
+    <string name="place_timeline_map_unavailable">⚠️ Mapa indisponível</string>
+    <string name="place_timeline_marker_unnamed">📍 Local</string>
+    <string name="geofence_latitude">Latitude</string>
+    <string name="geofence_longitude">Longitude</string>
+    <string name="activity_stats_chart_cd">Gráfico de atividades ao longo do tempo, %1$d pontos</string>
+
+    <!-- Digital-Balance-Sperr-Overlay -->
+    <string name="block_app_locked">App bloqueada</string>
+    <string name="block_app_locked_title">%1$s bloqueada</string>
+    <string name="block_profile_active">O perfil “%1$s” está ativo — esta app está bloqueada.</string>
+    <string name="block_limit_reached">Limite diário de %1$d minutos atingido.</string>
+    <string name="block_daily_limit_reached">Limite diário atingido.</string>
+    <string name="block_extend_5min">Mais 5 minutos</string>
+    <string name="block_ignore_today">Ignorar hoje</string>
+    <string name="block_close">Fechar</string>
+
+    <!-- SwitchActivity (Live-Notification Wechsel-Popup) -->
+    <string name="switch_activity_title">Mudar de atividade</string>
+    <string name="switch_activity_subtitle">A atividade atual termina e a nova começa.</string>
+    <!-- PC-Tracker (Windows, Heimnetz) -->
+    <string name="pc_tracker_title">PC Tracker</string>
+    <string name="pc_tracker_subtitle">Atividade do Windows — transferida na tua rede doméstica</string>
+    <string name="settings_pc_tracker_section">PC Tracker</string>
+    <string name="settings_pc_tracker">PC Tracker (Windows)</string>
+    <string name="settings_pc_tracker_desc">Registar a atividade de apps no PC e trazê-la para a linha temporal</string>
+    <string name="pc_tracker_connected">Ligado</string>
+    <string name="pc_tracker_sync_info">Só as gravações concluídas são transferidas — diretamente entre telemóvel e PC, sem nuvem.</string>
+    <string name="pc_tracker_last_sync">Última: %1$s</string>
+    <string name="pc_tracker_never_synced">Nunca sincronizado</string>
+    <string name="pc_tracker_sync_now">Sincronizar agora</string>
+    <string name="pc_tracker_sync_none">Está tudo atualizado — sem novas gravações.</string>
+    <string name="pc_remote_start_note">Iniciado a partir do PC</string>
+    <string name="pc_tracker_sync_result">%1$d novas gravações, %2$d atualizadas</string>
+    <string name="pc_tracker_sync_new_types">(nova atividade: %1$s)</string>
+    <string name="pc_tracker_disconnect">Desligar</string>
+    <string name="pc_tracker_disconnected">Ligação desligada</string>
+    <string name="pc_tracker_disconnect_confirm_title">Desligar o PC Tracker?</string>
+    <string name="pc_tracker_disconnect_confirm_text">O emparelhamento é removido deste telemóvel. As gravações já importadas ficam na linha temporal.</string>
+    <string name="pc_tracker_cancel">Cancelar</string>
+    <string name="pc_tracker_search">Procurar PC no Wi-Fi</string>
+    <string name="pc_tracker_searching">A procurar no Wi-Fi…</string>
+    <string name="pc_tracker_rescan">Procurar novamente</string>
+    <string name="pc_tracker_no_devices">Nenhum PC encontrado. O PC Tracker está a correr no teu PC? Ambos os dispositivos têm de estar na mesma rede Wi-Fi.</string>
+    <string name="pc_tracker_pairing_active">Pronto para emparelhar</string>
+    <string name="pc_tracker_pairing_inactive">Modo de emparelhamento desativado — ativa-o no PC</string>
+    <string name="pc_tracker_manual">Ligar manualmente em alternativa</string>
+    <string name="pc_tracker_manual_hint">Introduz o endereço que aparece na app do PC (ex.: 192.168.178.42).</string>
+    <string name="pc_tracker_host">Endereço do PC</string>
+    <string name="pc_tracker_port">Port</string>
+    <string name="pc_tracker_next">Seguinte</string>
+    <string name="pc_tracker_code_title">Emparelhar com %1$s</string>
+    <string name="pc_tracker_code_info">Introduz o código que aparece no PC em “Emparelhamento”.</string>
+    <string name="pc_tracker_code">Código de emparelhamento</string>
+    <string name="pc_tracker_connect">Ligar</string>
+    <string name="pc_tracker_error_host">Introduz o endereço do PC.</string>
+    <string name="pc_tracker_error_port">Introduz uma porta válida (1–65535).</string>
+    <string name="pc_tracker_error_code">Introduz o código.</string>
+    <string name="pc_tracker_error_invalid_code">Código errado — gera um novo código no PC e tenta novamente.</string>
+    <string name="pc_tracker_error_rate_limited">Demasiadas tentativas. Tenta novamente dentro de %1$d segundos.</string>
+    <string name="pc_tracker_error_unreachable">PC inacessível. O PC está ligado, a app está a correr e ambos estão na mesma rede Wi-Fi?</string>
+    <string name="pc_tracker_error_not_connected">Nenhum PC emparelhado.</string>
+    <string name="pc_tracker_error_unauthorized">O acesso foi revogado no PC. Emparelha novamente.</string>
+
+    <!-- Installation der Windows-App (Kurzanleitung) -->
+    <string name="pc_tracker_install_title">Instalar a app do Windows</string>
+    <string name="pc_tracker_install_step1">1. No PC, abre: github.com/Renegaded66/Aevum/releases</string>
+    <string name="pc_tracker_install_step2">2. Descarrega “AevumPcTracker-…-win-x64.zip” e extrai-o (clique direito → Extrair tudo).</string>
+    <string name="pc_tracker_install_step3">3. Executa o AevumPcTracker.exe — o Windows pergunta uma vez pela firewall; permite.</string>
+    <string name="pc_tracker_install_hint">Sem instalação — tudo está no ZIP. A app só funciona no Windows.</string>
+    <string name="pc_tracker_install_open">Abrir a página de downloads</string>
+    <string name="pc_tracker_autosync">Sincronizar automaticamente em segundo plano</string>
+    <string name="pc_tracker_autosync_desc">Vai buscar gravações discretamente assim que este PC esteja na mesma rede Wi-Fi. Os erros só aparecem na sincronização manual.</string>
+</resources>

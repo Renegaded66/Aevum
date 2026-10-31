@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_name">Aevum-registrering</string>
+    <string name="widget_description">Viser om en aktivitet registreres — med timer, start/stopp og aktivitetsvelger.</string>
+    <string name="widget_status_idle">KLAR</string>
+    <string name="widget_status_running">PÅGÅR</string>
+    <string name="widget_status_paused">PAUSERT</string>
+    <string name="widget_idle_title">Start</string>
+    <string name="widget_paused_title">Pausert</string>
+    <string name="widget_cd_start">Start registrering</string>
+    <string name="widget_cd_stop">Stopp registrering</string>
+    <string name="widget_cd_open">Åpne Aevum</string>
+    <string name="widget_picker_title">Hva vil du starte?</string>
+    <string name="widget_picker_subtitle">Trykk på en aktivitet — registreringen starter umiddelbart.</string>
+    <string name="widget_picker_cancel">Avbryt</string>
+    <string name="widget_picker_running">Pågår nå: %1$s</string>
+    <string name="widget_picker_stop">Stopp registreringen som pågår</string>
+    <string name="widget_empty_activities">Ingen aktiviteter ennå</string>
+    <string name="widget_no_app">Aktivitet</string>
+</resources>

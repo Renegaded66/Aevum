@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_rules.xml, estrutura: values/strings_rules.xml. Placeholders e escapes verificados. -->
+    <string name="rule_title_commute_to_work">Caminho para o trabalho</string>
+    <string name="rule_title_commute_home">Caminho para casa</string>
+    <string name="rule_title_gym_trip">Ida ao ginásio</string>
+    <string name="rule_title_shopping">Compras: %1$s</string>
+    <string name="rule_title_gym_return">Regresso do ginásio</string>
+    <string name="rule_title_transit">Em viagem: %1$s → %2$s</string>
+    <string name="rule_title_work">Trabalho</string>
+    <string name="rule_title_gym">Ginásio</string>
+    <string name="rule_title_home">Casa</string>
+    <string name="rule_title_trip">Excursão</string>
+    <string name="rule_reason_travel">Par de triggers detetado: %1$s. %2$s sugerido como tempo de deslocação.</string>
+    <string name="rule_reason_stay">Par de triggers detetado: %1$s entrar → sair. A sugestão continua a poder ser revista.</string>
+    <string name="rule_reason_away">Par de triggers detetado: %1$s sair → regresso confirmado. Como não há destino conhecido, é sugerido com prudência como excursão.</string>
+    <string name="rule_reason_merge">%1$s | Unificado com %2$s (intervalo &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">outro candidato</string>
+    <string name="common_activity_fallback">Atividade</string>
+</resources>

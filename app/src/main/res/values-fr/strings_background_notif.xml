@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Traduit en français (M34) — source : values-de/strings_background_notif.xml, structure : values/strings_background_notif.xml. Placeholders et échappements vérifiés. -->
+    <string name="notif_background_channel_name">Détection en arrière-plan</string>
+    <string name="notif_background_channel_desc">Aevum suit les activités en arrière-plan — lieux, trajets, utilisation des applis</string>
+    <string name="notif_background_title">Aevum tourne en arrière-plan</string>
+    <string name="notif_background_text">Détecte les lieux, les trajets et l\'utilisation des applis</string>
+</resources>

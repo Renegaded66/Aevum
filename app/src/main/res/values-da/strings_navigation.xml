@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_navigation.xml, struktur: values/strings_navigation.xml. Pladsholdere og escapes tjekket. -->
+    <string name="activity_create_title">Ny aktivitet</string>
+    <string name="activity_edit_title">Rediger aktivitet</string>
+    <string name="activity_candidate_title">Rediger candidate</string>
+    <string name="activity_detail_title">Aktivitet</string>
+    <string name="weekly_review_title">Weekly Review</string>
+    <string name="trigger_settings_title">Trigger &amp; genkendelse</string>
+    <string name="geofence_list_title">Geofences</string>
+    <string name="geofence_create_title">Opret geofence</string>
+    <string name="geofence_create_home_title">Opret hjem</string>
+    <string name="geofence_create_work_title">Opret arbejde</string>
+    <string name="geofence_edit_title">Rediger geofence</string>
+    <string name="trigger_events_title">Trigger Events</string>
+    <string name="geofence_debug_title">Geofence-diagnostik</string>
+    <string name="automation_status_title">Automatiseringsstatus</string>
+    <string name="review_inbox_title">Review Inbox</string>
+    <string name="onboarding_title">Onboarding</string>
+    <string name="life_profile_setup_title">Livsprofil</string>
+    <string name="permission_education_title">Tilladelser</string>
+    <string name="places_setup_title">Steder</string>
+    <string name="unknown_places_title">Ukendte steder</string>
+    <string name="daily_allowances_title">Dagskvoter</string>
+    <string name="activity_types_title">Aktiviteter &amp; positivitet</string>
+    <string name="categories_title">Kategorier</string>
+    <string name="calendar_title">Kalender</string>
+    <string name="digital_balance_title">Digital Balance</string>
+    <string name="app_tracking_title">App-registrering</string>
+    <string name="todos_title">Gøremål</string>
+    <string name="todo_create_title">Nyt gøremål</string>
+    <string name="todo_edit_title">Rediger gøremål</string>
+    <string name="lifeview_title">Livsoversigt</string>
+    <string name="privacy_title">Privatliv</string>
+    <string name="export_title">Eksport</string>
+    <string name="backup_title">Backup</string>
+    <string name="fitness_trackers_title">Fitness-trackere</string>
+
+    <!-- M18.129: Kalenderintegration -->
+    <string name="calendar_rules_title">Kalender</string>
+    <string name="calendar_rules_desc">Registrer kalenderbegivenheder automatisk som aktiviteter</string>
+    <string name="settings_calendar_section">Kalender</string>
+</resources>

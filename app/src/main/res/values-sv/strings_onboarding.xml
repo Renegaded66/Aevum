@@ -1,0 +1,90 @@
+<resources>
+    <!--
+        M34 — Willkommens-Dialog (Onboarding-Wizard), fünf Seiten.
+        Diese Datei ist die ENGLISCHE Quelle (values/ = Fallback).
+        Deutsch liegt in values-de/strings_onboarding.xml, die weiteren
+        Sprachen werden aus dieser Datei übersetzt.
+
+        Regeln für Texte hier:
+          • kurz, ruhig, ohne Ausrufezeichen
+          • keine Werbe-Sprache, keine Zahlenversprechen
+          • jede Seite erklärt in einem Satz, WARUM sie existiert
+    -->
+
+    <!-- Gemeinsame Navigation -->
+    <string name="ob_back">Tillbaka</string>
+    <string name="ob_next">Fortsätt</string>
+    <string name="ob_skip">Hoppa över</string>
+    <string name="ob_step">Steg %1$d av %2$d</string>
+    <string name="ob_cd_back">Tillbaka</string>
+    <string name="ob_cd_next">Fortsätt</string>
+
+    <!-- Seite 1 — Sprache -->
+    <string name="ob_lang_eyebrow">Välkommen</string>
+    <string name="ob_lang_title">Välj ditt språk</string>
+    <string name="ob_lang_subtitle">Aevum talar elva språk. Resten av den här installationen visas på det språk du väljer — du kan ändra det när som helst i inställningarna.</string>
+    <string name="ob_lang_note">Ditt val gäller direkt.</string>
+
+    <!-- Seite 2 — Kategorien + Aktivitäten -->
+    <string name="ob_focus_eyebrow">Din dag</string>
+    <string name="ob_focus_title">Vad fyller din dag?</string>
+    <string name="ob_focus_subtitle">Det här är förslag, inte mer. Ta bort det som inte passar, lägg till det som saknas — allt går att ändra senare.</string>
+    <string name="ob_focus_categories">Livsområden</string>
+    <string name="ob_focus_categories_desc">Korgarna som din tid sorteras i.</string>
+    <string name="ob_focus_activities">Aktiviteter</string>
+    <string name="ob_focus_activities_desc">Vad du faktiskt gör — ett tryck startar inspelningen.</string>
+    <string name="ob_focus_add_category">Lägg till område</string>
+    <string name="ob_focus_add_activity">Lägg till aktivitet</string>
+    <string name="ob_focus_add_field_label">Namn</string>
+    <string name="ob_focus_add_confirm">Lägg till</string>
+    <string name="ob_focus_add_cancel">Avbryt</string>
+    <string name="ob_focus_selected">%1$d av %2$d valda</string>
+    <string name="ob_focus_empty_hint">Inget valt — du kan börja med en tom lista och skapa aktiviteter senare.</string>
+    <string name="ob_focus_custom_badge">Egna</string>
+
+    <!-- Seite 3 — Maskottchen -->
+    <string name="ob_mascot_eyebrow">Sällskap</string>
+    <string name="ob_mascot_title">Någon som håller dig sällskap</string>
+    <string name="ob_mascot_subtitle">En liten vare som bor på din dashboard. Den sover medan du vilar och lyser när din dag flyter bra. Helt frivilligt.</string>
+    <string name="ob_mascot_on">Ja, följ med</string>
+    <string name="ob_mascot_off">Ingen maskot</string>
+    <string name="ob_mascot_color">Färg</string>
+    <string name="ob_mascot_antenna">Antennspets</string>
+    <string name="ob_mascot_cheeks">Kinder</string>
+    <string name="ob_mascot_hint">Tryck på den lilla — den reagerar.</string>
+    <string name="ob_mascot_preview_off">Dashboarden förblir lugn och tom.</string>
+
+    <!-- Seite 4 — Berechtigungen -->
+    <string name="ob_perm_eyebrow">Behörigheter</string>
+    <string name="ob_perm_title">Vad får Aevum se?</string>
+    <string name="ob_perm_subtitle">Allt här är frivilligt och kan återkallas när som helst. Android frågar en gång per punkt som du låter vara påslagen.</string>
+    <string name="ob_perm_location_title">Plats</string>
+    <string name="ob_perm_location_desc">Känner igen platser och startar aktiviteter automatiskt när du anländer eller går.</string>
+    <string name="ob_perm_activity_title">Rörelse &amp; körning</string>
+    <string name="ob_perm_activity_desc">Känner igen gång, cykling och bilkörning — din dag spelar in sig själv.</string>
+    <string name="ob_perm_notifications_title">Aviseringar</string>
+    <string name="ob_perm_notifications_desc">Visar den pågående aktiviteten i aviseringslisten, med stopp och växling.</string>
+    <string name="ob_perm_usage_title">Skärmtid</string>
+    <string name="ob_perm_usage_desc">Appanvändning för Digital Balance och dagliga gränser. Android frågar efter den här i inställningarna.</string>
+    <string name="ob_perm_calendar_title">Kalender</string>
+    <string name="ob_perm_calendar_desc">Bokningar kan starta den matchande aktiviteten. Endast läsning — det skrivs aldrig något.</string>
+    <string name="ob_perm_calls_title">Samtal</string>
+    <string name="ob_perm_calls_desc">Spelar in den tilldelade aktiviteten medan ett samtal pågår. Endast samtalsstatus — inga nummer, ingen historik.</string>
+    <string name="ob_perm_footnote">Ingenting laddas upp. Ingenting delas. Allting stannar på den här telefonen.</string>
+    <string name="ob_perm_none">Du kan också fortsätta utan någon behörighet — Aevum blir då manuellt.</string>
+    <string name="ob_perm_selected">%1$d av %2$d aktiva</string>
+    <string name="ob_perm_choice">Ditt val</string>
+
+    <!-- Seite 5 — Vertrauen / Abschluss -->
+    <string name="ob_trust_eyebrow">En sista sak</string>
+    <string name="ob_trust_title">Helt din.</string>
+    <string name="ob_trust_subtitle">Aevum är en lugn plats för dina dagar — inte ännu ett flöde att skrolla.</string>
+    <string name="ob_trust_free_title">Gratis</string>
+    <string name="ob_trust_free_desc">Inget abonnemang, ingen premiumlås, ingen reklam.</string>
+    <string name="ob_trust_local_title">På din enhet</string>
+    <string name="ob_trust_local_desc">Inget konto, inget moln, ingen utvärdering. Dina dagar lämnar aldrig den här telefonen.</string>
+    <string name="ob_trust_control_title">I din hand</string>
+    <string name="ob_trust_control_desc">Exportera allt eller radera allt — när som helst.</string>
+    <string name="ob_trust_start">Nu kör vi</string>
+    <string name="ob_trust_footnote">Varje val här går att ändra senare i inställningarna.</string>
+</resources>

@@ -13,11 +13,18 @@ import java.util.Locale
  */
 object LocaleHelper {
 
-    /** Liefert das Locale für den gespeicherten Sprach-Code (oder null bei "system"). */
-    fun localeFor(languageCode: String): Locale? = when (languageCode) {
-        LanguageRepository.LANGUAGE_DE -> Locale.GERMAN
-        LanguageRepository.LANGUAGE_EN -> Locale.ENGLISH
-        else -> null
+    /**
+     * Liefert das Locale für den gespeicherten Sprach-Code (oder null bei "system").
+     *
+     * M34: Alle zehn Sprachen laufen über [AppLanguage] — eine Quelle für
+     * Code → BCP-47-Tag. Unbekannte Codes (alte Stände, kaputte Pref) fallen
+     * auf `null` (= Systemsprache) zurück, statt die App in einen Zustand zu
+     * bringen, den keine Übersetzung kennt.
+     */
+    fun localeFor(languageCode: String): Locale? {
+        val tag = com.d_drostes_apps.aevum.util.AppLanguage.byCode(languageCode)?.localeTag
+            ?: return null
+        return Locale.forLanguageTag(tag)
     }
 
     /**
@@ -65,6 +72,18 @@ object LocaleHelper {
             app.resources.updateConfiguration(appConfig, app.resources.displayMetrics)
         }
     }
+
+    /**
+     * Ressourcen in der gewünschten Sprache.
+     *
+     * Für Stellen, die einen Sprachwechsel OHNE Activity-Recreate zeigen
+     * müssen (Onboarding: Seite 1 wählt die Sprache, die restlichen Seiten
+     * sollen sofort in dieser Sprache erscheinen). Compose-Texte laufen dort
+     * über diese Ressourcen statt über `stringResource`, weil dessen
+     * `LocalContext` erst beim nächsten Recreate die neue Konfiguration sieht.
+     */
+    fun resourcesFor(context: Context, languageCode: String): android.content.res.Resources =
+        applyTo(context, languageCode).resources
 
     /** Wendet die Sprache auf den Application-Context an (für onCreate). */
     fun applyToApplication(application: android.app.Application, languageCode: String) {

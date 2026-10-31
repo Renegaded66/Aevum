@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_background_channel_name">Bakgrunnsdeteksjon</string>
+    <string name="notif_background_channel_desc">Aevum registrerer aktiviteter i bakgrunnen — steder, bilkjøringer, appbruk</string>
+    <string name="notif_background_title">Aevum kjører i bakgrunnen</string>
+    <string name="notif_background_text">Oppdager steder, bilkjøringer og appbruk</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- Arka plan bildirimi (birleştirilmiş, M19) -->
+    <string name="notif_background_channel_name">Arka plan algılama</string>
+    <string name="notif_background_channel_desc">Aevum arka planda aktiviteleri izler — yerler, yolculuklar, uygulama kullanımı</string>
+    <string name="notif_background_title">Aevum arka planda çalışıyor</string>
+    <string name="notif_background_text">Yerleri, yolculukları ve uygulama kullanımını algılar</string>
+</resources>

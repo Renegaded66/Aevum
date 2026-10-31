@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Live activity notification (LiveActivityService) -->
+    <string name="notif_live_channel_name">Pågående aktivitet</string>
+    <string name="notif_live_channel_desc">Visar pågående aktivitet och kontrollåtgärder</string>
+    <string name="notif_live_empty_text">Aktivitet pågår</string>
+    <string name="notif_live_subtext_paused_auto">Pausad · startad automatiskt</string>
+    <string name="notif_live_subtext_paused">Pausad</string>
+    <string name="notif_live_subtext_auto">startad automatiskt</string>
+    <string name="notif_live_subtext_active">Aktiv</string>
+    <string name="notif_live_resume">Fortsätt</string>
+    <string name="notif_live_pause">Pausa</string>
+    <string name="notif_live_switch">⇄ Växla</string>
+    <string name="notif_live_stop">■ Stoppa</string>
+    <string name="notif_live_signal_label">AEVUM  •  AKTIVITETSSIGNAL</string>
+    <string name="notif_live_summary_paused">%1$s aktiv · %2$s totalt</string>
+    <string name="notif_live_duration_h_m">%1$d tim %2$d min</string>
+    <string name="notif_live_duration_min">%1$d min</string>
+    <string name="notif_live_duration_s">%1$d s</string>
+
+    <!-- Candidate review notification (CandidateReviewNotifier) -->
+    <string name="notif_review_channel_name">Aevum Review</string>
+    <string name="notif_review_channel_desc">Diskreta aviseringar för nya granskningsbara aktivitetsförslag</string>
+    <string name="notif_review_title">Granska ny aktivitet</string>
+    <string name="notif_review_single">Aevum upptäckte “%1$s”. Ta gärna en snabb titt.</string>
+    <string name="notif_review_multi">Aevum upptäckte %1$d nya förslag. Ta gärna en snabb titt.</string>
+
+    <!-- Digital balance block (AppBlockService) -->
+    <string name="notif_block_channel_name">Digital Balance-blockering</string>
+    <string name="notif_block_channel_desc">Övervakar appgränser och varnar innan en app blockeras</string>
+    <string name="notif_block_active_title">Digital Balance aktiv</string>
+    <string name="notif_block_active_text">Appgränser övervakas</string>
+    <!-- M18.131: pre-warning 5 minutes before the limit. "with continued
+         use" is deliberate: the block kicks in once the limit is reached,
+         not after a fixed countdown. -->
+    <string name="notif_block_warning_title">%1$s blockeras snart</string>
+    <string name="notif_block_warning_text">Cirka %1$d minuter kvar vid fortsatt användning — då gäller dagens gräns på %2$d min.</string>
+
+    <!-- Drive detection (DriveDetectionService) -->
+    <string name="service_drive_channel_name">Bilkörningsdetektering</string>
+    <string name="service_drive_channel_desc">Upptäcker bilkörningar via GPS i bakgrunden</string>
+    <string name="service_drive_title">Bilkörningsdetektering aktiv</string>
+    <string name="service_drive_text">Aevum upptäcker bilkörningar via GPS i bakgrunden</string>
+
+    <!-- App tracking (AppTrackingService) -->
+    <string name="service_apptracking_channel_name">Appinspelning</string>
+    <string name="service_apptracking_channel_desc">Upptäcker bevakade appar och spelar in dem automatiskt som aktiviteter</string>
+    <string name="service_apptracking_title">Appinspelning aktiv</string>
+    <string name="service_apptracking_text">Bevakade appar spelas in automatiskt som aktiviteter</string>
+
+    <!-- Export / backup / privacy (DataManager) -->
+    <string name="export_error_open_target">Kunde inte öppna målfilen</string>
+    <string name="export_success">Export skapad: %1$d tabeller, %2$d KB</string>
+    <string name="export_error_failed">Export misslyckades: %1$s</string>
+    <string name="backup_success">Backup skapad: %1$d filer, %2$d KB</string>
+    <string name="backup_error_failed">Backup misslyckades: %1$s</string>
+    <string name="backup_error_open">Kunde inte öppna backup-filen</string>
+    <string name="backup_error_no_db">Ingen giltig databas hittades i backupen</string>
+    <string name="backup_error_version">Backup-versionen (%1$d) matchar inte appversionen (%2$d). Uppdatera appen först.</string>
+    <string name="backup_error_version_newer">Denna backup skapades med en nyare version av Aevum (schema %1$d, app %2$d). Uppdatera appen först.</string>
+    <string name="backup_restore_success_migrated">Backup återställd (schema %1$d → %2$d). Appen startas om och uppdaterar data.</string>
+    <string name="backup_restore_success">Backup återställd. appen startas om.</string>
+    <string name="backup_error_corrupt">Backup-filen är skadad (integritetskontrollen misslyckades)</string>
+    <string name="backup_restore_error">Återställning misslyckades: %1$s</string>
+    <string name="data_deleted_all">Alla data har raderats. Appen startas om.</string>
+    <string name="data_delete_error">Radering misslyckades: %1$s</string>
+    <string name="data_unknown_error">okänt fel</string>
+
+    <!-- Garmin (GarminApiClient / DirectGarminClient) -->
+    <string name="garmin_error_mfa">MFA/2FA stöds inte — inaktivera 2FA i Garmin Connect</string>
+    <string name="garmin_error_login_failed">Inloggningen misslyckades</string>
+    <string name="garmin_error_login_failed_detail">Inloggningen misslyckades: %1$s</string>
+    <string name="garmin_error_no_ticket">Ingen tjänstebiljett mottogs</string>
+    <string name="garmin_error_token_exchange">Tokenutbytet misslyckades: %1$s</string>
+    <string name="garmin_error_token_exchange_all">DI-tokenutbytet misslyckades för alla klient-ID:n</string>
+    <string name="garmin_error_too_many_attempts">För många inloggningsförsök — försök igen senare</string>
+    <string name="garmin_error_invalid_response">Inloggningen misslyckades (ogiltigt svar, HTTP %1$d)</string>
+    <string name="garmin_error_wrong_credentials">E-post eller lösenord är felaktigt</string>
+    <string name="garmin_error_network">Nätverksfel: %1$s</string>
+
+    <!-- Health Connect (HealthConnectManager) -->
+    <string name="health_duration_h_m">%1$d tim %2$d min</string>
+    <string name="health_duration_h">%1$d h</string>
+    <string name="health_sleep_title">Sömn (%1$s)</string>
+    <string name="health_sleep_reason">Health Connect: %1$s (%2$s). Kontrollera gärna.</string>
+
+    <!-- Sleep detection (SleepHeuristicEngine / SleepFusionEngine) -->
+    <string name="sleep_title_detected">Sömn upptäcktes (%1$s)</string>
+    <string name="sleep_title_suggested">Föreslagen sömn</string>
+    <string name="sleep_reason_no_usage">Ingen användning mellan %1$s och %2$s (%3$s). Skärm av + vilofas upptäckt. Morgonupplåsning avslutar sömnfasen.</string>
+    <string name="sleep_reason_usage_stats">Ingen mobilanvändning mellan %1$s och %2$s (%3$s). Upptäckt från användningsstatistik (skärm av + vilofas).</string>
+    <string name="sleep_reason_manual">Manuell upptäckt från skärmdata. Vänligen justera tiderna.</string>
+    <string name="sleep_reason_fusion">Fusion av %1$d signaler: %2$s. Tidsfönster %3$s–%4$s.</string>
+
+    <!-- Gap detection (GapDetectionEngine) -->
+    <string name="gap_title_unknown_time">Okänd tid (%1$s)</string>
+    <string name="gap_reason">Lucka upptäcktes mellan %1$s och %2$s. Vad gjorde du under den här tiden?</string>
+
+    <!-- Activity recognition (ActivityRecognitionWorker) -->
+    <string name="data_mobility_title">Mobilitet (%1$s)</string>
+    <string name="data_mobility_reason">Aktivitetsigenkänning: %1$s i fordon (tillförlitlighet %2$d%%)</string>
+    <string name="data_duration_h_m">%1$d tim %2$d min</string>
+    <string name="data_duration_min">%1$d min</string>
+    <string name="data_duration_lt_min">&lt;1m</string>
+
+    <!-- Session validation (SessionTimeValidator) -->
+    <string name="validator_title_required">Ge din aktivitet ett namn.</string>
+    <string name="validator_end_after_start">Sluttiden måste ligga efter starttiden. Om aktiviteten går över midnatt, välj en sluttid dagen därpå.</string>
+    <string name="validator_overlay_only">Denna aktivitet överlappar bara med overlay-aktiviteter. Det är oftast okej.</string>
+    <string name="validator_overlaps_one">Denna aktivitet överlappar med 1 befintlig aktivitet. Du kan ändå spara den.</string>
+    <string name="validator_overlaps_many">Denna aktivitet överlappar med %1$d befintliga aktiviteter. Du kan ändå spara den.</string>
+
+    <!-- Frequency labels (GoalProgressAnalytics) -->
+    <string name="goal_frequency_daily">Dagligen</string>
+    <string name="goal_frequency_weekly">%1$d× per vecka</string>
+    <string name="goal_frequency_monthly">%1$d× per månad</string>
+
+    <!-- Time labels (TimeFormatting) -->
+    <string name="time_today">Idag</string>
+    <string name="time_yesterday">Igår</string>
+    <string name="time_tomorrow">Imorgon</string>
+    <string name="time_smart_today">Idag %1$s</string>
+    <string name="time_smart_yesterday">Igår %1$s</string>
+    <string name="time_smart_other">%1$s, %2$s %3$s</string>
+    <string name="time_day_title_other">%1$s, %2$s</string>
+</resources>

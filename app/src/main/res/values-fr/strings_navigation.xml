@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Traduit automatiquement (M34) — Source : values-de/strings_navigation.xml, Structure : values/strings_navigation.xml. Placeholders et échappements vérifiés. -->
+    <string name="activity_create_title">Nouvelle activité</string>
+    <string name="activity_edit_title">Modifier l\'activité</string>
+    <string name="activity_candidate_title">Modifier la candidate</string>
+    <string name="activity_detail_title">Activité</string>
+    <string name="weekly_review_title">Weekly Review</string>
+    <string name="trigger_settings_title">Déclencheurs &amp; détection</string>
+    <string name="geofence_list_title">Geofences</string>
+    <string name="geofence_create_title">Créer un geofence</string>
+    <string name="geofence_create_home_title">Créer « Maison »</string>
+    <string name="geofence_create_work_title">Créer « Travail »</string>
+    <string name="geofence_edit_title">Modifier le geofence</string>
+    <string name="trigger_events_title">Trigger Events</string>
+    <string name="geofence_debug_title">Diagnostic Geofence</string>
+    <string name="automation_status_title">État d\'automatisation</string>
+    <string name="review_inbox_title">Review Inbox</string>
+    <string name="onboarding_title">Onboarding</string>
+    <string name="life_profile_setup_title">Profil de vie</string>
+    <string name="permission_education_title">Autorisations</string>
+    <string name="places_setup_title">Lieux</string>
+    <string name="unknown_places_title">Lieux inconnus</string>
+    <string name="daily_allowances_title">Forfaits quotidiens</string>
+    <string name="activity_types_title">Activités &amp; positivité</string>
+    <string name="categories_title">Catégories</string>
+    <string name="calendar_title">Calendrier</string>
+    <string name="digital_balance_title">Digital Balance</string>
+    <string name="app_tracking_title">Enregistrement d\'applications</string>
+    <string name="todos_title">Tâches</string>
+    <string name="todo_create_title">Nouvelle tâche</string>
+    <string name="todo_edit_title">Modifier la tâche</string>
+    <string name="lifeview_title">Temps de vie</string>
+    <string name="privacy_title">Confidentialité</string>
+    <string name="export_title">Export</string>
+    <string name="backup_title">Sauvegarde</string>
+    <string name="fitness_trackers_title">Trackers de fitness</string>
+    <string name="calendar_rules_title">Calendrier</string>
+    <string name="calendar_rules_desc">Enregistrer automatiquement les événements comme activités</string>
+    <string name="settings_calendar_section">Calendrier</string>
+</resources>

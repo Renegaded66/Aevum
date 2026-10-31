@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- M19.5: Maskot (ayarlar + ana ekran) -->
+    <string name="settings_mascot_title">Maskot</string>
+    <string name="settings_mascot_desc">Ana ekranda küçük bir varlık — günün güzel göründüğü günler daha çok gülümser.</string>
+    <string name="settings_mascot_preview_hint">Önizlemeye dokun — yanıt verir.</string>
+    <string name="settings_mascot_color">Renk</string>
+    <string name="settings_mascot_antenna">Anten</string>
+    <string name="settings_mascot_antenna_ball">Top</string>
+    <string name="settings_mascot_antenna_star">Yıldız</string>
+    <string name="settings_mascot_antenna_bolt">Şimşek</string>
+    <string name="settings_mascot_cheeks">Yanaklar</string>
+    <string name="mascot_cd">Maskot</string>
+    <string name="mascot_cd_score">Maskotun. Günlük kalite: 100 üzerinden %1$d.</string>
+    <string name="mascot_state_sleeping">uyuyor</string>
+    <string name="mascot_state_awake">uyanık</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_widget.xml, struttura: values/strings_widget.xml. Placeholder ed escape verificati. -->
+    <string name="widget_name">Registrazione Aevum</string>
+    <string name="widget_description">Mostra se un\'attività è in registrazione — con timer, avvio/arresto e scelta dell\'attività.</string>
+    <string name="widget_status_idle">PRONTO</string>
+    <string name="widget_status_running">IN CORSO</string>
+    <string name="widget_status_paused">IN PAUSA</string>
+    <string name="widget_idle_title">Avvia</string>
+    <string name="widget_paused_title">In pausa</string>
+    <string name="widget_cd_start">Avvia la registrazione</string>
+    <string name="widget_cd_stop">Ferma la registrazione</string>
+    <string name="widget_cd_open">Apri Aevum</string>
+    <string name="widget_picker_title">Cosa vuoi avviare?</string>
+    <string name="widget_picker_subtitle">Tocca un\'attività — la registrazione parte subito.</string>
+    <string name="widget_picker_cancel">Annulla</string>
+    <string name="widget_picker_running">In corso: %1$s</string>
+    <string name="widget_picker_stop">Ferma la registrazione in corso</string>
+    <string name="widget_empty_activities">Ancora nessuna attività</string>
+    <string name="widget_no_app">Attività</string>
+</resources>

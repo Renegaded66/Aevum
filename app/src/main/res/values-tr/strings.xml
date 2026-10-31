@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <string name="app_name">Aevum</string>
+    <string name="app_name_debug">Aevum Debug</string>
+    <string name="onboarding_welcome_title">Aevum\'a hoş geldin</string>
+    <string name="onboarding_welcome_subtitle">Kişisel yaşam kokpitin</string>
+    <string name="dashboard_title">Bugün</string>
+    <string name="timeline_title">Zaman çizelgesi</string>
+    <string name="insights_title">Analizler</string>
+    <string name="growth_title">Gelişim</string>
+    <string name="settings_title">Ayarlar</string>
+    <string name="balance_title">Denge</string>
+
+    <!-- App ayarları: dil -->
+    <string name="settings_app_section">Dil ve tasarım</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_desc">Uygulamanın dilini seç</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_desc">Uygulamanın görünümünü seç</string>
+    <string name="theme_dark">Koyu</string>
+    <string name="theme_light">Açık</string>
+    <string name="theme_system">Sistem</string>
+    <string name="settings_hero_subtitle">Aevum\'un senin için yaptığı her şey — tek bir yerde. Tüm veriler cihazında kalır.</string>
+    <string name="settings_section_appearance">Görünüm</string>
+    <string name="settings_section_connections">Bağlantılar</string>
+    <string name="settings_todos_desc">Görevler, tarih, tekrar</string>
+    <string name="settings_allowances_desc">Kategori başına günlük süre payları</string>
+    <string name="settings_section_automation">Otomasyon</string>
+    <string name="settings_trigger_detection">Tetikleyiciler ve algılama</string>
+    <string name="settings_trigger_detection_desc">Geofence\'ler · Araba · Yürüyüş · Uyku · İzinler</string>
+    <string name="settings_geofences_manage">Geofence\'leri yönet</string>
+    <string name="settings_geofences_manage_desc">Yerler, yarıçaplar ve otomatik başlatma</string>
+    <string name="settings_trigger_events">Trigger Events</string>
+    <string name="settings_trigger_events_desc">Algılanan tüm olaylar</string>
+    <string name="settings_my_places">Yerlerim</string>
+    <string name="settings_your_activities">Aktivitelerin</string>
+    <string name="settings_activity_types">Aktivite türlerini yönet</string>
+    <string name="settings_activity_types_desc">Simgeler, renkler, pozitiflik</string>
+    <string name="settings_categories_desc">Oluşturma, aktivite atama, simge ve renk</string>
+    <string name="settings_advanced">Gelişmiş</string>
+    <string name="settings_todos_manage">Yapılacakları yönet</string>
+    <string name="settings_allowances_manage">Günlük payları yönet</string>
+    <string name="settings_privacy_data">Gizlilik ve veriler</string>
+    <string name="settings_privacy">Gizlilik</string>
+    <string name="settings_privacy_desc">Yerel veriler, silme</string>
+    <string name="settings_export_desc">Tüm veriler JSON olarak</string>
+    <string name="settings_backup_desc">Yedekleme ve geri yükleme</string>
+    <string name="settings_fitness_trackers">Fitness takipçileri</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_connect_desc">Bağlan, eşitle, ayır</string>
+    <!-- M18.83: Yer zaman çizelgesi -->
+    <string name="settings_place_timeline">Yer zaman çizelgesi</string>
+    <string name="settings_place_timeline_desc">Nerede, ne zaman — günün akışı</string>
+    <string name="place_timeline_title">Yer zaman çizelgesi</string>
+    <string name="place_timeline_subtitle">Günün yerler üzerindeki akışı</string>
+    <string name="place_timeline_empty_hint">Bu gün için henüz yer ziyareti yok. Geofence\'lere girdiğin ya da bilinmeyen bir yeri adlandırdığın anda burada görünür.</string>
+    <string name="place_timeline_summary_lede">%1$d ziyaret · %2$s yolda</string>
+    <string name="place_timeline_badge_short">Kısa duraklama</string>
+    <string name="place_timeline_badge_long">Uzun kaldın</string>
+    <string name="place_timeline_badge_named">Adlandırılmış yer</string>
+    <string name="place_timeline_ongoing">şu an sürüyor</string>
+    <string name="place_timeline_road_prefix">Yolda</string>
+    <string name="place_timeline_unnamed_place">Yer (adlandırılmamış)</string>
+    <string name="place_timeline_badge_live">Şu an burada</string>
+    <string name="place_timeline_badge_unnamed">Adlandırılmamış yer</string>
+    <string name="place_timeline_cd_prev_day">Önceki gün</string>
+    <string name="place_timeline_cd_next_day">Sonraki gün</string>
+    <!-- M24: Yere dokun → ayrıntı → Geofence oluştur -->
+    <string name="place_timeline_detail_title">Yer ayrıntıları</string>
+    <string name="place_timeline_detail_add_geofence">Geofence ekle</string>
+    <string name="place_timeline_detail_geofence_exists">Bu yer zaten bir Geofence olarak kayıtlı.</string>
+    <string name="place_timeline_detail_no_coordinates">Bu yer için kaydedilmiş koordinat yok.</string>
+    <string name="place_timeline_detail_coordinates">Koordinatlar</string>
+    <string name="place_timeline_detail_close">Kapat</string>
+    <string name="place_timeline_detail_unnamed_hint">Sonraki adımda yere bir ad ver.</string>
+    <string name="language_system">System</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_en">English</string>
+    <!-- M34: Endonimler — tüm dillerde aynı (çevrilmez). -->
+    <string name="language_es">Español</string>
+    <string name="language_fr">Français</string>
+    <string name="language_pt">Português</string>
+    <string name="language_it">Italiano</string>
+    <string name="language_tr">Türkçe</string>
+    <string name="language_pl">Polski</string>
+    <string name="language_da">Dansk</string>
+    <string name="language_nb">Norsk bokmål</string>
+    <string name="language_sv">Svenska</string>
+
+    <!-- M34: Sabit metinlerin kalanı (i18n denetimi). -->
+    <string name="place_timeline_map_unavailable">⚠️ Harita kullanılamıyor</string>
+    <string name="place_timeline_marker_unnamed">📍 Yer</string>
+    <string name="geofence_latitude">Enlem</string>
+    <string name="geofence_longitude">Boylam</string>
+    <string name="activity_stats_chart_cd">Zaman içindeki aktivite grafiği, %1$d nokta</string>
+
+    <!-- Digital Balance kilit ekranı -->
+    <string name="block_app_locked">Uygulama kilitli</string>
+    <string name="block_app_locked_title">%1$s kilitli</string>
+    <string name="block_profile_active">“%1$s” profili etkin — bu uygulama kilitli.</string>
+    <string name="block_limit_reached">%1$d dakikalık günlük limit doldu.</string>
+    <string name="block_daily_limit_reached">Günlük limit doldu.</string>
+    <string name="block_extend_5min">5 dakika daha</string>
+    <string name="block_ignore_today">Bugün yok say</string>
+    <string name="block_close">Kapat</string>
+
+    <!-- SwitchActivity (canlı bildirim değiştirme pencereleri) -->
+    <string name="switch_activity_title">Aktiviteyi değiştir</string>
+    <string name="switch_activity_subtitle">Mevcut aktivite sonlandırılır, yenisi başlatılır.</string>
+    <!-- PC Tracker (Windows, yerel ağ) -->
+    <string name="pc_tracker_title">PC Tracker</string>
+    <string name="pc_tracker_subtitle">Windows etkinliği — yerel ağ üzerinden aktarım</string>
+    <string name="settings_pc_tracker_section">PC Tracker</string>
+    <string name="settings_pc_tracker">PC Tracker (Windows)</string>
+    <string name="settings_pc_tracker_desc">PC\'de kullanılan uygulamaları kaydet ve zaman çizelgesine al</string>
+    <string name="pc_tracker_connected">Bağlı</string>
+    <string name="pc_tracker_sync_info">Yalnızca tamamlanmış kayıtlar aktarılır — telefon ile PC arasında doğrudan, bulut yok.</string>
+    <string name="pc_tracker_last_sync">Son: %1$s</string>
+    <string name="pc_tracker_never_synced">Henüz hiç eşitlenmedi</string>
+    <string name="pc_tracker_sync_now">Şimdi eşitle</string>
+    <string name="pc_tracker_sync_none">Her şey güncel — yeni kayıt yok.</string>
+    <string name="pc_remote_start_note">PC\'den başlatıldı</string>
+    <string name="pc_tracker_sync_result">%1$d yeni kayıt, %2$d güncellendi</string>
+    <string name="pc_tracker_sync_new_types">(yeni aktivite: %1$s)</string>
+    <string name="pc_tracker_disconnect">Bağlantıyı kes</string>
+    <string name="pc_tracker_disconnected">Bağlantı kesildi</string>
+    <string name="pc_tracker_disconnect_confirm_title">PC Tracker bağlantısı kesilsin mi?</string>
+    <string name="pc_tracker_disconnect_confirm_text">Eşleştirme telefondan kaldırılır. İçe aktarılmış kayıtlar zaman çizelgesinde kalır.</string>
+    <string name="pc_tracker_cancel">Vazgeç</string>
+    <string name="pc_tracker_search">Wi-Fi\'da PC ara</string>
+    <string name="pc_tracker_searching">Wi-Fi\'da arama sürüyor…</string>
+    <string name="pc_tracker_rescan">Yeniden ara</string>
+    <string name="pc_tracker_no_devices">PC bulunamadı. PC Tracker bilgisayarında çalışıyor mu? İki cihaz da aynı Wi-Fi\'da olmalı.</string>
+    <string name="pc_tracker_pairing_active">Eşleşmeye hazır</string>
+    <string name="pc_tracker_pairing_inactive">Eşleştirme modu kapalı — PC\'de aç</string>
+    <string name="pc_tracker_manual">Bunun yerine elle bağlan</string>
+    <string name="pc_tracker_manual_hint">PC uygulamasında yazan adresi gir (örn. 192.168.178.42).</string>
+    <string name="pc_tracker_host">PC adresi</string>
+    <string name="pc_tracker_port">Port</string>
+    <string name="pc_tracker_next">İleri</string>
+    <string name="pc_tracker_code_title">%1$s ile eşleş</string>
+    <string name="pc_tracker_code_info">PC\'de “Eşleştirme” altında görünen kodu gir.</string>
+    <string name="pc_tracker_code">Eşleştirme kodu</string>
+    <string name="pc_tracker_connect">Bağlan</string>
+    <string name="pc_tracker_error_host">Lütfen PC adresini gir.</string>
+    <string name="pc_tracker_error_port">Lütfen geçerli bir port gir (1–65535).</string>
+    <string name="pc_tracker_error_code">Lütfen kodu gir.</string>
+    <string name="pc_tracker_error_invalid_code">Kod yanlış — PC\'de yeni bir kod üret ve yeniden dene.</string>
+    <string name="pc_tracker_error_rate_limited">Çok fazla başarısız deneme. %1$d saniye sonra yeniden dene.</string>
+    <string name="pc_tracker_error_unreachable">PC\'ye ulaşılamıyor. PC açık mı, uygulama çalışıyor ve ikisi de aynı Wi-Fi\'da mı?</string>
+    <string name="pc_tracker_error_not_connected">Eşleşmiş bir PC yok.</string>
+    <string name="pc_tracker_error_unauthorized">PC\'de erişim sıfırlandı. Lütfen yeniden eşleş.</string>
+
+    <!-- Windows uygulamasının kurulumu (kısa rehber) -->
+    <string name="pc_tracker_install_title">Windows uygulamasını kur</string>
+    <string name="pc_tracker_install_step1">1. PC\'de şu adresi aç: github.com/Renegaded66/Aevum/releases</string>
+    <string name="pc_tracker_install_step2">2. “AevumPcTracker-…-win-x64.zip” dosyasını indir ve ayıkla (sağ tık → Tümünü ayıkla).</string>
+    <string name="pc_tracker_install_step3">3. AevumPcTracker.exe\'yi başlat — Windows bir kez güvenlik duvarı izni soracak, izin ver.</string>
+    <string name="pc_tracker_install_hint">Kurulum gerekmez — her şey ZIP\'in içinde. Uygulama yalnızca Windows\'ta çalışır.</string>
+    <string name="pc_tracker_install_open">İndirme sayfasını aç</string>
+    <string name="pc_tracker_autosync">Arka planda otomatik eşitle</string>
+    <string name="pc_tracker_autosync_desc">Bu PC aynı Wi-Fi\'dayken kayıtlar sessizce alınır. Hatalar yalnızca elle eşitlemede görünür.</string>
+</resources>

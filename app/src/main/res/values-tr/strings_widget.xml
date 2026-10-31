@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- M23: ana ekran widget\'ı (2x1). -->
+    <string name="widget_name">Aevum kaydı</string>
+    <string name="widget_description">Bir aktivitenin kaydolup kaydolmadığını gösterir — zamanlayıcı, başlat/durdur ve aktivite seçimiyle.</string>
+    <string name="widget_status_idle">HAZIR</string>
+    <string name="widget_status_running">KAYITTA</string>
+    <string name="widget_status_paused">DURAKLADI</string>
+    <string name="widget_idle_title">Başlat</string>
+    <string name="widget_paused_title">Duraklatıldı</string>
+    <string name="widget_cd_start">Kaydı başlat</string>
+    <string name="widget_cd_stop">Kaydı durdur</string>
+    <string name="widget_cd_open">Aevum\'u aç</string>
+    <string name="widget_picker_title">Neyi başlatmak istiyorsun?</string>
+    <string name="widget_picker_subtitle">Bir aktiviteye dokun — kayıt hemen başlar.</string>
+    <string name="widget_picker_cancel">Vazgeç</string>
+    <string name="widget_picker_running">Şu an kayıtta: %1$s</string>
+    <string name="widget_picker_stop">Süren kaydı durdur</string>
+    <string name="widget_empty_activities">Henüz aktivite yok</string>
+    <string name="widget_no_app">Aktivite</string>
+</resources>

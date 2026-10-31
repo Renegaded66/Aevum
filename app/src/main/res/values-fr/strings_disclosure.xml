@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Traduit automatiquement (M34) — Source : values-de/strings_disclosure.xml, Structure : values/strings_disclosure.xml. Placeholders et échappements vérifiés. -->
+    <string name="disclosure_location_title">Localisation en arrière-plan</string>
+    <string name="disclosure_location_lead">Aevum collecte des données de localisation pour permettre la détection des lieux (geofences), la détection automatique des trajets, la détection des promenades et des trajets à vélo, ainsi que la Chronologie des lieux — même si l\'application est fermée ou non utilisée.</string>
+    <string name="disclosure_location_features_title">Ces fonctions utilisent la localisation en arrière-plan :</string>
+    <string name="disclosure_location_feature_geofence">Détection de lieux (geofences) : l\'arrivée ou le départ d\'un lieu comme la maison, le travail ou la salle de sport démarre ou termine automatiquement des activités.</string>
+    <string name="disclosure_location_feature_drive">Détection de trajets : les trajets en voiture sont détectés automatiquement et enregistrés avec leur itinéraire.</string>
+    <string name="disclosure_location_feature_movement">Détection de promenades et de trajets à vélo : les trajets sont automatiquement enregistrés comme activité.</string>
+    <string name="disclosure_location_feature_places">Chronologie des lieux et lieux inconnus : Aevum tient l\'historique des lieux où tu es allé.</string>
+    <string name="disclosure_location_why_title">Pourquoi l\'accès en arrière-plan est nécessaire</string>
+    <string name="disclosure_location_why">Ces fonctions doivent fonctionner sans ton intervention. Les changements de lieu surviennent pendant que ton téléphone est dans ta poche et qu\'Aevum n\'est pas ouvert. Sans accès en arrière-plan, il faudrait ouvrir l\'application à chaque arrivée et départ d\'un lieu — tout automatisme disparaîtrait.</string>
+    <string name="disclosure_location_data_title">Ce que deviennent tes données de localisation</string>
+    <string name="disclosure_location_data">Toutes les données de localisation sont stockées exclusivement en local sur ton appareil. Pas de serveur Aevum, pas de comptes utilisateur, pas de publicité et pas de partage avec des tiers. Tu peux révoquer l\'accès à tout moment dans les réglages système.</string>
+    <string name="disclosure_location_privacy_link">Ouvrir la politique de confidentialité</string>
+    <string name="disclosure_location_accept">D\'accord — autoriser la localisation</string>
+    <string name="disclosure_location_decline">Pas maintenant</string>
+    <string name="disclosure_location_reminder_text">Aevum collecte des données de localisation pour la détection de lieux, de trajets, de déplacements et la Chronologie des lieux — même si l\'application est fermée ou non utilisée. Toutes les données restent en local sur ton appareil.</string>
+    <string name="disclosure_location_reminder_action">Afficher à nouveau</string>
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

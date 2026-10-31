@@ -244,8 +244,8 @@ fun GeofenceEditorScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)) {
                             OutlinedTextField(state.form.name, viewModel::setName, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.common_name)) }, placeholder = { Text(stringResource(R.string.automation_name_placeholder)) })
                             Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                                OutlinedTextField(state.form.latitude, viewModel::setLatitude, modifier = Modifier.weight(1f), label = { Text("Latitude") })
-                                OutlinedTextField(state.form.longitude, viewModel::setLongitude, modifier = Modifier.weight(1f), label = { Text("Longitude") })
+                                OutlinedTextField(state.form.latitude, viewModel::setLatitude, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.geofence_latitude)) })
+                                OutlinedTextField(state.form.longitude, viewModel::setLongitude, modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.geofence_longitude)) })
                             }
                             OutlinedTextField(state.form.radius, viewModel::setRadius, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.automation_radius_m)) })
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

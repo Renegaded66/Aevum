@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!--
+        İZİN AÇIKLAMALARI — TÜRKÇE
+        İngilizce metin (yedek): values/strings_permission_disclosure.xml
+        İçerik değişirse iki tarafı birden güncelle.
+    -->
+    <string name="perm_disclosure_points_title">Sağladıkları</string>
+    <string name="perm_disclosure_note_title">Verilerin ne olur</string>
+    <string name="perm_disclosure_allow">İzin ver</string>
+    <string name="perm_disclosure_decline">Şimdi değil</string>
+    <string name="perm_disclosure_open_settings">Ayarları aç</string>
+
+    <!-- ── Aktivite algılama ──────────────────────────────────────────────── -->
+    <string name="perm_activity_title">Aktivite algılamaya izin verilsin mi?</string>
+    <string name="perm_activity_lead">Aevum, araba sürüp sürmediğini, yürüyüp yürmediğini, bisiklet binip binmediğini otomatik anlamak için aktivite algılamayı kullanır — yolculukların, yürüyüşlerin ve bisiklet turlarının sen başlatmadan kaydolması için. Algılama sürekli çalışır, uygulama kapalıyken de.</string>
+    <string name="perm_activity_point_1">Araba yolculukları algılanır ve güzergâhıyla kaydolur</string>
+    <string name="perm_activity_point_2">Yürüyüşler ve bisiklet sürüşleri aktivite olarak kaydedilir</string>
+    <string name="perm_activity_point_3">Hareketinden otomatik uyku algılama</string>
+    <string name="perm_activity_note">Hareket verilerin yalnızca cihazında işlenir, hiçbir zaman aktarılmaz. İzni Android sistem ayarlarından her zaman geri alabilirsin.</string>
+
+    <!-- ── Bildirimler ───────────────────────────────────────────────────── -->
+    <string name="perm_notifications_title">Bildirimlere izin verilsin mi?</string>
+    <string name="perm_notifications_lead">Aevum, bir aktivite sürerken onu sana göstermek ve arka planda otomatik bir aktivite başladığında ya da bittiğinde haber vermek için bildirimleri kullanır. Bu izin olmadan bu geçişler sessizce işler.</string>
+    <string name="perm_notifications_point_1">Hangi aktivitenin sürdüğünü görmek</string>
+    <string name="perm_notifications_point_2">Aevum senin için bir aktivite başlattığında ya da bitirdiğinde haber almak</string>
+    <string name="perm_notifications_point_3">Sürmekte olan zamanlayıcılar için hatırlatmalar</string>
+    <string name="perm_notifications_note">Bildirimler cihazında yerel olarak üretilir. Push servisi yok, bildirim sunucusu yok. İzni Android sistem ayarlarından her zaman geri alabilirsin.</string>
+
+    <!-- ── Kullanım erişimi ─────────────────────────────────────────────── -->
+    <string name="perm_usage_title">Kullanım erişimine izin verilsin mi?</string>
+    <string name="perm_usage_lead">Aevum, uygulamalarını ne kadar zaman ve kaç kez kullandığını okumak için kullanım erişimini kullanır. Bu, Digital Balance\'ın temelidir — ekran süresi istatistikleri ve uygulama limitleri. İzin, alışılmış izin penceresinden değil, özel bir Android ayar sayfasında verilir.</string>
+    <string name="perm_usage_point_1">Digital Balance: uygulamaya göre ekran süresini görmek</string>
+    <string name="perm_usage_point_2">Günlük limit koymak ve uygulamaları belirli saatlerde kiltlemek</string>
+    <string name="perm_usage_point_3">Ekran hareketinden otomatik uyku algılama</string>
+    <string name="perm_usage_note">Kullanım verileri yalnızca cihazında değerlendirilir, hiçbir zaman aktarılmaz. Kullanım erişimini Android sistem ayarlarından her zaman geri alabilirsin (Özel erişim → Kullanım erişimi).</string>
+
+    <!-- ── Takvim ────────────────────────────────────────────────────────── -->
+    <string name="perm_calendar_title">Takvim erişimine izin verilsin mi?</string>
+    <string name="perm_calendar_lead">Aevum, etkinliklerinden uygun aktiviteyi otomatik başlatmak için takvimini okur — bir toplantı ya da bir antrenman gibi. İzin olmadan takvim kurallarını kullanmaya devam edebilirsin, etkinlikleri kendin seçmen gerekir.</string>
+    <string name="perm_calendar_point_1">Etkinlikler ilgili aktiviteyi başlatır ve bitirir</string>
+    <string name="perm_calendar_point_2">Hangi takvimlerin kullanılacağını seçmek</string>
+    <string name="perm_calendar_point_3">Kuralları belirli etkinliklerle sınırlamak</string>
+    <string name="perm_calendar_note">Takvimin yalnızca okunur — Aevum hiçbir zaman etkinlik eklemez ve değiştirmez. Girdiler yalnızca cihazında değerlendirilir, hiçbir zaman aktarılmaz. İzni Android sistem ayarlarından her zaman geri alabilirsin.</string>
+
+    <!-- ── Arama algılama (M26) ──────────────────────────────────────────── -->
+    <string name="perm_calls_title">Arama algılamaya izin verilsin mi?</string>
+    <string name="perm_calls_lead">Aevum, bir görüşme sürdüğünü görmek için arama algılamayı kullanır ve o anda atanmış aktiviteyi kendiliğinden kaydeder — sen başlatmadan. Okunan yalnızca cihazındaki arama durumudur (çalıyor, görüşme sürüyor, arama yok): hiçbir zaman numara, kişiler ya da arama geçmişi okunmaz.</string>
+    <string name="perm_calls_point_1">Görüşme sırasında atanmış aktivite kendiliğinden sürer</string>
+    <string name="perm_calls_point_2">Dijital kayıtlar (ekran, uygulama, PC) onun için duraklatılır</string>
+    <string name="perm_calls_point_3">Elle başlatılan aktiviteler, Geofence\'ler ve takvim dokunulmadan kalır</string>
+    <string name="perm_calls_note">Arama durumu yalnızca cihazında değerlendirilir — numara yok, arama geçmişi yok, hiçbir şey aktarılmaz. İzni Android sistem ayarlarından her zaman geri alabilirsin.</string>
+</resources>

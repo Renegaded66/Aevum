@@ -32,6 +32,18 @@ class LanguageRepository @Inject constructor(
         const val LANGUAGE_SYSTEM = "system"
         const val LANGUAGE_DE = "de"
         const val LANGUAGE_EN = "en"
+        // M34: Zehn Sprachen + "System". Die Liste der gültigen Codes steht
+        // in AppLanguage (util/LanguageCatalog.kt) — hier nur die Codes,
+        // damit Repository/UI nicht auseinanderlaufen.
+        const val LANGUAGE_ES = "es"
+        const val LANGUAGE_FR = "fr"
+        const val LANGUAGE_PT = "pt"
+        const val LANGUAGE_IT = "it"
+        const val LANGUAGE_TR = "tr"
+        const val LANGUAGE_PL = "pl"
+        const val LANGUAGE_DA = "da"
+        const val LANGUAGE_NB = "nb"
+        const val LANGUAGE_SV = "sv"
 
         /**
          * M18.91: Standardsprache der App = ENGLISCH (User: "wenn man die

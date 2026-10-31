@@ -1,0 +1,21 @@
+<resources>
+    <!-- Rule engine titles & reasons (review inbox / timeline) -->
+    <string name="rule_title_commute_to_work">Pendling till jobbet</string>
+    <string name="rule_title_commute_home">Pendling hem</string>
+    <string name="rule_title_gym_trip">Resa till gymmet</string>
+    <string name="rule_title_shopping">Handla: %1$s</string>
+    <string name="rule_title_gym_return">Retur från gymmet</string>
+    <string name="rule_title_transit">På väg: %1$s → %2$s</string>
+    <string name="rule_title_work">Arbete</string>
+    <string name="rule_title_gym">Gym</string>
+    <string name="rule_title_home">Hemma</string>
+    <string name="rule_title_trip">Utflykt</string>
+    <string name="rule_reason_travel">Triggpar upptäckt: %1$s. %2$s föreslås som restid.</string>
+    <string name="rule_reason_stay">Triggpar upptäckt: %1$s besöktes → lämnades. Förslaget kan fortfarande granskas.</string>
+    <string name="rule_reason_away">Triggpar upptäckt: %1$s lämnades → var tillbaka. Inget mål känt, därför försiktigt förslag om utflykt.</string>
+    <string name="rule_reason_merge">%1$s | Sammanfogades med %2$s (glapp &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">en annan kandidat</string>
+
+    <!-- Fallback titles -->
+    <string name="common_activity_fallback">Aktivitet</string>
+</resources>

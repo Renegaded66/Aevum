@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- Canlı aktivite bildirimi (LiveActivityService) -->
+    <string name="notif_live_channel_name">Devam eden aktivite</string>
+    <string name="notif_live_channel_desc">Devam eden aktiviteyi ve kontrol eylemlerini gösterir</string>
+    <string name="notif_live_empty_text">Aktivite sürüyor</string>
+    <string name="notif_live_subtext_paused_auto">Duraklatıldı · otomatik başlatıldı</string>
+    <string name="notif_live_subtext_paused">Duraklatıldı</string>
+    <string name="notif_live_subtext_auto">otomatik başlatıldı</string>
+    <string name="notif_live_subtext_active">Aktif</string>
+    <string name="notif_live_resume">Devam</string>
+    <string name="notif_live_pause">Duraklat</string>
+    <string name="notif_live_switch">⇄ Değiştir</string>
+    <string name="notif_live_stop">■ Durdur</string>
+    <string name="notif_live_signal_label">AEVUM  •  AKTİVİTE SİNYALİ</string>
+    <string name="notif_live_summary_paused">%1$s aktif · %2$s toplam</string>
+    <string name="notif_live_duration_h_m">%1$d sa %2$d dk</string>
+    <string name="notif_live_duration_min">%1$d dk</string>
+    <string name="notif_live_duration_s">%1$d sn</string>
+
+    <!-- Aday inceleme bildirimi (CandidateReviewNotifier) -->
+    <string name="notif_review_channel_name">Aevum Review</string>
+    <string name="notif_review_channel_desc">Yeni gözden geçirilebilir aktivite önerileri için sade bildirimler</string>
+    <string name="notif_review_title">Yeni aktiviteyi incele</string>
+    <string name="notif_review_single">Aevum “%1$s” algıladı. Lütfen kısaca göz at.</string>
+    <string name="notif_review_multi">Aevum %1$d yeni öneri algıladı. Lütfen kısaca göz at.</string>
+
+    <!-- Digital Balance kilidi (AppBlockService) -->
+    <string name="notif_block_channel_name">Digital Balance kilidi</string>
+    <string name="notif_block_channel_desc">Uygulama limitlerini izler ve bir uygulama kilitlenmeden önce uyarır</string>
+    <string name="notif_block_active_title">Digital Balance etkin</string>
+    <string name="notif_block_active_text">Uygulama limitleri izleniyor</string>
+    <!-- M18.131: Limmitten 5 dakika önce ön uyarı. -->
+    <string name="notif_block_warning_title">%1$s yakında kilitlenecek</string>
+    <string name="notif_block_warning_text">Kullanım sürerse yaklaşık %1$d dakika kaldı — sonra bugünkü %2$d dk limit devreye girer.</string>
+
+    <!-- Sürüş algılama (DriveDetectionService) -->
+    <string name="service_drive_channel_name">Sürüş algılama</string>
+    <string name="service_drive_channel_desc">Araba yolculuklarını arka planda GPS ile algılar</string>
+    <string name="service_drive_title">Sürüş algılama etkin</string>
+    <string name="service_drive_text">Aevum yolculukları GPS ile arka planda algılar</string>
+
+    <!-- Uygulama kaydı (AppTrackingService) -->
+    <string name="service_apptracking_channel_name">Uygulama kaydı</string>
+    <string name="service_apptracking_channel_desc">İzlenen uygulamaları algılar ve otomatik aktivite olarak kaydeder</string>
+    <string name="service_apptracking_title">Uygulama kaydı etkin</string>
+    <string name="service_apptracking_text">İzlenen uygulamalar otomatik birer aktivite olarak kaydedilir</string>
+
+    <!-- Dışa aktarım / yedek / gizlilik (DataManager) -->
+    <string name="export_error_open_target">Hedef dosya açılamadı</string>
+    <string name="export_success">Dışa aktarım tamam: %1$d tablo, %2$d KB</string>
+    <string name="export_error_failed">Dışa aktarım başarısız: %1$s</string>
+    <string name="backup_success">Yedek oluşturuldu: %1$d dosya, %2$d KB</string>
+    <string name="backup_error_failed">Yedekleme başarısız: %1$s</string>
+    <string name="backup_error_open">Yedek dosyası açılamadı</string>
+    <string name="backup_error_no_db">Yedekte geçerli bir veritabanı yok</string>
+    <string name="backup_error_version">Yedek sürümü (%1$d) uygulama sürümüne (%2$d) uymuyor. Önce uygulamayı güncelle.</string>
+    <string name="backup_error_version_newer">Bu yedek daha yeni bir Aevum sürümünden (şema %1$d, uygulama %2$d). Önce uygulamayı güncelle.</string>
+    <string name="backup_restore_success_migrated">Yedek geri yüklendi (şema %1$d → %2$d). Uygulama yeniden başlar ve verileri günceller.</string>
+    <string name="backup_restore_success">Yedek geri yüklendi. Uygulama yeniden başlıyor.</string>
+    <string name="backup_error_corrupt">Yedek dosyası bozuk (bütünlük denetimi başarısız)</string>
+    <string name="backup_restore_error">Geri yükleme başarısız: %1$s</string>
+    <string name="data_deleted_all">Tüm veriler silindi. Uygulama yeniden başlıyor.</string>
+    <string name="data_delete_error">Silme başarısız: %1$s</string>
+    <string name="data_unknown_error">bilinmeyen hata</string>
+
+    <!-- Garmin (GarminApiClient / DirectGarminClient) -->
+    <string name="garmin_error_mfa">MFA/2FA desteklenmiyor — lütfen 2FA\'yı Garmin Connect içinde kapat</string>
+    <string name="garmin_error_login_failed">Giriş başarısız</string>
+    <string name="garmin_error_login_failed_detail">Giriş başarısız: %1$s</string>
+    <string name="garmin_error_no_ticket">Giriş anahtarı alınamadı</string>
+    <string name="garmin_error_token_exchange">Token değişimi başarısız: %1$s</string>
+    <string name="garmin_error_token_exchange_all">DI Token Exchange tüm istemci kimlikleri için başarısız</string>
+    <string name="garmin_error_too_many_attempts">Çok fazla giriş denemesi — lütfen sonra yeniden dene</string>
+    <string name="garmin_error_invalid_response">Giriş başarısız (geçersiz yanıt, HTTP %1$d)</string>
+    <string name="garmin_error_wrong_credentials">E-posta ya da şifre yanlış</string>
+    <string name="garmin_error_network">Ağ hatası: %1$s</string>
+
+    <!-- Health Connect (HealthConnectManager) -->
+    <string name="health_duration_h_m">%1$d sa %2$d dk</string>
+    <string name="health_duration_h">%1$d sa</string>
+    <string name="health_sleep_title">Uyku (%1$s)</string>
+    <string name="health_sleep_reason">Health Connect: %1$s (%2$s). Lütfen gözden geçir.</string>
+
+    <!-- Uyku algılama (SleepHeuristicEngine / SleepFusionEngine) -->
+    <string name="sleep_title_detected">Uyku algılandı (%1$s)</string>
+    <string name="sleep_title_suggested">Uyku önerildi</string>
+    <string name="sleep_reason_no_usage">%1$s ile %2$s arasında kullanım yok (%3$s). Ekran kapalı + dinlenme algılandı. Sabah kilidini açınca uyku evresi sonlanır.</string>
+    <string name="sleep_reason_usage_stats">%1$s ile %2$s arasında telefon kullanımı yok (%3$s). Kullanım istatistiklerinden algılandı (ekran kapalı + dinlenme).</string>
+    <string name="sleep_reason_manual">Ekran verilerinden elle algılama. Lütfen saatleri düzelt.</string>
+    <string name="sleep_reason_fusion">%1$d sinyalin birleşimi: %2$s. Aralık %3$s–%4$s.</string>
+
+    <!-- Boşluk algılama (GapDetectionEngine) -->
+    <string name="gap_title_unknown_time">Bilinmeyen zaman (%1$s)</string>
+    <string name="gap_reason">%1$s ile %2$s arasında boşluk algılandı. Bu sürede ne yapıyordun?</string>
+
+    <!-- Aktivite tanıma (ActivityRecognitionWorker) -->
+    <string name="data_mobility_title">Hareket (%1$s)</string>
+    <string name="data_mobility_reason">Aktivite algılama: %1$s araçta (güven %2$d%%)</string>
+    <string name="data_duration_h_m">%1$d sa %2$d dk</string>
+    <string name="data_duration_min">%1$d dk</string>
+    <string name="data_duration_lt_min">&lt;1dk</string>
+
+    <!-- Oturum doğrulama (SessionTimeValidator) -->
+    <string name="validator_title_required">Lütfen aktiviteye bir ad ver.</string>
+    <string name="validator_end_after_start">Bitiş saati başlangıç saatinden sonra olmalı. Aktivite gece yarısını aşıyorsa, bitiş saatini ertesi günden seç.</string>
+    <string name="validator_overlay_only">Bu aktivite yalnızca katman aktiviteleriyle çakışıyor. Bu çoğunlukla sorun değil.</string>
+    <string name="validator_overlaps_one">Bu aktivite mevcut 1 aktiviteyle çakışıyor. Yine de kaydedebilirsin.</string>
+    <string name="validator_overlaps_many">Bu aktivite mevcut %1$d aktiviteyle çakışıyor. Yine de kaydedebilirsin.</string>
+
+    <!-- Sıklık etiketleri (GoalProgressAnalytics) -->
+    <string name="goal_frequency_daily">Günlük</string>
+    <string name="goal_frequency_weekly">Haftada %1$d×</string>
+    <string name="goal_frequency_monthly">Ayda %1$d×</string>
+
+    <!-- Zaman etiketleri (TimeFormatting) -->
+    <string name="time_today">Bugün</string>
+    <string name="time_yesterday">Dün</string>
+    <string name="time_tomorrow">Yarın</string>
+    <string name="time_smart_today">Bugün %1$s</string>
+    <string name="time_smart_yesterday">Dün %1$s</string>
+    <string name="time_smart_other">%1$s, %2$s %3$s</string>
+    <string name="time_day_title_other">%1$s, %2$s</string>
+</resources>

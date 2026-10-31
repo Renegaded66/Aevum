@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_rules.xml, struttura: values/strings_rules.xml. Placeholder ed escape verificati. -->
+    <string name="rule_title_commute_to_work">Tragitto al lavoro</string>
+    <string name="rule_title_commute_home">Ritorno a casa</string>
+    <string name="rule_title_gym_trip">Andata in palestra</string>
+    <string name="rule_title_shopping">Spesa: %1$s</string>
+    <string name="rule_title_gym_return">Ritorno dalla palestra</string>
+    <string name="rule_title_transit">In viaggio: %1$s → %2$s</string>
+    <string name="rule_title_work">Lavoro</string>
+    <string name="rule_title_gym">Palestra</string>
+    <string name="rule_title_home">Casa</string>
+    <string name="rule_title_trip">Gita</string>
+    <string name="rule_reason_travel">Coppia di trigger rilevata: %1$s. %2$s proposta come tempo di tragitto.</string>
+    <string name="rule_reason_stay">Coppia di trigger rilevata: ingresso in %1$s → uscita. La proposta resta verificabile.</string>
+    <string name="rule_reason_away">Coppia di trigger rilevata: uscita da %1$s → rientro. Nessuna destinazione nota, quindi proposta con cautela come gita.</string>
+    <string name="rule_reason_merge">%1$s | Unito con %2$s (intervallo &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">un altro candidate</string>
+    <string name="common_activity_fallback">Attività</string>
+</resources>

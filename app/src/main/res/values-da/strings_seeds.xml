@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maskinoversat (M34) — kilde: values-de/strings_seeds.xml, struktur: values/strings_seeds.xml. Pladsholdere og escapes tjekket. -->
+    <!-- Seed names (default categories, activity types, tags) — created or
+         updated in the current language on app start. -->
+    <string name="seed_category_work">Arbejde</string>
+    <string name="seed_category_sleep">Søvn</string>
+    <string name="seed_category_sport">Sport</string>
+    <string name="seed_category_learning">Læring</string>
+    <string name="seed_category_health">Sundhed</string>
+    <string name="seed_category_leisure">Fritid</string>
+    <string name="seed_category_relationships">Relationer</string>
+    <string name="seed_category_transport">Transport</string>
+    <string name="seed_category_digital">Digital</string>
+    <string name="seed_category_household">Husholdning</string>
+    <string name="seed_category_unknown">Andet</string>
+
+    <string name="seed_activity_work">Arbejde</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Søvn</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Løb</string>
+    <string name="seed_activity_radfahren">Cykling</string>
+    <string name="seed_activity_spazieren">Gåtur</string>
+    <string name="seed_activity_learning">Læring</string>
+    <string name="seed_activity_reading">Læsning</string>
+    <string name="seed_activity_meditation">Meditation</string>
+    <string name="seed_activity_eating">Spisning</string>
+    <string name="seed_activity_social">Socialt</string>
+    <string name="seed_activity_household">Husholdning</string>
+    <string name="seed_activity_driving">Bilkørsel</string>
+    <string name="seed_activity_transport">Transport</string>
+    <string name="seed_activity_digital">Digital</string>
+    <string name="seed_activity_leisure">Fritid</string>
+    <string name="seed_activity_other">Andet</string>
+
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Fokus</string>
+    <string name="seed_tag_routine">Rutine</string>
+    <string name="seed_tag_energy">Energi</string>
+    <string name="seed_tag_recovery">Restitution</string>
+</resources>

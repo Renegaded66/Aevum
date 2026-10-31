@@ -80,14 +80,37 @@ class LocaleSwitchTest {
     }
 
     @Test
-    fun `gespeicherte Sprachwahl ist als Konstante in der Repository abgebildet`() {
-        // Der Settings-Screen schreibt diese Codes; nur de/en/system sind
-        // definiert. Der Test dokumentiert die vollständige Abbildung.
-        val known = setOf(
+    fun `gespeicherte Sprachwahl ist als Katalog abgebildet`() {
+        // M34: Der Katalog ist die einzige Quelle für gültige Codes. Er muss
+        // zu den Konstanten der LanguageRepository passen, sonst schreibt die
+        // UI einen Code, den der Locale-Helper nicht kennt.
+        val catalogCodes = com.d_drostes_apps.aevum.util.AppLanguage.entries.map { it.code }.toSet()
+        assertThat(catalogCodes).containsExactly(
             LanguageRepository.LANGUAGE_SYSTEM,
+            LanguageRepository.LANGUAGE_EN,
             LanguageRepository.LANGUAGE_DE,
-            LanguageRepository.LANGUAGE_EN
+            LanguageRepository.LANGUAGE_ES,
+            LanguageRepository.LANGUAGE_FR,
+            LanguageRepository.LANGUAGE_PT,
+            LanguageRepository.LANGUAGE_IT,
+            LanguageRepository.LANGUAGE_TR,
+            LanguageRepository.LANGUAGE_PL,
+            LanguageRepository.LANGUAGE_DA,
+            LanguageRepository.LANGUAGE_NB,
+            LanguageRepository.LANGUAGE_SV
         )
-        assertThat(known).hasSize(3)
+        assertThat(com.d_drostes_apps.aevum.util.AppLanguage.selectable).hasSize(11)
+    }
+
+    @Test
+    fun `jede waehlbare Sprache liefert ein Locale und einen Ressourcen-Ordner`() {
+        com.d_drostes_apps.aevum.util.AppLanguage.selectable.forEach { language ->
+            assertThat(language.localeTag).isNotNull()
+            val locale = LocaleHelper.localeFor(language.code)
+            assertThat(locale).isNotNull()
+            assertThat(locale!!.language).isEqualTo(language.localeTag)
+        }
+        // Unbekannter Code → kein erzwungenes Locale (App folgt dem System).
+        assertThat(LocaleHelper.localeFor("xx")).isNull()
     }
 }

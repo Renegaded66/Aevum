@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- Hafta ozeti -->
+    <string name="weekly_hero_title">Haftan</string>
+    <string name="weekly_timeline_title">Hafta zaman çizelgesi</string>
+    <string name="weekly_timeline_subtitle">Sakin bir bakışta yedi gün</string>
+    <string name="weekly_distribution_title">Zaman dağılımı</string>
+    <string name="weekly_distribution_subtitle">Hangi alanlar haftanı belirledi</string>
+    <string name="weekly_changes_title">Değişimler</string>
+    <string name="weekly_changes_subtitle">Geçen haftaya göre</string>
+    <string name="weekly_highlights_title">Öne çıkanlar</string>
+    <string name="weekly_patterns_title">Hafta desenleri</string>
+    <string name="weekly_open_time_title">Açık zaman</string>
+    <string name="weekly_open_time_message">Bu haftanın %1$s\'i henüz kaydedilmedi.</string>
+    <string name="weekly_to_timeline">Zaman çizelgesine</string>
+    <string name="weekly_empty_title">Henüz görülebilen bir hafta yok.</string>
+    <string name="weekly_empty_message">Birkaç aktivite kaydet. Sonra Aevum sana burada sakin bir dille anlatır: haftanda hangi desenler, öne çıkanlar ve açık zamanlar görünmeye başlar.</string>
+    <string name="weekly_closing_1">Her hafta kendi hikâyesini anlatır.</string>
+    <string name="weekly_closing_2">Küçük değişimler de zamanla görünür olur.</string>
+    <string name="weekly_closing_3">Görünür hâle geleni daha bilinçli biçimlendirirsin.</string>
+    <string name="weekly_narrative_empty">Birkaç zaman bloğu kaydettiğinde, burada sakin bir hafta özeti belirmeye başlar.</string>
+    <string name="weekly_narrative_top_two">Bu hafta zamanının büyük kısmını %1$s\'a ayırdın; %2$s da görünür oldu.</string>
+    <string name="weekly_narrative_change">Bu hafta %1$s önceki haftaya göre daha belirgin göründü.</string>
+    <string name="weekly_narrative_active_days">Bu hafta, birden çok güne yayılan net ve çeşitli bir görünüm verdi.</string>
+    <string name="weekly_narrative_top">Bu hafta zamanını en çok %1$s belirledi.</string>
+    <string name="weekly_narrative_fallback">Bu hafta kendi hikâyesini anlatmaya başlıyor.</string>
+    <string name="weekly_highlight_longest_activity">En uzun aktivite</string>
+    <string name="weekly_highlight_most_active_day">En yoğun gün</string>
+    <string name="weekly_highlight_balanced_day">En dengeli gün</string>
+    <string name="weekly_highlight_longest_leisure">En uzun boş zaman</string>
+    <string name="weekly_highlight_longest_work">En uzun iş bloğu</string>
+    <string name="weekly_highlight_value">%1$s · %2$s</string>
+    <string name="weekly_highlight_most_active_day_value">%1$s · %2$s göründü</string>
+    <string name="weekly_pattern_strongest_day">En güçlü gün</string>
+    <string name="weekly_pattern_strongest_day_message">Haftanın en görünür günü %1$s idi.</string>
+    <string name="weekly_pattern_weekend">Hafta sonu</string>
+    <string name="weekly_pattern_weekend_message">Hafta sonunda belirgin biçimde daha çok boş zaman göründü.</string>
+    <string name="weekly_pattern_movement">Hareket</string>
+    <string name="weekly_pattern_movement_message">Hareket, haftanın birden çok gününe yayıldı.</string>
+    <string name="weekly_pattern_change">Değişim</string>
+    <string name="weekly_pattern_change_more_message">%1$s gecen haftaya göre belirgin daha fazla göründü.</string>
+    <string name="weekly_pattern_change_less_message">%1$s gecen haftaya göre belirgin daha az göründü.</string>
+    <string name="weekly_pattern_variety">Çeşitlilik</string>
+    <string name="weekly_pattern_variety_message">Bu hafta birden çok yaşam alanına yayıldı.</string>
+
+    <!-- Analizler -->
+    <string name="insights_top_activities">Önde gelen aktiviteler</string>
+    <!-- M18.137: ikon anahtarlı aç/kapat — görünen metin yok; bunlar
+         ekran okuyucu etiketlerdir (eylem + durum). -->
+    <string name="insights_top_activities_expand">Tüm aktiviteleri göster</string>
+    <string name="insights_top_activities_collapse">Aktiviteleri daralt</string>
+    <string name="insights_top_activities_state_expanded">Genişletildi</string>
+    <string name="insights_top_activities_state_collapsed">Daraltıldı</string>
+    <string name="insights_changes_title">Önceki döneme göre değişimler</string>
+    <string name="insights_empty_title">Henüz veri yok</string>
+    <string name="insights_empty_message">Aktivite başlatmaya ya da payları açtığında desenlerin burada belirir.</string>
+    <string name="insights_hours_short">Sa</string>
+    <string name="insights_minutes_short">Dk</string>
+    <string name="insights_lifetime_title">Yaşam süresi</string>
+    <string name="insights_lifetime_subtitle">Gerçekten ne kadar süre kalıyor?</string>
+    <string name="insights_breakdown_activity">Aktivite</string>
+    <string name="insights_breakdown_category">Kategori</string>
+    <string name="insights_period_this_week">Bu hafta</string>
+    <string name="insights_period_this_month">Bu ay</string>
+    <string name="insights_summary_empty">Henüz yeterli veri yok. Zaman blokları kaydettikçe burada sakin desenler oluşur.</string>
+    <string name="insights_summary_multiple_areas">birden çok alan</string>
+    <string name="insights_summary_today">Bugün kaydettiğin zamanı en çok %1$s belirliyor.</string>
+    <string name="insights_summary_week">Bu hafta kaydettiğin zamanı en çok %1$s belirliyor.</string>
+    <string name="insights_summary_month">Bu ay kaydettiğin zamanı en çok %1$s belirliyor.</string>
+    <string name="insights_summary_change">\u0020En büyük değişim %1$s içinde.</string>
+    <string name="insights_card_largest_block_title">En büyük zaman bloğu</string>
+    <string name="insights_card_largest_block_today">Bugün en büyük alanın %1$s idi.</string>
+    <string name="insights_card_largest_block_week">Bu hafta en büyük alanın %1$s idi.</string>
+    <string name="insights_card_largest_block_month">Bu ay en büyük alanın %1$s idi.</string>
+    <string name="insights_card_more_visible_title">Daha görünür</string>
+    <string name="insights_card_more_visible_message">%1$s önceki döneme göre arttı.</string>
+    <string name="insights_card_digital_time_title">Dijital süre</string>
+    <string name="insights_card_digital_time_message">Dijital süren bir miktar azaldı.</string>
+    <string name="insights_card_rhythm_title">Ritim</string>
+    <string name="insights_card_rhythm_message">Bu haftanın birden çok gününde zaten kaydolmuş süre var.</string>
+    <string name="insights_card_variety_title">Çeşitlilik</string>
+    <string name="insights_card_variety_message">Zamanın birden çok yaşam alanına yayılıyor.</string>
+    <!-- M31: üst listenin altındaki etkileşimli grafikler -->
+    <string name="insights_chart_distribution_title">Dağılım</string>
+    <string name="insights_chart_distribution_subtitle">Yaşam alanlarının payı</string>
+    <string name="insights_chart_total">Toplam</string>
+    <string name="insights_chart_hint">Değeri görmek için bir öğeye dokun</string>
+    <string name="insights_chart_course_title">Akış</string>
+    <string name="insights_chart_course_subtitle_today">Saate göre kaydolan süre</string>
+    <string name="insights_chart_course_subtitle_week">Güne göre kaydolan süre</string>
+    <string name="insights_chart_course_subtitle_month">Güne göre kaydolan süre</string>
+    <string name="insights_chart_balance_title">Denge</string>
+    <string name="insights_balance_subtitle_activity">Dönemin aktivitelerinde</string>
+    <string name="insights_balance_subtitle_category">Dönemin kategorilerinde</string>
+    <string name="insights_balance_mode_activity">Aktiviteler</string>
+    <string name="insights_balance_mode_category">Kategoriler</string>
+    <string name="insights_balance_select">Seç</string>
+    <string name="insights_balance_picker_title">Denge alanları</string>
+    <string name="insights_balance_selected_count">%2$d içinden %1$d seçili</string>
+    <string name="insights_balance_limit_hint">En çok %1$d alan. Değiştirmek için seçili bir öğeye dokun.</string>
+    <string name="insights_balance_apply">Uygula</string>
+    <string name="insights_balance_reset_default">En iyi 5</string>
+    <string name="insights_balance_need_three">Radar için en az 3 alan seç.</string>
+    <string name="insights_balance_no_time">Seçili alanlar için bu dönemde kaydolmuş süre yok.</string>
+    <string name="insights_chart_hour_range">%1$s–%2$s</string>
+
+    <string name="insights_allowance_label">%1$s (pay)</string>
+    <!-- M18.137: istatistik görünümünün hata durumu. -->
+    <string name="insights_load_failed">Değerlendirme yüklenmedi. Lütfen yeniden dene.</string>
+    <string name="insights_retry">Yeniden dene</string>
+    <!-- M18.137: soğuk başlangıç yer tutucusu. -->
+    <string name="insights_loading">Değerlendirme yükleniyor…</string>
+
+    <!-- M18.146: dönem gezinmesi + dönem seçici + aktivite istatistik sayfası -->
+    <string name="insights_nav_previous">Önceki dönem</string>
+    <string name="insights_nav_next">Sonraki dönem</string>
+    <string name="insights_nav_today">Şimdiye dön</string>
+    <string name="insights_nav_pick">Dönem seç</string>
+    <string name="insights_picker_title">Dönem seç</string>
+    <string name="insights_picker_now_marker">şimdi</string>
+    <string name="insights_week_label">Hafta %1$d · %2$s</string>
+    <string name="insights_week_short">Hafta %1$d</string>
+
+    <!-- Aktivite istatistik sayfası (M18.146) -->
+    <string name="activity_stats_title">Aktivite</string>
+    <string name="activity_stats_subtitle">Bu aktivite zaman içinde nasıl gelişiyor</string>
+    <string name="activity_stats_axis_daily">Günlük</string>
+    <string name="activity_stats_axis_weekly">Haftalık</string>
+    <string name="activity_stats_axis_monthly">Aylık</string>
+    <string name="activity_stats_range_7d">7 gün</string>
+    <string name="activity_stats_range_30d">30 gün</string>
+    <string name="activity_stats_range_365d">1 yıl</string>
+    <string name="activity_stats_range_all">Toplam</string>
+    <string name="activity_stats_range_7d_suffix">son 7 gün</string>
+    <string name="activity_stats_range_30d_suffix">son 30 gün</string>
+    <string name="activity_stats_range_365d_suffix">son 365 gün</string>
+    <string name="activity_stats_range_all_suffix">kaydolmuş tüm zaman</string>
+    <string name="activity_stats_total">Toplam</string>
+    <string name="activity_stats_avg_per_day">Ort./gün</string>
+    <string name="activity_stats_avg_per_week">Ort./hafta</string>
+    <string name="activity_stats_sessions">Kayıtlar</string>
+    <string name="activity_stats_longest">En uzun</string>
+    <string name="activity_stats_active_days">Aktif günler</string>
+    <string name="activity_stats_streak">En iyi seri</string>
+    <string name="activity_stats_trend_title">Gelişim</string>
+    <string name="activity_stats_trend_up">önceki dönemden fazla</string>
+    <string name="activity_stats_trend_down">önceki dönemden az</string>
+    <string name="activity_stats_trend_flat">önceki döneme yakın</string>
+    <string name="activity_stats_weekday_title">Haftanın ritmi</string>
+    <string name="activity_stats_empty_title">Henüz kayıt yok</string>
+    <string name="activity_stats_empty_message">Bu aktiviteyi kaydettiğinde akışı burada görünür.</string>
+    <string name="activity_stats_chart_hint">Ayrıntılar için grafikte parmağını beklet</string>
+    <string name="activity_stats_open_link">Akışı gör</string>
+    <string name="activity_stats_this_week_suffix">bu hafta</string>
+    <string name="activity_stats_sessions_count">%1$d kayıt</string>
+    <string name="activity_stats_open_session">sürüyor</string>
+
+    <!-- Review Inbox -->
+    <string name="review_inbox_eyebrow">Review Inbox</string>
+    <string name="review_inbox_hero_title">Aevum bir şeyler hazırladı</string>
+    <string name="review_inbox_hero_subtitle">Öneriler ancak kabul ettiğinde sayılır.</string>
+    <string name="review_inbox_accept_safe">%1$d güvenli öneriyi kabul et</string>
+    <string name="review_inbox_selected_count">%1$d seçili</string>
+    <string name="review_inbox_tap_hint">Seçmek için kartlara dokun</string>
+    <string name="review_inbox_all_safe">Hepsi güvenli</string>
+    <string name="review_inbox_sleep_detected">Uyku algılandı</string>
+    <string name="review_inbox_sleep_reason_fallback">Health Connect\'ten algılandı. Lütfen onayla.</string>
+    <string name="review_inbox_generic_reason_fallback">Yerel sinyallerinden otomatik öneri.</string>
+    <string name="review_inbox_empty_title">Hepsi incelendi.</string>
+    <string name="review_inbox_empty_message">Açık öneri yok. Yeni bir şey algılandığında Aevum seni bilgilendirir.</string>
+    <string name="review_inbox_message">%1$d öneri hâlâ onayını bekliyor.</string>
+    <string name="review_inbox_check_now">Şimdi incele</string>
+    <string name="review_duration_hours_minutes">%1$d sa %2$d dk</string>
+    <string name="review_duration_hours">%1$d sa</string>
+    <string name="review_duration_minutes">%1$d dk</string>
+
+    <!-- Gelişim -->
+    <string name="growth_insights_title">Gelişim</string>
+</resources>

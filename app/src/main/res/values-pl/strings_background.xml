@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_background.xml, Struktur: values/strings_background.xml. Platzhalter und Escapes geprüft. -->
+    <!-- Live activity notification (LiveActivityService) -->
+    <string name="notif_live_channel_name">Bieżąca aktywność</string>
+    <string name="notif_live_channel_desc">Pokazuje bieżącą aktywność i przyciski sterowania</string>
+    <string name="notif_live_empty_text">Aktywność trwa</string>
+    <string name="notif_live_subtext_paused_auto">Wstrzymano · uruchomiono automatycznie</string>
+    <string name="notif_live_subtext_paused">Wstrzymano</string>
+    <string name="notif_live_subtext_auto">uruchomiono automatycznie</string>
+    <string name="notif_live_subtext_active">Aktywna</string>
+    <string name="notif_live_resume">Wznów</string>
+    <string name="notif_live_pause">Wstrzymaj</string>
+    <string name="notif_live_switch">⇄ Zmień</string>
+    <string name="notif_live_stop">■ Zatrzymaj</string>
+    <string name="notif_live_signal_label">AEVUM  •  SYGNAŁ AKTYWNOŚCI</string>
+    <string name="notif_live_summary_paused">%1$s aktywna · %2$s łącznie</string>
+    <string name="notif_live_duration_h_m">%1$d godz. %2$d min</string>
+    <string name="notif_live_duration_min">%1$d min</string>
+    <string name="notif_live_duration_s">%1$d s</string>
+
+    <!-- Candidate review notification (CandidateReviewNotifier) -->
+    <string name="notif_review_channel_name">Przegląd Aevum</string>
+    <string name="notif_review_channel_desc">Dyskretne podpowiedzi o nowych propozycjach aktywności do sprawdzenia</string>
+    <string name="notif_review_title">Sprawdź nową aktywność</string>
+    <string name="notif_review_single">Aevum wykryło aktywność %1$s. Zerknij szybko.</string>
+    <string name="notif_review_multi">Aevum wykryło %1$d nowych propozycji. Zerknij szybko.</string>
+
+    <!-- Digital balance block (AppBlockService) -->
+    <string name="notif_block_channel_name">Blokada Digital Balance</string>
+    <string name="notif_block_channel_desc">Pilnuje limitów aplikacji i ostrzega, zanim aplikacja zostanie zablokowana</string>
+    <string name="notif_block_active_title">Digital Balance jest aktywny</string>
+    <string name="notif_block_active_text">Limity aplikacji są pilnowane</string>
+    <!-- M18.131: pre-warning 5 minutes before the limit. "with continued
+         use" is deliberate: the block kicks in once the limit is reached,
+         not after a fixed countdown. -->
+    <string name="notif_block_warning_title">%1$s zostanie wkrótce zablokowana</string>
+    <string name="notif_block_warning_text">Przy dalszym używaniu zostało około %1$d min — potem zacznie obowiązywać dzisiejszy limit %2$d min.</string>
+
+    <!-- Drive detection (DriveDetectionService) -->
+    <string name="service_drive_channel_name">Wykrywanie jazdy samochodem</string>
+    <string name="service_drive_channel_desc">Wykrywa jazdy samochodem przez GPS w tle</string>
+    <string name="service_drive_title">Trwa wykrywanie jazdy samochodem</string>
+    <string name="service_drive_text">Aevum wykrywa jazdy samochodem przez GPS w tle</string>
+
+    <!-- App tracking (AppTrackingService) -->
+    <string name="service_apptracking_channel_name">Rejestrowanie aktywności</string>
+    <string name="service_apptracking_channel_desc">Wykrywa śledzone aplikacje i rejestruje je automatycznie jako aktywności</string>
+    <string name="service_apptracking_title">Trwa rejestrowanie aktywności</string>
+    <string name="service_apptracking_text">Śledzone aplikacje są automatycznie rejestrowane jako aktywności</string>
+
+    <!-- Export / backup / privacy (DataManager) -->
+    <string name="export_error_open_target">Nie udało się otworzyć pliku docelowego</string>
+    <string name="export_success">Utworzono eksport: %1$d tabel, %2$d KB</string>
+    <string name="export_error_failed">Eksport nie powiódł się: %1$s</string>
+    <string name="backup_success">Utworzono kopię zapasową: %1$d plików, %2$d KB</string>
+    <string name="backup_error_failed">Kopia zapasowa nie powiodła się: %1$s</string>
+    <string name="backup_error_open">Nie udało się otworzyć pliku kopii zapasowej</string>
+    <string name="backup_error_no_db">W kopii zapasowej nie znaleziono prawidłowej bazy danych</string>
+    <string name="backup_error_version">Wersja kopii (%1$d) nie pasuje do wersji aplikacji (%2$d). Najpierw zaktualizuj aplikację.</string>
+    <string name="backup_error_version_newer">Ta kopia pochodzi z nowszej wersji Aevum (schemat %1$d, aplikacja %2$d). Najpierw zaktualizuj aplikację.</string>
+    <string name="backup_restore_success_migrated">Kopia przywrócona (schemat %1$d → %2$d). Aplikacja zostanie uruchomiona ponownie i zaktualizuje dane.</string>
+    <string name="backup_restore_success">Kopia przywrócona. Aplikacja zostanie ponownie uruchomiona.</string>
+    <string name="backup_error_corrupt">Plik kopii jest uszkodzony (test integralności nie powiódł się)</string>
+    <string name="backup_restore_error">Przywracanie nie powiodło się: %1$s</string>
+    <string name="data_deleted_all">Wszystkie dane zostały usunięte. Aplikacja zostanie ponownie uruchomiona.</string>
+    <string name="data_delete_error">Usuwanie nie powiodło się: %1$s</string>
+    <string name="data_unknown_error">nieznany błąd</string>
+
+    <!-- Garmin (GarminApiClient / DirectGarminClient) -->
+    <string name="garmin_error_mfa">MFA/2FA nie jest obsługiwane — wyłącz 2FA w Garmin Connect</string>
+    <string name="garmin_error_login_failed">Logowanie nie powiodło się</string>
+    <string name="garmin_error_login_failed_detail">Logowanie nie powiodło się: %1$s</string>
+    <string name="garmin_error_no_ticket">Nie otrzymano biletu usługi</string>
+    <string name="garmin_error_token_exchange">Wymiana tokenów nie powiodła się: %1$s</string>
+    <string name="garmin_error_token_exchange_all">Wymiana tokenów DI nie powiodła się dla wszystkich identyfikatorów klienta</string>
+    <string name="garmin_error_too_many_attempts">Za dużo prób logowania — spróbuj ponownie później</string>
+    <string name="garmin_error_invalid_response">Logowanie nie powiodło się (nieprawidłowa odpowiedź, HTTP %1$d)</string>
+    <string name="garmin_error_wrong_credentials">Nieprawidłowy e-mail lub hasło</string>
+    <string name="garmin_error_network">Błąd sieci: %1$s</string>
+
+    <!-- Health Connect (HealthConnectManager) -->
+    <string name="health_duration_h_m">%1$d godz. %2$d min</string>
+    <string name="health_duration_h">%1$d godz.</string>
+    <string name="health_sleep_title">Sen (%1$s)</string>
+    <string name="health_sleep_reason">Health Connect: %1$s (%2$s). Sprawdź.</string>
+
+    <!-- Sleep detection (SleepHeuristicEngine / SleepFusionEngine) -->
+    <string name="sleep_title_detected">Wykryto sen (%1$s)</string>
+    <string name="sleep_title_suggested">Zaproponowano sen</string>
+    <string name="sleep_reason_no_usage">Brak użycia między %1$s a %2$s (%3$s). Wykryto wygaszony ekran i fazę odpoczynku. Poranne odblokowanie kończy fazę snu.</string>
+    <string name="sleep_reason_usage_stats">Brak używania telefonu między %1$s a %2$s (%3$s). Wykryto na podstawie statystyk użycia (ekran wygaszony + faza odpoczynku).</string>
+    <string name="sleep_reason_manual">Ręczne wykrycie na podstawie danych z ekranu. Dostosuj godziny.</string>
+    <string name="sleep_reason_fusion">Połączenie %1$d sygnałów: %2$s. Przedział czasowy %3$s–%4$s.</string>
+
+    <!-- Gap detection (GapDetectionEngine) -->
+    <string name="gap_title_unknown_time">Nieznany czas (%1$s)</string>
+    <string name="gap_reason">Wykryto lukę między %1$s a %2$s. Co działo się w tym czasie?</string>
+
+    <!-- Activity recognition (ActivityRecognitionWorker) -->
+    <string name="data_mobility_title">Mobilność (%1$s)</string>
+    <string name="data_mobility_reason">Rozpoznawanie aktywności: %1$s w pojeździe (pewność %2$d%%)</string>
+    <string name="data_duration_h_m">%1$d godz. %2$d min</string>
+    <string name="data_duration_min">%1$d min</string>
+    <string name="data_duration_lt_min">&lt;1m</string>
+
+    <!-- Session validation (SessionTimeValidator) -->
+    <string name="validator_title_required">Nadaj swojej aktywności nazwę.</string>
+    <string name="validator_end_after_start">Godzina zakończenia musi być późniejsza niż godzina rozpoczęcia. Jeśli aktywność przekracza północ, wybierz zakończenie następnego dnia.</string>
+    <string name="validator_overlay_only">Ta aktywność pokrywa się tylko z aktywnościami nakładkowymi. To zwykle nie stanowi problemu.</string>
+    <string name="validator_overlaps_one">Ta aktywność pokrywa się z 1 istniejącą aktywnością. Mimo to możesz ją zapisać.</string>
+    <string name="validator_overlaps_many">Ta aktywność pokrywa się z %1$d istniejącymi aktywnościami. Mimo to możesz ją zapisać.</string>
+
+    <!-- Frequency labels (GoalProgressAnalytics) -->
+    <string name="goal_frequency_daily">Codziennie</string>
+    <string name="goal_frequency_weekly">%1$d× w tygodniu</string>
+    <string name="goal_frequency_monthly">%1$d× w miesiącu</string>
+
+    <!-- Time labels (TimeFormatting) -->
+    <string name="time_today">Dzisiaj</string>
+    <string name="time_yesterday">Wczoraj</string>
+    <string name="time_tomorrow">Jutro</string>
+    <string name="time_smart_today">Dzisiaj %1$s</string>
+    <string name="time_smart_yesterday">Wczoraj %1$s</string>
+    <string name="time_smart_other">%1$s, %2$s %3$s</string>
+    <string name="time_day_title_other">%1$s, %2$s</string>
+</resources>

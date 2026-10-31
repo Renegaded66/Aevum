@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        ════════════════════════════════════════════════════════════════════
+        PERMISSION DISCLOSURE — ENGLISH (fallback file)
+
+        English is the app\'s default language, so `values/` is the fallback.
+        German translation: values-de/strings_permission_disclosure.xml
+
+        WHY EVERY PERMISSION GETS A DIALOG:
+        A permission request that goes straight to the Android system dialog
+        gives the user no explanation inside the app. That is exactly what
+        Google rejected for background location ("no immediate in-app
+        disclosure precedes the permission request"). The same reasoning
+        applies to every other sensitive permission: the user should learn
+        from the app itself what a permission is for before the system dialog
+        appears — not from the store listing, and not from a privacy policy.
+
+        RULES for these texts:
+          • Name the permission plainly, ask a question in the title.
+          • Say what Aevum does with it and WHY (not just "needed").
+          • List the concrete features it enables.
+          • State that data stays local + that the permission is revocable.
+          • The consent button must be an explicit action, never a bare "OK".
+
+        Do not shorten these texts: the tests in PermissionDisclosureTest
+        check for the required elements.
+        ════════════════════════════════════════════════════════════════════
+    -->
+    <string name="perm_disclosure_points_title">Vad behörigheten möjliggör</string>
+    <string name="perm_disclosure_note_title">Vad som händer med dina uppgifter</string>
+    <string name="perm_disclosure_allow">Tillåt</string>
+    <string name="perm_disclosure_decline">Inte nu</string>
+    <!-- Shown instead of "Allow" when Android will no longer show its dialog. -->
+    <string name="perm_disclosure_open_settings">Öppna inställningar</string>
+
+    <!-- ── Activity recognition ─────────────────────────────────────────── -->
+    <string name="perm_activity_title">Tillåt aktivitetsigenkänning?</string>
+    <string name="perm_activity_lead">Aevum använder aktivitetsigenkänning för att automatiskt upptäcka om du kör, går eller cyklar — så att körningar, promenader och cykelturer registreras utan att du behöver starta dem. Upptäckten löper kontinuerligt, även när appen är stängd.</string>
+    <string name="perm_activity_point_1">Bilkörningar upptäcks och registreras med sin rutt</string>
+    <string name="perm_activity_point_2">Promenader och cykelturer registreras som aktiviteter</string>
+    <string name="perm_activity_point_3">Automatisk sömnupptäckt utifrån din rörelse</string>
+    <string name="perm_activity_note">Dina rörelsedata bearbetas uteslutande på din enhet och överförs aldrig. Du kan återkalla behörigheten när som helst i Androids systeminställningar.</string>
+
+    <!-- ── Notifications ───────────────────────────────────────────────── -->
+    <string name="perm_notifications_title">Tillåt aviseringar?</string>
+    <string name="perm_notifications_lead">Aevum använder aviseringar för att visa dig när en aktivitet körs och för att informera dig när en startar eller avslutas automatiskt i bakgrunden. Utan den här behörigheten sker dessa växlingar tyst.</string>
+    <string name="perm_notifications_point_1">Se vilken aktivitet som körs just nu</string>
+    <string name="perm_notifications_point_2">Få veta när Aevum startar eller avslutar en aktivitet åt dig</string>
+    <string name="perm_notifications_point_3">Påminnelser för pågående timer</string>
+    <string name="perm_notifications_note">Aviseringar skapas lokalt på din enhet. Det finns ingen push-tjänst och ingen aviseringsserver. Du kan återkalla behörigheten när som helst i Androids systeminställningar.</string>
+
+    <!-- ── Usage access ────────────────────────────────────────────────── -->
+    <string name="perm_usage_title">Tillåt användningsbehörighet?</string>
+    <string name="perm_usage_lead">Aevum använder appanvändningsbehörigheten för att läsa hur länge och hur ofta du använder dina appar. Det är grunden för Digital Balance — skärmtidsstatistik och appgränser. Behörigheten beviljas på en särskild Android-inställningssida, inte i det vanliga behörighetsdialogrutan.</string>
+    <string name="perm_usage_point_1">Digital Balance: se din skärmtid per app</string>
+    <string name="perm_usage_point_2">Sätt dagliga gränser och blockera appar tillfälligt</string>
+    <string name="perm_usage_point_3">Automatisk sömnupptäckt utifrån din skärmaktivitet</string>
+    <string name="perm_usage_note">Användningsdata utvärderas uteslutande på din enhet och överförs aldrig. Du kan återkalla behörigheten när som helst i Androids systeminställningar (Särskild åtkomst → Användningsbehörighet).</string>
+
+    <!-- ── Calendar ────────────────────────────────────────────────────── -->
+    <string name="perm_calendar_title">Tillåt kalenderåtkomst?</string>
+    <string name="perm_calendar_lead">Aevum läser din kalender för att automatiskt starta den matchande aktiviteten för dina bokningar — till exempel ett möte eller ett träningspass. Utan den här behörigheten kan du fortfarande använda kalenderregler, men du får välja bokningarna själv.</string>
+    <string name="perm_calendar_point_1">Bokningar startar och avslutar den matchande aktiviteten</string>
+    <string name="perm_calendar_point_2">Välj vilka kalendrar som ska användas</string>
+    <string name="perm_calendar_point_3">Reglerna kan begränsas till vissa bokningar</string>
+    <string name="perm_calendar_note">Din kalender läses bara — Aevum skapar aldrig bokningar eller ändrar någon. Posterna utvärderas uteslutande lokalt på din enhet och överförs aldrig. Du kan återkalla behörigheten när som helst i Androids systeminställningar.</string>
+
+    <!-- ── Call detection (M26) ────────────────────────────────────────── -->
+    <string name="perm_calls_title">Tillåt samtalsdetektering?</string>
+    <string name="perm_calls_lead">Aevum använder samtalsdetekteringen för att märka när ett samtal pågår och spelar då automatiskt in den aktivitet du har tilldelat — utan att du behöver starta den. Upptäckten läser bara samtalets status på din enhet (ringer, samtal pågår, inget samtal): aldrig telefonnummer, kontakter eller samtalsloggen.</string>
+    <string name="perm_calls_point_1">Medan ett samtal pågår registreras den tilldelade aktiviteten automatiskt</string>
+    <string name="perm_calls_point_2">Digitala inspelningar (skärm, appar, PC) avbryts för det</string>
+    <string name="perm_calls_point_3">Manuellt startade aktiviteter, geofences och kalenderregler lämnas orörda</string>
+    <string name="perm_calls_note">Samtalets status utvärderas uteslutande lokalt på din enhet — inga telefonnummer, ingen samtalslogg, inget överförs. Du kan återkalla behörigheten när som helst i Androids systeminställningar.</string>
+</resources>

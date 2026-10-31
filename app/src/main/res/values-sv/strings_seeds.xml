@@ -1,0 +1,40 @@
+<resources>
+    <!-- Seed names (default categories, activity types, tags) — created or
+         updated in the current language on app start. -->
+    <string name="seed_category_work">Arbete</string>
+    <string name="seed_category_sleep">Sömn</string>
+    <string name="seed_category_sport">Sport</string>
+    <string name="seed_category_learning">Lärande</string>
+    <string name="seed_category_health">Hälsa</string>
+    <string name="seed_category_leisure">Fritid</string>
+    <string name="seed_category_relationships">Relationer</string>
+    <string name="seed_category_transport">Transport</string>
+    <string name="seed_category_digital">Digitalt</string>
+    <string name="seed_category_household">Hushåll</string>
+    <string name="seed_category_unknown">Annat</string>
+
+    <string name="seed_activity_work">Arbete</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Sömn</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Jogging</string>
+    <string name="seed_activity_radfahren">Cykling</string>
+    <string name="seed_activity_spazieren">Promenad</string>
+    <string name="seed_activity_learning">Lärande</string>
+    <string name="seed_activity_reading">Läsning</string>
+    <string name="seed_activity_meditation">Meditation</string>
+    <string name="seed_activity_eating">Måltid</string>
+    <string name="seed_activity_social">Socialt</string>
+    <string name="seed_activity_household">Hushåll</string>
+    <string name="seed_activity_driving">Bilkörning</string>
+    <string name="seed_activity_transport">Transport</string>
+    <string name="seed_activity_digital">Digitalt</string>
+    <string name="seed_activity_leisure">Fritid</string>
+    <string name="seed_activity_other">Annat</string>
+
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Fokus</string>
+    <string name="seed_tag_routine">Rutin</string>
+    <string name="seed_tag_energy">Energi</string>
+    <string name="seed_tag_recovery">Återhämtning</string>
+</resources>

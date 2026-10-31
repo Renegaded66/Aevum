@@ -1,0 +1,90 @@
+<resources>
+    <!--
+        M34 — Willkommens-Dialog (Onboarding-Wizard), fünf Seiten.
+        Diese Datei ist die ENGLISCHE Quelle (values/ = Fallback).
+        Deutsch liegt in values-de/strings_onboarding.xml, die weiteren
+        Sprachen werden aus dieser Datei übersetzt.
+
+        Regeln für Texte hier:
+          • kurz, ruhig, ohne Ausrufezeichen
+          • keine Werbe-Sprache, keine Zahlenversprechen
+          • jede Seite erklärt in einem Satz, WARUM sie existiert
+    -->
+
+    <!-- Gemeinsame Navigation -->
+    <string name="ob_back">Back</string>
+    <string name="ob_next">Continue</string>
+    <string name="ob_skip">Skip</string>
+    <string name="ob_step">Step %1$d of %2$d</string>
+    <string name="ob_cd_back">Back</string>
+    <string name="ob_cd_next">Continue</string>
+
+    <!-- Seite 1 — Sprache -->
+    <string name="ob_lang_eyebrow">Welcome</string>
+    <string name="ob_lang_title">Choose your language</string>
+    <string name="ob_lang_subtitle">Aevum speaks eleven languages. The rest of this setup appears in the language you pick — and you can change it any time in Settings.</string>
+    <string name="ob_lang_note">Your choice applies immediately.</string>
+
+    <!-- Seite 2 — Kategorien + Aktivitäten -->
+    <string name="ob_focus_eyebrow">Your day</string>
+    <string name="ob_focus_title">What fills your day?</string>
+    <string name="ob_focus_subtitle">These are suggestions, nothing more. Remove what does not fit, add what is missing — you can change all of it later.</string>
+    <string name="ob_focus_categories">Areas of life</string>
+    <string name="ob_focus_categories_desc">The buckets your time is sorted into.</string>
+    <string name="ob_focus_activities">Activities</string>
+    <string name="ob_focus_activities_desc">What you actually do — one tap starts recording.</string>
+    <string name="ob_focus_add_category">Add area</string>
+    <string name="ob_focus_add_activity">Add activity</string>
+    <string name="ob_focus_add_field_label">Name</string>
+    <string name="ob_focus_add_confirm">Add</string>
+    <string name="ob_focus_add_cancel">Cancel</string>
+    <string name="ob_focus_selected">%1$d of %2$d selected</string>
+    <string name="ob_focus_empty_hint">Nothing selected — you can start with an empty list and add activities whenever you like.</string>
+    <string name="ob_focus_custom_badge">Your own</string>
+
+    <!-- Seite 3 — Maskottchen -->
+    <string name="ob_mascot_eyebrow">Companion</string>
+    <string name="ob_mascot_title">Someone to keep you company</string>
+    <string name="ob_mascot_subtitle">A small creature that lives on your dashboard. It sleeps while you rest and glows when your day goes well. Entirely optional.</string>
+    <string name="ob_mascot_on">Yes, come along</string>
+    <string name="ob_mascot_off">No mascot</string>
+    <string name="ob_mascot_color">Colour</string>
+    <string name="ob_mascot_antenna">Antenna tip</string>
+    <string name="ob_mascot_cheeks">Cheeks</string>
+    <string name="ob_mascot_hint">Tap the little one — it reacts.</string>
+    <string name="ob_mascot_preview_off">The dashboard stays calm and empty.</string>
+
+    <!-- Seite 4 — Berechtigungen -->
+    <string name="ob_perm_eyebrow">Permissions</string>
+    <string name="ob_perm_title">What may Aevum see?</string>
+    <string name="ob_perm_subtitle">Everything here is optional and can be revoked at any time. Android will ask you once for each item you keep switched on.</string>
+    <string name="ob_perm_location_title">Location</string>
+    <string name="ob_perm_location_desc">Recognises places and starts activities automatically when you arrive or leave.</string>
+    <string name="ob_perm_activity_title">Motion &amp; driving</string>
+    <string name="ob_perm_activity_desc">Detects walking, cycling and driving so your day records itself.</string>
+    <string name="ob_perm_notifications_title">Notifications</string>
+    <string name="ob_perm_notifications_desc">Shows the running activity in the notification shade, with stop and switch.</string>
+    <string name="ob_perm_usage_title">Screen time</string>
+    <string name="ob_perm_usage_desc">App usage for Digital Balance and daily limits. Android asks for this one in Settings.</string>
+    <string name="ob_perm_calendar_title">Calendar</string>
+    <string name="ob_perm_calendar_desc">Appointments can start the matching activity. Read-only — nothing is ever written.</string>
+    <string name="ob_perm_calls_title">Calls</string>
+    <string name="ob_perm_calls_desc">Records the assigned activity while a call is running. Call state only — no numbers, no history.</string>
+    <string name="ob_perm_footnote">Nothing is uploaded. Nothing is shared. Everything stays on this phone.</string>
+    <string name="ob_perm_none">You can also continue without a single permission — Aevum then stays manual.</string>
+    <string name="ob_perm_selected">%1$d of %2$d enabled</string>
+    <string name="ob_perm_choice">Your choice</string>
+
+    <!-- Seite 5 — Vertrauen / Abschluss -->
+    <string name="ob_trust_eyebrow">One last thing</string>
+    <string name="ob_trust_title">Yours. Entirely.</string>
+    <string name="ob_trust_subtitle">Aevum is a quiet place for your days — not another feed to scroll.</string>
+    <string name="ob_trust_free_title">Free</string>
+    <string name="ob_trust_free_desc">No subscription, no premium lock, no advertising.</string>
+    <string name="ob_trust_local_title">On your device</string>
+    <string name="ob_trust_local_desc">No account, no cloud, no tracking. Your days never leave this phone.</string>
+    <string name="ob_trust_control_title">In your hands</string>
+    <string name="ob_trust_control_desc">Export everything, or delete everything, at any time.</string>
+    <string name="ob_trust_start">Let’s go</string>
+    <string name="ob_trust_footnote">Every choice here can be changed later in Settings.</string>
+</resources>

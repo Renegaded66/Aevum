@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_privacy_policy_link_title">Personvernerklæring</string>
+    <string name="settings_privacy_policy_link_body">Den fullstendige personvernerklæringen finnes på nettet — samme versjon som er lenket i Play Store-oppføringen.</string>
+    <string name="settings_privacy_policy_open">Åpne personvernerklæringen</string>
+    <string name="settings_privacy_background_location_title">Plassering i bakgrunnen</string>
+    <string name="settings_privacy_background_location_body">Aevum samler inn plasseringsdata for stedsgjenkjenning (geofences), automatisk kjøregjenkjenning, gjenkjenning av spaserturer og sykkelturer samt stedstidslinjen — også når appen er lukket eller ikke er i bruk.\n\nAlle plasseringsdata lagres utelukkende lokalt på enheten din. Det finnes ingen Aevum-server, ingen kontoer, ingen reklame og ingen deling med tredjeparter.</string>
+    <string name="settings_privacy_background_location_action">Vis offentliggjøringen igjen</string>
+</resources>

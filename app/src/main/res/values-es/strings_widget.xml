@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_widget.xml, Struktur: values/strings_widget.xml. Platzhalter und Escapes geprüft. -->
+    <string name="widget_name">Aevum grabar</string>
+    <string name="widget_description">Muestra si se está registrando una actividad, con temporizador, inicio/parada y selección de actividad.</string>
+    <string name="widget_status_idle">LISTO</string>
+    <string name="widget_status_running">CORRIENDO</string>
+    <string name="widget_status_paused">PAUSADO</string>
+    <string name="widget_idle_title">Empezar</string>
+    <string name="widget_paused_title">En pausa</string>
+    <string name="widget_cd_start">Empezar a grabar</string>
+    <string name="widget_cd_stop">Dejar de grabar</string>
+    <string name="widget_cd_open">Abierto Aevum</string>
+    <string name="widget_picker_title">¿Qué quieres empezar?</string>
+    <string name="widget_picker_subtitle">Toca una actividad: la grabación comienza inmediatamente.</string>
+    <string name="widget_picker_cancel">Cancelar</string>
+    <string name="widget_picker_running">Actualmente jugando: %1$s</string>
+    <string name="widget_picker_stop">Detener la grabación en curso</string>
+    <string name="widget_empty_activities">Aún no hay actividades</string>
+    <string name="widget_no_app">Actividad</string>
+</resources>

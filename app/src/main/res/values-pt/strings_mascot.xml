@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradução para português (M34) — texto: values-de/strings_mascot.xml, estrutura: values/strings_mascot.xml. Placeholders e escapes verificados. -->
+    <string name="settings_mascot_title">Mascote</string>
+    <string name="settings_mascot_desc">Uma pequena criatura no teu painel — sorri mais quando o teu dia corre bem.</string>
+    <string name="settings_mascot_preview_hint">Toca na pré-visualização — ele reage!</string>
+    <string name="settings_mascot_color">Cor</string>
+    <string name="settings_mascot_antenna">Antena</string>
+    <string name="settings_mascot_antenna_ball">Bola</string>
+    <string name="settings_mascot_antenna_star">Estrela</string>
+    <string name="settings_mascot_antenna_bolt">Raio</string>
+    <string name="settings_mascot_cheeks">Bochechas</string>
+    <string name="mascot_cd">Mascote</string>
+    <string name="mascot_cd_score">A tua mascote. Qualidade do dia: %1$d de 100.</string>
+    <string name="mascot_state_sleeping">está a dormir</string>
+    <string name="mascot_state_awake">está acordado</string>
+</resources>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perm_disclosure_points_title">Hva dette gir deg</string>
+    <string name="perm_disclosure_note_title">Hva som skjer med dataene dine</string>
+    <string name="perm_disclosure_allow">Tillat</string>
+    <string name="perm_disclosure_decline">Ikke nå</string>
+    <string name="perm_disclosure_open_settings">Åpne innstillinger</string>
+    <string name="perm_activity_title">Tillate aktivitetsgjenkjenning?</string>
+    <string name="perm_activity_lead">Aevum bruker aktivitetsgjenkjenning for å oppdage automatisk om du kjører, går eller sykler — slik at bilturer, spaserturer og sykkelturer registreres uten at du må starte dem. Gjenkjenningen går kontinuerlig, også når appen er lukket.</string>
+    <string name="perm_activity_point_1">Bilturer oppdages og registreres med ruten sin</string>
+    <string name="perm_activity_point_2">Spaserturer og sykkelturer registreres som aktiviteter</string>
+    <string name="perm_activity_point_3">Automatisk søvngjenkjenning ut fra bevegelsen din</string>
+    <string name="perm_activity_note">Bevegelsesdataene dine behandles utelukkende lokalt på enheten din og sendes aldri. Du kan trekke tilbake tillatelsen når som helst i systeminnstillingene på Android.</string>
+    <string name="perm_notifications_title">Tillate varsler?</string>
+    <string name="perm_notifications_lead">Aevum bruker varsler for å vise deg når en aktivitet pågår, og for å gi deg beskjed når en starter eller slutter automatisk i bakgrunnen. Uten denne tillatelsen skjer disse byttene i stillhet.</string>
+    <string name="perm_notifications_point_1">Se hvilken aktivitet som pågår akkurat nå</string>
+    <string name="perm_notifications_point_2">Få beskjed når Aevum starter eller avslutter en aktivitet for deg</string>
+    <string name="perm_notifications_point_3">Påminnelser for timer som pågår</string>
+    <string name="perm_notifications_note">Varsler opprettes lokalt på enheten din. Det finnes ingen push-tjeneste og ingen varselserver. Du kan trekke tilbake tillatelsen når som helst i systeminnstillingene på Android.</string>
+    <string name="perm_usage_title">Tillate brukstilgang?</string>
+    <string name="perm_usage_lead">Aevum bruker brukstilgang til å lese hvor lenge og hvor ofte du bruker appene dine. Det er grunnlaget for Digital Balance — skjermtidstatistikk og applaner. Tillatelsen gis på en egen side i Android-innstillingene, ikke i den vanlige tillatelsesdialogen.</string>
+    <string name="perm_usage_point_1">Digital Balance: se skjermtiden din per app</string>
+    <string name="perm_usage_point_2">Sett daglige grenser og blokker apper midlertidig</string>
+    <string name="perm_usage_point_3">Automatisk søvngjenkjenning ut fra skjermaktiviteten din</string>
+    <string name="perm_usage_note">Bruksdataene telles opp utelukkende lokalt på enheten din og sendes aldri. Du kan trekke tilbake brukstilgangen når som helst i systeminnstillingene på Android (Utvidet tilgang → brukstilgang).</string>
+    <string name="perm_calendar_title">Tillate kalendertilgang?</string>
+    <string name="perm_calendar_lead">Aevum leser kalenderen din for å starte den tilhørende aktiviteten automatisk for avtalene dine — for eksempel et møte eller en treningsøkt. Uten denne tillatelsen kan du fortsatt bruke kalenderregler, men du må selv velge avtalene.</string>
+    <string name="perm_calendar_point_1">Avtaler starter og avslutter den tilhørende aktiviteten</string>
+    <string name="perm_calendar_point_2">Velg hvilke kalendere som skal brukes</string>
+    <string name="perm_calendar_point_3">Regler kan begrenses til bestemte avtaler</string>
+    <string name="perm_calendar_note">Kalenderen din blir bare lest — Aevum oppretter aldri avtaler og endrer ingen. Oppføringene behandles utelukkende lokalt på enheten din og sendes aldri. Du kan trekke tilbake tillatelsen når som helst i systeminnstillingene på Android.</string>
+    <string name="perm_calls_title">Tillate samtalegjenkjenning?</string>
+    <string name="perm_calls_lead">Aevum bruker samtalegjenkjenning til å legge merke til når en samtale pågår, og registrerer deretter automatisk aktiviteten du har tildelt — uten at du må starte den. Gjenkjenningen leser bare samtaletilstanden på enheten din (ringer, samtale pågår, ingen samtale): aldri telefonnumre, kontakter eller samtaleloggen.</string>
+    <string name="perm_calls_point_1">Mens en samtale pågår, registreres den tildelte aktiviteten automatisk</string>
+    <string name="perm_calls_point_2">Digitale registreringer (skjerm, apper, PC) avbrytes midlertidig</string>
+    <string name="perm_calls_point_3">Manuellt startede aktiviteter, geofences og kalenderregler berøres ikke</string>
+    <string name="perm_calls_note">Samtaletilstanden behandles utelukkende lokalt på enheten din — ingen telefonnumre, ingen samtalelogg, og ingenting sendes. Du kan trekke tilbake tillatelsen når som helst i systeminnstillingene på Android.</string>
+</resources>

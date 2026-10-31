@@ -1,0 +1,184 @@
+<resources>
+    <!-- Weekly Review -->
+    <string name="weekly_hero_title">Din vecka</string>
+    <string name="weekly_timeline_title">Veckans tidslinje</string>
+    <string name="weekly_timeline_subtitle">Sju dagar som en lugn översikt</string>
+    <string name="weekly_distribution_title">Tidsfördelning</string>
+    <string name="weekly_distribution_subtitle">Vilka områden som präglat din vecka</string>
+    <string name="weekly_changes_title">Förändringar</string>
+    <string name="weekly_changes_subtitle">Jämfört med förra veckan</string>
+    <string name="weekly_highlights_title">Höjdpunkter</string>
+    <string name="weekly_patterns_title">Veckomönster</string>
+    <string name="weekly_open_time_title">Öppen tid</string>
+    <string name="weekly_open_time_message">%1$s av denna vecka är ännu inte registrerat.</string>
+    <string name="weekly_to_timeline">Till tidslinjen</string>
+    <string name="weekly_empty_title">Ingen vecka syns ännu.</string>
+    <string name="weekly_empty_message">Registrera några aktiviteter. Sedan berättar Aevum lugnt för dig här vilka mönster, höjdpunkter och öppna tider som blir synliga i din vecka.</string>
+    <string name="weekly_closing_1">Varje vecka berättar sin egen historia.</string>
+    <string name="weekly_closing_2">Även små förändringar blir synliga med tiden.</string>
+    <string name="weekly_closing_3">Det som blir synligt går att formera medvetare.</string>
+    <string name="weekly_narrative_empty">Så snart du har registrerat några tidsblock växer en lugn veckogenomgång fram här.</string>
+    <string name="weekly_narrative_top_two">Denna vecka investerade du mycket tid i %1$s och gjorde också %2$s synligt.</string>
+    <string name="weekly_narrative_change">Denna vecka är %1$s blivit mer synligt än i förra veckan.</string>
+    <string name="weekly_narrative_active_days">Denna vecka var tydligt synlig och omväxlande över flera dagar.</string>
+    <string name="weekly_narrative_top">%1$s var veckans mest präglande tidsområde.</string>
+    <string name="weekly_narrative_fallback">Denna vecka börjar berätta sin egen historia.</string>
+    <string name="weekly_highlight_longest_activity">Längsta aktiviteten</string>
+    <string name="weekly_highlight_most_active_day">Mest aktiva dagen</string>
+    <string name="weekly_highlight_balanced_day">Mest balanserade dagen</string>
+    <string name="weekly_highlight_longest_leisure">Längsta fritiden</string>
+    <string name="weekly_highlight_longest_work">Längsta arbetsblock</string>
+    <string name="weekly_highlight_value">%1$s · %2$s</string>
+    <string name="weekly_highlight_most_active_day_value">%1$s · %2$s synlig</string>
+    <string name="weekly_pattern_strongest_day">Starkaste dagen</string>
+    <string name="weekly_pattern_strongest_day_message">%1$s var den mest synliga dagen i din vecka.</string>
+    <string name="weekly_pattern_weekend">Helg</string>
+    <string name="weekly_pattern_weekend_message">På helgen var tydligt mer fritid synlig.</string>
+    <string name="weekly_pattern_movement">Rörelse</string>
+    <string name="weekly_pattern_movement_message">Rörelse var fördelad över flera dagar i veckan.</string>
+    <string name="weekly_pattern_change">Förändring</string>
+    <string name="weekly_pattern_change_more_message">%1$s var tydligt mer synlig jämfört med förra veckan.</string>
+    <string name="weekly_pattern_change_less_message">%1$s var tydligt mindre synlig jämfört med förra veckan.</string>
+    <string name="weekly_pattern_variety">Omväxling</string>
+    <string name="weekly_pattern_variety_message">Denna vecka fördelar sig på flera livsområden.</string>
+
+    <!-- Insights -->
+    <string name="insights_top_activities">Toppaktiviteter</string>
+    <!-- M18.137 (Kanban t_70a06809): screen-reader labels for the icon-only
+         expand/collapse toggle (action + state). -->
+    <string name="insights_top_activities_expand">Visa alla aktiviteter</string>
+    <string name="insights_top_activities_collapse">Fäll ihop aktiviteter</string>
+    <string name="insights_top_activities_state_expanded">Utfälld</string>
+    <string name="insights_top_activities_state_collapsed">Fälld ihop</string>
+    <string name="insights_changes_title">Förändringar jämfört med föregående period</string>
+    <string name="insights_empty_title">Inga data ännu</string>
+    <string name="insights_empty_message">Så snart du startar aktiviteter eller aktiverar tidsbudgetar visas dina mönster här.</string>
+    <string name="insights_hours_short">h</string>
+    <string name="insights_minutes_short">min</string>
+    <string name="insights_lifetime_title">Livstid</string>
+    <string name="insights_lifetime_subtitle">Hur mycket tid återstår egentligen?</string>
+    <string name="insights_breakdown_activity">Aktivitet</string>
+    <string name="insights_breakdown_category">Kategori</string>
+    <string name="insights_period_this_week">Denna vecka</string>
+    <string name="insights_period_this_month">Denna månad</string>
+    <string name="insights_summary_empty">Ännu inte tillräckligt med data. Så snart du registrerar tidsblock växer lugna mönster fram här.</string>
+    <string name="insights_summary_multiple_areas">flera områden</string>
+    <string name="insights_summary_today">Idag präglar framför allt %1$s din registrerade tid.</string>
+    <string name="insights_summary_week">Denna vecka präglar framför allt %1$s din registrerade tid.</string>
+    <string name="insights_summary_month">Denna månad präglar framför allt %1$s din registrerade tid.</string>
+    <string name="insights_summary_change">\u0020Största förändringen ligger hos %1$s.</string>
+    <string name="insights_card_largest_block_title">Största tidsblock</string>
+    <string name="insights_card_largest_block_today">%1$s var ditt största område idag.</string>
+    <string name="insights_card_largest_block_week">%1$s var ditt största område denna vecka.</string>
+    <string name="insights_card_largest_block_month">%1$s var ditt största område denna månad.</string>
+    <string name="insights_card_more_visible_title">Mer synlig</string>
+    <string name="insights_card_more_visible_message">%1$s har ökat jämfört med föregående period.</string>
+    <string name="insights_card_digital_time_title">Digital tid</string>
+    <string name="insights_card_digital_time_message">Din digitala tid är något minskad.</string>
+    <string name="insights_card_rhythm_title">Rytm</string>
+    <string name="insights_card_rhythm_message">Flera dagar i denna vecka innehåller redan registrerad tid.</string>
+    <string name="insights_card_variety_title">Omväxling</string>
+    <string name="insights_card_variety_message">Din tid fördelar sig på flera livsområden.</string>
+    <!-- M31: interactive charts below the top list. They replace the
+         former "Changes" block and the insight cards. -->
+    <string name="insights_chart_distribution_title">Fördelning</string>
+    <string name="insights_chart_distribution_subtitle">Andel av livsområdena</string>
+    <string name="insights_chart_total">Totalt</string>
+    <string name="insights_chart_hint">Tryck på ett element för att se dess värde</string>
+    <string name="insights_chart_course_title">Förlopp</string>
+    <string name="insights_chart_course_subtitle_today">Registrerad tid per timme</string>
+    <string name="insights_chart_course_subtitle_week">Registrerad tid per dag</string>
+    <string name="insights_chart_course_subtitle_month">Registrerad tid per dag</string>
+    <string name="insights_chart_balance_title">Balans</string>
+    <string name="insights_balance_subtitle_activity">Dina aktiviteter i perioden</string>
+    <string name="insights_balance_subtitle_category">Dina kategorier i perioden</string>
+    <string name="insights_balance_mode_activity">Aktiviteter</string>
+    <string name="insights_balance_mode_category">Kategorier</string>
+    <string name="insights_balance_select">Välj</string>
+    <string name="insights_balance_picker_title">Välj balansområden</string>
+    <string name="insights_balance_selected_count">%1$d av %2$d valda</string>
+    <string name="insights_balance_limit_hint">Högst %1$d områden. Tryck på en vald post för att byta ut den.</string>
+    <string name="insights_balance_apply">Tillämpa</string>
+    <string name="insights_balance_reset_default">Topp 5</string>
+    <string name="insights_balance_need_three">Välj minst 3 områden för radaren.</string>
+    <string name="insights_balance_no_time">Ingen tid är registrerad för de valda områdena i denna period.</string>
+    <string name="insights_chart_hour_range">kl. %1$s–%2$s</string>
+
+    <string name="insights_allowance_label">%1$s (tidsbudget)</string>
+    <!-- M18.137 (Kanban t_13e9f843): error state of the insights view.
+         Not the "no data" copy — an error must be distinguishable from an
+         actually empty database. -->
+    <string name="insights_load_failed">Analysen kunde inte läsas in. Försök igen.</string>
+    <string name="insights_retry">Försök igen</string>
+    <!-- M18.137 (Kanban t_386782be): cold-start placeholder. Deliberately used
+         ONLY here — expanding the top-activities list is not a load operation. -->
+    <string name="insights_loading">Läser in analysen…</string>
+
+    <!-- M18.146: period navigation (‹ label ›) + period picker sheet + the
+         per-activity statistics page. One place for all labels so day/
+         week/month cannot drift apart in wording. -->
+    <string name="insights_nav_previous">Föregående period</string>
+    <string name="insights_nav_next">Nästa period</string>
+    <string name="insights_nav_today">Tillbaka till nu</string>
+    <string name="insights_nav_pick">Välj period</string>
+    <string name="insights_picker_title">Välj period</string>
+    <string name="insights_picker_now_marker">nu</string>
+    <string name="insights_week_label">Vecka %1$d · %2$s</string>
+    <string name="insights_week_short">Vecka %1$d</string>
+
+    <!-- Activity statistics page (M18.146) -->
+    <string name="activity_stats_title">Aktivitet</string>
+    <string name="activity_stats_subtitle">Hur denna aktivitet utvecklas över tid</string>
+    <string name="activity_stats_axis_daily">Dagligen</string>
+    <string name="activity_stats_axis_weekly">Veckovis</string>
+    <string name="activity_stats_axis_monthly">Månadsvis</string>
+    <string name="activity_stats_range_7d">7 dagar</string>
+    <string name="activity_stats_range_30d">30 dagar</string>
+    <string name="activity_stats_range_365d">1 år</string>
+    <string name="activity_stats_range_all">Totalt</string>
+    <string name="activity_stats_range_7d_suffix">de senaste 7 dagarna</string>
+    <string name="activity_stats_range_30d_suffix">de senaste 30 dagarna</string>
+    <string name="activity_stats_range_365d_suffix">de senaste 365 dagarna</string>
+    <string name="activity_stats_range_all_suffix">all registrerad tid</string>
+    <string name="activity_stats_total">Totalt</string>
+    <string name="activity_stats_avg_per_day">Ø per dag</string>
+    <string name="activity_stats_avg_per_week">Ø per vecka</string>
+    <string name="activity_stats_sessions">Inspelningar</string>
+    <string name="activity_stats_longest">Längsta</string>
+    <string name="activity_stats_active_days">Aktiva dagar</string>
+    <string name="activity_stats_streak">Bästa serie</string>
+    <string name="activity_stats_trend_title">Trend</string>
+    <string name="activity_stats_trend_up">mer än i föregående period</string>
+    <string name="activity_stats_trend_down">mindre än i föregående period</string>
+    <string name="activity_stats_trend_flat">ungefär detsamma som i föregående period</string>
+    <string name="activity_stats_weekday_title">Veckans rytm</string>
+    <string name="activity_stats_empty_title">Inget registrerat ännu</string>
+    <string name="activity_stats_empty_message">Så snart du registrerar denna aktivitet visas dess förlopp här.</string>
+    <string name="activity_stats_chart_hint">Håll fingret på grafen för detaljer</string>
+    <string name="activity_stats_open_link">Visa historik</string>
+    <string name="activity_stats_this_week_suffix">denna vecka</string>
+    <string name="activity_stats_sessions_count">%1$d inspelningar</string>
+    <string name="activity_stats_open_session">pågår</string>
+
+    <!-- Review Inbox -->
+    <string name="review_inbox_eyebrow">Review Inbox</string>
+    <string name="review_inbox_hero_title">Aevum har förberett något</string>
+    <string name="review_inbox_hero_subtitle">Förslag räknas först när du inför dem.</string>
+    <string name="review_inbox_accept_safe">Godkänn %1$d trygga förslag</string>
+    <string name="review_inbox_selected_count">%1$d valda</string>
+    <string name="review_inbox_tap_hint">Tryck på korten för att välja</string>
+    <string name="review_inbox_all_safe">Alla trygga</string>
+    <string name="review_inbox_sleep_detected">Sömn upptäcktes</string>
+    <string name="review_inbox_sleep_reason_fallback">Upptäckt via Health Connect. Bekräfta gärna.</string>
+    <string name="review_inbox_generic_reason_fallback">Automatiskt förslag från dina lokala signaler.</string>
+    <string name="review_inbox_empty_title">Allt kontrollerat.</string>
+    <string name="review_inbox_empty_message">Inga öppna förslag. Aevum meddelar dig så snart något nytt upptäcks.</string>
+    <string name="review_inbox_message">%1$d förslag väntar på din bekräftelse.</string>
+    <string name="review_inbox_check_now">Granska nu</string>
+    <string name="review_duration_hours_minutes">%1$d tim %2$d min</string>
+    <string name="review_duration_hours">%1$d h</string>
+    <string name="review_duration_minutes">%1$d min</string>
+
+    <!-- Growth -->
+    <string name="growth_insights_title">Tillväxt</string>
+</resources>

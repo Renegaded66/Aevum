@@ -174,7 +174,7 @@ fun PlaceTimelineMap(
                     } catch (t: Throwable) {
                         android.util.Log.e("PlaceTimelineMap", "MapView-Init fehlgeschlagen — Platzhalter", t)
                         android.widget.TextView(ctx).apply {
-                            text = "⚠️ Karte nicht verfügbar"
+                            text = ctx.getString(com.d_drostes_apps.aevum.R.string.place_timeline_map_unavailable)
                             setTextColor(android.graphics.Color.GRAY)
                             textSize = 13f
                             gravity = android.view.Gravity.CENTER
@@ -333,7 +333,9 @@ private fun rebuildMarkersAndRoutes(
         // M18.87: Unbenannte Places haben leeren Namen →neutraler Titel
         // "📍 Ort" (Details stehen im Snippet; UI-String wäre hier
         // nicht greifbar — Kontext ist nicht-composabel).
-        val title = anchor.name.ifEmpty { "📍 Ort" }
+        val title = anchor.name.ifEmpty {
+            context.getString(com.d_drostes_apps.aevum.R.string.place_timeline_marker_unnamed)
+        }
         val marker = map.addMarker(
             MarkerOptions()
                 .position(LatLng(anchor.latitude!!, anchor.longitude!!))

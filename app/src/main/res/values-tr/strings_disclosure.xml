@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!--
+        Uygulama içinde belirgin açıklama (Google Play — konum ilkesi).
+
+        Play ilkesinin zorunlu koşulu: konum hakkı HER istekten önce bir
+        pencere göstermeli, (a) "konum" kelimesini içermeli, (b) erişimin
+        ARKA PLANDA olduğu vurgulanmalı ("uygulama kapalıyken ya da
+        kullanılmadığında bile"), (c) arka planda konumu kullanan TÜM
+        özellikler listelenmeli, (d) etkin bir onay istenmeli (düğme;
+        kaydırma/geri gitme onay sayılmaz).
+
+        Metinleri yeniden incelemeden değiştirme: sözler, Play
+        beyanının temelidir. İçerik değişirse, açıklama yeniden
+        gösterilsin diye LocationDisclosure.kt içindeki
+        DISCLOSURE_VERSION artırılmalı.
+    -->
+    <string name="disclosure_location_title">Arka planda konum</string>
+
+    <string name="disclosure_location_lead">Aevum, yer algılama (Geofence\'ler), otomatik sürüş algılama, yürüyüş ve bisiklet algılama ve yer zaman çizelgesi için konum verisi toplar — uygulama kapalıyken ya da kullanılmadığında bile.</string>
+
+    <string name="disclosure_location_features_title">Bu özellikler konumu arka planda kullanır:</string>
+
+    <string name="disclosure_location_feature_geofence">Yer algılama (Geofence\'ler): Ev, iş ya da spor salonu gibi yerlere girildiğinde ya da çıkıldığında aktiviteler otomatik başlar ya da biter.</string>
+    <string name="disclosure_location_feature_drive">Sürüş algılama: Araba yolculukları otomatik algılanır ve güzergâhıyla birlikte kaydedilir.</string>
+    <string name="disclosure_location_feature_movement">Yürüyüş ve bisiklet algılama: Yolculuklar otomatik olarak aktivite olarak kaydedilir.</string>
+    <string name="disclosure_location_feature_places">Yer zaman çizelgesi ve bilinmeyen yerler: Aevum, bulunduğun yerlerin geçmişini tutar.</string>
+
+    <string name="disclosure_location_why_title">Arka plan erişimi neden gerekli</string>
+    <string name="disclosure_location_why">Bu özellikler senin müdahalen olmadan çalışmalı. Yer değişiklikleri, telefonun cebinde dururken ve Aevum açık değilken olur. Arka plan erişimi yoksa, her yere girişte ve çıkışta uygulamayı kendin açman gerekirdi — otomatiklik artık otomatik olmazdı.</string>
+
+    <string name="disclosure_location_data_title">Konum verin ne oluyor</string>
+    <string name="disclosure_location_data">Tüm konum verileri yalnızca cihazında, yerel olarak saklanır. Aevum sunucusu yok, kullanıcı hesabı yok, reklam yok, üçüncü tarafa aktarım yok. Erişimi sistem ayarlarından her zaman geri alabilirsin.</string>
+
+    <string name="disclosure_location_privacy_link">Gizlilik bildirimini aç</string>
+
+    <string name="disclosure_location_accept">Onaylıyorum — konuma izin ver</string>
+    <string name="disclosure_location_decline">Şimdi değil</string>
+
+    <string name="disclosure_location_reminder_text">Aevum; yer algılama, sürüş algılama, yolculuk algılama ve yer zaman çizelgesi için konum verisi toplar — uygulama kapalıyken ya da kullanılmadığında bile. Tüm veriler cihazında yerel olarak kalır.</string>
+    <string name="disclosure_location_reminder_action">Yeniden göster</string>
+
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

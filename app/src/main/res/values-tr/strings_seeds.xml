@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- Hazır adlar (varsayılan kategoriler, aktivite türleri, etiketler) —
+         uygulama açılırken güncel dilde oluşturulup güncellenir. -->
+    <string name="seed_category_work">İş</string>
+    <string name="seed_category_sleep">Uyku</string>
+    <string name="seed_category_sport">Spor</string>
+    <string name="seed_category_learning">Öğrenme</string>
+    <string name="seed_category_health">Sağlık</string>
+    <string name="seed_category_leisure">Boş zaman</string>
+    <string name="seed_category_relationships">İlişkiler</string>
+    <string name="seed_category_transport">Ulaşım</string>
+    <string name="seed_category_digital">Dijital</string>
+    <string name="seed_category_household">Ev işleri</string>
+    <string name="seed_category_unknown">Diğer</string>
+
+    <string name="seed_activity_work">İş</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Uyku</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Koşu</string>
+    <string name="seed_activity_radfahren">Bisiklet</string>
+    <string name="seed_activity_spazieren">Yürüyüş</string>
+    <string name="seed_activity_learning">Öğrenme</string>
+    <string name="seed_activity_reading">Okuma</string>
+    <string name="seed_activity_meditation">Meditasyon</string>
+    <string name="seed_activity_eating">Yemek</string>
+    <string name="seed_activity_social">Sosyal</string>
+    <string name="seed_activity_household">Ev işleri</string>
+    <string name="seed_activity_driving">Araba sürmek</string>
+    <string name="seed_activity_transport">Ulaşım</string>
+    <string name="seed_activity_digital">Dijital</string>
+    <string name="seed_activity_leisure">Boş zaman</string>
+    <string name="seed_activity_other">Diğer</string>
+
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Odak</string>
+    <string name="seed_tag_routine">Rutin</string>
+    <string name="seed_tag_energy">Enerji</string>
+    <string name="seed_tag_recovery">Toparlanma</string>
+</resources>

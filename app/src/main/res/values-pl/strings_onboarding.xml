@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_onboarding.xml, Struktur: values/strings_onboarding.xml. Platzhalter und Escapes geprüft. -->
+
+    <!-- Gemeinsame Navigation -->
+    <string name="ob_back">Wstecz</string>
+    <string name="ob_next">Dalej</string>
+    <string name="ob_skip">Pomiń</string>
+    <string name="ob_step">Krok %1$d z %2$d</string>
+    <string name="ob_cd_back">Wstecz</string>
+    <string name="ob_cd_next">Dalej</string>
+
+    <!-- Seite 1 — Sprache -->
+    <string name="ob_lang_eyebrow">Witaj</string>
+    <string name="ob_lang_title">Wybierz swój język</string>
+    <string name="ob_lang_subtitle">Aevum mówi w jedenastu językach. Reszta tej konfiguracji pojawi się w języku, który wybierzesz — zmienisz go w każdej chwili w Ustawieniach.</string>
+    <string name="ob_lang_note">Twój wybór działa od razu.</string>
+
+    <!-- Seite 2 — Kategorien + Aktivitäten -->
+    <string name="ob_focus_eyebrow">Twój dzień</string>
+    <string name="ob_focus_title">Co wypełnia twój dzień?</string>
+    <string name="ob_focus_subtitle">To tylko podpowiedzi. Usuń, co nie pasuje, dodaj, czego brakuje — wszystko możesz później zmienić.</string>
+    <string name="ob_focus_categories">Obszary życia</string>
+    <string name="ob_focus_categories_desc">Kategorie, do których sortuje się twój czas.</string>
+    <string name="ob_focus_activities">Aktywności</string>
+    <string name="ob_focus_activities_desc">To, co faktycznie robisz — jedno dotknięcie rozpoczyna zapis.</string>
+    <string name="ob_focus_add_category">Dodaj obszar</string>
+    <string name="ob_focus_add_activity">Dodaj aktywność</string>
+    <string name="ob_focus_add_field_label">Nazwa</string>
+    <string name="ob_focus_add_confirm">Dodaj</string>
+    <string name="ob_focus_add_cancel">Anuluj</string>
+    <string name="ob_focus_selected">Wybrano %1$d z %2$d</string>
+    <string name="ob_focus_empty_hint">Nic nie wybrano — możesz zacząć od pustej listy i dodawać aktywności w dowolnym momencie.</string>
+    <string name="ob_focus_custom_badge">Własne</string>
+
+    <!-- Seite 3 — Maskottchen -->
+    <string name="ob_mascot_eyebrow">Towarzysz</string>
+    <string name="ob_mascot_title">Ktoś, kto ci towarzyszy</string>
+    <string name="ob_mascot_subtitle">Małe stworzenie, które mieszka na twoim pulpicie. Śpi, kiedy odpoczywasz, i świeci, kiedy twój dzień idzie dobrze. Całkowicie opcjonalne.</string>
+    <string name="ob_mascot_on">Tak, chodź ze mną</string>
+    <string name="ob_mascot_off">Bez maskotki</string>
+    <string name="ob_mascot_color">Kolor</string>
+    <string name="ob_mascot_antenna">Czubek antenki</string>
+    <string name="ob_mascot_cheeks">Policzki</string>
+    <string name="ob_mascot_hint">Dotknij maleństwa — zareaguje.</string>
+    <string name="ob_mascot_preview_off">Pulpit pozostaje spokojny i pusty.</string>
+
+    <!-- Seite 4 — Berechtigungen -->
+    <string name="ob_perm_eyebrow">Uprawnienia</string>
+    <string name="ob_perm_title">Co może widzieć Aevum?</string>
+    <string name="ob_perm_subtitle">Wszystko tutaj jest opcjonalne i da się to w każdej chwili cofnąć. Android zapyta raz o każdy punkt, który zostawisz włączony.</string>
+    <string name="ob_perm_location_title">Lokalizacja</string>
+    <string name="ob_perm_location_desc">Rozpoznaje miejsca i automatycznie rozpoczyna aktywności, gdy przyjeżdżasz lub odjeżdżasz.</string>
+    <string name="ob_perm_activity_title">Ruch &amp; jazda</string>
+    <string name="ob_perm_activity_desc">Wykrywa chodzenie, jazdę rowerem i samochodem — twój dzień zapisuje się sam.</string>
+    <string name="ob_perm_notifications_title">Powiadomienia</string>
+    <string name="ob_perm_notifications_desc">Pokazuje bieżącą aktywność na pasku powiadomień, z zatrzymaniem i zmianą.</string>
+    <string name="ob_perm_usage_title">Czas przed ekranem</string>
+    <string name="ob_perm_usage_desc">Użycie aplikacji dla Digital Balance i dziennych limitów. Android pyta o to w Ustawieniach.</string>
+    <string name="ob_perm_calendar_title">Kalendarz</string>
+    <string name="ob_perm_calendar_desc">Wydarzenia mogą uruchamiać pasującą aktywność. Tylko odczyt — nic nigdy nie jest zapisywane.</string>
+    <string name="ob_perm_calls_title">Połączenia</string>
+    <string name="ob_perm_calls_desc">Rejestruje przypisaną aktywność podczas rozmowy. Tylko stan połączenia — bez numerów, bez historii.</string>
+    <string name="ob_perm_footnote">Nic nie jest wysyłane. Nic nie jest udostępniane. Wszystko zostaje na tym telefonie.</string>
+    <string name="ob_perm_none">Możesz też iść dalej bez żadnych uprawnień — Aevum działa wtedy ręcznie.</string>
+    <string name="ob_perm_selected">Włączono %1$d z %2$d</string>
+    <string name="ob_perm_choice">Twój wybór</string>
+
+    <!-- Seite 5 — Vertrauen / Abschluss -->
+    <string name="ob_trust_eyebrow">Jeszcze jedno</string>
+    <string name="ob_trust_title">Twój. Całkowicie.</string>
+    <string name="ob_trust_subtitle">Aevum to spokojne miejsce dla twoich dni — nie kolejny feed do przewijania.</string>
+    <string name="ob_trust_free_title">Za darmo</string>
+    <string name="ob_trust_free_desc">Bez subskrypcji, bez blokady premium, bez reklam.</string>
+    <string name="ob_trust_local_title">Na twoim urządzeniu</string>
+    <string name="ob_trust_local_desc">Bez konta, bez chmury, bez śledzenia. Twoje dni nigdy nie opuszczają tego telefonu.</string>
+    <string name="ob_trust_control_title">W twoich rękach</string>
+    <string name="ob_trust_control_desc">Wyeksportuj albo usuń wszystko — w każdej chwili.</string>
+    <string name="ob_trust_start">Zaczynamy</string>
+    <string name="ob_trust_footnote">Każdy wybór zrobiony tutaj możesz później zmienić w Ustawieniach.</string>
+</resources>

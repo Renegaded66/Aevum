@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- M18.129: Takvim entegrasyonu — ayar sayfası, kural düzenleyici,
+         zaman çizelgesi plan blokları ve okuyucu. -->
+
+    <!-- Takvim ayarları sayfasının başlığı -->
+    <string name="calendar_rules_header">Takvim</string>
+    <string name="calendar_rules_header_subtitle">Etkinlikleri otomatik olarak aktivite olarak kaydet</string>
+
+    <!-- Entegrasyon: özellik anahtarları -->
+    <string name="calendar_rules_section_integration">Takvim entegrasyonu</string>
+    <string name="calendar_rules_toggle_read">Takvimi oku</string>
+    <string name="calendar_rules_toggle_read_desc_granted">Etkinlikler yerel olarak okunur ve önizlemede kullanılır.</string>
+    <string name="calendar_rules_toggle_read_desc_locked">İzin gerekli — yukarıdaki uyarıya bak.</string>
+    <string name="calendar_rules_toggle_autotrack">Otomatik kaydet</string>
+    <string name="calendar_rules_toggle_autotrack_desc">Etkinlik sınırlarında kaydi başlatır ve durdurur.</string>
+    <string name="calendar_rules_autotrack_needs_read">Kaydetmek için önce “Takvimi oku” seçeneğini aç.</string>
+
+    <!-- Eşitleme -->
+    <string name="calendar_rules_section_sync">Eşitleme</string>
+    <string name="calendar_rules_cached_none">Eşitleme aralığında etkinlik yok.</string>
+    <string name="calendar_rules_cached_one">1 etkinlik önbelleğe alındı.</string>
+    <string name="calendar_rules_cached_many">%1$d etkinlik önbelleğe alındı.</string>
+    <string name="calendar_rules_sync_running">Eşitleniyor…</string>
+    <string name="calendar_rules_sync_now">Şimdi eşitle</string>
+    <string name="calendar_rules_sync_result_ok">Eşitlendi: %1$d etkinlik.</string>
+    <string name="calendar_rules_sync_result_permission">İzin eksik — lütfen yeniden ver.</string>
+    <string name="calendar_rules_sync_result_failed">Eşitleme başarısız.</string>
+    <string name="calendar_rules_sync_interval_label">Otomatik eşitleme her:</string>
+    <string name="calendar_rules_sync_interval_day">1 gün</string>
+    <string name="calendar_rules_sync_interval_hours">%1$d sa</string>
+    <string name="calendar_rules_sync_battery_note">Yalnızca pili yeterliyken eşitler — 7/24 erişim yok.</string>
+    <string name="calendar_rules_last_sync_never">Son eşitleme: hiç</string>
+    <string name="calendar_rules_last_sync_today">Son eşitleme: bugün %1$s</string>
+    <string name="calendar_rules_last_sync_yesterday">Son eşitleme: dün %1$s</string>
+    <string name="calendar_rules_last_sync_date">Son eşitleme: %1$s %2$s</string>
+
+    <!-- Kural listesi -->
+    <string name="calendar_rules_section_rules">Kurallar</string>
+    <string name="calendar_rules_empty">Henüz kural yok. Örnek: “Başlıkta ders ya da uygulama geçiyorsa → Ders aktivitesi”.</string>
+    <string name="calendar_rules_add">Kural ekle</string>
+    <string name="calendar_rules_add_needs_permission">İzin verildikten sonra kural eklenebilir.</string>
+    <string name="calendar_rules_rule_activity_missing">→ Aktivite eksik (lütfen yeniden seç)</string>
+    <string name="calendar_rules_delete_title">Kural silinsin mi?</string>
+    <string name="calendar_rules_delete_message">“%1$s” kaldırılır. Zaten kaydedilmiş aktiviteler kalır.</string>
+
+    <!-- Açıklayıcı kart -->
+    <string name="calendar_rules_how_it_works_title">Nasıl çalışır</string>
+    <string name="calendar_rules_how_it_works_body">• Bir etkinlik bir kurala uğradığında, kayıt etkinlik başında başlar ve etkinlik sonunda biter.\n• Zaman çizelgesinde önümüzdeki 7 gün önceden görünür — planlar ile gerçek kayıtlar birbirinden karışmasın diye eğik ve kesikli çizilir.\n• Aevum takvimi yalnızca okur. Hiçbir zaman etkinlik eklenmez ya da değiştirilmez.</string>
+
+    <!-- İzin bannerı (4 durum) -->
+    <string name="calendar_rules_permission_title">Takvimi bağla</string>
+    <string name="calendar_rules_permission_body_blocked">İzin engellenmiş. Uygulama ayarlarını aç ve İzinler altında “Takvim” iznini aç.</string>
+    <string name="calendar_rules_permission_body_denied">Takvim erişimi olmadan Aevum etkinlikleri göremez. İzni sistem ayarlarından her zaman geri alabilirsin.</string>
+    <string name="calendar_rules_permission_body_notasked">Aevum etkinliklerini tam doğru zamanda kaydedebilmek için takvimini yalnızca bu cihazda, yerel olarak okur. Hiçbir etkinlik eklenmez ya da değiştirilmez.</string>
+    <string name="calendar_rules_permission_open_settings">Uygulama ayarlarını aç</string>
+    <string name="calendar_rules_permission_retry">Yeniden dene</string>
+    <string name="calendar_rules_permission_later">Sonra</string>
+    <string name="calendar_rules_permission_allow">Erişime izin ver</string>
+    <string name="calendar_rules_permission_skip">Şimdilik olmadan</string>
+
+    <!-- Kural özeti (koşulun düz metin hâli) -->
+    <string name="calendar_rules_summary_title_contains">Başlıkta “%1$s” var</string>
+    <string name="calendar_rules_summary_desc_contains">Açıklamada “%1$s” var</string>
+    <string name="calendar_rules_summary_title_regex">Başlık şu ifadeye uyar: /%1$s/</string>
+    <string name="calendar_rules_summary_anyfield_contains">Başlıkta/açıklamada “%1$s” var</string>
+    <string name="calendar_rules_summary_attendee_contains">Katılımcıda “%1$s” var</string>
+    <string name="calendar_rules_summary_all_day_only">Yalnızca tüm gün etkinlikleri</string>
+    <string name="calendar_rules_summary_all_calendars">Tüm takvimler</string>
+    <string name="calendar_rules_summary_calendars_selected">%1$d takvim seçili</string>
+    <string name="calendar_rules_summary_extra_all_words">tüm kelimeler</string>
+    <string name="calendar_rules_summary_extra_case">büyük/küçük harf</string>
+    <string name="calendar_rules_summary_extra_weekdays">belirli günler</string>
+    <string name="calendar_rules_summary_extra_min_duration">≥ %1$d dk</string>
+
+    <!-- Kural düzenleyici: başlık + doğrulama -->
+    <string name="calendar_editor_title_new">Yeni takvim kuralı</string>
+    <string name="calendar_editor_title_edit">Kuralı düzenle</string>
+    <string name="calendar_editor_error_no_name">Lütfen kurala bir ad ver.</string>
+    <string name="calendar_editor_error_no_activity">Lütfen kaydedilecek aktiviteyi seç.</string>
+    <string name="calendar_editor_error_no_term">Lütfen arama terimini gir.</string>
+
+    <!-- Kural düzenleyici: ad -->
+    <string name="calendar_editor_name_label">Kuralın adı</string>
+    <string name="calendar_editor_name_placeholder">örn. Takvimden dersler</string>
+
+    <!-- Kural düzenleyici: koşul -->
+    <string name="calendar_editor_section_condition">Koşul</string>
+    <string name="calendar_editor_calendar_pick_hint">Takvim seç (seçim yok = tüm takvimler)</string>
+    <string name="calendar_editor_calendar_none">Takvim bulunamadı — izni kontrol et.</string>
+    <string name="calendar_editor_allday_hint">Yalnızca tüm gün etkinliğe uyar (örn. tatil, resmî günler).</string>
+    <string name="calendar_editor_regex_label">Düzenli ifade (başlık)</string>
+    <string name="calendar_editor_regex_placeholder">^VL\\s+\\d+</string>
+    <string name="calendar_editor_regex_hint">Gelişmiş: yalnızca basit kelimeler yetmediğinde kullan.</string>
+    <string name="calendar_editor_field_words_title">Başlıktaki kelimeler</string>
+    <string name="calendar_editor_field_words_description">Açıklamadaki kelimeler</string>
+    <string name="calendar_editor_field_attendee">Katılımcıda</string>
+    <string name="calendar_editor_field_words_any">Kelimeler (başlık ya da açıklama)</string>
+    <string name="calendar_editor_words_placeholder">Ders, Uygulama</string>
+    <string name="calendar_editor_words_hint">Birden fazla kelimeyi virgülle ayır.</string>
+    <string name="calendar_editor_toggle_all_words">Tüm kelimeler bulunmalı</string>
+    <string name="calendar_editor_toggle_all_words_desc">Kapalı: tek eşleşme yeter (VEYA). Açık: tüm kelimeler gerek (VE).</string>
+    <string name="calendar_editor_toggle_case">Büyük/küçük harf duyarlı</string>
+    <string name="calendar_editor_toggle_case_desc">Kapalı: “ders” araması “Ders” kelimesini de bulur.</string>
+
+    <!-- Kural düzenleyici: eylem -->
+    <string name="calendar_editor_section_action">Eylem</string>
+    <string name="calendar_editor_activity_placeholder">Aktivite seç…</string>
+    <string name="calendar_editor_custom_title_label">Özel başlık (isteğe bağlı)</string>
+    <string name="calendar_editor_custom_title_placeholder">Boş bırakılırsa aktivitenin adı kullanılır</string>
+    <string name="calendar_editor_toggle_stop_running">Devam eden kaydı bitir</string>
+    <string name="calendar_editor_toggle_stop_running_desc">Açık: etkinlik önceliği alır (varsayılan). Kapalı: hiçbir şey sürmüyorsa başlar.</string>
+
+    <!-- Kural düzenleyici: filtre -->
+    <string name="calendar_editor_section_filter">Filtre (isteğe bağlı)</string>
+    <string name="calendar_editor_min_duration_label">En az süre, dakika (0 = fark etmez)</string>
+    <string name="calendar_editor_toggle_time_window">Yalnızca belirli saatlerde</string>
+    <string name="calendar_editor_toggle_time_window_desc">Bu aralığın dışındaki etkinlikler yoksayılır.</string>
+    <string name="calendar_editor_window_from">Başlangıç</string>
+    <string name="calendar_editor_window_to">Bitiş</string>
+    <string name="calendar_editor_weekdays_label">Hafta günleri</string>
+
+    <!-- Kural düzenleyici: düğmeler -->
+    <string name="calendar_editor_confirm_add">Ekle</string>
+    <string name="calendar_editor_dropdown_open">Listeyi aç</string>
+
+    <!-- Kural düzenleyici: tür etiketleri -->
+    <string name="calendar_editor_type_any_field">Başlıkta ya da açıklamada kelime</string>
+    <string name="calendar_editor_type_title">Kelime yalnızca başlıkta</string>
+    <string name="calendar_editor_type_description">Kelime yalnızca açıklamada</string>
+    <string name="calendar_editor_type_regex">Başlıkta düzenli ifade</string>
+    <string name="calendar_editor_type_calendars">Belirli takvimler</string>
+    <string name="calendar_editor_type_attendee">Katılımcıda</string>
+    <string name="calendar_editor_type_allday">Yalnızca tüm gün etkinlikleri</string>
+    <string name="calendar_editor_type_unknown">Bilinmeyen</string>
+
+    <!-- Yedek metinler (okuyucu / zaman çizelgesi plan blokları) -->
+    <string name="calendar_rules_unnamed_calendar">Takvim</string>
+    <string name="calendar_plan_event_fallback_title">Etkinlik</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         M18.131: Etkinlik seçimi (takvimden TEK etkinlik için aktivite)
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- Başlık -->
+    <string name="calendar_picker_title">Etkinlikleri kaydet</string>
+    <string name="calendar_picker_subtitle">Tek tek etkinlikleri seç ve bir aktiviteye ata</string>
+    <string name="calendar_picker_open">Etkinlikleri seç</string>
+
+    <!-- Gün gezinmesi -->
+
+    <!-- Liste -->
+    <string name="calendar_picker_empty_no_sync">Burada etkinlik görmek için “Takvimi oku” seçeneğini aç ve eşitle.</string>
+    <string name="calendar_picker_all_day">Tüm gün</string>
+    <string name="calendar_picker_no_title">(Başlıksız)</string>
+    <string name="calendar_picker_running_now">şu an sürüyor</string>
+    <string name="calendar_picker_past">geçti</string>
+
+    <!-- Etkinliğin durumu -->
+    <string name="calendar_picker_status_pinned">Kaydediliyor</string>
+    <string name="calendar_picker_status_none">Kaydetmek için dokun</string>
+    <string name="calendar_picker_status_activity_missing">Aktivite eksik — lütfen yeniden seç</string>
+
+    <!-- Pencere: aktivite seç -->
+    <string name="calendar_picker_dialog_title">Etkinliği kaydet</string>
+    <string name="calendar_picker_dialog_activity_label">Aktivite seç</string>
+    <string name="calendar_picker_dialog_custom_title_label">Özel başlık (isteğe bağlı)</string>
+    <string name="calendar_picker_dialog_custom_title_placeholder">Boş bırakılırsa aktivitenin adı kullanılır</string>
+    <string name="calendar_picker_dialog_info">Aevum %1$s–%2$s arasını kaydeder — yalnızca bu etkinlik, tekrarlar için değil.</string>
+    <string name="calendar_picker_dialog_info_running">Etkinlik zaten sürüyor. Kaydettiğinde kayıt hemen başlar.</string>
+    <string name="calendar_picker_dialog_info_past">Bu etkinlik geçti. İşaretleme yine de mümkün (örn. tekrarlayan etkinlikler için).</string>
+    <string name="calendar_picker_dialog_save">Kaydet</string>
+    <string name="calendar_picker_dialog_remove">Kaydı kaldır</string>
+    <string name="calendar_picker_dialog_error_no_activity">Lütfen kaydedilecek aktiviteyi seç.</string>
+
+    <!-- Geri bildirim -->
+    <string name="calendar_picker_msg_saved">Etkinlik kaydediliyor.</string>
+    <string name="calendar_picker_msg_removed">Etkinliğin kaydı kaldırıldı.</string>
+
+    <!-- Açıklayıcı kart -->
+    <string name="calendar_picker_how_it_works_title">Nasıl çalışır</string>
+    <string name="calendar_picker_how_it_works_body">• Bir etkinliğe dokun ve aktiviteyi seç — Aevum etkinlik başından sonuna kadar kaydeder.\n• Atama yalnızca bu tek etkinlik için geçerlidir. Tekrarlayan etkinlikler otomatik yakalanmaz — onlar için kurallar vardır.\n• Etkinlik takvimden silinir ya da taşınırsa, kayıt biter ya da atama düşer.\n• Etkinlik başında zaten bir kayıt sürüyorsa, her etkinlik için sen karar verirsin: mevcudu bitir, bir şey yapma ya da başka kayıt bitince otomatik başlat.</string>
+
+    <!-- Sayaçlar -->
+    <string name="calendar_picker_summary_one">1 etkinlik işaretli</string>
+    <string name="calendar_picker_summary_many">%1$d etkinlik işaretli</string>
+    <string name="calendar_picker_summary_none">Henüz etkinlik işaretli değil</string>
+
+    <!-- M18.132: eşitleme + üç çakışma seçeneği -->
+    <string name="calendar_picker_syncing">Takvim okunuyor…</string>
+    <string name="calendar_picker_day_today">Bugün</string>
+    <string name="calendar_picker_day_tomorrow">Yarın</string>
+    <string name="calendar_picker_day_empty">Etkinlik yok</string>
+    <string name="calendar_picker_dialog_overlap_label">Etkinlik başında zaten bir kayıt sürüyorsa</string>
+    <string name="calendar_picker_dialog_overlap_override">Mevcutu bitir ve etkinliği kaydet</string>
+    <string name="calendar_picker_dialog_overlap_override_desc">Etkinlik önceliği alır (varsayılan) — sürmekte olan kayıt etkinlik başında biter.</string>
+    <string name="calendar_picker_dialog_overlap_idle">Hiçbir şey yapma</string>
+    <string name="calendar_picker_dialog_overlap_idle_desc">Zaten bir şey sürüyorsa etkinlik kaydedilmez.</string>
+    <string name="calendar_picker_dialog_overlap_queue">Bekle, bir şey sürmüyorsa başlat</string>
+    <string name="calendar_picker_dialog_overlap_queue_desc">Etkinlik, diğer kayıt bitince otomatik devreye girer — etkinliğin ortasında bile.</string>
+</resources>

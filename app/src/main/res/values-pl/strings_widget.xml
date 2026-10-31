@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maschinell übersetzt (M34) — Quelle: values-de/strings_widget.xml, Struktur: values/strings_widget.xml. Platzhalter und Escapes geprüft. -->
+    <string name="widget_name">Aevum: nagrywanie</string>
+    <string name="widget_description">Pokazuje, czy aktywność jest nagrywana — z minutnikiem, przyciskami start/stop i wyborem aktywności.</string>
+    <string name="widget_status_idle">GOTOWE</string>
+    <string name="widget_status_running">NAGRYWA</string>
+    <string name="widget_status_paused">PAUZA</string>
+    <string name="widget_idle_title">Start</string>
+    <string name="widget_paused_title">Pauza</string>
+    <string name="widget_cd_start">Rozpocznij nagrywanie</string>
+    <string name="widget_cd_stop">Zatrzymaj nagrywanie</string>
+    <string name="widget_cd_open">Otwórz Aevum</string>
+    <string name="widget_picker_title">Co chcesz rozpocząć?</string>
+    <string name="widget_picker_subtitle">Dotknij aktywności — nagrywanie rozpocznie się od razu.</string>
+    <string name="widget_picker_cancel">Anuluj</string>
+    <string name="widget_picker_running">Właśnie trwa: %1$s</string>
+    <string name="widget_picker_stop">Zatrzymaj bieżące nagrywanie</string>
+    <string name="widget_empty_activities">Jeszcze brak aktywności</string>
+    <string name="widget_no_app">Aktywność</string>
+</resources>

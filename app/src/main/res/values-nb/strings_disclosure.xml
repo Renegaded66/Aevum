@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="disclosure_location_title">Plassering i bakgrunnen</string>
+    <string name="disclosure_location_lead">Aevum samler inn plasseringsdata for å muliggjøre stedsgjenkjenning (geofences), automatisk kjøregjenkjenning, gjenkjenning av spaserturer og sykkelturer samt stedstidslinjen — også når appen er lukket eller ikke er i bruk.</string>
+    <string name="disclosure_location_features_title">Disse funksjonene bruker plasseringen din i bakgrunnen:</string>
+    <string name="disclosure_location_feature_geofence">Stedsgjenkjenning (geofences): Å komme til eller forlate steder som hjemme, arbeid eller treningsstudio starter eller avslutter aktiviteter automatisk.</string>
+    <string name="disclosure_location_feature_drive">Kjøregjenkjenning: Bilturer oppdages automatisk og registreres med ruten sin.</string>
+    <string name="disclosure_location_feature_movement">Gjenkjenning av spaserturer og sykkelturer: Turene dine registreres automatisk som aktiviteter.</string>
+    <string name="disclosure_location_feature_places">Stedstidslinje og ukjente steder: Aevum fører oversikt over stedene du har vært på.</string>
+    <string name="disclosure_location_why_title">Hvorfor tilgang i bakgrunnen er nødvendig</string>
+    <string name="disclosure_location_why">Disse funksjonene skal fungere uten at du gjør noe. Stedsskiftene skjer mens telefonen ligger i lommen og Aevum ikke er åpen. Uten tilgang i bakgrunnen måtte du åpne appen selv hver gang du kommer til eller forlater et sted — automasjonen ville ikke lenger være automatisk.</string>
+    <string name="disclosure_location_data_title">Hva som skjer med plasseringsdataene dine</string>
+    <string name="disclosure_location_data">Alle plasseringsdata lagres utelukkende lokalt på enheten din. Det finnes ingen Aevum-server, ingen brukerkontoer, ingen reklame og ingen deling med tredjeparter. Du kan trekke tilbake tilgangen når som helst i systeminnstillingene.</string>
+    <string name="disclosure_location_privacy_link">Åpne personvernerklæringen</string>
+    <string name="disclosure_location_accept">Enig — tillat plassering</string>
+    <string name="disclosure_location_decline">Ikke nå</string>
+    <string name="disclosure_location_reminder_text">Aevum samler inn plasseringsdata for stedsgjenkjenning, kjøregjenkjenning, gjenkjenning av turer og stedstidslinjen — også når appen er lukket eller ikke er i bruk. Alle data forblir lokalt på enheten din.</string>
+    <string name="disclosure_location_reminder_action">Vis igjen</string>
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

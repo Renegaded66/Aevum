@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Prominent in-app disclosure (Google Play location policy) — ENGLISH.
+        This is the FALLBACK file (values/): English is the app\'s default
+        language, so every locale without its own translation gets English.
+        German translation: values-de/strings_disclosure.xml — keep in sync.
+        The disclosure is the basis of the Play declaration: do not change the
+        wording without raising DISCLOSURE_VERSION in LocationDisclosure.kt.
+    -->
+    <string name="disclosure_location_title">Plats i bakgrunden</string>
+
+    <string name="disclosure_location_lead">Aevum samlar in platsdata för att möjliggöra platsigenkänning (geofences), automatisk detektering av bilkörning, upptäckt av promenader och cykelturer samt platstidslinjen — även när appen är stängd eller inte används.</string>
+
+    <string name="disclosure_location_features_title">Dessa funktioner använder din plats i bakgrunden:</string>
+
+    <string name="disclosure_location_feature_geofence">Platsigenkänning (geofences): att du kommer till eller lämnar platser som hemmet, jobbet eller gymmet startar eller avslutar aktiviteter automatiskt.</string>
+    <string name="disclosure_location_feature_drive">Detektering av bilkörning: bilkörningar upptäcks automatiskt och spelas in med sin rutt.</string>
+    <string name="disclosure_location_feature_movement">Upptäckt av promenader och cykelturer: dina turer spelas in automatiskt som aktiviteter.</string>
+    <string name="disclosure_location_feature_places">Platstidslinje och okända platser: Aevum sparar historiken över platserna du har varit på.</string>
+
+    <string name="disclosure_location_why_title">Därför behövs åtkomst i bakgrunden</string>
+    <string name="disclosure_location_why">Dessa funktioner ska fungera utan att du behöver göra något. Platsbytena sker medan din mobil ligger i fickan och Aevum inte är öppet. Utan åtkomst i bakgrunden skulle du behöva öppna appen själv varje gång du kommer till eller lämnar en plats — automatiseringen skulle inte längre vara automatisk.</string>
+
+    <string name="disclosure_location_data_title">Vad som händer med dina platsdata</string>
+    <string name="disclosure_location_data">All platsdata lagras enbart på din enhet. Det finns ingen Aevum-server, inga användarkonton, ingen reklam och ingen delning med tredje part. Du kan återkalla åtkomsten när som helst i systeminställningarna.</string>
+
+    <string name="disclosure_location_privacy_link">Öppna integritetspolicyn</string>
+
+    <string name="disclosure_location_accept">Godkänn — tillåt plats</string>
+    <string name="disclosure_location_decline">Inte nu</string>
+
+    <string name="disclosure_location_reminder_text">Aevum samlar in platsdata för platsigenkänning, detektering av bilkörning, upptäckt av turer och platstidslinjen — även när appen är stängd eller inte används. All data stannar på din enhet.</string>
+    <string name="disclosure_location_reminder_action">Visa igen</string>
+    <string name="disclosure_privacy_url" translatable="false">https://renegaded66.github.io/Aevum/</string>
+</resources>

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Türkçe çeviri (M34) — kaynak: values-de, yapı: values. Yer tutucular ve kaçışlar denetlendi. -->
+<resources>
+    <!-- ActivityTypesScreen -->
+    <string name="activitytypes_title">Aktiviteler ve pozitiflik</string>
+    <string name="activitytypes_subtitle">Zamanın sana ne değer?</string>
+    <string name="activitytypes_add_new">+ Yeni</string>
+    <string name="activitytypes_empty">Henüz aktivite yok.</string>
+    <string name="activitytypes_new_activity">Yeni aktivite</string>
+    <string name="activitytypes_name_hint">Ad (örn. Gitar)</string>
+    <string name="activitytypes_category_optional">Kategori (isteğe bağlı)</string>
+    <string name="activitytypes_create">Oluştur</string>
+    <string name="activitytypes_own">Kendi</string>
+    <string name="activitytypes_category_label">KATEGORİ</string>
+    <string name="activitytypes_no_category">Kategori yok</string>
+    <string name="activitytypes_color_label">RENK</string>
+    <string name="activitytypes_choose_icon">Simge seç</string>
+    <string name="activitytypes_done">Bitti</string>
+    <string name="activitytypes_category_for">%1$s için kategori</string>
+    <string name="activitytypes_new_category">Yeni kategori…</string>
+    <string name="activitytypes_delete_title">%1$s silinsin mi?</string>
+    <string name="activitytypes_delete_warning">Aktivite kalıcı olarak kaldırılır ve sonra artık kullanılamaz.</string>
+    <string name="activitytypes_delete_what_happens">Kayıtlar ne olsun?</string>
+    <string name="activitytypes_delete_only_activity">Yalnızca aktiviteyi sil</string>
+    <string name="activitytypes_delete_only_activity_desc">Kayıtlar kalır ve “Diğer” altına geçiş yapılır.</string>
+    <string name="activitytypes_delete_with_sessions">Aktiviteyi ve tüm kayıtları sil</string>
+    <string name="activitytypes_delete_with_sessions_desc">Bu aktivitenin tüm oturumları kalıcı olarak kaldırılır.</string>
+
+    <!-- M33: Aktivite başlatıcı -->
+    <string name="launcher_title">Aktivite başlat</string>
+    <string name="launcher_subtitle">Şu an ne yapıyorsun?</string>
+    <string name="launcher_search">Aktivite ara</string>
+    <string name="launcher_clear_search">Aramayı temizle</string>
+    <string name="launcher_recent">Son</string>
+    <string name="launcher_all">Tüm aktiviteler</string>
+    <string name="launcher_new">Yeni</string>
+    <string name="launcher_new_activity">Yeni aktivite</string>
+    <string name="launcher_empty">Aktivite bulunamadı.</string>
+    <string name="launcher_pick_start">Başlangıcı seç</string>
+    <string name="launcher_start_now">Şimdi başlat</string>
+    <string name="launcher_lead_time">Başlangıç payı</string>
+    <string name="launcher_lead_title">Başlangıç payı</string>
+    <string name="launcher_lead_sub">Aktivite bir süredir devam ediyor mu?</string>
+    <string name="launcher_now_chip">Şimdi</string>
+    <string name="launcher_started_ago">%1$s önce</string>
+    <string name="launcher_exact_time">Kesin saat</string>
+    <string name="launcher_exact_time_title">Kesin başlangıç saati</string>
+    <string name="launcher_start_at_time">Bu saatte başlat</string>
+    <string name="launcher_start_with_time">Başlangıç saatiyle başlat</string>
+
+    <!-- M33: ActivityCreateScreen -->
+    <string name="activitycreate_title">Yeni aktivite</string>
+    <string name="activitycreate_subtitle">Ad, simge, renk — bu kadar.</string>
+    <string name="activitycreate_preview">Aktiviten</string>
+    <string name="activitycreate_preview_hint">Canlı önizleme</string>
+    <string name="activitycreate_name">Ad</string>
+    <string name="activitycreate_name_hint">örn. Gitar</string>
+    <string name="activitycreate_icon">SİMGE</string>
+    <string name="activitycreate_color">RENK</string>
+    <string name="activitycreate_category">KATEGORİ</string>
+    <string name="activitycreate_favorite">Üstte sabitle</string>
+    <string name="activitycreate_favorite_desc">Her zaman başlatıcının en üstünde görünür.</string>
+    <string name="activitycreate_save">Aktiviteyi oluştur</string>
+
+    <!-- LifeViewScreen -->
+    <string name="lifeview_hero_label">YAŞAM SÜRESİ</string>
+    <string name="lifeview_hero_question">Gerçekten ne kadar süre kalıyor?</string>
+    <string name="lifeview_remaining">%1$d yıl, %2$d gün</string>
+    <string name="lifeview_until_age">%1$d olana dek (yaş: %2$d)</string>
+    <string name="lifeview_birthday">Doğum günü</string>
+    <string name="lifeview_age_value">Yaş %1$d</string>
+    <string name="lifeview_no_birthday_hint">Gerçekten ne kadar süre kaldığını görmek için doğum gününü gir.</string>
+    <string name="lifeview_birthday_prompt_title">Doğum günü gir</string>
+    <string name="lifeview_birthday_prompt_desc">Hesap için yalnızca yıl sayılır — doğum günün cihazda kalır.</string>
+    <string name="lifeview_birthday_set">Doğum gününü gir</string>
+    <string name="lifeview_life_in_months">Aylar içinde hayatın</string>
+    <string name="lifeview_months_used">%2$d ayın %1$d\'si kullanıldı</string>
+    <string name="lifeview_birth">Doğum</string>
+    <string name="lifeview_remaining_short">Kalan</string>
+    <string name="lifeview_time_breakdown">Hayatın nereye akıyor</string>
+    <string name="lifeview_projection_hint">Kalan %1$d yıla yayılmış tahmin (son 14 günden).</string>
+    <string name="lifeview_activities_comparison">Aktivitelerin, yaşam ölçeğinde</string>
+    <string name="lifeview_min_per_day">%1$s · %2$d dk/gün</string>
+    <string name="lifeview_sleep_wakeup">Kalan hayatının yaklaşık %1$s\'sini uyuyarak geçireceksin.</string>
+    <string name="lifeview_sleep_wakeup_detail">Bu, kalan zamanın %1$d%%\'i. Arabaya sürüş ayrıca %2$s gider.</string>
+    <string name="lifeview_expected_age">Beklenen yaş</string>
+    <string name="lifeview_age_years">%1$d yıl</string>
+    <string name="lifeview_age_default_hint">Varsayılan: 80. Tahminler bu değeri kullanıyor.</string>
+    <string name="lifeview_years">%1$s yıl</string>
+    <string name="lifeview_months">%1$d ay</string>
+    <string name="lifeview_less_than_month">&lt; 1 ay</string>
+    <string name="lifeview_driving">Araba sürmek</string>
+    <string name="lifeview_allowances">Paylar</string>
+    <string name="lifeview_free">Boş</string>
+
+    <!-- AppTrackingScreen -->
+    <string name="apptracking_title">Uygulama kaydı</string>
+    <string name="apptracking_subtitle">Uygulamaları otomatik olarak aktivite olarak kaydet</string>
+    <string name="apptracking_search_placeholder">Uygulama ara…</string>
+    <string name="apptracking_clear_search">Aramayı temizle</string>
+    <string name="apptracking_all_apps">Tüm uygulamalar</string>
+    <string name="apptracking_recording">Kayıt</string>
+    <string name="apptracking_tap_left_hint">Bir uygulamaya soldan dokun</string>
+    <string name="apptracking_no_results">Sonuç yok</string>
+    <string name="apptracking_assign_activity">Aktivite ata</string>
+    <string name="apptracking_selected">Seçili</string>
+    <string name="apptracking_add_to_recording">Kayda ekle</string>
+    <string name="apptracking_permission_title">Kullanım izni gerekli</string>
+    <string name="apptracking_permission_desc">Aevum, hangi uygulamanın açık olduğunu görmek için kullanım erişimini kullanır.</string>
+    <string name="apptracking_permission_grant">Kullanım iznini ver</string>
+
+    <!-- M20: arka plan dayanıklılığı + tanılama -->
+    <string name="apptracking_diag_title">Arka plan ve tanılama</string>
+    <string name="apptracking_diag_subtitle">Otomatik kaydın durumu</string>
+    <string name="apptracking_diag_service">Kayıt servisi</string>
+    <string name="apptracking_diag_active">aktif</string>
+    <string name="apptracking_diag_inactive">etkin değil</string>
+    <string name="apptracking_diag_lastpoll">Son sorgu: %1$s</string>
+    <string name="apptracking_diag_never">hiç</string>
+    <string name="apptracking_diag_foreground">Ön plan</string>
+    <string name="apptracking_diag_foreground_none">— (ana ekran)</string>
+    <string name="apptracking_diag_battery">Pil optimizasyonu</string>
+    <string name="apptracking_diag_battery_exempt">muaf (iyi)</string>
+    <string name="apptracking_diag_battery_restricted">kısıtlı</string>
+    <string name="apptracking_diag_battery_unknown">bilinmiyor</string>
+    <string name="apptracking_diag_battery_button">Pil ayarlarına git</string>
+    <string name="apptracking_diag_hint">İstisna yoksa Android, kaydı arka planda engelleyebilir. Burada “kısıtlı” yazıyorsa: Aevum\'u sistem ayarlarında “Optimize edilmemesi gerekenler” arasında işaretle — sonra telefon açıldığında da kayıt güvenilir başlar.</string>
+    <string name="apptracking_diag_log">Günlük</string>
+    <string name="apptracking_diag_copy">Günlüğü kopyala</string>
+    <string name="apptracking_diag_copied">Kopyalandı ✓</string>
+    <string name="apptracking_diag_clear">Temizle</string>
+    <string name="apptracking_diag_empty">Henüz girdi yok.</string>
+    <string name="apptracking_diag_show">Göster</string>
+    <string name="apptracking_diag_hide">Gizle</string>
+    <string name="apptracking_diag_age_seconds">%1$dsn önce</string>
+    <string name="apptracking_diag_age_minutes">%1$ddk önce</string>
+    <string name="apptracking_diag_age_hours">%1$dsa önce</string>
+
+    <!-- DigitalBalanceScreen -->
+    <string name="balance_tab_balance">Denge</string>
+    <string name="balance_tab_pomodoro">Pomodoro</string>
+    <string name="balance_usage_access_active">Kullanım erişimi açık</string>
+    <string name="balance_revoke">Geri al</string>
+    <string name="balance_apps_header">Uygulamalar</string>
+    <string name="balance_sort_alpha">Alfabetik sırala</string>
+    <string name="balance_sort_usage">Kullanıma göre sırala</string>
+    <string name="balance_blocked_count">%1$d kilitli</string>
+    <string name="balance_permission_title">Digital Balance</string>
+    <string name="balance_permission_desc">Uygulama kullanımını görmek ve limit koymak için Aevum, kullanım verilerine erişmeli.</string>
+    <string name="balance_permission_desc_rec">Gerçekten kullandığın şeyi görürsün — saatlik grafik, açılışlar ve başka kimsenin göremediği uygulama geçmişleri. Ve seni gece 2 kaydırmalarından koruyan limitler koyabilirsin. Bunun için Aevum bir kez kullanım verisi erişimi ister.</string>
+    <string name="balance_permission_grant">Kullanım erişimine izin ver</string>
+    <string name="balance_refresh">Yenile</string>
+    <string name="balance_of_goal">%1$s hedefinden</string>
+    <string name="balance_metric_apps">Uygulama</string>
+    <string name="balance_metric_unlocks">Açılış</string>
+    <string name="balance_metric_top">En çok</string>
+    <string name="balance_hourly_label">Saate göre kullanım (0–24)</string>
+    <string name="balance_history">Geçmiş</string>
+    <string name="balance_days">%1$d gün</string>
+    <string name="balance_showing_day">%1$s gösteriliyor</string>
+    <string name="balance_avg_per_day">Ort. %1$s/gün</string>
+    <string name="balance_sum">Σ %1$s</string>
+    <string name="balance_locked">Kilitli</string>
+    <string name="balance_limit_min">Limit %1$d dk</string>
+    <string name="balance_limit_reached">Limit doldu</string>
+    <string name="balance_remaining">%1$s kaldı</string>
+    <string name="balance_soon_blocked">Yakında kilitlenecek — %1$s kaldı</string>
+    <string name="balance_limit_active">Limit açık</string>
+    <string name="balance_no_limit">Limit yok</string>
+    <string name="balance_set_limit">Limit koy</string>
+    <string name="balance_daily_limit">Günlük limit: %1$d dk</string>
+    <string name="balance_exception">İstisna</string>
+    <string name="balance_time_window">Saat aralığı</string>
+    <string name="balance_block_between">Kilit yalnızca %1$s–%2$s arası</string>
+    <string name="balance_remove_limit">Limiti kaldır</string>
+    <string name="balance_profiles">Profiller</string>
+    <string name="balance_profiles_empty">Birden fazla uygulamayı tek seferde kiltlemek için profil oluştur — örn. tüm sosyal medyayı kapatan bir ders profili.</string>
+    <string name="balance_profile_active_schedule">Aktif (program) — uygulamalar kilitli</string>
+    <string name="balance_profile_active">Aktif — uygulamalar kilitli</string>
+    <string name="balance_profile_schedule">Program: %1$s %2$s–%3$s</string>
+    <string name="balance_profile_inactive">Etkin değil</string>
+    <string name="balance_edit_profile">Profili düzenle</string>
+    <string name="balance_new_profile">Yeni profil</string>
+    <string name="balance_name_placeholder">örn. Ders</string>
+    <string name="balance_schedule">Program</string>
+    <string name="balance_schedule_desc">Profili zamana göre otomatik aç</string>
+    <string name="balance_weekdays">Hafta günleri</string>
+    <string name="balance_from">Başlangıç</string>
+    <string name="balance_until">Bitiş</string>
+    <string name="balance_schedule_summary">Profil %1$s, %2$s–%3$s arası açık olur.</string>
+    <string name="balance_never">hiç</string>
+    <string name="balance_block_apps">Uygulamaları kilitle</string>
+    <string name="balance_pomodoro_duration">Süre:</string>
+    <string name="balance_pomodoro_min">%1$d dk</string>
+    <string name="balance_pomodoro_focus">Odak</string>
+    <string name="balance_pomodoro_short_break">Kısa mola</string>
+    <string name="balance_pomodoro_long_break">Uzun mola</string>
+    <string name="balance_pomodoro_completed">Tamamlanan odak oturumları: %1$d</string>
+    <string name="balance_pomodoro_pause">⏸ Duraklat</string>
+    <string name="balance_pomodoro_start">▶ Başlat</string>
+    <string name="balance_pomodoro_reset">↺ Sıfırla</string>
+    <string name="balance_pomodoro_tip">İpucu: Odak zamanlayıcısını bir profille birlikte kullan — ders sırasında sosyal medya kilitli kalır.</string>
+
+    <!-- CategoriesScreen -->
+    <string name="categories_intro">Soldan bir kategori seç — sağda aktivitelerini görürsün. Aktiviteleri menüden ata.</string>
+    <string name="categories_new">+ Yeni kategori</string>
+    <string name="categories_activities">Aktiviteler</string>
+    <string name="categories_empty">Bu kategoride aktivite yok.</string>
+    <string name="categories_unassigned">Kategorisiz</string>
+    <string name="categories_none_option">— Kategori yok —</string>
+    <string name="categories_new_title">Yeni kategori</string>
+    <string name="categories_name_hint">Ad (örn. Spor)</string>
+    <string name="categories_color">Renk</string>
+    <string name="categories_create">Oluştur</string>
+
+    <!-- CalendarScreen -->
+    <string name="calendar_hero_label">TAKVİM</string>
+    <string name="calendar_subtitle">Aylık bakışta zaman kaliten</string>
+    <string name="calendar_captured">Kaydedildi: %1$s</string>
+    <string name="calendar_less">daha az</string>
+    <string name="calendar_more">daha çok</string>
+    <string name="calendar_day_captured">Kaydedildi: %1$s · %2$d aktivite</string>
+    <string name="calendar_no_activities">Bu günde aktivite yok.</string>
+    <string name="calendar_activity">Aktivite</string>
+
+    <!-- UnknownPlacesScreen -->
+    <string name="unknownplace_title">Bilinmeyen yerler</string>
+    <string name="unknownplace_open_count">%1$d açık</string>
+    <string name="unknownplace_empty_title">Bilinmeyen yer yok</string>
+    <string name="unknownplace_empty_desc">Geofence\'lerine uymayan bir yerde uzun kalırsan, burada görünür.</string>
+    <string name="unknownplace_name_button">Ad ver</string>
+    <string name="unknownplace_geofence_button">Geofence</string>
+    <string name="unknownplace_name_dialog_title">Yeri adlandır</string>
+    <string name="unknownplace_name_hint">Ad (örn. Milano Lokantası)</string>
+    <string name="unknownplace_geofence_dialog_title">Geofence oluştur</string>
+    <string name="unknownplace_radius">Yarıçap: %1$d m</string>
+
+    <!-- OnboardingScreen -->
+    <string name="onboarding_placeholder">İlk kurulum</string>
+
+    <!-- Bileşenler -->
+    <string name="component_trend_vs_yesterday">düne göre</string>
+    <string name="component_quality_manual_hint">Elle ayarlandı — ertesi gün yine otomatik kalite geçerli olur.</string>
+    <string name="component_quality_single_hint">Yalnızca bu girdi/gün için geçerli — aktivite ayarı değişmez.</string>
+    <string name="component_reset">Sıfırla</string>
+    <string name="component_zone_absent">Dışında</string>
+    <string name="component_live">CANLI</string>
+    <string name="component_conflict_check">Çakışmayı denetle</string>
+    <string name="component_source_place">Yer</string>
+    <string name="component_source_manual">Elle</string>
+    <string name="component_positivity">Pozitiflik</string>
+    <string name="component_positivity_a11y">Pozitiflik, 100 üzerinden %1$d</string>
+    <string name="component_bad">Kötü</string>
+    <string name="component_neutral">Nötr</string>
+    <string name="component_good">İyi</string>
+    <string name="component_hour">Saat</string>
+    <string name="component_minute">Dakika</string>
+    <string name="component_quality">Zaman kalitesi</string>
+    <string name="component_ok">Tamam</string>
+</resources>

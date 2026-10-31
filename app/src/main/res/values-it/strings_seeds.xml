@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tradotto in italiano (M34) — fonte: values-de/strings_seeds.xml, struttura: values/strings_seeds.xml. Placeholder ed escape verificati. -->
+    <string name="seed_category_work">Lavoro</string>
+    <string name="seed_category_sleep">Sonno</string>
+    <string name="seed_category_sport">Sport</string>
+    <string name="seed_category_learning">Studio</string>
+    <string name="seed_category_health">Salute</string>
+    <string name="seed_category_leisure">Tempo libero</string>
+    <string name="seed_category_relationships">Relazioni</string>
+    <string name="seed_category_transport">Trasporti</string>
+    <string name="seed_category_digital">Digitale</string>
+    <string name="seed_category_household">Famiglia</string>
+    <string name="seed_category_unknown">Altro</string>
+    <string name="seed_activity_work">Lavoro</string>
+    <string name="seed_activity_deep_work">Deep Work</string>
+    <string name="seed_activity_sleep">Sonno</string>
+    <string name="seed_activity_fitness">Fitness</string>
+    <string name="seed_activity_joggen">Corsa</string>
+    <string name="seed_activity_radfahren">Ciclismo</string>
+    <string name="seed_activity_spazieren">Camminata</string>
+    <string name="seed_activity_learning">Studio</string>
+    <string name="seed_activity_reading">Lettura</string>
+    <string name="seed_activity_meditation">Meditazione</string>
+    <string name="seed_activity_eating">Pasto</string>
+    <string name="seed_activity_social">Sociale</string>
+    <string name="seed_activity_household">Famiglia</string>
+    <string name="seed_activity_driving">Guida</string>
+    <string name="seed_activity_transport">Trasporti</string>
+    <string name="seed_activity_digital">Digitale</string>
+    <string name="seed_activity_leisure">Tempo libero</string>
+    <string name="seed_activity_other">Altro</string>
+    <string name="seed_tag_deep_work">Deep Work</string>
+    <string name="seed_tag_focus">Focus</string>
+    <string name="seed_tag_routine">Routine</string>
+    <string name="seed_tag_energy">Energia</string>
+    <string name="seed_tag_recovery">Recupero</string>
+</resources>

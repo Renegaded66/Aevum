@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rule_title_commute_to_work">Arbeidsreise</string>
+    <string name="rule_title_commute_home">Hjemreise</string>
+    <string name="rule_title_gym_trip">Tur til treningsstudioet</string>
+    <string name="rule_title_shopping">Handel: %1$s</string>
+    <string name="rule_title_gym_return">Tilbake fra treningsstudioet</string>
+    <string name="rule_title_transit">På vei: %1$s → %2$s</string>
+    <string name="rule_title_work">Arbeid</string>
+    <string name="rule_title_gym">Treningsstudio</string>
+    <string name="rule_title_home">Hjemme</string>
+    <string name="rule_title_trip">Utflukt</string>
+    <string name="rule_reason_travel">Utløserpar oppdaget: %1$s. %2$s foreslås som reisetid.</string>
+    <string name="rule_reason_stay">Utløserpar oppdaget: ankom %1$s → dro. Forslaget kan fortsatt vurderes.</string>
+    <string name="rule_reason_away">Utløserpar oppdaget: forlot %1$s → kom tilbake. Ingen destinasjon er kjent, derfor forsiktig foreslått som utflukt.</string>
+    <string name="rule_reason_merge">%1$s | Slått sammen med %2$s (mellomrom &lt; 5min).</string>
+    <string name="rule_reason_merge_fallback">en annen kandidat</string>
+    <string name="common_activity_fallback">Aktivitet</string>
+</resources>

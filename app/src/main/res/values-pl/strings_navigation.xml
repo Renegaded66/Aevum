@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tytuły nawigacji (AppDestination) -->
+    <string name="activity_create_title">Nowa aktywność</string>
+    <string name="activity_edit_title">Edytuj aktywność</string>
+    <string name="activity_candidate_title">Edytuj kandydata</string>
+    <string name="activity_detail_title">Aktywność</string>
+    <string name="weekly_review_title">Weekly Review</string>
+    <string name="trigger_settings_title">Wyzwalacze i wykrywanie</string>
+    <string name="geofence_list_title">Geofences</string>
+    <string name="geofence_create_title">Utwórz Geofence</string>
+    <string name="geofence_create_home_title">Utwórz dom</string>
+    <string name="geofence_create_work_title">Utwórz pracę</string>
+    <string name="geofence_edit_title">Edytuj Geofence</string>
+    <string name="trigger_events_title">Trigger Events</string>
+    <string name="geofence_debug_title">Diagnostyka Geofence</string>
+    <string name="automation_status_title">Status automatyzacji</string>
+    <string name="review_inbox_title">Review Inbox</string>
+    <string name="onboarding_title">Onboarding</string>
+    <string name="life_profile_setup_title">Profil życia</string>
+    <string name="permission_education_title">Uprawnienia</string>
+    <string name="places_setup_title">Miejsca</string>
+    <string name="unknown_places_title">Nieznane miejsca</string>
+    <string name="daily_allowances_title">Dzienne limity</string>
+    <string name="activity_types_title">Aktywności i pozytywność</string>
+    <string name="categories_title">Kategorie</string>
+    <string name="calendar_title">Kalendarz</string>
+    <string name="digital_balance_title">Digital Balance</string>
+    <string name="app_tracking_title">Rejestracja aplikacji</string>
+    <string name="todos_title">Zadania</string>
+    <string name="todo_create_title">Nowe zadanie</string>
+    <string name="todo_edit_title">Edytuj zadanie</string>
+    <string name="lifeview_title">Czas życia</string>
+    <string name="privacy_title">Prywatność</string>
+    <string name="export_title">Eksport</string>
+    <string name="backup_title">Kopia zapasowa</string>
+    <string name="fitness_trackers_title">Trackery fitness</string>
+
+    <!-- M18.129: integracja z kalendarzem -->
+    <string name="calendar_rules_title">Kalendarz</string>
+    <string name="calendar_rules_desc">Automatycznie rejestruj wydarzenia z kalendarza jako aktywności</string>
+    <string name="settings_calendar_section">Kalendarz</string>
+</resources>

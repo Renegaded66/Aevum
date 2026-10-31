@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ActivityTypesScreen -->
+    <string name="activitytypes_title">Aktywności i pozytywność</string>
+    <string name="activitytypes_subtitle">Ile jest warta twój czas?</string>
+    <string name="activitytypes_add_new">+ Nowa</string>
+    <string name="activitytypes_empty">Jeszcze żadnych aktywności.</string>
+    <string name="activitytypes_new_activity">Nowa aktywność</string>
+    <string name="activitytypes_name_hint">Nazwa (np. gitara)</string>
+    <string name="activitytypes_category_optional">Kategoria (opcjonalnie)</string>
+    <string name="activitytypes_create">Utwórz</string>
+    <string name="activitytypes_own">Własna</string>
+    <string name="activitytypes_category_label">KATEGORIA</string>
+    <string name="activitytypes_no_category">Brak kategorii</string>
+    <string name="activitytypes_color_label">KOLOR</string>
+    <string name="activitytypes_choose_icon">Wybierz ikonę</string>
+    <string name="activitytypes_done">Gotowe</string>
+    <string name="activitytypes_category_for">Kategoria dla „%1$s”</string>
+    <string name="activitytypes_new_category">Nowa kategoria…</string>
+    <string name="activitytypes_delete_title">Usunąć „%1$s”?</string>
+    <string name="activitytypes_delete_warning">Aktywność zostanie trwale usunięta i przestanie być dostępna.</string>
+    <string name="activitytypes_delete_what_happens">Co zrobić z rejestracjami?</string>
+    <string name="activitytypes_delete_only_activity">Usuń tylko aktywność</string>
+    <string name="activitytypes_delete_only_activity_desc">Rejestracje zostaną zachowane i trafią do „Inne”.</string>
+    <string name="activitytypes_delete_with_sessions">Usuń aktywność i wszystkie rejestracje</string>
+    <string name="activitytypes_delete_with_sessions_desc">Wszystkie sesje tej aktywności zostaną trwale usunięte.</string>
+
+    <!-- M33: Starter aktywności (zastępuje system planet na orbicie) -->
+    <string name="launcher_title">Uruchom aktywność</string>
+    <string name="launcher_subtitle">Co teraz robisz?</string>
+    <string name="launcher_search">Szukaj aktywności</string>
+    <string name="launcher_clear_search">Wyczyść wyszukiwanie</string>
+    <string name="launcher_recent">Ostatnie</string>
+    <string name="launcher_all">Wszystkie aktywności</string>
+    <string name="launcher_new">Nowa</string>
+    <string name="launcher_new_activity">Nowa aktywność</string>
+    <string name="launcher_empty">Nie znaleziono aktywności.</string>
+    <string name="launcher_pick_start">Wybierz sposób startu</string>
+    <string name="launcher_start_now">Uruchom teraz</string>
+    <string name="launcher_lead_time">Czas wyprzedzenia</string>
+    <string name="launcher_lead_title">Czas wyprzedzenia</string>
+    <string name="launcher_lead_sub">Aktywność trwa już od dłuższego czasu?</string>
+    <string name="launcher_now_chip">Teraz</string>
+    <string name="launcher_started_ago">%1$s temu</string>
+    <string name="launcher_exact_time">Dokładny czas</string>
+    <string name="launcher_exact_time_title">Dokładny czas startu</string>
+    <string name="launcher_start_at_time">Uruchom o tej godzinie</string>
+    <string name="launcher_start_with_time">Uruchom z czasem startu</string>
+
+    <!-- M33: ActivityCreateScreen -->
+    <string name="activitycreate_title">Nowa aktywność</string>
+    <string name="activitycreate_subtitle">Nazwa, ikona, kolor — gotowe.</string>
+    <string name="activitycreate_preview">Twoja aktywność</string>
+    <string name="activitycreate_preview_hint">Podgląd na żywo</string>
+    <string name="activitycreate_name">Nazwa</string>
+    <string name="activitycreate_name_hint">np. gitara</string>
+    <string name="activitycreate_icon">IKONA</string>
+    <string name="activitycreate_color">KOLOR</string>
+    <string name="activitycreate_category">KATEGORIA</string>
+    <string name="activitycreate_favorite">Przypnij na górze</string>
+    <string name="activitycreate_favorite_desc">Zawsze wyświetla się jako pierwsza w starterze.</string>
+    <string name="activitycreate_save">Utwórz aktywność</string>
+
+    <!-- LifeViewScreen -->
+    <string name="lifeview_hero_label">CZAS ŻYCIA</string>
+    <string name="lifeview_hero_question">Ile ci naprawdę zostało?</string>
+    <string name="lifeview_remaining">%1$d lat, %2$d dni</string>
+    <string name="lifeview_until_age">do ukończenia %1$d lat (wiek: %2$d)</string>
+    <string name="lifeview_birthday">Urodziny</string>
+    <string name="lifeview_age_value">Wiek: %1$d</string>
+    <string name="lifeview_no_birthday_hint">Podaj swoje urodziny, aby zobaczyć, ile ci naprawdę zostało czasu.</string>
+    <string name="lifeview_birthday_prompt_title">Podaj urodziny</string>
+    <string name="lifeview_birthday_prompt_desc">Do wyliczeń liczy się tylko rok — urodziny pozostają lokalnie na urządzeniu.</string>
+    <string name="lifeview_birthday_set">Ustaw urodziny</string>
+    <string name="lifeview_life_in_months">Twoje życie w miesiącach</string>
+    <string name="lifeview_months_used">Wykorzystano %1$d z %2$d miesięcy</string>
+    <string name="lifeview_birth">Narodziny</string>
+    <string name="lifeview_remaining_short">Pozostało</string>
+    <string name="lifeview_time_breakdown">Na co zużywasz swoje życie</string>
+    <string name="lifeview_projection_hint">Ekstrapolacja na pozostałe %1$d lat (na podstawie ostatnich 14 dni).</string>
+    <string name="lifeview_activities_comparison">Twoje aktywności w porównaniu do życia</string>
+    <string name="lifeview_min_per_day">%1$s · %2$d min/dzień</string>
+    <string name="lifeview_sleep_wakeup">Na sen przeznaczysz około %1$s swojego pozostałego życia.</string>
+    <string name="lifeview_sleep_wakeup_detail">To %1$d%% pozostającego ci czasu. Jazda samochodem zabiera ci dodatkowo %2$s.</string>
+    <string name="lifeview_expected_age">Prognozowana długość życia</string>
+    <string name="lifeview_age_years">%1$d lat</string>
+    <string name="lifeview_age_default_hint">Domyślnie: 80. Ekstrapolacje używają tej wartości.</string>
+    <string name="lifeview_years">%1$s lat</string>
+    <string name="lifeview_months">%1$d miesięcy</string>
+    <string name="lifeview_less_than_month">&lt; 1 miesiąc</string>
+    <string name="lifeview_driving">Jazda autem</string>
+    <string name="lifeview_allowances">Limity</string>
+    <string name="lifeview_free">Wolne</string>
+
+    <!-- AppTrackingScreen -->
+    <string name="apptracking_title">Rejestracja aplikacji</string>
+    <string name="apptracking_subtitle">Automatycznie rejestruj aplikacje jako aktywność</string>
+    <string name="apptracking_search_placeholder">Szukaj aplikacji…</string>
+    <string name="apptracking_clear_search">Wyczyść wyszukiwanie</string>
+    <string name="apptracking_all_apps">Wszystkie aplikacje</string>
+    <string name="apptracking_recording">Rejestracja</string>
+    <string name="apptracking_tap_left_hint">Dotknij aplikacji po lewej</string>
+    <string name="apptracking_no_results">Brak wyników</string>
+    <string name="apptracking_assign_activity">Przypisz aktywność</string>
+    <string name="apptracking_selected">Wybrano</string>
+    <string name="apptracking_add_to_recording">Dodaj do rejestracji</string>
+    <string name="apptracking_permission_title">Wymagany dostęp do danych o użyciu</string>
+    <string name="apptracking_permission_desc">Aevum potrzebuje dostępu do danych o użyciu, aby wykryć, która aplikacja jest właśnie otwarta.</string>
+    <string name="apptracking_permission_grant">Przyznaj dostęp do danych o użyciu</string>
+
+    <!-- M20: niezawodność w tle i diagnostyka rejestracji aplikacji -->
+    <string name="apptracking_diag_title">Tło i diagnostyka</string>
+    <string name="apptracking_diag_subtitle">Stan automatycznej rejestracji</string>
+    <string name="apptracking_diag_service">Usługa rejestracji</string>
+    <string name="apptracking_diag_active">aktywna</string>
+    <string name="apptracking_diag_inactive">nieaktywna</string>
+    <string name="apptracking_diag_lastpoll">Ostatnie sprawdzenie: %1$s</string>
+    <string name="apptracking_diag_never">nigdy</string>
+    <string name="apptracking_diag_foreground">Pierwszy plan</string>
+    <string name="apptracking_diag_foreground_none">— (ekran główny)</string>
+    <string name="apptracking_diag_battery">Optymalizacja baterii</string>
+    <string name="apptracking_diag_battery_exempt">wykluczona (dobrze)</string>
+    <string name="apptracking_diag_battery_restricted">ograniczona</string>
+    <string name="apptracking_diag_battery_unknown">nieznana</string>
+    <string name="apptracking_diag_battery_button">Otwórz ustawienia baterii</string>
+    <string name="apptracking_diag_hint">Bez wykluczenia Android może blokować rejestrację w tle. Jeśli widzisz „ograniczona”, ustaw Aevum w ustawieniach systemu na „niezoptymalizowana” — wtedy niezawodny jest też start po włączeniu telefonu.</string>
+    <string name="apptracking_diag_log">Dziennik</string>
+    <string name="apptracking_diag_copy">Kopiuj dziennik</string>
+    <string name="apptracking_diag_copied">Skopiowano ✓</string>
+    <string name="apptracking_diag_clear">Wyczyść</string>
+    <string name="apptracking_diag_empty">Jeszcze brak wpisów.</string>
+    <string name="apptracking_diag_show">Pokaż</string>
+    <string name="apptracking_diag_hide">Ukryj</string>
+    <string name="apptracking_diag_age_seconds">%1$ds temu</string>
+    <string name="apptracking_diag_age_minutes">%1$dm temu</string>
+    <string name="apptracking_diag_age_hours">%1$dh temu</string>
+
+    <!-- DigitalBalanceScreen -->
+    <string name="balance_tab_balance">Bilans</string>
+    <string name="balance_tab_pomodoro">Pomodoro</string>
+    <string name="balance_usage_access_active">Dostęp do danych o użyciu aktywny</string>
+    <string name="balance_revoke">Odbierz</string>
+    <string name="balance_apps_header">Aplikacje</string>
+    <string name="balance_sort_alpha">Sortuj alfabetycznie</string>
+    <string name="balance_sort_usage">Sortuj według użycia</string>
+    <string name="balance_blocked_count">Zablokowano: %1$d</string>
+    <string name="balance_permission_title">Digital Balance</string>
+    <string name="balance_permission_desc">Aby widzieć użycie aplikacji i ustawiać limity, Aevum potrzebuje dostępu do danych o użyciu.</string>
+    <string name="balance_permission_desc_rec">Zobaczysz swoją rzeczywistą aktywność — wykres godzinowy, odblokowania i historię aplikacji, których nikt inny ci nie pokazuje. I możesz ustawiać limity chroniące przed przewijaniem do 2:00 w nocy. Za to Aevum prosi jednorazowo o dostęp do danych o użyciu.</string>
+    <string name="balance_permission_grant">Zezwól na dostęp do danych o użyciu</string>
+    <string name="balance_refresh">Odśwież</string>
+    <string name="balance_of_goal">z celu %1$s</string>
+    <string name="balance_metric_apps">Aplikacje</string>
+    <string name="balance_metric_unlocks">Odblokowania</string>
+    <string name="balance_metric_top">Top</string>
+    <string name="balance_hourly_label">Użycie na godzinę (0–24)</string>
+    <string name="balance_history">Historia</string>
+    <string name="balance_days">%1$d dni</string>
+    <string name="balance_showing_day">Widok: %1$s</string>
+    <string name="balance_avg_per_day">Ø %1$s/dzień</string>
+    <string name="balance_sum">Σ %1$s</string>
+    <string name="balance_locked">Zablokowane</string>
+    <string name="balance_limit_min">Limit %1$d min</string>
+    <string name="balance_limit_reached">Limit osiągnięty</string>
+    <string name="balance_remaining">Zostało %1$s</string>
+    <string name="balance_soon_blocked">Wkrótce zablokowane — zostało %1$s</string>
+    <string name="balance_limit_active">Limit aktywny</string>
+    <string name="balance_no_limit">Brak limitu</string>
+    <string name="balance_set_limit">Ustaw limit</string>
+    <string name="balance_daily_limit">Limit dzienny: %1$d min</string>
+    <string name="balance_exception">Wyjątek</string>
+    <string name="balance_time_window">Okno czasowe</string>
+    <string name="balance_block_between">Blokuj tylko między %1$s i %2$s</string>
+    <string name="balance_remove_limit">Usuń limit</string>
+    <string name="balance_profiles">Profile</string>
+    <string name="balance_profiles_empty">Twórz profile, aby blokować kilka aplikacji naraz — np. profil do nauki blokujący wszystkie aplikacje społecznościowe.</string>
+    <string name="balance_profile_active_schedule">Aktywny (harmonogram) — aplikacje zablokowane</string>
+    <string name="balance_profile_active">Aktywny — aplikacje zablokowane</string>
+    <string name="balance_profile_schedule">Harmonogram: %1$s %2$s-%3$s</string>
+    <string name="balance_profile_inactive">Nieaktywny</string>
+    <string name="balance_edit_profile">Edytuj profil</string>
+    <string name="balance_new_profile">Nowy profil</string>
+    <string name="balance_name_placeholder">np. Nauka</string>
+    <string name="balance_schedule">Harmonogram</string>
+    <string name="balance_schedule_desc">Włączaj profil automatycznie według czasu</string>
+    <string name="balance_weekdays">Dni robocze</string>
+    <string name="balance_from">Od</string>
+    <string name="balance_until">Do</string>
+    <string name="balance_schedule_summary">Profil działa %1$s od %2$s do %3$s.</string>
+    <string name="balance_never">nigdy</string>
+    <string name="balance_block_apps">Zablokuj aplikacje</string>
+    <string name="balance_pomodoro_duration">Czas:</string>
+    <string name="balance_pomodoro_min">%1$d min</string>
+    <string name="balance_pomodoro_focus">Skupienie</string>
+    <string name="balance_pomodoro_short_break">Krótka przerwa</string>
+    <string name="balance_pomodoro_long_break">Długa przerwa</string>
+    <string name="balance_pomodoro_completed">Ukończone sesje skupienia: %1$d</string>
+    <string name="balance_pomodoro_pause">⏸ Pauza</string>
+    <string name="balance_pomodoro_start">▶ Start</string>
+    <string name="balance_pomodoro_reset">↺ Reset</string>
+    <string name="balance_pomodoro_tip">Wskazówka: używaj timera skupienia razem z profilem — podczas nauki aplikacje społecznościowe pozostają zablokowane.</string>
+
+    <!-- CategoriesScreen -->
+    <string name="categories_intro">Wybierz kategorię po lewej — po prawej zobaczysz jej aktywności. Przypisuj aktywności przez menu rozwijane.</string>
+    <string name="categories_new">+ Nowa kategoria</string>
+    <string name="categories_activities">Aktywności</string>
+    <string name="categories_empty">W tej kategorii nie ma aktywności.</string>
+    <string name="categories_unassigned">Bez kategorii</string>
+    <string name="categories_none_option">— Brak kategorii —</string>
+    <string name="categories_new_title">Nowa kategoria</string>
+    <string name="categories_name_hint">Nazwa (np. sport)</string>
+    <string name="categories_color">Kolor</string>
+    <string name="categories_create">Utwórz</string>
+
+    <!-- CalendarScreen -->
+    <string name="calendar_hero_label">KALENDARZ</string>
+    <string name="calendar_subtitle">Jakość twojego czasu w podglądzie miesiąca</string>
+    <string name="calendar_captured">Zarejestrowano: %1$s</string>
+    <string name="calendar_less">mniej</string>
+    <string name="calendar_more">więcej</string>
+    <string name="calendar_day_captured">Zarejestrowano: %1$s · %2$d aktywności</string>
+    <string name="calendar_no_activities">Tego dnia nie ma aktywności.</string>
+    <string name="calendar_activity">Aktywność</string>
+
+    <!-- UnknownPlacesScreen -->
+    <string name="unknownplace_title">Nieznane miejsca</string>
+    <string name="unknownplace_open_count">%1$d otwartych</string>
+    <string name="unknownplace_empty_title">Brak nieznanych miejsc</string>
+    <string name="unknownplace_empty_desc">Jeśli dłużej zostajesz w miejscu, które nie pasuje do żadnego z twoich Geofences, pojawi się ono tutaj.</string>
+    <string name="unknownplace_name_button">Nadaj nazwę</string>
+    <string name="unknownplace_geofence_button">Geofence</string>
+    <string name="unknownplace_name_dialog_title">Nazwij miejsce</string>
+    <string name="unknownplace_name_hint">Nazwa (np. restauracja Milano)</string>
+    <string name="unknownplace_geofence_dialog_title">Utwórz Geofence</string>
+    <string name="unknownplace_radius">Promień: %1$d m</string>
+
+    <!-- OnboardingScreen -->
+    <string name="onboarding_placeholder">Onboarding</string>
+
+    <!-- Komponenty -->
+    <string name="component_trend_vs_yesterday">vs. wczoraj</string>
+    <string name="component_quality_manual_hint">Dostosowane ręcznie — od jutra znów obowiązuje automatyczna jakość.</string>
+    <string name="component_quality_single_hint">Dotyczy tylko tego wpisu/dnia — ustawienie aktywności pozostaje bez zmian.</string>
+    <string name="component_reset">Przywróć</string>
+    <string name="component_zone_absent">Nieobecny</string>
+    <string name="component_live">LIVE</string>
+    <string name="component_conflict_check">Sprawdź konflikt</string>
+    <string name="component_source_place">Miejsce</string>
+    <string name="component_source_manual">Ręcznie</string>
+    <string name="component_positivity">Pozytywność</string>
+    <string name="component_positivity_a11y">Pozytywność %1$d ze 100</string>
+    <string name="component_bad">Złe</string>
+    <string name="component_neutral">Neutralne</string>
+    <string name="component_good">Dobre</string>
+    <string name="component_hour">Godzina</string>
+    <string name="component_minute">Minuta</string>
+    <string name="component_quality">Jakość czasu</string>
+    <string name="component_ok">OK</string>
+</resources>
