@@ -1,6 +1,7 @@
 package com.d_drostes_apps.aevum
 
 import com.d_drostes_apps.aevum.data.model.ActivitySession
+import com.d_drostes_apps.aevum.data.model.GoalCheckin
 import com.d_drostes_apps.aevum.ui.screens.activitystats.ActivityStatsAnalytics
 import com.d_drostes_apps.aevum.ui.screens.activitystats.ActivityStatsRange
 import com.d_drostes_apps.aevum.ui.screens.activitystats.BucketUnit
@@ -420,6 +421,68 @@ class ActivityStatsAnalyticsTest {
         assertThat(result.sessionCount).isEqualTo(3)
         assertThat(result.buckets.last().sessionCount).isEqualTo(2) // heute
         assertThat(result.buckets.first { it.start == today.minusDays(6) }.sessionCount).isEqualTo(1)
+    }
+
+    // ---------------------------------------------------------------
+    // M35: Zeitgutschriften manueller Ziele
+    // ---------------------------------------------------------------
+
+    @Test
+    fun manualGoalCreditsCountAsActivityTimeWithoutSessions() {
+        val credits = listOf(
+            GoalCheckin(
+                id = "c1", goalId = "g1", timestampMs = 0L,
+                dateKey = today.toString(), activityTypeId = "meditation",
+                durationMs = 5 * 60_000L
+            ),
+            GoalCheckin(
+                id = "c2", goalId = "g1", timestampMs = 0L,
+                dateKey = today.minusDays(2).toString(), activityTypeId = "meditation",
+                durationMs = 10 * 60_000L
+            ),
+            // Fremde Aktivität darf nicht zählen.
+            GoalCheckin(
+                id = "c3", goalId = "g2", timestampMs = 0L,
+                dateKey = today.toString(), activityTypeId = "reading",
+                durationMs = 99 * 60_000L
+            )
+        )
+
+        val result = ActivityStatsAnalytics.build(
+            sessions = emptyList(),
+            activityTypeId = "meditation",
+            range = ActivityStatsRange.Days7,
+            today = today,
+            zoneId = zone,
+            manualCredits = credits
+        )
+
+        assertThat(result.hasData).isTrue()
+        assertThat(result.totalMs).isEqualTo(15 * 60_000L)
+        assertThat(result.sessionCount).isEqualTo(2)
+        assertThat(result.activeDays).isEqualTo(2)
+        assertThat(result.longestMs).isEqualTo(10 * 60_000L)
+        assertThat(result.buckets.last().durationMs).isEqualTo(5 * 60_000L)
+        assertThat(result.buckets.last().sessionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun manualGoalCreditWithoutActivityIsInvisibleInActivityStats() {
+        val credits = listOf(
+            GoalCheckin(
+                id = "c1", goalId = "g1", timestampMs = 0L,
+                dateKey = today.toString(), activityTypeId = null,
+                durationMs = 5 * 60_000L
+            )
+        )
+
+        val result = ActivityStatsAnalytics.build(
+            emptyList(), "meditation", ActivityStatsRange.Days7, today, zone,
+            manualCredits = credits
+        )
+
+        assertThat(result.hasData).isFalse()
+        assertThat(result.totalMs).isEqualTo(0L)
     }
 
     // ---------------------------------------------------------------

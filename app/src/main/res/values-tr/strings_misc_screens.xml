@@ -257,4 +257,6 @@
     <string name="component_minute">Dakika</string>
     <string name="component_quality">Zaman kalitesi</string>
     <string name="component_ok">Tamam</string>
+
+    <string name="activitytypes_rename_title">“%1$s” yeniden adlandır</string>
 </resources>

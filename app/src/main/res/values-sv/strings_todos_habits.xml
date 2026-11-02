@@ -183,4 +183,20 @@
     <string name="goal_preview">Förhandsvisning</string>
     <string name="goal_error_category_required">Välj en kategori</string>
     <string name="goal_error_schedule_required">Välj minst en dag</string>
+
+    <string name="goal_manual_activity">Målets aktivitet (valfritt)</string>
+    <string name="goal_manual_activity_none">Ingen aktivitet</string>
+    <string name="goal_manual_activity_hint">Kopplar valfritt målet till en aktivitet. När du bockar av kan du ange en tid — den räknas för dagen och aktivitetsstatistiken, men visas inte i tidslinjen.</string>
+    <string name="goal_tracking_manual_with_activity">Manuell · %1$s</string>
+    <string name="goal_today_credit">%1$d min tillgodoräknade idag</string>
+    <string name="goal_time_title">Registrera tid?</string>
+    <string name="goal_time_edit_title">Redigera tid</string>
+    <string name="goal_time_message">Valfritt: ange den tid du har lagt på det här målet idag.</string>
+    <string name="goal_time_message_activity">Valfritt: ange den tid du har lagt på ”%1$s” idag.</string>
+    <string name="goal_time_minutes_label">Minuter</string>
+    <string name="goal_time_not_timeline">Tillgodoräknas idag och i aktivitetsstatistiken — inte i tidslinjen.</string>
+    <string name="goal_time_remove">Ta bort tid</string>
+    <string name="goal_time_skip">Hoppa över</string>
+    <string name="goal_time_add">+ Tid</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

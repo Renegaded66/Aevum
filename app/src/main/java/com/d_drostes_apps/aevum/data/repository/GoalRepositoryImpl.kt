@@ -33,9 +33,17 @@ class GoalRepositoryImpl(
     override fun getCheckinsForGoal(goalId: String): Flow<List<GoalCheckin>> =
         checkinDao.getForGoal(goalId)
 
+    override fun getAllCheckins(): Flow<List<GoalCheckin>> = checkinDao.getAll()
+
+    override suspend fun getCheckinById(checkinId: String): GoalCheckin? =
+        checkinDao.getById(checkinId)
+
     override suspend fun addCheckin(checkin: GoalCheckin) = checkinDao.insert(checkin)
 
     override suspend fun removeCheckin(checkinId: String) = checkinDao.deleteById(checkinId)
+
+    override suspend fun setCheckinDuration(checkinId: String, durationMs: Long) =
+        checkinDao.setDuration(checkinId, durationMs)
 
     override suspend fun lastCheckin(goalId: String): GoalCheckin? = checkinDao.lastForGoal(goalId)
 }

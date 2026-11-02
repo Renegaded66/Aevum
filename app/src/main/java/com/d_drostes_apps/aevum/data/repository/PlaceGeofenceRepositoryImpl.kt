@@ -42,5 +42,6 @@ class AutomationSettingsRepositoryImpl(
     private val dao: AutomationSettingsDao
 ) : AutomationSettingsRepository {
     override fun get(): Flow<AutomationSettings?> = dao.get()
+    override suspend fun getSync(): AutomationSettings? = dao.getSettingsSync()
     override suspend fun upsert(settings: AutomationSettings) = dao.upsert(settings)
 }

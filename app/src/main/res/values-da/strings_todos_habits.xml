@@ -179,4 +179,20 @@
     <string name="goal_preview">Forhåndsvisning</string>
     <string name="goal_error_category_required">Vælg en kategori</string>
     <string name="goal_error_schedule_required">Vælg mindst én dag</string>
+
+    <string name="goal_manual_activity">Målets aktivitet (valgfrit)</string>
+    <string name="goal_manual_activity_none">Ingen aktivitet</string>
+    <string name="goal_manual_activity_hint">Knytter valgfrit målet til en aktivitet. Når du hakker af, kan du indtaste en tid — den tæller for dagen og aktivitetsstatistikken, men vises ikke i tidslinjen.</string>
+    <string name="goal_tracking_manual_with_activity">Manuel · %1$s</string>
+    <string name="goal_today_credit">%1$d min godskrevet i dag</string>
+    <string name="goal_time_title">Registrér tid?</string>
+    <string name="goal_time_edit_title">Rediger tid</string>
+    <string name="goal_time_message">Valgfrit: indtast den tid, du har brugt på dette mål i dag.</string>
+    <string name="goal_time_message_activity">Valgfrit: indtast den tid, du har brugt på “%1$s” i dag.</string>
+    <string name="goal_time_minutes_label">Minutter</string>
+    <string name="goal_time_not_timeline">Godskrives i dag og i aktivitetsstatistikken — ikke i tidslinjen.</string>
+    <string name="goal_time_remove">Fjern tid</string>
+    <string name="goal_time_skip">Spring over</string>
+    <string name="goal_time_add">+ Tid</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

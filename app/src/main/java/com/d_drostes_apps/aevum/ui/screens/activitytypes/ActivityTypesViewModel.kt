@@ -117,6 +117,22 @@ class ActivityTypesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * M35: Aktivität umbenennen — auch System-Typen wie „Autofahren".
+     *
+     * Die ID bleibt unverändert. Genau das macht die Umbenennung sicher:
+     * Auto-Erkennung, Ziele, Check-ins und bestehende Sessions hängen an der
+     * ID, nicht am Anzeigenamen. Der neue Name erscheint überall, wo der
+     * ActivityType aufgelöst wird (Timeline, Statistik, Ziele).
+     */
+    fun renameActivity(typeId: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            activityTypeRepository.rename(typeId, trimmed)
+        }
+    }
+
     // M18.17: Neue Kategorie anlegen (z. B. "Sport" für Joggen + Gym).
     fun createCategory(name: String) {
         val trimmed = name.trim()

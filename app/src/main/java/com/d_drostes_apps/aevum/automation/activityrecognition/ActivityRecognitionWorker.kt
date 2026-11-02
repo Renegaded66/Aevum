@@ -65,6 +65,9 @@ class ActivityRecognitionWorker(
         fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
         // M16.6: Schlaf-Schutzschicht gegen Driving-False-Positives
         fun sleepShield(): com.d_drostes_apps.aevum.automation.sleep.SleepShield
+        // M35: wählbare Fahrt-Aktivität.
+        fun automationSettingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+        fun activityTypeRepository(): com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
     }
 
     override suspend fun doWork(): Result {
@@ -120,8 +123,7 @@ class ActivityRecognitionWorker(
             try {
                 val liveSession = liveActivityManager.liveSession.value
                 if (liveSession != null && liveSession.isLive &&
-                    liveSession.activityTypeId == "driving" &&
-                    liveSession.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+                    PendingDrivePolicy.isDriveSession(liveSession.activityTypeId, liveSession.sourceType)
                 ) {
                     liveActivityManager.stop()
                     Log.d(TAG, "Mobilitäts-Session gestoppt (EXIT @ $exitAt)")
@@ -135,8 +137,7 @@ class ActivityRecognitionWorker(
         // EXIT eine laufende Auto-Session zuverlässig beenden.
         val existingLive = liveActivityManager.liveSession.value
         if (existingLive != null && existingLive.isLive &&
-            existingLive.activityTypeId == "driving" &&
-            existingLive.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+            PendingDrivePolicy.isDriveSession(existingLive.activityTypeId, existingLive.sourceType)
         ) {
             Log.d(TAG, "Auto-Mobilitäts-Session läuft bereits — Cluster nur als Trigger verbucht")
             if (effectiveCluster != null) {
@@ -255,16 +256,31 @@ class ActivityRecognitionWorker(
                 anchorQuality = "HIGH"
             )
         )
-        Log.d(TAG, "Trigger DRIVING_STARTED + DRIVING_ENDED für ${durationStr} Cluster erzeugt")
+        Log.d(TAG, "Trigger DRIVING_STARTED + DRIVING_ENDED für $durationStr Cluster erzeugt")
+
+        // M35: Die vom Nutzer gewählte Fahrt-Aktivität gilt für BEIDE
+        // Pfade — den Review-Kandidaten und die Live-Session. Sonst bliebe
+        // bei einem fehlgeschlagenen Live-Start eine „Transport"-Session
+        // stehen, obwohl der Nutzer z. B. „Unterwegs" gewählt hat.
+        val driveActivity = runCatching {
+            DriveActivityResolver.resolve(
+                settingsRepository = deps.automationSettingsRepository(),
+                activityTypeRepository = deps.activityTypeRepository(),
+                fallbackTitle = applicationContext.getString(R.string.seed_activity_driving)
+            )
+        }.getOrElse {
+            Log.e(TAG, "Fahrt-Activity konnte nicht aufgelöst werden — Fallback transport", it)
+            DriveActivity("transport", applicationContext.getString(R.string.seed_activity_driving))
+        }
 
         val candidate = ActivityCandidate(
             id = UUID.randomUUID().toString(),
-            suggestedTitle = applicationContext.getString(R.string.data_mobility_title, durationStr),
+            suggestedTitle = driveActivity.title,
             suggestedCategoryId = "transport",
-            // M18.3: "transport" statt "driving" — Google unterscheidet nicht
-            // zwischen Auto/Bus/Zug, alle sind IN_VEHICLE. Eine ehrliche
-            // Kategorie "Mobilität" statt einer Lügen-Kategorie "Autofahren".
-            activityTypeId = "transport",
+            // M18.3: Google unterscheidet nicht zwischen Auto/Bus/Zug, alle
+            // sind IN_VEHICLE. Die Kategorie bleibt daher „Mobilität"; die
+            // konkrete Activity kommt seit M35 aus der Nutzer-Einstellung.
+            activityTypeId = driveActivity.typeId,
             startAt = effectiveCluster.startMs,
             endAt = effectiveCluster.endMs,
             confidence = confidence,
@@ -292,19 +308,17 @@ class ActivityRecognitionWorker(
             // M18.3: Genug Fahrsamples — Mobilitäts-Session starten.
             try {
                 val existing = liveActivityManager.liveSession.value
-                val isDuplicate = existing != null && existing.isLive && existing.activityTypeId == "driving"
+                val isDuplicate = existing != null && existing.isLive &&
+                    PendingDrivePolicy.isDriveSession(existing.activityTypeId, existing.sourceType)
                 if (!isDuplicate) {
                     // M18.93v10-FIX: forceFinishForAuto() VOR start()
                     // entfernt — start() kürzt die alte Session exakt bis
                     // zum Cluster-Start (trimOverlappingForNewSession),
                     // statt sie pauschal mit endAt=jetzt zu beenden
                     // (Überlappung bei rückwirkendem Start).
-                    // M18.66: Activity "Autofahren" (driving) — nicht mehr
-                    // "Mobilität" (transport). Der User will die Activity
-                    // Autofahren, keine generische Mobilität.
                     val session = liveActivityManager.start(
-                        activityTypeId = "driving",
-                        title = "Autofahren",
+                        activityTypeId = driveActivity.typeId,
+                        title = driveActivity.title,
                         sourceType = "ACTIVITY_RECOGNITION_AUTO",
                         // startedAt = Cluster-Start, NICHT now() — der User
                         // war ja schon die ganze Zeit im Fahrzeug.

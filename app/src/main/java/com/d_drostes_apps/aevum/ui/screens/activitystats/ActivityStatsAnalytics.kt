@@ -2,6 +2,7 @@ package com.d_drostes_apps.aevum.ui.screens.activitystats
 
 import android.content.Context
 import com.d_drostes_apps.aevum.data.model.ActivitySession
+import com.d_drostes_apps.aevum.data.model.GoalCheckin
 import com.d_drostes_apps.aevum.domain.digital.ScreenStatisticsPolicy
 import com.d_drostes_apps.aevum.ui.screens.insights.PeriodLabels
 import java.time.LocalDate
@@ -152,22 +153,33 @@ object ActivityStatsAnalytics {
         range: ActivityStatsRange,
         today: LocalDate,
         zoneId: ZoneId,
-        context: Context? = null
+        context: Context? = null,
+        // M35: Zeitgutschriften aus manuellen Ziel-Check-ins. Sie zählen
+        // bewusst NICHT als Session/Timeline-Block, aber als Aktivitätszeit
+        // des jeweiligen Tages („den aktuellen Tag zugerechnet").
+        manualCredits: List<GoalCheckin> = emptyList()
     ): ActivityStatsUiModel {
         // Aufzeichnungen raus (M18.138), gelöschte raus, fremde Typen raus.
         val relevant = ScreenStatisticsPolicy.forStatistics(
             sessions.filter { it.deletedAt == null && it.activityTypeId == activityTypeId }
         )
-        if (relevant.isEmpty()) {
+        val credits = manualCredits.filter {
+            it.activityTypeId == activityTypeId && it.durationMs > 0L
+        }
+        if (relevant.isEmpty() && credits.isEmpty()) {
             // Leerzustand: keine Aufzeichnung dieser Aktivität überhaupt.
             return ActivityStatsUiModel(range = range, hasData = false)
         }
 
-        val earliest = relevant.minOf { it.startAt }
-            .let { java.time.Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
+        val earliestSession = relevant.minOfOrNull { it.startAt }
+            ?.let { java.time.Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
+        val earliestCredit = credits.minOfOrNull { parseDate(it.dateKey) ?: LocalDate.MAX }
+            ?.takeIf { it != LocalDate.MAX }
+        val earliestDate = listOfNotNull(earliestSession, earliestCredit).minOrNull()
+            ?: today
 
-        val unit = bucketUnitFor(range, today, earliest)
-        val buckets = bucketStarts(range, today, earliest, unit)
+        val unit = bucketUnitFor(range, today, earliestDate)
+        val buckets = bucketStarts(range, today, earliestDate, unit)
         if (buckets.isEmpty()) {
             return ActivityStatsUiModel(range = range, hasData = false)
         }
@@ -185,11 +197,16 @@ object ActivityStatsAnalytics {
         } else windowStart
 
         // EINE Tagesbasis — Grundlage für alle Sichten.
+        val creditDayTotals = credits
+            .mapNotNull { c -> parseDate(c.dateKey)?.let { it to c.durationMs } }
+            .groupingBy { it.first }
+            .fold(0L) { acc, pair -> acc + pair.second }
         val dayTotals = dayDurations(
             sessions = relevant,
             start = trendStart,
             endExclusive = windowEndExclusive,
-            zoneId = zoneId
+            zoneId = zoneId,
+            manualCreditDayTotals = creditDayTotals
         )
 
         val bucketModels = buckets.map { start ->
@@ -203,7 +220,8 @@ object ActivityStatsAnalytics {
                 label = axisLabel(unit, start, context),
                 fullLabel = fullLabel(unit, start, today, context),
                 durationMs = duration,
-                sessionCount = countSessions(relevant, start, endEx, zoneId)
+                sessionCount = countSessions(relevant, start, endEx, zoneId) +
+                    countCredits(credits, start, endEx)
             )
         }
 
@@ -217,12 +235,18 @@ object ActivityStatsAnalytics {
         val previousTotal = if (range == ActivityStatsRange.All) null
         else sumDays(dayTotals, windowStart.minusDays(windowDays), windowStart)
 
-        val longestMs = relevant.maxOfOrNull { session ->
-            session.activeDurationInWindow(
-                windowStart.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-                windowEndExclusive.atStartOfDay(zoneId).toInstant().toEpochMilli()
-            )
-        } ?: 0L
+        val longestMs = maxOf(
+            relevant.maxOfOrNull { session ->
+                session.activeDurationInWindow(
+                    windowStart.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                    windowEndExclusive.atStartOfDay(zoneId).toInstant().toEpochMilli()
+                )
+            } ?: 0L,
+            credits.filter {
+                val date = parseDate(it.dateKey) ?: return@filter false
+                !date.isBefore(windowStart) && date.isBefore(windowEndExclusive)
+            }.maxOfOrNull { it.durationMs } ?: 0L
+        )
 
         val activeDayFlags = (0 until windowDays.toInt()).map { i ->
             val day = windowStart.plusDays(i.toLong())
@@ -235,7 +259,8 @@ object ActivityStatsAnalytics {
             totalMs = windowTotal,
             avgPerDayMs = windowTotal / windowDays,
             avgPerWeekMs = windowTotal / (windowDays / 7L).coerceAtLeast(1L),
-            sessionCount = countSessions(relevant, windowStart, windowEndExclusive, zoneId),
+            sessionCount = countSessions(relevant, windowStart, windowEndExclusive, zoneId) +
+                countCredits(credits, windowStart, windowEndExclusive),
             longestMs = longestMs,
             activeDays = activeDayFlags.count { it },
             bestStreak = longestStreak(activeDayFlags),
@@ -341,9 +366,17 @@ object ActivityStatsAnalytics {
         sessions: List<ActivitySession>,
         start: LocalDate,
         endExclusive: LocalDate,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        manualCreditDayTotals: Map<LocalDate, Long> = emptyMap()
     ): Map<LocalDate, Long> {
         val totals = HashMap<LocalDate, Long>()
+        // M35: Manuelle Zeitgutschriften zuerst — sie liegen bereits als
+        // Tageswerte vor und werden nicht über Session-Grenzen verteilt.
+        manualCreditDayTotals.forEach { (day, ms) ->
+            if (!day.isBefore(start) && day.isBefore(endExclusive) && ms > 0L) {
+                totals[day] = (totals[day] ?: 0L) + ms
+            }
+        }
         if (sessions.isEmpty()) return totals
         val windowStartMs = start.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val windowEndMs = endExclusive.atStartOfDay(zoneId).toInstant().toEpochMilli()
@@ -405,6 +438,22 @@ object ActivityStatsAnalytics {
             val sessionEnd = session.endAt ?: minOf(now, endMs)
             sessionEnd > session.startAt && session.startAt < endMs && sessionEnd > startMs
         }
+    }
+
+    /** M35: Zeitgutschriften im Fenster — je Check-in ein Eintrag. */
+    private fun countCredits(
+        credits: List<GoalCheckin>,
+        start: LocalDate,
+        endExclusive: LocalDate
+    ): Int = credits.count { credit ->
+        val date = parseDate(credit.dateKey) ?: return@count false
+        !date.isBefore(start) && date.isBefore(endExclusive)
+    }
+
+    private fun parseDate(iso: String): LocalDate? = try {
+        LocalDate.parse(iso)
+    } catch (_: Exception) {
+        null
     }
 
     /** Minuten je Wochentag (Mo..So) innerhalb des Fensters. */

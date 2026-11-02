@@ -259,4 +259,9 @@
     <string name="settings_triggers_call_activity_hint">Przerywane jest tylko użycie cyfrowe: rejestracja ekranu, aplikacji i PC. Ręcznie uruchomione aktywności, Geofences, kalendarz, jazdy i sport pozostają nietknięte.</string>
     <string name="settings_triggers_permission_calls">Wykrywanie połączeń (stan telefonu)</string>
     <string name="settings_triggers_call_no_activities">Brak aktywności — najpierw utwórz jedną.</string>
+
+    <string name="settings_triggers_drive_activity">Aktywność dla automatycznych podróży</string>
+    <string name="settings_triggers_drive_activity_desc">Pociągi, autobusy i samochody są często wykrywane jako podróż. Wybierz, która aktywność ma być zapisana.</string>
+    <string name="settings_triggers_drive_activity_label">Zapisywane jako</string>
+    <string name="settings_triggers_drive_activity_hint">Wykrywanie pozostaje bez zmian — zmieniają się tylko nazwa, ikona i kolor zapisu. „Rower” pozostaje zarezerwowany dla wykrywania roweru.</string>
 </resources>

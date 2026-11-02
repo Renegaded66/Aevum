@@ -173,4 +173,20 @@
     <string name="goal_preview">Vista previa</string>
     <string name="goal_error_category_required">Elige una categoría</string>
     <string name="goal_error_schedule_required">Elige al menos un día</string>
+
+    <string name="goal_manual_activity">Actividad del objetivo (opcional)</string>
+    <string name="goal_manual_activity_none">Sin actividad</string>
+    <string name="goal_manual_activity_hint">Vincula opcionalmente el objetivo con una actividad. Al marcarlo, puedes introducir un tiempo: cuenta para el día y las estadísticas de actividad, pero no aparece en la línea de tiempo.</string>
+    <string name="goal_tracking_manual_with_activity">Manual · %1$s</string>
+    <string name="goal_today_credit">%1$d min acreditados hoy</string>
+    <string name="goal_time_title">¿Registrar tiempo?</string>
+    <string name="goal_time_edit_title">Editar tiempo</string>
+    <string name="goal_time_message">Opcional: introduce el tiempo que has dedicado hoy a este objetivo.</string>
+    <string name="goal_time_message_activity">Opcional: introduce el tiempo que has dedicado hoy a «%1$s».</string>
+    <string name="goal_time_minutes_label">Minutos</string>
+    <string name="goal_time_not_timeline">Se acredita al día de hoy y a las estadísticas de actividad, no a la línea de tiempo.</string>
+    <string name="goal_time_remove">Quitar tiempo</string>
+    <string name="goal_time_skip">Omitir</string>
+    <string name="goal_time_add">+ Tiempo</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

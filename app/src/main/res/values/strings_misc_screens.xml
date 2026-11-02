@@ -23,6 +23,7 @@
     <string name="activitytypes_delete_only_activity_desc">Recordings are kept and assigned to “Other”.</string>
     <string name="activitytypes_delete_with_sessions">Delete activity + all recordings</string>
     <string name="activitytypes_delete_with_sessions_desc">All sessions of this activity will be permanently removed.</string>
+    <string name="activitytypes_rename_title">Rename “%1$s”</string>
 
     <!-- M33: Activity launcher (ersetzt das Orbit-Planetensystem) -->
     <string name="launcher_title">Start activity</string>

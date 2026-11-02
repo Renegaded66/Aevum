@@ -128,6 +128,26 @@ class TimelineViewModel @Inject constructor(
         }
     }
 
+    /**
+     * M35: Automatische Fahrten tragen beim Start den damaligen Activity-
+     * Namen als Session-Titel. Wird die Activity später umbenannt (z. B.
+     * „Autofahren" → „Unterwegs"), sollen BESTEHENDE Fahrten den neuen
+     * Namen zeigen. Nur der unveränderte Seed-Titel wird überschrieben —
+     * eine vom Nutzer individuell umbenannte Session bleibt unangetastet.
+     */
+    private fun displayTitle(
+        session: com.d_drostes_apps.aevum.data.model.ActivitySession,
+        typeMap: Map<String, ActivityType>
+    ): String {
+        if (session.sourceType != "ACTIVITY_RECOGNITION_AUTO") return session.title
+        if (session.activityTypeId == "radfahren") return session.title
+        // Automatisch erzeugte Fahrtitel folgen dem aktuellen Activity-
+        // Namen (auch bei einer vom Nutzer gewählten Fahrt-Activity).
+        // Ein individuell editierter Session-Titel bleibt unangetastet.
+        if (session.isUserEdited) return session.title
+        return typeMap[session.activityTypeId]?.name ?: session.title
+    }
+
     // M12.2: Stufenloser Pinch-to-Zoom — pixelsPerHour ist die einzige Quelle
     // der Wahrheit für die Timeline-Höhe. Statt eines enum-basierten
     // 3-Stufen-Modells wird ein Float gespeichert, der via detectTransformGestures
@@ -775,7 +795,7 @@ class TimelineViewModel @Inject constructor(
                 ?: typeMap[session.activityTypeId]?.defaultCategoryId
             TimelineSessionUi(
                 id = session.id,
-                title = session.title,
+                title = displayTitle(session, typeMap),
                 categoryId = effectiveCategoryId,
                 categoryName = categoryMap[effectiveCategoryId]?.name ?: application.getString(R.string.common_other),
                 activityTypeName = typeMap[session.activityTypeId]?.name ?: application.getString(R.string.timeline_free_activity),
@@ -819,7 +839,7 @@ class TimelineViewModel @Inject constructor(
                     ?: typeMap[session.activityTypeId]?.defaultCategoryId
                 TimelineSessionUi(
                     id = session.id,
-                    title = session.title,
+                    title = displayTitle(session, typeMap),
                     categoryId = effectiveCategoryId,
                     categoryName = categoryMap[effectiveCategoryId]?.name ?: application.getString(R.string.common_other),
                     activityTypeName = typeMap[session.activityTypeId]?.name ?: application.getString(R.string.timeline_free_activity),
@@ -943,7 +963,7 @@ class TimelineViewModel @Inject constructor(
                     ?: typeMap[session.activityTypeId]?.defaultCategoryId
                 TimelineSessionUi(
                     id = session.id,
-                    title = session.title,
+                    title = displayTitle(session, typeMap),
                     categoryId = effectiveCategoryId,
                     categoryName = categoryMap[effectiveCategoryId]?.name ?: application.getString(R.string.common_other),
                     activityTypeName = typeMap[session.activityTypeId]?.name ?: application.getString(R.string.timeline_free_activity),

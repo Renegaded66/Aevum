@@ -20,9 +20,18 @@ interface GoalRepository {
     /** Check-ins eines Ziels (neueste zuerst) — Detail-Ansicht. */
     fun getCheckinsForGoal(goalId: String): Flow<List<GoalCheckin>>
 
+    /** M35: Alle Check-ins — Aktivitätsstatistik (Zeitgutschriften). */
+    fun getAllCheckins(): Flow<List<GoalCheckin>>
+
+    /** M35: Einzelner Check-in für die Zeitgutschrift. */
+    suspend fun getCheckinById(checkinId: String): GoalCheckin?
+
     suspend fun addCheckin(checkin: GoalCheckin)
 
     suspend fun removeCheckin(checkinId: String)
+
+    /** M35: Zeitgutschrift setzen/ändern (0 = Zeit entfernen). */
+    suspend fun setCheckinDuration(checkinId: String, durationMs: Long)
 
     suspend fun lastCheckin(goalId: String): GoalCheckin?
 }

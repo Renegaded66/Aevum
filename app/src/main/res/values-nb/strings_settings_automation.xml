@@ -247,4 +247,9 @@
     <string name="settings_triggers_call_activity_hint">Bare digital bruk blir avbrutt: skjerm-, app- og PC-registrering. Manuelt startede aktiviteter, geofences, kalender, kjøreturer og sport blir ikke berørt.</string>
     <string name="settings_triggers_permission_calls">Gjenkjenning av anrop (telefonstatus)</string>
     <string name="settings_triggers_call_no_activities">Ingen aktiviteter ennå — opprett en først.</string>
+
+    <string name="settings_triggers_drive_activity">Aktivitet for automatiske turer</string>
+    <string name="settings_triggers_drive_activity_desc">Tog, busser og biler registreres ofte som en tur. Velg hvilken aktivitet som skal registreres.</string>
+    <string name="settings_triggers_drive_activity_label">Registreres som</string>
+    <string name="settings_triggers_drive_activity_hint">Registreringen er den samme — bare navn, ikon og farge endres. «Sykling» er fortsatt forbeholdt sykkelregistreringen.</string>
 </resources>

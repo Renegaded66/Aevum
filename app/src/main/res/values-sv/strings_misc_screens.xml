@@ -255,4 +255,6 @@
     <string name="component_minute">Minut</string>
     <string name="component_quality">Tidskvalitet</string>
     <string name="component_ok">OK</string>
+
+    <string name="activitytypes_rename_title">Byt namn på ”%1$s”</string>
 </resources>

@@ -56,6 +56,8 @@ class GoalDetailViewModel @Inject constructor(
     private val historyBalance = MutableStateFlow<Map<LocalDate, Long>>(emptyMap())
     private val _celebration = MutableStateFlow<GoalCelebrationEvent?>(null)
     private val _closed = MutableStateFlow(false)
+    private val _timePrompt = MutableStateFlow<GoalTimePrompt?>(null)
+    val timePrompt: StateFlow<GoalTimePrompt?> = _timePrompt
 
     private val goalFlow = goalIdFlow.flatMapLatest { id ->
         if (id == null) flowOf(null) else goalRepository.getById(id)
@@ -127,7 +129,10 @@ class GoalDetailViewModel @Inject constructor(
         val progress = result.toGoalWithProgress(
             typeMap,
             categories.associateBy { it.id },
-            checkins.count { it.dateKey == today.toString() }
+            checkins.count { it.dateKey == today.toString() },
+            todayCreditMs = checkins
+                .filter { it.dateKey == today.toString() }
+                .sumOf { it.durationMs }
         )
 
         maybeEmitCelebration(progress)
@@ -167,15 +172,69 @@ class GoalDetailViewModel @Inject constructor(
     fun checkIn() {
         val id = goalIdFlow.value ?: return
         viewModelScope.launch {
-            goalRepository.addCheckin(
-                GoalCheckin(
-                    id = UUID.randomUUID().toString(),
+            val goal = goalRepository.getById(id).first() ?: return@launch
+            val activityName = goal.activityTypeId?.let { typeId ->
+                activityTypeRepository.getById(typeId).first()?.name
+            }
+            val checkin = GoalCheckin(
+                id = UUID.randomUUID().toString(),
+                goalId = id,
+                timestampMs = System.currentTimeMillis(),
+                dateKey = LocalDate.now(zoneId).toString(),
+                activityTypeId = goal.activityTypeId
+            )
+            goalRepository.addCheckin(checkin)
+            // M35: Direkt nach dem Abhaken optional eine Zeit anbieten —
+            // aber nur, wenn das Ziel einer Aktivität zugeordnet ist.
+            // Ohne Aktivität gäbe es keine Statistik, der sie zugerechnet
+            // werden könnte.
+            if (goal.activityTypeId != null) {
+                _timePrompt.value = GoalTimePrompt(
                     goalId = id,
-                    timestampMs = System.currentTimeMillis(),
-                    dateKey = LocalDate.now(zoneId).toString()
+                    checkinId = checkin.id,
+                    goalTitle = goal.title,
+                    activityName = activityName
                 )
+            }
+        }
+    }
+
+    /** M35: Zeit eines bestehenden Check-ins nachträglich erfassen/ändern. */
+    fun openTimePrompt(checkin: GoalCheckin) {
+        val id = goalIdFlow.value ?: return
+        viewModelScope.launch {
+            val goal = goalRepository.getById(id).first() ?: return@launch
+            val typeId = checkin.activityTypeId ?: goal.activityTypeId
+            val activityName = typeId?.let { activityTypeRepository.getById(it).first()?.name }
+            _timePrompt.value = GoalTimePrompt(
+                goalId = id,
+                checkinId = checkin.id,
+                goalTitle = goal.title,
+                activityName = activityName,
+                initialMinutes = creditedMinutes(checkin.durationMs)
             )
         }
+    }
+
+    fun confirmTimePrompt(minutes: Int) {
+        val prompt = _timePrompt.value ?: return
+        viewModelScope.launch {
+            goalRepository.setCheckinDuration(prompt.checkinId, minutes.toLong() * 60_000L)
+            _timePrompt.value = null
+        }
+    }
+
+    /** M35: Gutgeschriebene Zeit rückgängig machen (Check-in bleibt). */
+    fun removeTimeFromPrompt() {
+        val prompt = _timePrompt.value ?: return
+        viewModelScope.launch {
+            goalRepository.setCheckinDuration(prompt.checkinId, 0L)
+            _timePrompt.value = null
+        }
+    }
+
+    fun dismissTimePrompt() {
+        _timePrompt.value = null
     }
 
     fun undoLastCheckin() {
@@ -193,6 +252,7 @@ class GoalDetailViewModel @Inject constructor(
     fun removeCheckin(checkinId: String) {
         val id = goalIdFlow.value ?: return
         viewModelScope.launch {
+            if (_timePrompt.value?.checkinId == checkinId) _timePrompt.value = null
             goalRepository.removeCheckin(checkinId)
             celebrationStore.forget(id)
         }

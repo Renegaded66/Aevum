@@ -175,13 +175,13 @@ class ScreenRecordingActivityMigrationTest {
     }
 
     @Test
-    fun `Datenbank-meldet-Version-51`() {
+    fun `Datenbank-meldet-Version-52`() {
         createVersion50Database()
         migrate()
 
         opened!!.openHelper.writableDatabase.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(51)
+            assertThat(cursor.getInt(0)).isEqualTo(52)
         }
     }
 

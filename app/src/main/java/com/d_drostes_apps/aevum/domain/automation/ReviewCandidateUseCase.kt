@@ -177,7 +177,14 @@ class ReviewCandidateUseCase @Inject constructor(
         for (candidate in candidates) {
             if (candidate.status != "PENDING") continue
             if (candidate.confidence < SAFE_CONFIDENCE_THRESHOLD) continue
-            val sourceType = sourceTypeForActivityType(candidate.activityTypeId)
+            // M35: Activity-Recognition-Kandidaten (IN_VEHICLE) sind immer
+            // automatische Fahrten — auch wenn der Nutzer eine eigene
+            // Fahrt-Activity gewählt hat, die keine feste ID mehr hat.
+            val sourceType = if (candidate.createdBy == "ACTIVITY_RECOGNITION_V1") {
+                "ACTIVITY_RECOGNITION_AUTO"
+            } else {
+                sourceTypeForActivityType(candidate.activityTypeId)
+            }
             confirmCandidate(candidate, sourceTypeOverride = sourceType)
             accepted++
         }
@@ -217,6 +224,11 @@ class ReviewCandidateUseCase @Inject constructor(
     private fun sourceTypeForActivityType(activityTypeId: String?): String? = when (activityTypeId) {
         "sleep" -> "HEALTH_SLEEP_AUTO"
         "driving" -> "ACTIVITY_RECOGNITION_AUTO"
+        // M35: Der IN_VEHICLE-Kandidat wird mit "transport" angelegt, wenn
+        // Google keine Auto/Zug-Unterscheidung liefert. Auch er ist eine
+        // automatische Fahrt und muss als solche erkannt werden — sonst
+        // gilt eine übrig gebliebene Kandidaten-Session nicht als Fahrt.
+        "transport" -> "ACTIVITY_RECOGNITION_AUTO"
         // M18.134: Die automatisch erkannte Radfahrt läuft über denselben
         // SourceType — Timeline/Dashboard markieren sie damit als
         // automatisch erkannt (AUTO_SOURCES), genau wie die Fahrt.

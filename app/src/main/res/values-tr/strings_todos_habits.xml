@@ -184,4 +184,20 @@
     <string name="goal_preview">Önizleme</string>
     <string name="goal_error_category_required">Kategori seç</string>
     <string name="goal_error_schedule_required">En az bir gün seç</string>
+
+    <string name="goal_manual_activity">Hedef etkinliği (isteğe bağlı)</string>
+    <string name="goal_manual_activity_none">Etkinlik yok</string>
+    <string name="goal_manual_activity_hint">Hedefi isteğe bağlı olarak bir etkinliğe bağlar. İşaretlerken bir süre girebilirsin: gün ve etkinlik istatistiklerine sayılır, ancak zaman çizelgesinde görünmez.</string>
+    <string name="goal_tracking_manual_with_activity">Manuel · %1$s</string>
+    <string name="goal_today_credit">bugün %1$d dk eklendi</string>
+    <string name="goal_time_title">Süre kaydedilsin mi?</string>
+    <string name="goal_time_edit_title">Süreyi düzenle</string>
+    <string name="goal_time_message">İsteğe bağlı: bugün bu hedefe ayırdığın süreyi gir.</string>
+    <string name="goal_time_message_activity">İsteğe bağlı: bugün “%1$s” için ayırdığın süreyi gir.</string>
+    <string name="goal_time_minutes_label">Dakika</string>
+    <string name="goal_time_not_timeline">Bugüne ve etkinlik istatistiklerine eklenir — zaman çizelgesine değil.</string>
+    <string name="goal_time_remove">Süreyi kaldır</string>
+    <string name="goal_time_skip">Atla</string>
+    <string name="goal_time_add">+ Süre</string>
+    <string name="goal_time_minutes_short">%1$d dk</string>
 </resources>

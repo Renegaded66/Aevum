@@ -135,6 +135,7 @@ fun ActivityTypesScreen(
                             onColorChange = { viewModel.setColor(row.id, it) },
                             onCategoryChange = { viewModel.setCategory(row.id, it) },
                             onCreateCategory = viewModel::createCategory,
+                            onRename = { newName -> viewModel.renameActivity(row.id, newName) },
                             // M18.146: Verlauf-Link je Aktivität.
                             onOpenStats = { onOpenActivityStats(row.id) },
                             // M18.51 (User: "nicht alle einen Lösch-Button erhalten
@@ -235,6 +236,8 @@ private fun ActivityTypeCard(
     // M18.17: Kategorie-Zuordnung
     onCategoryChange: (String?) -> Unit,
     onCreateCategory: (String) -> Unit,
+    // M35: Umbenennen (auch System-Typen; die ID bleibt stabil).
+    onRename: (String) -> Unit,
     // M18.146: Verlauf-Link (öffnet die Detail-Statistikseite).
     onOpenStats: (() -> Unit)? = null,
     // M18.50: Löschen (null = System-Typ, nicht löschbar).
@@ -245,6 +248,9 @@ private fun ActivityTypeCard(
     // M18.17: Kategorie-Picker-Dialog
     var showCategoryPicker by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
+    // M35: Umbenennen-Dialog.
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameText by remember { mutableStateOf(row.name) }
     // M18.50: Bestätigungsdialog für das Löschen.
     var showDeleteDialog by remember { mutableStateOf(false) }
     val accent = if (row.color != 0L) Color(row.color) else positivityColor(row.score)
@@ -283,6 +289,20 @@ private fun ActivityTypeCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+                // M35: Umbenennen — auch für System-Typen (ID bleibt stabil).
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        .clickable {
+                            renameText = row.name
+                            showRenameDialog = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✏️", fontSize = 14.sp)
                 }
                 // M18.50: Lösch-Button (nur eigene Typen) + Score
                 if (onDelete != null) {
@@ -406,6 +426,45 @@ private fun ActivityTypeCard(
                 }
             }
         }
+    }
+
+    // M35: Umbenennen-Dialog.
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = {
+                Text(
+                    stringResource(R.string.activitytypes_rename_title, row.name),
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text(stringResource(R.string.activitytypes_name_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newName = renameText.trim()
+                        if (newName.isNotEmpty()) {
+                            onRename(newName)
+                            showRenameDialog = false
+                        }
+                    },
+                    enabled = renameText.trim().isNotEmpty() && renameText.trim() != row.name
+                ) { Text(stringResource(R.string.common_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        )
     }
 
     // M18.12: Icon-Picker (Emoji-Grid)

@@ -263,4 +263,9 @@
     <string name="settings_triggers_call_activity_hint">Yalnızca dijital kullanım duraklatılır: ekran, uygulama ve PC kaydı. Elle başlatılan aktiviteler, Geofence\'ler, takvim, yolculuklar ve spor dokunulmadan kalır.</string>
     <string name="settings_triggers_permission_calls">Arama algılama (telefon durumu)</string>
     <string name="settings_triggers_call_no_activities">Aktivite yok — önce bir tane oluştur.</string>
+
+    <string name="settings_triggers_drive_activity">Otomatik yolculuklar için etkinlik</string>
+    <string name="settings_triggers_drive_activity_desc">Trenler, otobüsler ve arabalar sıklıkla yolculuk olarak algılanır. Hangi etkinliğin kaydedileceğini seç.</string>
+    <string name="settings_triggers_drive_activity_label">Şu şekilde kaydedilir</string>
+    <string name="settings_triggers_drive_activity_hint">Algılama aynı kalır — yalnızca kaydın adı, simgesi ve rengi değişir. “Bisiklet” bisiklet algılamasına ayrılmıştır.</string>
 </resources>

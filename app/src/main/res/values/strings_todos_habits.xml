@@ -183,4 +183,21 @@
     <string name="goal_preview">Preview</string>
     <string name="goal_error_category_required">Select a category</string>
     <string name="goal_error_schedule_required">Pick at least one day</string>
+
+    <!-- M35: manual goals with optional activity + time credit -->
+    <string name="goal_manual_activity">Goal activity (optional)</string>
+    <string name="goal_manual_activity_none">No activity</string>
+    <string name="goal_manual_activity_hint">Optionally links the goal to an activity. When you check in, you can enter a time — it counts for the day and the activity stats, but does not appear in the timeline.</string>
+    <string name="goal_tracking_manual_with_activity">Manual · %1$s</string>
+    <string name="goal_today_credit">%1$d min credited today</string>
+    <string name="goal_time_title">Record time?</string>
+    <string name="goal_time_edit_title">Edit time</string>
+    <string name="goal_time_message">Optional: enter the time you spent on this goal today.</string>
+    <string name="goal_time_message_activity">Optional: enter the time you spent on “%1$s” today.</string>
+    <string name="goal_time_minutes_label">Minutes</string>
+    <string name="goal_time_not_timeline">Credited to today and the activity stats — not to the timeline.</string>
+    <string name="goal_time_remove">Remove time</string>
+    <string name="goal_time_skip">Skip</string>
+    <string name="goal_time_add">+ Time</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

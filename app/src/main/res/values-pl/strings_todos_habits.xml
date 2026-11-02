@@ -183,4 +183,20 @@
     <string name="goal_preview">Podgląd</string>
     <string name="goal_error_category_required">Wybierz kategorię</string>
     <string name="goal_error_schedule_required">Wybierz co najmniej jeden dzień</string>
+
+    <string name="goal_manual_activity">Aktywność celu (opcjonalnie)</string>
+    <string name="goal_manual_activity_none">Brak aktywności</string>
+    <string name="goal_manual_activity_hint">Opcjonalnie łączy cel z aktywnością. Przy odhaczaniu możesz wpisać czas — liczy się do dnia i statystyk aktywności, ale nie pojawia się na osi czasu.</string>
+    <string name="goal_tracking_manual_with_activity">Ręcznie · %1$s</string>
+    <string name="goal_today_credit">dodano %1$d min dzisiaj</string>
+    <string name="goal_time_title">Zapisać czas?</string>
+    <string name="goal_time_edit_title">Edytuj czas</string>
+    <string name="goal_time_message">Opcjonalnie: wpisz czas, który dziś poświęciłeś na ten cel.</string>
+    <string name="goal_time_message_activity">Opcjonalnie: wpisz czas, który dziś poświęciłeś na „%1$s”.</string>
+    <string name="goal_time_minutes_label">Minuty</string>
+    <string name="goal_time_not_timeline">Jest zaliczany do dzisiejszego dnia i statystyk aktywności — nie do osi czasu.</string>
+    <string name="goal_time_remove">Usuń czas</string>
+    <string name="goal_time_skip">Pomiń</string>
+    <string name="goal_time_add">+ Czas</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

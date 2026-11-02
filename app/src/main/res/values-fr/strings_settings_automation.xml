@@ -248,4 +248,9 @@
     <string name="settings_triggers_call_activity_hint">Ne sont interrompus que les usages numériques : écran, applications et PC. Les activités démarrées à la main, les geofences, le calendrier, les trajets et le sport restent inchangés.</string>
     <string name="settings_triggers_permission_calls">Détection d\'appels (état du téléphone)</string>
     <string name="settings_triggers_call_no_activities">Aucune activité disponible — crée d\'abord une.</string>
+
+    <string name="settings_triggers_drive_activity">Activité pour les trajets automatiques</string>
+    <string name="settings_triggers_drive_activity_desc">Les trains, bus et voitures sont souvent détectés comme un trajet. Choisissez l’activité enregistrée.</string>
+    <string name="settings_triggers_drive_activity_label">Enregistré comme</string>
+    <string name="settings_triggers_drive_activity_hint">La détection reste identique : seuls le nom, l’icône et la couleur de l’enregistrement changent. « Vélo » reste réservé à la détection de vélo.</string>
 </resources>

@@ -44,5 +44,14 @@ data class GoalCheckin(
     @ColumnInfo(name = "goal_id") val goalId: String,
     @ColumnInfo(name = "timestamp_ms") val timestampMs: Long,
     @ColumnInfo(name = "date_key") val dateKey: String,
-    val count: Int = 1
+    val count: Int = 1,
+    // M35: Optionaler Activity-Bezug des Check-ins. Der Wert wird beim
+    // Abhaken aus dem Ziel übernommen (Snapshot), damit spätere Änderungen
+    // am Ziel die bereits gutgeschriebene Zeit nicht rückwirkend umbuchen.
+    // null = Ziel ohne Activity verknüpft.
+    @ColumnInfo(name = "activity_type_id") val activityTypeId: String? = null,
+    // M35: Optional gutgeschriebene Zeit (0 = keine Zeit erfasst). Die Zeit
+    // zählt für den Tag in [dateKey] und fließt in die Aktivitätsstatistik
+    // ein — bewusst NICHT als Session in die Timeline.
+    @ColumnInfo(name = "duration_ms", defaultValue = "0") val durationMs: Long = 0L
 ) : Serializable

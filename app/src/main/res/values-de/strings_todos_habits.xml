@@ -183,4 +183,21 @@
     <string name="goal_preview">Vorschau</string>
     <string name="goal_error_category_required">Wähle eine Kategorie</string>
     <string name="goal_error_schedule_required">Wähle mindestens einen Tag</string>
+
+    <!-- M35: Manuelle Ziele mit optionaler Activity + Zeitgutschrift -->
+    <string name="goal_manual_activity">Ziel-Aktivität (optional)</string>
+    <string name="goal_manual_activity_none">Keine Aktivität</string>
+    <string name="goal_manual_activity_hint">Verknüpft das Ziel optional mit einer Aktivität. Beim Abhaken kannst du eine Zeit eintragen — sie zählt für den Tag und die Aktivitätsstatistik, erscheint aber nicht in der Timeline.</string>
+    <string name="goal_tracking_manual_with_activity">Manuell · %1$s</string>
+    <string name="goal_today_credit">%1$d min heute gutgeschrieben</string>
+    <string name="goal_time_title">Zeit erfassen?</string>
+    <string name="goal_time_edit_title">Zeit bearbeiten</string>
+    <string name="goal_time_message">Optional: Trage die Zeit ein, die du heute für dieses Ziel aufgewendet hast.</string>
+    <string name="goal_time_message_activity">Optional: Trage die Zeit ein, die du heute für „%1$s“ aufgewendet hast.</string>
+    <string name="goal_time_minutes_label">Minuten</string>
+    <string name="goal_time_not_timeline">Wird dem heutigen Tag und der Aktivitätsstatistik gutgeschrieben — nicht der Timeline.</string>
+    <string name="goal_time_remove">Zeit entfernen</string>
+    <string name="goal_time_skip">Überspringen</string>
+    <string name="goal_time_add">+ Zeit</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

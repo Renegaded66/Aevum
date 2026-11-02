@@ -76,7 +76,7 @@ fun GoalEditorScreen(
     }
 
     val isManual = form.trackingMode == GoalProgressAnalytics.MODE_MANUAL
-    val isCount = form.goalType == GoalProgressAnalytics.TYPE_COUNT
+    val isCount = form.targetUnit == GoalProgressAnalytics.UNIT_COUNT
     val selectedActivityName = form.activityTypeId?.let { id ->
         state.activityTypes.firstOrNull { it.id == id }?.let { "${it.icon} ${it.name}" }
     }
@@ -278,6 +278,60 @@ fun GoalEditorScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // M35: Optionale Ziel-Aktivität bei manueller Erfassung.
+            // Das Ziel bleibt ein Check-in-Ziel; die Aktivität dient als
+            // Bezug für die optionale Zeitgutschrift beim Abhaken.
+            if (isManual) {
+                item {
+                    AevumCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                            Text(
+                                stringResource(R.string.goal_manual_activity),
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Box {
+                                OutlinedButton(
+                                    onClick = { viewModel.setShowActivityTypeMenu(true) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(selectedActivityName ?: stringResource(R.string.goal_manual_activity_none))
+                                        Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = form.showActivityTypeMenu,
+                                    onDismissRequest = { viewModel.setShowActivityTypeMenu(false) }
+                                ) {
+                                    DropdownMenuItem(
+                                        onClick = {
+                                            viewModel.setActivityType(null)
+                                            viewModel.setShowActivityTypeMenu(false)
+                                        },
+                                        text = { Text(stringResource(R.string.goal_manual_activity_none)) }
+                                    )
+                                    state.activityTypes.forEach { type ->
+                                        DropdownMenuItem(
+                                            onClick = {
+                                                viewModel.setActivityType(type.id)
+                                                viewModel.setShowActivityTypeMenu(false)
+                                            },
+                                            text = { Text("${type.icon} ${type.name}") }
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                stringResource(R.string.goal_manual_activity_hint),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -585,7 +639,7 @@ private fun SourceChip(
 private fun formatPreviewValue(form: GoalFormState): String {
     val value = form.targetValue.ifBlank { "?" }
     return when {
-        form.goalType == GoalProgressAnalytics.TYPE_COUNT -> "${value}×"
+        form.targetUnit == GoalProgressAnalytics.UNIT_COUNT -> "${value}×"
         form.targetUnit == "HOURS" -> "${value} h"
         else -> "${value} min"
     }

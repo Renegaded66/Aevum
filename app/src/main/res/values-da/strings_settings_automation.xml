@@ -248,4 +248,9 @@
     <string name="settings_triggers_call_activity_hint">Kun digital brug afbrydes: skærm-, app- og PC-registrering. Manuelt startede aktiviteter, geofences, kalender, køreture og sport bliver upåvirkede.</string>
     <string name="settings_triggers_permission_calls">Opkaldsgenkendelse (telefonstatus)</string>
     <string name="settings_triggers_call_no_activities">Ingen aktiviteter endnu — opret først én.</string>
+
+    <string name="settings_triggers_drive_activity">Aktivitet for automatiske ture</string>
+    <string name="settings_triggers_drive_activity_desc">Tog, busser og biler registreres ofte som en tur. Vælg, hvilken aktivitet der skal registreres.</string>
+    <string name="settings_triggers_drive_activity_label">Registreres som</string>
+    <string name="settings_triggers_drive_activity_hint">Registreringen er den samme — kun navn, ikon og farve ændres. “Cykling” er fortsat forbeholdt cykelregistreringen.</string>
 </resources>

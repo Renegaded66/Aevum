@@ -23,6 +23,7 @@
     <string name="activitytypes_delete_only_activity_desc">Aufzeichnungen bleiben erhalten und werden „Sonstiges“ zugeordnet.</string>
     <string name="activitytypes_delete_with_sessions">Activity + alle Aufzeichnungen löschen</string>
     <string name="activitytypes_delete_with_sessions_desc">Alle Sessions dieser Activity werden dauerhaft entfernt.</string>
+    <string name="activitytypes_rename_title">„%1$s“ umbenennen</string>
 
     <!-- M33: Activity-Starter (ersetzt das Orbit-Planetensystem) -->
     <string name="launcher_title">Aktivität starten</string>

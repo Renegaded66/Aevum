@@ -28,4 +28,16 @@ interface GoalCheckinDao {
 
     @Query("SELECT * FROM goal_checkin WHERE goal_id = :goalId ORDER BY timestamp_ms DESC LIMIT 1")
     suspend fun lastForGoal(goalId: String): GoalCheckin?
+
+    /** M35: Einzelner Check-in (Zeitgutschrift nachträglich erfassen/ändern). */
+    @Query("SELECT * FROM goal_checkin WHERE id = :id")
+    suspend fun getById(id: String): GoalCheckin?
+
+    /**
+     * M35: Schreibt NUR die Zeitgutschrift. Kein @Update des ganzen
+     * Objekts — parallele Check-in-Änderungen können so nicht überschrieben
+     * werden (gleiche Lektion wie AutomationSettingsDao.setCalendarLastSyncAt).
+     */
+    @Query("UPDATE goal_checkin SET duration_ms = :durationMs WHERE id = :id")
+    suspend fun setDuration(id: String, durationMs: Long)
 }

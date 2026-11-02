@@ -4,6 +4,7 @@ import com.d_drostes_apps.aevum.data.model.AutomationSettings
 import com.d_drostes_apps.aevum.data.model.PlaceGeofence
 import com.d_drostes_apps.aevum.data.model.TriggerEvent
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 interface PlaceGeofenceRepository {
     fun getAllEnabled(): Flow<List<PlaceGeofence>>
@@ -34,5 +35,11 @@ interface TriggerEventRepository {
 
 interface AutomationSettingsRepository {
     fun get(): Flow<AutomationSettings?>
+    /**
+     * M35: einmaliger Lesezugriff für Hintergrund-Worker (ohne Flow-
+     * Sammlung). Default leitet auf [get] um, damit Test-Fakes unverändert
+     * bleiben; die Produktions-Implementierung nutzt den synchronen DAO-Weg.
+     */
+    suspend fun getSync(): AutomationSettings? = get().first()
     suspend fun upsert(settings: AutomationSettings)
 }

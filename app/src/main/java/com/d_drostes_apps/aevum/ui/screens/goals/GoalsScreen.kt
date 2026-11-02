@@ -61,6 +61,7 @@ fun GoalsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val celebration by viewModel.celebration.collectAsState()
+    val timePrompt by viewModel.timePrompt.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -147,6 +148,12 @@ fun GoalsScreen(
 
         // M20: Feier-Overlay — genau einmal je Ziel+Periode (Store-gated).
         GoalCelebrationOverlay(event = celebration, onDismiss = viewModel::consumeCelebration)
+        GoalDurationDialog(
+            prompt = timePrompt,
+            onConfirm = viewModel::confirmTimePrompt,
+            onRemove = viewModel::removeTimeFromPrompt,
+            onDismiss = viewModel::dismissTimePrompt
+        )
     }
 }
 
@@ -383,6 +390,13 @@ private fun GoalCard(
             }
 
             if (isManual && !archived) {
+                if (g.todayCreditMs > 0L) {
+                    Text(
+                        text = stringResource(R.string.goal_today_credit, creditedMinutes(g.todayCreditMs)),
+                        fontSize = 11.sp,
+                        color = accent
+                    )
+                }
                 GoalCheckButton(
                     countToday = g.todayCheckins,
                     accent = accent,
@@ -404,7 +418,11 @@ private fun GoalCard(
 fun goalSourceText(g: GoalWithProgress): String {
     val goal = g.goal
     return when {
-        !GoalProgressAnalytics.isAuto(goal) -> stringResource(R.string.goal_tracking_manual)
+        !GoalProgressAnalytics.isAuto(goal) -> {
+            val activity = g.activityTypeName
+            if (activity.isNullOrBlank()) stringResource(R.string.goal_tracking_manual)
+            else stringResource(R.string.goal_tracking_manual_with_activity, activity)
+        }
         goal.sourceKind == GoalProgressAnalytics.SOURCE_DIGITAL -> stringResource(R.string.goal_source_digital)
         goal.sourceKind == GoalProgressAnalytics.SOURCE_TODOS -> stringResource(R.string.goal_source_todos)
         goal.sourceKind == GoalProgressAnalytics.SOURCE_CATEGORY ->

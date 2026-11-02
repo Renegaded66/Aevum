@@ -58,6 +58,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureDialog
+import com.d_drostes_apps.aevum.ui.disclosure.PermissionDisclosureKind
+import com.d_drostes_apps.aevum.ui.disclosure.rememberPermissionDisclosureGate
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.util.LocaleHelper
@@ -100,6 +103,11 @@ fun OnboardingFlowScreen(
     }
     val scope = rememberCoroutineScope()
     var finishing by remember { mutableStateOf(false) }
+    // M35: Auch der Nutzungszugriff im Wizard läuft über denselben
+    // Offenlegungs-Dialog wie in den Einstellungen. Die Wizard-Seite
+    // erklärt die Auswahl bereits — der Dialog ist die verbindliche
+    // Bestätigung vor dem Sprung in die Systemeinstellungen.
+    val disclosureGate = rememberPermissionDisclosureGate()
 
     // Der Wizard hat seine eigene Ressourcen-Quelle (siehe Klassendoku).
     CompositionLocalProvider(LocalOnboardingRes provides resources) {
@@ -130,9 +138,16 @@ fun OnboardingFlowScreen(
             // dafür nur eine Systemseite. Nur wenn der Nutzer sie ausdrücklich
             // eingeschaltet hat, wird sie geöffnet.
             if ("usage" in chosen && !hasUsageAccess(context)) {
-                openUsageAccessSettings(context)
+                disclosureGate.request(
+                    kind = PermissionDisclosureKind.USAGE_ACCESS,
+                    alreadyGranted = false
+                ) {
+                    openUsageAccessSettings(context)
+                    onFinished()
+                }
+            } else {
+                onFinished()
             }
-            onFinished()
         }
 
         val permissionLauncher = rememberLauncherForActivityResult(
@@ -226,6 +241,24 @@ fun OnboardingFlowScreen(
                     }
                 )
             }
+        }
+
+        disclosureGate.pending?.let { pending ->
+            PermissionDisclosureDialog(
+                kind = pending.kind,
+                requiresSettings = pending.requiresSettings,
+                onAllow = {
+                    disclosureGate.consent {
+                        openUsageAccessSettings(context)
+                        onFinished()
+                    }
+                },
+                onDecline = {
+                    // „Nicht jetzt" darf den Abschluss nicht blockieren.
+                    disclosureGate.dismiss()
+                    onFinished()
+                }
+            )
         }
     }
 }

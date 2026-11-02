@@ -136,6 +136,31 @@ class GoalProgressAnalyticsTest {
     }
 
     @Test
+    fun `MANUAL Mindestens-Wochenziel - 5 mal pro Woche bleibt Mindestens`() {
+        val goal = Goal(
+            id = "m5", title = "5x meditieren", type = "AT_LEAST", period = "WEEKLY",
+            targetValue = 5f, targetUnit = "COUNT", trackingMode = "MANUAL"
+        )
+        val friday = LocalDate.of(2026, 7, 24)
+        val four = (0..3).map { checkin("d$it", "m5", friday.minusDays(it.toLong())) }
+        val fourResult = GoalProgressAnalytics.evaluateGoal(
+            goal, emptyList(), friday, zone, typeMap, checkins = four
+        )
+        assertThat(fourResult.currentValue).isEqualTo(4f)
+        assertThat(fourResult.isMet).isFalse()
+        assertThat(fourResult.isCountType).isTrue()
+        assertThat(fourResult.progressText).isEqualTo("4 von 5")
+
+        val five = four + checkin("d4", "m5", friday.minusDays(4))
+        val fiveResult = GoalProgressAnalytics.evaluateGoal(
+            goal, emptyList(), friday, zone, typeMap, checkins = five
+        )
+        assertThat(fiveResult.currentValue).isEqualTo(5f)
+        assertThat(fiveResult.isMet).isTrue()
+        assertThat(fiveResult.progressText).isEqualTo("5 von 5")
+    }
+
+    @Test
     fun `Serie - laufende Periode bricht nicht und freie Tage unterbrechen nicht`() {
         // Mo(20.)-Mi(22.) abgehakt, heute (Do 23.) noch nicht → Serie 3.
         val goal = Goal(

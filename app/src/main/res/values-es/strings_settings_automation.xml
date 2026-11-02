@@ -248,4 +248,9 @@
     <string name="settings_triggers_call_activity_hint">Solo se interrumpe el uso digital: grabación de pantalla, aplicaciones y PC. Las actividades, geocercas, calendarios, viajes y deportes iniciados manualmente no se ven afectados.</string>
     <string name="settings_triggers_permission_calls">Detección de llamadas (estado del teléfono)</string>
     <string name="settings_triggers_call_no_activities">No hay actividades disponibles: cree una primero.</string>
+
+    <string name="settings_triggers_drive_activity">Actividad para trayectos automáticos</string>
+    <string name="settings_triggers_drive_activity_desc">Los trenes, autobuses y coches suelen detectarse como trayecto. Elige qué actividad se registra.</string>
+    <string name="settings_triggers_drive_activity_label">Registrado como</string>
+    <string name="settings_triggers_drive_activity_hint">La detección no cambia: solo cambian el nombre, el icono y el color del registro. «Ciclismo» sigue reservado para la detección de bicicletas.</string>
 </resources>

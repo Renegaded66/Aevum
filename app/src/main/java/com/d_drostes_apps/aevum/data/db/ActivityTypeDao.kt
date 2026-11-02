@@ -46,6 +46,11 @@ interface ActivityTypeDao {
     @Query("UPDATE activity_type SET default_category_id = :categoryId WHERE id = :id")
     suspend fun setCategory(id: String, categoryId: String?)
 
+    // M35: Umbenennen — auch für System-Typen. Die ID bleibt unverändert,
+    // damit Auto-Erkennung und bestehende Verknüpfungen weiter greifen.
+    @Query("UPDATE activity_type SET name = :name WHERE id = :id")
+    suspend fun rename(id: String, name: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(type: ActivityType)
 

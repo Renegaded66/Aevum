@@ -171,8 +171,13 @@ class LifeViewViewModel @Inject constructor(
             8L * 60 * 60 * 1000
         }
 
-        // Autofahren/Transport: echter Tagesdurchschnitt (0-Tage zaehlen)
-        val drivingSessions = recent.filter { it.activityTypeId == "driving" || it.activityTypeId == "transport" }
+        // Autofahren/Transport: echter Tagesdurchschnitt (0-Tage zaehlen).
+        // M35: Auch eine vom Nutzer gewählte Fahrt-Aktivität zählt hier als
+        // Fahrt (sourceType ACTIVITY_RECOGNITION_AUTO, außer Radfahren).
+        fun isDriveSession(s: com.d_drostes_apps.aevum.data.model.ActivitySession): Boolean =
+            s.activityTypeId == "driving" || s.activityTypeId == "transport" ||
+                (s.sourceType == "ACTIVITY_RECOGNITION_AUTO" && s.activityTypeId != "radfahren")
+        val drivingSessions = recent.filter(::isDriveSession)
         // M18.62-FIX: Pausen abziehen
         val drivingMsPerDay = drivingSessions.sumOf { it.activeDurationMs() } / days
 
@@ -181,8 +186,7 @@ class LifeViewViewModel @Inject constructor(
 
         // Alle anderen erfassten Aktivitaeten
         val otherSessions = recent.filter {
-            it.activityTypeId != "sleep" && it.categoryId != "sleep" &&
-                it.activityTypeId != "driving" && it.activityTypeId != "transport"
+            it.activityTypeId != "sleep" && it.categoryId != "sleep" && !isDriveSession(it)
         }
         val otherMsPerDay = otherSessions.sumOf { it.activeDurationMs() } / days
 

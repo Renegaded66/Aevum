@@ -86,7 +86,9 @@ import com.d_drostes_apps.aevum.ui.screens.goals.GoalAccents
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationEvent
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationOverlay
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalDurationDialog
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
+import com.d_drostes_apps.aevum.ui.screens.goals.creditedMinutes
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 import com.d_drostes_apps.aevum.ui.theme.AevumTheme
@@ -151,6 +153,7 @@ fun DashboardScreen(
     val state by viewModel.uiState.collectAsState()
     val dashboardGoals by goalsViewModel.goals.collectAsState()
     val goalCelebration by goalsViewModel.celebration.collectAsState()
+    val goalTimePrompt by goalsViewModel.timePrompt.collectAsState()
     val liveState by viewModel.liveActivityManager.liveState.collectAsState()
     val nowMs by viewModel.liveActivityManager.nowMs.collectAsState()
     val recents by viewModel.liveActivityManager.recentActivityTypes.collectAsState()
@@ -211,6 +214,15 @@ fun DashboardScreen(
         onClearAllowanceOverride = viewModel::clearAllowanceOverride,
         // AEVUM-3: Tages-Güte manuell anpassen (Tipp auf die Güte-Zahl).
         onSetDayQuality = viewModel::setDayQualityOverride
+    )
+
+    // M35: Optionaler Zeit-Dialog nach dem Abhaken — auf Dashboard-Ebene,
+    // damit er unabhängig vom Scroll-Zustand der Ziele-Karte erscheint.
+    GoalDurationDialog(
+        prompt = goalTimePrompt,
+        onConfirm = goalsViewModel::confirmTimePrompt,
+        onRemove = goalsViewModel::removeTimeFromPrompt,
+        onDismiss = goalsViewModel::dismissTimePrompt
     )
 }
 
@@ -932,6 +944,17 @@ private fun DashboardGoalRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
+                if (goal.todayCreditMs > 0L) {
+                    Text(
+                        "⏱ " + stringResource(
+                            R.string.goal_time_minutes_short,
+                            creditedMinutes(goal.todayCreditMs)
+                        ),
+                        fontSize = 10.sp,
+                        color = accent,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
                 Text(
                     "↩",
                     fontSize = 13.sp,

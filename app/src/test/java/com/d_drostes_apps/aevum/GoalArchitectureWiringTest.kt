@@ -71,6 +71,8 @@ class GoalArchitectureWiringTest {
         assertThat(database).contains("MIGRATION_49_50")
         // M28: v51 — zugehörige Aktivität der Bildschirm-Aufzeichnung.
         assertThat(database).contains("MIGRATION_50_51")
+        // M35: v52 — Check-in-Zeitgutschrift + wählbare Fahrt-Aktivität.
+        assertThat(database).contains("MIGRATION_51_52")
         assertThat(database).contains("goalCheckinDao()")
 
         // M28: EINE Migrationsliste für Produktion und Tests — der DI-Modul

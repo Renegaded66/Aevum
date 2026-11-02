@@ -268,8 +268,12 @@ android {
         //  Aktivitäten, Maskottchen, Berechtigungen, Abschluss) nur bei
         //  Neuinstallation; zehn Sprachen (EN/DE/ES/FR/PT/IT/TR/PL/DA/NB/SV)
         //  im Wizard UND in den Einstellungen; i18n-Audit der Resttexte.
-        versionCode = 55
-        versionName = "1.0.54"
+        // M35: Manuelle Ziele können optional einer Aktivität zugeordnet
+        //  werden; Check-ins erlauben eine Zeitgutschrift (Tag + Aktivitäts-
+        //  statistik, nicht Timeline). Automatische Fahrten bekommen eine
+        //  wählbare Aktivität; Aktivitäten sind umbenennbar (auch System-Typen).
+        versionCode = 56
+        versionName = "1.0.55"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

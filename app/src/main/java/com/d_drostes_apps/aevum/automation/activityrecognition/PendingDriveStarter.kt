@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.TriggerEvent
+import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
+import com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
 import com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
 import com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityService
@@ -53,6 +55,8 @@ class PendingDriveStarter @Inject constructor(
     private val liveActivityManager: LiveActivityManager,
     private val bridge: ActivityRecognitionBridge,
     private val triggerEventRepository: TriggerEventRepository,
+    private val settingsRepository: AutomationSettingsRepository,
+    private val activityTypeRepository: ActivityTypeRepository,
     @ApplicationContext private val context: Context
 ) {
 
@@ -137,9 +141,15 @@ class PendingDriveStarter @Inject constructor(
         // hinein und würde sie erneut zerschneiden.
         val startedAt = PendingDrivePolicy.startAtAfterBlock(blocking.endAt, now)
         try {
+            // M35: Die vom Nutzer gewählte Fahrt-Aktivität (Default driving).
+            val driveActivity = DriveActivityResolver.resolve(
+                settingsRepository = settingsRepository,
+                activityTypeRepository = activityTypeRepository,
+                fallbackTitle = context.getString(com.d_drostes_apps.aevum.R.string.seed_activity_driving)
+            )
             val session = liveActivityManager.start(
-                activityTypeId = PendingDrivePolicy.DRIVE_TYPE_ID,
-                title = "Autofahren",
+                activityTypeId = driveActivity.typeId,
+                title = driveActivity.title,
                 sourceType = PendingDrivePolicy.DRIVE_SOURCE_TYPE,
                 startedAt = startedAt
             )

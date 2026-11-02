@@ -18,6 +18,7 @@ import com.d_drostes_apps.aevum.data.repository.TodoRepository
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.domain.digital.DigitalBalanceSource
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationEvent
+import com.d_drostes_apps.aevum.ui.screens.goals.GoalTimePrompt
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalsViewModel
 import com.d_drostes_apps.aevum.ui.screens.goals.toGoalWithProgress
@@ -66,6 +67,8 @@ class DashboardGoalsViewModel @Inject constructor(
 
     private val _celebration = MutableStateFlow<GoalCelebrationEvent?>(null)
     val celebration: StateFlow<GoalCelebrationEvent?> = _celebration
+    private val _timePrompt = MutableStateFlow<GoalTimePrompt?>(null)
+    val timePrompt: StateFlow<GoalTimePrompt?> = _timePrompt
 
     init {
         viewModelScope.launch {
@@ -115,6 +118,9 @@ class DashboardGoalsViewModel @Inject constructor(
         val todayKey = today.toString()
         val todayCounts = checkins.filter { it.dateKey == todayKey }
             .groupingBy { it.goalId }.eachCount()
+        val todayCredits = checkins.filter { it.dateKey == todayKey }
+            .groupBy { it.goalId }
+            .mapValues { (_, rows) -> rows.sumOf { it.durationMs } }
 
         val all = activeGoals
             .map { goal ->
@@ -127,7 +133,12 @@ class DashboardGoalsViewModel @Inject constructor(
                     balanceMsPerDay = balanceHistory + balance32,
                     checkins = checkinsByGoal[goal.id] ?: emptyList(),
                     todoCompletions = completions
-                ).toGoalWithProgress(typeMap, categoryMap, todayCounts[goal.id] ?: 0)
+                ).toGoalWithProgress(
+                    typeMap,
+                    categoryMap,
+                    todayCounts[goal.id] ?: 0,
+                    todayCreditMs = todayCredits[goal.id] ?: 0L
+                )
             }
             .sortedWith(
                 compareByDescending<GoalWithProgress> { it.isDueToday && !it.isCurrentAchieved }
@@ -172,15 +183,47 @@ class DashboardGoalsViewModel @Inject constructor(
 
     fun checkIn(goalId: String) {
         viewModelScope.launch {
-            goalRepository.addCheckin(
-                GoalCheckin(
-                    id = UUID.randomUUID().toString(),
-                    goalId = goalId,
-                    timestampMs = System.currentTimeMillis(),
-                    dateKey = LocalDate.now(zoneId).toString()
-                )
+            val goal = goalRepository.getById(goalId).first() ?: return@launch
+            val activityName = goal.activityTypeId?.let { typeId ->
+                activityTypeRepository.getById(typeId).first()?.name
+            }
+            val checkin = GoalCheckin(
+                id = UUID.randomUUID().toString(),
+                goalId = goalId,
+                timestampMs = System.currentTimeMillis(),
+                dateKey = LocalDate.now(zoneId).toString(),
+                activityTypeId = goal.activityTypeId
             )
+            goalRepository.addCheckin(checkin)
+            if (goal.activityTypeId != null) {
+                _timePrompt.value = GoalTimePrompt(
+                    goalId = goalId,
+                    checkinId = checkin.id,
+                    goalTitle = goal.title,
+                    activityName = activityName
+                )
+            }
         }
+    }
+
+    fun confirmTimePrompt(minutes: Int) {
+        val prompt = _timePrompt.value ?: return
+        viewModelScope.launch {
+            goalRepository.setCheckinDuration(prompt.checkinId, minutes.toLong() * 60_000L)
+            _timePrompt.value = null
+        }
+    }
+
+    fun removeTimeFromPrompt() {
+        val prompt = _timePrompt.value ?: return
+        viewModelScope.launch {
+            goalRepository.setCheckinDuration(prompt.checkinId, 0L)
+            _timePrompt.value = null
+        }
+    }
+
+    fun dismissTimePrompt() {
+        _timePrompt.value = null
     }
 
     fun undoLastCheckin(goalId: String) {

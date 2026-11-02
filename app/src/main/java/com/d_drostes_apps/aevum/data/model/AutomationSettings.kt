@@ -80,5 +80,11 @@ data class AutomationSettings(
     // (values-de/strings_seeds.xml, EN „Social") — der User hat „sozial"
     // als Vorgabe genannt. Fällt der Typ weg (vom Nutzer gelöscht), greift
     // im LiveActivityManager der bestehende Fallback auf „other".
-    @ColumnInfo(name = "call_activity_type_id", defaultValue = "social") val callActivityTypeId: String = "social"
+    @ColumnInfo(name = "call_activity_type_id", defaultValue = "social") val callActivityTypeId: String = "social",
+    // M35: Zugeordnete Aktivität der automatischen Fahrt-Erkennung.
+    // Default 'driving' = bisheriges Verhalten. Der User kann jede andere
+    // Aktivität wählen (z. B. „Unterwegs" für Zug/Bus). Die Erkennung selbst
+    // bleibt unverändert — nur Typ, Name und Farbe der Session ändern sich.
+    @ColumnInfo(name = "drive_activity_type_id", defaultValue = "driving")
+    val driveActivityTypeId: String = "driving"
 ) : Serializable

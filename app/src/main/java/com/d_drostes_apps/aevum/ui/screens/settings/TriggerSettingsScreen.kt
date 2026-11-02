@@ -598,6 +598,19 @@ fun TriggerSettingsScreen(
                 )
             }
 
+            // ── M35: Aktivität der automatischen Fahrt ────────────────
+            // User: „jede Fahrt mit dem Zug auch als Autofahrt aufgezeichnet
+            // … der automatischen Aufzeichnung nutzerdefiniert eine Activity
+            // zuordnen“. Die Erkennung bleibt unverändert.
+            item {
+                val activityTypes by viewModel.activityTypes.collectAsState()
+                DriveActivityCard(
+                    selectedTypeId = state.settings.driveActivityTypeId,
+                    activityTypes = activityTypes.filter { it.id != "radfahren" },
+                    onSelectType = viewModel::setDriveActivity
+                )
+            }
+
             // ── Anruf (M26) ─────────────────────────────────────────
             // Anruf-Erkennung: während ein Gespräch läuft, wird die
             // zugeordnete Aktivität aufgezeichnet. Der Toggle ist an die
@@ -1488,6 +1501,18 @@ class TriggerSettingsViewModel @Inject constructor(
     fun setBicycle(enabled: Boolean) = upsert { it.copy(bicycleDetectionEnabled = enabled) }
 
     /**
+     * M35: Welche Aktivität wird eine automatisch erkannte Fahrt?
+     * Default `driving` („Autofahren"). `radfahren` ist ausgeschlossen, weil
+     * die Rad-Erkennung denselben sourceType nutzt und die Unterscheidung
+     * Fahrt/Rad an der Activity-ID hängt (siehe DriveActivityResolver).
+     */
+    fun setDriveActivity(typeId: String) {
+        val safe = com.d_drostes_apps.aevum.automation.activityrecognition.DriveActivityResolver
+            .resolveTypeId(typeId)
+        upsert { it.copy(driveActivityTypeId = safe) }
+    }
+
+    /**
      * M18.133: Fahrt-Stopp beim Gehen (Hardware-Schritte).
      *
      * User-Spezifikation: „Sobald ich aus dem Auto aussteige und gehe, bin
@@ -1998,6 +2023,110 @@ private fun PingTriggerCreateDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
+
+// ===================== M35: FAHRT-AKTIVITÄT =====================
+
+/**
+ * M35: Karte „Automatische Fahrt — Aktivität“.
+ *
+ * User: „jede Fahrt mit dem Zug auch als Autofahrt aufgezeichnet … ich
+ * möchte, dass man der automatischen Aufzeichnung nutzerdefiniert eine
+ * Activity zuordnen kann.“
+ *
+ * Die Karte steht bewusst direkt unter der Bewegungs-Gruppe: Der Schalter
+ * „Autofahren“ steuert die Erkennung, diese Zeile bestimmt, WELCHE Aktivität
+ * eine erkannte Fahrt wird (z. B. „Unterwegs“ für Zug/Bus).
+ */
+@Composable
+private fun DriveActivityCard(
+    selectedTypeId: String,
+    activityTypes: List<ActivityType>,
+    onSelectType: (String) -> Unit
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val selected = activityTypes.firstOrNull { it.id == selectedTypeId }
+
+    AevumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(DriveAccent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🚆", fontSize = 18.sp)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(R.string.settings_triggers_drive_activity),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        stringResource(R.string.settings_triggers_drive_activity_desc),
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 15.sp
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AevumRadius.md))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    .clickable { showPicker = true }
+                    .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
+            ) {
+                Text(selected?.icon ?: "🚗", fontSize = 18.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.settings_triggers_drive_activity_label),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(selected?.name ?: selectedTypeId, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+                Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Text(
+                stringResource(R.string.settings_triggers_drive_activity_hint),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 15.sp
+            )
+        }
+    }
+
+    if (showPicker) {
+        ActivityTypePickerDialog(
+            title = stringResource(R.string.settings_triggers_drive_activity_label),
+            // Radfahren ist kein gültiges Fahrt-Ziel: Die Rad-Erkennung
+            // teilt sich denselben sourceType; die Unterscheidung hängt
+            // an der Activity-ID (siehe DriveActivityResolver).
+            activityTypes = activityTypes.filter {
+                it.id != com.d_drostes_apps.aevum.automation.activityrecognition.PendingDrivePolicy.BICYCLE_TYPE_ID
+            },
+            selectedTypeId = selectedTypeId,
+            onSelect = { id ->
+                onSelectType(id)
+                showPicker = false
+            },
+            onDismiss = { showPicker = false }
+        )
+    }
+}
+
+/** Farbe der Fahrt-Karte (passend zum Bahn-/Mobilitäts-Grün). */
+private val DriveAccent = Color(0xFF0EA5E9)
 
 // ===================== M26: ANRUF-ERKENNUNG =====================
 

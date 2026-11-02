@@ -70,6 +70,7 @@ fun GoalDetailScreen(
 ) {
     LaunchedEffect(goalId) { viewModel.load(goalId) }
     val state by viewModel.uiState.collectAsState()
+    val timePrompt by viewModel.timePrompt.collectAsState()
     LaunchedEffect(state.closed) { if (state.closed) onBack() }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -137,7 +138,9 @@ fun GoalDetailScreen(
                         CheckinList(
                             checkins = state.checkins,
                             accent = accent,
-                            onDelete = viewModel::removeCheckin
+                            goalHasActivity = goal.activityTypeId != null,
+                            onDelete = viewModel::removeCheckin,
+                            onEditTime = viewModel::openTimePrompt
                         )
                     }
                 }
@@ -156,6 +159,12 @@ fun GoalDetailScreen(
         }
 
         GoalCelebrationOverlay(event = state.celebration, onDismiss = viewModel::consumeCelebration)
+        GoalDurationDialog(
+            prompt = timePrompt,
+            onConfirm = viewModel::confirmTimePrompt,
+            onRemove = viewModel::removeTimeFromPrompt,
+            onDismiss = viewModel::dismissTimePrompt
+        )
     }
 }
 
@@ -233,6 +242,15 @@ private fun DetailHero(
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 12.sp,
                         color = colors.onSurfaceVariant.copy(alpha = 0.8f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+                if (g.todayCreditMs > 0L) {
+                    Text(
+                        text = stringResource(R.string.goal_today_credit, creditedMinutes(g.todayCreditMs)),
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 12.sp,
+                        color = accent,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
@@ -359,7 +377,9 @@ private fun DetailHistory(
 private fun CheckinList(
     checkins: List<com.d_drostes_apps.aevum.data.model.GoalCheckin>,
     accent: Color,
-    onDelete: (String) -> Unit
+    goalHasActivity: Boolean,
+    onDelete: (String) -> Unit,
+    onEditTime: (com.d_drostes_apps.aevum.data.model.GoalCheckin) -> Unit
 ) {
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault()) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE, d. MMM", Locale.getDefault()) }
@@ -397,6 +417,31 @@ private fun CheckinList(
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
+                        // M35: Zeitgutschrift des Check-ins — antippen zum
+                        // Ändern oder Entfernen (Check-in bleibt bestehen).
+                        // Ohne Ziel-Aktivität und ohne bisherige Gutschrift
+                        // gibt es nichts zu erfassen.
+                        val canEditTime = goalHasActivity ||
+                            c.activityTypeId != null || c.durationMs > 0L
+                        if (canEditTime) {
+                            TextButton(
+                                onClick = { onEditTime(c) },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = if (c.durationMs > 0L) {
+                                        "⏱ " + stringResource(
+                                            R.string.goal_time_minutes_short,
+                                            creditedMinutes(c.durationMs)
+                                        )
+                                    } else {
+                                        stringResource(R.string.goal_time_add)
+                                    },
+                                    fontSize = 11.sp,
+                                    color = if (c.durationMs > 0L) accent else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         IconButton(onClick = { onDelete(c.id) }) {
                             Icon(
                                 Icons.Filled.Delete,

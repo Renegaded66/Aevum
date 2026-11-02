@@ -23,12 +23,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -50,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -448,8 +453,114 @@ fun GoalCheckButton(
     }
 }
 
-// ── Feier-Overlay (Konfetti + Karte) ─────────────────────────────────────
+// ── Zeitgutschrift (M35) ─────────────────────────────────────────────────
 
+/**
+ * M35: Zustand des optionalen Zeit-Dialogs nach einem Check-in.
+ *
+ * Der Check-in wird SOFORT geschrieben (ein Tap bleibt ein Tap). Der Dialog
+ * bietet danach die optionale Zeitgutschrift an — überspringen ist immer
+ * möglich. [initialMinutes] > 0 bedeutet: Es wird ein bestehender Check-in
+ * bearbeitet (Zeit ändern/entfernen).
+ */
+data class GoalTimePrompt(
+    val goalId: String,
+    val checkinId: String,
+    val goalTitle: String,
+    val activityName: String?,
+    val initialMinutes: Int = 0
+)
+
+/** Minuten einer Check-in-Gutschrift (ms → gerundete Minuten). */
+fun creditedMinutes(durationMs: Long): Int =
+    ((durationMs + 30_000L) / 60_000L).toInt().coerceAtLeast(0)
+
+/**
+ * Optionaler Zeit-Dialog für manuelle Ziele.
+ *
+ * User: „…wenn ich die dann abhake, dann will ich selber optional eine Zeit
+ * eingeben können, bspw 5 Minuten, und die werden dann den aktuellen Tag
+ * zugerechnet, aber ohne direkt in der Timeline aufzutauchen, aber natürlich
+ * auch mit der Möglichkeit die zugerechnete Zeit wieder rückgängig zu machen."
+ */
+@Composable
+fun GoalDurationDialog(
+    prompt: GoalTimePrompt?,
+    onConfirm: (minutes: Int) -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    if (prompt == null) return
+    var text by remember(prompt.checkinId) {
+        mutableStateOf(if (prompt.initialMinutes > 0) prompt.initialMinutes.toString() else "")
+    }
+    val minutes = text.trim().toIntOrNull()
+    val editing = prompt.initialMinutes > 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(if (editing) R.string.goal_time_edit_title else R.string.goal_time_title),
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                Text(
+                    text = if (prompt.activityName != null) {
+                        stringResource(R.string.goal_time_message_activity, prompt.activityName)
+                    } else {
+                        stringResource(R.string.goal_time_message)
+                    },
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { input -> text = input.filter { it.isDigit() }.take(4) },
+                    label = { Text(stringResource(R.string.goal_time_minutes_label)) },
+                    placeholder = { Text("5") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    stringResource(R.string.goal_time_not_timeline),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (editing) {
+                    TextButton(
+                        onClick = onRemove,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(
+                            stringResource(R.string.goal_time_remove),
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { minutes?.let(onConfirm) },
+                enabled = minutes != null && minutes > 0
+            ) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(if (editing) R.string.common_cancel else R.string.goal_time_skip))
+            }
+        }
+    )
+}
+
+// ── Feier-Overlay (Konfetti + Karte) ─────────────────────────────────────
 private class ConfettiParticle(
     val angle: Float,
     val speed: Float,

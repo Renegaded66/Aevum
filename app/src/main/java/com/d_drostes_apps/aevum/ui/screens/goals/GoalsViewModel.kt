@@ -63,6 +63,8 @@ class GoalsViewModel @Inject constructor(
 
     private val _celebration = MutableStateFlow<GoalCelebrationEvent?>(null)
     val celebration: StateFlow<GoalCelebrationEvent?> = _celebration
+    private val _timePrompt = MutableStateFlow<GoalTimePrompt?>(null)
+    val timePrompt: StateFlow<GoalTimePrompt?> = _timePrompt
 
     private val _showCompleted = MutableStateFlow(false)
 
@@ -144,6 +146,9 @@ class GoalsViewModel @Inject constructor(
         val todayKey = today.toString()
         val todayCounts = checkins.filter { it.dateKey == todayKey }
             .groupingBy { it.goalId }.eachCount()
+        val todayCredits = checkins.filter { it.dateKey == todayKey }
+            .groupBy { it.goalId }
+            .mapValues { (_, rows) -> rows.sumOf { it.durationMs } }
 
         fun evaluate(goal: Goal) = GoalProgressAnalytics.evaluateGoal(
             goal = goal,
@@ -158,10 +163,24 @@ class GoalsViewModel @Inject constructor(
 
         val active = activeGoals.map(::evaluate)
             .sortedWith(progressComparator())
-            .map { it.toGoalWithProgress(typeMap, categoryMap, todayCounts[it.goal.id] ?: 0) }
+            .map {
+                it.toGoalWithProgress(
+                    typeMap,
+                    categoryMap,
+                    todayCounts[it.goal.id] ?: 0,
+                    todayCreditMs = todayCredits[it.goal.id] ?: 0L
+                )
+            }
         val archived = archivedGoals.map(::evaluate)
             .sortedWith(progressComparator())
-            .map { it.toGoalWithProgress(typeMap, categoryMap, todayCounts[it.goal.id] ?: 0) }
+            .map {
+                it.toGoalWithProgress(
+                    typeMap,
+                    categoryMap,
+                    todayCounts[it.goal.id] ?: 0,
+                    todayCreditMs = todayCredits[it.goal.id] ?: 0L
+                )
+            }
 
         maybeEmitCelebration(active)
 
@@ -220,15 +239,64 @@ class GoalsViewModel @Inject constructor(
     /** Manuelles Abhaken/Zählen: ein Check-in. */
     fun checkIn(goalId: String) {
         viewModelScope.launch {
-            goalRepository.addCheckin(
-                GoalCheckin(
-                    id = UUID.randomUUID().toString(),
+            val goal = goalRepository.getById(goalId).first() ?: return@launch
+            val activityName = goal.activityTypeId?.let { typeId ->
+                activityTypeRepository.getById(typeId).first()?.name
+            }
+            val checkin = GoalCheckin(
+                id = UUID.randomUUID().toString(),
+                goalId = goalId,
+                timestampMs = System.currentTimeMillis(),
+                dateKey = LocalDate.now(zoneId).toString(),
+                activityTypeId = goal.activityTypeId
+            )
+            goalRepository.addCheckin(checkin)
+            // M35: Optionalen Zeit-Dialog direkt nach dem Abhaken anbieten.
+            if (goal.activityTypeId != null) {
+                _timePrompt.value = GoalTimePrompt(
                     goalId = goalId,
-                    timestampMs = System.currentTimeMillis(),
-                    dateKey = LocalDate.now(zoneId).toString()
+                    checkinId = checkin.id,
+                    goalTitle = goal.title,
+                    activityName = activityName
                 )
+            }
+        }
+    }
+
+    /** M35: Zeit eines bestehenden Check-ins erfassen/ändern. */
+    fun openTimePrompt(goalId: String, checkin: GoalCheckin) {
+        viewModelScope.launch {
+            val goal = goalRepository.getById(goalId).first() ?: return@launch
+            val typeId = checkin.activityTypeId ?: goal.activityTypeId
+            val activityName = typeId?.let { activityTypeRepository.getById(it).first()?.name }
+            _timePrompt.value = GoalTimePrompt(
+                goalId = goalId,
+                checkinId = checkin.id,
+                goalTitle = goal.title,
+                activityName = activityName,
+                initialMinutes = creditedMinutes(checkin.durationMs)
             )
         }
+    }
+
+    fun confirmTimePrompt(minutes: Int) {
+        val prompt = _timePrompt.value ?: return
+        viewModelScope.launch {
+            goalRepository.setCheckinDuration(prompt.checkinId, minutes.toLong() * 60_000L)
+            _timePrompt.value = null
+        }
+    }
+
+    fun removeTimeFromPrompt() {
+        val prompt = _timePrompt.value ?: return
+        viewModelScope.launch {
+            goalRepository.setCheckinDuration(prompt.checkinId, 0L)
+            _timePrompt.value = null
+        }
+    }
+
+    fun dismissTimePrompt() {
+        _timePrompt.value = null
     }
 
     /** Nimmt den letzten Check-in von HEUTE zurück (Historie bleibt unberührt). */
@@ -292,7 +360,8 @@ class GoalsViewModel @Inject constructor(
 fun GoalProgressAnalytics.GoalProgressResult.toGoalWithProgress(
     typeMap: Map<String, ActivityType>,
     categoryMap: Map<String, Category>,
-    todayCheckins: Int = 0
+    todayCheckins: Int = 0,
+    todayCreditMs: Long = 0L
 ) = GoalWithProgress(
     goal = goal,
     currentValue = currentValue,
@@ -311,6 +380,7 @@ fun GoalProgressAnalytics.GoalProgressResult.toGoalWithProgress(
     categoryName = goal.categoryId?.let { categoryMap[it]?.name },
     activityColorLong = goal.activityTypeId?.let { typeMap[it]?.color },
     todayCheckins = todayCheckins,
+    todayCreditMs = todayCreditMs,
     isMetFinal = isMetFinal,
     isPendingFinal = isPendingFinal,
     isCurrentAchieved = isCurrentAchieved,
@@ -343,6 +413,8 @@ data class GoalWithProgress(
     val activityColorLong: Long? = null,
     /** Heutige Check-ins (manuelle Ziele) — steuert Knopf-Zustand/Rückgängig. */
     val todayCheckins: Int = 0,
+    /** M35: Heute über Check-ins gutgeschriebene Zeit (0 = keine). */
+    val todayCreditMs: Long = 0L,
     // ── M27: verzögerte Wertung ───────────────────────────────────────────
     /** Abgeschlossene Wertung: bei Auto-Zielen die letzte volle Periode. */
     val isMetFinal: Boolean = false,

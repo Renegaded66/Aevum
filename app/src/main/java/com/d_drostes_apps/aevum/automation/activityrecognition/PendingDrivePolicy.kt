@@ -42,8 +42,11 @@ package com.d_drostes_apps.aevum.automation.activityrecognition
  */
 object PendingDrivePolicy {
 
-    /** activityTypeId der automatischen Fahrt. */
+    /** activityTypeId der automatischen Fahrt (Default). */
     const val DRIVE_TYPE_ID = "driving"
+
+    /** Activity-ID der automatischen Radfahrt — nie eine Fahrt. */
+    const val BICYCLE_TYPE_ID = "radfahren"
 
     /** sourceType der automatischen Fahrt. */
     const val DRIVE_SOURCE_TYPE = "ACTIVITY_RECOGNITION_AUTO"
@@ -61,9 +64,15 @@ object PendingDrivePolicy {
     /** Harte Obergrenze für einen Vormerk (4 Stunden). */
     const val MAX_PENDING_AGE_MS = 4L * 60L * 60_000L
 
-    /** Ist diese Live-Session die automatische Fahrt selbst? */
+    /**
+     * Ist diese Live-Session die automatische Fahrt selbst?
+     *
+     * M35: Die Fahrt-Aktivität ist vom Nutzer wählbar. Deshalb entscheidet
+     * der sourceType (nicht mehr die feste ID `driving`) — die Radfahrt
+     * bleibt über ihre ID ausgenommen, weil sie denselben sourceType nutzt.
+     */
     fun isDriveSession(activityTypeId: String?, sourceType: String?): Boolean =
-        activityTypeId == DRIVE_TYPE_ID && sourceType == DRIVE_SOURCE_TYPE
+        sourceType == DRIVE_SOURCE_TYPE && activityTypeId != BICYCLE_TYPE_ID
 
     /**
      * Darf der automatische Fahrt-Start JETZT keine Session anlegen?

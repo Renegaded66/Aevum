@@ -167,15 +167,15 @@ class PmRemovalMigrationTest {
         createVersion45Database()
         migrate()
 
-        // M20/M23/M26/M27: Die Kette läuft bis 51 durch (die aktuelle Version).
+        // M20/M23/M26/M27: Die Kette läuft bis 52 durch (die aktuelle Version).
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(51)
+            assertThat(cursor.getInt(0)).isEqualTo(52)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(51).readText())
+            val expected = JSONObject(schemaFile(52).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }

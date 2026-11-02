@@ -173,4 +173,20 @@
     <string name="goal_preview">Aperçu</string>
     <string name="goal_error_category_required">Choisis une catégorie</string>
     <string name="goal_error_schedule_required">Choisis au moins un jour</string>
+
+    <string name="goal_manual_activity">Activité de l’objectif (facultatif)</string>
+    <string name="goal_manual_activity_none">Aucune activité</string>
+    <string name="goal_manual_activity_hint">Associe éventuellement l’objectif à une activité. Lorsque vous cochez, vous pouvez saisir une durée : elle compte pour la journée et les statistiques d’activité, mais n’apparaît pas dans la chronologie.</string>
+    <string name="goal_tracking_manual_with_activity">Manuel · %1$s</string>
+    <string name="goal_today_credit">%1$d min créditées aujourd’hui</string>
+    <string name="goal_time_title">Enregistrer le temps ?</string>
+    <string name="goal_time_edit_title">Modifier le temps</string>
+    <string name="goal_time_message">Facultatif : saisissez le temps que vous avez consacré à cet objectif aujourd’hui.</string>
+    <string name="goal_time_message_activity">Facultatif : saisissez le temps que vous avez consacré aujourd’hui à « %1$s ».</string>
+    <string name="goal_time_minutes_label">Minutes</string>
+    <string name="goal_time_not_timeline">Crédité pour aujourd’hui et les statistiques d’activité — pas dans la chronologie.</string>
+    <string name="goal_time_remove">Retirer le temps</string>
+    <string name="goal_time_skip">Ignorer</string>
+    <string name="goal_time_add">+ Temps</string>
+    <string name="goal_time_minutes_short">%1$d min</string>
 </resources>

@@ -60,6 +60,30 @@ class PendingDrivePolicyTest {
     }
 
     @Test
+    fun `eine-Fahrt-mit-nutzerdefinierter-Activity-ist-ebenfalls-ein-Duplikat`() {
+        // M35: Der Nutzer darf die Fahrt-Aktivität frei wählen (z. B.
+        // „Unterwegs"). Die Erkennung bleibt am sourceType erkennbar.
+        assertThat(
+            PendingDrivePolicy.shouldDefer(
+                liveIsLive = true,
+                liveActivityTypeId = "unterwegs",
+                liveSourceType = PendingDrivePolicy.DRIVE_SOURCE_TYPE
+            )
+        ).isFalse()
+    }
+
+    @Test
+    fun `eine-Radfahrt-blockiert-den-Fahrt-Start-weiterhin`() {
+        assertThat(
+            PendingDrivePolicy.shouldDefer(
+                liveIsLive = true,
+                liveActivityTypeId = PendingDrivePolicy.BICYCLE_TYPE_ID,
+                liveSourceType = PendingDrivePolicy.DRIVE_SOURCE_TYPE
+            )
+        ).isTrue()
+    }
+
+    @Test
     fun `ohne-live-Session-gibt-es-nichts-zu-blockieren`() {
         assertThat(PendingDrivePolicy.shouldDefer(false, "reading", "MANUAL")).isFalse()
     }

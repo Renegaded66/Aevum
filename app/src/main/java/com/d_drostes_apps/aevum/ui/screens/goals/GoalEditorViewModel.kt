@@ -100,8 +100,13 @@ class GoalEditorViewModel @Inject constructor(
 
     fun setTrackingMode(mode: String) = _form.update { f ->
         if (mode == GoalProgressAnalytics.MODE_MANUAL) {
-            // Manuell = abhaken/zählen: Anzahl-Ziel mit Einheit „x".
-            f.copy(trackingMode = mode, goalType = GoalProgressAnalytics.TYPE_COUNT, targetUnit = GoalProgressAnalytics.UNIT_COUNT)
+            // M35: Manuell = abhaken/zählen. Der Zieltyp bleibt erhalten —
+            // „Mindestens 5× pro Woche" ist damit explizit wählbar (vorher
+            // erzwang der Modus COUNT und überschrieb die Auswahl).
+            f.copy(
+                trackingMode = mode,
+                targetUnit = GoalProgressAnalytics.UNIT_COUNT
+            )
         } else {
             // Automatisch = aus Aufzeichnungen: Zeit-Ziel als Default
             // (Aufgaben-Quelle setzt gleich wieder COUNT).
@@ -113,12 +118,18 @@ class GoalEditorViewModel @Inject constructor(
     }
 
     fun setGoalType(goalType: String) = _form.update { f ->
-        f.copy(
-            goalType = goalType,
-            targetUnit = if (goalType == GoalProgressAnalytics.TYPE_COUNT) {
-                GoalProgressAnalytics.UNIT_COUNT
-            } else if (f.targetUnit == GoalProgressAnalytics.UNIT_COUNT) "MINUTES" else f.targetUnit
-        )
+        // M35: Manuelle Ziele zählen immer Check-ins; die Einheit bleibt
+        // COUNT, egal ob „Mindestens", „Maximal" oder „Anzahl" gewählt ist.
+        if (f.trackingMode == GoalProgressAnalytics.MODE_MANUAL) {
+            f.copy(goalType = goalType, targetUnit = GoalProgressAnalytics.UNIT_COUNT)
+        } else {
+            f.copy(
+                goalType = goalType,
+                targetUnit = if (goalType == GoalProgressAnalytics.TYPE_COUNT) {
+                    GoalProgressAnalytics.UNIT_COUNT
+                } else if (f.targetUnit == GoalProgressAnalytics.UNIT_COUNT) "MINUTES" else f.targetUnit
+            )
+        }
     }
 
     fun setPeriod(period: String) = _form.update { it.copy(period = period) }
@@ -143,7 +154,7 @@ class GoalEditorViewModel @Inject constructor(
         }
     }
 
-    fun setActivityType(activityTypeId: String) =
+    fun setActivityType(activityTypeId: String?) =
         _form.update { it.copy(activityTypeId = activityTypeId) }
 
     fun setCategory(categoryId: String) =
@@ -228,8 +239,10 @@ class GoalEditorViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         val isManual = form.trackingMode == GoalProgressAnalytics.MODE_MANUAL
         val isTodos = !isManual && form.sourceKind == GoalProgressAnalytics.SOURCE_TODOS
-        val goalType = if (isManual || isTodos) GoalProgressAnalytics.TYPE_COUNT else form.goalType
-        val unit = if (goalType == GoalProgressAnalytics.TYPE_COUNT) {
+        // M35: Auch manuelle Ziele behalten ihren gewählten Typ
+        // (AT_LEAST/AT_MOST/COUNT). Die Einheit ist bei MANUAL immer COUNT.
+        val goalType = if (isTodos) GoalProgressAnalytics.TYPE_COUNT else form.goalType
+        val unit = if (isManual || isTodos || goalType == GoalProgressAnalytics.TYPE_COUNT) {
             GoalProgressAnalytics.UNIT_COUNT
         } else {
             form.targetUnit
@@ -247,8 +260,10 @@ class GoalEditorViewModel @Inject constructor(
                     goalRepository.update(
                         existing.copy(
                             title = form.title,
-                            activityTypeId = if (isManual) existing.activityTypeId else form.activityTypeId,
-                            categoryId = if (isManual) existing.categoryId else form.categoryId,
+                            // M35: Auch manuelle Ziele können optional einer
+                            // Aktivität zugeordnet werden (Zeitgutschrift).
+                            activityTypeId = form.activityTypeId,
+                            categoryId = form.categoryId,
                             type = goalType,
                             period = form.period,
                             targetValue = value,

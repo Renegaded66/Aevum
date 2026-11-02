@@ -169,8 +169,11 @@ class BicycleWiringRegressionTest {
         val idx = src.indexOf("private fun isAutoTrackedSession(")
         assertWithMessage("isAutoTrackedSession-Helfer fehlt").that(idx).isAtLeast(0)
         val block = src.substring(idx, (idx + 600).coerceAtMost(src.length))
-        assertThat(block.contains("\"driving\"")).isTrue()
-        assertThat(block.contains("\"radfahren\"")).isTrue()
+        // M35: Fahrt und Rad teilen sich denselben sourceType; die
+        // Unterscheidung Fahrt/Rad hängt für die Stop-Pfade nicht mehr an
+        // einer festen Activity-ID, sondern am sourceType.
+        assertThat(block.contains("\"ACTIVITY_RECOGNITION_AUTO\"")).isTrue()
+        assertThat(block.contains("isLive")).isTrue()
         // Beide Stop-Pfade nutzen den Helfer.
         val count = Regex("isAutoTrackedSession\\(session\\)").findAll(src).count()
         assertWithMessage("Watchdog + DriveStopWorker müssen beide matchen, gefunden: $count")

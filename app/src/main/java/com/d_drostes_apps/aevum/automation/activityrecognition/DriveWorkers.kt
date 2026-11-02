@@ -95,6 +95,8 @@ class DriveStartWorker(
         fun activityRecognitionBridge(): ActivityRecognitionBridge
         fun liveActivityManager(): com.d_drostes_apps.aevum.domain.liveactivity.LiveActivityManager
         fun triggerEventRepository(): com.d_drostes_apps.aevum.data.repository.TriggerEventRepository
+        fun automationSettingsRepository(): com.d_drostes_apps.aevum.data.repository.AutomationSettingsRepository
+        fun activityTypeRepository(): com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
     }
 
     override suspend fun doWork(): Result {
@@ -146,8 +148,10 @@ class DriveStartWorker(
         val liveSessionForCooldown = live.liveSession.value
         val alreadyRunningAutoSession = liveSessionForCooldown != null &&
             liveSessionForCooldown.isLive &&
-            liveSessionForCooldown.activityTypeId == "driving" &&
-            liveSessionForCooldown.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+            PendingDrivePolicy.isDriveSession(
+                liveSessionForCooldown.activityTypeId,
+                liveSessionForCooldown.sourceType
+            )
         if (!alreadyRunningAutoSession && bridge.isWithinDriveRestartCooldown(now)) {
             Log.d(
                 TAG,
@@ -244,9 +248,9 @@ class DriveStartWorker(
 
         // Duplikat-Schutz: Läuft schon eine Auto-Fahr-Session → nichts tun
         // (nur Herzschlag refreshen, damit der Watchdog lebt).
+        // M35: erkennt auch eine vom Nutzer gewählte Fahrt-Aktivität.
         if (liveSession != null && liveSession.isLive &&
-            liveSession.activityTypeId == "driving" &&
-            liveSession.sourceType == "ACTIVITY_RECOGNITION_AUTO"
+            PendingDrivePolicy.isDriveSession(liveSession.activityTypeId, liveSession.sourceType)
         ) {
             bridge.refreshDriveHeartbeat(now)
             DriveWatchdogWorker.schedule(applicationContext)
@@ -288,9 +292,15 @@ class DriveStartWorker(
             // Session wird exakt bis zum neuen Start gekürzt (kein Overlap,
             // kein Verlust). Der Fallback (keine Zeit-Überlappung) beendet
             // die alte Session weiterhin sauber.
+            // M35: Die vom Nutzer gewählte Fahrt-Aktivität (Default driving).
+            val driveActivity = DriveActivityResolver.resolve(
+                settingsRepository = deps.automationSettingsRepository(),
+                activityTypeRepository = deps.activityTypeRepository(),
+                fallbackTitle = applicationContext.getString(com.d_drostes_apps.aevum.R.string.seed_activity_driving)
+            )
             val session = live.start(
-                activityTypeId = "driving",
-                title = "Autofahren",
+                activityTypeId = driveActivity.typeId,
+                title = driveActivity.title,
                 sourceType = "ACTIVITY_RECOGNITION_AUTO",
                 startedAt = startedAt
             )
@@ -791,8 +801,7 @@ class DriveWatchdogWorker(
 private fun isAutoTrackedSession(
     session: com.d_drostes_apps.aevum.data.model.ActivitySession?
 ): Boolean = session != null && session.isLive &&
-    session.sourceType == "ACTIVITY_RECOGNITION_AUTO" &&
-    (session.activityTypeId == "driving" || session.activityTypeId == "radfahren")
+    session.sourceType == "ACTIVITY_RECOGNITION_AUTO"
 
 /** Haversine-Distanz in Metern (gleiche Formel wie Geofence-Checks). */
 private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

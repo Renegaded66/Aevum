@@ -81,14 +81,15 @@ class GapDetectionEngine @Inject constructor(
                     start = s.startAt.coerceAtLeast(dayStart),
                     end = end,
                     type = if (s.activityTypeId == "sleep") EventType.SLEEP
-                    else if (s.activityTypeId == "driving") EventType.DRIVING
+                    else if (s.sourceType == "ACTIVITY_RECOGNITION_AUTO" && s.activityTypeId != "radfahren") EventType.DRIVING
                     else EventType.SESSION
                 )
             }
         }
         candidates.forEach { c ->
             if (c.startAt < effectiveEnd && c.endAt > dayStart &&
-                c.activityTypeId != "sleep" && c.activityTypeId != "driving"
+                c.activityTypeId != "sleep" && c.activityTypeId != "driving" &&
+                c.activityTypeId != "transport"
             ) {
                 events += TimelineEvent(
                     start = c.startAt.coerceAtLeast(dayStart),

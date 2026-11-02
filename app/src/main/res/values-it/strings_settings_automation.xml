@@ -248,4 +248,9 @@
     <string name="settings_triggers_call_activity_hint">Viene interrotto solo l\'uso digitale: registrazione dello schermo, delle app e del PC. Le attività avviate manualmente, i geofences, il calendario, i viaggi e lo sport restano invariati.</string>
     <string name="settings_triggers_permission_calls">Riconoscimento delle chiamate (stato del telefono)</string>
     <string name="settings_triggers_call_no_activities">Nessuna attività disponibile — creane prima una.</string>
+
+    <string name="settings_triggers_drive_activity">Attività per viaggi automatici</string>
+    <string name="settings_triggers_drive_activity_desc">Treni, autobus e auto vengono spesso rilevati come viaggio. Scegli quale attività registrare.</string>
+    <string name="settings_triggers_drive_activity_label">Registrato come</string>
+    <string name="settings_triggers_drive_activity_hint">Il rilevamento resta invariato: cambiano solo nome, icona e colore della registrazione. «Ciclismo» resta riservato al rilevamento della bicicletta.</string>
 </resources>

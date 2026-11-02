@@ -64,6 +64,10 @@
     <string name="settings_triggers_group_movement">Bewegung</string>
     <string name="settings_triggers_driving">Autofahren</string>
     <string name="settings_triggers_driving_desc">Automatisch starten, wenn Android eine Fahrt erkennt — stoppt beim Aussteigen</string>
+    <string name="settings_triggers_drive_activity">Aktivität für automatische Fahrten</string>
+    <string name="settings_triggers_drive_activity_desc">Zug, Bus und Auto werden oft als Fahrt erkannt. Lege fest, welche Aktivität dann aufgezeichnet wird.</string>
+    <string name="settings_triggers_drive_activity_label">Aufgezeichnet als</string>
+    <string name="settings_triggers_drive_activity_hint">Die Erkennung bleibt gleich — nur Name, Symbol und Farbe der Aufzeichnung ändern sich. „Radfahren“ bleibt der eigenen Rad-Erkennung vorbehalten.</string>
     <string name="settings_triggers_walking">Walking &amp; Laufen</string>
     <string name="settings_triggers_walking_desc">Trigger erst nach 5 Minuten am Stück (kein False-Trigger bei kurzen Wegen)</string>
     <string name="settings_triggers_bicycle">Radfahren</string>

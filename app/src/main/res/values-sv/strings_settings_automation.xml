@@ -263,4 +263,9 @@
     <string name="settings_triggers_call_activity_hint">Endast den digitala användningen avbryts: skärm-, app- och PC-inspelning. Manuellt startade aktiviteter, geofences, kalender, bilkörningar och träning påverkas inte.</string>
     <string name="settings_triggers_permission_calls">Samtalsdetektering (telefonstatus)</string>
     <string name="settings_triggers_call_no_activities">Inga aktiviteter ännu — skapa en först.</string>
+
+    <string name="settings_triggers_drive_activity">Aktivitet för automatiska resor</string>
+    <string name="settings_triggers_drive_activity_desc">Tåg, bussar och bilar identifieras ofta som en resa. Välj vilken aktivitet som ska registreras.</string>
+    <string name="settings_triggers_drive_activity_label">Registreras som</string>
+    <string name="settings_triggers_drive_activity_hint">Identifieringen är densamma — bara namn, ikon och färg på registreringen ändras. ”Cykling” är fortfarande reserverat för cykelidentifieringen.</string>
 </resources>

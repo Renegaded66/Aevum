@@ -14,7 +14,7 @@ import com.d_drostes_apps.aevum.data.model.*
  * Companion-Konstanten in der @Database-Annotation nicht zuverlässig
  * als Konstante auswertet (FIR/KAPT: „Unresolved reference SCHEMA_VERSION").
  */
-const val APP_DATABASE_VERSION = 51
+const val APP_DATABASE_VERSION = 52
 
 @Database(
     entities = [
@@ -124,6 +124,11 @@ const val APP_DATABASE_VERSION = 51
     // M27: v50 — Sucht-Detektor: `addiction_watch_app` (ausgewählte Apps)
     // und `addiction_session` (Vordergrund-Sitzungen mit Start, Ende und
     // Dauer). Rein additiv; Bestandsdaten bleiben unberührt.
+    // M35: v52 — manuelle Ziel-Check-ins können optional einer Aktivität
+    // zugeordnet und mit einer Zeitgutschrift versehen werden
+    // (`goal_checkin.activity_type_id`, `goal_checkin.duration_ms`) und die
+    // automatische Fahrt-Erkennung bekommt eine wählbare Aktivität
+    // (`automation_settings.drive_activity_type_id`, Default 'driving').
     version = APP_DATABASE_VERSION,
     exportSchema = true
 )
@@ -1926,6 +1931,34 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * M35: v51 → v52 — manuelle Ziel-Check-ins mit optionaler Aktivität
+         * und Zeitgutschrift sowie die wählbare Fahrt-Aktivität.
+         *
+         * User: „…bei der manuellen Erfassung noch die Möglichkeit, dass man
+         * optional das Ziel als Activity hinzufügen kann … wenn ich die dann
+         * abhake, dann will ich selber optional eine Zeit eingeben können,
+         * bspw 5 Minuten, und die werden dann den aktuellen Tag zugerechnet,
+         * aber ohne direkt in der Timeline aufzutauchen.“
+         *
+         * Rein additiv: bestehende Check-ins behalten count=1 und erhalten
+         * duration_ms=0 / activity_type_id=NULL (exakt altes Verhalten).
+         * Bestands-Fahrten laufen weiter über die Default-Aktivität 'driving'.
+         */
+        val MIGRATION_51_52 = object : Migration(51, 52) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE goal_checkin ADD COLUMN activity_type_id TEXT"
+                )
+                database.execSQL(
+                    "ALTER TABLE goal_checkin ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0"
+                )
+                database.execSQL(
+                    "ALTER TABLE automation_settings ADD COLUMN drive_activity_type_id TEXT NOT NULL DEFAULT 'driving'"
+                )
+            }
+        }
+
+        /**
          * M28: ALLE Migrationen in Reihenfolge — EINE Quelle für die
          * Produktions-DI und für die Migrationstests.
          *
@@ -1949,7 +1982,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
             MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45,
             MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
-            MIGRATION_49_50, MIGRATION_50_51
+            MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52
         )
     }
 }

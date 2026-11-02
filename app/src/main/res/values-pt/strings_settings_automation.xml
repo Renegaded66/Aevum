@@ -248,4 +248,9 @@
     <string name="settings_triggers_call_activity_hint">Só a utilização digital é interrompida: gravação de ecrã, apps e PC. Atividades iniciadas manualmente, geofences, calendário, viagens e desporto não são afetados.</string>
     <string name="settings_triggers_permission_calls">Deteção de chamadas (estado do telefone)</string>
     <string name="settings_triggers_call_no_activities">Não há atividades — cria primeiro uma.</string>
+
+    <string name="settings_triggers_drive_activity">Atividade para viagens automáticas</string>
+    <string name="settings_triggers_drive_activity_desc">Comboios, autocarros e carros são frequentemente detetados como viagem. Escolhe que atividade é registada.</string>
+    <string name="settings_triggers_drive_activity_label">Registado como</string>
+    <string name="settings_triggers_drive_activity_hint">A deteção mantém-se igual — apenas o nome, o ícone e a cor do registo mudam. «Ciclismo» continua reservado à deteção de bicicletas.</string>
 </resources>

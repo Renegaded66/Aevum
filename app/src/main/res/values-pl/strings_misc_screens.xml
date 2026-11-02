@@ -256,4 +256,6 @@
     <string name="component_minute">Minuta</string>
     <string name="component_quality">Jakość czasu</string>
     <string name="component_ok">OK</string>
+
+    <string name="activitytypes_rename_title">Zmień nazwę „%1$s”</string>
 </resources>

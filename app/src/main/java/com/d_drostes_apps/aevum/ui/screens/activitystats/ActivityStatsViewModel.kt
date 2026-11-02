@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import com.d_drostes_apps.aevum.data.repository.ActivityRepository
 import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
+import com.d_drostes_apps.aevum.data.repository.GoalRepository
 import com.d_drostes_apps.aevum.data.repository.LanguageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,8 @@ class ActivityStatsViewModel @Inject constructor(
     private val application: Application,
     private val activityRepository: ActivityRepository,
     private val activityTypeRepository: ActivityTypeRepository,
+    // M35: Zeitgutschriften manueller Ziele fließen in die Aktivitätszeit.
+    private val goalRepository: GoalRepository,
     languageRepository: LanguageRepository
 ) : ViewModel() {
 
@@ -68,8 +71,9 @@ class ActivityStatsViewModel @Inject constructor(
         languageRepository.language,
         activityRepository.getAll(),
         activityTypeRepository.getAll(),
+        goalRepository.getAllCheckins(),
         _range
-    ) { _, sessions, types, range ->
+    ) { _, sessions, types, checkins, range ->
         val type = types.firstOrNull { it.id == activityTypeId }
         val today = java.time.LocalDate.now()
         val model = ActivityStatsAnalytics.build(
@@ -78,7 +82,8 @@ class ActivityStatsViewModel @Inject constructor(
             range = range,
             today = today,
             zoneId = zoneId,
-            context = application
+            context = application,
+            manualCredits = checkins
         )
         ActivityStatsUiState(
             activityTypeId = activityTypeId,

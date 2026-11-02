@@ -64,6 +64,10 @@
     <string name="settings_triggers_group_movement">Movement</string>
     <string name="settings_triggers_driving">Driving</string>
     <string name="settings_triggers_driving_desc">Start automatically when Android detects a drive — stops when you get out</string>
+    <string name="settings_triggers_drive_activity">Activity for automatic drives</string>
+    <string name="settings_triggers_drive_activity_desc">Trains, buses and cars are often detected as a drive. Choose which activity is recorded.</string>
+    <string name="settings_triggers_drive_activity_label">Recorded as</string>
+    <string name="settings_triggers_drive_activity_hint">Detection stays the same — only the name, icon and color of the recording change. “Cycling” remains reserved for the bicycle detection.</string>
     <string name="settings_triggers_walking">Walking &amp; running</string>
     <string name="settings_triggers_walking_desc">Trigger only after 5 consecutive minutes (no false triggers on short trips)</string>
     <string name="settings_triggers_bicycle">Cycling</string>

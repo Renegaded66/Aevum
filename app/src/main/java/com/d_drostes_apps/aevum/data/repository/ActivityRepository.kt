@@ -110,6 +110,12 @@ interface ActivityTypeRepository {
     suspend fun setColor(id: String, color: Long)
     // M18.17: Kategorie einer Aktivität zuweisen (null = keine).
     suspend fun setCategory(id: String, categoryId: String?)
+    // M35: Umbenennen (auch System-Typen; die ID bleibt stabil).
+    // Default für Test-Fakes, die diese neue Methode nicht kennen; die
+    // Produktions-Implementierung überschreibt sie mit dem DAO-Update.
+    suspend fun rename(id: String, name: String) {
+        throw UnsupportedOperationException("rename not implemented")
+    }
     suspend fun insert(type: ActivityType)
     suspend fun insertAll(types: List<ActivityType>)
     suspend fun update(type: ActivityType)

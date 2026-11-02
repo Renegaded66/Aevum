@@ -128,13 +128,20 @@ class BicycleStopAndWalkingInteractionTest {
 
         // Alles andere gehört NICHT in die Stop-Pfade: sonst würde ein
         // laufender Spaziergang oder eine manuelle Aktivität beendet.
-        assertThat(isAutoTrackedSession(session("spazieren"))).isFalse()
-        assertThat(isAutoTrackedSession(session("joggen"))).isFalse()
+        // M35: Der Diskriminator ist der sourceType; „spazieren"/„joggen"
+        // laufen in Produktion über WALKING_AUTO, nicht über die Fahrt-Quelle.
+        assertThat(isAutoTrackedSession(session("spazieren", source = "WALKING_AUTO"))).isFalse()
+        assertThat(isAutoTrackedSession(session("joggen", source = "WALKING_AUTO"))).isFalse()
         assertThat(isAutoTrackedSession(session("driving", source = "MANUAL"))).isFalse()
         assertThat(isAutoTrackedSession(session("radfahren", source = "MANUAL"))).isFalse()
         assertThat(isAutoTrackedSession(session("radfahren", source = "GEOFENCE_AUTO"))).isFalse()
         assertThat(isAutoTrackedSession(session("radfahren", source = "WALKING_AUTO"))).isFalse()
         assertThat(isAutoTrackedSession(null)).isFalse()
+
+        // M35: Eine nutzerdefinierte Fahrt-Activity (z. B. „Unterwegs")
+        // wird über denselben sourceType ebenfalls von den Stop-Pfaden
+        // erfasst.
+        assertThat(isAutoTrackedSession(session("unterwegs"))).isTrue()
     }
 
     @Test
