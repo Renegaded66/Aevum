@@ -25,7 +25,7 @@
     <string name="seed_activity_eating">Repas</string>
     <string name="seed_activity_social">Social</string>
     <string name="seed_activity_household">Foyer</string>
-    <string name="seed_activity_driving">Conduite</string>
+    <string name="seed_activity_driving">Trajet</string>
     <string name="seed_activity_transport">Transport</string>
     <string name="seed_activity_digital">Numérique</string>
     <string name="seed_activity_leisure">Loisirs</string>

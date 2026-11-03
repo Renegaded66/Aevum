@@ -28,7 +28,7 @@
     <string name="seed_activity_eating">Spisning</string>
     <string name="seed_activity_social">Socialt</string>
     <string name="seed_activity_household">Husholdning</string>
-    <string name="seed_activity_driving">Bilkørsel</string>
+    <string name="seed_activity_driving">Tur</string>
     <string name="seed_activity_transport">Transport</string>
     <string name="seed_activity_digital">Digital</string>
     <string name="seed_activity_leisure">Fritid</string>

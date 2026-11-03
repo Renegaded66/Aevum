@@ -26,7 +26,7 @@
     <string name="seed_activity_eating">Eating</string>
     <string name="seed_activity_social">Social</string>
     <string name="seed_activity_household">Household</string>
-    <string name="seed_activity_driving">Driving</string>
+    <string name="seed_activity_driving">Trip</string>
     <string name="seed_activity_transport">Transport</string>
     <string name="seed_activity_digital">Digital</string>
     <string name="seed_activity_leisure">Leisure</string>

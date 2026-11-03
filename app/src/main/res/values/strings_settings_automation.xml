@@ -62,8 +62,8 @@
     <string name="settings_triggers_group_location">Location-based</string>
     <string name="settings_triggers_geofences_desc">Detect home, work &amp; co. — entering starts, leaving stops the activity</string>
     <string name="settings_triggers_group_movement">Movement</string>
-    <string name="settings_triggers_driving">Driving</string>
-    <string name="settings_triggers_driving_desc">Start automatically when Android detects a drive — stops when you get out</string>
+    <string name="settings_triggers_driving">Trip</string>
+    <string name="settings_triggers_driving_desc">Start automatically when Android detects a trip — stops when you get out</string>
     <string name="settings_triggers_drive_activity">Activity for automatic drives</string>
     <string name="settings_triggers_drive_activity_desc">Trains, buses and cars are often detected as a drive. Choose which activity is recorded.</string>
     <string name="settings_triggers_drive_activity_label">Recorded as</string>

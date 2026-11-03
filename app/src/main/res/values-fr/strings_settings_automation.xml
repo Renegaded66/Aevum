@@ -57,7 +57,7 @@
     <string name="settings_triggers_group_location">Basé sur le lieu</string>
     <string name="settings_triggers_geofences_desc">Reconnaître maison, travail &amp; co. — l\'arrivée démarre, le départ arrête l\'activité</string>
     <string name="settings_triggers_group_movement">Mouvement</string>
-    <string name="settings_triggers_driving">Conduite</string>
+    <string name="settings_triggers_driving">Trajet</string>
     <string name="settings_triggers_driving_desc">Démarrer automatiquement quand Android détecte un trajet — s\'arrête quand tu descends</string>
     <string name="settings_triggers_walking">Marche &amp; course</string>
     <string name="settings_triggers_walking_desc">Déclencheur seulement après 5 minutes d\'affilée (pas de faux déclencheur sur les petits trajets)</string>

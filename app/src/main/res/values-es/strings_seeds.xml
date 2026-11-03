@@ -25,7 +25,7 @@
     <string name="seed_activity_eating">Comida</string>
     <string name="seed_activity_social">Sociales</string>
     <string name="seed_activity_household">Hogar</string>
-    <string name="seed_activity_driving">Conducir</string>
+    <string name="seed_activity_driving">Viaje</string>
     <string name="seed_activity_transport">Transporte</string>
     <string name="seed_activity_digital">Digitales</string>
     <string name="seed_activity_leisure">Ocio</string>

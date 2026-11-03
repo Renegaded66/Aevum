@@ -56,8 +56,8 @@
     <string name="settings_triggers_group_location">Stedsbasert</string>
     <string name="settings_triggers_geofences_desc">Gjenkjenn hjem, jobb &amp; annet — ankomst starter, avgang stopper aktiviteten</string>
     <string name="settings_triggers_group_movement">Bevegelse</string>
-    <string name="settings_triggers_driving">Kjøring</string>
-    <string name="settings_triggers_driving_desc">Starter automatisk når Android oppdager en kjøretur — stopper når du går ut av kjøretøyet</string>
+    <string name="settings_triggers_driving">Tur</string>
+    <string name="settings_triggers_driving_desc">Starter automatisk når Android oppdager en tur — stopper når du går av</string>
     <string name="settings_triggers_walking">Gange &amp; løping</string>
     <string name="settings_triggers_walking_desc">Utløses først etter 5 sammenhengende minutter (ingen falske utløsere på korte turer)</string>
     <string name="settings_triggers_bicycle">Sykling</string>

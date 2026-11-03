@@ -25,7 +25,7 @@
     <string name="seed_activity_eating">Pasto</string>
     <string name="seed_activity_social">Sociale</string>
     <string name="seed_activity_household">Famiglia</string>
-    <string name="seed_activity_driving">Guida</string>
+    <string name="seed_activity_driving">Viaggio</string>
     <string name="seed_activity_transport">Trasporti</string>
     <string name="seed_activity_digital">Digitale</string>
     <string name="seed_activity_leisure">Tempo libero</string>

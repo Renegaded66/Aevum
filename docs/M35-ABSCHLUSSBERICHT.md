@@ -1,6 +1,6 @@
 # M35 — Manuelle Ziele mit Zeitgutschrift, wählbare Fahrt-Activity, Umbenennen
 
-**Version:** 1.0.55 (versionCode 56) · **Datum:** 02.11.2026 · **DB:** v52 · **Status:** gebaut, 1.490 Tests grün
+**Version:** 1.0.56 (versionCode 57) · **Datum:** 02.11.2026 · **DB:** v52 · **Status:** gebaut, 1.490 Tests grün
 
 ---
 
@@ -133,3 +133,30 @@ Kopie für die LAN-Auslieferung:
   Session. Ein echter Zug-/Bus-Test auf Hardware bleibt sinnvoll.
 - Zeitgutschriften erzeugen bewusst keine Session und fließen nicht in die
   Timeline ein.
+
+## 9. Nachtrag M35.1 — Auswahl direkt am Schalter, „Fahrt“ statt „Autofahren“
+
+**Version 1.0.56 (versionCode 57), 02.11.2026.**
+
+- **Activity-Auswahl direkt neben dem Schieberegler:** Die separate Karte
+  unter der Bewegungs-Gruppe ist entfernt. Der kompakte Button
+  (`DriveActivityInlineSelector`) sitzt jetzt in derselben Zeile wie der
+  Schalter „Fahrt“ und zeigt den aktuellen Activity-Namen mit `▾`. Tippen
+  öffnet denselben Auswahl-Dialog; `radfahren` bleibt ausgeschlossen.
+- **Label „Fahrt“ statt „Autofahren“:** `settings_triggers_driving` und
+  `seed_activity_driving` heißen in allen elf Sprachen jetzt generisch:
+  DE „Fahrt“, EN „Trip“, ES „Viaje“, FR „Trajet“, PT „Viagem“, IT „Viaggio“,
+  TR „Yolculuk“, PL „Podróż“, DA/NB „Tur“, SV „Resa“. Die Beschreibungen
+  sprechen nicht mehr nur vom Auto.
+- **Bestandsdaten:** `EnsureDefaultDataUseCase` erkennt die alten
+  Seed-Namen („Autofahren“, „Autofahrt“, „Driving“, „Conducir“ …) weiterhin
+  als unverändert und benennt sie beim nächsten Start in „Fahrt“/„Trip“ um.
+  Ein vom Nutzer frei gewählter Name (z. B. „Unterwegs“) bleibt unangetastet.
+  Keine neue DB-Migration nötig.
+- **Tests/Build:** 1.490 Tests grün. `robust_build.sh … aevum-m35-1 --
+  assembleDebug` → `BUILD SUCCESSFUL`, kanonischer Debug-Key,
+  `versionCode 57 / 1.0.56-debug`. APK:
+  `/srv/aevum-apk/Aevum-1.0.56-M35.1-Debug.apk` (Port 8098).
+- **Ehrlich:** Der Inline-Button ist bewusst kompakt (max. 96 dp); lange
+  Activity-Namen werden mit `…` gekürzt, der vollständige Name steht im
+  Auswahl-Dialog. Kein Geräte-Durchklick (kein adb/KVM).

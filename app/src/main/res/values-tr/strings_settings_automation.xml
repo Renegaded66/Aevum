@@ -63,7 +63,7 @@
     <string name="settings_triggers_group_location">Yer bazlı</string>
     <string name="settings_triggers_geofences_desc">Ev, İş ve benzerlerini algılar — girişte başlar, çıkışta aktivite biter</string>
     <string name="settings_triggers_group_movement">Hareket</string>
-    <string name="settings_triggers_driving">Araba sürmek</string>
+    <string name="settings_triggers_driving">Yolculuk</string>
     <string name="settings_triggers_driving_desc">Android bir yolculuk algıladığında kendiliğinden başlar — inince biter</string>
     <string name="settings_triggers_walking">Yürüyüş ve koşu</string>
     <string name="settings_triggers_walking_desc">Tetikleyici ancak 5 dakika kesintisiz sürerse devreye girer (kısa mesafelerde yanlış tetik olmaz)</string>

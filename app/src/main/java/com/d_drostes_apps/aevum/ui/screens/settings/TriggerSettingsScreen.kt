@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -69,6 +70,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -522,6 +524,10 @@ fun TriggerSettingsScreen(
             // ── Bewegung ─────────────────────────────────────────────
             item {
                 val arBlocked = !state.activityRecognitionGranted
+                val activityTypes by viewModel.activityTypes.collectAsState()
+                val driveTypes = activityTypes.filter {
+                    it.id != com.d_drostes_apps.aevum.automation.activityrecognition.PendingDrivePolicy.BICYCLE_TYPE_ID
+                }
                 TriggerGroup(
                     title = stringResource(R.string.settings_triggers_group_movement),
                     items = listOf(
@@ -540,6 +546,18 @@ fun TriggerSettingsScreen(
                                 requestPermission(
                                     PermissionDisclosureKind.ACTIVITY_RECOGNITION,
                                     before = { pendingTrigger = "driving" }
+                                )
+                            },
+                            // M35: Die zugehörige Activity sitzt direkt neben
+                            // dem Schalter — nicht mehr als eigene Karte
+                            // darunter. So ist „Fahrten aufzeichnen“ und
+                            // „als welche Activity“ eine Entscheidung.
+                            trailing = {
+                                DriveActivityInlineSelector(
+                                    selectedTypeId = state.settings.driveActivityTypeId,
+                                    activityTypes = driveTypes,
+                                    enabled = !arBlocked,
+                                    onSelectType = viewModel::setDriveActivity
                                 )
                             }
                         ),
@@ -595,19 +613,6 @@ fun TriggerSettingsScreen(
                             }
                         )
                     )
-                )
-            }
-
-            // ── M35: Aktivität der automatischen Fahrt ────────────────
-            // User: „jede Fahrt mit dem Zug auch als Autofahrt aufgezeichnet
-            // … der automatischen Aufzeichnung nutzerdefiniert eine Activity
-            // zuordnen“. Die Erkennung bleibt unverändert.
-            item {
-                val activityTypes by viewModel.activityTypes.collectAsState()
-                DriveActivityCard(
-                    selectedTypeId = state.settings.driveActivityTypeId,
-                    activityTypes = activityTypes.filter { it.id != "radfahren" },
-                    onSelectType = viewModel::setDriveActivity
                 )
             }
 
@@ -882,6 +887,8 @@ private fun TriggerToggleRow(toggle: TriggerToggle) {
                 )
             }
         }
+        // M35: z. B. Fahrt-Activity — unmittelbar vor dem Schieberegler.
+        toggle.trailing?.invoke()
         Switch(
             checked = toggle.checked && toggle.permissionGranted,
             onCheckedChange = toggle.onCheckedChange,
@@ -898,7 +905,11 @@ private data class TriggerToggle(
     val checked: Boolean,
     val permissionGranted: Boolean,
     val onCheckedChange: (Boolean) -> Unit,
-    val onRequestPermission: () -> Unit
+    val onRequestPermission: () -> Unit,
+    // M35: Optionale Steuerung direkt neben dem Schalter — aktuell nur
+    // für die Fahrt-Activity. So bleibt die Auswahl dort, wo man die
+    // automatische Fahrtaufzeichnung ein- und ausschaltet.
+    val trailing: (@Composable () -> Unit)? = null
 )
 
 /**
@@ -2027,94 +2038,47 @@ private fun PingTriggerCreateDialog(
 // ===================== M35: FAHRT-AKTIVITÄT =====================
 
 /**
- * M35: Karte „Automatische Fahrt — Aktivität“.
+ * M35: Kompakte Activity-Auswahl direkt neben dem Fahrt-Schalter.
  *
- * User: „jede Fahrt mit dem Zug auch als Autofahrt aufgezeichnet … ich
- * möchte, dass man der automatischen Aufzeichnung nutzerdefiniert eine
- * Activity zuordnen kann.“
+ * User: „Ich möchte es eher so in den Einstellungen haben, dass die Auswahl
+ * der zugehörigen Aktivität direkt neben dem Schieberegler ist, wo man
+ * auswählen kann, ob Fahrten automatisch aufgezeichnet werden sollen.“
  *
- * Die Karte steht bewusst direkt unter der Bewegungs-Gruppe: Der Schalter
- * „Autofahren“ steuert die Erkennung, diese Zeile bestimmt, WELCHE Aktivität
- * eine erkannte Fahrt wird (z. B. „Unterwegs“ für Zug/Bus).
+ * Deshalb keine eigene Karte mehr: Der Button sitzt in derselben Zeile wie
+ * der Schalter. Er zeigt Icon + Namen der aktuellen Fahrt-Activity und
+ * öffnet den bestehenden Auswahl-Dialog. `radfahren` ist nie enthalten.
  */
 @Composable
-private fun DriveActivityCard(
+private fun DriveActivityInlineSelector(
     selectedTypeId: String,
     activityTypes: List<ActivityType>,
+    enabled: Boolean,
     onSelectType: (String) -> Unit
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val selected = activityTypes.firstOrNull { it.id == selectedTypeId }
+    val label = selected?.name ?: selectedTypeId
 
-    AevumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(DriveAccent.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("🚆", fontSize = 18.sp)
-                }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        stringResource(R.string.settings_triggers_drive_activity),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        stringResource(R.string.settings_triggers_drive_activity_desc),
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 15.sp
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AevumRadius.md))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                    .clickable { showPicker = true }
-                    .padding(horizontal = AevumSpacing.md, vertical = AevumSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)
-            ) {
-                Text(selected?.icon ?: "🚗", fontSize = 18.sp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.settings_triggers_drive_activity_label),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(selected?.name ?: selectedTypeId, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                }
-                Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Text(
-                stringResource(R.string.settings_triggers_drive_activity_hint),
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 15.sp
-            )
-        }
+    OutlinedButton(
+        onClick = { showPicker = true },
+        enabled = enabled,
+        modifier = Modifier
+            .widthIn(max = 96.dp)
+            .height(38.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+    ) {
+        Text(
+            text = "$label ▾",
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 
     if (showPicker) {
         ActivityTypePickerDialog(
-            title = stringResource(R.string.settings_triggers_drive_activity_label),
-            // Radfahren ist kein gültiges Fahrt-Ziel: Die Rad-Erkennung
-            // teilt sich denselben sourceType; die Unterscheidung hängt
-            // an der Activity-ID (siehe DriveActivityResolver).
-            activityTypes = activityTypes.filter {
-                it.id != com.d_drostes_apps.aevum.automation.activityrecognition.PendingDrivePolicy.BICYCLE_TYPE_ID
-            },
+            title = stringResource(R.string.settings_triggers_drive_activity),
+            activityTypes = activityTypes,
             selectedTypeId = selectedTypeId,
             onSelect = { id ->
                 onSelectType(id)
@@ -2124,9 +2088,6 @@ private fun DriveActivityCard(
         )
     }
 }
-
-/** Farbe der Fahrt-Karte (passend zum Bahn-/Mobilitäts-Grün). */
-private val DriveAccent = Color(0xFF0EA5E9)
 
 // ===================== M26: ANRUF-ERKENNUNG =====================
 

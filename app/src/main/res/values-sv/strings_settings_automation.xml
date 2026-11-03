@@ -62,8 +62,8 @@
     <string name="settings_triggers_group_location">Platsbaserat</string>
     <string name="settings_triggers_geofences_desc">Upptäcker hemmet, jobbet med mera — ankomst startar aktiviteten, avgång stoppar den</string>
     <string name="settings_triggers_group_movement">Rörelse</string>
-    <string name="settings_triggers_driving">Bilkörning</string>
-    <string name="settings_triggers_driving_desc">Startar automatiskt när Android upptäcker en bilkörning — stoppar när du kliver ur</string>
+    <string name="settings_triggers_driving">Resa</string>
+    <string name="settings_triggers_driving_desc">Startar automatiskt när Android upptäcker en resa — stoppar när du kliver av</string>
     <string name="settings_triggers_walking">Gång och löpning</string>
     <string name="settings_triggers_walking_desc">Triggas först efter 5 minuter i sträck (ingen feltrigger vid korta turer)</string>
     <string name="settings_triggers_bicycle">Cykling</string>

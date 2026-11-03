@@ -57,8 +57,8 @@
     <string name="settings_triggers_group_location">Basato sui luoghi</string>
     <string name="settings_triggers_geofences_desc">Riconosce casa, lavoro &amp; altri — l\'ingresso avvia, l\'uscita ferma l\'attività</string>
     <string name="settings_triggers_group_movement">Movimento</string>
-    <string name="settings_triggers_driving">Guida</string>
-    <string name="settings_triggers_driving_desc">Parte in automatico quando Android rileva un viaggio in auto — si ferma quando scendi</string>
+    <string name="settings_triggers_driving">Viaggio</string>
+    <string name="settings_triggers_driving_desc">Parte in automatico quando Android rileva un viaggio — si ferma quando scendi</string>
     <string name="settings_triggers_walking">Camminata &amp; corsa</string>
     <string name="settings_triggers_walking_desc">Il trigger solo dopo 5 minuti di fila (nessun falso trigger su tratti brevi)</string>
     <string name="settings_triggers_bicycle">Ciclismo</string>

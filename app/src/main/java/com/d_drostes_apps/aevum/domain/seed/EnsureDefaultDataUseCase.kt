@@ -214,7 +214,23 @@ class EnsureDefaultDataUseCase @Inject constructor(
 
         fun currentName(key: Int): String = current.getString(key)
 
+        /**
+         * M35: Die Fahrt-Activity heißt jetzt sprachübergreifend „Fahrt"
+         * (bzw. Trip/Viaje/Trajet …). Damit bestehende, unveränderte Seeds
+         * beim Update ebenfalls umbenannt werden, zählen die alten
+         * Seed-Namen weiterhin als „unverändert". Ein vom Nutzer frei
+         * gewählter Name (z. B. „Unterwegs") bleibt unangetastet.
+         */
+        private val legacyNames: Map<Int, Set<String>> = mapOf(
+            R.string.seed_activity_driving to setOf(
+                "Autofahren", "Autofahrt", "Driving", "Conducir", "Conduite",
+                "Guida", "Bilkørsel", "Bilkjøring", "Jazda autem", "Condução",
+                "Bilkörning", "Araba sürmek"
+            )
+        )
+
         fun knownNames(key: Int): Set<String> =
             known.mapTo(LinkedHashSet()) { it.getString(key) }
+                .apply { addAll(legacyNames[key].orEmpty()) }
     }
 }

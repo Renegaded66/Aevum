@@ -272,8 +272,11 @@ android {
         //  werden; Check-ins erlauben eine Zeitgutschrift (Tag + Aktivitäts-
         //  statistik, nicht Timeline). Automatische Fahrten bekommen eine
         //  wählbare Aktivität; Aktivitäten sind umbenennbar (auch System-Typen).
-        versionCode = 56
-        versionName = "1.0.55"
+        // M35.1: Die Fahrt-Activity-Auswahl sitzt direkt neben dem
+        //  Fahrt-Schalter; die Fahrt-Activity heißt sprachübergreifend
+        //  „Fahrt“/„Trip“ statt „Autofahren“/„Driving“.
+        versionCode = 57
+        versionName = "1.0.56"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

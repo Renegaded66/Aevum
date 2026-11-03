@@ -62,8 +62,8 @@
     <string name="settings_triggers_group_location">Na podstawie miejsca</string>
     <string name="settings_triggers_geofences_desc">Rozpoznawanie domu, pracy i innych miejsc — wejście uruchamia, wyjście kończy aktywność</string>
     <string name="settings_triggers_group_movement">Ruch</string>
-    <string name="settings_triggers_driving">Jazda autem</string>
-    <string name="settings_triggers_driving_desc">Uruchamia się automatycznie, gdy Android wykryje jazdę — kończy się przy wysiadaniu</string>
+    <string name="settings_triggers_driving">Podróż</string>
+    <string name="settings_triggers_driving_desc">Uruchamia się automatycznie, gdy Android wykryje podróż — kończy się przy wysiadaniu</string>
     <string name="settings_triggers_walking">Spacer i bieg</string>
     <string name="settings_triggers_walking_desc">Wyzwalacz dopiero po 5 minutach nieprzerwanie (bez fałszywych uruchomień przy krótkich trasach)</string>
     <string name="settings_triggers_bicycle">Jazda rowerem</string>

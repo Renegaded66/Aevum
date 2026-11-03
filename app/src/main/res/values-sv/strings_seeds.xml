@@ -26,7 +26,7 @@
     <string name="seed_activity_eating">Måltid</string>
     <string name="seed_activity_social">Socialt</string>
     <string name="seed_activity_household">Hushåll</string>
-    <string name="seed_activity_driving">Bilkörning</string>
+    <string name="seed_activity_driving">Resa</string>
     <string name="seed_activity_transport">Transport</string>
     <string name="seed_activity_digital">Digitalt</string>
     <string name="seed_activity_leisure">Fritid</string>

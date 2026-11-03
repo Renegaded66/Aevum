@@ -57,7 +57,7 @@
     <string name="settings_triggers_group_location">Basado en la ubicación</string>
     <string name="settings_triggers_geofences_desc">Reconocer casa, trabajo, etc. - al entrar se inicia, al salir se detiene la actividad</string>
     <string name="settings_triggers_group_movement">Movimiento</string>
-    <string name="settings_triggers_driving">Conducir</string>
+    <string name="settings_triggers_driving">Viaje</string>
     <string name="settings_triggers_driving_desc">Comienza automáticamente cuando Android detecta un viaje; se detiene cuando sales</string>
     <string name="settings_triggers_walking">Caminar y correr</string>
     <string name="settings_triggers_walking_desc">Dispare solo después de 5 minutos seguidos (sin disparo falso para distancias cortas)</string>
