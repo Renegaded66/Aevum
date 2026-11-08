@@ -104,6 +104,7 @@ class HabitTrackerMigrationTest {
         goal("g_done", "COUNT", "DAILY", 1f, "COUNT", "MANUAL")
         goal("g_count", "COUNT", "DAILY", 5f, "COUNT", "MANUAL")
         goal("g_time", "COUNT", "DAILY", 1f, "COUNT", "MANUAL")
+        goal("g_count_credit", "COUNT", "DAILY", 5f, "COUNT", "MANUAL")
         goal("g_weekly", "COUNT", "WEEKLY", 4f, "COUNT", "MANUAL")
         goal("g_auto", "AT_MOST", "DAILY", 2f, "HOURS", "AUTO")
 
@@ -111,6 +112,11 @@ class HabitTrackerMigrationTest {
         sqlite.execSQL(
             "INSERT INTO goal_checkin (id, goal_id, timestamp_ms, date_key, count, duration_ms) " +
                 "VALUES ('c1', 'g_time', 1700000000000, '2026-07-20', 1, 60000)"
+        )
+        // M35 erlaubte Zeitgutschrift auch auf Zählzielen. Das bleibt COUNT.
+        sqlite.execSQL(
+            "INSERT INTO goal_checkin (id, goal_id, timestamp_ms, date_key, count, duration_ms) " +
+                "VALUES ('c2', 'g_count_credit', 1700000000000, '2026-07-20', 1, 60000)"
         )
 
         fun session(id: String, externalId: String, createdAt: Long) = sqlite.execSQL(
@@ -142,6 +148,7 @@ class HabitTrackerMigrationTest {
 
         assertThat(goals.getValue("g_done").kind).isEqualTo("DONE")
         assertThat(goals.getValue("g_count").kind).isEqualTo("COUNT")
+        assertThat(goals.getValue("g_count_credit").kind).isEqualTo("COUNT")
         assertThat(goals.getValue("g_time").kind).isEqualTo("TIME")
         assertThat(goals.getValue("g_weekly").kind).isEqualTo("LEGACY")
         assertThat(goals.getValue("g_auto").kind).isEqualTo("LEGACY")

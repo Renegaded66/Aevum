@@ -166,17 +166,21 @@ TIME — das war die ausdrückliche Vorgabe.
 ALTER TABLE goal ADD COLUMN kind TEXT NOT NULL DEFAULT 'LEGACY';
 ALTER TABLE goal ADD COLUMN icon TEXT;
 
-UPDATE goal SET kind='TIME'
-WHERE tracking_mode='MANUAL' AND period='DAILY'
-  AND EXISTS (SELECT 1 FROM goal_checkin c
-              WHERE c.goal_id=goal.id AND c.duration_ms>0);
+-- Erst zaehlen, dann Zeit, dann abhaken (M35-Zaehlziel mit Zeitgutschrift
+-- bleibt COUNT, nicht TIME).
+UPDATE goal SET kind='COUNT'
+WHERE kind='LEGACY' AND tracking_mode='MANUAL' AND period='DAILY'
+  AND (target_unit='COUNT' OR type='COUNT') AND target_value>1;
 
-UPDATE goal SET kind = CASE
-  WHEN tracking_mode='MANUAL' AND period='DAILY'
-       AND (target_unit='COUNT' OR type='COUNT') AND target_value>1 THEN 'COUNT'
-  WHEN tracking_mode='MANUAL' AND period='DAILY' THEN 'DONE'
-  ELSE 'LEGACY' END
-WHERE kind='LEGACY';
+UPDATE goal SET kind='TIME'
+WHERE kind='LEGACY' AND tracking_mode='MANUAL' AND period='DAILY'
+  AND type <> 'AT_MOST'
+  AND (target_unit IN ('MINUTES','HOURS') OR type='DURATION'
+       OR EXISTS (SELECT 1 FROM goal_checkin c
+                  WHERE c.goal_id=goal.id AND c.duration_ms>0));
+
+UPDATE goal SET kind='DONE'
+WHERE kind='LEGACY' AND tracking_mode='MANUAL' AND period='DAILY';
 
 -- external_id-Duplikate auf die beste Zeile reduzieren, dann:
 DROP INDEX IF EXISTS index_activity_session_external_id;
@@ -184,8 +188,8 @@ CREATE UNIQUE INDEX index_activity_session_external_id
   ON activity_session (external_id);
 ```
 
-Wichtig: **Wochen-/Monats- und AUTO-Ziele bleiben `LEGACY`**. Nur manuelle
-Tagesziele werden automatisch zu DONE/COUNT/TIME. Das verhindert, dass ein
+Wichtig: **Wochen-/Monats-, AUTO- und manuelle AT_MOST-Ziele bleiben
+`LEGACY`**. Nur manuelle Tagesziele werden automatisch zu DONE/COUNT/TIME. Das verhindert, dass ein
 „Digital unter 2 h" still zu einem manuellen Zeit-Habit wird.
 
 `activity_session` hat jetzt einen UNIQUE-Index auf `external_id`; Sessions
@@ -273,11 +277,11 @@ Deduper nur vollständig enthaltene Intervalle löscht.
 - **Unit-Tests:** `:app:testDebugUnitTest` — **1514 Tests, 0 Fehler,
   1 skipped** (der bestehende, bewusst übersprungene Test).
 - **Finaler Build:** `:app:testDebugUnitTest :app:assembleDebug`,
-  **BUILD SUCCESSFUL in 1m 57s**, Exit 0.
+  **BUILD SUCCESSFUL in 2m 35s**, Exit 0.
 - **Signatur:** `apksigner verify` OK; SHA-1
   `9c3055c4810b5cc2e548d8de8357344352fbe0e8` (kanonischer Debug-Key).
-- **APK:** `app-debug.apk`, **128.081.086 Bytes (122,1 MiB)**,
-  SHA-256 `2121a9952623a01ae8838814d8f81c9bee9547f207a68cc0e6d46ca5710dc72c`.
+- **APK:** `app-debug.apk`, **128.081.230 Bytes (122,1 MiB)**,
+  SHA-256 `c01233afd20de8e0021464f88d61ccb19782745d465e00933c23673519dc5755`.
 - **versionCode/Name:** 58 / `1.0.57-debug`.
 
 ### 7.2 Desktop PC-Tracker
@@ -366,6 +370,10 @@ die Pager-/Tagesleisten-Interaktion.
     angelegtes Habit rückwirkend als „verpasst"/„nicht fällig" und erlaubte
     Check-ins davor. `isHabitScheduledOn`/`isVisibleOn` schneiden jetzt am
     Erstellungsdatum ab.
+11. **Migrations-Reihenfolge:** Die erste Fassung machte jedes manuelle
+    Tagesziel mit Zeitgutschrift zu TIME — auch ein „5× meditieren"-COUNT-Ziel
+    aus M35. Jetzt gilt COUNT vor TIME; AT_MOST bleibt LEGACY, weil das neue
+    TIME kein Maximum kennt. Der Migrationstest deckt den Fall ab.
 
 ---
 
@@ -373,7 +381,7 @@ die Pager-/Tagesleisten-Interaktion.
 
 - **APK:**
   `http://192.168.178.40:8098/Aevum-1.0.57-M36-Debug.apk`
-  (128.081.086 Bytes, SHA-256 `2121a995…10dc72c`).
+  (128.081.230 Bytes, SHA-256 `c01233af…19dc5755`).
 - **PC-Tracker:**
   `http://192.168.178.40:8098/AevumPcTracker-1.7.2-win-x64.zip`
   (57.510.980 Bytes, SHA-256 `4efad93e…dedf2dc1`).
@@ -383,7 +391,7 @@ die Pager-/Tagesleisten-Interaktion.
 
 ## 11. Nach dem Build
 
-Der finale Build ist der oben genannte `aevum-m36-final4`-Lauf. Nach diesem
+Der finale Build ist der oben genannte `aevum-m36-final5`-Lauf. Nach diesem
 Lauf wurden **nur Dokumentation und Vault** aktualisiert, kein Code und keine
 Ressource. Die APK-/ZIP-Größen und Hashes oben stammen aus genau diesem
 finalen Lauf; die Artefakte wurden anschließend nach `/srv/aevum-apk/`

@@ -709,17 +709,21 @@ diese Spalte, Element für Element) und `ScreenRecordingActivityMigrationTest`
 ALTER TABLE goal ADD COLUMN kind TEXT NOT NULL DEFAULT 'LEGACY';
 ALTER TABLE goal ADD COLUMN icon TEXT;
 
--- Bestandsziele: manuelle Tagesziele werden zu DONE/COUNT/TIME.
+-- Bestandsziele: erst zaehlen, dann Zeit, dann abhaken. Ein M35-Zaehlziel
+-- mit optionaler Zeitgutschrift bleibt COUNT.
+UPDATE goal SET kind = 'COUNT'
+WHERE kind = 'LEGACY' AND tracking_mode = 'MANUAL' AND period = 'DAILY'
+  AND (target_unit = 'COUNT' OR type = 'COUNT') AND target_value > 1;
+
 UPDATE goal SET kind = 'TIME'
-WHERE tracking_mode = 'MANUAL' AND period = 'DAILY'
-  AND EXISTS (SELECT 1 FROM goal_checkin c
-              WHERE c.goal_id = goal.id AND c.duration_ms > 0);
-UPDATE goal SET kind = CASE
-  WHEN tracking_mode = 'MANUAL' AND period = 'DAILY'
-       AND (target_unit = 'COUNT' OR type = 'COUNT') AND target_value > 1 THEN 'COUNT'
-  WHEN tracking_mode = 'MANUAL' AND period = 'DAILY' THEN 'DONE'
-  ELSE 'LEGACY' END
-WHERE kind = 'LEGACY';
+WHERE kind = 'LEGACY' AND tracking_mode = 'MANUAL' AND period = 'DAILY'
+  AND type <> 'AT_MOST'
+  AND (target_unit IN ('MINUTES', 'HOURS') OR type = 'DURATION'
+       OR EXISTS (SELECT 1 FROM goal_checkin c
+                  WHERE c.goal_id = goal.id AND c.duration_ms > 0));
+
+UPDATE goal SET kind = 'DONE'
+WHERE kind = 'LEGACY' AND tracking_mode = 'MANUAL' AND period = 'DAILY';
 
 -- external_id: Duplikate auf die beste Zeile reduzieren …
 DELETE FROM activity_session WHERE external_id IS NOT NULL AND EXISTS (…);
@@ -732,8 +736,10 @@ CREATE UNIQUE INDEX index_activity_session_external_id
 **Bedeutung:**
 
 - `goal.kind` ist die einzige Steuerung der drei Habit-Arten (`DONE`, `COUNT`,
-  `TIME`). `LEGACY` markiert Ziele aus M20/M35; sie werden weiterhin mit der
-  alten Auswertung angezeigt, bis der Nutzer sie im Editor umwandelt.
+  `TIME`). `LEGACY` markiert Ziele aus M20/M35 (inklusive manueller
+  AT_MOST-Ziele, deren Maximum das neue TIME nicht kennt); sie werden
+  weiterhin mit der alten Auswertung angezeigt, bis der Nutzer sie im Editor
+  umwandelt.
 - `goal.icon` ist das Emoji des Habits (nullable; Default je Art: 🎯/🔢/⏱️).
 - `activity_session.external_id` ist jetzt **UNIQUE**. Zwei parallele
   PC-Syncs können dieselbe Aufzeichnung nicht mehr als zwei Zeilen anlegen.

@@ -1978,28 +1978,39 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 database.execSQL("ALTER TABLE goal ADD COLUMN icon TEXT")
 
-                // Manuelle Ziele mit bereits gutgeschriebener Zeit sind
-                // Zeit-Habits — unabhängig davon, ob M35 die Einheit COUNT
-                // nannte (dort war die Zeit „optional").
+                // Reihenfolge ist wichtig: Ein M35-Zählziel mit optionaler
+                // Zeitgutschrift (z. B. „5x meditieren", 10 min credit) ist
+                // COUNT, nicht TIME. Erst zählen, dann Zeit, dann abhaken.
+                database.execSQL(
+                    """
+                    UPDATE goal SET kind = 'COUNT'
+                    WHERE kind = 'LEGACY' AND tracking_mode = 'MANUAL' AND period = 'DAILY'
+                      AND (target_unit = 'COUNT' OR type = 'COUNT')
+                      AND target_value > 1
+                    """.trimIndent()
+                )
+                // Zeit-Habits: echte Dauerziele (Minuten/Stunden/DURATION)
+                // oder Ziele mit bereits gutgeschriebener Zeit. AT_MOST
+                // bleibt LEGACY, weil das neue TIME kein Maximum kennt.
                 database.execSQL(
                     """
                     UPDATE goal SET kind = 'TIME'
-                    WHERE tracking_mode = 'MANUAL' AND period = 'DAILY' AND EXISTS (
-                        SELECT 1 FROM goal_checkin c
-                        WHERE c.goal_id = goal.id AND c.duration_ms > 0
-                    )
+                    WHERE kind = 'LEGACY' AND tracking_mode = 'MANUAL' AND period = 'DAILY'
+                      AND type <> 'AT_MOST'
+                      AND (
+                        target_unit IN ('MINUTES', 'HOURS')
+                        OR type = 'DURATION'
+                        OR EXISTS (
+                          SELECT 1 FROM goal_checkin c
+                          WHERE c.goal_id = goal.id AND c.duration_ms > 0
+                        )
+                      )
                     """.trimIndent()
                 )
                 database.execSQL(
                     """
-                    UPDATE goal SET kind = CASE
-                        WHEN tracking_mode = 'MANUAL' AND period = 'DAILY'
-                             AND (target_unit = 'COUNT' OR type = 'COUNT')
-                             AND target_value > 1 THEN 'COUNT'
-                        WHEN tracking_mode = 'MANUAL' AND period = 'DAILY' THEN 'DONE'
-                        ELSE 'LEGACY'
-                    END
-                    WHERE kind = 'LEGACY'
+                    UPDATE goal SET kind = 'DONE'
+                    WHERE kind = 'LEGACY' AND tracking_mode = 'MANUAL' AND period = 'DAILY'
                     """.trimIndent()
                 )
 
