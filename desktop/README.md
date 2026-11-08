@@ -20,8 +20,8 @@ im **Releases-Bereich** des Repositories:
 
 **➜ [github.com/Renegaded66/Aevum/releases](https://github.com/Renegaded66/Aevum/releases)**
 
-Dort das Release **`pc-tracker-1.6.0`** öffnen und
-**`AevumPcTracker-1.6.0-win-x64.zip`** (ca. 57 MB) herunterladen. Darin steckt
+Dort das Release **`pc-tracker-1.7.2`** öffnen und
+**`AevumPcTracker-1.7.2-win-x64.zip`** (ca. 57 MB) herunterladen. Darin steckt
 die komplette App inklusive Laufzeitumgebung — es muss **nichts zusätzlich
 installiert** werden (kein .NET, kein Setup-Programm).
 
@@ -46,6 +46,17 @@ sie nur — beendet wird sie über das Tray-Symbol → **Beenden**.
 **Update:** Wenn eine neue Version erscheint, einfach die neue ZIP aus dem
 Releases-Bereich laden, entpacken und die alte EXE ersetzen. Deine
 Einstellungen und Aufzeichnungen bleiben erhalten.
+
+## Neu in Version 1.7.2
+
+- **Keine doppelten Aufzeichnungen mehr:** Zwei parallele Tracker-Ticks können
+  denselben Zeitraum nicht mehr mit zwei IDs speichern; ein verspäteter
+  Heartbeat kann eine abgeschlossene Session nicht mehr öffnen. Beim Start
+  räumt der PC bereits vorhandene, ineinanderliegende Doppel-Sessions auf
+  (die längere bleibt).
+- **Handy-Seite heilt mit:** Die Aevum-App synchronisiert nur noch einen Lauf
+  gleichzeitig, vergibt pro PC-Aufzeichnung eine deterministische ID und führt
+  eingebettete PC-Duplikate nach jedem Import zusammen.
 
 ## Neu in Version 1.6.0
 

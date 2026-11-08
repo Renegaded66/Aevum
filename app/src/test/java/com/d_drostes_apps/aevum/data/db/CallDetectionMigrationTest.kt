@@ -158,13 +158,13 @@ class CallDetectionMigrationTest {
     }
 
     @Test
-    fun `Datenbank-meldet-aktuelle-Version-52`() {
+    fun `Datenbank-meldet-aktuelle-Version-53`() {
         createVersion48Database()
         migrate()
 
         opened!!.openHelper.writableDatabase.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(52)
+            assertThat(cursor.getInt(0)).isEqualTo(53)
         }
     }
 

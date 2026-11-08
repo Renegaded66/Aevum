@@ -50,6 +50,13 @@ data class Goal(
     /** MINUTES · HOURS · COUNT (M20) */
     @ColumnInfo(name = "target_unit") val targetUnit: String = "MINUTES",
     @ColumnInfo(name = "filter_json") val filterJson: String? = null,
+    // ── M36: Habit-Tracker ──────────────────────────────────────────────
+    // kind: DONE (nur abhaken) · COUNT (Anzahl sammeln) · TIME (Zeit
+    // eintragen; jede eingetragene Zeit erfüllt den Tag) · LEGACY (Ziel aus
+    // der alten M20/M35-Architektur — bleibt unverändert ausgewertet).
+    @ColumnInfo(name = "kind", defaultValue = "LEGACY") val kind: String = KIND_LEGACY,
+    // icon: Emoji des Habits („💧", „📚" …); null = Automatik.
+    @ColumnInfo(name = "icon") val icon: String? = null,
     // ── M20: Ziel-Architektur ─────────────────────────────────────────
     // tracking_mode: "AUTO" (Fortschritt kommt aus Aufzeichnungen:
     // Aktivität/Kategorie/Digital/Aufgaben) oder "MANUAL" (Abhaken bzw.
@@ -71,4 +78,18 @@ data class Goal(
     val status: String = "ACTIVE",
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis()
-) : Serializable
+) : Serializable {
+    companion object {
+        /** M36: nur abhaken — ein Check-in pro fälligem Tag. */
+        const val KIND_DONE = "DONE"
+
+        /** M36: Anzahl sammeln — Zielwert = Anzahl. */
+        const val KIND_COUNT = "COUNT"
+
+        /** M36: Zeit eintragen — jede Zeit > 0 erfüllt den Tag. */
+        const val KIND_TIME = "TIME"
+
+        /** Alt-Ziel aus M20/M35 — wird weiter mit der alten Auswertung angezeigt. */
+        const val KIND_LEGACY = "LEGACY"
+    }
+}

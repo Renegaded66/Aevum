@@ -199,4 +199,47 @@
     <string name="goal_time_skip">Pomiń</string>
     <string name="goal_time_add">+ Czas</string>
     <string name="goal_time_minutes_short">%1$d min</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Małe kroki, każdego dnia</string>
+    <string name="goal_tracker_today">Dzisiaj</string>
+    <string name="goal_tracker_yesterday">Wczoraj</string>
+    <string name="goal_tracker_hero_label">TWÓJ DZIEŃ</string>
+    <string name="goal_tracker_hero_title">%1$d z %2$d zrobione</string>
+    <string name="goal_tracker_free_title">Dzień wolny</string>
+    <string name="goal_tracker_free_text">Dziś nie ma żadnego nawyku. Korzystaj.</string>
+    <string name="goal_tracker_perfect_title">Idealny dzień</string>
+    <string name="goal_tracker_perfect_all_done">Wszystko zrobione — utrzymaj serię.</string>
+    <string name="goal_tracker_perfect_streak">%1$d idealnych dni z rzędu</string>
+    <string name="goal_tracker_streak_short">Seria %1$d dni</string>
+    <string name="goal_tracker_not_due">Dziś niewymagane</string>
+    <string name="goal_tracker_retro">Dopisanie wstecz</string>
+    <string name="goal_tracker_empty_message">Utwórz pierwszy nawyk: odhacz, licz lub zapisz czas.</string>
+    <string name="goal_tracker_legacy">Inne cele</string>
+    <string name="goal_tracker_legacy_hint">Ze starego systemu — otwórz i przekształć w edytorze.</string>
+    <string name="goal_tracker_legacy_notice">Ten cel pochodzi ze starego systemu. Zapis przekształci go w nawyk.</string>
+    <string name="goal_tracker_editor_subtitle">Jeden nawyk, jedna jasna czynność. Bez opcjonalnych dodatków.</string>
+    <string name="goal_tracker_presets">Szybki start</string>
+    <string name="goal_tracker_preset_water">Pić wodę</string>
+    <string name="goal_tracker_preset_reading">Czytać</string>
+    <string name="goal_tracker_preset_meditation">Medytować</string>
+    <string name="goal_tracker_icon">Ikona</string>
+    <string name="goal_tracker_kind_section">Jaki to rodzaj celu?</string>
+    <string name="goal_kind_done">Odhacz</string>
+    <string name="goal_kind_done_title">Tylko odhacz</string>
+    <string name="goal_kind_done_desc">Jedno dotknięcie dziennie — gotowe.</string>
+    <string name="goal_kind_count">Liczba</string>
+    <string name="goal_kind_count_title">Zbieraj liczbę</string>
+    <string name="goal_kind_count_desc">np. 8 szklanek wody — dotknij, aby dodać.</string>
+    <string name="goal_kind_time">Czas</string>
+    <string name="goal_kind_time_title">Zapisz czas</string>
+    <string name="goal_kind_time_desc">Godziny, minuty, sekundy — każdy czas zalicza dzień.</string>
+    <string name="goal_tracker_count_label">Ile razy dziennie?</string>
+    <string name="goal_tracker_count_hint">Każde dotknięcie dodaje jeden. Po osiągnięciu celu dzień jest zaliczony.</string>
+    <string name="goal_tracker_add_count">+1</string>
+    <string name="goal_tracker_schedule_hint">Nawyk obowiązuje tylko w te dni.</string>
+    <string name="goal_tracker_preview">Twój nawyk</string>
+    <string name="goal_time_hours">Godziny</string>
+    <string name="goal_time_minutes">Minuty</string>
+    <string name="goal_time_seconds">Sekundy</string>
 </resources>

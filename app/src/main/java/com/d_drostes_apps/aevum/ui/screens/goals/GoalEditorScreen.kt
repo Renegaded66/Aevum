@@ -1,6 +1,8 @@
 package com.d_drostes_apps.aevum.ui.screens.goals
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,15 +15,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -38,21 +47,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
+import com.d_drostes_apps.aevum.data.model.Goal
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
+import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import com.d_drostes_apps.aevum.ui.theme.AevumSpacing
 
 /**
- * M20: Editor der Ziel-Architektur — Vorlagen, Erfassung (automatisch/
- * manuell), Zeitraum, Zieltyp, Wochentage, Farbe, Live-Vorschau.
+ * M36: Habit-Editor — drei Arten, ein Formular.
+ *
+ * Keine Automatik-Quellen, keine Zeiträume, keine Einheiten, nichts
+ * „Optionales". Nur: Was ist es (abhaken / Anzahl / Zeit), wie heißt es,
+ * wie oft, an welchen Tagen, welche Farbe.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -64,125 +80,41 @@ fun GoalEditorScreen(
 ) {
     val state by viewModel.uiState.collectAsState(initial = GoalEditorUiState())
     val form = state.form
+    // Ressourcen außerhalb der onClick-Lambdas auflösen (Composable-Kontext).
+    val presetWater = stringResource(R.string.goal_tracker_preset_water)
+    val presetReading = stringResource(R.string.goal_tracker_preset_reading)
+    val presetMeditation = stringResource(R.string.goal_tracker_preset_meditation)
 
-    // M18.59-FIX: Beim Bearbeiten das bestehende Ziel laden — vorher
-    // zeigte der Editor immer das leere Neu-Formular.
     LaunchedEffect(goalId) {
         if (goalId != null) viewModel.loadGoal(goalId)
     }
-
     LaunchedEffect(state.saved) {
         if (state.saved) onBack()
-    }
-
-    val isManual = form.trackingMode == GoalProgressAnalytics.MODE_MANUAL
-    val isCount = form.targetUnit == GoalProgressAnalytics.UNIT_COUNT
-    val selectedActivityName = form.activityTypeId?.let { id ->
-        state.activityTypes.firstOrNull { it.id == id }?.let { "${it.icon} ${it.name}" }
-    }
-    val selectedCategoryName = form.categoryId?.let { id ->
-        state.categories.firstOrNull { it.id == id }?.name
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().statusBarsPadding(),
-            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.lg),
+            contentPadding = PaddingValues(horizontal = AevumSpacing.md, vertical = AevumSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AevumSpacing.md)
         ) {
-            // Header
             item {
                 AevumCard(variant = CardVariant.Gradient) {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        TextButton(onClick = onBack) { Text(stringResource(R.string.common_back), fontSize = 14.sp) }
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(AevumSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                    ) {
+                        TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) {
+                            Text("‹ " + stringResource(R.string.common_back), fontSize = 13.sp)
+                        }
                         Text(
-                            if (goalId == null) stringResource(R.string.goal_create) else stringResource(R.string.goal_edit),
-                            fontSize = 28.sp,
+                            if (goalId == null) stringResource(R.string.goal_create)
+                            else stringResource(R.string.goal_edit),
+                            fontSize = 26.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-                    }
-                }
-            }
-
-            // Schnellstart-Vorlagen
-            item {
-                AevumCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_presets), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            stringResource(R.string.goal_presets_hint),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            val presetDigitalDailyTitle = stringResource(R.string.goal_preset_digital_daily)
-                            val presetDigitalWeeklyTitle = stringResource(R.string.goal_preset_digital_weekly)
-                            val presetLearningTitle = stringResource(R.string.goal_preset_learning)
-                            val presetTasksTitle = stringResource(R.string.goal_preset_tasks)
-                            val presetHabitTitle = stringResource(R.string.goal_preset_habit)
-                            PresetChip(GoalPreset.DIGITAL_DAILY, R.string.goal_preset_digital_daily) {
-                                if (form.title.isBlank()) viewModel.setTitle(presetDigitalDailyTitle)
-                                viewModel.applyPreset(GoalPreset.DIGITAL_DAILY)
-                            }
-                            PresetChip(GoalPreset.DIGITAL_WEEKLY, R.string.goal_preset_digital_weekly) {
-                                if (form.title.isBlank()) viewModel.setTitle(presetDigitalWeeklyTitle)
-                                viewModel.applyPreset(GoalPreset.DIGITAL_WEEKLY)
-                            }
-                            PresetChip(GoalPreset.LEARNING_WEEKDAYS, R.string.goal_preset_learning) {
-                                if (form.title.isBlank()) viewModel.setTitle(presetLearningTitle)
-                                viewModel.applyPreset(GoalPreset.LEARNING_WEEKDAYS)
-                            }
-                            PresetChip(GoalPreset.TASK_COUNT_WEEKDAYS, R.string.goal_preset_tasks) {
-                                if (form.title.isBlank()) viewModel.setTitle(presetTasksTitle)
-                                viewModel.applyPreset(GoalPreset.TASK_COUNT_WEEKDAYS)
-                            }
-                            PresetChip(GoalPreset.DAILY_HABIT, R.string.goal_preset_habit) {
-                                if (form.title.isBlank()) viewModel.setTitle(presetHabitTitle)
-                                viewModel.applyPreset(GoalPreset.DAILY_HABIT)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Titel
-            item {
-                AevumCard {
-                    OutlinedTextField(
-                        value = form.title,
-                        onValueChange = viewModel::setTitle,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.goal_title_label)) },
-                        placeholder = { Text(stringResource(R.string.goal_title_placeholder)) },
-                        singleLine = true
-                    )
-                }
-            }
-
-            // Erfassung: automatisch oder manuell
-            item {
-                AevumCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_tracking), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            FilterChip(
-                                selected = !isManual,
-                                onClick = { viewModel.setTrackingMode(GoalProgressAnalytics.MODE_AUTO) },
-                                label = { Text(stringResource(R.string.goal_tracking_auto)) },
-                                modifier = Modifier.weight(1f)
-                            )
-                            FilterChip(
-                                selected = isManual,
-                                onClick = { viewModel.setTrackingMode(GoalProgressAnalytics.MODE_MANUAL) },
-                                label = { Text(stringResource(R.string.goal_tracking_manual)) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Text(
-                            stringResource(
-                                if (isManual) R.string.goal_tracking_manual_desc
-                                else R.string.goal_tracking_auto_desc
-                            ),
+                            stringResource(R.string.goal_tracker_editor_subtitle),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -190,145 +122,17 @@ fun GoalEditorScreen(
                 }
             }
 
-            // Quelle (nur automatisch)
-            if (!isManual) {
+            if (form.legacy) {
                 item {
-                    AevumCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            Text(stringResource(R.string.goal_source), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                                SourceChip(GoalProgressAnalytics.SOURCE_ACTIVITY, R.string.goal_source_activity, form, viewModel)
-                                SourceChip(GoalProgressAnalytics.SOURCE_CATEGORY, R.string.goal_source_category, form, viewModel)
-                                SourceChip(GoalProgressAnalytics.SOURCE_DIGITAL, R.string.goal_source_digital, form, viewModel)
-                                SourceChip(GoalProgressAnalytics.SOURCE_TODOS, R.string.goal_source_todos, form, viewModel)
-                            }
-
-                            when (form.sourceKind) {
-                                GoalProgressAnalytics.SOURCE_ACTIVITY -> {
-                                    Box {
-                                        OutlinedButton(
-                                            onClick = { viewModel.setShowActivityTypeMenu(true) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                Text(selectedActivityName ?: stringResource(R.string.goal_activity_type_select))
-                                                Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                        }
-                                        DropdownMenu(
-                                            expanded = form.showActivityTypeMenu,
-                                            onDismissRequest = { viewModel.setShowActivityTypeMenu(false) }
-                                        ) {
-                                            state.activityTypes.forEach { type ->
-                                                DropdownMenuItem(
-                                                    onClick = {
-                                                        viewModel.setActivityType(type.id)
-                                                        viewModel.setShowActivityTypeMenu(false)
-                                                    },
-                                                    text = { Text("${type.icon} ${type.name}") }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                GoalProgressAnalytics.SOURCE_CATEGORY -> {
-                                    Box {
-                                        OutlinedButton(
-                                            onClick = { viewModel.setShowCategoryMenu(true) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                Text(selectedCategoryName ?: stringResource(R.string.goal_category_select))
-                                                Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                        }
-                                        DropdownMenu(
-                                            expanded = form.showCategoryMenu,
-                                            onDismissRequest = { viewModel.setShowCategoryMenu(false) }
-                                        ) {
-                                            state.categories.forEach { category ->
-                                                DropdownMenuItem(
-                                                    onClick = {
-                                                        viewModel.setCategory(category.id)
-                                                        viewModel.setShowCategoryMenu(false)
-                                                    },
-                                                    text = { Text(category.name) }
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Text(
-                                        stringResource(R.string.goal_source_category_hint),
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                GoalProgressAnalytics.SOURCE_DIGITAL -> {
-                                    Text(
-                                        stringResource(R.string.goal_source_digital_hint),
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                GoalProgressAnalytics.SOURCE_TODOS -> {
-                                    Text(
-                                        stringResource(R.string.goal_source_todos_hint),
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // M35: Optionale Ziel-Aktivität bei manueller Erfassung.
-            // Das Ziel bleibt ein Check-in-Ziel; die Aktivität dient als
-            // Bezug für die optionale Zeitgutschrift beim Abhaken.
-            if (isManual) {
-                item {
-                    AevumCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                    AevumCard(variant = CardVariant.Filled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(AevumSpacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📦", fontSize = 22.sp)
+                            Spacer(Modifier.width(AevumSpacing.sm))
                             Text(
-                                stringResource(R.string.goal_manual_activity),
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Box {
-                                OutlinedButton(
-                                    onClick = { viewModel.setShowActivityTypeMenu(true) },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(selectedActivityName ?: stringResource(R.string.goal_manual_activity_none))
-                                        Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                                DropdownMenu(
-                                    expanded = form.showActivityTypeMenu,
-                                    onDismissRequest = { viewModel.setShowActivityTypeMenu(false) }
-                                ) {
-                                    DropdownMenuItem(
-                                        onClick = {
-                                            viewModel.setActivityType(null)
-                                            viewModel.setShowActivityTypeMenu(false)
-                                        },
-                                        text = { Text(stringResource(R.string.goal_manual_activity_none)) }
-                                    )
-                                    state.activityTypes.forEach { type ->
-                                        DropdownMenuItem(
-                                            onClick = {
-                                                viewModel.setActivityType(type.id)
-                                                viewModel.setShowActivityTypeMenu(false)
-                                            },
-                                            text = { Text("${type.icon} ${type.name}") }
-                                        )
-                                    }
-                                }
-                            }
-                            Text(
-                                stringResource(R.string.goal_manual_activity_hint),
+                                stringResource(R.string.goal_tracker_legacy_notice),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -337,117 +141,82 @@ fun GoalEditorScreen(
                 }
             }
 
-            // Zeitraum
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_period), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            listOf(
-                                "DAILY" to stringResource(R.string.common_daily),
-                                "WEEKLY" to stringResource(R.string.goal_weekly),
-                                "MONTHLY" to stringResource(R.string.goal_monthly)
-                            ).forEach { (value, label) ->
-                                FilterChip(
-                                    selected = form.period == value,
-                                    onClick = { viewModel.setPeriod(value) },
-                                    label = { Text(label) },
-                                    modifier = Modifier.weight(1f)
-                                )
+                        Text(
+                            stringResource(R.string.goal_tracker_presets),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                            PresetChip("💧 " + presetWater) {
+                                viewModel.applyPreset(HabitPreset.WATER, presetWater)
+                            }
+                            PresetChip("📚 " + presetReading) {
+                                viewModel.applyPreset(HabitPreset.READING, presetReading)
+                            }
+                            PresetChip("🧘 " + presetMeditation) {
+                                viewModel.applyPreset(HabitPreset.MEDITATION, presetMeditation)
                             }
                         }
                     }
                 }
             }
 
-            // Zieltyp
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_type), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                            listOf(
-                                GoalProgressAnalytics.TYPE_AT_LEAST to stringResource(R.string.goal_at_least),
-                                GoalProgressAnalytics.TYPE_AT_MOST to stringResource(R.string.goal_at_most),
-                                GoalProgressAnalytics.TYPE_COUNT to stringResource(R.string.goal_goaltype_count)
-                            ).forEach { (value, label) ->
-                                FilterChip(
-                                    selected = form.goalType == value,
-                                    onClick = { viewModel.setGoalType(value) },
-                                    label = { Text(label) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
                         Text(
-                            stringResource(R.string.goal_type_hint),
+                            stringResource(R.string.goal_title_label),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(form.icon, fontSize = 24.sp)
+                            }
+                            Spacer(Modifier.width(AevumSpacing.sm))
+                            OutlinedTextField(
+                                value = form.title,
+                                onValueChange = viewModel::setTitle,
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text(stringResource(R.string.goal_title_placeholder)) },
+                                singleLine = true
+                            )
+                        }
+
+                        Text(
+                            stringResource(R.string.goal_tracker_icon),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                }
-            }
-
-            // Zielwert
-            item {
-                AevumCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(
-                            stringResource(if (isCount) R.string.goal_value_count_label else R.string.goal_value_unit),
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        if (isCount) {
-                            OutlinedTextField(
-                                value = form.targetValue,
-                                onValueChange = viewModel::setTargetValue,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text(stringResource(R.string.goal_value_count_label)) },
-                                placeholder = { Text(stringResource(R.string.goal_value_count_placeholder)) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                            )
-                        } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                                OutlinedTextField(
-                                    value = form.targetValue,
-                                    onValueChange = viewModel::setTargetValue,
-                                    modifier = Modifier.weight(1f),
-                                    label = { Text(stringResource(R.string.goal_value)) },
-                                    placeholder = { Text(stringResource(R.string.goal_value_placeholder)) },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                                )
-                                Box(modifier = Modifier.weight(1f)) {
-                                    OutlinedButton(
-                                        onClick = { viewModel.setShowUnitMenu(true) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text(
-                                                if (form.targetUnit == "HOURS") stringResource(R.string.common_hours)
-                                                else stringResource(R.string.common_minutes)
-                                            )
-                                            Text(" ▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = form.showUnitMenu,
-                                        onDismissRequest = { viewModel.setShowUnitMenu(false) }
-                                    ) {
-                                        listOf(
-                                            "HOURS" to stringResource(R.string.common_hours),
-                                            "MINUTES" to stringResource(R.string.common_minutes)
-                                        ).forEach { (value, label) ->
-                                            DropdownMenuItem(
-                                                onClick = {
-                                                    viewModel.setTargetUnit(value)
-                                                    viewModel.setShowUnitMenu(false)
-                                                },
-                                                text = { Text(label) }
-                                            )
-                                        }
-                                    }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            HABIT_ICONS.forEach { icon ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (form.icon == icon) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (form.icon == icon) MaterialTheme.colorScheme.primary
+                                            else Color.Transparent,
+                                            CircleShape
+                                        )
+                                        .clickable { viewModel.setIcon(icon) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(icon, fontSize = 19.sp)
                                 }
                             }
                         }
@@ -455,11 +224,89 @@ fun GoalEditorScreen(
                 }
             }
 
-            // Wochentage
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_schedule), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            stringResource(R.string.goal_tracker_kind_section),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        KindOption(
+                            kind = Goal.KIND_DONE,
+                            selected = form.kind == Goal.KIND_DONE,
+                            icon = "✅",
+                            title = stringResource(R.string.goal_kind_done_title),
+                            description = stringResource(R.string.goal_kind_done_desc),
+                            onClick = { viewModel.setKind(Goal.KIND_DONE) }
+                        )
+                        KindOption(
+                            kind = Goal.KIND_COUNT,
+                            selected = form.kind == Goal.KIND_COUNT,
+                            icon = "🔢",
+                            title = stringResource(R.string.goal_kind_count_title),
+                            description = stringResource(R.string.goal_kind_count_desc),
+                            onClick = { viewModel.setKind(Goal.KIND_COUNT) }
+                        )
+                        KindOption(
+                            kind = Goal.KIND_TIME,
+                            selected = form.kind == Goal.KIND_TIME,
+                            icon = "⏱️",
+                            title = stringResource(R.string.goal_kind_time_title),
+                            description = stringResource(R.string.goal_kind_time_desc),
+                            onClick = { viewModel.setKind(Goal.KIND_TIME) }
+                        )
+                    }
+                }
+            }
+
+            if (form.kind == Goal.KIND_COUNT) {
+                item {
+                    AevumCard {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(AevumSpacing.xs)
+                        ) {
+                            Text(
+                                stringResource(R.string.goal_tracker_count_label),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(AevumSpacing.lg)
+                            ) {
+                                StepButton(Icons.Filled.Remove) { viewModel.stepTargetCount(-1) }
+                                Text(
+                                    form.targetCount.ifBlank { "1" },
+                                    fontSize = 42.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.width(70.dp)
+                                )
+                                StepButton(Icons.Filled.Add) { viewModel.stepTargetCount(1) }
+                            }
+                            Text(
+                                stringResource(R.string.goal_tracker_count_hint),
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                AevumCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
+                        Text(
+                            stringResource(R.string.goal_schedule),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
                             FilterChip(
                                 selected = form.scheduleDays and GoalProgressAnalytics.ALL_DAYS == GoalProgressAnalytics.ALL_DAYS,
@@ -485,86 +332,54 @@ fun GoalEditorScreen(
                             onToggle = viewModel::toggleWeekday
                         )
                         Text(
-                            stringResource(R.string.goal_schedule_hint),
-                            fontSize = 12.sp,
+                            stringResource(R.string.goal_tracker_schedule_hint),
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // Farbe
             item {
                 AevumCard {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_color), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            stringResource(R.string.goal_color),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                         GoalAccentPicker(selected = form.accent, onSelect = viewModel::setAccent)
                     }
                 }
             }
 
-            // Vorschau
             item {
                 AevumCard(variant = CardVariant.Filled) {
                     Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                        Text(stringResource(R.string.goal_preview), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            GoalAccents.color(form.accent)?.let { c ->
-                                Box(
-                                    modifier = Modifier
-                                        .height(14.dp)
-                                        .width(14.dp)
-                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(c)
-                                )
-                            }
-                            GoalPill(
-                                text = stringResource(
-                                    when {
-                                        isManual -> R.string.goal_tracking_manual
-                                        form.sourceKind == GoalProgressAnalytics.SOURCE_DIGITAL -> R.string.goal_source_digital
-                                        form.sourceKind == GoalProgressAnalytics.SOURCE_TODOS -> R.string.goal_source_todos
-                                        form.sourceKind == GoalProgressAnalytics.SOURCE_CATEGORY -> R.string.goal_source_category
-                                        else -> R.string.goal_source_activity
-                                    }
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            GoalPill(
-                                text = stringResource(
-                                    when (form.period) {
-                                        "WEEKLY" -> R.string.goal_weekly
-                                        "MONTHLY" -> R.string.goal_monthly
-                                        else -> R.string.common_daily
-                                    }
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                         Text(
-                            form.title.ifBlank { stringResource(R.string.goal_title_placeholder) },
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = formatPreviewValue(form) + " · " + scheduleText(form.scheduleDays),
-                            fontSize = 12.sp,
+                            stringResource(R.string.goal_tracker_preview),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        HabitPreview(form)
                     }
                 }
             }
 
-            // Fehler
             form.errorRes?.let { errorRes ->
                 item {
                     AevumCard(variant = CardVariant.Filled) {
-                        Text(stringResource(errorRes), color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        Text(
+                            stringResource(errorRes),
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(AevumSpacing.sm)
+                        )
                     }
                 }
             }
 
-            // Speichern
             item {
                 Button(
                     onClick = viewModel::saveGoal,
@@ -574,34 +389,37 @@ fun GoalEditorScreen(
                 }
             }
 
-            // M11.2: Löschen — nur im Edit-Modus
             if (goalId != null) {
                 item {
-                    var showDeleteDialog by remember { mutableStateOf(false) }
+                    var showDelete by remember { mutableStateOf(false) }
                     OutlinedButton(
-                        onClick = { showDeleteDialog = true },
+                        onClick = { showDelete = true },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.error
                         )
-                    ) {
-                        Text(stringResource(R.string.goal_delete), fontSize = 14.sp)
-                    }
-                    if (showDeleteDialog) {
+                    ) { Text(stringResource(R.string.goal_delete), fontSize = 14.sp) }
+
+                    if (showDelete) {
                         AlertDialog(
-                            onDismissRequest = { showDeleteDialog = false },
+                            onDismissRequest = { showDelete = false },
                             title = { Text(stringResource(R.string.goal_delete_title)) },
                             text = { Text(stringResource(R.string.goal_delete_message), fontSize = 14.sp) },
                             confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        showDeleteDialog = false
-                                        viewModel.deleteGoal(goalId)
-                                    }
-                                ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+                                TextButton(onClick = {
+                                    showDelete = false
+                                    viewModel.deleteGoal(goalId)
+                                }) {
+                                    Text(
+                                        stringResource(R.string.common_delete),
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.common_cancel)) }
+                                TextButton(onClick = { showDelete = false }) {
+                                    Text(stringResource(R.string.common_cancel))
+                                }
                             }
                         )
                     }
@@ -614,33 +432,127 @@ fun GoalEditorScreen(
 }
 
 @Composable
-private fun PresetChip(preset: GoalPreset, labelRes: Int, onClick: () -> Unit) {
-    FilterChip(
-        selected = false,
-        onClick = onClick,
-        label = { Text(stringResource(labelRes)) }
-    )
+private fun PresetChip(label: String, onClick: () -> Unit) {
+    FilterChip(selected = false, onClick = onClick, label = { Text(label, fontSize = 12.sp) })
 }
 
 @Composable
-private fun SourceChip(
+private fun KindOption(
     kind: String,
-    labelRes: Int,
-    form: GoalFormState,
-    viewModel: GoalEditorViewModel
+    selected: Boolean,
+    icon: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit
 ) {
-    FilterChip(
-        selected = form.sourceKind == kind,
-        onClick = { viewModel.setSourceKind(kind) },
-        label = { Text(stringResource(labelRes)) }
-    )
-}
-
-private fun formatPreviewValue(form: GoalFormState): String {
-    val value = form.targetValue.ifBlank { "?" }
-    return when {
-        form.targetUnit == GoalProgressAnalytics.UNIT_COUNT -> "${value}×"
-        form.targetUnit == "HOURS" -> "${value} h"
-        else -> "${value} min"
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(AevumRadius.lg),
+        color = if (selected) colors.primary.copy(alpha = 0.10f) else colors.surfaceVariant.copy(alpha = 0.25f),
+        border = androidx.compose.foundation.BorderStroke(
+            if (selected) 1.5.dp else 1.dp,
+            if (selected) colors.primary else colors.outlineVariant.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(AevumSpacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 24.sp)
+            Spacer(Modifier.width(AevumSpacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    description,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (selected) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+            }
+        }
     }
 }
+
+@Composable
+private fun StepButton(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+        modifier = Modifier.size(48.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun HabitPreview(form: GoalFormState) {
+    val kind = form.kind
+    val accent = GoalAccents.color(form.accent) ?: MaterialTheme.colorScheme.primary
+    val value = when (kind) {
+        Goal.KIND_COUNT -> "0 / ${form.targetCount.ifBlank { "3" }}"
+        Goal.KIND_TIME -> "0:00"
+        else -> "–"
+    }
+    Surface(
+        shape = RoundedCornerShape(AevumRadius.lg),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(AevumSpacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(accent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) { Text(form.icon, fontSize = 22.sp) }
+            Spacer(Modifier.width(AevumSpacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    form.title.ifBlank { stringResource(R.string.goal_title_placeholder) },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = when (kind) {
+                        Goal.KIND_COUNT -> stringResource(R.string.goal_kind_count) + " · " + value
+                        Goal.KIND_TIME -> stringResource(R.string.goal_kind_time) + " · " + value
+                        else -> stringResource(R.string.goal_kind_done) + " · " + value
+                    },
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (kind == Goal.KIND_COUNT) Icons.Filled.Add else Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+private val HABIT_ICONS = listOf(
+    "🎯", "💧", "📚", "🏃", "🧘", "💪", "🥗", "😴", "🧹", "💊", "✍️", "🎸",
+    "🙏", "🌿", "☀️", "🧠", "💰", "🚭", "📵", "🐶"
+)

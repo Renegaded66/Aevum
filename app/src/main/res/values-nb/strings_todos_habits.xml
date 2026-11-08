@@ -188,4 +188,47 @@
     <string name="goal_time_skip">Hopp over</string>
     <string name="goal_time_add">+ Tid</string>
     <string name="goal_time_minutes_short">%1$d min</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Små skritt, hver dag</string>
+    <string name="goal_tracker_today">I dag</string>
+    <string name="goal_tracker_yesterday">I går</string>
+    <string name="goal_tracker_hero_label">DIN DAG</string>
+    <string name="goal_tracker_hero_title">%1$d av %2$d fullført</string>
+    <string name="goal_tracker_free_title">Fridag</string>
+    <string name="goal_tracker_free_text">Ingen vane i dag. Nyt det.</string>
+    <string name="goal_tracker_perfect_title">Perfekt dag</string>
+    <string name="goal_tracker_perfect_all_done">Alt fullført — hold serien i gang.</string>
+    <string name="goal_tracker_perfect_streak">%1$d perfekte dager på rad</string>
+    <string name="goal_tracker_streak_short">%1$d dagers streak</string>
+    <string name="goal_tracker_not_due">Ikke i dag</string>
+    <string name="goal_tracker_retro">Etterregistrering</string>
+    <string name="goal_tracker_empty_message">Opprett din første vane: huk av, tell eller registrer tid.</string>
+    <string name="goal_tracker_legacy">Andre mål</string>
+    <string name="goal_tracker_legacy_hint">Fra det gamle systemet — åpne og konverter i editoren.</string>
+    <string name="goal_tracker_legacy_notice">Dette målet kommer fra det gamle systemet. Lagring gjør det til en vane.</string>
+    <string name="goal_tracker_editor_subtitle">Én vane, én klar handling. Ingen valgfrie ekstra.</string>
+    <string name="goal_tracker_presets">Hurtigstart</string>
+    <string name="goal_tracker_preset_water">Drikk vann</string>
+    <string name="goal_tracker_preset_reading">Les</string>
+    <string name="goal_tracker_preset_meditation">Mediter</string>
+    <string name="goal_tracker_icon">Ikon</string>
+    <string name="goal_tracker_kind_section">Hva slags mål?</string>
+    <string name="goal_kind_done">Huk av</string>
+    <string name="goal_kind_done_title">Bare huk av</string>
+    <string name="goal_kind_done_desc">Ett trykk om dagen — ferdig.</string>
+    <string name="goal_kind_count">Antall</string>
+    <string name="goal_kind_count_title">Samle antall</string>
+    <string name="goal_kind_count_desc">f.eks. 8 glass vann — trykk for å legge til.</string>
+    <string name="goal_kind_time">Tid</string>
+    <string name="goal_kind_time_title">Registrer tid</string>
+    <string name="goal_kind_time_desc">Timer, minutter, sekunder — all tid gjør dagen fullført.</string>
+    <string name="goal_tracker_count_label">Hvor mange ganger om dagen?</string>
+    <string name="goal_tracker_count_hint">Hvert trykk teller én. Når målet er nådd, er dagen fullført.</string>
+    <string name="goal_tracker_add_count">+1</string>
+    <string name="goal_tracker_schedule_hint">Vanen gjelder bare disse dagene.</string>
+    <string name="goal_tracker_preview">Vanen din</string>
+    <string name="goal_time_hours">Timer</string>
+    <string name="goal_time_minutes">Minutter</string>
+    <string name="goal_time_seconds">Sekunder</string>
 </resources>

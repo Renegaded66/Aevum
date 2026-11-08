@@ -699,3 +699,51 @@ Datenverlust. Zwei Tests sichern das ab: `SchemaV51Test` (51 = 50 plus genau
 diese Spalte, Element für Element) und `ScreenRecordingActivityMigrationTest`
 (echte SQLite aus `50.json` → Room, Bestandszeile unverändert, neue Spalte
 `'digital'`, Rückschreiben über das Entity).
+
+
+## M36 — Habit-Tracker & eindeutige Import-Identität (Version 53)
+
+**Migration 52 → 53** (`MIGRATION_52_53`):
+
+```sql
+ALTER TABLE goal ADD COLUMN kind TEXT NOT NULL DEFAULT 'LEGACY';
+ALTER TABLE goal ADD COLUMN icon TEXT;
+
+-- Bestandsziele: manuelle Tagesziele werden zu DONE/COUNT/TIME.
+UPDATE goal SET kind = 'TIME'
+WHERE tracking_mode = 'MANUAL' AND period = 'DAILY'
+  AND EXISTS (SELECT 1 FROM goal_checkin c
+              WHERE c.goal_id = goal.id AND c.duration_ms > 0);
+UPDATE goal SET kind = CASE
+  WHEN tracking_mode = 'MANUAL' AND period = 'DAILY'
+       AND (target_unit = 'COUNT' OR type = 'COUNT') AND target_value > 1 THEN 'COUNT'
+  WHEN tracking_mode = 'MANUAL' AND period = 'DAILY' THEN 'DONE'
+  ELSE 'LEGACY' END
+WHERE kind = 'LEGACY';
+
+-- external_id: Duplikate auf die beste Zeile reduzieren …
+DELETE FROM activity_session WHERE external_id IS NOT NULL AND EXISTS (…);
+-- … dann UNIQUE setzen.
+DROP INDEX IF EXISTS index_activity_session_external_id;
+CREATE UNIQUE INDEX index_activity_session_external_id
+  ON activity_session (external_id);
+```
+
+**Bedeutung:**
+
+- `goal.kind` ist die einzige Steuerung der drei Habit-Arten (`DONE`, `COUNT`,
+  `TIME`). `LEGACY` markiert Ziele aus M20/M35; sie werden weiterhin mit der
+  alten Auswertung angezeigt, bis der Nutzer sie im Editor umwandelt.
+- `goal.icon` ist das Emoji des Habits (nullable; Default je Art: 🎯/🔢/⏱️).
+- `activity_session.external_id` ist jetzt **UNIQUE**. Zwei parallele
+  PC-Syncs können dieselbe Aufzeichnung nicht mehr als zwei Zeilen anlegen.
+  SQLite erlaubt mehrere `NULL`-Werte; Sessions ohne externe Identität sind
+  unberührt. Vor dem Index räumt die Migration Bestands-Duplikate auf
+  (nicht gelöscht vor gelöscht, dann neueste `created_at`, dann höchste ID).
+
+**Tests:** `SchemaV53Test` (53 = 52 plus `kind`/`icon`, UNIQUE-Index),
+`HabitTrackerMigrationTest` (echte SQLite aus `52.json` → Room: Arten-Backfill,
+Duplikat-Aufräumen, Index blockiert neue Duplikate), `GoalHabitTrackerTest`
+(DONE/COUNT/TIME-Auswertung, Streaks, 91-Tage-Verlauf),
+`PcSessionDeduperTest` (eingebettete PC-Aufzeichnungen).
+

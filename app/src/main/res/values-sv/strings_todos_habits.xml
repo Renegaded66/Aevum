@@ -199,4 +199,47 @@
     <string name="goal_time_skip">Hoppa över</string>
     <string name="goal_time_add">+ Tid</string>
     <string name="goal_time_minutes_short">%1$d min</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Små steg, varje dag</string>
+    <string name="goal_tracker_today">I dag</string>
+    <string name="goal_tracker_yesterday">I går</string>
+    <string name="goal_tracker_hero_label">DIN DAG</string>
+    <string name="goal_tracker_hero_title">%1$d av %2$d klara</string>
+    <string name="goal_tracker_free_title">Ledig dag</string>
+    <string name="goal_tracker_free_text">Ingen vana idag. Njut.</string>
+    <string name="goal_tracker_perfect_title">Perfekt dag</string>
+    <string name="goal_tracker_perfect_all_done">Allt klart — håll serien vid liv.</string>
+    <string name="goal_tracker_perfect_streak">%1$d perfekta dagar i rad</string>
+    <string name="goal_tracker_streak_short">%1$d dagars streak</string>
+    <string name="goal_tracker_not_due">Inte idag</string>
+    <string name="goal_tracker_retro">Efterregistrering</string>
+    <string name="goal_tracker_empty_message">Skapa din första vana: bocka av, räkna eller registrera tid.</string>
+    <string name="goal_tracker_legacy">Andra mål</string>
+    <string name="goal_tracker_legacy_hint">Från det gamla systemet — öppna och konvertera i editorn.</string>
+    <string name="goal_tracker_legacy_notice">Det här målet kommer från det gamla systemet. Sparning gör det till en vana.</string>
+    <string name="goal_tracker_editor_subtitle">En vana, en tydlig handling. Inga valfria extra.</string>
+    <string name="goal_tracker_presets">Snabbstart</string>
+    <string name="goal_tracker_preset_water">Drick vatten</string>
+    <string name="goal_tracker_preset_reading">Läs</string>
+    <string name="goal_tracker_preset_meditation">Meditera</string>
+    <string name="goal_tracker_icon">Ikon</string>
+    <string name="goal_tracker_kind_section">Vilken typ av mål?</string>
+    <string name="goal_kind_done">Bocka av</string>
+    <string name="goal_kind_done_title">Bara bocka av</string>
+    <string name="goal_kind_done_desc">En tryckning per dag — klart.</string>
+    <string name="goal_kind_count">Antal</string>
+    <string name="goal_kind_count_title">Samla antal</string>
+    <string name="goal_kind_count_desc">t.ex. 8 glas vatten — tryck för att lägga till.</string>
+    <string name="goal_kind_time">Tid</string>
+    <string name="goal_kind_time_title">Registrera tid</string>
+    <string name="goal_kind_time_desc">Timmar, minuter, sekunder — all tid gör dagen klar.</string>
+    <string name="goal_tracker_count_label">Hur många gånger per dag?</string>
+    <string name="goal_tracker_count_hint">Varje tryck räknar ett. När målet är nått är dagen klar.</string>
+    <string name="goal_tracker_add_count">+1</string>
+    <string name="goal_tracker_schedule_hint">Vanan gäller bara dessa dagar.</string>
+    <string name="goal_tracker_preview">Din vana</string>
+    <string name="goal_time_hours">Timmar</string>
+    <string name="goal_time_minutes">Minuter</string>
+    <string name="goal_time_seconds">Sekunder</string>
 </resources>

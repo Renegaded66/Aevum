@@ -4,11 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.d_drostes_apps.aevum.R
-import com.d_drostes_apps.aevum.data.model.ActivityType
-import com.d_drostes_apps.aevum.data.model.Category
 import com.d_drostes_apps.aevum.data.model.Goal
-import com.d_drostes_apps.aevum.data.repository.ActivityTypeRepository
-import com.d_drostes_apps.aevum.data.repository.CategoryRepository
 import com.d_drostes_apps.aevum.data.repository.GoalRepository
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,34 +19,26 @@ import java.util.UUID
 import javax.inject.Inject
 
 /**
- * M20: Editor der Ziel-Architektur.
+ * M36: Editor für den Habit-Tracker — drei Arten, sonst nichts.
  *
- * Aufbau des Formulars:
- *  - Schnellstart-Vorlagen ([GoalPreset]) für die typischen Fälle
- *    („Digital unter 2h/Tag", „Lernen 2h Mo–Fr", „4× Aufgaben Mo–Fr" …),
- *  - Erfassung: AUTOMATISCH (Quelle: Aktivität · Kategorie · Bildschirmzeit
- *    · erledigte Aufgaben) oder MANUELL (Abhaken/Zählen),
- *  - Zeitraum: täglich · wöchentlich · monatlich,
- *  - Zieltyp: mindestens · höchstens · Anzahl,
- *  - Wochentage (an welchen Tagen ist das Ziel fällig),
- *  - Farbe (Akzent aus der Aevum-Palette) + Live-Vorschau.
+ * Bewusst entfernt: Automatisch/Manuell, Quellen (Aktivität, Kategorie,
+ * Bildschirmzeit, Aufgaben), Zeitraum (täglich/wöchentlich/monatlich),
+ * Zieltyp (mindestens/maximal), Einheiten-Dropdown und die „optionale"
+ * Ziel-Aktivität samt Zeitgutschrift. Devon: „Es gibt Ziele, wo man nur
+ * angibt erledigt, … wo man eine Anzahl festlegen kann, … wo man eine Zeit
+ * eintragen kann. Fertig."
+ *
+ * Alt-Ziele lassen sich weiterhin öffnen; sie werden beim Speichern in die
+ * gewählte Habit-Art überführt (mit ehrlichem Hinweis im Formular).
  */
 @HiltViewModel
 class GoalEditorViewModel @Inject constructor(
-    private val goalRepository: GoalRepository,
-    private val activityTypeRepository: ActivityTypeRepository,
-    private val categoryRepository: CategoryRepository
+    private val goalRepository: GoalRepository
 ) : ViewModel() {
 
     private val _form = MutableStateFlow(GoalFormState())
     val form: StateFlow<GoalFormState> = _form
 
-    // M18.59-FIX (User: „Beim Bearbeiten eines Ziels kommt man in die
-    // Ansicht, ein NEUES zu erstellen, wo nichts ausgefüllt ist"): Das
-    // ViewModel hatte KEINE loadGoal-Funktion — der Editor zeigte immer
-    // das leere Formular und saveGoal() erzeugte immer ein NEUES Goal
-    // (neue UUID). Jetzt: loadGoal(goalId) befüllt das Formular, und
-    // saveGoal() UPDATET das bestehende Goal, wenn eine ID geladen ist.
     private var editingGoalId: String? = null
     private val _isEditing = MutableStateFlow(false)
 
@@ -59,106 +47,51 @@ class GoalEditorViewModel @Inject constructor(
         _isEditing.value = true
         viewModelScope.launch {
             val goal = goalRepository.getById(goalId).firstOrNull() ?: return@launch
+            val kind = when (GoalProgressAnalytics.kindOf(goal)) {
+                Goal.KIND_DONE, Goal.KIND_COUNT, Goal.KIND_TIME ->
+                    GoalProgressAnalytics.kindOf(goal)
+                else -> guessKindForLegacy(goal)
+            }
             _form.value = GoalFormState(
                 title = goal.title,
-                trackingMode = if (GoalProgressAnalytics.isAuto(goal)) {
-                    GoalProgressAnalytics.MODE_AUTO
-                } else {
-                    GoalProgressAnalytics.MODE_MANUAL
-                },
-                goalType = goal.type,
-                period = goal.period,
-                targetValue = if (goal.targetValue > 0f) trimNumber(goal.targetValue) else "",
-                targetUnit = goal.targetUnit,
+                kind = kind,
+                icon = goal.icon?.takeIf { it.isNotBlank() }
+                    ?: GoalsViewModel.defaultIcon(kind),
+                targetCount = if (goal.targetValue >= 1f) goal.targetValue.toInt().toString() else "3",
                 scheduleDays = GoalProgressAnalytics.scheduleMask(goal),
-                sourceKind = goal.sourceKind ?: GoalProgressAnalytics.SOURCE_ACTIVITY,
-                activityTypeId = goal.activityTypeId,
-                categoryId = goal.categoryId,
-                accent = goal.accent
+                accent = goal.accent,
+                legacy = GoalProgressAnalytics.kindOf(goal) == Goal.KIND_LEGACY
             )
         }
     }
 
-    val uiState: StateFlow<GoalEditorUiState> = combine(
-        activityTypeRepository.getAll(),
-        categoryRepository.getAll(),
-        _form,
-        _isEditing
-    ) { types, categories, form, isEditing ->
-        GoalEditorUiState(
-            activityTypes = types,
-            categories = categories,
-            form = form,
-            saved = form.saved,
-            isEditing = isEditing
-        )
+    val uiState: StateFlow<GoalEditorUiState> = combine(_form, _isEditing) { form, editing ->
+        GoalEditorUiState(form = form, saved = form.saved, isEditing = editing)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalEditorUiState())
 
-    // ── Formular-Setter ──────────────────────────────────────────────────
+    // ── Formular ─────────────────────────────────────────────────────────
 
     fun setTitle(title: String) = _form.update { it.copy(title = title) }
 
-    fun setTrackingMode(mode: String) = _form.update { f ->
-        if (mode == GoalProgressAnalytics.MODE_MANUAL) {
-            // M35: Manuell = abhaken/zählen. Der Zieltyp bleibt erhalten —
-            // „Mindestens 5× pro Woche" ist damit explizit wählbar (vorher
-            // erzwang der Modus COUNT und überschrieb die Auswahl).
-            f.copy(
-                trackingMode = mode,
-                targetUnit = GoalProgressAnalytics.UNIT_COUNT
-            )
-        } else {
-            // Automatisch = aus Aufzeichnungen: Zeit-Ziel als Default
-            // (Aufgaben-Quelle setzt gleich wieder COUNT).
-            f.copy(
-                trackingMode = mode,
-                targetUnit = if (f.targetUnit == GoalProgressAnalytics.UNIT_COUNT) "MINUTES" else f.targetUnit
-            )
-        }
+    fun setKind(kind: String) = _form.update { f ->
+        f.copy(
+            kind = kind,
+            icon = if (f.icon.isBlank() || f.icon == GoalsViewModel.defaultIcon(f.kind)) {
+                GoalsViewModel.defaultIcon(kind)
+            } else f.icon
+        )
     }
 
-    fun setGoalType(goalType: String) = _form.update { f ->
-        // M35: Manuelle Ziele zählen immer Check-ins; die Einheit bleibt
-        // COUNT, egal ob „Mindestens", „Maximal" oder „Anzahl" gewählt ist.
-        if (f.trackingMode == GoalProgressAnalytics.MODE_MANUAL) {
-            f.copy(goalType = goalType, targetUnit = GoalProgressAnalytics.UNIT_COUNT)
-        } else {
-            f.copy(
-                goalType = goalType,
-                targetUnit = if (goalType == GoalProgressAnalytics.TYPE_COUNT) {
-                    GoalProgressAnalytics.UNIT_COUNT
-                } else if (f.targetUnit == GoalProgressAnalytics.UNIT_COUNT) "MINUTES" else f.targetUnit
-            )
-        }
+    fun setIcon(icon: String) = _form.update { it.copy(icon = icon) }
+
+    fun setTargetCount(value: String) = _form.update {
+        it.copy(targetCount = value.filter { c -> c.isDigit() }.take(3))
     }
 
-    fun setPeriod(period: String) = _form.update { it.copy(period = period) }
-
-    fun setTargetValue(value: String) = _form.update { it.copy(targetValue = value) }
-
-    fun setTargetUnit(unit: String) = _form.update { it.copy(targetUnit = unit) }
-
-    fun setSourceKind(kind: String) = _form.update { f ->
-        when (kind) {
-            GoalProgressAnalytics.SOURCE_TODOS -> f.copy(
-                sourceKind = kind,
-                goalType = GoalProgressAnalytics.TYPE_COUNT,
-                targetUnit = GoalProgressAnalytics.UNIT_COUNT
-            )
-            GoalProgressAnalytics.SOURCE_DIGITAL -> f.copy(
-                sourceKind = kind,
-                goalType = if (f.goalType == GoalProgressAnalytics.TYPE_COUNT) GoalProgressAnalytics.TYPE_AT_MOST else f.goalType,
-                targetUnit = if (f.targetUnit == GoalProgressAnalytics.UNIT_COUNT) "MINUTES" else f.targetUnit
-            )
-            else -> f.copy(sourceKind = kind)
-        }
+    fun stepTargetCount(delta: Int) = _form.update { f ->
+        val current = f.targetCount.toIntOrNull() ?: 1
+        f.copy(targetCount = (current + delta).coerceIn(1, 99).toString())
     }
-
-    fun setActivityType(activityTypeId: String?) =
-        _form.update { it.copy(activityTypeId = activityTypeId) }
-
-    fun setCategory(categoryId: String) =
-        _form.update { it.copy(categoryId = categoryId) }
 
     fun setScheduleDays(days: Int) =
         _form.update { it.copy(scheduleDays = days and GoalProgressAnalytics.ALL_DAYS) }
@@ -169,62 +102,31 @@ class GoalEditorViewModel @Inject constructor(
 
     fun setAccent(accent: String?) = _form.update { it.copy(accent = accent) }
 
-    fun setShowActivityTypeMenu(show: Boolean) = _form.update { it.copy(showActivityTypeMenu = show) }
-
-    fun setShowCategoryMenu(show: Boolean) = _form.update { it.copy(showCategoryMenu = show) }
-
-    fun setShowUnitMenu(show: Boolean) = _form.update { it.copy(showUnitMenu = show) }
-
-    fun clearError() = _form.update { it.copy(errorRes = null) }
-
-    /** Schnellstart-Vorlagen — die Nutzer-Beispiele als Ein-Tap-Start. */
-    fun applyPreset(preset: GoalPreset) = _form.update { f ->
+    fun applyPreset(preset: HabitPreset, title: String) = _form.update { f ->
         when (preset) {
-            GoalPreset.DIGITAL_DAILY -> f.copy(
-                trackingMode = GoalProgressAnalytics.MODE_AUTO,
-                sourceKind = GoalProgressAnalytics.SOURCE_DIGITAL,
-                goalType = GoalProgressAnalytics.TYPE_AT_MOST,
-                period = "DAILY",
-                targetValue = "2",
-                targetUnit = "HOURS",
+            HabitPreset.WATER -> f.copy(
+                title = f.title.ifBlank { title },
+                kind = Goal.KIND_COUNT,
+                icon = "💧",
+                targetCount = "8",
                 scheduleDays = GoalProgressAnalytics.ALL_DAYS
             )
-            GoalPreset.DIGITAL_WEEKLY -> f.copy(
-                trackingMode = GoalProgressAnalytics.MODE_AUTO,
-                sourceKind = GoalProgressAnalytics.SOURCE_DIGITAL,
-                goalType = GoalProgressAnalytics.TYPE_AT_MOST,
-                period = "WEEKLY",
-                targetValue = "10",
-                targetUnit = "HOURS",
+            HabitPreset.READING -> f.copy(
+                title = f.title.ifBlank { title },
+                kind = Goal.KIND_TIME,
+                icon = "📚",
                 scheduleDays = GoalProgressAnalytics.ALL_DAYS
             )
-            GoalPreset.LEARNING_WEEKDAYS -> f.copy(
-                trackingMode = GoalProgressAnalytics.MODE_AUTO,
-                sourceKind = GoalProgressAnalytics.SOURCE_ACTIVITY,
-                goalType = GoalProgressAnalytics.TYPE_AT_LEAST,
-                period = "DAILY",
-                targetValue = "2",
-                targetUnit = "HOURS",
-                scheduleDays = WEEKDAYS
-            )
-            GoalPreset.TASK_COUNT_WEEKDAYS -> f.copy(
-                trackingMode = GoalProgressAnalytics.MODE_MANUAL,
-                goalType = GoalProgressAnalytics.TYPE_COUNT,
-                period = "WEEKLY",
-                targetValue = "4",
-                targetUnit = GoalProgressAnalytics.UNIT_COUNT,
-                scheduleDays = WEEKDAYS
-            )
-            GoalPreset.DAILY_HABIT -> f.copy(
-                trackingMode = GoalProgressAnalytics.MODE_MANUAL,
-                goalType = GoalProgressAnalytics.TYPE_COUNT,
-                period = "DAILY",
-                targetValue = "1",
-                targetUnit = GoalProgressAnalytics.UNIT_COUNT,
+            HabitPreset.MEDITATION -> f.copy(
+                title = f.title.ifBlank { title },
+                kind = Goal.KIND_DONE,
+                icon = "🧘",
                 scheduleDays = GoalProgressAnalytics.ALL_DAYS
             )
         }.copy(errorRes = null)
     }
+
+    fun clearError() = _form.update { it.copy(errorRes = null) }
 
     // ── Speichern/Löschen ────────────────────────────────────────────────
 
@@ -237,90 +139,78 @@ class GoalEditorViewModel @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        val isManual = form.trackingMode == GoalProgressAnalytics.MODE_MANUAL
-        val isTodos = !isManual && form.sourceKind == GoalProgressAnalytics.SOURCE_TODOS
-        // M35: Auch manuelle Ziele behalten ihren gewählten Typ
-        // (AT_LEAST/AT_MOST/COUNT). Die Einheit ist bei MANUAL immer COUNT.
-        val goalType = if (isTodos) GoalProgressAnalytics.TYPE_COUNT else form.goalType
-        val unit = if (isManual || isTodos || goalType == GoalProgressAnalytics.TYPE_COUNT) {
-            GoalProgressAnalytics.UNIT_COUNT
-        } else {
-            form.targetUnit
+        val count = form.targetCount.toIntOrNull() ?: 1
+        val targetValue = when (form.kind) {
+            Goal.KIND_COUNT -> count.toFloat()
+            Goal.KIND_TIME -> 0f
+            else -> 1f
         }
-        val value = form.targetValue.replace(',', '.').toFloatOrNull() ?: 0f
-        val existingId = editingGoalId
+        val targetUnit = when (form.kind) {
+            Goal.KIND_TIME -> "SECONDS"
+            else -> GoalProgressAnalytics.UNIT_COUNT
+        }
+        val type = when (form.kind) {
+            Goal.KIND_COUNT -> GoalProgressAnalytics.TYPE_COUNT
+            Goal.KIND_TIME -> GoalProgressAnalytics.TYPE_TIME
+            else -> GoalProgressAnalytics.TYPE_AT_LEAST
+        }
 
         viewModelScope.launch {
-            if (existingId != null) {
-                // M18.59-FIX: Bearbeiten → bestehendes Goal UPDATEN
-                // (vorher wurde immer ein NEUES Goal mit neuer UUID
-                // angelegt — der User sah nach dem Speichern zwei Ziele).
-                val existing = goalRepository.getById(existingId).firstOrNull()
-                if (existing != null) {
-                    goalRepository.update(
-                        existing.copy(
-                            title = form.title,
-                            // M35: Auch manuelle Ziele können optional einer
-                            // Aktivität zugeordnet werden (Zeitgutschrift).
-                            activityTypeId = form.activityTypeId,
-                            categoryId = form.categoryId,
-                            type = goalType,
-                            period = form.period,
-                            targetValue = value,
-                            targetUnit = unit,
-                            trackingMode = form.trackingMode,
-                            scheduleDays = form.scheduleDays and GoalProgressAnalytics.ALL_DAYS,
-                            sourceKind = form.sourceKind,
-                            accent = form.accent,
-                            updatedAt = now
-                        )
-                    )
-                    _form.update { it.copy(saved = true) }
-                    return@launch
-                }
+            val existingId = editingGoalId
+            val existing = existingId?.let { goalRepository.getById(it).firstOrNull() }
+            val goal = if (existing != null) {
+                existing.copy(
+                    title = form.title.trim(),
+                    kind = form.kind,
+                    icon = form.icon,
+                    type = type,
+                    period = "DAILY",
+                    targetValue = targetValue,
+                    targetUnit = targetUnit,
+                    trackingMode = GoalProgressAnalytics.MODE_MANUAL,
+                    scheduleDays = form.scheduleDays and GoalProgressAnalytics.ALL_DAYS,
+                    sourceKind = null,
+                    categoryId = null,
+                    activityTypeId = null,
+                    accent = form.accent,
+                    updatedAt = now
+                )
+            } else {
+                Goal(
+                    id = UUID.randomUUID().toString(),
+                    title = form.title.trim(),
+                    kind = form.kind,
+                    icon = form.icon,
+                    type = type,
+                    period = "DAILY",
+                    targetValue = targetValue,
+                    targetUnit = targetUnit,
+                    trackingMode = GoalProgressAnalytics.MODE_MANUAL,
+                    scheduleDays = form.scheduleDays and GoalProgressAnalytics.ALL_DAYS,
+                    sourceKind = null,
+                    accent = form.accent,
+                    status = "ACTIVE",
+                    startAt = now
+                )
             }
-            val goal = Goal(
-                id = UUID.randomUUID().toString(),
-                title = form.title,
-                activityTypeId = form.activityTypeId,
-                categoryId = form.categoryId,
-                type = goalType,
-                period = form.period,
-                targetValue = value,
-                targetUnit = unit,
-                trackingMode = form.trackingMode,
-                scheduleDays = form.scheduleDays,
-                sourceKind = form.sourceKind,
-                accent = form.accent,
-                status = "ACTIVE",
-                startAt = now
-            )
-            goalRepository.insert(goal)
+            if (existing != null) goalRepository.update(goal) else goalRepository.insert(goal)
             _form.update { it.copy(saved = true) }
         }
     }
 
     private fun validate(form: GoalFormState): Int? {
         if (form.title.isBlank()) return R.string.goal_error_title_required
-        if (form.trackingMode == GoalProgressAnalytics.MODE_AUTO) {
-            when (form.sourceKind) {
-                GoalProgressAnalytics.SOURCE_ACTIVITY ->
-                    if (form.activityTypeId == null) return R.string.goal_error_type_required
-                GoalProgressAnalytics.SOURCE_CATEGORY ->
-                    if (form.categoryId == null) return R.string.goal_error_category_required
-            }
-        }
         if (form.scheduleDays and GoalProgressAnalytics.ALL_DAYS == 0) {
             return R.string.goal_error_schedule_required
         }
-        if (form.targetValue.isBlank()) return R.string.goal_error_value_required
-        val value = form.targetValue.replace(',', '.').toFloatOrNull()
-            ?: return R.string.goal_error_value_required
-        if (value <= 0f) return R.string.goal_error_value_positive
+        if (form.kind == Goal.KIND_COUNT) {
+            val count = form.targetCount.toIntOrNull()
+                ?: return R.string.goal_error_value_required
+            if (count <= 0) return R.string.goal_error_value_positive
+        }
         return null
     }
 
-    // M11.2: Goal löschen
     fun deleteGoal(goalId: String) {
         viewModelScope.launch {
             goalRepository.delete(goalId)
@@ -328,8 +218,12 @@ class GoalEditorViewModel @Inject constructor(
         }
     }
 
-    private fun trimNumber(value: Float): String =
-        if (value % 1f == 0f) value.toInt().toString() else value.toString()
+    private fun guessKindForLegacy(goal: Goal): String = when {
+        goal.targetUnit == GoalProgressAnalytics.UNIT_COUNT ||
+            goal.type == GoalProgressAnalytics.TYPE_COUNT ->
+            if (goal.targetValue <= 1f) Goal.KIND_DONE else Goal.KIND_COUNT
+        else -> Goal.KIND_TIME
+    }
 
     companion object {
         /** Mo–Fr (Bitmaske: Mo=1 … Fr=16). */
@@ -340,32 +234,23 @@ class GoalEditorViewModel @Inject constructor(
     }
 }
 
-/** M20: Ein-Tap-Vorlagen aus den Nutzer-Beispielen. */
-enum class GoalPreset { DIGITAL_DAILY, DIGITAL_WEEKLY, LEARNING_WEEKDAYS, TASK_COUNT_WEEKDAYS, DAILY_HABIT }
+/** M36: Ein-Tap-Vorlagen für die häufigsten Habits. */
+enum class HabitPreset { WATER, READING, MEDITATION }
 
 data class GoalFormState(
     val title: String = "",
-    val trackingMode: String = GoalProgressAnalytics.MODE_AUTO,
-    val goalType: String = GoalProgressAnalytics.TYPE_AT_LEAST,
-    val period: String = "DAILY",
-    val targetValue: String = "",
-    val targetUnit: String = "MINUTES",
+    val kind: String = Goal.KIND_DONE,
+    val icon: String = "🎯",
+    val targetCount: String = "3",
     val scheduleDays: Int = GoalProgressAnalytics.ALL_DAYS,
-    val sourceKind: String = GoalProgressAnalytics.SOURCE_ACTIVITY,
-    val activityTypeId: String? = null,
-    val categoryId: String? = null,
     val accent: String? = null,
-    val showActivityTypeMenu: Boolean = false,
-    val showCategoryMenu: Boolean = false,
-    val showUnitMenu: Boolean = false,
+    val legacy: Boolean = false,
     val errorRes: Int? = null,
     val saved: Boolean = false
 )
 
 data class GoalEditorUiState(
     val form: GoalFormState = GoalFormState(),
-    val activityTypes: List<ActivityType> = emptyList(),
-    val categories: List<Category> = emptyList(),
     val saved: Boolean = false,
     val isEditing: Boolean = false
 )

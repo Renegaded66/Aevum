@@ -156,13 +156,13 @@ class ManualGoalCreditMigrationTest {
     }
 
     @Test
-    fun `Datenbank-meldet-Version-52`() {
+    fun `Datenbank-meldet-Version-53`() {
         createVersion51Database()
         migrate()
 
         opened!!.openHelper.writableDatabase.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(52)
+            assertThat(cursor.getInt(0)).isEqualTo(53)
         }
     }
 

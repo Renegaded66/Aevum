@@ -145,7 +145,12 @@ class GoalDetailViewModel @Inject constructor(
             checkins = checkins,
             categoryName = goal.categoryId?.let { cid -> categories.firstOrNull { it.id == cid }?.name },
             celebration = celebration,
-            closed = closed
+            closed = closed,
+            kind = GoalProgressAnalytics.kindOf(goal),
+            icon = goal.icon?.takeIf { it.isNotBlank() }
+                ?: GoalsViewModel.defaultIcon(GoalProgressAnalytics.kindOf(goal)),
+            todayCheckins = checkins.count { it.dateKey == today.toString() },
+            todayMs = checkins.filter { it.dateKey == today.toString() }.sumOf { it.durationMs }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalDetailUiState())
 
@@ -173,62 +178,95 @@ class GoalDetailViewModel @Inject constructor(
         val id = goalIdFlow.value ?: return
         viewModelScope.launch {
             val goal = goalRepository.getById(id).first() ?: return@launch
-            val activityName = goal.activityTypeId?.let { typeId ->
-                activityTypeRepository.getById(typeId).first()?.name
-            }
-            val checkin = GoalCheckin(
-                id = UUID.randomUUID().toString(),
-                goalId = id,
-                timestampMs = System.currentTimeMillis(),
-                dateKey = LocalDate.now(zoneId).toString(),
-                activityTypeId = goal.activityTypeId
-            )
-            goalRepository.addCheckin(checkin)
-            // M35: Direkt nach dem Abhaken optional eine Zeit anbieten —
-            // aber nur, wenn das Ziel einer Aktivität zugeordnet ist.
-            // Ohne Aktivität gäbe es keine Statistik, der sie zugerechnet
-            // werden könnte.
-            if (goal.activityTypeId != null) {
+            val kind = GoalProgressAnalytics.kindOf(goal)
+            if (kind == Goal.KIND_TIME) {
+                val existing = goalRepository.getCheckinsForGoal(id).first()
+                    .filter { it.dateKey == LocalDate.now(zoneId).toString() && it.durationMs > 0L }
+                    .maxByOrNull { it.durationMs }
                 _timePrompt.value = GoalTimePrompt(
                     goalId = id,
-                    checkinId = checkin.id,
+                    checkinId = existing?.id,
                     goalTitle = goal.title,
-                    activityName = activityName
+                    dateKey = LocalDate.now(zoneId).toString(),
+                    initialSeconds = (existing?.durationMs ?: 0L) / 1000L
                 )
+                return@launch
             }
+            val todayKey = LocalDate.now(zoneId).toString()
+            val existing = goalRepository.getCheckinsForGoal(id).first()
+                .filter { it.dateKey == todayKey }
+            if (kind == Goal.KIND_DONE && existing.isNotEmpty()) return@launch
+            goalRepository.addCheckin(
+                GoalCheckin(
+                    id = UUID.randomUUID().toString(),
+                    goalId = id,
+                    timestampMs = System.currentTimeMillis(),
+                    dateKey = todayKey,
+                    activityTypeId = null
+                )
+            )
         }
     }
 
-    /** M35: Zeit eines bestehenden Check-ins nachträglich erfassen/ändern. */
+    /** M36: Zeit-Habit — bestehenden Eintrag des Tages bearbeiten. */
     fun openTimePrompt(checkin: GoalCheckin) {
         val id = goalIdFlow.value ?: return
         viewModelScope.launch {
             val goal = goalRepository.getById(id).first() ?: return@launch
-            val typeId = checkin.activityTypeId ?: goal.activityTypeId
-            val activityName = typeId?.let { activityTypeRepository.getById(it).first()?.name }
             _timePrompt.value = GoalTimePrompt(
                 goalId = id,
                 checkinId = checkin.id,
                 goalTitle = goal.title,
-                activityName = activityName,
-                initialMinutes = creditedMinutes(checkin.durationMs)
+                dateKey = checkin.dateKey,
+                initialSeconds = checkin.durationMs / 1000L
             )
         }
     }
 
-    fun confirmTimePrompt(minutes: Int) {
+    fun confirmTimePrompt(seconds: Int) {
         val prompt = _timePrompt.value ?: return
         viewModelScope.launch {
-            goalRepository.setCheckinDuration(prompt.checkinId, minutes.toLong() * 60_000L)
+            val goal = goalRepository.getById(prompt.goalId).first() ?: return@launch
+            val date = runCatching { LocalDate.parse(prompt.dateKey) }.getOrDefault(LocalDate.now(zoneId))
+            if (seconds <= 0) {
+                goalRepository.getCheckinsForGoal(goal.id).first()
+                    .filter { it.dateKey == prompt.dateKey }
+                    .forEach { goalRepository.removeCheckin(it.id) }
+            } else {
+                val existing = goalRepository.getCheckinsForGoal(goal.id).first()
+                    .filter { it.dateKey == prompt.dateKey }
+                val target = prompt.checkinId?.let { cid -> existing.firstOrNull { it.id == cid } }
+                if (target != null) {
+                    goalRepository.setCheckinDuration(target.id, seconds * 1000L)
+                    existing.filter { it.id != target.id }
+                        .forEach { goalRepository.removeCheckin(it.id) }
+                } else {
+                    existing.forEach { goalRepository.removeCheckin(it.id) }
+                    goalRepository.addCheckin(
+                        GoalCheckin(
+                            id = UUID.randomUUID().toString(),
+                            goalId = goal.id,
+                            timestampMs = date.atTime(java.time.LocalTime.now())
+                                .atZone(zoneId).toInstant().toEpochMilli(),
+                            dateKey = prompt.dateKey,
+                            count = 1,
+                            durationMs = seconds * 1000L
+                        )
+                    )
+                }
+            }
             _timePrompt.value = null
         }
     }
 
-    /** M35: Gutgeschriebene Zeit rückgängig machen (Check-in bleibt). */
+    /** M36: Zeit komplett entfernen (Tag wird wieder offen). */
     fun removeTimeFromPrompt() {
         val prompt = _timePrompt.value ?: return
         viewModelScope.launch {
-            goalRepository.setCheckinDuration(prompt.checkinId, 0L)
+            goalRepository.getCheckinsForGoal(prompt.goalId).first()
+                .filter { it.dateKey == prompt.dateKey }
+                .forEach { goalRepository.removeCheckin(it.id) }
+            celebrationStore.forget(prompt.goalId)
             _timePrompt.value = null
         }
     }
@@ -240,11 +278,17 @@ class GoalDetailViewModel @Inject constructor(
     fun undoLastCheckin() {
         val id = goalIdFlow.value ?: return
         viewModelScope.launch {
-            val last = goalRepository.lastCheckin(id) ?: return@launch
-            if (last.dateKey == LocalDate.now(zoneId).toString()) {
-                goalRepository.removeCheckin(last.id)
-                celebrationStore.forget(id)
+            val goal = goalRepository.getById(id).first() ?: return@launch
+            val todayKey = LocalDate.now(zoneId).toString()
+            val today = goalRepository.getCheckinsForGoal(id).first()
+                .filter { it.dateKey == todayKey }
+            if (today.isEmpty()) return@launch
+            if (GoalProgressAnalytics.kindOf(goal) == Goal.KIND_TIME) {
+                today.forEach { goalRepository.removeCheckin(it.id) }
+            } else {
+                today.maxByOrNull { it.timestampMs }?.let { goalRepository.removeCheckin(it.id) }
             }
+            celebrationStore.forget(id)
         }
     }
 
@@ -293,5 +337,9 @@ data class GoalDetailUiState(
     val checkins: List<GoalCheckin> = emptyList(),
     val categoryName: String? = null,
     val celebration: GoalCelebrationEvent? = null,
-    val closed: Boolean = false
+    val closed: Boolean = false,
+    val kind: String = Goal.KIND_LEGACY,
+    val icon: String = "🎯",
+    val todayCheckins: Int = 0,
+    val todayMs: Long = 0L
 )

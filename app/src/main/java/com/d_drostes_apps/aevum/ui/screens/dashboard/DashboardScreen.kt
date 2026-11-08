@@ -86,7 +86,7 @@ import com.d_drostes_apps.aevum.ui.screens.goals.GoalAccents
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationEvent
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalCelebrationOverlay
-import com.d_drostes_apps.aevum.ui.screens.goals.GoalDurationDialog
+import com.d_drostes_apps.aevum.ui.screens.goals.HabitTimePickerDialog
 import com.d_drostes_apps.aevum.ui.screens.goals.GoalWithProgress
 import com.d_drostes_apps.aevum.ui.screens.goals.creditedMinutes
 import com.d_drostes_apps.aevum.ui.theme.AevumRadius
@@ -218,7 +218,7 @@ fun DashboardScreen(
 
     // M35: Optionaler Zeit-Dialog nach dem Abhaken — auf Dashboard-Ebene,
     // damit er unabhängig vom Scroll-Zustand der Ziele-Karte erscheint.
-    GoalDurationDialog(
+    HabitTimePickerDialog(
         prompt = goalTimePrompt,
         onConfirm = goalsViewModel::confirmTimePrompt,
         onRemove = goalsViewModel::removeTimeFromPrompt,
@@ -922,7 +922,7 @@ private fun DashboardGoalRow(
             if (isManual) {
                 GoalQuickCheckButton(
                     accent = accent,
-                    checked = goal.todayCheckins > 0,
+                    checked = goal.isCurrentAchieved,
                     onClick = { onCheckIn(goal.goal.id) }
                 )
             }
@@ -944,7 +944,7 @@ private fun DashboardGoalRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                if (goal.todayCreditMs > 0L) {
+                if (goal.todayCreditMs > 0L && goal.goal.kind != "TIME") {
                     Text(
                         "⏱ " + stringResource(
                             R.string.goal_time_minutes_short,

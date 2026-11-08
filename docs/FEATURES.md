@@ -58,36 +58,37 @@ schwebender +-Button (nur ohne laufende Aufnahme) mit Orbit-Launcher.
 - manuelle Aktivität erstellen
 - Konflikte anzeigen
 
-### 4. Ziele
+### 4. Ziele & Habits (M36 — Habit-Tracker)
 
-Beispiele:
+Der Ziele-Screen ist ein tagesbasierter Habit-Tracker. Es gibt genau drei
+Ziel-Arten:
 
-- „Heute 2 Stunden lernen“
-- „30 Minuten Sport machen“
+- **Erledigen (DONE):** ein Tap pro Tag — erledigt.
+- **Anzahl (COUNT):** Zielwert sammeln (z. B. 8 Gläser Wasser); jeder Tap +1.
+- **Zeit (TIME):** Zeit mit drei Drehreglern eintragen (Stunden/Minuten/
+  Sekunden). Jede eingetragene Zeit > 0 erfüllt den Tag.
 
-Zieltypen:
+Kein Automatisch/Manuell, keine Quellen, keine Zeiträume, keine Einheiten und
+nichts „Optionales". Die drei Arten sind die vollständige Auswahl.
 
-- Dauer pro Kategorie/Tag
-- Anzahl Sessions
-- Zeitraumziel täglich/wöchentlich/monatlich
+**Tage & Nachträge:**
 
-Aevum prüft Ziele automatisch gegen bestätigte Activity Sessions.
+- 30 Tage als `HorizontalPager` durchwischbar.
+- Tagesleiste mit sieben Tagen; Antippen springt zum Tag, „Heute"-Knopf.
+- Vergangene Tage lassen sich nachträglich abhaken, zählen und mit Zeit
+  füllen.
 
-### 5. Habits & Streaks
+**Habit-UI (Dopamin):**
 
-Frequenzen:
+- Tages-Hero mit Fortschrittsring, Serien-Flammen und „Perfekte Tage"-Serie.
+- „Perfekter Tag"-Feier mit Konfetti, sobald alle fälligen Habits erledigt sind.
+- Schimmer bei erledigten Karten, animierte Balken, Zähl-Punkte, Haptik,
+  Emoji-Icons und Akzentfarben.
+- Streaks, Bestwerte, 91-Tage-Verlauf und Heatmap im Detail.
 
-- täglich
-- wöchentlich
-- mehrfach pro Woche
-- individuell
-
-Metriken:
-
-- aktuelle Serie
-- Rekord
-- Erfolgsquote
-- Verlauf/Heatmap
+**Alt-Ziele:** Manuelle Tagesziele aus M20/M35 werden in der Migration zu
+DONE/COUNT/TIME. Wochen-/Monats- und AUTO-Ziele bleiben als „Weitere Ziele"
+mit der alten Auswertung sichtbar und lassen sich im Editor umwandeln.
 
 ### 6. Bucket List
 

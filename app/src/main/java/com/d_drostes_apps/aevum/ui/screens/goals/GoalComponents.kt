@@ -453,111 +453,43 @@ fun GoalCheckButton(
     }
 }
 
-// ── Zeitgutschrift (M35) ─────────────────────────────────────────────────
+// ── Zeit-Habit (M36) ─────────────────────────────────────────────────────
 
 /**
- * M35: Zustand des optionalen Zeit-Dialogs nach einem Check-in.
+ * M36: Zustand des Zeit-Dialogs (drei Drehregler: Stunden/Minuten/Sekunden).
  *
- * Der Check-in wird SOFORT geschrieben (ein Tap bleibt ein Tap). Der Dialog
- * bietet danach die optionale Zeitgutschrift an — überspringen ist immer
- * möglich. [initialMinutes] > 0 bedeutet: Es wird ein bestehender Check-in
- * bearbeitet (Zeit ändern/entfernen).
+ * [dateKey] ist der Tag, für den die Zeit gilt — der Habit-Tracker erlaubt
+ * ausdrücklich Nachträge für vergangene Tage. [checkinId] null = neuer
+ * Eintrag; [initialSeconds] > 0 = bestehenden Eintrag bearbeiten.
  */
 data class GoalTimePrompt(
     val goalId: String,
-    val checkinId: String,
+    val checkinId: String?,
     val goalTitle: String,
-    val activityName: String?,
-    val initialMinutes: Int = 0
+    val dateKey: String,
+    val initialSeconds: Long = 0L
 )
 
 /** Minuten einer Check-in-Gutschrift (ms → gerundete Minuten). */
 fun creditedMinutes(durationMs: Long): Int =
     ((durationMs + 30_000L) / 60_000L).toInt().coerceAtLeast(0)
 
-/**
- * Optionaler Zeit-Dialog für manuelle Ziele.
- *
- * User: „…wenn ich die dann abhake, dann will ich selber optional eine Zeit
- * eingeben können, bspw 5 Minuten, und die werden dann den aktuellen Tag
- * zugerechnet, aber ohne direkt in der Timeline aufzutauchen, aber natürlich
- * auch mit der Möglichkeit die zugerechnete Zeit wieder rückgängig zu machen."
- */
+/** Menschenlesbare Quellenangabe für Alt-Ziele („Automatisch: Digital", „Manuell", …). */
 @Composable
-fun GoalDurationDialog(
-    prompt: GoalTimePrompt?,
-    onConfirm: (minutes: Int) -> Unit,
-    onRemove: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    if (prompt == null) return
-    var text by remember(prompt.checkinId) {
-        mutableStateOf(if (prompt.initialMinutes > 0) prompt.initialMinutes.toString() else "")
-    }
-    val minutes = text.trim().toIntOrNull()
-    val editing = prompt.initialMinutes > 0
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                stringResource(if (editing) R.string.goal_time_edit_title else R.string.goal_time_title),
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(AevumSpacing.sm)) {
-                Text(
-                    text = if (prompt.activityName != null) {
-                        stringResource(R.string.goal_time_message_activity, prompt.activityName)
-                    } else {
-                        stringResource(R.string.goal_time_message)
-                    },
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { input -> text = input.filter { it.isDigit() }.take(4) },
-                    label = { Text(stringResource(R.string.goal_time_minutes_label)) },
-                    placeholder = { Text("5") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    stringResource(R.string.goal_time_not_timeline),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (editing) {
-                    TextButton(
-                        onClick = onRemove,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(
-                            stringResource(R.string.goal_time_remove),
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { minutes?.let(onConfirm) },
-                enabled = minutes != null && minutes > 0
-            ) {
-                Text(stringResource(R.string.common_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(if (editing) R.string.common_cancel else R.string.goal_time_skip))
-            }
+fun goalSourceText(g: GoalWithProgress): String {
+    val goal = g.goal
+    return when {
+        !GoalProgressAnalytics.isAuto(goal) -> {
+            val activity = g.activityTypeName
+            if (activity.isNullOrBlank()) stringResource(R.string.goal_tracking_manual)
+            else stringResource(R.string.goal_tracking_manual_with_activity, activity)
         }
-    )
+        goal.sourceKind == GoalProgressAnalytics.SOURCE_DIGITAL -> stringResource(R.string.goal_source_digital)
+        goal.sourceKind == GoalProgressAnalytics.SOURCE_TODOS -> stringResource(R.string.goal_source_todos)
+        goal.sourceKind == GoalProgressAnalytics.SOURCE_CATEGORY ->
+            g.categoryName ?: stringResource(R.string.goal_source_category)
+        else -> g.activityTypeName ?: stringResource(R.string.goal_activity_fallback)
+    }
 }
 
 // ── Feier-Overlay (Konfetti + Karte) ─────────────────────────────────────
@@ -690,24 +622,40 @@ fun GoalCelebrationOverlay(
                     )
                 }
                 Text(
-                    text = stringResource(R.string.goal_celebration_title),
+                    text = stringResource(
+                        if (event.perfectDay) R.string.goal_tracker_perfect_title
+                        else R.string.goal_celebration_title
+                    ),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                Text(
-                    text = event.goalTitle,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (event.perfectDay) {
+                    Text(
+                        text = stringResource(R.string.goal_tracker_perfect_all_done),
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = event.goalTitle,
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (event.streak > 0) {
                     Surface(
                         shape = RoundedCornerShape(AevumRadius.full),
                         color = Color(0xFFFF7A2F).copy(alpha = 0.16f)
                     ) {
                         Text(
-                            text = stringResource(R.string.goal_celebration_streak, event.streak),
+                            text = if (event.perfectDay) {
+                                stringResource(R.string.goal_tracker_perfect_streak, event.streak)
+                            } else {
+                                stringResource(R.string.goal_celebration_streak, event.streak)
+                            },
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -715,11 +663,13 @@ fun GoalCelebrationOverlay(
                         )
                     }
                 }
-                Text(
-                    text = event.periodLabel,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
+                if (!event.perfectDay) {
+                    Text(
+                        text = event.periodLabel,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }

@@ -23,7 +23,10 @@ import java.io.Serializable
         // Ermöglicht idempotente Imports: gleiche externalId = gleicher
         // Datensatz → UPDATE statt Insert (kein Duplikat bei wiederholtem
         // Sync, auch wenn Garmin die Zeiten nachträglich ändert).
-        Index("external_id")
+        // M36: UNIQUE — zwei parallele Sync-Läufe können dieselbe externe
+        // Aufzeichnung nicht mehr als zwei Zeilen anlegen. SQLite erlaubt
+        // mehrere NULLs; Sessions ohne externe Identität bleiben unberührt.
+        Index(value = ["external_id"], unique = true)
     ],
     foreignKeys = [
         ForeignKey(

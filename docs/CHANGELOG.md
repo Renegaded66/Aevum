@@ -1,5 +1,74 @@
 # CHANGELOG
 
+## Aevum 1.0.57 (M36) — 2026-11-08
+
+### Ziele werden ein Habit-Tracker — und der PC-Tracker kann keine Doppel-Aufzeichnungen mehr erzeugen
+
+**Devon:** „Beim PC Tracker ist es heute irgendwie passiert, dass eine
+Aufzeichnung zwei Mal zu unterschiedlichen Zeitpunkten übertragen wurde ans
+Handy, einmal von 20 bis 21 Uhr und dann nochmal von 20 bis 22 Uhr … Und bei
+den Zielen will ich bei einer Zeiteingabe … drei Drehregler nebeneinander für
+Stunden, Minuten und Sekunden. Und nichts mehr mit optional. Es gibt Ziele, wo
+man nur angibt erledigt, … wo man eine Anzahl festlegen kann, und … wo man eine
+Zeit eintragen kann. Fertig. Und sobald man eine Zeit eingetragen hat, dann hat
+man das Ziel für den jeweiligen Tag ja auch offensichtlich erreicht.
+Außerdem soll man auch durch die Tage bei den Zielen swipen können … Das Ziel-
+Feature soll ein vollständiger Habit-Tracker mit süchtig machender Dopamin-UI
+sein."
+
+**PC-Tracker-Duplikate (Ursache + Heilung):**
+
+- **Ursache:** Der periodische Sync, der App-Öffnen-Kick und der manuelle
+  Knopf konnten parallel laufen. Beide lasen denselben PC-Stand, sahen „noch
+  nicht importiert" und legten je eine eigene Zeile an — bei unterschiedlichen
+  Antwortzeiten mit Ende 21:00 bzw. 22:00.
+- **Sync serialisiert:** `PcTrackerRepository.syncNow()` läuft jetzt unter
+  einem `Mutex`; es gibt nur noch einen Sync gleichzeitig.
+- **Deterministische Import-ID:** Neue PC-Zeilen bekommen `id = externalId`
+  (`pc_<uuid>`) statt einer zufälligen UUID. Zwei parallele Schreiber landen
+  damit auf derselben Primärschlüssel-Zeile.
+- **DB v53: `activity_session.external_id` ist UNIQUE.** Die Migration räumt
+  vorhandene Duplikate auf (je externalId bleibt die neueste, nicht gelöschte
+  Zeile) und legt den Unique-Index neu an.
+- **`PcSessionDeduper`:** Nach jedem Import werden PC-eigene, ineinander-
+  liegende Aufzeichnungen zusammengeführt (20–21 ⊂ 20–22 → nur 20–22 bleibt).
+  Aufeinanderfolgende Sessions und nutzerbearbeitete Sessions sind geschützt.
+- **Soft-Delete bleibt Soft-Delete:** Eine bewusst gelöschte PC-Aufzeichnung
+  wird beim nächsten Sync nicht wiederbelebt und kollidiert nicht mit dem
+  UNIQUE-Index.
+- **Desktop PC-Tracker 1.7.2:** Timer-Reentry-Schutz (`Interlocked`), ein
+  verspäteter Heartbeat kann eine abgeschlossene Session nicht mehr auf
+  `end_at = NULL` zurückdrehen (`COALESCE`), und `MergeOverlappingSessions()`
+  räumt die Windows-Datenbank beim Start auf.
+
+**Ziele = Habit-Tracker:**
+
+- **Genau drei Arten:** „Erledigen" (abhaken), „Anzahl" (Zielwert sammeln),
+  „Zeit" (Zeit eintragen). Kein Automatisch/Manuell, keine Quellen, keine
+  Zeiträume, keine Einheiten, keine optionale Aktivität und keine optionale
+  Zeitgutschrift mehr.
+- **Zeit-Eingabe mit drei Drehreglern:** Stunden, Minuten, Sekunden — echte
+  schnappende Räder mit Haptik-Tick, Schnellwahl 5/10/15/30 min/1 h. Jede
+  eingetragene Zeit > 0 erfüllt den Tag (kein Zielwert nötig).
+- **Tage-Swipe + Nachträge:** 30 Tage als `HorizontalPager`, Tagesleiste mit
+  sieben Tagen, Antippen springt zum Tag, „Heute"-Knopf. Abhaken, Zählen und
+  Zeiteintragen funktionieren für jeden vergangenen Tag — aber erst ab dem
+  Erstellungsdatum des Habits.
+- **Dopamin-UI:** Tages-Hero mit Fortschrittsring, Serien-Flammen, „Perfekter
+  Tag"-Feier mit Konfetti, Schimmer bei erledigten Karten, animierte
+  Fortschrittsbalken, Zähl-Punkte, Haptik und Emoji-Icons.
+- **Alt-Ziele bleiben sichtbar:** Manuelle Tagesziele werden automatisch zu
+  DONE/COUNT/TIME; Wochen-/Monats- und AUTO-Ziele bleiben als „Weitere Ziele"
+  mit der alten Auswertung erhalten und lassen sich im Editor umwandeln.
+- **Dashboard angepasst:** DONE/COUNT haken direkt ab, TIME öffnet den
+  Drei-Räder-Dialog. Der Quick-Check zeigt erst bei erreichtem Ziel ein
+  Häkchen.
+- **11 Sprachen:** neue Habit-Texte in EN/DE/ES/FR/PT/IT/TR/PL/DA/NB/SV.
+
+**Datenbank:** v53 (`goal.kind`, `goal.icon`, UNIQUE `activity_session.external_id`).
+**Tests:** 1514 Android-Unit-Tests (0 Fehler, 1 skipped) + 165 Desktop-Tests
+(0 Fehler). Kein Geräte-/Emulator-Durchklick — siehe Abschlussbericht.
+
 ## [Unreleased] — Aevum 1.0.53 (M33) — 2026-10-30
 
 ### Klarer Activity-Starter, eigener Anlegen-Screen, aufgeräumte Einstellungen

@@ -179,3 +179,22 @@ spielen sich in bestehenden Screens ab:
   Prognose nur in der Zukunft),
 - Balance-Tab → Detektor (Refresh beim Sichtbarwerden),
 - automatischer Fahrt-Start (kein UI-Pfad; FGS + Notification wie bisher).
+
+## M36 — Ziele als Habit-Tracker
+
+Einstellungen → „Ziele" (`goals`) → `GoalsScreen`. Der Screen hat keinen
+eigenen Tab; er wird aus den Einstellungen und vom Dashboard („Alle") geöffnet.
+
+- **Kopf:** Zurück, „Ziele", „Ziel anlegen".
+- **Hero:** Tagesfortschritt als Ring, Serien, perfekte Tage — bezieht sich
+  auf den gerade gewählten Tag.
+- **Tagesleiste:** sieben Tage, antippbar; darunter ein `HorizontalPager`
+  über 30 Tage. Wischen = Tag wechseln; „Heute" springt zurück.
+- **Karten:** Erledigen (Häkchen), Anzahl (＋, Zählpunkte), Zeit (⏱ öffnet den
+  Drei-Räder-Dialog). Jede Karte öffnet die Detail-Ansicht.
+- **Weitere Ziele:** Alt-Ziele (LEGACY) mit alter Auswertung, antippbar.
+- **Editor** (`goal_editor?goalId=`): Titel, Emoji, genau drei Arten, Anzahl,
+  Wochentage, Farbe; kein Automatik-/Quellen-/Zeitraum-Formular mehr.
+- **Detail** (`goal_detail/{goalId}`): Hero, Statistiken, Verlauf, Heatmap,
+  Check-in-Liste; Zeit-Einträge lassen sich dort ändern/löschen.
+

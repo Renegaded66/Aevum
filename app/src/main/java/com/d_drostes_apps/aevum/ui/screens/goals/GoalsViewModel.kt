@@ -25,23 +25,26 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
 /**
- * M20: Ziel-Architektur — die Ziele-Liste.
+ * M36: Ziele sind jetzt ein Habit-Tracker.
  *
- * Lädt neben den Zielen selbst die kompletten Auswertungs-Grundlagen
- * (Sessions, Aktivitätstypen, Kategorien, Bildschirmzeit, Check-ins,
- * erledigte Aufgaben) und berechnet je Ziel Fortschritt, Streaks und die
- * aktuelle Periode in EINEM Durchlauf ([GoalProgressAnalytics.evaluateGoal]).
+ * Drei Arten, mehr nicht:
+ *  - [Goal.KIND_DONE]  — nur abhaken.
+ *  - [Goal.KIND_COUNT] — Anzahl sammeln (Zielwert = Anzahl).
+ *  - [Goal.KIND_TIME]  — Zeit eintragen; jede Zeit > 0 erfüllt den Tag.
  *
- * Bildschirmzeit kommt aus zwei Quellen:
- *  - [DigitalBalanceSource.dailyTotals] (32 Tage, 60-s-Takt) für die
- *    AKTUELLEN Werte („heute bisher 37 min"),
- *  - ein EINMALIGER langer Abruf ([historyBalance], ~192 Tage) für
- *    Streaks, Diagramme und Heatmap — der ist zu teuer für den Minutentakt.
+ * Der Screen kann durch Tage swipen. Alle Aktionen bekommen deshalb ein
+ * explizites [LocalDate] — so lassen sich die letzten Tage nachträglich
+ * abhaken und mit Zeit füllen.
+ *
+ * Alt-Ziele (AUTO/MANUAL aus M20/M35) bleiben als „Weitere Ziele" sichtbar
+ * und werden unverändert ausgewertet; der Editor wandelt sie beim Speichern
+ * in eines der drei Habit-Formate um.
  */
 @HiltViewModel
 class GoalsViewModel @Inject constructor(
@@ -50,7 +53,6 @@ class GoalsViewModel @Inject constructor(
     private val activityTypeRepository: ActivityTypeRepository,
     private val categoryRepository: CategoryRepository,
     private val todoRepository: TodoRepository,
-    // M18.138: Bildschirmzeit-Quelle (Digital Balance).
     private val balanceSource: DigitalBalanceSource,
     private val celebrationStore: GoalCelebrationStore
 ) : ViewModel() {
@@ -58,15 +60,16 @@ class GoalsViewModel @Inject constructor(
     private val zoneId = ZoneId.systemDefault()
     private val today = LocalDate.now()
 
-    /** Langer Verlauf (einmal je Screen-Öffnung) — überlagert vom 32-Tage-Takt. */
+    /** Langer Verlauf für die Alt-Ziel-Auswertung (Streaks/Diagramme). */
     private val historyBalance = MutableStateFlow<Map<LocalDate, Long>>(emptyMap())
 
     private val _celebration = MutableStateFlow<GoalCelebrationEvent?>(null)
     val celebration: StateFlow<GoalCelebrationEvent?> = _celebration
+
     private val _timePrompt = MutableStateFlow<GoalTimePrompt?>(null)
     val timePrompt: StateFlow<GoalTimePrompt?> = _timePrompt
 
-    private val _showCompleted = MutableStateFlow(false)
+    private val _showArchived = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
@@ -76,8 +79,8 @@ class GoalsViewModel @Inject constructor(
                     endDateExclusive = today.plusDays(1)
                 ).first()
             } catch (_: Exception) {
-                // Bildschirmzeit nicht verfügbar (kein Zugriff) — der
-                // Rest der Ziele funktioniert trotzdem.
+                // Kein Bildschirmzeit-Zugriff — Alt-Ziele zeigen dann nur
+                // ihren gespeicherten Stand. Habits sind davon unberührt.
             }
         }
     }
@@ -88,16 +91,12 @@ class GoalsViewModel @Inject constructor(
         activityRepository.getAll(),
         activityTypeRepository.getAll(),
         categoryRepository.getAll(),
-        // M18.138: Bildschirmzeit (Digital Balance) — Ziele auf „Digital"
-        // messen die echte Bildschirmzeit, nicht die Aufzeichnung. 32 Tage
-        // deckten den Monatsfall; die 60-Sekunden-Aktualität kommt von hier.
         balanceSource.dailyTotals(LOOKBACK_DAYS),
         historyBalance,
         goalRepository.getCheckinsSince(checkinLookbackStartMs()),
         todoRepository.getAllCompletions(),
         _celebration,
-        _showCompleted,
-        // M22: laufende Aufzeichnung live mitzählen (10-s-Takt).
+        _showArchived,
         com.d_drostes_apps.aevum.domain.analytics.LiveRefreshTicker.ticker()
     ) { values ->
         @Suppress("UNCHECKED_CAST")
@@ -119,12 +118,19 @@ class GoalsViewModel @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val completions = values[8] as List<TodoCompletion>
         val celebration = values[9] as GoalCelebrationEvent?
-        val showCompleted = values[10] as Boolean
+        val showArchived = values[10] as Boolean
 
         buildState(
-            activeGoals, archivedGoals, sessions, types, categories,
-            balanceHistory + balance32, checkins, completions,
-            celebration, showCompleted
+            activeGoals = activeGoals,
+            archivedGoals = archivedGoals,
+            sessions = sessions,
+            types = types,
+            categories = categories,
+            balance = balanceHistory + balance32,
+            checkins = checkins,
+            completions = completions,
+            celebration = celebration,
+            showArchived = showArchived
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalsUiState())
 
@@ -138,76 +144,126 @@ class GoalsViewModel @Inject constructor(
         checkins: List<GoalCheckin>,
         completions: List<TodoCompletion>,
         celebration: GoalCelebrationEvent?,
-        showCompleted: Boolean
+        showArchived: Boolean
     ): GoalsUiState {
         val typeMap = types.associateBy { it.id }
         val categoryMap = categories.associateBy { it.id }
         val checkinsByGoal = checkins.groupBy { it.goalId }
-        val todayKey = today.toString()
-        val todayCounts = checkins.filter { it.dateKey == todayKey }
-            .groupingBy { it.goalId }.eachCount()
-        val todayCredits = checkins.filter { it.dateKey == todayKey }
-            .groupBy { it.goalId }
-            .mapValues { (_, rows) -> rows.sumOf { it.durationMs } }
 
-        fun evaluate(goal: Goal) = GoalProgressAnalytics.evaluateGoal(
-            goal = goal,
-            sessions = sessions,
-            anchorDate = today,
-            zoneId = zoneId,
-            typeMap = typeMap,
-            balanceMsPerDay = balance,
-            checkins = checkinsByGoal[goal.id] ?: emptyList(),
-            todoCompletions = completions
-        )
+        fun oldProgress(goal: Goal): GoalWithProgress {
+            val result = GoalProgressAnalytics.evaluateGoal(
+                goal = goal,
+                sessions = sessions,
+                anchorDate = today,
+                zoneId = zoneId,
+                typeMap = typeMap,
+                balanceMsPerDay = balance,
+                checkins = checkinsByGoal[goal.id] ?: emptyList(),
+                todoCompletions = completions
+            )
+            return result.toGoalWithProgress(
+                typeMap = typeMap,
+                categoryMap = categoryMap,
+                todayCheckins = (checkinsByGoal[goal.id] ?: emptyList())
+                    .filter { it.dateKey == today.toString() }
+                    .size,
+                todayCreditMs = (checkinsByGoal[goal.id] ?: emptyList())
+                    .filter { it.dateKey == today.toString() }
+                    .sumOf { it.durationMs }
+            )
+        }
 
-        val active = activeGoals.map(::evaluate)
+        val habitGoals = activeGoals
+            .filter { GoalProgressAnalytics.isHabit(it) }
+            .map { goal -> habitUi(goal, checkinsByGoal[goal.id] ?: emptyList(), typeMap, categoryMap) }
+            .sortedWith(
+                compareByDescending<HabitGoalUi> { it.isDueOn(today) && !it.isDoneOn(today) }
+                    .thenByDescending { it.isDueOn(today) }
+                    .thenByDescending { it.streak }
+                    .thenBy { it.goal.title.lowercase() }
+            )
+
+        val legacyGoals = activeGoals
+            .filterNot { GoalProgressAnalytics.isHabit(it) }
+            .map(::oldProgress)
             .sortedWith(progressComparator())
-            .map {
-                it.toGoalWithProgress(
-                    typeMap,
-                    categoryMap,
-                    todayCounts[it.goal.id] ?: 0,
-                    todayCreditMs = todayCredits[it.goal.id] ?: 0L
-                )
-            }
-        val archived = archivedGoals.map(::evaluate)
-            .sortedWith(progressComparator())
-            .map {
-                it.toGoalWithProgress(
-                    typeMap,
-                    categoryMap,
-                    todayCounts[it.goal.id] ?: 0,
-                    todayCreditMs = todayCredits[it.goal.id] ?: 0L
-                )
-            }
 
-        maybeEmitCelebration(active)
+        val archivedHabits = archivedGoals
+            .filter { GoalProgressAnalytics.isHabit(it) }
+            .map { habitUi(it, checkinsByGoal[it.id] ?: emptyList(), typeMap, categoryMap) }
+        val archivedLegacy = archivedGoals
+            .filterNot { GoalProgressAnalytics.isHabit(it) }
+            .map(::oldProgress)
 
-        val due = active.filter { it.isDueToday }
+        // Der perfekte Tag hat Vorrang: Er ist der größere Dopamin-Moment.
+        maybeEmitPerfectDay(habitGoals)
+        maybeEmitCelebration(habitGoals, legacyGoals)
+
+        val dueHabits = habitGoals.filter { it.isDueOn(today) }
+        val doneHabits = dueHabits.count { it.isDoneOn(today) }
+        // Der Hero zählt nur die neuen Habits. Alt-Ziele bleiben in ihrer
+        // eigenen Sektion und machen den „perfekten Tag" nicht kaputt.
+        val due = dueHabits.size
+        val met = doneHabits
+
         return GoalsUiState(
             loading = false,
-            activeGoals = active,
-            inactiveGoals = archived,
-            showCompleted = showCompleted,
+            habitGoals = habitGoals,
+            legacyGoals = legacyGoals,
+            archivedHabitGoals = archivedHabits,
+            archivedLegacyGoals = archivedLegacy,
+            showArchived = showArchived,
             summary = GoalsSummary(
-                dueToday = due.size,
-                metDue = due.count { it.isCurrentAchieved },
-                bestStreak = active.maxOfOrNull { it.streakCurrent } ?: 0,
-                totalActive = active.size
+                dueToday = due,
+                metDue = met,
+                bestStreak = (habitGoals.maxOfOrNull { it.streak } ?: 0)
+                    .coerceAtLeast(legacyGoals.maxOfOrNull { it.streakCurrent } ?: 0),
+                totalActive = activeGoals.size,
+                perfectToday = due > 0 && met >= due,
+                perfectStreak = perfectStreak(habitGoals)
             ),
             celebration = celebration
         )
     }
 
-    /**
-     * Feier genau einmal je Ziel+Periode. Läuft im Zustands-Aufbau; das
-     * Merken passiert SOFORT, damit der erneute Aufbau (z. B. durch die
-     * nächste Bildschirmzeit-Aktualisierung) nicht doppelt feuert.
-     */
-    private fun maybeEmitCelebration(goals: List<GoalWithProgress>) {
+    private fun habitUi(
+        goal: Goal,
+        checkins: List<GoalCheckin>,
+        typeMap: Map<String, ActivityType>,
+        categoryMap: Map<String, Category>
+    ): HabitGoalUi {
+        val result = GoalProgressAnalytics.evaluateGoal(
+            goal = goal,
+            sessions = emptyList(),
+            anchorDate = today,
+            zoneId = zoneId,
+            typeMap = typeMap,
+            checkins = checkins
+        ).toGoalWithProgress(
+            typeMap = typeMap,
+            categoryMap = categoryMap,
+            todayCheckins = checkins.count { it.dateKey == today.toString() },
+            todayCreditMs = checkins.filter { it.dateKey == today.toString() }.sumOf { it.durationMs }
+        )
+        return HabitGoalUi(
+            goal = goal,
+            kind = GoalProgressAnalytics.kindOf(goal),
+            icon = goal.icon?.takeIf { it.isNotBlank() } ?: defaultIcon(GoalProgressAnalytics.kindOf(goal)),
+            target = if (GoalProgressAnalytics.kindOf(goal) == Goal.KIND_COUNT) {
+                goal.targetValue.toInt().coerceAtLeast(1)
+            } else 1,
+            progress = result,
+            checkins = checkins,
+            colorLong = goal.activityTypeId?.let { typeMap[it]?.color },
+            categoryName = goal.categoryId?.let { categoryMap[it]?.name }
+        )
+    }
+
+    /** Ein Ziel pro Tag+Periode — der Store verhindert Wiederholungen. */
+    private fun maybeEmitCelebration(habits: List<HabitGoalUi>, legacy: List<GoalWithProgress>) {
         if (_celebration.value != null) return
-        val candidate = goals.firstNotNullOfOrNull { g ->
+        val candidates = habits.map { it.progress } + legacy
+        val candidate = candidates.firstNotNullOfOrNull { g ->
             val celebration = GoalCelebrationPolicy.candidate(g)
             celebration?.takeIf {
                 celebrationStore.shouldCelebrate(g.goal.id, it.periodKey)
@@ -223,75 +279,159 @@ class GoalsViewModel @Inject constructor(
         )
     }
 
-    fun consumeCelebration() {
-        _celebration.value = null
+    /** „Perfekter Tag" = alle heute fälligen Habits erledigt. */
+    private fun maybeEmitPerfectDay(habits: List<HabitGoalUi>) {
+        if (_celebration.value != null) return
+        val due = habits.filter { it.isDueOn(today) }
+        if (due.isEmpty() || due.any { !it.isDoneOn(today) }) return
+        val key = today.toString()
+        if (!celebrationStore.shouldCelebrate(PERFECT_DAY_ID, key)) return
+        celebrationStore.markCelebrated(PERFECT_DAY_ID, key)
+        _celebration.value = GoalCelebrationEvent(
+            goalId = PERFECT_DAY_ID,
+            goalTitle = "",
+            streak = perfectStreak(habits),
+            periodLabel = "",
+            accent = "gold",
+            perfectDay = true
+        )
     }
 
-    /** Fortschritts-Rang: fällig & offen zuerst, dann Fortschritt absteigend. */
-    private fun progressComparator(): Comparator<GoalProgressAnalytics.GoalProgressResult> =
-        compareByDescending<GoalProgressAnalytics.GoalProgressResult> { it.isDueToday && !it.isCurrentAchieved }
+    /** Anzahl kompletter Tage in Folge (heute zählt nur, wenn schon fertig). */
+    private fun perfectStreak(habits: List<HabitGoalUi>): Int {
+        if (habits.isEmpty()) return 0
+        var day = today
+        fun perfect(date: LocalDate): Boolean {
+            val due = habits.filter { it.isDueOn(date) }
+            return due.isNotEmpty() && due.all { it.isDoneOn(date) }
+        }
+        if (!perfect(day)) day = day.minusDays(1)
+        var streak = 0
+        while (perfect(day)) {
+            streak++
+            day = day.minusDays(1)
+        }
+        return streak
+    }
+
+    private fun progressComparator(): Comparator<GoalWithProgress> =
+        compareByDescending<GoalWithProgress> { it.isDueToday && !it.isCurrentAchieved }
             .thenByDescending { it.isDueToday }
             .thenByDescending { it.progress.coerceAtMost(1f) }
             .thenBy { it.goal.title.lowercase() }
 
-    // ── Aktionen ─────────────────────────────────────────────────────────
+    // ── Aktionen (immer mit explizitem Tag) ──────────────────────────────
 
-    /** Manuelles Abhaken/Zählen: ein Check-in. */
-    fun checkIn(goalId: String) {
+    fun checkIn(goalId: String, date: LocalDate = today) {
         viewModelScope.launch {
             val goal = goalRepository.getById(goalId).first() ?: return@launch
-            val activityName = goal.activityTypeId?.let { typeId ->
-                activityTypeRepository.getById(typeId).first()?.name
+            val kind = GoalProgressAnalytics.kindOf(goal)
+            val existing = goalRepository.getCheckinsForGoal(goalId).first()
+                .filter { it.dateKey == date.toString() }
+
+            if (kind == Goal.KIND_TIME) {
+                openTimePrompt(goal, date, existing.firstOrNull { it.durationMs > 0L })
+                return@launch
             }
-            val checkin = GoalCheckin(
-                id = UUID.randomUUID().toString(),
-                goalId = goalId,
-                timestampMs = System.currentTimeMillis(),
-                dateKey = LocalDate.now(zoneId).toString(),
-                activityTypeId = goal.activityTypeId
-            )
-            goalRepository.addCheckin(checkin)
-            // M35: Optionalen Zeit-Dialog direkt nach dem Abhaken anbieten.
-            if (goal.activityTypeId != null) {
-                _timePrompt.value = GoalTimePrompt(
+            if (kind == Goal.KIND_DONE && existing.isNotEmpty()) {
+                return@launch
+            }
+            goalRepository.addCheckin(
+                GoalCheckin(
+                    id = UUID.randomUUID().toString(),
                     goalId = goalId,
-                    checkinId = checkin.id,
-                    goalTitle = goal.title,
-                    activityName = activityName
+                    timestampMs = timestampFor(date),
+                    dateKey = date.toString(),
+                    count = 1,
+                    activityTypeId = null,
+                    durationMs = 0L
                 )
-            }
-        }
-    }
-
-    /** M35: Zeit eines bestehenden Check-ins erfassen/ändern. */
-    fun openTimePrompt(goalId: String, checkin: GoalCheckin) {
-        viewModelScope.launch {
-            val goal = goalRepository.getById(goalId).first() ?: return@launch
-            val typeId = checkin.activityTypeId ?: goal.activityTypeId
-            val activityName = typeId?.let { activityTypeRepository.getById(it).first()?.name }
-            _timePrompt.value = GoalTimePrompt(
-                goalId = goalId,
-                checkinId = checkin.id,
-                goalTitle = goal.title,
-                activityName = activityName,
-                initialMinutes = creditedMinutes(checkin.durationMs)
             )
         }
     }
 
-    fun confirmTimePrompt(minutes: Int) {
+    fun undo(goalId: String, date: LocalDate = today) {
+        viewModelScope.launch {
+            val goal = goalRepository.getById(goalId).first() ?: return@launch
+            val kind = GoalProgressAnalytics.kindOf(goal)
+            val existing = goalRepository.getCheckinsForGoal(goalId).first()
+                .filter { it.dateKey == date.toString() }
+            if (existing.isEmpty()) return@launch
+            if (kind == Goal.KIND_TIME) {
+                existing.forEach { goalRepository.removeCheckin(it.id) }
+            } else {
+                existing.maxByOrNull { it.timestampMs }?.let { goalRepository.removeCheckin(it.id) }
+            }
+            celebrationStore.forget(goalId)
+        }
+    }
+
+    fun openTimePrompt(goalId: String, date: LocalDate = today) {
+        viewModelScope.launch {
+            val goal = goalRepository.getById(goalId).first() ?: return@launch
+            val existing = goalRepository.getCheckinsForGoal(goalId).first()
+                .filter { it.dateKey == date.toString() && it.durationMs > 0L }
+                .maxByOrNull { it.durationMs }
+            openTimePrompt(goal, date, existing)
+        }
+    }
+
+    private fun openTimePrompt(goal: Goal, date: LocalDate, checkin: GoalCheckin?) {
+        _timePrompt.value = GoalTimePrompt(
+            goalId = goal.id,
+            checkinId = checkin?.id,
+            goalTitle = goal.title,
+            dateKey = date.toString(),
+            initialSeconds = (checkin?.durationMs ?: 0L) / 1000L
+        )
+    }
+
+    fun confirmTimePrompt(seconds: Int) {
         val prompt = _timePrompt.value ?: return
         viewModelScope.launch {
-            goalRepository.setCheckinDuration(prompt.checkinId, minutes.toLong() * 60_000L)
+            val goal = goalRepository.getById(prompt.goalId).first() ?: return@launch
+            val date = runCatching { LocalDate.parse(prompt.dateKey) }.getOrDefault(today)
+            if (seconds <= 0) {
+                goalRepository.getCheckinsForGoal(goal.id).first()
+                    .filter { it.dateKey == prompt.dateKey }
+                    .forEach { goalRepository.removeCheckin(it.id) }
+            } else {
+                val existing = goalRepository.getCheckinsForGoal(goal.id).first()
+                    .filter { it.dateKey == prompt.dateKey }
+                val target = prompt.checkinId?.let { id -> existing.firstOrNull { it.id == id } }
+                if (target != null) {
+                    goalRepository.setCheckinDuration(target.id, seconds * 1000L)
+                    // Etwaige weitere Zeit-Zeilen desselben Tages aufräumen.
+                    existing.filter { it.id != target.id }
+                        .forEach { goalRepository.removeCheckin(it.id) }
+                } else {
+                    existing.forEach { goalRepository.removeCheckin(it.id) }
+                    goalRepository.addCheckin(
+                        GoalCheckin(
+                            id = UUID.randomUUID().toString(),
+                            goalId = goal.id,
+                            timestampMs = timestampFor(date),
+                            dateKey = prompt.dateKey,
+                            count = 1,
+                            activityTypeId = null,
+                            durationMs = seconds * 1000L
+                        )
+                    )
+                }
+            }
             _timePrompt.value = null
+            celebrationStore.forget(goal.id)
         }
     }
 
     fun removeTimeFromPrompt() {
         val prompt = _timePrompt.value ?: return
         viewModelScope.launch {
-            goalRepository.setCheckinDuration(prompt.checkinId, 0L)
+            goalRepository.getCheckinsForGoal(prompt.goalId).first()
+                .filter { it.dateKey == prompt.dateKey }
+                .forEach { goalRepository.removeCheckin(it.id) }
             _timePrompt.value = null
+            celebrationStore.forget(prompt.goalId)
         }
     }
 
@@ -299,15 +439,8 @@ class GoalsViewModel @Inject constructor(
         _timePrompt.value = null
     }
 
-    /** Nimmt den letzten Check-in von HEUTE zurück (Historie bleibt unberührt). */
-    fun undoLastCheckin(goalId: String) {
-        viewModelScope.launch {
-            val last = goalRepository.lastCheckin(goalId) ?: return@launch
-            if (last.dateKey == LocalDate.now(zoneId).toString()) {
-                goalRepository.removeCheckin(last.id)
-                celebrationStore.forget(goalId)
-            }
-        }
+    fun consumeCelebration() {
+        _celebration.value = null
     }
 
     fun setArchived(goalId: String, archived: Boolean) {
@@ -329,8 +462,12 @@ class GoalsViewModel @Inject constructor(
         }
     }
 
-    fun setShowCompleted(show: Boolean) {
-        _showCompleted.value = show
+    fun setShowArchived(show: Boolean) {
+        _showArchived.value = show
+    }
+
+    private fun timestampFor(date: LocalDate): Long {
+        return date.atTime(LocalTime.now()).atZone(zoneId).toInstant().toEpochMilli()
     }
 
     private fun checkinLookbackStartMs(): Long =
@@ -338,25 +475,110 @@ class GoalsViewModel @Inject constructor(
             .atStartOfDay(zoneId).toInstant().toEpochMilli()
 
     companion object {
-        /**
-         * M18.138: Rückblick-Fenster des Kurz-Takts. Ziele gibt es
-         * täglich/wöchentlich/monatlich → 32 Tage decken den Monatsfall.
-         * Öffentlich, weil auch die Detail-Ansicht ([GoalDetailViewModel])
-         * denselben Takt nutzt.
-         */
         const val LOOKBACK_DAYS = 32
-
-        /**
-         * M20: Fenster des langen Verlaufs. Muss die Analytics-Fenster
-         * abdecken: 91 Tage (täglich), 26 Wochen = 182 Tage (wöchentlich),
-         * 6 Monate ≈ 183 Tage (monatlich) → 192 Tage mit Puffer.
-         */
         const val HISTORY_FETCH_DAYS = 192
+
+        /** Pseudo-Ziel-ID für die „Perfekter Tag"-Feier (Dedupe im Store). */
+        const val PERFECT_DAY_ID = "__perfect_day__"
+        const val PERFECT_DAY_KEY = "perfect-day"
+
+        fun defaultIcon(kind: String): String = when (kind) {
+            Goal.KIND_COUNT -> "🔢"
+            Goal.KIND_TIME -> "⏱️"
+            else -> "🎯"
+        }
     }
 }
 
 // ── Präsentations-Modelle ────────────────────────────────────────────────
 
+/**
+ * Ein Habit mit allem, was die Tages-Karten brauchen. [checkins] ist die
+ * vollständige Liste im Verlaufsfenster — daraus berechnet die UI den
+ * Status für JEDEN Tag, ohne weitere Datenbank-Abfragen.
+ */
+data class HabitGoalUi(
+    val goal: Goal,
+    val kind: String,
+    val icon: String,
+    val target: Int,
+    val progress: GoalWithProgress,
+    val checkins: List<GoalCheckin>,
+    val colorLong: Long?,
+    val categoryName: String?
+) {
+    fun checkinsOn(date: LocalDate): List<GoalCheckin> =
+        checkins.filter { it.dateKey == date.toString() }
+
+    fun countOn(date: LocalDate): Int =
+        checkinsOn(date).sumOf { it.count }
+
+    fun msOn(date: LocalDate): Long =
+        checkinsOn(date).sumOf { it.durationMs }
+
+    /** Vor dem Anlegen des Habits gibt es nichts anzuzeigen. */
+    fun isVisibleOn(date: LocalDate): Boolean =
+        !date.isBefore(GoalProgressAnalytics.habitCreatedDate(goal))
+
+    fun isDueOn(date: LocalDate): Boolean =
+        isVisibleOn(date) && GoalProgressAnalytics.isScheduledOn(goal, date)
+
+    fun isDoneOn(date: LocalDate): Boolean = when (kind) {
+        Goal.KIND_DONE -> countOn(date) > 0
+        Goal.KIND_COUNT -> countOn(date) >= target
+        else -> msOn(date) > 0L
+    }
+
+    fun progressOn(date: LocalDate): Float = when (kind) {
+        Goal.KIND_DONE -> if (isDoneOn(date)) 1f else 0f
+        Goal.KIND_COUNT -> (countOn(date).toFloat() / target.coerceAtLeast(1)).coerceAtMost(1f)
+        else -> if (msOn(date) > 0L) 1f else 0f
+    }
+
+    fun valueOn(date: LocalDate): String = when (kind) {
+        Goal.KIND_DONE -> if (isDoneOn(date)) "✓" else "–"
+        Goal.KIND_COUNT -> "${countOn(date)} / $target"
+        else -> GoalProgressAnalytics.formatClock(msOn(date) / 1000L)
+    }
+
+    val streak: Int get() = progress.streakCurrent
+    val bestStreak: Int get() = progress.streakBest
+}
+
+data class GoalsSummary(
+    val dueToday: Int = 0,
+    val metDue: Int = 0,
+    val bestStreak: Int = 0,
+    val totalActive: Int = 0,
+    val perfectToday: Boolean = false,
+    val perfectStreak: Int = 0
+)
+
+data class GoalCelebrationEvent(
+    val goalId: String,
+    val goalTitle: String,
+    val streak: Int,
+    val periodLabel: String,
+    val accent: String?,
+    /** M36: „Perfekter Tag" nutzt denselben Konfetti-Overlay mit anderem Titel. */
+    val perfectDay: Boolean = false
+)
+
+data class GoalsUiState(
+    val loading: Boolean = true,
+    val habitGoals: List<HabitGoalUi> = emptyList(),
+    val legacyGoals: List<GoalWithProgress> = emptyList(),
+    val archivedHabitGoals: List<HabitGoalUi> = emptyList(),
+    val archivedLegacyGoals: List<GoalWithProgress> = emptyList(),
+    val showArchived: Boolean = false,
+    val summary: GoalsSummary = GoalsSummary(),
+    val celebration: GoalCelebrationEvent? = null
+)
+
+/**
+ * Gemeinsames Präsentationsmodell für Alt-Ziele, Dashboard und Detail.
+ * (M20; bleibt unverändert, damit die bestehende Verdrahtung weiterläuft.)
+ */
 fun GoalProgressAnalytics.GoalProgressResult.toGoalWithProgress(
     typeMap: Map<String, ActivityType>,
     categoryMap: Map<String, Category>,
@@ -399,57 +621,23 @@ data class GoalWithProgress(
     val activityTypeName: String?,
     val progressText: String = "",
     val isMet: Boolean = false,
-    /** M20: Ist die aktuelle Periode fällig? false = freier Tag / freie Woche. */
     val isDueToday: Boolean = true,
     val streakCurrent: Int = 0,
     val streakBest: Int = 0,
-    /** M20: erfüllte / fällige Perioden im Verlaufsfenster (Detail-Statistik). */
     val metPeriods: Int = 0,
     val duePeriods: Int = 0,
     val periodKey: String = "",
     val isCountType: Boolean = false,
     val categoryName: String? = null,
-    /** Aktivitätsfarbe (Long-ARGB aus der Aktivität) — Akzent-Fallback. */
     val activityColorLong: Long? = null,
-    /** Heutige Check-ins (manuelle Ziele) — steuert Knopf-Zustand/Rückgängig. */
     val todayCheckins: Int = 0,
-    /** M35: Heute über Check-ins gutgeschriebene Zeit (0 = keine). */
     val todayCreditMs: Long = 0L,
-    // ── M27: verzögerte Wertung ───────────────────────────────────────────
-    /** Abgeschlossene Wertung: bei Auto-Zielen die letzte volle Periode. */
     val isMetFinal: Boolean = false,
-    /** Auto-Ziel, laufende Periode — noch keine Wertung. */
     val isPendingFinal: Boolean = false,
-    /** Für „Heute erfüllt"-Anzeige: live (manuell) bzw. false solange offen. */
     val isCurrentAchieved: Boolean = false,
-    /** Letzte abgeschlossene Periode war erfüllt (null = keine Daten). */
     val lastCompletedMet: Boolean? = null,
     val celebrationEligible: Boolean = false,
     val celebrationPeriodKey: String = "",
     val celebrationPeriodLabel: String = "",
     val celebrationStreak: Int = 0
-)
-
-data class GoalsSummary(
-    val dueToday: Int = 0,
-    val metDue: Int = 0,
-    val bestStreak: Int = 0,
-    val totalActive: Int = 0
-)
-
-data class GoalCelebrationEvent(
-    val goalId: String,
-    val goalTitle: String,
-    val streak: Int,
-    val periodLabel: String,
-    val accent: String?
-)
-
-data class GoalsUiState(
-    val loading: Boolean = true,
-    val activeGoals: List<GoalWithProgress> = emptyList(),
-    val inactiveGoals: List<GoalWithProgress> = emptyList(),
-    val showCompleted: Boolean = false,
-    val summary: GoalsSummary = GoalsSummary(),
-    val celebration: GoalCelebrationEvent? = null
 )

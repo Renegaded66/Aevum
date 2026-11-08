@@ -499,3 +499,41 @@ Druckindex weiterhin auf den letzten 7 vollen Tagen.
 **Alternative:** weiter nur volle Perioden — verworfen (User-Report).
 **Preis:** laufender Tag/Woche ist unvollständig, Prozentvergleich fällt
 morgens niedriger aus; dokumentiert.
+
+## M36 — Habit-Tracker (DONE/COUNT/TIME) und PC-Duplikate
+
+**Nur noch drei Ziel-Arten, täglich.** `goal.kind` = DONE/COUNT/TIME;
+Wochen-/Monatsrhythmen und AUTO-Quellen werden im Editor nicht mehr
+angeboten. **Alternative:** Perioden-Auswahl behalten — verworfen, weil der
+Nutzer ausdrücklich durch Tage wischt und „pro Tag" denkt; jede zusätzliche
+Achse macht den Editor wieder zum Formular. **Preis:** Wochen-/Monats- und
+AUTO-Ziele leben als `LEGACY` weiter und müssen im Editor umgewandelt werden.
+
+**TIME hat keinen Zielwert.** Jede eingetragene Zeit > 0 erfüllt den Tag —
+genau Devons Satz „sobald man eine Zeit eingetragen hat, hat man das Ziel für
+den jeweiligen Tag ja auch offensichtlich erreicht". **Alternative:** eine
+Zieldauer („mindestens 30 min") einführen — verworfen, weil das wieder eine
+Zahl und eine Wertung wäre, die er nicht wollte. **Preis:** TIME-Habits können
+nicht „zu wenig" sein; die Dauer ist Information, nicht Bedingung.
+
+**Zeit-Eingabe als drei Räder.** Stunden/Minuten/Sekunden nebeneinander,
+schnappend, mit Haptik und Schnellwahl. **Alternative:** Textfeld mit
+Minuten (M35) — verworfen („vernünftige … drei Drehregler"). **Preis:** mehr
+UI-Code und ein eigener Dialog; dafür keine Tippfehler und Sekundenpräzision.
+
+**Legacy-Ziele bleiben sichtbar.** Manuelle Tagesziele werden per Migration
+zu DONE/COUNT/TIME; alles andere bleibt `LEGACY` mit alter Auswertung.
+**Alternative:** alle Altziele automatisch umdeuten — verworfen, weil ein
+„Digital unter 2 h" sonst still zu einem manuellen Zeit-Habit würde.
+**Preis:** zwei Listen (Habits + „Weitere Ziele"), bis der Nutzer umwandelt.
+
+**PC-Duplikate: Serialisierung + deterministische ID + UNIQUE-Index.**
+`syncNow()` unter `Mutex`; neue PC-Zeilen `id = externalId`; DB v53 macht
+`activity_session.external_id` UNIQUE und räumt Bestandsduplikate auf.
+**Alternative:** nur der `PcSessionDeduper` nach dem Import — verworfen, weil
+das Rennen weiterhin zwei Zeilen schreiben und kurzzeitig doppelte Zahlen
+zeigen würde. **Preis:** `REPLACE` auf externalId kann bei einem echten
+Konflikt die alte Zeile ersetzen; da externalId stabile Identität bedeutet,
+ist das gewollt. Zusätzlich heilt `PcSessionDeduper` eingebettete
+Aufzeichnungen (20–21 ⊂ 20–22), ohne echte Folgesessions anzutasten.
+

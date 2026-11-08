@@ -19,9 +19,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.d_drostes_apps.aevum.ui.theme.AevumRadius
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.d_drostes_apps.aevum.R
+import com.d_drostes_apps.aevum.data.model.Goal
 import com.d_drostes_apps.aevum.domain.analytics.GoalProgressAnalytics
 import com.d_drostes_apps.aevum.ui.components.AevumCard
 import com.d_drostes_apps.aevum.ui.components.CardVariant
@@ -97,9 +100,14 @@ fun GoalDetailScreen(
                         goal = goal,
                         g = g,
                         accent = accent,
+                        kind = state.kind,
+                        icon = state.icon,
+                        todayCheckins = state.todayCheckins,
+                        todayMs = state.todayMs,
                         onBack = onBack,
                         onCheckIn = viewModel::checkIn,
-                        onUndo = viewModel::undoLastCheckin
+                        onUndo = viewModel::undoLastCheckin,
+                        onLogTime = { viewModel.checkIn() }
                     )
                 }
 
@@ -125,7 +133,7 @@ fun GoalDetailScreen(
                         ) {
                             GoalHeatmap(
                                 periods = state.history,
-                                target = goal.targetValue,
+                                target = if (state.kind == Goal.KIND_TIME) 1f else goal.targetValue,
                                 accent = accent,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -138,7 +146,7 @@ fun GoalDetailScreen(
                         CheckinList(
                             checkins = state.checkins,
                             accent = accent,
-                            goalHasActivity = goal.activityTypeId != null,
+                            kind = state.kind,
                             onDelete = viewModel::removeCheckin,
                             onEditTime = viewModel::openTimePrompt
                         )
@@ -159,7 +167,7 @@ fun GoalDetailScreen(
         }
 
         GoalCelebrationOverlay(event = state.celebration, onDismiss = viewModel::consumeCelebration)
-        GoalDurationDialog(
+        HabitTimePickerDialog(
             prompt = timePrompt,
             onConfirm = viewModel::confirmTimePrompt,
             onRemove = viewModel::removeTimeFromPrompt,
@@ -173,14 +181,20 @@ private fun DetailHero(
     goal: com.d_drostes_apps.aevum.data.model.Goal,
     g: GoalWithProgress?,
     accent: Color,
+    kind: String,
+    icon: String,
+    todayCheckins: Int,
+    todayMs: Long,
     onBack: () -> Unit,
     onCheckIn: () -> Unit,
-    onUndo: () -> Unit
+    onUndo: () -> Unit,
+    onLogTime: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     val isAtMost = goal.type == GoalProgressAnalytics.TYPE_AT_MOST
     val progress = (g?.progress ?: 0f).coerceIn(0f, 2f)
     val isManual = !GoalProgressAnalytics.isAuto(goal)
+    val isHabit = GoalProgressAnalytics.isHabit(goal)
 
     AevumCard(variant = CardVariant.Gradient) {
         Column(
@@ -194,10 +208,34 @@ private fun DetailHero(
                 }
             }
 
-            Text(goal.title, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(15.dp))
+                        .background(accent.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
+                ) { Text(icon, fontSize = 25.sp) }
+                Spacer(Modifier.width(AevumSpacing.sm))
+                Text(
+                    goal.title,
+                    fontSize = 24.sp,
+                    lineHeight = 30.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (g != null) {
+                if (isHabit) {
+                    GoalPill(
+                        text = when (kind) {
+                            com.d_drostes_apps.aevum.data.model.Goal.KIND_COUNT -> stringResource(R.string.goal_kind_count)
+                            com.d_drostes_apps.aevum.data.model.Goal.KIND_TIME -> stringResource(R.string.goal_kind_time)
+                            else -> stringResource(R.string.goal_kind_done)
+                        },
+                        color = colors.onSurfaceVariant
+                    )
+                } else if (g != null) {
                     GoalPill(text = goalSourceText(g), color = colors.onSurfaceVariant)
                 }
                 GoalPill(text = g?.periodLabel ?: goal.period, color = colors.onSurfaceVariant)
@@ -245,7 +283,7 @@ private fun DetailHero(
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
-                if (g.todayCreditMs > 0L) {
+                if (g.todayCreditMs > 0L && kind != Goal.KIND_TIME) {
                     Text(
                         text = stringResource(R.string.goal_today_credit, creditedMinutes(g.todayCreditMs)),
                         modifier = Modifier.fillMaxWidth(),
@@ -256,7 +294,51 @@ private fun DetailHero(
                 }
             }
 
-            if (isManual) {
+            if (isHabit) {
+                if (kind == com.d_drostes_apps.aevum.data.model.Goal.KIND_TIME) {
+                    if (todayMs > 0L) {
+                        Text(
+                            text = "⏱ " + GoalProgressAnalytics.formatClock(todayMs / 1000L),
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accent,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                    Button(
+                        onClick = onLogTime,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(AevumRadius.full)
+                    ) {
+                        Text(
+                            stringResource(
+                                if (todayMs > 0L) R.string.goal_time_edit_title
+                                else R.string.goal_time_title
+                            ),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (todayMs > 0L) {
+                        TextButton(
+                            onClick = onUndo,
+                            modifier = Modifier.align(Alignment.End)
+                        ) { Text(stringResource(R.string.goal_time_remove), fontSize = 12.sp) }
+                    }
+                } else {
+                    GoalCheckButton(
+                        countToday = todayCheckins,
+                        accent = accent,
+                        onCheck = onCheckIn,
+                        onUndo = onUndo,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = if (kind == com.d_drostes_apps.aevum.data.model.Goal.KIND_COUNT) {
+                            stringResource(R.string.goal_tracker_add_count)
+                        } else null
+                    )
+                }
+            } else if (isManual) {
                 GoalCheckButton(
                     countToday = g?.todayCheckins ?: 0,
                     accent = accent,
@@ -365,7 +447,7 @@ private fun DetailHistory(
     ) {
         GoalHistoryBars(
             periods = display,
-            target = goal.targetValue,
+            target = if (GoalProgressAnalytics.kindOf(goal) == Goal.KIND_TIME) 1f else goal.targetValue,
             accent = accent,
             labels = labels,
             modifier = Modifier.fillMaxWidth()
@@ -377,7 +459,7 @@ private fun DetailHistory(
 private fun CheckinList(
     checkins: List<com.d_drostes_apps.aevum.data.model.GoalCheckin>,
     accent: Color,
-    goalHasActivity: Boolean,
+    kind: String,
     onDelete: (String) -> Unit,
     onEditTime: (com.d_drostes_apps.aevum.data.model.GoalCheckin) -> Unit
 ) {
@@ -417,12 +499,8 @@ private fun CheckinList(
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
-                        // M35: Zeitgutschrift des Check-ins — antippen zum
-                        // Ändern oder Entfernen (Check-in bleibt bestehen).
-                        // Ohne Ziel-Aktivität und ohne bisherige Gutschrift
-                        // gibt es nichts zu erfassen.
-                        val canEditTime = goalHasActivity ||
-                            c.activityTypeId != null || c.durationMs > 0L
+                        // M36: Zeit-Habits — antippen zum Ändern/Entfernen.
+                        val canEditTime = kind == com.d_drostes_apps.aevum.data.model.Goal.KIND_TIME
                         if (canEditTime) {
                             TextButton(
                                 onClick = { onEditTime(c) },
@@ -430,10 +508,7 @@ private fun CheckinList(
                             ) {
                                 Text(
                                     text = if (c.durationMs > 0L) {
-                                        "⏱ " + stringResource(
-                                            R.string.goal_time_minutes_short,
-                                            creditedMinutes(c.durationMs)
-                                        )
+                                        "⏱ " + GoalProgressAnalytics.formatClock(c.durationMs / 1000L)
                                     } else {
                                         stringResource(R.string.goal_time_add)
                                     },

@@ -35,12 +35,12 @@ public class SessionStoreTests : IDisposable
         return store;
     }
 
-    private static TrackedSession Session(string id, long start, long? end, long lastSeen) => new()
+    private static TrackedSession Session(string id, long start, long? end, long lastSeen, string activityKey = "gaming") => new()
     {
         Id = id,
         ProgramKey = "minecraft.exe",
         ProgramName = "Minecraft",
-        ActivityKey = "gaming",
+        ActivityKey = activityKey,
         StartAtMs = start,
         EndAtMs = end,
         LastSeenAtMs = lastSeen,
@@ -71,6 +71,64 @@ public class SessionStoreTests : IDisposable
         Assert.Equal(1, store.CountSessions());
         var s = Assert.Single(store.QueryCompletedSessions(0, 100));
         Assert.Equal(5_000, s.EndAtMs);
+    }
+
+    [Fact]
+    public void LateHeartbeat_CannotReopenFinalizedSession()
+    {
+        using var store = NewStore();
+        store.Apply(new[] { Session("a", 1_000, null, 1_500) });
+        store.Apply(new[] { Session("a", 1_000, 2_000, 2_000) });
+        // Verspäteter Heartbeat eines parallelen Ticks (end_at = NULL).
+        store.Apply(new[] { Session("a", 1_000, null, 2_100) });
+
+        var s = Assert.Single(store.QueryCompletedSessions(0, 100));
+        Assert.Equal(2_000, s.EndAtMs);
+        Assert.Equal(2_100, s.LastSeenAtMs);
+    }
+
+    [Fact]
+    public void MergeOverlapping_RemovesContainedShorter()
+    {
+        using var store = NewStore();
+        store.Apply(new[]
+        {
+            Session("short", 20 * 3_600_000L, 21 * 3_600_000L, 21 * 3_600_000L),
+            Session("long", 20 * 3_600_000L, 22 * 3_600_000L, 22 * 3_600_000L),
+        });
+
+        Assert.Equal(1, store.MergeOverlappingSessions());
+
+        var remaining = Assert.Single(store.QueryCompletedSessions(0, 100));
+        Assert.Equal("long", remaining.Id);
+    }
+
+    [Fact]
+    public void MergeOverlapping_KeepsSequentialSessions()
+    {
+        using var store = NewStore();
+        store.Apply(new[]
+        {
+            Session("first", 20 * 3_600_000L, 21 * 3_600_000L, 21 * 3_600_000L),
+            Session("second", 21 * 3_600_000L, 22 * 3_600_000L, 22 * 3_600_000L),
+        });
+
+        Assert.Equal(0, store.MergeOverlappingSessions());
+        Assert.Equal(2, store.CountSessions());
+    }
+
+    [Fact]
+    public void MergeOverlapping_KeepsDifferentActivities()
+    {
+        using var store = NewStore();
+        store.Apply(new[]
+        {
+            Session("gaming", 20 * 3_600_000L, 22 * 3_600_000L, 22 * 3_600_000L, "gaming"),
+            Session("video", 20 * 3_600_000L, 21 * 3_600_000L, 21 * 3_600_000L, "video"),
+        });
+
+        Assert.Equal(0, store.MergeOverlappingSessions());
+        Assert.Equal(2, store.CountSessions());
     }
 
     [Fact]

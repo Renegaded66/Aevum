@@ -30,7 +30,7 @@ Aevum kombiniert **manuelles Tracking** mit **automatischer Erkennung**: Geofenc
 - **Dashboard** — Flow-Diagramm des Tages, Live-Karte, Ziele mit Positivitäts-Score
 - **Insights** — Zeitverteilung, Trends, Vergleiche
 - **LifeView & Kalender** — langfristige Perspektive auf dein Leben
-- **Goals** — erreiche deine Ziele, gemessen an der Positivität deiner Aktivitäten
+- **Ziele als Habit-Tracker** — drei Arten (erledigen, Anzahl sammeln, Zeit eintragen), Drei-Räder-Zeiteingabe, Tages-Swipe mit Nachträgen, Streaks und „Perfekter Tag"-Konfetti
 
 ### 🎨 Eigenständig & persönlich
 - **2x1-Homescreen-Widget** im Duolingo-Stil: zeigt BEREIT/LÄUFT/PAUSIERT + Timer, startet per Auswahl-Popup und stoppt per Knopfdruck — mit Maskottchen, wenn aktiviert
@@ -61,6 +61,10 @@ bleibt zuhause.
   ZIP entpacken, `AevumPcTracker.exe` starten, fertig (keine Installation nötig).
 - **Anleitung:** [`desktop/README.md`](desktop/README.md)
 - **Technik/Protokoll:** [`docs/PC-TRACKER-PROTOCOL.md`](docs/PC-TRACKER-PROTOCOL.md)
+
+**PC-Tracker 1.7.2:** Doppelte Aufzeichnungen sind ausgeschlossen — der Sync
+läuft am Handy nur noch einzeln, jede PC-Aufzeichnung hat eine eindeutige
+Import-Identität, und der PC räumt eingebettete Doppel-Sessions beim Start auf.
 
 **Neu in 1.1:** Englisch als Standard mit Flaggen-Umschalter (DE/EN) auf jeder
 Seite · Sync-Statuszeile („Handy verbunden — Name“, letzter Sync) · Regeln

@@ -48,6 +48,8 @@ object GoalProgressAnalytics {
     const val TYPE_AT_LEAST = "AT_LEAST"
     const val TYPE_AT_MOST = "AT_MOST"
     const val TYPE_COUNT = "COUNT"
+    /** M36: Zeit-Habit — jede eingetragene Zeit > 0 erfüllt den Tag. */
+    const val TYPE_TIME = "TIME"
 
     const val MODE_AUTO = "AUTO"
     const val MODE_MANUAL = "MANUAL"
@@ -135,6 +137,22 @@ object GoalProgressAnalytics {
     fun isScheduledOn(goal: Goal, date: LocalDate): Boolean =
         (scheduleMask(goal) and weekdayBit(date.dayOfWeek)) != 0
 
+    /**
+     * M36: Fälligkeit eines Habits inklusive Erstellungsdatum. Vor dem
+     * Anlegen des Habits ist nichts fällig — sonst zeigte der 30-Tage-Pager
+     * rückwirkend rote „verpasste" Tage und erlaubte Check-ins davor.
+     */
+    fun habitCreatedDate(
+        goal: Goal,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): LocalDate = java.time.Instant.ofEpochMilli(goal.startAt).atZone(zoneId).toLocalDate()
+
+    fun isHabitScheduledOn(
+        goal: Goal,
+        date: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): Boolean = !date.isBefore(habitCreatedDate(goal, zoneId)) && isScheduledOn(goal, date)
+
     fun periodHasScheduledDay(goal: Goal, start: LocalDate, endExclusive: LocalDate): Boolean {
         var d = start
         while (d.isBefore(endExclusive)) {
@@ -164,6 +182,14 @@ object GoalProgressAnalytics {
         checkins: List<GoalCheckin> = emptyList(),
         todoCompletions: List<TodoCompletion> = emptyList()
     ): GoalProgressResult {
+        // M36: Die drei Habit-Arten laufen komplett über Check-ins. Die
+        // alten AUTO-Quellen (Sessions, Bildschirmzeit, Aufgaben) werden
+        // dafür gar nicht erst angefasst.
+        val kind = kindOf(goal)
+        if (kind != Goal.KIND_LEGACY) {
+            return evaluateHabit(goal, kind, checkins, anchorDate, zoneId)
+        }
+
         val merged = com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
             .merge(
                 sessions = sessions,
@@ -274,6 +300,169 @@ object GoalProgressAnalytics {
     }
 
     /**
+     * M36: Die effektive Habit-Art eines Ziels.
+     *
+     * Neue Ziele tragen `kind` explizit. Bestandsziele aus M20/M35 haben
+     * `kind = LEGACY`; sie werden hier nur für die ANZEIGE sinnvoll
+     * zugeordnet, damit der Editor und die Karten wissen, was sie vor sich
+     * haben. Die Auswertung selbst bleibt für LEGACY die alte.
+     */
+    fun kindOf(goal: Goal): String {
+        return when (goal.kind) {
+            Goal.KIND_DONE, Goal.KIND_COUNT, Goal.KIND_TIME -> goal.kind
+            else -> Goal.KIND_LEGACY
+        }
+    }
+
+    /** M36: Ist das Ziel ein neuer Habit (DONE/COUNT/TIME)? */
+    fun isHabit(goal: Goal): Boolean = kindOf(goal) != Goal.KIND_LEGACY
+
+    /**
+     * M36: Auswertung eines Habits — ausschließlich aus Check-ins.
+     *
+     * DONE  : erfüllt, sobald an dem Tag mindestens ein Check-in existiert.
+     * COUNT : erfüllt, sobald die Summe der Check-ins den Zielwert erreicht.
+     * TIME  : erfüllt, sobald an dem Tag irgendeine Zeit > 0 eingetragen ist.
+     *         („Sobald man eine Zeit eingetragen hat, hat man das Ziel für
+     *         den jeweiligen Tag offensichtlich erreicht.")
+     */
+    private fun evaluateHabit(
+        goal: Goal,
+        kind: String,
+        checkins: List<GoalCheckin>,
+        anchorDate: LocalDate,
+        zoneId: ZoneId
+    ): GoalProgressResult {
+        val history = habitHistory(goal, kind, checkins, anchorDate, zoneId)
+        val current = history.lastOrNull { it.isCurrent } ?: history.last()
+        val target = habitTarget(goal, kind)
+        val isMet = current.met == true
+        val statuses = history.map {
+            PeriodStatus(
+                startDate = it.startDate,
+                value = it.value,
+                met = it.met,
+                due = it.due,
+                isCurrent = it.isCurrent
+            )
+        }
+        val (streakCurrent, streakBest, metCount, dueCount) = streakStats(statuses, includeCurrent = true)
+        val lastCompleted = history.dropLast(1).lastOrNull { it.due }
+        val currentValue = when (kind) {
+            Goal.KIND_TIME -> current.rawValue
+            else -> current.value
+        }
+        val progressValue = when (kind) {
+            Goal.KIND_TIME -> if (current.rawValue > 0f) 1f else 0f
+            else -> current.value
+        }
+
+        return GoalProgressResult(
+            goal = goal,
+            currentValue = currentValue,
+            targetValue = target,
+            progress = (progressValue / target.coerceAtLeast(0.0001f)).coerceAtLeast(0f),
+            periodLabel = periodLabel(goal.period),
+            activityTypeName = null,
+            isMet = isMet,
+            progressText = habitProgressText(kind, current, target),
+            isDueToday = current.due,
+            streakCurrent = streakCurrent,
+            streakBest = streakBest,
+            metPeriods = metCount,
+            duePeriods = dueCount,
+            periodKey = periodKey(goal, anchorDate),
+            isCountType = kind != Goal.KIND_TIME,
+            isMetFinal = isMet,
+            isPendingFinal = false,
+            isCurrentAchieved = isMet,
+            lastCompletedStart = lastCompleted?.startDate,
+            lastCompletedMet = lastCompleted?.met,
+            lastCompletedPeriodKey = lastCompleted?.let { periodKey(goal, it.startDate) },
+            celebrationEligible = isMet,
+            celebrationPeriodKey = periodKey(goal, anchorDate),
+            celebrationPeriodLabel = periodLabel(goal.period),
+            celebrationStreak = streakCurrent
+        )
+    }
+
+    /** Tages-Verlauf eines Habits über [HISTORY_DAYS] Tage (älteste zuerst). */
+    private fun habitHistory(
+        goal: Goal,
+        kind: String,
+        checkins: List<GoalCheckin>,
+        anchorDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): List<HabitDay> {
+        val countByDay = HashMap<LocalDate, Int>()
+        val msByDay = HashMap<LocalDate, Long>()
+        checkins.forEach { c ->
+            val date = parseDate(c.dateKey) ?: return@forEach
+            countByDay[date] = (countByDay[date] ?: 0) + c.count
+            msByDay[date] = (msByDay[date] ?: 0L) + c.durationMs
+        }
+        val target = habitTarget(goal, kind)
+        val result = ArrayList<HabitDay>(HISTORY_DAYS)
+        for (offset in (HISTORY_DAYS - 1) downTo 0) {
+            val date = anchorDate.minusDays(offset.toLong())
+            val count = countByDay[date] ?: 0
+            val ms = msByDay[date] ?: 0L
+            val rawValue = when (kind) {
+                Goal.KIND_TIME -> ms / 1000f
+                else -> count.toFloat()
+            }
+            val value = when (kind) {
+                Goal.KIND_TIME -> if (ms > 0L) 1f else 0f
+                else -> count.toFloat()
+            }
+            val due = isHabitScheduledOn(goal, date, zoneId)
+            val met = if (!due) null else when (kind) {
+                Goal.KIND_DONE -> count > 0
+                Goal.KIND_COUNT -> count >= target
+                else -> ms > 0L
+            }
+            result += HabitDay(
+                startDate = date,
+                value = value,
+                rawValue = rawValue,
+                met = met,
+                due = due,
+                isCurrent = date == anchorDate
+            )
+        }
+        return result
+    }
+
+    private fun habitTarget(goal: Goal, kind: String): Float = when (kind) {
+        Goal.KIND_COUNT -> goal.targetValue.coerceAtLeast(1f)
+        else -> 1f
+    }
+
+    private fun habitProgressText(kind: String, day: HabitDay, target: Float): String = when (kind) {
+        Goal.KIND_DONE -> if (day.met == true) "✓" else "–"
+        Goal.KIND_COUNT -> "${day.rawValue.toInt()} / ${target.toInt()}"
+        else -> if (day.rawValue > 0f) formatClock(day.rawValue.toLong()) else "0:00"
+    }
+
+    /** Sekunden als Uhrzeit: „12:34" bzw. „1:02:03". */
+    fun formatClock(totalSeconds: Long): String {
+        val seconds = totalSeconds.coerceAtLeast(0L)
+        val h = seconds / 3600
+        val m = (seconds % 3600) / 60
+        val s = seconds % 60
+        return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+    }
+
+    private data class HabitDay(
+        val startDate: LocalDate,
+        val value: Float,
+        val rawValue: Float,
+        val met: Boolean?,
+        val due: Boolean,
+        val isCurrent: Boolean
+    )
+
+    /**
      * Kompletter Perioden-Verlauf (älteste zuerst, bis einschließlich der
      * aktuellen Periode) — Grundlage für Streak-Anzeige, Balken-Diagramm
      * und Heatmap im Detail-Screen.
@@ -287,6 +476,19 @@ object GoalProgressAnalytics {
         checkins: List<GoalCheckin> = emptyList(),
         todoCompletions: List<TodoCompletion> = emptyList()
     ): List<PeriodStatus> {
+        // M36: Habits liefern ihren Tages-Verlauf direkt aus den Check-ins.
+        val kind = kindOf(goal)
+        if (kind != Goal.KIND_LEGACY) {
+            return habitHistory(goal, kind, checkins, anchorDate, zoneId).map { d ->
+                PeriodStatus(
+                    startDate = d.startDate,
+                    value = d.value,
+                    met = d.met,
+                    due = d.due,
+                    isCurrent = d.isCurrent
+                )
+            }
+        }
         val merged = com.d_drostes_apps.aevum.domain.digital.StatisticsSessionSource
             .merge(sessions, balanceMsPerDay, zoneId)
         return buildHistoryInternal(goal, merged, checkins, todoCompletions, anchorDate, zoneId)

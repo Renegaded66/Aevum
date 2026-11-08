@@ -275,8 +275,8 @@ android {
         // M35.1: Die Fahrt-Activity-Auswahl sitzt direkt neben dem
         //  Fahrt-Schalter; die Fahrt-Activity heißt sprachübergreifend
         //  „Fahrt“/„Trip“ statt „Autofahren“/„Driving“.
-        versionCode = 57
-        versionName = "1.0.56"
+        versionCode = 58
+        versionName = "1.0.57"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

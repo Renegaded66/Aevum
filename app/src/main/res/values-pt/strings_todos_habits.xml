@@ -189,4 +189,47 @@
     <string name="goal_time_skip">Ignorar</string>
     <string name="goal_time_add">+ Tempo</string>
     <string name="goal_time_minutes_short">%1$d min</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Pequenos passos, todos os dias</string>
+    <string name="goal_tracker_today">Hoje</string>
+    <string name="goal_tracker_yesterday">Ontem</string>
+    <string name="goal_tracker_hero_label">O TEU DIA</string>
+    <string name="goal_tracker_hero_title">%1$d de %2$d feitos</string>
+    <string name="goal_tracker_free_title">Dia livre</string>
+    <string name="goal_tracker_free_text">Hoje não há nenhum hábito. Aproveita.</string>
+    <string name="goal_tracker_perfect_title">Dia perfeito</string>
+    <string name="goal_tracker_perfect_all_done">Tudo feito — mantém a sequência.</string>
+    <string name="goal_tracker_perfect_streak">%1$d dias perfeitos seguidos</string>
+    <string name="goal_tracker_streak_short">Sequência de %1$d dias</string>
+    <string name="goal_tracker_not_due">Hoje não é necessário</string>
+    <string name="goal_tracker_retro">Registo retroativo</string>
+    <string name="goal_tracker_empty_message">Cria o teu primeiro hábito: marca, conta ou regista tempo.</string>
+    <string name="goal_tracker_legacy">Outros objetivos</string>
+    <string name="goal_tracker_legacy_hint">Do sistema antigo — abre e converte no editor.</string>
+    <string name="goal_tracker_legacy_notice">Este objetivo vem do sistema antigo. Ao guardar, será convertido num hábito.</string>
+    <string name="goal_tracker_editor_subtitle">Um hábito, uma ação clara. Sem extras opcionais.</string>
+    <string name="goal_tracker_presets">Início rápido</string>
+    <string name="goal_tracker_preset_water">Beber água</string>
+    <string name="goal_tracker_preset_reading">Ler</string>
+    <string name="goal_tracker_preset_meditation">Meditar</string>
+    <string name="goal_tracker_icon">Ícone</string>
+    <string name="goal_tracker_kind_section">Que tipo de objetivo?</string>
+    <string name="goal_kind_done">Marcar</string>
+    <string name="goal_kind_done_title">Só marcar</string>
+    <string name="goal_kind_done_desc">Um toque por dia — feito.</string>
+    <string name="goal_kind_count">Quantidade</string>
+    <string name="goal_kind_count_title">Acumular quantidade</string>
+    <string name="goal_kind_count_desc">p. ex. 8 copos de água — toca para somar.</string>
+    <string name="goal_kind_time">Tempo</string>
+    <string name="goal_kind_time_title">Registar tempo</string>
+    <string name="goal_kind_time_desc">Horas, minutos, segundos — qualquer tempo conta como feito.</string>
+    <string name="goal_tracker_count_label">Quantas vezes por dia?</string>
+    <string name="goal_tracker_count_hint">Cada toque soma um. Ao atingir o objetivo, o dia está feito.</string>
+    <string name="goal_tracker_add_count">+1</string>
+    <string name="goal_tracker_schedule_hint">O hábito só é devido nestes dias.</string>
+    <string name="goal_tracker_preview">O teu hábito</string>
+    <string name="goal_time_hours">Horas</string>
+    <string name="goal_time_minutes">Minutos</string>
+    <string name="goal_time_seconds">Segundos</string>
 </resources>

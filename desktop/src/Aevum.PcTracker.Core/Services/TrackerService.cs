@@ -52,6 +52,13 @@ public sealed class TrackerService : IDisposable
     private long _lastCatalogWriteMs;
     private string? _lastCatalogKey;
 
+    /// <summary>
+    /// PC 1.7.2 (M36): Der Timer darf keinen zweiten Tick starten, solange
+    /// der vorherige noch läuft. Zwei parallele Ticks konnten die Engine
+    /// (nicht thread-safe) verwirren und denselben Zeitraum doppelt anlegen.
+    /// </summary>
+    private int _ticking;
+
     /// <summary>Wird nach jedem Tick ausgelöst (UI aktualisiert die Live-Anzeige).</summary>
     public event Action? StateChanged;
 
@@ -94,6 +101,7 @@ public sealed class TrackerService : IDisposable
     public void Start()
     {
         _store.RepairOpenSessions();
+        _store.MergeOverlappingSessions();
         _timer ??= new Timer(_ => TickSafe(), null, 0, TickIntervalMs);
     }
 
@@ -194,6 +202,11 @@ public sealed class TrackerService : IDisposable
 
     private void TickSafe()
     {
+        if (Interlocked.Exchange(ref _ticking, 1) == 1)
+        {
+            // Vorheriger Tick läuft noch — diesen auslassen.
+            return;
+        }
         try
         {
             Tick();
@@ -201,6 +214,10 @@ public sealed class TrackerService : IDisposable
         catch
         {
             // Ein Fehler in einem Tick darf den Dienst nie beenden.
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _ticking, 0);
         }
     }
 

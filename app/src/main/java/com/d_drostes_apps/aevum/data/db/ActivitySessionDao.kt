@@ -111,7 +111,10 @@ interface ActivitySessionDao {
     // PC-Tracker: Batch-Lookup für idempotente Syncs (keine Schema-Änderung,
     // nur eine Query). Liefert alle bereits importierten Sessions zu den
     // angegebenen external_ids in einem Rutsch.
-    @Query("SELECT * FROM activity_session WHERE external_id IN (:externalIds) AND deleted_at IS NULL")
+    // M36: bewusst INKLUSIVE soft-gelöschter Zeilen. Sonst würde ein
+    // gelöschter PC-Import beim nächsten Sync erneut eingefügt und am
+    // UNIQUE-Index auf external_id scheitern.
+    @Query("SELECT * FROM activity_session WHERE external_id IN (:externalIds)")
     suspend fun getByExternalIdsOnce(externalIds: List<String>): List<ActivitySession>
 
     @Query("SELECT * FROM activity_session WHERE supersedes_session_id = :id AND deleted_at IS NULL")
@@ -119,6 +122,10 @@ interface ActivitySessionDao {
 
     @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND source_type = :sourceType ORDER BY start_at DESC")
     fun getBySourceType(sourceType: String): Flow<List<ActivitySession>>
+
+    /** M36: Einmaliger Abruf aller Sessions einer Quelle (Duplikat-Aufräumen). */
+    @Query("SELECT * FROM activity_session WHERE deleted_at IS NULL AND source_type = :sourceType ORDER BY start_at")
+    suspend fun getBySourceTypeOnce(sourceType: String): List<ActivitySession>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(session: ActivitySession)

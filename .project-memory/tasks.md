@@ -228,3 +228,14 @@
       größere Zeilen + Details-Dialog für Trigger/Termine; Kalender-Prognose nur
       zukünftig; Sucht-Detektor inkl. aktuellem Tag + Refresh beim Öffnen.
       Tests/Build siehe `docs/M28-ABSCHLUSSBERICHT.md`.
+
+- [x] M36 (App 1.0.57, vc 58, DB v53): Ziele als Habit-Tracker — drei Arten
+      DONE/COUNT/TIME, Drei-Räder-Zeitdialog (h/m/s), 30-Tage-Pager mit
+      Nachträgen, Hero-Ring/Streaks/Perfekter-Tag-Konfetti/Emoji-Icons;
+      Alt-Ziele bleiben als LEGACY sichtbar. PC-Duplikate: Sync-Mutex,
+      `id = externalId`, UNIQUE `activity_session.external_id`, Migrations-
+      Aufräumen, `PcSessionDeduper`; Desktop 1.7.2 mit Tick-Reentry-Schutz,
+      `COALESCE(end_at)` und `MergeOverlappingSessions()`. 1514 Android-Tests
+      (0 Fehler, 1 skipped) + 165 Desktop-Tests. Bericht
+      `docs/M36-ABSCHLUSSBERICHT.md`.
+

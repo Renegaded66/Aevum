@@ -200,4 +200,47 @@
     <string name="goal_time_skip">Atla</string>
     <string name="goal_time_add">+ Süre</string>
     <string name="goal_time_minutes_short">%1$d dk</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Her gün küçük adımlar</string>
+    <string name="goal_tracker_today">Bugün</string>
+    <string name="goal_tracker_yesterday">Dün</string>
+    <string name="goal_tracker_hero_label">GÜNÜN</string>
+    <string name="goal_tracker_hero_title">%1$d / %2$d tamamlandı</string>
+    <string name="goal_tracker_free_title">Serbest gün</string>
+    <string name="goal_tracker_free_text">Bugün hiçbir alışkanlık yok. Keyfini çıkar.</string>
+    <string name="goal_tracker_perfect_title">Mükemmel gün</string>
+    <string name="goal_tracker_perfect_all_done">Hepsi tamam — seriyi sürdür.</string>
+    <string name="goal_tracker_perfect_streak">Üst üste %1$d mükemmel gün</string>
+    <string name="goal_tracker_streak_short">%1$d günlük seri</string>
+    <string name="goal_tracker_not_due">Bugün gerekli değil</string>
+    <string name="goal_tracker_retro">Geçmişe ekle</string>
+    <string name="goal_tracker_empty_message">İlk alışkanlığını oluştur: işaretle, say veya süre gir.</string>
+    <string name="goal_tracker_legacy">Diğer hedefler</string>
+    <string name="goal_tracker_legacy_hint">Eski sistemden — aç ve düzenleyicide dönüştür.</string>
+    <string name="goal_tracker_legacy_notice">Bu hedef eski sistemden. Kaydedince alışkanlığa dönüşecek.</string>
+    <string name="goal_tracker_editor_subtitle">Bir alışkanlık, net bir eylem. İsteğe bağlı ek yok.</string>
+    <string name="goal_tracker_presets">Hızlı başlangıç</string>
+    <string name="goal_tracker_preset_water">Su iç</string>
+    <string name="goal_tracker_preset_reading">Oku</string>
+    <string name="goal_tracker_preset_meditation">Meditasyon yap</string>
+    <string name="goal_tracker_icon">Simge</string>
+    <string name="goal_tracker_kind_section">Ne tür bir hedef?</string>
+    <string name="goal_kind_done">İşaretle</string>
+    <string name="goal_kind_done_title">Sadece işaretle</string>
+    <string name="goal_kind_done_desc">Günde bir dokunuş — tamam.</string>
+    <string name="goal_kind_count">Sayı</string>
+    <string name="goal_kind_count_title">Sayı biriktir</string>
+    <string name="goal_kind_count_desc">örn. 8 bardak su — eklemek için dokun.</string>
+    <string name="goal_kind_time">Süre</string>
+    <string name="goal_kind_time_title">Süre gir</string>
+    <string name="goal_kind_time_desc">Saat, dakika, saniye — her süre günü tamamlar.</string>
+    <string name="goal_tracker_count_label">Günde kaç kez?</string>
+    <string name="goal_tracker_count_hint">Her dokunuş bir ekler. Hedefe ulaşınca gün tamam.</string>
+    <string name="goal_tracker_add_count">+1</string>
+    <string name="goal_tracker_schedule_hint">Alışkanlık sadece bu günlerde geçerli.</string>
+    <string name="goal_tracker_preview">Alışkanlığın</string>
+    <string name="goal_time_hours">Saat</string>
+    <string name="goal_time_minutes">Dakika</string>
+    <string name="goal_time_seconds">Saniye</string>
 </resources>

@@ -10,6 +10,8 @@ import com.d_drostes_apps.aevum.data.pc.PcTrackerClient
 import com.d_drostes_apps.aevum.data.pc.PcTrackerPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.io.IOException
 import javax.inject.Inject
@@ -62,6 +64,15 @@ class PcTrackerRepository @Inject constructor(
     private val _connection = MutableStateFlow(prefs.load())
     val connection: StateFlow<PcTrackerPrefs.StoredConnection?> = _connection
 
+    /**
+     * M36: Nur EIN Sync gleichzeitig. Vorher konnten der periodische Worker,
+     * der App-Öffnen-Kick und der manuelle Knopf parallel laufen: Beide holten
+     * denselben PC-Stand, sahen „noch nicht importiert" und legten zwei Kopien
+     * an (20–21 und 20–22). Das Serialisieren behebt die Ursache; die
+     * Datensicherung (deterministische ID + Unique-Index) bleibt zusätzlich.
+     */
+    private val syncMutex = Mutex()
+
     suspend fun discover(): List<DiscoveredPc> = discovery.discover()
 
     suspend fun pair(host: String, port: Int, code: String, clientName: String): PairOutcome {
@@ -104,9 +115,9 @@ class PcTrackerRepository @Inject constructor(
         }
     }
 
-    suspend fun syncNow(): SyncOutcome {
-        val connection = _connection.value ?: return SyncOutcome.NotConnected
-        return try {
+    suspend fun syncNow(): SyncOutcome = syncMutex.withLock {
+        val connection = _connection.value ?: return@withLock SyncOutcome.NotConnected
+        return@withLock try {
             // 1) Aktivitäten der App zum PC spiegeln (Grundlage fürs Regel-Dropdown).
             //    Bewusst best effort: Scheitert nur dieser Nebenweg (z. B. sehr alte
             //    PC-Version), läuft der Session-Sync trotzdem — der nächste Sync
@@ -141,7 +152,8 @@ class PcTrackerRepository @Inject constructor(
             )
             val result = importer.import(
                 deviceName = response.deviceName.ifBlank { connection.deviceName },
-                sessions = response.sessions
+                sessions = response.sessions,
+                deviceId = response.deviceId.ifBlank { connection.deviceId }
             )
             prefs.saveLastSync(response.serverTime)
             _connection.value = connection.copy(lastSyncAt = response.serverTime)

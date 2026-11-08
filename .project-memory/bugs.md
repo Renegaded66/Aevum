@@ -32,3 +32,17 @@ Hauptrisiken:
 - M28 behoben: Nutzungszugriff galt beim ersten Öffnen als „nicht erteilt"
   (`queryUsageStats` in 1-s-Fenster ohne Event). Fix: AppOps-Check in
   `UsageStatsCollector.hasPermission`.
+
+- M36 behoben: Eine PC-Aufzeichnung wurde doppelt importiert (z. B. 20–21 und
+  20–22). Ursache: parallele `syncNow()`-Läufe (periodischer Worker,
+  App-Öffnen-Kick, manueller Knopf) lasen denselben Stand und legten zwei
+  Zeilen mit zufälligen UUIDs an. Fix: Sync-Mutex, `id = externalId`,
+  UNIQUE `activity_session.external_id` (DB v53) + Migrations-Aufräumen,
+  `PcSessionDeduper` nach jedem Import, Desktop-Tick-Reentry-Schutz,
+  `COALESCE(end_at)` und `MergeOverlappingSessions()` beim PC-Start.
+- M36 behoben: Ziele waren ein Formular mit AUTO/MANUAL, Quellen, Zeitraum,
+  Einheit, Typ und „optionaler" Zeit. Fix: drei Habit-Arten DONE/COUNT/TIME,
+  Drei-Räder-Zeitdialog, Tages-Pager mit Nachträgen, Dopamin-UI; Alt-Ziele
+  bleiben als LEGACY sichtbar. Kein Geräte-/Emulator-Durchklick möglich —
+  Verifikation über Compile, 1514 Unit-Tests und Schema-/Migrations-Guards.
+

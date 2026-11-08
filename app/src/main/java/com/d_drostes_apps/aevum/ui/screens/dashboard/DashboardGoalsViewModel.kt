@@ -184,32 +184,66 @@ class DashboardGoalsViewModel @Inject constructor(
     fun checkIn(goalId: String) {
         viewModelScope.launch {
             val goal = goalRepository.getById(goalId).first() ?: return@launch
-            val activityName = goal.activityTypeId?.let { typeId ->
-                activityTypeRepository.getById(typeId).first()?.name
-            }
-            val checkin = GoalCheckin(
-                id = UUID.randomUUID().toString(),
-                goalId = goalId,
-                timestampMs = System.currentTimeMillis(),
-                dateKey = LocalDate.now(zoneId).toString(),
-                activityTypeId = goal.activityTypeId
-            )
-            goalRepository.addCheckin(checkin)
-            if (goal.activityTypeId != null) {
+            val kind = GoalProgressAnalytics.kindOf(goal)
+            val todayKey = LocalDate.now(zoneId).toString()
+            val existing = goalRepository.getCheckinsForGoal(goalId).first()
+                .filter { it.dateKey == todayKey }
+            if (kind == Goal.KIND_TIME) {
+                val time = existing.filter { it.durationMs > 0L }.maxByOrNull { it.durationMs }
                 _timePrompt.value = GoalTimePrompt(
                     goalId = goalId,
-                    checkinId = checkin.id,
+                    checkinId = time?.id,
                     goalTitle = goal.title,
-                    activityName = activityName
+                    dateKey = todayKey,
+                    initialSeconds = (time?.durationMs ?: 0L) / 1000L
                 )
+                return@launch
             }
+            if (kind == Goal.KIND_DONE && existing.isNotEmpty()) return@launch
+            goalRepository.addCheckin(
+                GoalCheckin(
+                    id = UUID.randomUUID().toString(),
+                    goalId = goalId,
+                    timestampMs = System.currentTimeMillis(),
+                    dateKey = todayKey,
+                    activityTypeId = null
+                )
+            )
         }
     }
 
-    fun confirmTimePrompt(minutes: Int) {
+    fun confirmTimePrompt(seconds: Int) {
         val prompt = _timePrompt.value ?: return
         viewModelScope.launch {
-            goalRepository.setCheckinDuration(prompt.checkinId, minutes.toLong() * 60_000L)
+            val goal = goalRepository.getById(prompt.goalId).first() ?: return@launch
+            val date = runCatching { LocalDate.parse(prompt.dateKey) }.getOrDefault(today)
+            if (seconds <= 0) {
+                goalRepository.getCheckinsForGoal(goal.id).first()
+                    .filter { it.dateKey == prompt.dateKey }
+                    .forEach { goalRepository.removeCheckin(it.id) }
+            } else {
+                val existing = goalRepository.getCheckinsForGoal(goal.id).first()
+                    .filter { it.dateKey == prompt.dateKey }
+                val target = prompt.checkinId?.let { id -> existing.firstOrNull { it.id == id } }
+                if (target != null) {
+                    goalRepository.setCheckinDuration(target.id, seconds * 1000L)
+                    existing.filter { it.id != target.id }
+                        .forEach { goalRepository.removeCheckin(it.id) }
+                } else {
+                    existing.forEach { goalRepository.removeCheckin(it.id) }
+                    goalRepository.addCheckin(
+                        GoalCheckin(
+                            id = UUID.randomUUID().toString(),
+                            goalId = goal.id,
+                            timestampMs = date.atTime(java.time.LocalTime.now())
+                                .atZone(zoneId).toInstant().toEpochMilli(),
+                            dateKey = prompt.dateKey,
+                            count = 1,
+                            durationMs = seconds * 1000L
+                        )
+                    )
+                }
+            }
             _timePrompt.value = null
         }
     }
@@ -217,7 +251,9 @@ class DashboardGoalsViewModel @Inject constructor(
     fun removeTimeFromPrompt() {
         val prompt = _timePrompt.value ?: return
         viewModelScope.launch {
-            goalRepository.setCheckinDuration(prompt.checkinId, 0L)
+            goalRepository.getCheckinsForGoal(prompt.goalId).first()
+                .filter { it.dateKey == prompt.dateKey }
+                .forEach { goalRepository.removeCheckin(it.id) }
             _timePrompt.value = null
         }
     }

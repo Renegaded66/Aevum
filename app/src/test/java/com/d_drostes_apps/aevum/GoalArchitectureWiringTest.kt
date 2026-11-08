@@ -73,6 +73,8 @@ class GoalArchitectureWiringTest {
         assertThat(database).contains("MIGRATION_50_51")
         // M35: v52 — Check-in-Zeitgutschrift + wählbare Fahrt-Aktivität.
         assertThat(database).contains("MIGRATION_51_52")
+        // M36: v53 — Habit-Arten + eindeutige Import-Identität.
+        assertThat(database).contains("MIGRATION_52_53")
         assertThat(database).contains("goalCheckinDao()")
 
         // M28: EINE Migrationsliste für Produktion und Tests — der DI-Modul
@@ -95,7 +97,10 @@ class GoalArchitectureWiringTest {
         assertThat(viewModel).contains("maybeEmitCelebration")
         assertThat(viewModel).contains("celebrationStore.shouldCelebrate")
         assertThat(viewModel).contains("fun checkIn(")
-        assertThat(viewModel).contains("fun undoLastCheckin(")
+        assertThat(viewModel).contains("fun undo(")
+        // M36: Perfekter Tag als eigener Dopamin-Moment.
+        assertThat(viewModel).contains("maybeEmitPerfectDay")
+        assertThat(viewModel).contains("perfectDay = true")
     }
 
     @Test
@@ -115,17 +120,23 @@ class GoalArchitectureWiringTest {
     }
 
     @Test
-    fun `Editor - Vorlagen-und-Auto-Manuell-Umschaltung-sind-da`() {
+    fun `Editor bietet genau die drei Habit-Arten`() {
         val editor = main("ui/screens/goals/GoalEditorScreen.kt")
-        assertThat(editor).contains("goal_presets")
+        assertThat(editor).contains("goal_tracker_presets")
+        assertThat(editor).contains("goal_kind_done_title")
+        assertThat(editor).contains("goal_kind_count_title")
+        assertThat(editor).contains("goal_kind_time_title")
         assertThat(editor).contains("GoalWeekdayPills")
         assertThat(editor).contains("GoalAccentPicker")
 
         val viewModel = main("ui/screens/goals/GoalEditorViewModel.kt")
         assertThat(viewModel).contains("fun applyPreset(")
-        assertThat(viewModel).contains("GoalPreset.DIGITAL_DAILY")
-        assertThat(viewModel).contains("GoalPreset.LEARNING_WEEKDAYS")
-        assertThat(viewModel).contains("GoalPreset.TASK_COUNT_WEEKDAYS")
-        assertThat(viewModel).contains("fun setTrackingMode(")
+        assertThat(viewModel).contains("HabitPreset.WATER")
+        assertThat(viewModel).contains("HabitPreset.READING")
+        assertThat(viewModel).contains("HabitPreset.MEDITATION")
+        assertThat(viewModel).contains("fun setKind(")
+        // Nichts mehr mit optionaler Aktivität/Zeitgutschrift.
+        assertThat(editor).doesNotContain("goal_manual_activity")
+        assertThat(viewModel).doesNotContain("activityTypeId = form.activityTypeId")
     }
 }

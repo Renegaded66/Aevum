@@ -239,3 +239,23 @@ App 1.0.32 (versionCode 33), DB **v45**.
   `filterPlannedToFuture`/`filterPlannedWeekToFuture` (Tages-/Wochen-/Listen-
   ansicht). `AddictionAnalytics.currentWindow` (inkl. heute),
   `AddictionDetectorPage(isActive)`.
+
+## M36 — Habit-Tracker & PC-Import-Idempotenz (08.11.2026)
+
+**Ziele** sind jetzt ein tagesbasierter Habit-Tracker. `goal.kind` steuert
+genau drei Arten: `DONE` (abhaken), `COUNT` (Zielwert sammeln), `TIME`
+(Zeit eintragen; jede Zeit > 0 erfüllt den Tag). `goal.icon` ist das Emoji.
+`GoalProgressAnalytics.kindOf()`/`isHabit()` trennen neue Habits von
+`LEGACY`-Zielen aus M20/M35; `evaluateHabit()` und `habitHistory()` werten
+ausschließlich `goal_checkin` aus (DONE = count>0, COUNT = count>=target,
+TIME = duration_ms>0). Der Editor (`GoalEditorScreen`/`-ViewModel`) bietet nur
+noch Titel, Icon, Art, Anzahl, Wochentage und Farbe. `GoalsScreen` ist ein
+`HorizontalPager` über 30 Tage mit Tagesleiste, Hero-Ring, Perfekter-Tag-
+Feier, Schimmer, Haptik; `HabitTimePickerDialog` hat drei schnappende
+Räder (h/m/s). Das Dashboard hakt DONE/COUNT direkt ab, TIME öffnet den
+Dialog. PC-Import: `PcTrackerRepository.syncNow()` läuft unter `Mutex`,
+neue Zeilen bekommen `id = externalId`, `activity_session.external_id` ist
+UNIQUE (DB v53), `PcSessionDeduper` führt eingebettete PC-Aufzeichnungen
+zusammen. Desktop 1.7.2: Tick-Reentry-Schutz, `COALESCE(end_at)` und
+`SessionStore.MergeOverlappingSessions()` beim Start.
+

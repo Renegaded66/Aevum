@@ -14,7 +14,7 @@ import com.d_drostes_apps.aevum.data.model.*
  * Companion-Konstanten in der @Database-Annotation nicht zuverlässig
  * als Konstante auswertet (FIR/KAPT: „Unresolved reference SCHEMA_VERSION").
  */
-const val APP_DATABASE_VERSION = 52
+const val APP_DATABASE_VERSION = 53
 
 @Database(
     entities = [
@@ -1959,6 +1959,92 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * M36: v52 → v53 — Habit-Tracker und eindeutige Import-Identität.
+         *
+         * 1) `goal.kind` + `goal.icon`: drei klare Ziel-Arten (DONE/COUNT/TIME)
+         *    statt AUTO/MANUAL, Quellen, Einheiten und „optionaler" Zeit.
+         *    Bestandsziele werden sinnvoll zugeordnet (manuelle Ziele mit
+         *    Zeitgutschrift → TIME, Anzahl > 1 → COUNT, sonst DONE); reine
+         *    AUTO-Ziele bleiben LEGACY und werden unverändert ausgewertet.
+         * 2) `activity_session.external_id` wird UNIQUE. Zwei parallele
+         *    PC-Syncs konnten bisher dieselbe Aufzeichnung doppelt anlegen.
+         *    Vor dem Index werden Bestands-Duplikate entfernt (die neueste,
+         *    nicht gelöschte Zeile je externalId bleibt).
+         */
+        val MIGRATION_52_53 = object : Migration(52, 53) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE goal ADD COLUMN kind TEXT NOT NULL DEFAULT 'LEGACY'"
+                )
+                database.execSQL("ALTER TABLE goal ADD COLUMN icon TEXT")
+
+                // Manuelle Ziele mit bereits gutgeschriebener Zeit sind
+                // Zeit-Habits — unabhängig davon, ob M35 die Einheit COUNT
+                // nannte (dort war die Zeit „optional").
+                database.execSQL(
+                    """
+                    UPDATE goal SET kind = 'TIME'
+                    WHERE tracking_mode = 'MANUAL' AND period = 'DAILY' AND EXISTS (
+                        SELECT 1 FROM goal_checkin c
+                        WHERE c.goal_id = goal.id AND c.duration_ms > 0
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    UPDATE goal SET kind = CASE
+                        WHEN tracking_mode = 'MANUAL' AND period = 'DAILY'
+                             AND (target_unit = 'COUNT' OR type = 'COUNT')
+                             AND target_value > 1 THEN 'COUNT'
+                        WHEN tracking_mode = 'MANUAL' AND period = 'DAILY' THEN 'DONE'
+                        ELSE 'LEGACY'
+                    END
+                    WHERE kind = 'LEGACY'
+                    """.trimIndent()
+                )
+
+                // Leere externe IDs würden den UNIQUE-Index sprengen.
+                database.execSQL(
+                    "UPDATE activity_session SET external_id = NULL WHERE external_id = ''"
+                )
+                // Bestands-Duplikate: je external_id bleibt die beste Zeile
+                // (nicht gelöscht vor gelöscht, dann neueste, dann höchste ID).
+                // Bewusst ohne Window-Funktionen — Android-SQLite auf API 29
+                // kennt sie nicht zuverlässig.
+                database.execSQL(
+                    """
+                    DELETE FROM activity_session
+                    WHERE external_id IS NOT NULL
+                      AND EXISTS (
+                        SELECT 1 FROM activity_session s2
+                        WHERE s2.external_id = activity_session.external_id
+                          AND (
+                            (CASE WHEN s2.deleted_at IS NULL THEN 0 ELSE 1 END)
+                              < (CASE WHEN activity_session.deleted_at IS NULL THEN 0 ELSE 1 END)
+                            OR (
+                              (CASE WHEN s2.deleted_at IS NULL THEN 0 ELSE 1 END)
+                                = (CASE WHEN activity_session.deleted_at IS NULL THEN 0 ELSE 1 END)
+                              AND s2.created_at > activity_session.created_at
+                            )
+                            OR (
+                              (CASE WHEN s2.deleted_at IS NULL THEN 0 ELSE 1 END)
+                                = (CASE WHEN activity_session.deleted_at IS NULL THEN 0 ELSE 1 END)
+                              AND s2.created_at = activity_session.created_at
+                              AND s2.id > activity_session.id
+                            )
+                          )
+                      )
+                    """.trimIndent()
+                )
+                database.execSQL("DROP INDEX IF EXISTS `index_activity_session_external_id`")
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_activity_session_external_id` " +
+                        "ON `activity_session` (`external_id`)"
+                )
+            }
+        }
+
+        /**
          * M28: ALLE Migrationen in Reihenfolge — EINE Quelle für die
          * Produktions-DI und für die Migrationstests.
          *
@@ -1982,7 +2068,7 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
             MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45,
             MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49,
-            MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52
+            MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53
         )
     }
 }

@@ -5,7 +5,6 @@ import com.d_drostes_apps.aevum.data.db.ActivityTypeDao
 import com.d_drostes_apps.aevum.data.model.ActivitySession
 import com.d_drostes_apps.aevum.data.model.ActivityType
 import kotlinx.coroutines.flow.first
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,12 +28,15 @@ class PcSessionImporter @Inject constructor(
         val inserted: Int,
         val updated: Int,
         val skippedUserEdited: Int,
-        val createdTypes: List<String>
+        val createdTypes: List<String>,
+        /** M36: doppelt importierte, überlappende PC-Zeilen, die aufgeräumt wurden. */
+        val mergedDuplicates: Int = 0
     )
 
     suspend fun import(
         deviceName: String,
         sessions: List<PcTrackerClient.PcSession>,
+        deviceId: String = "",
         now: Long = System.currentTimeMillis()
     ): Result {
         if (sessions.isEmpty()) {
@@ -65,11 +67,23 @@ class PcSessionImporter @Inject constructor(
             val description = describe(session, deviceName)
             val timezone = session.timezoneId.ifBlank { "UTC" }
 
-            val existing = existingByExternal[externalId]?.firstOrNull()
-            if (existing == null) {
+            // Bei soft-gelöschten Zeilen bleibt die Löschung bestehen (der
+            // Nutzer hat die Aufzeichnung bewusst entfernt); der UNIQUE-Index
+            // auf external_id verhindert sonst ein erneutes Einfügen.
+            val existing = existingByExternal[externalId]
+                ?.firstOrNull { it.deletedAt == null }
+                ?: existingByExternal[externalId]?.firstOrNull()
+            if (existing != null && existing.deletedAt != null) {
+                skipped++
+            } else if (existing == null) {
                 sessionDao.insert(
                     ActivitySession(
-                        id = UUID.randomUUID().toString(),
+                        // M36: Die lokale ID wird aus der externen Identität
+                        // abgeleitet. Damit ist der Import auch bei zwei
+                        // gleichzeitigen Sync-Läufen eindeutig: Beide schreiben
+                        // dieselbe Primärschlüssel-Zeile (REPLACE) statt zweier
+                        // Kopien mit zufälligen UUIDs.
+                        id = externalId,
                         title = title,
                         categoryId = type.defaultCategoryId,
                         activityTypeId = type.id,
@@ -80,6 +94,7 @@ class PcSessionImporter @Inject constructor(
                         sourceType = SOURCE_TYPE,
                         createdBy = CREATED_BY,
                         externalId = externalId,
+                        originDeviceId = deviceId.ifBlank { null },
                         confidence = 1.0f,
                         isUserEdited = false,
                         createdAt = now,
@@ -101,6 +116,7 @@ class PcSessionImporter @Inject constructor(
                         endAt = session.endAt,
                         timezoneId = timezone,
                         description = description,
+                        originDeviceId = deviceId.ifBlank { existing.originDeviceId },
                         updatedBy = CREATED_BY,
                         updatedAt = now,
                         revision = existing.revision + 1
@@ -110,7 +126,28 @@ class PcSessionImporter @Inject constructor(
             }
         }
 
-        return Result(inserted, updated, skipped, createdNames.toList())
+        // M36: Bestands-Duplikate (aus der Zeit vor der Unique-ID bzw. aus
+        // parallelen Sync-Läufen) sofort mit aufräumen. Die Aufräum-Logik
+        // löscht nur PC-eigene, nicht nutzerbearbeitete, ineinanderliegende
+        // Zeilen — nie eine echte, aufeinanderfolgende Aufzeichnung.
+        val merged = dedupeStoredSessions()
+
+        return Result(inserted, updated, skipped, createdNames.toList(), merged)
+    }
+
+    /**
+     * Räumt doppelte PC-Zeilen in der Datenbank auf. Idempotent und billig:
+     * läuft nach jedem Import; ohne Duplikate wird nichts gelöscht.
+     */
+    suspend fun dedupeStoredSessions(): Int {
+        val stored = sessionDao.getBySourceTypeOnce(SOURCE_TYPE)
+        if (stored.size < 2) return 0
+        val duplicates = PcSessionDeduper.duplicatesToDelete(stored)
+        if (duplicates.isEmpty()) return 0
+        duplicates.map { it.id }.chunked(400).forEach { chunk ->
+            sessionDao.hardDeleteByIds(chunk)
+        }
+        return duplicates.size
     }
 
     /**

@@ -115,7 +115,9 @@ public sealed class SessionStore : IDisposable
                 cmd.CommandText = """
                     INSERT INTO sessions (id, program_key, program_name, activity_key, start_at, end_at, last_seen_at, timezone_id, created_at)
                     VALUES ($id, $pk, $pn, $ak, $sa, $ea, $ls, $tz, $ca)
-                    ON CONFLICT(id) DO UPDATE SET end_at = excluded.end_at, last_seen_at = excluded.last_seen_at
+                    ON CONFLICT(id) DO UPDATE SET
+                      end_at = COALESCE(excluded.end_at, sessions.end_at),
+                      last_seen_at = excluded.last_seen_at
                     """;
                 cmd.Parameters.AddWithValue("$id", s.Id);
                 cmd.Parameters.AddWithValue("$pk", s.ProgramKey);
@@ -148,6 +150,78 @@ public sealed class SessionStore : IDisposable
                 WHERE end_at IS NULL
                 """;
             return cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>
+    /// PC 1.7.2 (M36): Räumt doppelt gespeicherte Aufzeichnungen auf.
+    ///
+    /// Zwei parallele Tracker-Ticks (oder ein Timer-Reentry) konnten denselben
+    /// Zeitraum mit zwei verschiedenen GUIDs anlegen — Devon sah dann
+    /// „20–21" und „20–22" gleichzeitig. Innerhalb einer Aktivität bleibt die
+    /// längere Aufzeichnung; die kürzere, vollständig enthaltene Zeile wird
+    /// gelöscht. Aufeinanderfolgende Sessions (auch mit kurzer Pause) bleiben
+    /// unberührt, weil sie sich nicht enthalten.
+    /// </summary>
+    public int MergeOverlappingSessions()
+    {
+        const long toleranceMs = 120_000;
+        return WithDb(conn =>
+        {
+            var all = new List<TrackedSession>();
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT id, program_key, program_name, activity_key, start_at, end_at, last_seen_at, timezone_id, created_at
+                    FROM sessions
+                    WHERE end_at IS NOT NULL
+                    ORDER BY start_at ASC
+                    """;
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    all.Add(ReadSession(reader));
+                }
+            }
+
+            var deleteIds = new List<string>();
+            foreach (var group in all.GroupBy(s => s.ActivityKey, StringComparer.OrdinalIgnoreCase))
+            {
+                var kept = new List<TrackedSession>();
+                foreach (var s in group
+                    .OrderByDescending(x => (x.EndAtMs ?? 0) - x.StartAtMs)
+                    .ThenByDescending(x => x.CreatedAtMs))
+                {
+                    var end = s.EndAtMs ?? 0;
+                    var contained = kept.Any(k =>
+                        s.StartAtMs >= k.StartAtMs - toleranceMs &&
+                        end <= (k.EndAtMs ?? 0) + toleranceMs);
+                    if (contained)
+                    {
+                        deleteIds.Add(s.Id);
+                    }
+                    else
+                    {
+                        kept.Add(s);
+                    }
+                }
+            }
+
+            if (deleteIds.Count == 0)
+            {
+                return 0;
+            }
+            using var tx = conn.BeginTransaction();
+            foreach (var id in deleteIds)
+            {
+                using var del = conn.CreateCommand();
+                del.Transaction = tx;
+                del.CommandText = "DELETE FROM sessions WHERE id = $id AND end_at IS NOT NULL";
+                del.Parameters.AddWithValue("$id", id);
+                del.ExecuteNonQuery();
+            }
+            tx.Commit();
+            return deleteIds.Count;
         });
     }
 

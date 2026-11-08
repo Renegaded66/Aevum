@@ -39,3 +39,8 @@ Siehe `docs/ROADMAP.md`.
       „Einstellungen bleiben erhalten“ (%APPDATA%-Daten, robocopy ohne
       /PURGE). Bericht `docs/PC-TRACKER-1.4-ABSCHLUSSBERICHT.md`,
       Protokoll §5e.
+- [x] M36: Ziele als Habit-Tracker (DONE/COUNT/TIME, Drei-Räder-Zeit,
+      30-Tage-Swipe, Nachträge, Perfekter-Tag-Konfetti) + PC-Duplikat-Fix
+      (Sync-Mutex, deterministische ID, UNIQUE external_id, Deduper,
+      Desktop 1.7.2). App 1.0.57 / vc 58 / DB 53.
+

@@ -80,6 +80,8 @@ class PcSessionImporterTest {
         assertThat(rows).hasSize(1)
         val row = rows.first()
         assertThat(row.externalId).isEqualTo("pc_s1")
+        // M36: deterministische lokale ID aus der externen Identität.
+        assertThat(row.id).isEqualTo("pc_s1")
         assertThat(row.sourceType).isEqualTo("PC_TRACKER")
         assertThat(row.title).isEqualTo("Zocken")
         assertThat(row.description).isEqualTo("Minecraft")
@@ -147,5 +149,38 @@ class PcSessionImporterTest {
         val result = importer.import("Devons-PC", emptyList())
         assertThat(result.inserted).isEqualTo(0)
         assertThat(result.createdTypes).isEmpty()
+    }
+
+    @Test
+    fun `soft geloeschte PC-Session wird nicht wiederbelebt`() = runTest {
+        importer.import("Devons-PC", listOf(pcSession("s1", end = 2_000)))
+        val row = db.activitySessionDao().getByExternalIdsOnce(listOf("pc_s1")).first()
+        db.activitySessionDao().update(row.copy(deletedAt = 123_456L))
+
+        // Früher hätte der Importer die Zeile nicht gesehen, eine neue mit
+        // derselben external_id eingefügt und am UNIQUE-Index gecrasht.
+        val second = importer.import("Devons-PC", listOf(pcSession("s1", end = 3_000)))
+
+        assertThat(second.inserted).isEqualTo(0)
+        val after = db.activitySessionDao().getByExternalIdsOnce(listOf("pc_s1"))
+        assertThat(after).hasSize(1)
+        assertThat(after.first().deletedAt).isEqualTo(123_456L)
+        assertThat(after.first().endAt).isEqualTo(2_000)
+    }
+
+    @Test
+    fun `zwei parallele Importe derselben Aufzeichnung werden zusammengefuehrt`() = runTest {
+        // Sync A sieht die Session bis 21:00, Sync B wenig später bis 22:00.
+        importer.import("Devons-PC", listOf(pcSession("s1", start = 1_000, end = 2_000)))
+        val second = importer.import(
+            "Devons-PC",
+            listOf(pcSession("s2", start = 1_000, end = 3_000))
+        )
+
+        assertThat(second.mergedDuplicates).isEqualTo(1)
+        val rows = db.activitySessionDao().getBySourceTypeOnce("PC_TRACKER")
+        assertThat(rows).hasSize(1)
+        assertThat(rows.first().externalId).isEqualTo("pc_s2")
+        assertThat(rows.first().endAt).isEqualTo(3_000)
     }
 }

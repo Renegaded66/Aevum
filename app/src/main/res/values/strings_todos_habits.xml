@@ -200,4 +200,47 @@
     <string name="goal_time_skip">Skip</string>
     <string name="goal_time_add">+ Time</string>
     <string name="goal_time_minutes_short">%1$d min</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Small steps, every day</string>
+    <string name="goal_tracker_today">Today</string>
+    <string name="goal_tracker_yesterday">Yesterday</string>
+    <string name="goal_tracker_hero_label">YOUR DAY</string>
+    <string name="goal_tracker_hero_title">%1$d of %2$d done</string>
+    <string name="goal_tracker_free_title">Free day</string>
+    <string name="goal_tracker_free_text">No habit is due today. Enjoy it.</string>
+    <string name="goal_tracker_perfect_title">Perfect day</string>
+    <string name="goal_tracker_perfect_all_done">Every habit done — keep the streak alive.</string>
+    <string name="goal_tracker_perfect_streak">%1$d perfect days in a row</string>
+    <string name="goal_tracker_streak_short">%1$d day streak</string>
+    <string name="goal_tracker_not_due">Not due today</string>
+    <string name="goal_tracker_retro">Backfill</string>
+    <string name="goal_tracker_empty_message">Create your first habit: just check it off, count it, or log time.</string>
+    <string name="goal_tracker_legacy">Other goals</string>
+    <string name="goal_tracker_legacy_hint">From the old goal system — tap to open, convert in the editor.</string>
+    <string name="goal_tracker_legacy_notice">This goal comes from the old goal system. Saving turns it into a habit.</string>
+    <string name="goal_tracker_editor_subtitle">One habit, one clear action. No optional extras.</string>
+    <string name="goal_tracker_presets">Quick start</string>
+    <string name="goal_tracker_preset_water">Drink water</string>
+    <string name="goal_tracker_preset_reading">Read</string>
+    <string name="goal_tracker_preset_meditation">Meditate</string>
+    <string name="goal_tracker_icon">Icon</string>
+    <string name="goal_tracker_kind_section">What kind of goal?</string>
+    <string name="goal_kind_done">Check off</string>
+    <string name="goal_kind_done_title">Just check off</string>
+    <string name="goal_kind_done_desc">One tap per day — done.</string>
+    <string name="goal_kind_count">Count</string>
+    <string name="goal_kind_count_title">Collect a count</string>
+    <string name="goal_kind_count_desc">e.g. 8 glasses of water — tap to add.</string>
+    <string name="goal_kind_time">Time</string>
+    <string name="goal_kind_time_title">Log time</string>
+    <string name="goal_kind_time_desc">Hours, minutes, seconds — any time counts as done.</string>
+    <string name="goal_tracker_count_label">How many per day?</string>
+    <string name="goal_tracker_count_hint">Each tap adds one. When the target is reached, the day is done.</string>
+    <string name="goal_tracker_add_count">+1 count</string>
+    <string name="goal_tracker_schedule_hint">Only on these days is the habit due.</string>
+    <string name="goal_tracker_preview">Your habit</string>
+    <string name="goal_time_hours">Hours</string>
+    <string name="goal_time_minutes">Minutes</string>
+    <string name="goal_time_seconds">Seconds</string>
 </resources>

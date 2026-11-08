@@ -200,4 +200,47 @@
     <string name="goal_time_skip">Überspringen</string>
     <string name="goal_time_add">+ Zeit</string>
     <string name="goal_time_minutes_short">%1$d min</string>
+
+    <!-- M36: Habit-Tracker (abhaken / Anzahl / Zeit, Tages-Swipe) -->
+    <string name="goal_tracker_subtitle">Kleine Schritte, jeden Tag</string>
+    <string name="goal_tracker_today">Heute</string>
+    <string name="goal_tracker_yesterday">Gestern</string>
+    <string name="goal_tracker_hero_label">DEIN TAG</string>
+    <string name="goal_tracker_hero_title">%1$d von %2$d erledigt</string>
+    <string name="goal_tracker_free_title">Ruhetag</string>
+    <string name="goal_tracker_free_text">Heute ist kein Habit fällig. Genieß es.</string>
+    <string name="goal_tracker_perfect_title">Perfekter Tag</string>
+    <string name="goal_tracker_perfect_all_done">Alles geschafft — halte die Serie am Leben.</string>
+    <string name="goal_tracker_perfect_streak">%1$d perfekte Tage in Folge</string>
+    <string name="goal_tracker_streak_short">%1$d Tage Serie</string>
+    <string name="goal_tracker_not_due">Heute nicht fällig</string>
+    <string name="goal_tracker_retro">Nachtrag</string>
+    <string name="goal_tracker_empty_message">Lege dein erstes Habit an: abhaken, zählen oder Zeit eintragen.</string>
+    <string name="goal_tracker_legacy">Weitere Ziele</string>
+    <string name="goal_tracker_legacy_hint">Aus der alten Ziel-Architektur — antippen, im Editor umwandeln.</string>
+    <string name="goal_tracker_legacy_notice">Dieses Ziel stammt aus der alten Ziel-Architektur. Beim Speichern wird es in ein Habit umgewandelt.</string>
+    <string name="goal_tracker_editor_subtitle">Ein Habit, eine klare Aktion. Nichts Optionales.</string>
+    <string name="goal_tracker_presets">Schnellstart</string>
+    <string name="goal_tracker_preset_water">Wasser trinken</string>
+    <string name="goal_tracker_preset_reading">Lesen</string>
+    <string name="goal_tracker_preset_meditation">Meditieren</string>
+    <string name="goal_tracker_icon">Symbol</string>
+    <string name="goal_tracker_kind_section">Was für ein Ziel?</string>
+    <string name="goal_kind_done">Abhaken</string>
+    <string name="goal_kind_done_title">Einfach abhaken</string>
+    <string name="goal_kind_done_desc">Ein Tap pro Tag — fertig.</string>
+    <string name="goal_kind_count">Anzahl</string>
+    <string name="goal_kind_count_title">Anzahl sammeln</string>
+    <string name="goal_kind_count_desc">z. B. 8 Gläser Wasser — tippen zum Zählen.</string>
+    <string name="goal_kind_time">Zeit</string>
+    <string name="goal_kind_time_title">Zeit eintragen</string>
+    <string name="goal_kind_time_desc">Stunden, Minuten, Sekunden — jede Zeit erfüllt den Tag.</string>
+    <string name="goal_tracker_count_label">Wie oft pro Tag?</string>
+    <string name="goal_tracker_count_hint">Jeder Tap zählt eins. Ist der Zielwert erreicht, ist der Tag geschafft.</string>
+    <string name="goal_tracker_add_count">+1 zählen</string>
+    <string name="goal_tracker_schedule_hint">Nur an diesen Tagen ist das Habit fällig.</string>
+    <string name="goal_tracker_preview">Dein Habit</string>
+    <string name="goal_time_hours">Stunden</string>
+    <string name="goal_time_minutes">Minuten</string>
+    <string name="goal_time_seconds">Sekunden</string>
 </resources>

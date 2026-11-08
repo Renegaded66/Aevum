@@ -433,3 +433,18 @@ Zeit; Modus und Auswahl werden persistiert, damit sie einen App-Neustart
 
 **Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
 Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.
+
+## M36 — Habit-Tracker & PC-Duplikat-Fix
+
+**Status:** Abgeschlossen (App 1.0.57, versionCode 58, DB v53). Bericht
+`docs/M36-ABSCHLUSSBERICHT.md`.
+
+**Ziel:** Ziele werden ein tagesbasierter Habit-Tracker mit genau drei Arten
+(Erledigen / Anzahl / Zeit), Drei-Räder-Zeiteingabe, Tages-Swipe und
+nachträglichen Check-ins. Gleichzeitig wird der PC-Tracker-Import so
+abgesichert, dass eine Aufzeichnung nie mehr doppelt (20–21 und 20–22) auf
+dem Handy landet.
+
+**Definition of Done:** Unit-Tests grün, Debug-APK kanonisch signiert,
+Abschlussbericht mit Messwerten, Doku + Vault aktualisiert, Commit gepusht.
+

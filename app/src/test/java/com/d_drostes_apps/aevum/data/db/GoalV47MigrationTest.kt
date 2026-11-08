@@ -178,18 +178,18 @@ class GoalV47MigrationTest {
     }
 
     @Test
-    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-aktuelle-Version-52`() {
+    fun `nach-der-Migration-fuehrt-Room-die-Datenbank-als-aktuelle-Version-53`() {
         createVersion46Database()
         migrate()
 
         val db = opened!!.openHelper.writableDatabase
         db.query("PRAGMA user_version").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            assertThat(cursor.getInt(0)).isEqualTo(52)
+            assertThat(cursor.getInt(0)).isEqualTo(53)
         }
         db.query("SELECT identity_hash FROM room_master_table WHERE id = 42").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
-            val expected = JSONObject(schemaFile(52).readText())
+            val expected = JSONObject(schemaFile(53).readText())
                 .getJSONObject("database").getString("identityHash")
             assertThat(cursor.getString(0)).isEqualTo(expected)
         }
