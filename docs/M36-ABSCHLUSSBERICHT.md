@@ -4,7 +4,7 @@
 **App:** Aevum 1.0.57 (versionCode 58, Debug `1.0.57-debug`)
 **Datenbank:** v53
 **PC-Tracker:** 1.7.2 (win-x64)
-**Commit:** `2c1504e`
+**Commit:** `2166c6b`
 
 ---
 
@@ -385,7 +385,7 @@ die Pager-/Tagesleisten-Interaktion.
 - **PC-Tracker:**
   `http://192.168.178.40:8098/AevumPcTracker-1.7.2-win-x64.zip`
   (57.510.980 Bytes, SHA-256 `4efad93e…dedf2dc1`).
-- **Quellcode:** Commit `2c1504e` (gepusht).
+- **Quellcode:** Commit `2166c6b` (gepusht).
 
 ---
 
