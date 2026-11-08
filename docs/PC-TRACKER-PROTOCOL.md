@@ -455,7 +455,17 @@ der PC baut nie eine Verbindung zum Handy auf.
   (und in den App-Prefs).
 - **external_id der Session:** `"pc_<Session-UUID des PCs>"`.
   Gleiche externalId = gleicher Datensatz → **UPDATE statt INSERT** (idempotent,
-  wiederholter Sync erzeugt keine Duplikate).
+  wiederholter Sync erzeugt keine Duplikate). Seit M36 ist zusätzlich die
+  lokale `id` deterministisch `= externalId`; zwei parallele Schreiber landen
+  damit auf derselben Primärschlüssel-Zeile. `activity_session.external_id`
+  ist UNIQUE (DB v53).
+- **Serialisierung:** `PcTrackerRepository.syncNow()` läuft unter einem
+  `Mutex` — periodischer Worker, App-Öffnen-Kick und manueller Knopf können
+  nicht mehr gleichzeitig denselben Stand importieren.
+- **Überlappungs-Heilung:** `PcSessionDeduper` führt nach jedem Import
+  eingebettete PC-Aufzeichnungen zusammen (20–21 ⊂ 20–22 → nur 20–22 bleibt).
+  Aufeinanderfolgende Sessions, offene Sessions und `isUserEdited` bleiben
+  unangetastet. Soft-gelöschte PC-Zeilen bleiben gelöscht (kein Re-Import).
 - **Zuordnung Aktivität → ActivityType:** 1) existierender ActivityType mit
   gleichem Namen (case-insensitive), 2) existierender Typ mit der stabilen ID
   `"pc_<activityKey>"`, 3) sonst **anlegen** (Name = `activityName`, Kategorie
@@ -469,7 +479,9 @@ der PC baut nie eine Verbindung zum Handy auf.
   bearbeitet hat (`isUserEdited`), wird bei späteren Syncs **nicht** überschrieben.
 - **Cursor:** `lastSyncAt`, mit 1 h Überlappung beim `since`-Wert — Grenzfälle
   sind dank Idempotenz harmlos.
-- **Kein Schema-Update:** Alles nutzt bestehende Tabellen (DB-Version bleibt).
+- **Schema:** DB v53 ergänzt `goal.kind`/`goal.icon` und macht
+  `activity_session.external_id` eindeutig; die Migration räumt vorhandene
+  Duplikate auf (je externalId bleibt die neueste, nicht gelöschte Zeile).
 
 ---
 
